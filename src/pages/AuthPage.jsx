@@ -2,16 +2,18 @@ import { useState } from "react";
 import Login from "../components/Login";
 import Signup from "../components/Signup";
 
-export default function AuthPage() {
+export default function AuthPage({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
 
-  return (
-    <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-8">
-      {isLogin ? (
-        <Login onSwitch={() => setIsLogin(false)} />
+  return isLogin ? (
+        <Login onSwitch={() => setIsLogin(false)} 
+        onSuccess={(role) => onAuthSuccess(role)} 
+        />
       ) : (
-        <Signup onSwitch={() => setIsLogin(true)} />
-      )}
-    </div>
-  );
+        <Signup onSwitch={() => setIsLogin(true)}
+        onSuccess={(role) => onAuthSuccess(role)} 
+        />
+        
+    
+  );  
 }
