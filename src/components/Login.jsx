@@ -6,6 +6,7 @@ export default function Login({ onSwitch, onSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState("");
 
   const handleLogin = async (e) => {
@@ -28,7 +29,7 @@ export default function Login({ onSwitch, onSuccess }) {
       setMessage(data.message);
 
       if (data.success) {
-        onSuccess(role); // go to dashboard
+        onSuccess(data.user); // go to dashboard
       }
     } catch (err) {
       setMessage("Server error. Check backend.");
@@ -39,7 +40,8 @@ export default function Login({ onSwitch, onSuccess }) {
     <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-[#1e293b] via-[#334155] to-[#669bf0]">
       <div className="w-full max-w-lg bg-white/10 backdrop-blur-xl rounded-2xl p-10 shadow-2xl text-white">
 
-        <h2 className="text-3xl font-bold text-center mb-6">Welcome Back</h2>
+        <h2 className="text-3xl font-bold text-center mb-3">Welcome Back</h2>
+        <p className="text-center text-gray-300 mb-8">Log in below</p>
 
         {message && <p className="text-center text-red-300 mb-2">{message}</p>}
 
@@ -93,7 +95,29 @@ export default function Login({ onSwitch, onSuccess }) {
             </div>
           </div>
 
-          <button type="submit" className="w-full bg-blue-600 py-3 rounded-lg">
+          
+{/* Remember Me & Forgot Password */}
+          <div className="flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="accent-blue-500 w-3.5 h-3.5"
+              />
+              Remember Me
+            </label>
+            <button
+              type="button"
+              className="text-blue-300 hover:underline"
+              onClick={() => alert('Forgot Password clicked!')}
+            >
+              Forgot Password?
+            </button>
+          </div>
+
+
+          <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
             Log In
           </button>
         </form>

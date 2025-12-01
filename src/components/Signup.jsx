@@ -33,11 +33,21 @@ export default function Signup({ onSwitch }) {
         body: JSON.stringify(body),
       });
  
-      if (!res.ok) {
-        const err = await res.json();
-        setMessage(err.detail);
-        return;
-      }
+    if (!res.ok) {
+  const err = await res.json();
+
+  // Handle FastAPI validation error format
+  if (Array.isArray(err.detail)) {
+    setMessage(err.detail[0].msg);  // show only the message
+  } else if (typeof err.detail === "string") {
+    setMessage(err.detail);
+  } else {
+    setMessage("Signup failed");
+  }
+  
+  return;
+}
+
  
       setMessage("Signup successful! You can now log in.");
       setTimeout(() => onSwitch(), 1500); // switch to login
