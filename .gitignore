@@ -1,0 +1,11 @@
+# Ignore RSA private keys for security
+keys/private_key.pem
+keys/*.pem
+.env
+alembic.ini
+migrate.py
+alembic
+.venv
+.vscode
+__pycache__
+static/msgraph_test.html
