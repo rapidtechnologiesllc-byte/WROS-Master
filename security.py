@@ -12,19 +12,24 @@ import os
 ALGORITHM = "RS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
 
-# Load RSA keys from files
-import pathlib
-KEYS_DIR = pathlib.Path(__file__).parent / "keys"
-PRIVATE_KEY_PATH = KEYS_DIR / "private_key.pem"
-PUBLIC_KEY_PATH = KEYS_DIR / "public_key.pem"
+# Load RSA keys from environment variables
+# Note: python-dotenv doesn't process \n escape sequences, so we need to manually convert them
+# Also replace \r\n with \n because PEM format requires Unix line endings
+PRIVATE_KEY = os.getenv("JWT_PRIVATE_KEY", "").replace("\\n", "\n").replace("\r\n", "\n")
+PUBLIC_KEY = os.getenv("JWT_PUBLIC_KEY", "").replace("\\n", "\n").replace("\r\n", "\n")
 
-# Read private key for signing tokens
-with open(PRIVATE_KEY_PATH, "r") as f:
-    PRIVATE_KEY = f.read()
-
-# Read public key for verifying tokens
-with open(PUBLIC_KEY_PATH, "r") as f:
-    PUBLIC_KEY = f.read()
+if not PRIVATE_KEY or not PUBLIC_KEY:
+    # Fallback to local files if environment variables are not set (optional, but good for local dev)
+    import pathlib
+    KEYS_DIR = pathlib.Path(__file__).parent / "keys"
+    PRIVATE_KEY_PATH = KEYS_DIR / "private_key.pem"
+    PUBLIC_KEY_PATH = KEYS_DIR / "public_key.pem"
+    
+    if PRIVATE_KEY_PATH.exists() and PUBLIC_KEY_PATH.exists():
+        with open(PRIVATE_KEY_PATH, "r") as f:
+            PRIVATE_KEY = f.read()
+        with open(PUBLIC_KEY_PATH, "r") as f:
+            PUBLIC_KEY = f.read()
 
 # HTTP Bearer security scheme for JWT
 security = HTTPBearer(
