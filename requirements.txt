@@ -1,19 +1,61 @@
+# ============================================================================
+# Onboarding Module Backend - Production Requirements
+# Python 3.10+
+# ============================================================================
+
 # Core Framework
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+# ----------------------------------------------------------------------------
+fastapi>=0.115.0,<1.0.0          # Modern web framework for building APIs
+uvicorn[standard]>=0.32.0,<1.0.0 # ASGI server with WebSocket support
+pydantic>=2.10.0,<3.0.0          # Data validation using Python type hints
+pydantic-settings>=2.0.0,<3.0.0  # Settings management for Pydantic v2
 
 # Database
-sqlalchemy>=2.0.36
-pyodbc>=5.2.0
-alembic>=1.13.0
-
-# Data Validation
-pydantic>=2.10.0
-email-validator>=2.0.0
+# ----------------------------------------------------------------------------
+sqlalchemy>=2.0.36,<3.0.0        # SQL toolkit and ORM
+pyodbc>=5.2.0,<6.0.0             # ODBC database driver for SQL Server
+alembic>=1.13.0,<2.0.0           # Database migration tool
+greenlet>=3.0.0,<4.0.0           # Required by SQLAlchemy for async support
 
 # Authentication & Security
-PyJWT[crypto]>=2.10.0
-bcrypt>=4.0.0
+# ----------------------------------------------------------------------------
+PyJWT[crypto]>=2.10.0,<3.0.0     # JSON Web Token implementation with RSA support
+bcrypt>=4.0.0,<5.0.0             # Password hashing library
+cryptography>=42.0.0,<43.0.0     # Cryptographic recipes and primitives
+python-multipart>=0.0.6,<1.0.0   # Multipart form data parser (for file uploads)
 
-# Environment Variables
-python-dotenv>=1.0.0
+# Microsoft Integration
+# ----------------------------------------------------------------------------
+msal>=1.24.0,<2.0.0              # Microsoft Authentication Library
+requests>=2.31.0,<3.0.0          # HTTP library for API calls
+
+# Data Validation & Serialization
+# ----------------------------------------------------------------------------
+email-validator>=2.0.0,<3.0.0    # Email validation
+python-dateutil>=2.8.0,<3.0.0    # Extensions to the standard datetime module
+
+# Configuration & Environment
+# ----------------------------------------------------------------------------
+python-dotenv>=1.0.0,<2.0.0      # Read environment variables from .env file
+
+# Production Server & Monitoring
+# ----------------------------------------------------------------------------
+gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uvicorn workers)
+
+
+# ============================================================================
+# Installation Instructions:
+# ============================================================================
+# 
+# For production:
+#   pip install -r requirements.txt
+#
+# For development (with testing tools):
+#   pip install -r requirements.txt
+#   pip install pytest pytest-asyncio httpx pytest-cov
+#
+# For Azure deployment:
+#   Ensure ODBC Driver 17 for SQL Server is available in the runtime
+#   Azure App Service (Linux) includes it by default
+#
+# ============================================================================
