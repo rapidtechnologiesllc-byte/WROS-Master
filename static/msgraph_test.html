@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microsoft Graph API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .auth-section {
+            text-align: center;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .response {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .response.show {
+            display: block;
+        }
+
+        .response pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #333;
+        }
+
+        .status {
+            padding: 8px 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .profile-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .profile-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .profile-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .profile-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .profile-item label {
+            display: block;
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+
+        .profile-item .profile-value {
+            display: block;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Microsoft Graph API Tester</h1>
+            <p>Test your Microsoft Graph integration</p>
+        </div>
+
+        <!-- Authentication Section -->
+        <div class="card auth-section">
+            <h2>1. Authentication</h2>
+            <p style="margin-bottom: 15px;">First, sign in with your Microsoft account</p>
+            <button class="btn" onclick="signIn()">Sign In with Microsoft</button>
+            <button class="btn btn-secondary" onclick="getMe()" style="margin-left: 10px;">Get My Profile</button>
+            <div id="authResponse" class="response"></div>
+        </div>
+
+        <!-- Send Email Section -->
+        <div class="card">
+            <h2>2. Send Email</h2>
+            <form onsubmit="sendEmail(event)">
+                <div class="form-group">
+                    <label for="emailTo">To:</label>
+                    <input type="email" id="emailTo" placeholder="recipient@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="emailSubject">Subject:</label>
+                    <input type="text" id="emailSubject" placeholder="Email subject" required>
+                </div>
+                <div class="form-group">
+                    <label for="emailBody">Message:</label>
+                    <textarea id="emailBody" placeholder="Email body text" required></textarea>
+                </div>
+                <button type="submit" class="btn">Send Email</button>
+            </form>
+            <div id="emailStatus" class="status"></div>
+            <div id="emailResponse" class="response"></div>
+        </div>
+
+        <!-- Schedule Meeting Section -->
+        <div class="card">
+            <h2>3. Schedule Teams Meeting</h2>
+            <form onsubmit="scheduleMeeting(event)">
+                <div class="form-group">
+                    <label for="meetingSubject">Meeting Subject:</label>
+                    <input type="text" id="meetingSubject" placeholder="Team Standup" required>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="meetingStart">Start Time:</label>
+                        <input type="datetime-local" id="meetingStart" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="meetingEnd">End Time:</label>
+                        <input type="datetime-local" id="meetingEnd" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="meetingAttendees">Attendees (comma-separated emails):</label>
+                    <input type="text" id="meetingAttendees" placeholder="user1@example.com, user2@example.com">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="teamsOnline" checked>
+                        Create as Teams Online Meeting
+                    </label>
+                </div>
+                <button type="submit" class="btn">Schedule Meeting</button>
+            </form>
+            <div id="meetingStatus" class="status"></div>
+            <div id="meetingResponse" class="response"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8080/msgraph';
+
+        function signIn() {
+            window.location.href = `${BASE_URL}/auth/signin`;
+        }
+
+        async function getMe() {
+            try {
+                const response = await fetch(`${BASE_URL}/me`);
+                const data = await response.json();
+
+                const responseDiv = document.getElementById('authResponse');
+
+                // Check if response has user object (new format) or is direct user data (old format)
+                const user = data.user || data;
+                const accessToken = data.access_token;
+
+                // Create a beautiful profile card
+                responseDiv.innerHTML = `
+                    <div class="profile-card">
+                        <h3>👤 User Profile ${data.user ? '✅ Registered' : ''}</h3>
+                        <div class="profile-info">
+                            <div class="profile-item">
+                                <label>User ID</label>
+                                <span class="profile-value">${user.id || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>Display Name</label>
+                                <span class="profile-value">${user.display_name || user.displayName || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>Email</label>
+                                <span class="profile-value">${user.email || user.mail || user.userPrincipalName || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>User Type</label>
+                                <span class="profile-value">${user.type || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>Job Title</label>
+                                <span class="profile-value">${user.job_title || user.jobTitle || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>Mobile Phone</label>
+                                <span class="profile-value">${user.mobile_phone || user.mobilePhone || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>Office Location</label>
+                                <span class="profile-value">${user.office_location || user.officeLocation || 'N/A'}</span>
+                            </div>
+                            <div class="profile-item">
+                                <label>Microsoft ID</label>
+                                <span class="profile-value">${user.microsoft_id || 'N/A'}</span>
+                            </div>
+                        </div>
+                        ${accessToken ? `
+                            <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 6px;">
+                                <h4 style="margin-bottom: 10px;">🔑 Access Token</h4>
+                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px; word-break: break-all; font-family: monospace; font-size: 0.85rem;">
+                                    ${accessToken}
+                                </div>
+                                <p style="margin-top: 10px; font-size: 0.9rem; opacity: 0.8;">
+                                    Use this token in the Authorization header: <code>Bearer ${accessToken.substring(0, 20)}...</code>
+                                </p>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                responseDiv.classList.add('show');
+
+                // Store token in localStorage for future API calls
+                if (accessToken) {
+                    localStorage.setItem('access_token', accessToken);
+                    console.log('Access token saved to localStorage');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function sendEmail(event) {
+            event.preventDefault();
+
+            const to = document.getElementById('emailTo').value;
+            const subject = document.getElementById('emailSubject').value;
+            const body = document.getElementById('emailBody').value;
+
+            const statusDiv = document.getElementById('emailStatus');
+            const responseDiv = document.getElementById('emailResponse');
+
+            try {
+                const response = await fetch(`${BASE_URL}/mail/send?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body_text=${encodeURIComponent(body)}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✓ Email sent successfully!';
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Failed to send email';
+                }
+
+                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                responseDiv.classList.add('show');
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Error: ' + error.message;
+            }
+        }
+
+        async function scheduleMeeting(event) {
+            event.preventDefault();
+
+            const subject = document.getElementById('meetingSubject').value;
+            const startTime = new Date(document.getElementById('meetingStart').value).toISOString();
+            const endTime = new Date(document.getElementById('meetingEnd').value).toISOString();
+            const attendeesInput = document.getElementById('meetingAttendees').value;
+            const attendees = attendeesInput ? attendeesInput.split(',').map(e => e.trim()) : [];
+            const teamsOnline = document.getElementById('teamsOnline').checked;
+
+            const statusDiv = document.getElementById('meetingStatus');
+            const responseDiv = document.getElementById('meetingResponse');
+
+            try {
+                const params = new URLSearchParams({
+                    subject: subject,
+                    start_iso: startTime,
+                    end_iso: endTime,
+                    teams_online: teamsOnline
+                });
+
+                attendees.forEach(email => {
+                    params.append('attendees', email);
+                });
+
+                const response = await fetch(`${BASE_URL}/calendar/schedule?${params.toString()}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✓ Meeting scheduled successfully!';
+                    if (data.joinUrl) {
+                        statusDiv.innerHTML += `<br><a href="${data.joinUrl}" target="_blank" style="color: #155724; text-decoration: underline;">Join Teams Meeting</a>`;
+                    }
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Failed to schedule meeting';
+                }
+
+                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                responseDiv.classList.add('show');
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+
+</html>

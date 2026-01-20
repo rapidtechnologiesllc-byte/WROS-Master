@@ -1,11 +1,79 @@
-# Ignore RSA private keys for security
-keys/private_key.pem
-keys/*.pem
-.env
-alembic.ini
-migrate.py
-alembic
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
 .venv
-.vscode
-__pycache__
-static/msgraph_test.html
+
+# Environment Variables
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Alembic
+# Keep alembic/ folder but ignore generated files if needed
+
+# Keys (IMPORTANT: Never commit private keys!)
+keys/private_key.pem
+keys/public_key.pem
+*.pem
+*.key
+
+# Azure
+.azure/
+
+# Temporary files
+*.tmp
+*.bak
+temp/
+tmp/
+
+# OS
+Thumbs.db
+.DS_Store
+
+
+#static/msgraph_test.html
