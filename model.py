@@ -13,7 +13,23 @@ class Users(Base):
     UserPassword = Column(String(200), nullable=False)
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
 
-
+class Jobs(Base):
+    __tablename__ = "jobs"
+    jobID = Column(String(50), primary_key=True, index=True)
+    jobTitle = Column(String(200), nullable=False)
+    jobDescription = Column(Text, nullable=False)
+    jobSkills = Column(Text, nullable=False)
+    jobExperience = Column(String(50), nullable=False)
+    jobLocation = Column(String(50), nullable=False)
+    jobCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
+    companyType = Column(String(50), nullable=False)
+    companyName = Column(String(50), nullable=False)
+    contactPerson = Column(String(100), nullable=True)
+    jobStatus = Column(String(50), nullable=False)
+    noOfPositions = Column(Integer, nullable=False)
+    startDate = Column(Date, nullable=True)
+    endDate = Column(Date, nullable=True)
+    hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=False)
 
 class Candidate(Base):
     __tablename__ = "candidates"
