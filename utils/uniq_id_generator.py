@@ -1,4 +1,6 @@
 import uuid
+from sqlalchemy.orm.strategy_options import _ClassStrategyLoad
+import uuid
 
 def candidate_id_generator() -> str:
     return f"CAN-{uuid.uuid4()}"
@@ -11,3 +13,6 @@ def form_id_generator() -> str:
 
 def generate_password() -> str:
     return f"PASS-{uuid.uuid4()}"   
+
+def job_id_generator() -> str:
+    return f"JOB-{uuid.uuid1()}"

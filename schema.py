@@ -364,3 +364,57 @@ class UserResponse(BaseModel):
 class AllUsersResponse(BaseModel):
     total_users: int
     users: list[UserResponse]
+
+
+# Job Schemas
+class JobCreateRequest(BaseModel):
+    job_title: str
+    job_description: str
+    job_skills: str
+    job_experience: str
+    job_location: str
+    company_type: str
+    company_name: str
+    contact_person: str
+    job_status: str
+    no_of_positions: int
+    start_date: date
+    end_date: date
+
+class JobCreateResponse(BaseModel):
+    job_id: str
+    response: str
+
+class JobResponse(BaseModel):
+    job_id: str
+    job_title: str
+    job_description: str
+    job_skills: str
+    job_experience: str
+    job_location: str
+    job_created_at: datetime
+    company_type: str
+    company_name: str
+    contact_person: str
+    job_status: str
+    no_of_positions: int
+    start_date: date
+    end_date: date
+    hiring_manager_id: str
+
+class AllJobsResponse(BaseModel):
+    total_jobs: int
+    jobs: list[JobResponse]
+
+class GenerateJobDescriptionRequest(BaseModel):
+    job_title: str
+    job_description: str
+    job_experience: str
+    job_location: str
+
+class GenerateJobDescriptionResponse(BaseModel):
+    job_title: str
+    generated_job_description: str
+    job_skills: list[str]
+    job_experience: str
+    job_location: str

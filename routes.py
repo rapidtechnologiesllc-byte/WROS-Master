@@ -96,8 +96,9 @@ def login(request: schema.LoginRequest, db: Session = Depends(get_db)):
     # Create access token
     access_token = create_access_token(
         data={
-            "sub": user.UserID,
-            "type": "user"
+            "sub": user.UserEmail,
+            "type": user.UserRole,
+            "name": user.UserName
         }
     )
     
@@ -1190,3 +1191,133 @@ def get_all_users(
         total_users=len(users_data),
         users=users_data
     )
+
+
+from tools.job_descrption_generator import generate_job_description_with_state
+
+@router.post("/hr/generate_job_description")
+def generate_job_description(
+    request: schema.GenerateJobDescriptionRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Generate job description using AI.
+    
+    Args:
+        request: Job description generation request
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        Job description generation response
+    """
+    from model import Jobs
+    
+    # Generate job description using AI
+    result = generate_job_description_with_state(
+        request.job_title, 
+        request.job_description,  # Using job_skills as the one-liner description
+        request.job_experience, 
+        request.job_location
+    )
+    
+    # Build response - extract the generated_description string from the result
+    return schema.GenerateJobDescriptionResponse(
+        job_title=result['job_title'],
+        generated_job_description=result['generated_description'],
+        job_skills=result['skills_needed'],
+        job_experience=result['experience'],
+        job_location=result['location']
+    )
+
+
+@router.get("/hr/jobs/all", response_model=schema.AllJobsResponse)
+def get_all_jobs(
+    db: Session = Depends(get_db), 
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Get all jobs from the system.
+    
+    Args:
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        AllJobsResponse with list of all jobs and total count
+    """
+    from model import Jobs
+    
+    # Query all jobs from the Jobs table
+    jobs = db.query(Jobs).all()
+    
+    # Build response
+    jobs_data = []
+    for j in jobs:
+        jobs_data.append(schema.JobResponse(
+            job_id=j.jobID,
+            job_title=j.jobTitle,
+            job_description=j.jobDescription,
+            job_skills=j.jobSkills,
+            job_experience=j.jobExperience,
+            job_location=j.jobLocation,
+            job_created_at=j.jobCreatedAt,
+            company_type=j.companyType,
+            company_name=j.companyName,
+            contact_person=j.contactPerson,
+            job_status=j.jobStatus,
+            no_of_positions=j.noOfPositions,
+            start_date=j.startDate,
+            end_date=j.endDate,
+            hiring_manager_id=j.hiringManagerID
+        ))
+    
+    return schema.AllJobsResponse(
+        total_jobs=len(jobs_data),
+        jobs=jobs_data
+    )
+
+
+
+@router.post("/hr/create_job", response_model=schema.JobCreateResponse)
+def create_job(request: schema.JobCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Create a new job posting.
+    
+    Args:
+        request: JobCreateRequest containing job details
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        JobCreateResponse with job_id and success message
+    """
+    # Generate unique job ID
+    from utils.uniq_id_generator import job_id_generator
+    job_id = job_id_generator()
+    from model import Jobs
+    # Create new job
+    job = Jobs(
+        jobID=job_id,
+        jobTitle=request.job_title,
+        jobDescription=request.job_description,
+        jobSkills=request.job_skills,
+        jobExperience=request.job_experience,
+        jobLocation=request.job_location,
+        jobCreatedAt=datetime.now(),
+        companyType=request.company_type,
+        companyName=request.company_name,
+        contactPerson=request.contact_person,
+        jobStatus=request.job_status,
+        noOfPositions=request.no_of_positions,
+        startDate=request.start_date,
+        endDate=request.end_date,
+        hiringManagerID=user.UserID
+    )
+    
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    
+    return schema.JobCreateResponse(job_id=job_id, response="Job created successfully")
