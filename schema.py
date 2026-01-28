@@ -418,3 +418,46 @@ class GenerateJobDescriptionResponse(BaseModel):
     job_skills: list[str]
     job_experience: str
     job_location: str
+
+# Update Schemas
+class JobUpdateRequest(BaseModel):
+    job_title: Optional[str] = None
+    job_description: Optional[str] = None
+    job_skills: Optional[str] = None
+    job_experience: Optional[str] = None
+    job_location: Optional[str] = None
+    company_type: Optional[str] = None
+    company_name: Optional[str] = None
+    contact_person: Optional[str] = None
+    job_status: Optional[str] = None
+    no_of_positions: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+class CandidateUpdateRequest(BaseModel):
+    candidate_first_name: Optional[str] = None
+    candidate_middle_name: Optional[str] = None
+    candidate_last_name: Optional[str] = None
+    candidate_mobile: Optional[str] = None
+    candidate_gender: Optional[str] = None
+    candidate_date_of_birth: Optional[date] = None
+    candidate_source: Optional[str] = None
+    candidate_experience: Optional[str] = None
+    candidate_skills: Optional[str] = None
+    candidate_joining_date: Optional[date] = None
+    candidate_expected_salary: Optional[str] = None
+    candidate_current_salary: Optional[str] = None
+    candidate_current_location: Optional[str] = None
+    assigned_hr_manager_id: Optional[str] = None
+    assigned_report_manager_id: Optional[str] = None
+
+class InterviewUpdateRequest(BaseModel):
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    meeting_link: Optional[str] = None
+    outlook_event_id: Optional[str] = None
+    status: Optional[str] = None
+
+class DeleteResponse(BaseModel):
+    status: str = "Success"
+    message: str

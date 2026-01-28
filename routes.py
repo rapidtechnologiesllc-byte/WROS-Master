@@ -1321,3 +1321,324 @@ def create_job(request: schema.JobCreateRequest, db: Session = Depends(get_db), 
     db.refresh(job)
     
     return schema.JobCreateResponse(job_id=job_id, response="Job created successfully")
+
+
+@router.put("/hr/update_job/{job_id}", response_model=schema.JobResponse)
+def update_job(job_id: str, request: schema.JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Update an existing job posting.
+    
+    Args:
+        job_id: ID of the job to update
+        request: JobUpdateRequest containing fields to update
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        JobResponse with updated job details
+        
+    Raises:
+        HTTPException: If job not found
+    """
+    from model import Jobs
+    
+    # Find the job
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job with ID {job_id} not found"
+        )
+    
+    # Update only provided fields
+    if request.job_title is not None:
+        job.jobTitle = request.job_title
+    if request.job_description is not None:
+        job.jobDescription = request.job_description
+    if request.job_skills is not None:
+        job.jobSkills = request.job_skills
+    if request.job_experience is not None:
+        job.jobExperience = request.job_experience
+    if request.job_location is not None:
+        job.jobLocation = request.job_location
+    if request.company_type is not None:
+        job.companyType = request.company_type
+    if request.company_name is not None:
+        job.companyName = request.company_name
+    if request.contact_person is not None:
+        job.contactPerson = request.contact_person
+    if request.job_status is not None:
+        job.jobStatus = request.job_status
+    if request.no_of_positions is not None:
+        job.noOfPositions = request.no_of_positions
+    if request.start_date is not None:
+        job.startDate = request.start_date
+    if request.end_date is not None:
+        job.endDate = request.end_date
+    
+    db.commit()
+    db.refresh(job)
+    
+    return schema.JobResponse(
+        job_id=job.jobID,
+        job_title=job.jobTitle,
+        job_description=job.jobDescription,
+        job_skills=job.jobSkills,
+        job_experience=job.jobExperience,
+        job_location=job.jobLocation,
+        job_created_at=job.jobCreatedAt,
+        company_type=job.companyType,
+        company_name=job.companyName,
+        contact_person=job.contactPerson,
+        job_status=job.jobStatus,
+        no_of_positions=job.noOfPositions,
+        start_date=job.startDate,
+        end_date=job.endDate,
+        hiring_manager_id=job.hiringManagerID
+    )
+
+
+@router.delete("/hr/delete_job/{job_id}", response_model=schema.DeleteResponse)
+def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Delete a job posting.
+    
+    Args:
+        job_id: ID of the job to delete
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        DeleteResponse with success message
+        
+    Raises:
+        HTTPException: If job not found
+    """
+    from model import Jobs
+    
+    # Find the job
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job with ID {job_id} not found"
+        )
+    
+    db.delete(job)
+    db.commit()
+    
+    return schema.DeleteResponse(
+        status="Success",
+        message=f"Job with ID {job_id} deleted successfully"
+    )
+
+
+@router.put("/hr/update_candidate/{candidate_id}", response_model=schema.CandidateCreateResponse)
+def update_candidate(candidate_id: str, request: schema.CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Update an existing candidate.
+    
+    Args:
+        candidate_id: ID of the candidate to update
+        request: CandidateUpdateRequest containing fields to update
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        CandidateCreateResponse with updated candidate details
+        
+    Raises:
+        HTTPException: If candidate not found
+    """
+    from model import Candidate
+    
+    # Find the candidate
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate with ID {candidate_id} not found"
+        )
+    
+    # Update only provided fields
+    if request.candidate_first_name is not None:
+        candidate.candidateFirstName = request.candidate_first_name
+    if request.candidate_middle_name is not None:
+        candidate.candidateMiddleName = request.candidate_middle_name
+    if request.candidate_last_name is not None:
+        candidate.candidateLastName = request.candidate_last_name
+    if request.candidate_mobile is not None:
+        candidate.candidateMobile = request.candidate_mobile
+    if request.candidate_gender is not None:
+        candidate.candidateGender = request.candidate_gender
+    if request.candidate_date_of_birth is not None:
+        candidate.candidateDateOfBirth = request.candidate_date_of_birth
+    if request.candidate_source is not None:
+        candidate.candidateSource = request.candidate_source
+    if request.candidate_experience is not None:
+        candidate.candidateExperience = request.candidate_experience
+    if request.candidate_skills is not None:
+        candidate.candidateSkills = request.candidate_skills
+    if request.candidate_joining_date is not None:
+        candidate.candidateJoiningDate = request.candidate_joining_date
+    if request.candidate_expected_salary is not None:
+        candidate.candidateExpectedSalary = request.candidate_expected_salary
+    if request.candidate_current_salary is not None:
+        candidate.candidateCurrentSalary = request.candidate_current_salary
+    if request.candidate_current_location is not None:
+        candidate.candidateCurrentLocation = request.candidate_current_location
+    if request.assigned_hr_manager_id is not None:
+        candidate.assignedHRManagerID = request.assigned_hr_manager_id
+    if request.assigned_report_manager_id is not None:
+        candidate.assignedReportManagerID = request.assigned_report_manager_id
+    
+    db.commit()
+    db.refresh(candidate)
+    
+    return schema.CandidateCreateResponse(
+        candidate_id=candidate.candidateID,
+        candidate_is_first_time=candidate.candidateIsFirstTime,
+        candidate_password=candidate.candidatePassword
+    )
+
+
+@router.delete("/hr/delete_candidate/{candidate_id}", response_model=schema.DeleteResponse)
+def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Delete a candidate and all associated records.
+    
+    Args:
+        candidate_id: ID of the candidate to delete
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        DeleteResponse with success message
+        
+    Raises:
+        HTTPException: If candidate not found
+    """
+    from model import (
+        Candidate, CandidateInfoForm, CandidateEducationForm, 
+        CandidateExperienceForm, CandidateAadharForm, CandidatePanForm,
+        CandidateAssignment, Interview
+    )
+    
+    # Find the candidate
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate with ID {candidate_id} not found"
+        )
+    
+    # Delete all associated records
+    db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).delete()
+    db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == candidate_id).delete()
+    db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete()
+    db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID == candidate_id).delete()
+    db.query(CandidatePanForm).filter(CandidatePanForm.candidateID == candidate_id).delete()
+    db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == candidate_id).delete()
+    db.query(Interview).filter(Interview.candidate_id == candidate_id).delete()
+    
+    # Delete the candidate
+    db.delete(candidate)
+    db.commit()
+    
+    return schema.DeleteResponse(
+        status="Success",
+        message=f"Candidate with ID {candidate_id} and all associated records deleted successfully"
+    )
+
+
+@router.put("/hr/update_interview/{interview_id}", response_model=schema.InterviewResponse)
+def update_interview(interview_id: int, request: schema.InterviewUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Update an existing interview.
+    
+    Args:
+        interview_id: ID of the interview to update
+        request: InterviewUpdateRequest containing fields to update
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        InterviewResponse with updated interview details
+        
+    Raises:
+        HTTPException: If interview not found
+    """
+    from model import Interview
+    
+    # Find the interview
+    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    if not interview:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Interview with ID {interview_id} not found"
+        )
+    
+    # Update only provided fields
+    if request.start_time is not None:
+        interview.start_time = request.start_time
+    if request.end_time is not None:
+        interview.end_time = request.end_time
+    if request.meeting_link is not None:
+        interview.meeting_link = request.meeting_link
+    if request.outlook_event_id is not None:
+        interview.outlook_event_id = request.outlook_event_id
+    if request.status is not None:
+        interview.status = request.status
+    
+    db.commit()
+    db.refresh(interview)
+    
+    return schema.InterviewResponse(
+        id=interview.id,
+        panel_id=interview.panel_id,
+        candidate_id=interview.candidate_id,
+        start_time=interview.start_time,
+        end_time=interview.end_time,
+        meeting_link=interview.meeting_link,
+        outlook_event_id=interview.outlook_event_id,
+        status=interview.status
+    )
+
+
+@router.delete("/hr/delete_interview/{interview_id}", response_model=schema.DeleteResponse)
+def delete_interview(interview_id: int, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+    """
+    Delete an interview and all associated feedback.
+    
+    Args:
+        interview_id: ID of the interview to delete
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        DeleteResponse with success message
+        
+    Raises:
+        HTTPException: If interview not found
+    """
+    from model import Interview, InterviewFeedback
+    
+    # Find the interview
+    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    if not interview:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Interview with ID {interview_id} not found"
+        )
+    
+    # Delete all associated feedback
+    db.query(InterviewFeedback).filter(InterviewFeedback.interview_id == interview_id).delete()
+    
+    # Delete the interview
+    db.delete(interview)
+    db.commit()
+    
+    return schema.DeleteResponse(
+        status="Success",
+        message=f"Interview with ID {interview_id} and all associated feedback deleted successfully"
+    )
