@@ -218,6 +218,7 @@ async def get_current_hr_or_admin(
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type")
     
+    user_type = user_type.lower()
     # Accept 'user', 'hr', or 'admin' types
     if not user_id or user_type not in ["user", "hr", "admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
