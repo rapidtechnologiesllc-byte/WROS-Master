@@ -1,15 +1,19 @@
 
 import os
 from urllib.parse import urlencode
-from fastapi import FastAPI, Request, Response, HTTPException, APIRouter, Depends
-from fastapi.responses import RedirectResponse, JSONResponse
+
 from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse, JSONResponse
 import msal
-import requests  # For making direct Graph API calls
-from database import get_db
-from security import create_access_token, get_current_hr_or_admin
-from model import Users
+import requests
 from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.dependencies import get_current_hr_or_admin
+from app.core.security import create_access_token
+from app.models import Users
+
 
 
 
@@ -24,8 +28,7 @@ AUTHORITY = os.getenv("AUTHORITY") or f"https://login.microsoftonline.com/{TENAN
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 SCOPES = os.getenv("SCOPES").split()
 
-
-ms_graph_router= APIRouter()
+router= APIRouter(prefix="/msgraph", tags=["msgraph"])
 
 # Simple in-memory "session" for demo (swap with Redis/DB in production)
 user_tokens = {}
@@ -49,11 +52,11 @@ def _auth_url(state: str = "xyz"):
     }
     return f"{AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}"
 
-@ms_graph_router.get("/auth/signin")
+@router.get("/auth/signin")
 def signin():
     return RedirectResponse(_auth_url())
 
-@ms_graph_router.get("/auth/callback")
+@router.get("/auth/callback")
 def callback(request: Request):
     code = request.query_params.get("code")
     if not code:
@@ -103,7 +106,7 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
     response.raise_for_status()
     return response
 
-@ms_graph_router.get("/me")
+@router.get("/me")
 def me(request: Request, db: Session = Depends(get_db)):
     """
     Get user profile from Microsoft Graph and auto-register in database.
@@ -180,7 +183,7 @@ def _require_account(request: Request) -> str:
     return next(iter(user_tokens.keys()))
 
 # ---------- SEND MAIL ----------
-@ms_graph_router.post("/mail/send")
+@router.post("/mail/send")
 def send_mail(request: Request, to: str, subject: str, body_text: str):
     account_id = _require_account(request)
     token_data = _graph_client_for(account_id)
@@ -207,7 +210,7 @@ def send_mail(request: Request, to: str, subject: str, body_text: str):
     return {"status": "Mail sent"}
 
 # ---------- CREATE MEETING (CALENDAR EVENT) ----------
-@ms_graph_router.post("/calendar/schedule")
+@router.post("/calendar/schedule")
 def schedule_meeting(
     request: Request,
     subject: str,
