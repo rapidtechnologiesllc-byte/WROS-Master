@@ -2,7 +2,7 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy.orm import sessionmaker, Session
 
 load_dotenv()
 # Build the SQL Server connection string
@@ -22,10 +22,6 @@ engine = create_engine(
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base model
-Base = declarative_base()
-
-
 def get_db():
     db = SessionLocal()
     try:
@@ -36,21 +32,21 @@ def get_db():
 
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import
-    from model import Candidate
+    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateEmail == email).first()
 
 def check_user(db: Session, email: str):
     # Import here to avoid circular import
-    from model import Users
+    from app.models import Users
     return db.query(Users).filter(Users.UserEmail == email).first()
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
-    from model import Users
+    from app.models import Users
     return db.query(Users).filter(Users.UserEmail == email).first()
 
 def authenticate_user(db: Session, email: str, password: str):
-    from security import verify_password
+    from app.core.security import verify_password
     user = get_user(db, email)
     if not user:
         return False
@@ -60,7 +56,7 @@ def authenticate_user(db: Session, email: str, password: str):
 
 def get_candidate(db: Session, email: str):
     # Import here to avoid circular import
-    from model import Candidate 
+    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateEmail == email).first()
 
 def hash_candidate_password(password: str) -> str:
@@ -73,7 +69,7 @@ def hash_candidate_password(password: str) -> str:
     Returns:
         str: Hashed password
     """
-    from security import get_password_hash
+    from app.core.security import get_password_hash
     return get_password_hash(password)
 
 def authenticate_candidate(db: Session, email: str, password: str):
@@ -88,7 +84,7 @@ def authenticate_candidate(db: Session, email: str, password: str):
     Returns:
         Candidate object if authentication successful, False otherwise
     """
-    from security import verify_password
+    from app.core.security import verify_password
     candidate = get_candidate(db, email)
     if not candidate:
         return False
@@ -108,6 +104,6 @@ def get_candidate_details_by_id(db: Session, candidate_id: str):
         Candidate object if found, None otherwise
     """
     # Import here to avoid circular import
-    from model import Candidate 
+    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     
