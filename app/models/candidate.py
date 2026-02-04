@@ -25,6 +25,10 @@ class Candidate(Base):
     candidatePassword = Column(String(200), nullable=False)
     candidateIsVerified = Column(Boolean, nullable=True)
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
+    
+    # Relationships
+    documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
+
 
 class CandidateInfoForm(Base):
     __tablename__ = "candidate_forms"

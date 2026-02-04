@@ -36,7 +36,9 @@ from app.schemas.candidate import (
     CandidateEducationForm,
     CandidateExperienceForm,
     CandidateAadharForm,
-    CandidatePanForm
+    CandidatePanForm,
+    EducationRecord,
+    ExperienceRecord
 )
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
 
@@ -519,7 +521,7 @@ def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user
         db.commit()
         db.refresh(existing_form)
         
-        return schema.candidateFormResponse(
+        return candidateFormResponse(
             status="Success",
             message="PAN form updated successfully"
         )
@@ -543,4 +545,523 @@ def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user
             status="Success",
             message="PAN form submitted successfully"
         )
+
+
+# ============================================
+# Enhanced CRUD Operations
+# ============================================
+
+# Individual Education Record Management
+@router.post("/education/add", response_model=candidateFormResponse)
+def add_education_record(
+    request: EducationRecord,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Add a single education record for the authenticated candidate.
+    
+    Args:
+        request: EducationRecord containing education details
+        db: Database session
+        user: Authenticated candidate
+        
+    Returns:
+        candidateFormResponse with success message
+    """
+    new_education = CandidateEducationModel(
+        candidateID=user.candidateID,
+        education_institute=request.education_institute,
+        degree=request.degree,
+        field_of_study=request.field_of_study,
+        starting_year=request.starting_year,
+        year_of_passing=request.year_of_passing,
+        percentage=request.percentage,
+        submittedAt=request.submitted_at,
+        document_is_submitted=request.document_is_submitted
+    )
+    
+    db.add(new_education)
+    db.commit()
+    db.refresh(new_education)
+    
+    return candidateFormResponse(
+        status="Success",
+        message=f"Education record added successfully with ID {new_education.formID}"
+    )
+
+
+@router.put("/education/{education_id}", response_model=candidateFormResponse)
+def update_education_record(
+    education_id: int,
+    request: EducationRecord,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Update a specific education record by ID.
+    
+    Args:
+        education_id: ID of the education record to update
+        request: EducationRecord with updated details
+        db: Database session
+        user: Authenticated candidate
+        
+    Returns:
+        candidateFormResponse with success message
+        
+    Raises:
+        HTTPException: If record not found or doesn't belong to candidate
+    """
+    education_record = db.query(CandidateEducationModel).filter(
+        CandidateEducationModel.formID == education_id,
+        CandidateEducationModel.candidateID == user.candidateID
+    ).first()
+    
+    if not education_record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Education record with ID {education_id} not found"
+        )
+    
+    # Update fields
+    education_record.education_institute = request.education_institute
+    education_record.degree = request.degree
+    education_record.field_of_study = request.field_of_study
+    education_record.starting_year = request.starting_year
+    education_record.year_of_passing = request.year_of_passing
+    education_record.percentage = request.percentage
+    education_record.submittedAt = request.submitted_at
+    education_record.document_is_submitted = request.document_is_submitted
+    
+    db.commit()
+    db.refresh(education_record)
+    
+    return candidateFormResponse(
+        status="Success",
+        message=f"Education record {education_id} updated successfully"
+    )
+
+
+@router.delete("/education/{education_id}", response_model=candidateFormResponse)
+def delete_education_record(
+    education_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Delete a specific education record by ID.
+    
+    Args:
+        education_id: ID of the education record to delete
+        db: Database session
+        user: Authenticated candidate
+        
+    Returns:
+        candidateFormResponse with success message
+        
+    Raises:
+        HTTPException: If record not found or doesn't belong to candidate
+    """
+    education_record = db.query(CandidateEducationModel).filter(
+        CandidateEducationModel.formID == education_id,
+        CandidateEducationModel.candidateID == user.candidateID
+    ).first()
+    
+    if not education_record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Education record with ID {education_id} not found"
+        )
+    
+    db.delete(education_record)
+    db.commit()
+    
+    return candidateFormResponse(
+        status="Success",
+        message=f"Education record {education_id} deleted successfully"
+    )
+
+
+@router.get("/education/list")
+def list_education_records(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Get all education records for the authenticated candidate with IDs.
+    
+    Returns:
+        List of education records with formID included
+    """
+    education_records = db.query(CandidateEducationModel).filter(
+        CandidateEducationModel.candidateID == user.candidateID
+    ).all()
+    
+    return {
+        "status": "Success",
+        "count": len(education_records),
+        "records": [
+            {
+                "formID": edu.formID,
+                "education_institute": edu.education_institute,
+                "degree": edu.degree,
+                "field_of_study": edu.field_of_study,
+                "starting_year": edu.starting_year,
+                "year_of_passing": edu.year_of_passing,
+                "percentage": edu.percentage,
+                "document_is_submitted": edu.document_is_submitted,
+                "submitted_at": edu.submittedAt
+            }
+            for edu in education_records
+        ]
+    }
+
+
+# Individual Experience Record Management
+@router.post("/experience/add", response_model=candidateFormResponse)
+def add_experience_record(
+    request: ExperienceRecord,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Add a single experience record for the authenticated candidate.
+    
+    Args:
+        request: ExperienceRecord containing experience details
+        db: Database session
+        user: Authenticated candidate
+        
+    Returns:
+        candidateFormResponse with success message
+    """
+    new_experience = CandidateExperienceModel(
+        candidateID=user.candidateID,
+        company_name=request.company_name,
+        job_title=request.job_title,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        year_of_experience=request.year_of_experience,
+        submittedAt=request.submitted_at,
+        document_is_submitted=request.document_is_submitted
+    )
+    
+    db.add(new_experience)
+    db.commit()
+    db.refresh(new_experience)
+    
+    return candidateFormResponse(
+        status="Success",
+        message=f"Experience record added successfully with ID {new_experience.formID}"
+    )
+
+
+@router.put("/experience/{experience_id}", response_model=candidateFormResponse)
+def update_experience_record(
+    experience_id: int,
+    request: ExperienceRecord,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Update a specific experience record by ID.
+    
+    Args:
+        experience_id: ID of the experience record to update
+        request: ExperienceRecord with updated details
+        db: Database session
+        user: Authenticated candidate
+        
+    Returns:
+        candidateFormResponse with success message
+        
+    Raises:
+        HTTPException: If record not found or doesn't belong to candidate
+    """
+    experience_record = db.query(CandidateExperienceModel).filter(
+        CandidateExperienceModel.formID == experience_id,
+        CandidateExperienceModel.candidateID == user.candidateID
+    ).first()
+    
+    if not experience_record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Experience record with ID {experience_id} not found"
+        )
+    
+    # Update fields
+    experience_record.company_name = request.company_name
+    experience_record.job_title = request.job_title
+    experience_record.start_date = request.start_date
+    experience_record.end_date = request.end_date
+    experience_record.year_of_experience = request.year_of_experience
+    experience_record.submittedAt = request.submitted_at
+    experience_record.document_is_submitted = request.document_is_submitted
+    
+    db.commit()
+    db.refresh(experience_record)
+    
+    return candidateFormResponse(
+        status="Success",
+        message=f"Experience record {experience_id} updated successfully"
+    )
+
+
+@router.delete("/experience/{experience_id}", response_model=candidateFormResponse)
+def delete_experience_record(
+    experience_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Delete a specific experience record by ID.
+    
+    Args:
+        experience_id: ID of the experience record to delete
+        db: Database session
+        user: Authenticated candidate
+        
+    Returns:
+        candidateFormResponse with success message
+        
+    Raises:
+        HTTPException: If record not found or doesn't belong to candidate
+    """
+    experience_record = db.query(CandidateExperienceModel).filter(
+        CandidateExperienceModel.formID == experience_id,
+        CandidateExperienceModel.candidateID == user.candidateID
+    ).first()
+    
+    if not experience_record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Experience record with ID {experience_id} not found"
+        )
+    
+    db.delete(experience_record)
+    db.commit()
+    
+    return candidateFormResponse(
+        status="Success",
+        message=f"Experience record {experience_id} deleted successfully"
+    )
+
+
+@router.get("/experience/list")
+def list_experience_records(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Get all experience records for the authenticated candidate with IDs.
+    
+    Returns:
+        List of experience records with formID included
+    """
+    experience_records = db.query(CandidateExperienceModel).filter(
+        CandidateExperienceModel.candidateID == user.candidateID
+    ).all()
+    
+    return {
+        "status": "Success",
+        "count": len(experience_records),
+        "records": [
+            {
+                "formID": exp.formID,
+                "company_name": exp.company_name,
+                "job_title": exp.job_title,
+                "start_date": exp.start_date,
+                "end_date": exp.end_date,
+                "year_of_experience": exp.year_of_experience,
+                "document_is_submitted": exp.document_is_submitted,
+                "submitted_at": exp.submittedAt
+            }
+            for exp in experience_records
+        ]
+    }
+
+
+# Individual Form Retrieval
+@router.get("/personal-info", response_model=CandidateInfoResponse)
+def get_personal_info(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Get only the personal info form for the authenticated candidate.
+    
+    Returns:
+        CandidateInfoResponse with personal information
+        
+    Raises:
+        HTTPException: If personal info not found
+    """
+    personal_info = db.query(CandidateInfoModel).filter(
+        CandidateInfoModel.candidateID == user.candidateID
+    ).first()
+    
+    if not personal_info:
+        raise HTTPException(
+            status_code=404,
+            detail="Personal information not found"
+        )
+    
+    return CandidateInfoResponse(
+        position=personal_info.position,
+        department=personal_info.department,
+        dob=personal_info.dob,
+        gender=personal_info.gender,
+        marital_status=personal_info.marital_status,
+        nationality=personal_info.nationality,
+        current_address=personal_info.current_address,
+        permanent_address=personal_info.permanent_address
+    )
+
+
+@router.get("/aadhar", response_model=CandidateAadharResponse)
+def get_aadhar_info(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Get only the Aadhar form for the authenticated candidate.
+    
+    Returns:
+        CandidateAadharResponse with Aadhar information
+        
+    Raises:
+        HTTPException: If Aadhar info not found
+    """
+    aadhar_info = db.query(CandidateAadharModel).filter(
+        CandidateAadharModel.candidateID == user.candidateID
+    ).first()
+    
+    if not aadhar_info:
+        raise HTTPException(
+            status_code=404,
+            detail="Aadhar information not found"
+        )
+    
+    return CandidateAadharResponse(
+        aadhar=aadhar_info.aadhar,
+        name_in_aadhar=aadhar_info.name_in_aadhar,
+        enrollment_number=aadhar_info.enrollment_number,
+        aadhar_is_submitted=aadhar_info.aadhar_is_submitted,
+        is_verified=aadhar_info.is_verified
+    )
+
+
+@router.get("/pan", response_model=CandidatePanResponse)
+def get_pan_info(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Get only the PAN form for the authenticated candidate.
+    
+    Returns:
+        CandidatePanResponse with PAN information
+        
+    Raises:
+        HTTPException: If PAN info not found
+    """
+    pan_info = db.query(CandidatePanModel).filter(
+        CandidatePanModel.candidateID == user.candidateID
+    ).first()
+    
+    if not pan_info:
+        raise HTTPException(
+            status_code=404,
+            detail="PAN information not found"
+        )
+    
+    return CandidatePanResponse(
+        pan=pan_info.pan,
+        name_in_pan=pan_info.name_in_pan,
+        father_name_in_pan=pan_info.father_name_in_pan,
+        pan_is_submitted=pan_info.pan_is_submitted,
+        is_verified=pan_info.is_verified
+    )
+
+
+# Onboarding Status Tracking
+@router.get("/onboarding-status")
+def get_onboarding_status(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_candidate)
+):
+    """
+    Get onboarding completion status for the authenticated candidate.
+    
+    Returns:
+        Detailed status including completion percentage and form-wise status
+    """
+    # Check each form
+    personal_info = db.query(CandidateInfoModel).filter(
+        CandidateInfoModel.candidateID == user.candidateID
+    ).first()
+    
+    education_count = db.query(CandidateEducationModel).filter(
+        CandidateEducationModel.candidateID == user.candidateID
+    ).count()
+    
+    experience_count = db.query(CandidateExperienceModel).filter(
+        CandidateExperienceModel.candidateID == user.candidateID
+    ).count()
+    
+    aadhar_form = db.query(CandidateAadharModel).filter(
+        CandidateAadharModel.candidateID == user.candidateID
+    ).first()
+    
+    pan_form = db.query(CandidatePanModel).filter(
+        CandidatePanModel.candidateID == user.candidateID
+    ).first()
+    
+    # Calculate completion (experience is optional, so total is 4 required forms)
+    forms_completed = 0
+    total_required_forms = 4
+    
+    if personal_info:
+        forms_completed += 1
+    if education_count > 0:
+        forms_completed += 1
+    if aadhar_form:
+        forms_completed += 1
+    if pan_form:
+        forms_completed += 1
+    
+    overall_completion = (forms_completed / total_required_forms) * 100
+    
+    return {
+        "status": "Success",
+        "candidate_id": user.candidateID,
+        "overall_completion": round(overall_completion, 2),
+        "forms_status": {
+            "personal_info": {
+                "completed": personal_info is not None,
+                "required": True
+            },
+            "education": {
+                "completed": education_count > 0,
+                "count": education_count,
+                "required": True
+            },
+            "experience": {
+                "completed": experience_count > 0,
+                "count": experience_count,
+                "required": False
+            },
+            "aadhar": {
+                "completed": aadhar_form is not None,
+                "verified": aadhar_form.is_verified if aadhar_form else False,
+                "required": True
+            },
+            "pan": {
+                "completed": pan_form is not None,
+                "verified": pan_form.is_verified if pan_form else False,
+                "required": True
+            }
+        }
+    }
 
