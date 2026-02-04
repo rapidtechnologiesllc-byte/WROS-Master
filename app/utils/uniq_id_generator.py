@@ -16,3 +16,6 @@ def generate_password() -> str:
 
 def job_id_generator() -> str:
     return f"JOB-{uuid.uuid1()}"
+
+def panel_id_generator() -> str:
+    return f"PANEL-{uuid.uuid1()}"

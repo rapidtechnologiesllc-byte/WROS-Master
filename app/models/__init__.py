@@ -21,6 +21,7 @@ from app.models.candidate import (
     CandidateAadharForm,
     CandidatePanForm
 )
+from app.models.document import CandidateDocument
 
 __all__ = [
     # Base
@@ -40,4 +41,5 @@ __all__ = [
     "CandidateExperienceForm",
     "CandidateAadharForm",
     "CandidatePanForm",
+    "CandidateDocument",
 ]
