@@ -11,6 +11,7 @@ from app.models import (
     Users, Candidate, Interview, InterviewPanel, 
     InterviewFeedback, PanelMember
 )
+from app.utils.uniq_id_generator import panel_id_generator
 from app.schemas.interview import (
     # Panel schemas
     InterviewPanelCreate, InterviewPanelResponse, InterviewPanelWithDetails,

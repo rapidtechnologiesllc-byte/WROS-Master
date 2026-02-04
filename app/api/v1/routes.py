@@ -8,6 +8,7 @@ from app.api.v1.endpoints.candidates import router as candidates_router
 from app.api.v1.endpoints.msgraph import router as msgraph_router
 from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.interviews import router as interviews_router
+from app.api.v1.endpoints.documents import router as documents_router
 
 router = fastapi.APIRouter()
 
@@ -18,3 +19,4 @@ router.include_router(router=onboarding_router)
 router.include_router(router=interviews_router)
 router.include_router(router=candidates_router)
 router.include_router(router=msgraph_router)
+router.include_router(router=documents_router)

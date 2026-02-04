@@ -220,9 +220,28 @@
             <div id="authResponse" class="response"></div>
         </div>
 
+        <!-- SharePoint Connection Test Section -->
+        <div class="card">
+            <h2>2. SharePoint Connection Test</h2>
+            <p style="margin-bottom: 15px;">Test your SharePoint connection and view available folders</p>
+            <button class="btn" onclick="testSharePointConnection()">🔗 Test SharePoint Connection</button>
+            <div id="sharepointStatus" class="status"></div>
+            <div id="sharepointResponse" class="response"></div>
+        </div>
+
+        <!-- SharePoint List Drives Section -->
+        <div class="card">
+            <h2>2.5. SharePoint List Drives (Fix Drive ID)</h2>
+            <p style="margin-bottom: 15px;">List all available drives to find the correct Drive ID for your .env file
+            </p>
+            <button class="btn" onclick="listSharePointDrives()">📋 List All Drives</button>
+            <div id="drivesStatus" class="status"></div>
+            <div id="drivesResponse" class="response"></div>
+        </div>
+
         <!-- Send Email Section -->
         <div class="card">
-            <h2>2. Send Email</h2>
+            <h2>3. Send Email</h2>
             <form onsubmit="sendEmail(event)">
                 <div class="form-group">
                     <label for="emailTo">To:</label>
@@ -244,7 +263,7 @@
 
         <!-- Schedule Meeting Section -->
         <div class="card">
-            <h2>3. Schedule Teams Meeting</h2>
+            <h2>4. Schedule Teams Meeting</h2>
             <form onsubmit="scheduleMeeting(event)">
                 <div class="form-group">
                     <label for="meetingSubject">Meeting Subject:</label>
@@ -274,6 +293,116 @@
             </form>
             <div id="meetingStatus" class="status"></div>
             <div id="meetingResponse" class="response"></div>
+        </div>
+
+        <!-- View Calendar Meetings Section -->
+        <div class="card">
+            <h2>5. View My Calendar Meetings</h2>
+            <p style="margin-bottom: 15px;">View your upcoming calendar events and meetings</p>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="eventsLimit">Number of events:</label>
+                    <input type="number" id="eventsLimit" value="10" min="1" max="100">
+                </div>
+                <div class="form-group">
+                    <label for="eventsSkip">Skip (for pagination):</label>
+                    <input type="number" id="eventsSkip" value="0" min="0">
+                </div>
+            </div>
+            <button class="btn" onclick="getMyMeetings()">📅 Get My Meetings</button>
+            <div id="calendarStatus" class="status"></div>
+            <div id="calendarResponse" class="response"></div>
+        </div>
+
+        <!-- JWT Authentication for Service Account Endpoints -->
+        <div class="card"
+            style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: 2px solid #ffd700;">
+            <h2>🔐 HR/Admin Authentication</h2>
+            <p style="margin-bottom: 15px;">Service account endpoints require HR or Admin authentication. Enter your JWT
+                token below:</p>
+            <div class="form-group">
+                <label for="jwtToken">JWT Token:</label>
+                <textarea id="jwtToken" rows="3"
+                    placeholder="Paste your JWT token here (get it from /auth/login endpoint)"
+                    style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.2); color: white; font-family: monospace; font-size: 0.9rem;"></textarea>
+            </div>
+            <p style="font-size: 0.85rem; opacity: 0.8; margin-top: 10px;">
+                💡 <strong>How to get your token:</strong><br>
+                1. Login via POST <code>/auth/login</code> with HR/Admin credentials<br>
+                2. Copy the <code>access_token</code> from the response<br>
+                3. Paste it above
+            </p>
+        </div>
+
+        <!-- Service Account: Read User Calendar Section -->
+        <div class="card">
+            <h2>6. Read User Calendar (Service Account)</h2>
+            <p style="margin-bottom: 15px;">Read any user's calendar for a specific date range using Application
+                permissions (no sign-in required)</p>
+            <div class="form-group">
+                <label for="userEmailCalendar">User Email:</label>
+                <input type="email" id="userEmailCalendar" placeholder="user@blitzenx.com" required>
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="calendarStartTime">Start Date/Time:</label>
+                    <input type="datetime-local" id="calendarStartTime">
+                </div>
+                <div class="form-group">
+                    <label for="calendarEndTime">End Date/Time:</label>
+                    <input type="datetime-local" id="calendarEndTime">
+                </div>
+            </div>
+            <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
+                💡 Leave dates empty to get events for the next 7 days
+            </p>
+            <button class="btn" onclick="getUserCalendar()">📅 Get User Calendar</button>
+            <div id="serviceCalendarStatus" class="status"></div>
+            <div id="serviceCalendarResponse" class="response"></div>
+        </div>
+
+        <!-- Service Account: Schedule Meeting Section -->
+        <div class="card">
+            <h2>7. Schedule Meeting (Service Account)</h2>
+            <p style="margin-bottom: 15px;">Schedule a meeting for any user using Application permissions (no sign-in
+                required)</p>
+            <form id="serviceMeetingForm" onsubmit="scheduleServiceMeeting(event)">
+                <div class="form-group">
+                    <label for="organizerEmail">Organizer Email:</label>
+                    <input type="email" id="organizerEmail" placeholder="organizer@blitzenx.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="serviceMeetingSubject">Meeting Subject:</label>
+                    <input type="text" id="serviceMeetingSubject" placeholder="Team Meeting" required>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="serviceMeetingStart">Start Time:</label>
+                        <input type="datetime-local" id="serviceMeetingStart" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="serviceMeetingEnd">End Time:</label>
+                        <input type="datetime-local" id="serviceMeetingEnd" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="serviceMeetingAttendees">Attendees (comma-separated emails):</label>
+                    <input type="text" id="serviceMeetingAttendees" placeholder="user1@example.com, user2@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="serviceMeetingLocation">Location (optional):</label>
+                    <input type="text" id="serviceMeetingLocation" placeholder="Conference Room A">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="serviceTeamsOnline" checked>
+                        Create as Teams Online Meeting
+                    </label>
+                </div>
+                <button type="submit" class="btn">📅 Schedule Meeting</button>
+            </form>
+            <div id="serviceMeetingStatus" class="status"></div>
+            <div id="serviceMeetingResponse" class="response"></div>
         </div>
     </div>
 
@@ -358,6 +487,160 @@
             }
         }
 
+        async function testSharePointConnection() {
+            const statusDiv = document.getElementById('sharepointStatus');
+            const responseDiv = document.getElementById('sharepointResponse');
+
+            // Show loading state
+            statusDiv.className = 'status';
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.textContent = '⏳ Testing SharePoint connection...';
+            responseDiv.classList.remove('show');
+
+            try {
+                const response = await fetch(`${BASE_URL}/sharepoint/test-connection`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✓ SharePoint connection successful!';
+
+                    // Create beautiful display of connection info
+                    let html = `
+                        <div class="profile-card">
+                            <h3>📁 SharePoint Connection Details</h3>
+                            
+                            <div style="margin-top: 20px;">
+                                <h4 style="margin-bottom: 10px; font-size: 1.1rem;">🌐 Site Information</h4>
+                                <div class="profile-info">
+                                    <div class="profile-item">
+                                        <label>Site Name</label>
+                                        <span class="profile-value">${data.connection.site.name}</span>
+                                    </div>
+                                    <div class="profile-item">
+                                        <label>Site ID</label>
+                                        <span class="profile-value" style="font-size: 0.8rem; word-break: break-all;">${data.connection.site.id}</span>
+                                    </div>
+                                </div>
+                                <a href="${data.connection.site.webUrl}" target="_blank" style="color: white; text-decoration: underline; display: inline-block; margin-top: 10px;">
+                                    Open Site in Browser →
+                                </a>
+                            </div>
+
+                            <div style="margin-top: 20px;">
+                                <h4 style="margin-bottom: 10px; font-size: 1.1rem;">💾 Drive Information</h4>
+                                <div class="profile-info">
+                                    <div class="profile-item">
+                                        <label>Drive Name</label>
+                                        <span class="profile-value">${data.connection.drive.name}</span>
+                                    </div>
+                                    <div class="profile-item">
+                                        <label>Drive Type</label>
+                                        <span class="profile-value">${data.connection.drive.driveType}</span>
+                                    </div>
+                                    <div class="profile-item">
+                                        <label>Drive ID</label>
+                                        <span class="profile-value" style="font-size: 0.8rem; word-break: break-all;">${data.connection.drive.id}</span>
+                                    </div>
+                                </div>
+                                <a href="${data.connection.drive.webUrl}" target="_blank" style="color: white; text-decoration: underline; display: inline-block; margin-top: 10px;">
+                                    Open Drive in Browser →
+                                </a>
+                            </div>
+
+                            <div style="margin-top: 20px;">
+                                <h4 style="margin-bottom: 10px; font-size: 1.1rem;">📂 Base Folder: ${data.connection.baseFolder}</h4>
+                                <p style="opacity: 0.9; margin-bottom: 15px;">Found ${data.connection.folderCount} items</p>
+                                
+                                ${data.connection.folders.length > 0 ? `
+                                    <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto;">
+                                        ${data.connection.folders.map(folder => `
+                                            <div style="background: rgba(0,0,0,0.2); padding: 12px; margin-bottom: 10px; border-radius: 4px;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                                    <strong style="font-size: 1rem;">
+                                                        ${folder.type === 'folder' ? '📁' : '📄'} ${folder.name}
+                                                    </strong>
+                                                    <span style="font-size: 0.85rem; opacity: 0.8;">
+                                                        ${(folder.size / 1024).toFixed(2)} KB
+                                                    </span>
+                                                </div>
+                                                <div style="font-size: 0.85rem; opacity: 0.8;">
+                                                    Created: ${new Date(folder.created).toLocaleString()}
+                                                </div>
+                                                <div style="font-size: 0.85rem; opacity: 0.8;">
+                                                    Modified: ${new Date(folder.modified).toLocaleString()}
+                                                </div>
+                                                <a href="${folder.webUrl}" target="_blank" style="color: white; text-decoration: underline; font-size: 0.85rem; display: inline-block; margin-top: 5px;">
+                                                    Open →
+                                                </a>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 6px; text-align: center;">
+                                        <p style="opacity: 0.8;">No folders found in ${data.connection.baseFolder}</p>
+                                        <p style="opacity: 0.7; font-size: 0.9rem; margin-top: 10px;">Folders will be created automatically when candidates upload documents</p>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+
+                    responseDiv.innerHTML = html;
+                    responseDiv.classList.add('show');
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `✗ ${data.message}`;
+
+                    let errorHtml = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                            <h4 style="margin-bottom: 10px;">❌ Connection Failed</h4>
+                            <p style="margin-bottom: 10px;"><strong>Error:</strong> ${data.message}</p>
+                            ${data.details ? `<p style="margin-bottom: 10px;"><strong>Details:</strong> ${data.details}</p>` : ''}
+                            
+                            <div style="margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+                                <h5 style="margin-bottom: 10px;">Configuration Status:</h5>
+                                <ul style="margin-left: 20px;">
+                                    <li>Service Account Configured: ${data.configured ? '✓ Yes' : '✗ No'}</li>
+                                    ${data.authenticated !== undefined ? `<li>Authentication: ${data.authenticated ? '✓ Success' : '✗ Failed'}</li>` : ''}
+                                    ${data.sharepoint_configured !== undefined ? `<li>SharePoint Configured: ${data.sharepoint_configured ? '✓ Yes' : '✗ No'}</li>` : ''}
+                                </ul>
+                            </div>
+                            
+                            <div style="margin-top: 15px; padding: 15px; background: #d1ecf1; color: #0c5460; border-radius: 4px;">
+                                <h5 style="margin-bottom: 10px;">💡 Next Steps:</h5>
+                                <ol style="margin-left: 20px;">
+                                    <li>Check your .env file for correct credentials</li>
+                                    <li>Verify AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET</li>
+                                    <li>Verify SHAREPOINT_SITE_ID and SHAREPOINT_DRIVE_ID</li>
+                                    <li>Ensure service account has permissions in Azure AD</li>
+                                    <li>Check SERVICE_ACCOUNT_SETUP.md for detailed instructions</li>
+                                </ol>
+                            </div>
+                        </div>
+                    `;
+
+                    responseDiv.innerHTML = errorHtml;
+                    responseDiv.classList.add('show');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Connection test failed';
+
+                responseDiv.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                        <h4>❌ Network Error</h4>
+                        <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure the backend server is running on port 8080</p>
+                    </div>
+                `;
+                responseDiv.classList.add('show');
+            }
+        }
+
+
         async function sendEmail(event) {
             event.preventDefault();
 
@@ -438,6 +721,587 @@
             } catch (error) {
                 statusDiv.className = 'status error';
                 statusDiv.textContent = '✗ Error: ' + error.message;
+            }
+        }
+
+        async function listSharePointDrives() {
+            const statusDiv = document.getElementById('drivesStatus');
+            const responseDiv = document.getElementById('drivesResponse');
+
+            // Show loading state
+            statusDiv.className = 'status';
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.textContent = '⏳ Fetching available drives...';
+            responseDiv.classList.remove('show');
+
+            try {
+                const response = await fetch(`${BASE_URL}/sharepoint/list-drives`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✓ ${data.message}`;
+
+                    // Create beautiful display of drives
+                    let html = `
+                        <div class="profile-card">
+                            <h3>💾 Available SharePoint Drives</h3>
+                            <p style="opacity: 0.9; margin-bottom: 20px;">${data.instructions}</p>
+                            
+                            ${data.drives.length > 0 ? `
+                                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; max-height: 500px; overflow-y: auto;">
+                                    ${data.drives.map((drive, index) => `
+                                        <div style="background: rgba(0,0,0,0.2); padding: 15px; margin-bottom: 15px; border-radius: 6px; border-left: 4px solid ${index === 0 ? '#4CAF50' : '#667eea'};">
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                                                <div>
+                                                    <h4 style="font-size: 1.2rem; margin-bottom: 5px;">
+                                                        ${drive.driveType === 'documentLibrary' ? '📚' : '💾'} ${drive.name}
+                                                        ${index === 0 ? '<span style="background: #4CAF50; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 10px;">RECOMMENDED</span>' : ''}
+                                                    </h4>
+                                                    <p style="font-size: 0.85rem; opacity: 0.8; margin: 0;">Type: ${drive.driveType}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 4px; margin: 10px 0;">
+                                                <label style="display: block; font-size: 0.85rem; opacity: 0.8; margin-bottom: 5px;">Drive ID (copy this to .env):</label>
+                                                <div style="display: flex; gap: 10px; align-items: center;">
+                                                    <code id="driveId${index}" style="flex: 1; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; font-size: 0.85rem; word-break: break-all; font-family: monospace;">${drive.id}</code>
+                                                    <button onclick="copyDriveId('${drive.id}', ${index})" style="background: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 0.85rem;">
+                                                        📋 Copy
+                                                    </button>
+                                                </div>
+                                                <p id="copyStatus${index}" style="margin-top: 5px; font-size: 0.8rem; opacity: 0.8; display: none;"></p>
+                                            </div>
+                                            
+                                            ${drive.description && drive.description !== 'N/A' ? `
+                                                <p style="font-size: 0.9rem; opacity: 0.9; margin: 10px 0;">
+                                                    <strong>Description:</strong> ${drive.description}
+                                                </p>
+                                            ` : ''}
+                                            
+                                            <a href="${drive.webUrl}" target="_blank" style="color: white; text-decoration: underline; font-size: 0.9rem; display: inline-block; margin-top: 10px;">
+                                                Open in SharePoint →
+                                            </a>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                
+                                <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 6px;">
+                                    <h4 style="margin-bottom: 10px;">📝 How to Update .env File:</h4>
+                                    <ol style="margin-left: 20px; opacity: 0.9;">
+                                        <li style="margin-bottom: 8px;">Click the "📋 Copy" button next to the Drive ID you want to use</li>
+                                        <li style="margin-bottom: 8px;">Open your <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px;">.env</code> file</li>
+                                        <li style="margin-bottom: 8px;">Find the line: <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px;">SHAREPOINT_DRIVE_ID=...</code></li>
+                                        <li style="margin-bottom: 8px;">Replace the old value with the copied Drive ID</li>
+                                        <li style="margin-bottom: 8px;">Save the file and restart your server</li>
+                                        <li>Test the connection again using "Test SharePoint Connection" above</li>
+                                    </ol>
+                                </div>
+                            ` : `
+                                <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 6px; text-align: center;">
+                                    <p style="opacity: 0.8;">No drives found</p>
+                                </div>
+                            `}
+                        </div>
+                    `;
+
+                    responseDiv.innerHTML = html;
+                    responseDiv.classList.add('show');
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `✗ ${data.message}`;
+
+                    let errorHtml = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                            <h4 style="margin-bottom: 10px;">❌ Failed to List Drives</h4>
+                            <p style="margin-bottom: 10px;"><strong>Error:</strong> ${data.message}</p>
+                            ${data.details ? `<p style="margin-bottom: 10px;"><strong>Details:</strong> ${data.details}</p>` : ''}
+                            
+                            <div style="margin-top: 15px; padding: 15px; background: #d1ecf1; color: #0c5460; border-radius: 4px;">
+                                <h5 style="margin-bottom: 10px;">💡 Troubleshooting:</h5>
+                                <ul style="margin-left: 20px;">
+                                    <li>Ensure service account is configured (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)</li>
+                                    <li>Verify SHAREPOINT_SITE_ID is correct</li>
+                                    <li>Check that the service account has Sites.ReadWrite.All permission</li>
+                                    <li>Ensure admin consent is granted in Azure AD</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+
+                    responseDiv.innerHTML = errorHtml;
+                    responseDiv.classList.add('show');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Failed to fetch drives';
+
+                responseDiv.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                        <h4>❌ Network Error</h4>
+                        <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure the backend server is running on port 8080</p>
+                    </div>
+                `;
+                responseDiv.classList.add('show');
+            }
+        }
+
+        function copyDriveId(driveId, index) {
+            // Copy to clipboard
+            navigator.clipboard.writeText(driveId).then(() => {
+                const statusEl = document.getElementById(`copyStatus${index}`);
+                statusEl.textContent = '✓ Copied to clipboard!';
+                statusEl.style.display = 'block';
+                statusEl.style.color = '#4CAF50';
+
+                // Hide after 3 seconds
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 3000);
+            }).catch(err => {
+                const statusEl = document.getElementById(`copyStatus${index}`);
+                statusEl.textContent = '✗ Failed to copy. Please copy manually.';
+                statusEl.style.display = 'block';
+                statusEl.style.color = '#f44336';
+            });
+        }
+
+        async function getMyMeetings() {
+            const statusDiv = document.getElementById('calendarStatus');
+            const responseDiv = document.getElementById('calendarResponse');
+            const top = parseInt(document.getElementById('eventsLimit').value) || 10;
+            const skip = parseInt(document.getElementById('eventsSkip').value) || 0;
+
+            // Show loading state
+            statusDiv.className = 'status';
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.textContent = '⏳ Fetching calendar events...';
+            responseDiv.classList.remove('show');
+
+            try {
+                const response = await fetch(`${BASE_URL}/calendar/meetings?top=${top}&skip=${skip}`);
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✓ Found ${data.count} event(s)`;
+
+                    if (data.events.length > 0) {
+                        let html = `
+                            <div class="profile-card">
+                                <h3>📅 My Calendar Events</h3>
+                                <p style="opacity: 0.9; margin-bottom: 20px;">
+                                    Showing ${data.count} event(s) 
+                                    ${data.pagination.hasMore ? '(more available)' : ''}
+                                </p>
+                                
+                                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; max-height: 600px; overflow-y: auto;">
+                                    ${data.events.map((event, index) => `
+                                        <div style="background: rgba(0,0,0,0.2); padding: 15px; margin-bottom: 15px; border-radius: 6px; border-left: 4px solid ${event.isOnlineMeeting ? '#4CAF50' : '#667eea'};">
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                                                <div style="flex: 1;">
+                                                    <h4 style="font-size: 1.2rem; margin-bottom: 5px;">
+                                                        ${event.isOnlineMeeting ? '🎥' : '📍'} ${event.subject || 'No Subject'}
+                                                    </h4>
+                                                    <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                        <strong>📅 Start:</strong> ${new Date(event.start).toLocaleString()}
+                                                    </p>
+                                                    <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                        <strong>⏰ End:</strong> ${new Date(event.end).toLocaleString()}
+                                                    </p>
+                                                    ${event.location ? `
+                                                        <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                            <strong>📍 Location:</strong> ${event.location}
+                                                        </p>
+                                                    ` : ''}
+                                                    ${event.organizer ? `
+                                                        <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                            <strong>👤 Organizer:</strong> ${event.organizer}
+                                                        </p>
+                                                    ` : ''}
+                                                </div>
+                                            </div>
+                                            
+                                            ${event.attendees && event.attendees.length > 0 ? `
+                                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px; margin: 10px 0;">
+                                                    <strong style="font-size: 0.9rem;">👥 Attendees (${event.attendees.length}):</strong>
+                                                    <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                                        ${event.attendees.map(attendee => `
+                                                            <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem;">
+                                                                ${attendee.name || attendee.email}
+                                                                ${attendee.status ? `<span style="opacity: 0.7;">(${attendee.status})</span>` : ''}
+                                                            </span>
+                                                        `).join('')}
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+                                            
+                                            <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                                ${event.isOnlineMeeting && event.onlineMeetingUrl ? `
+                                                    <a href="${event.onlineMeetingUrl}" target="_blank" style="background: #4CAF50; color: white; padding: 8px 15px; border-radius: 6px; text-decoration: none; font-size: 0.9rem; display: inline-block;">
+                                                        🎥 Join Teams Meeting
+                                                    </a>
+                                                ` : ''}
+                                                ${event.webLink ? `
+                                                    <a href="${event.webLink}" target="_blank" style="color: white; text-decoration: underline; padding: 8px 15px; font-size: 0.9rem; display: inline-block;">
+                                                        📅 View in Calendar
+                                                    </a>
+                                                ` : ''}
+                                            </div>
+                                            
+                                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.8rem; opacity: 0.7;">
+                                                <strong>Event ID:</strong> ${event.id}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                
+                                ${data.pagination.hasMore ? `
+                                    <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 6px; text-align: center;">
+                                        <p style="margin-bottom: 10px;">More events available</p>
+                                        <button onclick="loadMoreEvents(${top}, ${skip + top})" style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                                            Load More Events
+                                        </button>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+
+                        responseDiv.innerHTML = html;
+                        responseDiv.classList.add('show');
+                    } else {
+                        responseDiv.innerHTML = `
+                            <div style="background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 6px; text-align: center;">
+                                <h4>📅 No Events Found</h4>
+                                <p style="margin-top: 10px;">You don't have any calendar events at the moment.</p>
+                            </div>
+                        `;
+                        responseDiv.classList.add('show');
+                    }
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Failed to fetch calendar events';
+
+                    responseDiv.innerHTML = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                            <h4>❌ Error</h4>
+                            <p style="margin-top: 10px;"><strong>Details:</strong> ${data.detail || 'Unknown error'}</p>
+                        </div>
+                    `;
+                    responseDiv.classList.add('show');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Error fetching events';
+
+                responseDiv.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                        <h4>❌ Network Error</h4>
+                        <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure you're signed in and the backend server is running.</p>
+                    </div>
+                `;
+                responseDiv.classList.add('show');
+            }
+        }
+
+        function loadMoreEvents(top, newSkip) {
+            document.getElementById('eventsSkip').value = newSkip;
+            getMyMeetings();
+        }
+
+        // Service Account: Get User Calendar
+        async function getUserCalendar() {
+            const statusDiv = document.getElementById('serviceCalendarStatus');
+            const responseDiv = document.getElementById('serviceCalendarResponse');
+            const userEmail = document.getElementById('userEmailCalendar').value.trim();
+            const startTime = document.getElementById('calendarStartTime').value;
+            const endTime = document.getElementById('calendarEndTime').value;
+            const jwtToken = document.getElementById('jwtToken').value.trim();
+
+            if (!userEmail) {
+                alert('Please enter a user email address');
+                return;
+            }
+
+            if (!jwtToken) {
+                alert('Please enter your JWT token for authentication (HR/Admin only)');
+                return;
+            }
+
+            // Show loading state
+            statusDiv.className = 'status';
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.textContent = `⏳ Fetching calendar for ${userEmail}...`;
+            responseDiv.classList.remove('show');
+
+            try {
+                // Build URL with optional date range parameters
+                let url = `${BASE_URL}/service/calendar/events/${encodeURIComponent(userEmail)}`;
+                const params = new URLSearchParams();
+
+                if (startTime) {
+                    // Convert to ISO format
+                    params.append('start_time', new Date(startTime).toISOString().slice(0, 19));
+                }
+                if (endTime) {
+                    params.append('end_time', new Date(endTime).toISOString().slice(0, 19));
+                }
+
+                if (params.toString()) {
+                    url += `?${params.toString()}`;
+                }
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`
+                    }
+                });
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✓ Found ${data.count} event(s) for ${data.user}`;
+
+                    if (data.events.length > 0) {
+                        let html = `
+                            <div class="profile-card">
+                                <h3>📅 Calendar Events for ${data.user}</h3>
+                                <p style="opacity: 0.9; margin-bottom: 20px;">
+                                    Showing ${data.count} event(s)<br>
+                                    <span style="font-size: 0.9rem;">
+                                        📆 ${new Date(data.start_time).toLocaleString()} - ${new Date(data.end_time).toLocaleString()}
+                                    </span>
+                                </p>
+                                
+                                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; max-height: 600px; overflow-y: auto;">
+                                    ${data.events.map((event, index) => `
+                                        <div style="background: rgba(0,0,0,0.2); padding: 15px; margin-bottom: 15px; border-radius: 6px; border-left: 4px solid ${event.isOnlineMeeting ? '#4CAF50' : '#667eea'};">
+                                            <h4 style="font-size: 1.2rem; margin-bottom: 10px;">
+                                                ${event.isOnlineMeeting ? '🎥' : '📍'} ${event.subject || 'No Subject'}
+                                            </h4>
+                                            <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                <strong>📅 Start:</strong> ${new Date(event.start).toLocaleString()}
+                                            </p>
+                                            <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                <strong>⏰ End:</strong> ${new Date(event.end).toLocaleString()}
+                                            </p>
+                                            ${event.location ? `
+                                                <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                    <strong>📍 Location:</strong> ${event.location}
+                                                </p>
+                                            ` : ''}
+                                            ${event.organizer ? `
+                                                <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                                                    <strong>👤 Organizer:</strong> ${event.organizer} (${event.organizerEmail})
+                                                </p>
+                                            ` : ''}
+                                            
+                                            ${event.attendees && event.attendees.length > 0 ? `
+                                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px; margin: 10px 0;">
+                                                    <strong style="font-size: 0.9rem;">👥 Attendees (${event.attendees.length}):</strong>
+                                                    <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                                        ${event.attendees.map(attendee => `
+                                                            <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem;">
+                                                                ${attendee.name || attendee.email}
+                                                            </span>
+                                                        `).join('')}
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+                                            
+                                            <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                                ${event.isOnlineMeeting && event.onlineMeetingUrl ? `
+                                                    <a href="${event.onlineMeetingUrl}" target="_blank" style="background: #4CAF50; color: white; padding: 8px 15px; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">
+                                                        🎥 Join Teams Meeting
+                                                    </a>
+                                                ` : ''}
+                                                ${event.webLink ? `
+                                                    <a href="${event.webLink}" target="_blank" style="color: white; text-decoration: underline; padding: 8px 15px; font-size: 0.9rem;">
+                                                        📅 View in Calendar
+                                                    </a>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+
+                        responseDiv.innerHTML = html;
+                        responseDiv.classList.add('show');
+                    } else {
+                        responseDiv.innerHTML = `
+                            <div style="background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 6px; text-align: center;">
+                                <h4>📅 No Events Found</h4>
+                                <p style="margin-top: 10px;">${data.user} doesn't have any calendar events.</p>
+                            </div>
+                        `;
+                        responseDiv.classList.add('show');
+                    }
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Failed to fetch calendar';
+
+                    responseDiv.innerHTML = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                            <h4>❌ Error</h4>
+                            <p style="margin-top: 10px;"><strong>Details:</strong> ${data.detail || 'Unknown error'}</p>
+                        </div>
+                    `;
+                    responseDiv.classList.add('show');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Error fetching calendar';
+
+                responseDiv.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                        <h4>❌ Network Error</h4>
+                        <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure the backend server is running and service account is configured.</p>
+                    </div>
+                `;
+                responseDiv.classList.add('show');
+            }
+        }
+
+        // Service Account: Schedule Meeting
+        async function scheduleServiceMeeting(event) {
+            event.preventDefault();
+
+            const statusDiv = document.getElementById('serviceMeetingStatus');
+            const responseDiv = document.getElementById('serviceMeetingResponse');
+
+            const organizerEmail = document.getElementById('organizerEmail').value.trim();
+            const subject = document.getElementById('serviceMeetingSubject').value.trim();
+            const startTime = document.getElementById('serviceMeetingStart').value;
+            const endTime = document.getElementById('serviceMeetingEnd').value;
+            const attendeesInput = document.getElementById('serviceMeetingAttendees').value.trim();
+            const location = document.getElementById('serviceMeetingLocation').value.trim();
+            const teamsOnline = document.getElementById('serviceTeamsOnline').checked;
+            const jwtToken = document.getElementById('jwtToken').value.trim();
+
+            if (!jwtToken) {
+                alert('Please enter your JWT token for authentication (HR/Admin only)');
+                return;
+            }
+
+            // Parse attendees
+            const attendees = attendeesInput ? attendeesInput.split(',').map(email => email.trim()).filter(email => email) : [];
+
+            // Convert to ISO format
+            const startISO = new Date(startTime).toISOString().slice(0, 19);
+            const endISO = new Date(endTime).toISOString().slice(0, 19);
+
+            // Show loading state
+            statusDiv.className = 'status';
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.textContent = '⏳ Scheduling meeting...';
+            responseDiv.classList.remove('show');
+
+            try {
+                const params = new URLSearchParams({
+                    organizer_email: organizerEmail,
+                    subject: subject,
+                    start_iso: startISO,
+                    end_iso: endISO,
+                    timezone: 'UTC',
+                    teams_online: teamsOnline
+                });
+
+                if (location) {
+                    params.append('location', location);
+                }
+
+                attendees.forEach(email => {
+                    params.append('attendees', email);
+                });
+
+                const response = await fetch(`${BASE_URL}/service/calendar/schedule?${params.toString()}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✓ Meeting scheduled successfully!';
+
+                    let html = `
+                        <div class="profile-card">
+                            <h3>✅ Meeting Scheduled</h3>
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; margin-top: 15px;">
+                                <p style="margin: 8px 0;"><strong>Subject:</strong> ${data.subject}</p>
+                                <p style="margin: 8px 0;"><strong>Organizer:</strong> ${data.organizer}</p>
+                                <p style="margin: 8px 0;"><strong>Start:</strong> ${new Date(data.start).toLocaleString()}</p>
+                                <p style="margin: 8px 0;"><strong>End:</strong> ${new Date(data.end).toLocaleString()}</p>
+                                <p style="margin: 8px 0;"><strong>Online Meeting:</strong> ${data.isOnlineMeeting ? 'Yes ✓' : 'No'}</p>
+                                
+                                ${data.joinUrl ? `
+                                    <div style="margin-top: 15px; padding: 15px; background: rgba(76, 175, 80, 0.2); border-radius: 6px;">
+                                        <p style="margin-bottom: 10px;"><strong>🎥 Teams Meeting Link:</strong></p>
+                                        <a href="${data.joinUrl}" target="_blank" style="background: #4CAF50; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; display: inline-block;">
+                                            Join Teams Meeting
+                                        </a>
+                                        <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.8; word-break: break-all;">${data.joinUrl}</p>
+                                    </div>
+                                ` : ''}
+                                
+                                ${data.webLink ? `
+                                    <div style="margin-top: 10px;">
+                                        <a href="${data.webLink}" target="_blank" style="color: white; text-decoration: underline;">
+                                            📅 View in Calendar
+                                        </a>
+                                    </div>
+                                ` : ''}
+                                
+                                <p style="margin-top: 15px; font-size: 0.85rem; opacity: 0.7;">Event ID: ${data.eventId}</p>
+                            </div>
+                        </div>
+                    `;
+
+                    responseDiv.innerHTML = html;
+                    responseDiv.classList.add('show');
+
+                    // Reset form
+                    document.getElementById('serviceMeetingForm').reset();
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Failed to schedule meeting';
+
+                    responseDiv.innerHTML = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                            <h4>❌ Error</h4>
+                            <p style="margin-top: 10px;"><strong>Details:</strong> ${data.detail || 'Unknown error'}</p>
+                        </div>
+                    `;
+                    responseDiv.classList.add('show');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '✗ Error scheduling meeting';
+
+                responseDiv.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
+                        <h4>❌ Network Error</h4>
+                        <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure the backend server is running and service account is configured.</p>
+                    </div>
+                `;
+                responseDiv.classList.add('show');
             }
         }
     </script>
