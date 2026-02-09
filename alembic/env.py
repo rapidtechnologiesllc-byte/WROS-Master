@@ -18,8 +18,9 @@ if not database_url:
 
 config.set_main_option("sqlalchemy.url", database_url)
 
-from database import Base
-from model import *  # import all models
+# Import Base and all models from the app package
+from app.models.base import Base
+from app.models import *  # Import all models to ensure they're registered with Base
 
 target_metadata = Base.metadata
 

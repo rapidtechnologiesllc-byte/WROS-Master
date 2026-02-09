@@ -75,5 +75,5 @@ tmp/
 Thumbs.db
 .DS_Store
 
-
+test.py
 #static/msgraph_test.html
