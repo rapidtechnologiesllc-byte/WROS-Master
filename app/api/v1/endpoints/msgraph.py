@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
 from app.core.security import create_access_token
 from app.models import Users
+from app.core.logging import logger
 
 
 
@@ -377,6 +378,13 @@ def get_user_calendar_events(
         List of calendar events for the specified user within the date range
     '''
     try:
+        # Audit log: Track who is accessing calendars
+        logger.info(
+            f"CALENDAR ACCESS | HR User: {current_user.UserEmail} (ID: {current_user.UserID}) | "
+            f"Target: {user_email} | Date Range: {start_time or 'default'} to {end_time or 'default'} | "
+            f"Action: Read Calendar Events"
+        )
+        
         from datetime import datetime, timedelta
         
         # Get service account token
@@ -435,6 +443,12 @@ def get_user_calendar_events(
             }
             events.append(event_info)
         
+        # Log successful retrieval
+        logger.info(
+            f"CALENDAR ACCESS SUCCESS | HR User: {current_user.UserEmail} | "
+            f"Target: {user_email} | Retrieved: {len(events)} events"
+        )
+        
         return {
             "status": "success",
             "user": user_email,
@@ -491,6 +505,13 @@ def schedule_meeting_for_user(
     Returns:
         Event ID and Teams join URL (if online meeting)
     '''
+    # Audit log: Track who is scheduling meetings
+    logger.info(
+        f"MEETING SCHEDULE | HR User: {current_user.UserEmail} (ID: {current_user.UserID}) | "
+        f"Organizer: {organizer_email} | Subject: '{subject}' | "
+        f"Time: {start_iso} to {end_iso} | Attendees: {len(attendees)} | Teams: {teams_online}"
+    )
+    
     try:
         # Get service account token
         access_token = get_graph_token()
@@ -541,6 +562,13 @@ def schedule_meeting_for_user(
         if created_event.get("onlineMeeting"):
             join_url = created_event["onlineMeeting"].get("joinUrl")
         
+        # Log successful meeting creation
+        logger.info(
+            f"MEETING CREATED | HR User: {current_user.UserEmail} | "
+            f"Organizer: {organizer_email} | Event ID: {created_event.get('id')} | "
+            f"Teams: {teams_online} | Join URL: {'Yes' if join_url else 'No'}"
+        )
+        
         return {
             "status": "success",
             "message": f"Meeting scheduled successfully for {organizer_email}",
@@ -584,6 +612,9 @@ def test_sharepoint_connection():
         Connection status and folder list
     """
     try:
+        # Audit log: Track SharePoint access
+        logger.info("SHAREPOINT ACCESS | Action: Test Connection | Service: SharePoint Drive Test")
+        
         # Check if service account is configured
         if not GraphServiceAuth.is_configured():
             return {
@@ -728,6 +759,9 @@ def list_sharepoint_drives():
         List of drives with their IDs and names
     '''
     try:
+        # Audit log: Track SharePoint drive listing
+        logger.info("SHAREPOINT ACCESS | Action: List Drives | Service: SharePoint Site Drives")
+        
         # Check if service account is configured
         if not GraphServiceAuth.is_configured():
             return {
