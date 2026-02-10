@@ -23,6 +23,7 @@ PyJWT[crypto]>=2.10.0,<3.0.0     # JSON Web Token implementation with RSA suppor
 bcrypt>=4.0.0,<5.0.0             # Password hashing library
 cryptography>=42.0.0,<43.0.0     # Cryptographic recipes and primitives
 python-multipart>=0.0.6,<1.0.0   # Multipart form data parser (for file uploads)
+python-jose[cryptography]>=3.3.0,<4.0.0  # JOSE implementation for JWT
 
 # Microsoft Integration
 # ----------------------------------------------------------------------------
@@ -49,6 +50,20 @@ gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uv
 
 
 # ============================================================================
+# Development Dependencies (Optional)
+# ============================================================================
+# Install with: pip install -r requirements-dev.txt
+#
+# pytest>=7.4.0,<8.0.0           # Testing framework
+# pytest-asyncio>=0.21.0,<1.0.0  # Async support for pytest
+# httpx>=0.25.0,<1.0.0           # HTTP client for testing
+# pytest-cov>=4.1.0,<5.0.0       # Coverage plugin for pytest
+# black>=23.0.0,<24.0.0          # Code formatter
+# flake8>=6.1.0,<7.0.0           # Linting tool
+# mypy>=1.5.0,<2.0.0             # Static type checker
+
+
+# ============================================================================
 # Installation Instructions:
 # ============================================================================
 # 
@@ -57,10 +72,15 @@ gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uv
 #
 # For development (with testing tools):
 #   pip install -r requirements.txt
-#   pip install pytest pytest-asyncio httpx pytest-cov
+#   pip install pytest pytest-asyncio httpx pytest-cov black flake8
 #
 # For Azure deployment:
-#   Ensure ODBC Driver 17 for SQL Server is available in the runtime
+#   Ensure ODBC Driver 18 for SQL Server is available in the runtime
 #   Azure App Service (Linux) includes it by default
+#
+# System Requirements:
+#   - Python 3.10 or higher
+#   - ODBC Driver 18 for SQL Server
+#   - Microsoft SQL Server 2019+ or Azure SQL Database
 #
 # ============================================================================
