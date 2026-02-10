@@ -1,230 +1,398 @@
 """
-Database migration utility that handles both Alembic migrations and direct SQL migrations.
-This module is imported by main.py to automatically apply migrations on startup.
+Database Migration Utility
+===========================
+Easy-to-use script for managing Alembic database migrations.
+
+Usage:
+    python migrate.py              # Show status and run migrations
+    python migrate.py --status     # Show current migration status
+    python migrate.py --history    # Show migration history
+    python migrate.py --upgrade    # Upgrade to latest version
+    python migrate.py --downgrade  # Downgrade one version
+    python migrate.py --create "description"  # Create new migration
 """
+
 import os
 import sys
-import pyodbc
-from urllib.parse import unquote
-from alembic import command
-from alembic.config import Config
+import argparse
 from pathlib import Path
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-
-def parse_database_url(database_url):
-    """Parse the DATABASE_URL to extract connection parameters."""
-    # Remove the mssql+pyodbc:// prefix
-    url = database_url.replace('mssql+pyodbc://', '')
-    
-    # Split credentials and rest
-    credentials, rest = url.split('@')
-    username, password = credentials.split(':')
-    
-    # Split host/database and parameters
-    host_db, params = rest.split('?')
-    host, database = host_db.split('/')
-    
-    # Parse parameters
-    param_dict = {}
-    for param in params.split('&'):
-        if '=' in param:
-            key, value = param.split('=', 1)
-            param_dict[key] = unquote(value.replace('+', ' '))
-    
-    return {
-        'username': unquote(username),
-        'password': unquote(password),
-        'host': host,
-        'database': database,
-        'driver': param_dict.get('driver', 'ODBC Driver 18 for SQL Server'),
-        'trust_cert': param_dict.get('TrustServerCertificate', 'yes')
-    }
+# Color codes for terminal output
+GREEN = '\033[92m'
+RED = '\033[91m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+CYAN = '\033[96m'
+RESET = '\033[0m'
+BOLD = '\033[1m'
 
 
-def get_connection():
-    """Create a database connection."""
-    database_url = os.getenv('DATABASE_URL')
-    if not database_url:
-        raise ValueError("DATABASE_URL not found in environment variables")
+def print_header(text):
+    """Print section header"""
+    print(f"\n{BOLD}{BLUE}{'='*70}{RESET}")
+    print(f"{BOLD}{BLUE}{text:^70}{RESET}")
+    print(f"{BOLD}{BLUE}{'='*70}{RESET}\n")
+
+
+def print_success(text):
+    """Print success message"""
+    print(f"{GREEN}[SUCCESS] {text}{RESET}")
+
+
+def print_error(text):
+    """Print error message"""
+    print(f"{RED}[ERROR] {text}{RESET}")
+
+
+def print_warning(text):
+    """Print warning message"""
+    print(f"{YELLOW}[WARNING] {text}{RESET}")
+
+
+def print_info(text):
+    """Print info message"""
+    print(f"{CYAN}[INFO] {text}{RESET}")
+
+
+def run_alembic_command(command, description=None):
+    """Run an Alembic command and return the result"""
+    import subprocess
     
-    conn_params = parse_database_url(database_url)
+    if description:
+        print_info(description)
     
-    connection_string = (
-        f"DRIVER={{{conn_params['driver']}}};"
-        f"SERVER={conn_params['host']};"
-        f"DATABASE={conn_params['database']};"
-        f"UID={conn_params['username']};"
-        f"PWD={conn_params['password']};"
-        f"TrustServerCertificate={conn_params['trust_cert']};"
-    )
-    
-    return pyodbc.connect(connection_string)
-
-
-def column_exists(cursor, table_name, column_name):
-    """Check if a column exists in a table."""
-    cursor.execute("""
-        SELECT COUNT(*) 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = ? AND COLUMN_NAME = ?
-    """, table_name, column_name)
-    
-    return cursor.fetchone()[0] > 0
-
-
-def table_exists(cursor, table_name):
-    """Check if a table exists in the database."""
-    cursor.execute("""
-        SELECT COUNT(*) 
-        FROM INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_NAME = ?
-    """, table_name)
-    
-    return cursor.fetchone()[0] > 0
-
-
-def ensure_schema_updated():
-    """
-    Ensure the database schema matches the current models.
-    This is a safety check that runs before Alembic migrations.
-    """
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
+        result = subprocess.run(
+            f"python -m alembic {command}",
+            shell=True,
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent
+        )
         
-        migrations_applied = []
-        
-        # Check and update Jobs table
-        if table_exists(cursor, 'jobs'):
-            jobs_columns = [
-                ("companyType", "VARCHAR(50) NOT NULL DEFAULT 'Internal'"),
-                ("companyName", "VARCHAR(50) NOT NULL DEFAULT ''"),
-                ("contactPerson", "VARCHAR(100) NULL"),
-                ("jobStatus", "VARCHAR(50) NOT NULL DEFAULT 'Draft'"),
-                ("noOfPositions", "INT NOT NULL DEFAULT 1"),
-                ("startDate", "DATE NULL"),
-                ("endDate", "DATE NULL"),
-                ("hiringManagerID", "VARCHAR(50) NULL"),
-            ]
-            
-            for column_name, column_definition in jobs_columns:
-                if not column_exists(cursor, 'jobs', column_name):
-                    try:
-                        sql = f"ALTER TABLE jobs ADD {column_name} {column_definition}"
-                        cursor.execute(sql)
-                        conn.commit()
-                        migrations_applied.append(f"Added column 'jobs.{column_name}'")
-                    except Exception as e:
-                        print(f"Warning: Could not add column 'jobs.{column_name}': {e}")
-                        conn.rollback()
-            
-            # Add foreign key constraint if hiringManagerID exists and constraint doesn't
-            if column_exists(cursor, 'jobs', 'hiringManagerID'):
-                try:
-                    # Check if constraint exists
-                    cursor.execute("""
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
-                        WHERE CONSTRAINT_NAME = 'FK_jobs_hiringManagerID'
-                    """)
-                    
-                    if cursor.fetchone()[0] == 0:
-                        cursor.execute("""
-                            ALTER TABLE jobs 
-                            ADD CONSTRAINT FK_jobs_hiringManagerID 
-                            FOREIGN KEY (hiringManagerID) REFERENCES users(UserID)
-                        """)
-                        conn.commit()
-                        migrations_applied.append("Added foreign key constraint 'FK_jobs_hiringManagerID'")
-                except Exception as e:
-                    # Constraint might already exist or there might be data issues
-                    conn.rollback()
-        
-        cursor.close()
-        conn.close()
-        
-        if migrations_applied:
-            print("[Migration] Applied schema updates:")
-            for migration in migrations_applied:
-                print(f"  - {migration}")
-        
-        return True
-        
+        if result.returncode == 0:
+            return True, result.stdout
+        else:
+            return False, result.stderr
     except Exception as e:
-        print(f"Warning: Could not verify/update schema: {e}")
+        return False, str(e)
+
+
+def check_database_connection():
+    """Check if database is accessible"""
+    print_info("Checking database connection...")
+    
+    try:
+        from app.core.database import engine
+        from sqlalchemy import text
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT @@VERSION"))
+            version = result.fetchone()[0]
+            
+            # Extract SQL Server version
+            if "SQL Server" in version:
+                version_line = version.split('\n')[0]
+                print_success(f"Database connected: {version_line}")
+                return True
+            else:
+                print_success("Database connected successfully")
+                return True
+                
+    except Exception as e:
+        print_error(f"Database connection failed: {str(e)}")
+        print_warning("Migrations may not work without database access")
         return False
 
 
-def run_migrations():
-    """
-    Run database migrations to upgrade the database to the latest version.
-    This function is called automatically when the application starts.
-    """
-    # First, ensure basic schema is up to date
-    print("Checking database schema...")
-    ensure_schema_updated()
+def show_current_status():
+    """Show current migration status"""
+    print_header("Current Migration Status")
     
-    # Then try to run Alembic migrations if configured
-    try:
-        # Get the directory where this script is located
-        base_dir = Path(__file__).parent
-        
-        # Path to alembic.ini
-        alembic_ini_path = base_dir / "alembic.ini"
-        
-        if not alembic_ini_path.exists():
-            print("Note: alembic.ini not found - skipping Alembic migrations")
-            print("Database schema check completed.")
-            return
-        
-        # Check if versions directory exists
-        versions_dir = base_dir / "alembic" / "versions"
-        if not versions_dir.exists():
-            print("Note: No migration versions found - creating versions directory")
-            versions_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Create Alembic configuration
-        alembic_cfg = Config(str(alembic_ini_path))
-        
-        # Set the script location (alembic directory)
-        alembic_cfg.set_main_option("script_location", str(base_dir / "alembic"))
-        
-        print("Running Alembic migrations...")
-        
-        # Run the upgrade command to apply all pending migrations
-        command.upgrade(alembic_cfg, "head")
-        
-        print("[OK] Database migrations completed successfully")
-        
-    except Exception as e:
-        error_msg = str(e)
-        
-        # Check if it's a known error
-        if "is dependent on column" in error_msg or "FK__candidate" in error_msg:
-            print("\n" + "="*60)
-            print("[!] Migration Error: Foreign Key Constraint Conflict")
-            print("="*60)
-            print("\nYour database has existing tables with old schema.")
-            print("\nOptions to fix:")
-            print("1. Reset database (DEVELOPMENT ONLY):")
-            print("   python reset_database.py")
-            print("\n2. Mark current schema as baseline:")
-            print("   alembic stamp head")
-            print("\n3. Manually update your database schema")
-            print("="*60)
-        elif "Can't locate revision identified by" in error_msg:
-            print("\n[!] No migrations to apply - database is up to date")
+    success, output = run_alembic_command("current", "Fetching current migration...")
+    
+    if success:
+        if output.strip():
+            # Parse the output
+            lines = output.strip().split('\n')
+            for line in lines:
+                if line.strip() and not line.startswith('C:'):  # Skip warning lines
+                    if '(head)' in line:
+                        print_success(f"Current: {line.strip()}")
+                    else:
+                        print_info(line.strip())
         else:
-            print(f"[!] Error running Alembic migrations: {e}")
+            print_warning("No migrations have been applied yet")
+    else:
+        print_error(f"Failed to get current status:\n{output}")
+    
+    return success
+
+
+def show_migration_history():
+    """Show migration history"""
+    print_header("Migration History")
+    
+    success, output = run_alembic_command("history --verbose", "Fetching migration history...")
+    
+    if success:
+        if output.strip():
+            # Parse and format the output
+            lines = output.strip().split('\n')
+            current_migration = None
+            
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('C:'):  # Skip empty lines and warnings
+                    continue
+                    
+                if line.startswith('Rev:'):
+                    if current_migration:
+                        print()  # Blank line between migrations
+                    print(f"{BOLD}{CYAN}{line}{RESET}")
+                    current_migration = line
+                elif line.startswith('Parent:'):
+                    print(f"{YELLOW}{line}{RESET}")
+                elif line.startswith('Path:'):
+                    print(f"{BLUE}{line}{RESET}")
+                elif line.startswith('Revision ID:') or line.startswith('Revises:') or line.startswith('Create Date:'):
+                    print(f"  {line}")
+                else:
+                    print(f"  {GREEN}{line}{RESET}")
+        else:
+            print_warning("No migration history found")
+    else:
+        print_error(f"Failed to get history:\n{output}")
+    
+    return success
+
+
+def upgrade_database():
+    """Upgrade database to latest version"""
+    print_header("Upgrading Database")
+    
+    # First check current status
+    success, current = run_alembic_command("current")
+    if success and '(head)' in current:
+        print_success("Database is already at the latest version")
+        return True
+    
+    # Run upgrade
+    success, output = run_alembic_command("upgrade head", "Running database upgrade...")
+    
+    if success:
+        print_success("Database upgraded successfully")
+        print_info("Output:")
+        for line in output.strip().split('\n'):
+            if line.strip() and not line.startswith('C:'):
+                print(f"  {line}")
+        return True
+    else:
+        # Check if it's because table already exists
+        if "already an object named" in output or "already exists" in output:
+            print_warning("Some tables already exist - marking migration as complete")
+            success, _ = run_alembic_command("stamp head", "Marking current state...")
+            if success:
+                print_success("Migration marked as complete")
+                return True
         
-        print("\nThe application will continue with current schema.")
-        # Don't exit - let the application start even if migrations fail
+        print_error(f"Upgrade failed:\n{output}")
+        return False
+
+
+def downgrade_database():
+    """Downgrade database by one version"""
+    print_header("Downgrading Database")
+    
+    print_warning("This will downgrade the database by one migration")
+    confirm = input(f"{YELLOW}Are you sure? (yes/no): {RESET}").strip().lower()
+    
+    if confirm != 'yes':
+        print_info("Downgrade cancelled")
+        return False
+    
+    success, output = run_alembic_command("downgrade -1", "Running database downgrade...")
+    
+    if success:
+        print_success("Database downgraded successfully")
+        return True
+    else:
+        print_error(f"Downgrade failed:\n{output}")
+        return False
+
+
+def create_migration(description):
+    """Create a new migration"""
+    print_header("Creating New Migration")
+    
+    if not description:
+        print_error("Migration description is required")
+        print_info("Usage: python migrate.py --create \"description\"")
+        return False
+    
+    # Auto-generate migration from model changes
+    success, output = run_alembic_command(
+        f'revision --autogenerate -m "{description}"',
+        f"Creating migration: {description}"
+    )
+    
+    if success:
+        print_success("Migration created successfully")
+        print_info("Output:")
+        for line in output.strip().split('\n'):
+            if line.strip():
+                print(f"  {line}")
+        return True
+    else:
+        print_error(f"Failed to create migration:\n{output}")
+        return False
+
+
+def show_database_info():
+    """Show database configuration information"""
+    print_header("Database Configuration")
+    
+    database_url = os.getenv('DATABASE_URL')
+    
+    if database_url:
+        # Parse and display (hide password)
+        if '@' in database_url:
+            parts = database_url.split('@')
+            if ':' in parts[0]:
+                user_part = parts[0].split(':')[0].replace('mssql+pyodbc://', '')
+                server_part = parts[1].split('/')[0] if '/' in parts[1] else parts[1]
+                db_part = parts[1].split('/')[1].split('?')[0] if '/' in parts[1] else 'unknown'
+                
+                print_info(f"Database: {db_part}")
+                print_info(f"Server: {server_part}")
+                print_info(f"User: {user_part}")
+                print_info(f"Password: {'*' * 10}")
+            else:
+                print_info(f"Connection: {database_url[:50]}...")
+        else:
+            print_info(f"Connection: {database_url[:50]}...")
+    else:
+        print_error("DATABASE_URL not set in environment")
+    
+    # Check alembic.ini
+    alembic_ini = Path(__file__).parent / "alembic.ini"
+    if alembic_ini.exists():
+        print_success(f"Alembic config: {alembic_ini}")
+    else:
+        print_error("alembic.ini not found")
+    
+    # Check versions directory
+    versions_dir = Path(__file__).parent / "alembic" / "versions"
+    if versions_dir.exists():
+        migrations = list(versions_dir.glob("*.py"))
+        migrations = [m for m in migrations if m.name != "__pycache__"]
+        print_success(f"Migrations found: {len(migrations)}")
+    else:
+        print_warning("No migrations directory found")
+
+
+def run_interactive_mode():
+    """Run interactive migration management"""
+    print_header("Database Migration Manager")
+    
+    # Show database info
+    show_database_info()
+    
+    # Check connection
+    db_connected = check_database_connection()
+    
+    if not db_connected:
+        print_warning("\nContinuing without database connection...")
+        print_info("Some operations may not work correctly\n")
+    
+    # Show current status
+    show_current_status()
+    
+    # Ask what to do
+    print(f"\n{BOLD}What would you like to do?{RESET}")
+    print(f"  {CYAN}1.{RESET} Upgrade to latest version")
+    print(f"  {CYAN}2.{RESET} Show migration history")
+    print(f"  {CYAN}3.{RESET} Create new migration")
+    print(f"  {CYAN}4.{RESET} Downgrade one version")
+    print(f"  {CYAN}5.{RESET} Exit")
+    
+    choice = input(f"\n{YELLOW}Enter choice (1-5): {RESET}").strip()
+    
+    if choice == '1':
+        upgrade_database()
+    elif choice == '2':
+        show_migration_history()
+    elif choice == '3':
+        description = input(f"{YELLOW}Enter migration description: {RESET}").strip()
+        create_migration(description)
+    elif choice == '4':
+        downgrade_database()
+    elif choice == '5':
+        print_info("Exiting...")
+    else:
+        print_error("Invalid choice")
+
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(
+        description='Database Migration Utility',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python migrate.py                    # Interactive mode
+  python migrate.py --status           # Show current status
+  python migrate.py --history          # Show migration history
+  python migrate.py --upgrade          # Upgrade to latest
+  python migrate.py --create "add users table"  # Create migration
+        """
+    )
+    
+    parser.add_argument('--status', action='store_true', help='Show current migration status')
+    parser.add_argument('--history', action='store_true', help='Show migration history')
+    parser.add_argument('--upgrade', action='store_true', help='Upgrade to latest version')
+    parser.add_argument('--downgrade', action='store_true', help='Downgrade one version')
+    parser.add_argument('--create', type=str, metavar='DESCRIPTION', help='Create new migration')
+    parser.add_argument('--info', action='store_true', help='Show database configuration')
+    
+    args = parser.parse_args()
+    
+    # If no arguments, run interactive mode
+    if len(sys.argv) == 1:
+        run_interactive_mode()
+        return
+    
+    # Handle specific commands
+    if args.info:
+        show_database_info()
+    
+    if args.status:
+        show_current_status()
+    
+    if args.history:
+        show_migration_history()
+    
+    if args.upgrade:
+        upgrade_database()
+    
+    if args.downgrade:
+        downgrade_database()
+    
+    if args.create:
+        create_migration(args.create)
 
 
 if __name__ == "__main__":
-    # Allow running this script directly for testing
-    run_migrations()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n\n{YELLOW}Operation cancelled by user{RESET}")
+        sys.exit(0)
+    except Exception as e:
+        print_error(f"Unexpected error: {str(e)}")
+        sys.exit(1)

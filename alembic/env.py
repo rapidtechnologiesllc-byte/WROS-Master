@@ -9,14 +9,34 @@ load_dotenv()
 
 config = context.config  # ✅ VALID when run via alembic
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Skip fileConfig to avoid interpolation issues with % in DATABASE_URL
+# if config.config_file_name is not None:
+#     fileConfig(config.config_file_name)
 
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise RuntimeError("DATABASE_URL not set")
 
-config.set_main_option("sqlalchemy.url", database_url)
+# Use RawConfigParser to completely disable interpolation
+# This allows % characters in the database URL without errors
+from configparser import RawConfigParser
+
+# Replace the config's file_config with a RawConfigParser
+raw_config = RawConfigParser()
+
+# Read the original alembic.ini if it exists
+if config.config_file_name and os.path.exists(config.config_file_name):
+    raw_config.read(config.config_file_name)
+
+# Ensure the alembic section exists
+if not raw_config.has_section(config.config_ini_section):
+    raw_config.add_section(config.config_ini_section)
+
+# Set the database URL (no interpolation will occur)
+raw_config.set(config.config_ini_section, 'sqlalchemy.url', database_url)
+
+# Replace the config's file_config with our raw config
+config.file_config = raw_config
 
 # Import Base and all models from the app package
 from app.models.base import Base
