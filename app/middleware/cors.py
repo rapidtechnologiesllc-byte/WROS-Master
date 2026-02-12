@@ -21,7 +21,7 @@ def setup_cors(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     # Get allowed origins from settings
-    allowed_origins = settings.CORS_ORIGINS
+    allowed_origins = ["*"]#settings.CORS_ORIGINS
     
     # Add additional origins from environment if specified
     import os
