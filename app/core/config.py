@@ -43,6 +43,8 @@ class Settings:
     CORS_ORIGINS: list = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://46.224.149.7:3005",
+        "http://46.224.149.7:8080",
         # Add production frontend URLs here
     ]
     
