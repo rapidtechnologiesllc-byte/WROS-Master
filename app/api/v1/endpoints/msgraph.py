@@ -78,8 +78,7 @@ def callback(request: Request):
     account_id = token_result.get("id_token_claims", {}).get("oid")
     user_tokens[account_id] = token_result  # store access & refresh token for later
 
-    #return RedirectResponse(url="http://localhost:3000/")
-    return RedirectResponse(url="/static/msgraph_test.html")
+    return RedirectResponse(url=redirect_url)
 
 def _graph_client_for(account_id: str) -> dict:
     """
