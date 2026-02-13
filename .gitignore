@@ -77,3 +77,6 @@ Thumbs.db
 
 test.py
 #static/msgraph_test.html
+.env.example
+.vercel
+.env*.local
