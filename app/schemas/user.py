@@ -208,3 +208,14 @@ class InterviewUpdateRequest(BaseModel):
 class DeleteResponse(BaseModel):
     status: str = "Success"
     message: str
+
+# LinkedIn Job Posting Schemas
+class LinkedInPostRequest(BaseModel):
+    job_id: str
+
+class LinkedInPostResponse(BaseModel):
+    status: str
+    message: str
+    linkedin_post_id: str
+    posted_at: datetime
+    job_details: JobResponse
