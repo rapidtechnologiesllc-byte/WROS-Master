@@ -18,7 +18,8 @@ from app.schemas.user import (
     GenerateJobDescriptionRequest, GenerateJobDescriptionResponse,
     JobCreateRequest, JobCreateResponse,
     JobUpdateRequest, JobResponse,
-    AllJobsResponse, DeleteResponse
+    AllJobsResponse, DeleteResponse,
+    LinkedInPostRequest, LinkedInPostResponse
 )
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator, job_id_generator
 
@@ -253,3 +254,70 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
         message=f"Job with ID {job_id} deleted successfully"
     )
 
+
+@router.post("/post-on-linkedin", response_model=LinkedInPostResponse)
+def post_job_on_linkedin(
+    request: LinkedInPostRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Post a created job to LinkedIn (Pseudo API - Mock Implementation).
+    
+    This is a pseudo/mock implementation since LinkedIn API access is not available yet.
+    It simulates posting a job to LinkedIn and returns a mock response.
+    
+    Args:
+        request: LinkedInPostRequest containing job_id
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        LinkedInPostResponse with status, message, mock LinkedIn post ID, and job details
+        
+    Raises:
+        HTTPException: If job not found
+    """
+    # Validate that the job exists
+    job = db.query(Jobs).filter(Jobs.jobID == request.job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job with ID {request.job_id} not found"
+        )
+    
+    # Generate a mock LinkedIn post ID (simulating LinkedIn's response)
+    import random
+    import string
+    linkedin_post_id = f"LI-{''.join(random.choices(string.ascii_uppercase + string.digits, k=12))}"
+    
+    # Simulate posting timestamp
+    posted_at = datetime.now()
+    
+    # Build job details response
+    job_details = JobResponse(
+        job_id=job.jobID,
+        job_title=job.jobTitle,
+        job_description=job.jobDescription,
+        job_skills=job.jobSkills,
+        job_experience=job.jobExperience,
+        job_location=job.jobLocation,
+        job_created_at=job.jobCreatedAt,
+        company_type=job.companyType,
+        company_name=job.companyName,
+        contact_person=job.contactPerson,
+        job_status=job.jobStatus,
+        no_of_positions=job.noOfPositions,
+        start_date=job.startDate,
+        end_date=job.endDate,
+        hiring_manager_id=job.hiringManagerID
+    )
+    
+    # Return mock LinkedIn posting response
+    return LinkedInPostResponse(
+        status="Success",
+        message=f"Job '{job.jobTitle}' successfully posted to LinkedIn (Mock)",
+        linkedin_post_id=linkedin_post_id,
+        posted_at=posted_at,
+        job_details=job_details
+    )
