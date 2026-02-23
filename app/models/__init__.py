@@ -22,6 +22,7 @@ from app.models.candidate import (
     CandidatePanForm
 )
 from app.models.document import CandidateDocument
+from app.models.offer_letter import OfferLetter
 
 __all__ = [
     # Base
@@ -42,4 +43,7 @@ __all__ = [
     "CandidateAadharForm",
     "CandidatePanForm",
     "CandidateDocument",
+    # Offer Letter
+    "OfferLetter",
 ]
+
