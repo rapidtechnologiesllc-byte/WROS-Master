@@ -219,3 +219,59 @@ class LinkedInPostResponse(BaseModel):
     linkedin_post_id: str
     posted_at: datetime
     job_details: JobResponse
+
+# Offer Letter Schemas
+class OfferLetterCreateRequest(BaseModel):
+    candidate_id: str
+    job_id: Optional[str] = None
+    hiring_manager_id: str
+    reporting_manager_id: str
+    position: str
+    salary: str
+    joining_date: date
+
+class OfferLetterUpdateRequest(BaseModel):
+    job_id: Optional[str] = None
+    hiring_manager_id: Optional[str] = None
+    reporting_manager_id: Optional[str] = None
+    position: Optional[str] = None
+    salary: Optional[str] = None
+    joining_date: Optional[date] = None
+
+class OfferLetterResponse(BaseModel):
+    id: int
+    candidate_id: str
+    candidate_name: str | None = None
+    candidate_email: str | None = None
+    job_id: str | None = None
+    hiring_manager_id: str
+    reporting_manager_id: str
+    position: str
+    salary: str
+    joining_date: date
+    offer_status: str
+    candidate_response: str | None = None
+    responded_at: datetime | None = None
+    created_at: datetime
+    created_by: str
+    cancelled_at: datetime | None = None
+    cancelled_by: str | None = None
+
+class OfferAcceptanceRequest(BaseModel):
+    offer_id: int
+    action: str  # "accept" or "reject"
+    response_message: Optional[str] = None
+
+class OfferAcceptanceResponse(BaseModel):
+    status: str
+    message: str
+    offer_id: int
+    offer_status: str
+    responded_at: datetime
+
+class OfferCancelRequest(BaseModel):
+    reason: Optional[str] = None
+
+class AllOffersResponse(BaseModel):
+    total_offers: int
+    offers: list[OfferLetterResponse]

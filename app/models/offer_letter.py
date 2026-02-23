@@ -1,0 +1,36 @@
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func
+from sqlalchemy.orm import relationship
+from app.models.base import Base
+
+
+class OfferLetter(Base):
+    __tablename__ = "offer_letters"
+    
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
+    hiring_manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=False)
+    reporting_manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=False)
+    
+    position = Column(String(200), nullable=False)
+    salary = Column(String(50), nullable=False)
+    joining_date = Column(Date, nullable=False)
+    
+    offer_status = Column(String(20), nullable=False, default="Pending")  # Pending, Accepted, Rejected, Cancelled
+    candidate_response = Column(Text, nullable=True)
+    responded_at = Column(DateTime(timezone=False), nullable=True)
+    
+    created_at = Column(DateTime(timezone=False), server_default=func.now())
+    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=False)
+    
+    cancelled_at = Column(DateTime(timezone=False), nullable=True)
+    cancelled_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    
+    # Relationships
+    candidate = relationship("Candidate", foreign_keys=[candidate_id])
+    job = relationship("Jobs", foreign_keys=[job_id])
+    hiring_manager = relationship("Users", foreign_keys=[hiring_manager_id])
+    reporting_manager = relationship("Users", foreign_keys=[reporting_manager_id])
+    creator = relationship("Users", foreign_keys=[created_by])
+    canceller = relationship("Users", foreign_keys=[cancelled_by])
