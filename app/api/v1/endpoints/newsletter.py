@@ -1,0 +1,271 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List, Optional
+
+from app.core.database import get_db
+from app.schemas.newsletter import (
+    NewsletterCreate,
+    NewsletterUpdate,
+    NewsletterResponse,
+    NewsletterSchedule,
+    NewsletterSendResult,
+    SubscriberCreate,
+    SubscriberResponse,
+)
+from app.services.newsletter_service import NewsletterService
+from app.core.logging import logger
+from app.core.dependencies import get_current_hr_or_admin
+
+router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
+
+
+# ===========================================================================
+# Subscriber Endpoints
+# ===========================================================================
+
+@router.post(
+    "/subscribe",
+    response_model=SubscriberResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Subscribe an email to the newsletter",
+)
+def subscribe_newsletter(
+    subscriber_in: SubscriberCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Subscribe an email address to the newsletter.
+    - If the email doesn't exist, a new subscriber is created.
+    - If the email exists but is inactive, it is reactivated.
+    - If the email is already active, the existing record is returned as-is.
+    """
+    try:
+        return NewsletterService.create_subscriber(db, subscriber_in)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error subscribing '{subscriber_in.email}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process subscription",
+        )
+
+
+@router.delete(
+    "/unsubscribe/{email}",
+    response_model=SubscriberResponse,
+    summary="Unsubscribe an email from the newsletter",
+)
+def unsubscribe_newsletter(
+    email: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Deactivate an email address so it no longer receives newsletters.
+    Returns 404 if the subscriber does not exist.
+    """
+    try:
+        return NewsletterService.unsubscribe(db, email)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error unsubscribing '{email}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process unsubscription",
+        )
+
+
+@router.get(
+    "/subscribers",
+    response_model=List[SubscriberResponse],
+    summary="List all newsletter subscribers",
+)
+def get_subscribers(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Retrieve a paginated list of all newsletter subscribers."""
+    return NewsletterService.get_all_subscribers(db, skip=skip, limit=limit)
+
+
+# ===========================================================================
+# Newsletter Endpoints
+# ===========================================================================
+
+@router.post(
+    "/create",
+    response_model=NewsletterResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a newsletter draft",
+)
+def create_newsletter(
+    newsletter_in: NewsletterCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Create a new newsletter in 'draft' status."""
+    try:
+        return NewsletterService.create_newsletter(db, newsletter_in, user_id=user.UserID)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error creating newsletter: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create newsletter",
+        )
+
+
+@router.get(
+    "/all",
+    response_model=List[NewsletterResponse],
+    summary="List all newsletters (optionally filtered by status)",
+)
+def get_newsletters(
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Retrieve a paginated list of all newsletters, newest first.
+    
+    Pass an optional `status` query param to filter:
+    - `draft` — unpublished drafts
+    - `scheduled` — queued for future delivery
+    - `sent` — already delivered
+    - `failed` — delivery failed
+    """
+    return NewsletterService.get_all_newsletters(db, skip=skip, limit=limit, status_filter=status)
+
+
+@router.get(
+    "/dispatched",
+    response_model=List[NewsletterResponse],
+    summary="List newsletters that have been scheduled or sent",
+)
+def get_dispatched_newsletters(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return only newsletters with status `scheduled` or `sent` — i.e. every
+    newsletter that an admin has dispatched (queued or already delivered).
+    Results are ordered newest-first.
+    """
+    return NewsletterService.get_dispatched_newsletters(db, skip=skip, limit=limit)
+
+
+@router.put(
+    "/update/{newsletter_id}",
+    response_model=NewsletterResponse,
+    summary="Update a newsletter draft",
+)
+def update_newsletter(
+    newsletter_id: str,
+    newsletter_in: NewsletterUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Partially update fields on an existing newsletter. Returns 404 if not found."""
+    try:
+        return NewsletterService.update_newsletter(db, newsletter_id, newsletter_in)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error updating newsletter '{newsletter_id}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update newsletter",
+        )
+
+
+@router.post(
+    "/schedule/{newsletter_id}",
+    response_model=NewsletterResponse,
+    summary="Schedule a newsletter for future delivery",
+)
+def schedule_newsletter(
+    newsletter_id: str,
+    schedule_data: NewsletterSchedule,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Schedule an existing draft (or reschedule a previously scheduled) newsletter.
+    Returns 400 if the newsletter has already been sent.
+    """
+    try:
+        return NewsletterService.schedule_newsletter(
+            db,
+            newsletter_id=newsletter_id,
+            scheduled_for=schedule_data.scheduled_for,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error scheduling newsletter '{newsletter_id}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to schedule newsletter",
+        )
+
+
+@router.post(
+    "/send/{newsletter_id}",
+    response_model=NewsletterSendResult,
+    summary="Send a newsletter immediately",
+)
+def send_newsletter_now(
+    newsletter_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Immediately send a newsletter to all active subscribers.
+    Returns 400 if the newsletter has already been sent.
+    """
+    try:
+        return NewsletterService.send_newsletter_now(db, newsletter_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error sending newsletter '{newsletter_id}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send newsletter",
+        )
+
+
+@router.delete(
+    "/delete/{newsletter_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a newsletter",
+)
+def delete_newsletter(
+    newsletter_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Permanently delete a newsletter and cancel any associated scheduled job.
+    Returns 404 if the newsletter does not exist.
+    """
+    try:
+        NewsletterService.delete_newsletter(db, newsletter_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error deleting newsletter '{newsletter_id}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete newsletter",
+        )

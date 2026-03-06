@@ -45,6 +45,7 @@ class Settings:
         "http://127.0.0.1:3000",
         "http://46.224.149.7:3005",
         "http://46.224.149.7:8080",
+        "http://localhost:8080",
         # Add production frontend URLs here
     ]
     

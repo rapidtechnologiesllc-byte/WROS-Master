@@ -49,7 +49,7 @@ def setup_cors(app: FastAPI) -> None:
         max_age=3600,                    # Cache preflight requests for 1 hour
     )
     
-    logger.info("✓ CORS middleware configured successfully")
+    logger.info("[OK] CORS middleware configured successfully")
 
 
 def get_cors_config() -> dict:
