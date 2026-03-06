@@ -40,14 +40,18 @@ async def startup_event():
     try:
         # Create database tables if they don't exist
         Base.metadata.create_all(bind=engine)
-        logger.info("✓ Database tables initialized")
+        logger.info("[OK] Database tables initialized")
         
         # Validate configuration
         settings.validate_config()
-        logger.info("✓ Configuration validated")
+        logger.info("[OK] Configuration validated")
         
-        logger.info(f"✓ {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-        logger.info(f"✓ Server running on http://{settings.HOST}:{settings.PORT}")
+        # Start APScheduler
+        from app.core.scheduler import start_scheduler
+        start_scheduler()
+        
+        logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+        logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
         
     except Exception as e:
         logger.error(f"Startup error: {str(e)}", exc_info=True)
@@ -61,6 +65,10 @@ async def shutdown_event():
     Cleanup resources and log shutdown.
     """
     logger.info(f"Shutting down {settings.APP_NAME}...")
+    
+    # Shutdown APScheduler
+    from app.core.scheduler import shutdown_scheduler
+    shutdown_scheduler()
 
 
 # Include API routes
@@ -70,7 +78,7 @@ app.include_router(router)
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
-    logger.info("✓ Static files mounted at /static")
+    logger.info("[OK] Static files mounted at /static")
 else:
     logger.warning("Static directory not found. Skipping static file mounting.")
 
