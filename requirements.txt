@@ -44,6 +44,10 @@ python-dotenv>=1.0.0,<2.0.0      # Read environment variables from .env file
 langchain-google-genai>=2.0.0,<3.0.0  # LangChain integration with Google Generative AI
 langgraph>=0.2.0,<1.0.0               # Build stateful, multi-actor applications with LLMs
 
+# Background Tasks & Scheduling
+# ----------------------------------------------------------------------------
+apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler
+
 # Production Server & Monitoring
 # ----------------------------------------------------------------------------
 gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uvicorn workers)

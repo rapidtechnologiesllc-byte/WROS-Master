@@ -19,3 +19,6 @@ def job_id_generator() -> str:
 
 def panel_id_generator() -> str:
     return f"PANEL-{uuid.uuid1()}"
+
+def newsletter_id_generator() -> str:
+    return f"NEWS-{uuid.uuid1()}"
