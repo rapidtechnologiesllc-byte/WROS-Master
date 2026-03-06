@@ -1,6 +1,5 @@
 import fastapi
 
-
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.create_job import router as create_job_router
@@ -10,6 +9,7 @@ from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
+from app.api.v1.endpoints.newsletter import router as newsletter_router
 
 router = fastapi.APIRouter()
 
@@ -22,3 +22,4 @@ router.include_router(router=candidates_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
+router.include_router(router=newsletter_router)

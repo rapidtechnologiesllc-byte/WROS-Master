@@ -403,29 +403,98 @@
             </form>
             <div id="serviceMeetingStatus" class="status"></div>
             <div id="serviceMeetingResponse" class="response"></div>
+            <!-- Newsletter Management Section -->
+            <div class="card">
+                <h2>8. Newsletter Management (Requires HR/Admin JWT)</h2>
+                <p style="margin-bottom: 15px;">Test the newsletter and scheduler feature</p>
+
+                <div style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 10px;">1. Subscribe to Newsletter</h3>
+                    <div class="form-group">
+                        <input type="email" id="nlSubscribeEmail" placeholder="subscriber@example.com"
+                            style="margin-bottom: 10px;">
+                        <input type="text" id="nlSubscribeName" placeholder="Subscriber Name (Optional)"
+                            style="margin-bottom: 10px;">
+                        <button class="btn" onclick="subscribeNewsletter()">✅ Subscribe</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 10px;">2. Create Newsletter Draft</h3>
+                    <div class="form-group">
+                        <input type="text" id="nlSubject" placeholder="Newsletter Subject" style="margin-bottom: 10px;">
+                        <textarea id="nlContent" placeholder="HTML or Text Content" rows="3"
+                            style="margin-bottom: 10px;"></textarea>
+                        <button class="btn" onclick="createNewsletter()">📝 Create Draft</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 10px;">3. Schedule Newsletter</h3>
+                    <div class="form-group">
+                        <input type="number" id="nlIdToSchedule" placeholder="Newsletter ID (e.g. 1)"
+                            style="margin-bottom: 10px;">
+                        <input type="datetime-local" id="nlScheduleTime" style="margin-bottom: 10px;">
+                        <button class="btn" onclick="scheduleNewsletter()">⏰ Schedule Sending</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 6px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 10px;">4. List Newsletters</h3>
+                    <button class="btn" onclick="listNewsletters()">📋 List All Newsletters</button>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 6px; margin-top: 15px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 10px;">5. Update Newsletter</h3>
+                    <div class="form-group">
+                        <input type="text" id="nlIdToUpdate" placeholder="Newsletter ID (e.g. NEWS-123)"
+                            style="margin-bottom: 10px;">
+                        <input type="text" id="nlUpdateSubject" placeholder="New Subject (optional)"
+                            style="margin-bottom: 10px;">
+                        <textarea id="nlUpdateContent" placeholder="New HTML or Text Content (optional)" rows="3"
+                            style="margin-bottom: 10px;"></textarea>
+                        <button class="btn" onclick="updateNewsletter()">🔄 Update Newsletter</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 6px; margin-top: 15px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 10px;">6. Delete Newsletter</h3>
+                    <div class="form-group">
+                        <input type="text" id="nlIdToDelete" placeholder="Newsletter ID (e.g. NEWS-123)"
+                            style="margin-bottom: 10px;">
+                        <button class="btn" style="background-color: #f44336;" onclick="deleteNewsletter()">🗑️ Delete
+                            Newsletter</button>
+                    </div>
+                </div>
+
+                <div id="newsletterStatus" class="status"></div>
+                <div id="newsletterResponse" class="response"></div>
+            </div>
+
         </div>
-    </div>
 
-    <script>
-        const BASE_URL = 'http://localhost:8080/msgraph';
 
-        function signIn() {
-            window.location.href = `${BASE_URL}/auth/signin`;
-        }
 
-        async function getMe() {
-            try {
-                const response = await fetch(`${BASE_URL}/me`);
-                const data = await response.json();
+        <script>
+            const BASE_URL = 'http://localhost:8080/msgraph';
 
-                const responseDiv = document.getElementById('authResponse');
+            function signIn() {
+                window.location.href = `${BASE_URL}/auth/signin`;
+            }
 
-                // Check if response has user object (new format) or is direct user data (old format)
-                const user = data.user || data;
-                const accessToken = data.access_token;
+            async function getMe() {
+                try {
+                    const response = await fetch(`${BASE_URL}/me`);
+                    const data = await response.json();
 
-                // Create a beautiful profile card
-                responseDiv.innerHTML = `
+                    const responseDiv = document.getElementById('authResponse');
+
+                    // Check if response has user object (new format) or is direct user data (old format)
+                    const user = data.user || data;
+                    const accessToken = data.access_token;
+
+                    // Create a beautiful profile card
+                    responseDiv.innerHTML = `
                     <div class="profile-card">
                         <h3>👤 User Profile ${data.user ? '✅ Registered' : ''}</h3>
                         <div class="profile-info">
@@ -475,40 +544,40 @@
                         ` : ''}
                     </div>
                 `;
-                responseDiv.classList.add('show');
+                    responseDiv.classList.add('show');
 
-                // Store token in localStorage for future API calls
-                if (accessToken) {
-                    localStorage.setItem('access_token', accessToken);
-                    console.log('Access token saved to localStorage');
+                    // Store token in localStorage for future API calls
+                    if (accessToken) {
+                        localStorage.setItem('access_token', accessToken);
+                        console.log('Access token saved to localStorage');
+                    }
+                } catch (error) {
+                    alert('Error: ' + error.message);
                 }
-            } catch (error) {
-                alert('Error: ' + error.message);
             }
-        }
 
-        async function testSharePointConnection() {
-            const statusDiv = document.getElementById('sharepointStatus');
-            const responseDiv = document.getElementById('sharepointResponse');
+            async function testSharePointConnection() {
+                const statusDiv = document.getElementById('sharepointStatus');
+                const responseDiv = document.getElementById('sharepointResponse');
 
-            // Show loading state
-            statusDiv.className = 'status';
-            statusDiv.style.display = 'block';
-            statusDiv.style.background = '#fff3cd';
-            statusDiv.style.color = '#856404';
-            statusDiv.textContent = '⏳ Testing SharePoint connection...';
-            responseDiv.classList.remove('show');
+                // Show loading state
+                statusDiv.className = 'status';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.color = '#856404';
+                statusDiv.textContent = '⏳ Testing SharePoint connection...';
+                responseDiv.classList.remove('show');
 
-            try {
-                const response = await fetch(`${BASE_URL}/sharepoint/test-connection`);
-                const data = await response.json();
+                try {
+                    const response = await fetch(`${BASE_URL}/sharepoint/test-connection`);
+                    const data = await response.json();
 
-                if (data.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = '✓ SharePoint connection successful!';
+                    if (data.status === 'success') {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = '✓ SharePoint connection successful!';
 
-                    // Create beautiful display of connection info
-                    let html = `
+                        // Create beautiful display of connection info
+                        let html = `
                         <div class="profile-card">
                             <h3>📁 SharePoint Connection Details</h3>
                             
@@ -588,13 +657,13 @@
                         </div>
                     `;
 
-                    responseDiv.innerHTML = html;
-                    responseDiv.classList.add('show');
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = `✗ ${data.message}`;
+                        responseDiv.innerHTML = html;
+                        responseDiv.classList.add('show');
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = `✗ ${data.message}`;
 
-                    let errorHtml = `
+                        let errorHtml = `
                         <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                             <h4 style="margin-bottom: 10px;">❌ Connection Failed</h4>
                             <p style="margin-bottom: 10px;"><strong>Error:</strong> ${data.message}</p>
@@ -622,130 +691,130 @@
                         </div>
                     `;
 
-                    responseDiv.innerHTML = errorHtml;
-                    responseDiv.classList.add('show');
-                }
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Connection test failed';
+                        responseDiv.innerHTML = errorHtml;
+                        responseDiv.classList.add('show');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Connection test failed';
 
-                responseDiv.innerHTML = `
+                    responseDiv.innerHTML = `
                     <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                         <h4>❌ Network Error</h4>
                         <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
                         <p style="margin-top: 10px;">Make sure the backend server is running on port 8080</p>
                     </div>
                 `;
-                responseDiv.classList.add('show');
-            }
-        }
-
-
-        async function sendEmail(event) {
-            event.preventDefault();
-
-            const to = document.getElementById('emailTo').value;
-            const subject = document.getElementById('emailSubject').value;
-            const body = document.getElementById('emailBody').value;
-
-            const statusDiv = document.getElementById('emailStatus');
-            const responseDiv = document.getElementById('emailResponse');
-
-            try {
-                const response = await fetch(`${BASE_URL}/mail/send?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body_text=${encodeURIComponent(body)}`, {
-                    method: 'POST'
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = '✓ Email sent successfully!';
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '✗ Failed to send email';
+                    responseDiv.classList.add('show');
                 }
-
-                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-                responseDiv.classList.add('show');
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Error: ' + error.message;
             }
-        }
 
-        async function scheduleMeeting(event) {
-            event.preventDefault();
 
-            const subject = document.getElementById('meetingSubject').value;
-            const startTime = new Date(document.getElementById('meetingStart').value).toISOString();
-            const endTime = new Date(document.getElementById('meetingEnd').value).toISOString();
-            const attendeesInput = document.getElementById('meetingAttendees').value;
-            const attendees = attendeesInput ? attendeesInput.split(',').map(e => e.trim()) : [];
-            const teamsOnline = document.getElementById('teamsOnline').checked;
+            async function sendEmail(event) {
+                event.preventDefault();
 
-            const statusDiv = document.getElementById('meetingStatus');
-            const responseDiv = document.getElementById('meetingResponse');
+                const to = document.getElementById('emailTo').value;
+                const subject = document.getElementById('emailSubject').value;
+                const body = document.getElementById('emailBody').value;
 
-            try {
-                const params = new URLSearchParams({
-                    subject: subject,
-                    start_iso: startTime,
-                    end_iso: endTime,
-                    teams_online: teamsOnline
-                });
+                const statusDiv = document.getElementById('emailStatus');
+                const responseDiv = document.getElementById('emailResponse');
 
-                attendees.forEach(email => {
-                    params.append('attendees', email);
-                });
+                try {
+                    const response = await fetch(`${BASE_URL}/mail/send?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body_text=${encodeURIComponent(body)}`, {
+                        method: 'POST'
+                    });
 
-                const response = await fetch(`${BASE_URL}/calendar/schedule?${params.toString()}`, {
-                    method: 'POST'
-                });
+                    const data = await response.json();
 
-                const data = await response.json();
-
-                if (response.ok) {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = '✓ Meeting scheduled successfully!';
-                    if (data.joinUrl) {
-                        statusDiv.innerHTML += `<br><a href="${data.joinUrl}" target="_blank" style="color: #155724; text-decoration: underline;">Join Teams Meeting</a>`;
+                    if (response.ok) {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = '✓ Email sent successfully!';
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '✗ Failed to send email';
                     }
-                } else {
+
+                    responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    responseDiv.classList.add('show');
+                } catch (error) {
                     statusDiv.className = 'status error';
-                    statusDiv.textContent = '✗ Failed to schedule meeting';
+                    statusDiv.textContent = '✗ Error: ' + error.message;
                 }
-
-                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-                responseDiv.classList.add('show');
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Error: ' + error.message;
             }
-        }
 
-        async function listSharePointDrives() {
-            const statusDiv = document.getElementById('drivesStatus');
-            const responseDiv = document.getElementById('drivesResponse');
+            async function scheduleMeeting(event) {
+                event.preventDefault();
 
-            // Show loading state
-            statusDiv.className = 'status';
-            statusDiv.style.display = 'block';
-            statusDiv.style.background = '#fff3cd';
-            statusDiv.style.color = '#856404';
-            statusDiv.textContent = '⏳ Fetching available drives...';
-            responseDiv.classList.remove('show');
+                const subject = document.getElementById('meetingSubject').value;
+                const startTime = new Date(document.getElementById('meetingStart').value).toISOString();
+                const endTime = new Date(document.getElementById('meetingEnd').value).toISOString();
+                const attendeesInput = document.getElementById('meetingAttendees').value;
+                const attendees = attendeesInput ? attendeesInput.split(',').map(e => e.trim()) : [];
+                const teamsOnline = document.getElementById('teamsOnline').checked;
 
-            try {
-                const response = await fetch(`${BASE_URL}/sharepoint/list-drives`);
-                const data = await response.json();
+                const statusDiv = document.getElementById('meetingStatus');
+                const responseDiv = document.getElementById('meetingResponse');
 
-                if (data.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = `✓ ${data.message}`;
+                try {
+                    const params = new URLSearchParams({
+                        subject: subject,
+                        start_iso: startTime,
+                        end_iso: endTime,
+                        teams_online: teamsOnline
+                    });
 
-                    // Create beautiful display of drives
-                    let html = `
+                    attendees.forEach(email => {
+                        params.append('attendees', email);
+                    });
+
+                    const response = await fetch(`${BASE_URL}/calendar/schedule?${params.toString()}`, {
+                        method: 'POST'
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = '✓ Meeting scheduled successfully!';
+                        if (data.joinUrl) {
+                            statusDiv.innerHTML += `<br><a href="${data.joinUrl}" target="_blank" style="color: #155724; text-decoration: underline;">Join Teams Meeting</a>`;
+                        }
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '✗ Failed to schedule meeting';
+                    }
+
+                    responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    responseDiv.classList.add('show');
+                } catch (error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Error: ' + error.message;
+                }
+            }
+
+            async function listSharePointDrives() {
+                const statusDiv = document.getElementById('drivesStatus');
+                const responseDiv = document.getElementById('drivesResponse');
+
+                // Show loading state
+                statusDiv.className = 'status';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.color = '#856404';
+                statusDiv.textContent = '⏳ Fetching available drives...';
+                responseDiv.classList.remove('show');
+
+                try {
+                    const response = await fetch(`${BASE_URL}/sharepoint/list-drives`);
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = `✓ ${data.message}`;
+
+                        // Create beautiful display of drives
+                        let html = `
                         <div class="profile-card">
                             <h3>💾 Available SharePoint Drives</h3>
                             <p style="opacity: 0.9; margin-bottom: 20px;">${data.instructions}</p>
@@ -807,13 +876,13 @@
                         </div>
                     `;
 
-                    responseDiv.innerHTML = html;
-                    responseDiv.classList.add('show');
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = `✗ ${data.message}`;
+                        responseDiv.innerHTML = html;
+                        responseDiv.classList.add('show');
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = `✗ ${data.message}`;
 
-                    let errorHtml = `
+                        let errorHtml = `
                         <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                             <h4 style="margin-bottom: 10px;">❌ Failed to List Drives</h4>
                             <p style="margin-bottom: 10px;"><strong>Error:</strong> ${data.message}</p>
@@ -831,68 +900,68 @@
                         </div>
                     `;
 
-                    responseDiv.innerHTML = errorHtml;
-                    responseDiv.classList.add('show');
-                }
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Failed to fetch drives';
+                        responseDiv.innerHTML = errorHtml;
+                        responseDiv.classList.add('show');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Failed to fetch drives';
 
-                responseDiv.innerHTML = `
+                    responseDiv.innerHTML = `
                     <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                         <h4>❌ Network Error</h4>
                         <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
                         <p style="margin-top: 10px;">Make sure the backend server is running on port 8080</p>
                     </div>
                 `;
-                responseDiv.classList.add('show');
+                    responseDiv.classList.add('show');
+                }
             }
-        }
 
-        function copyDriveId(driveId, index) {
-            // Copy to clipboard
-            navigator.clipboard.writeText(driveId).then(() => {
-                const statusEl = document.getElementById(`copyStatus${index}`);
-                statusEl.textContent = '✓ Copied to clipboard!';
-                statusEl.style.display = 'block';
-                statusEl.style.color = '#4CAF50';
+            function copyDriveId(driveId, index) {
+                // Copy to clipboard
+                navigator.clipboard.writeText(driveId).then(() => {
+                    const statusEl = document.getElementById(`copyStatus${index}`);
+                    statusEl.textContent = '✓ Copied to clipboard!';
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = '#4CAF50';
 
-                // Hide after 3 seconds
-                setTimeout(() => {
-                    statusEl.style.display = 'none';
-                }, 3000);
-            }).catch(err => {
-                const statusEl = document.getElementById(`copyStatus${index}`);
-                statusEl.textContent = '✗ Failed to copy. Please copy manually.';
-                statusEl.style.display = 'block';
-                statusEl.style.color = '#f44336';
-            });
-        }
+                    // Hide after 3 seconds
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 3000);
+                }).catch(err => {
+                    const statusEl = document.getElementById(`copyStatus${index}`);
+                    statusEl.textContent = '✗ Failed to copy. Please copy manually.';
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = '#f44336';
+                });
+            }
 
-        async function getMyMeetings() {
-            const statusDiv = document.getElementById('calendarStatus');
-            const responseDiv = document.getElementById('calendarResponse');
-            const top = parseInt(document.getElementById('eventsLimit').value) || 10;
-            const skip = parseInt(document.getElementById('eventsSkip').value) || 0;
+            async function getMyMeetings() {
+                const statusDiv = document.getElementById('calendarStatus');
+                const responseDiv = document.getElementById('calendarResponse');
+                const top = parseInt(document.getElementById('eventsLimit').value) || 10;
+                const skip = parseInt(document.getElementById('eventsSkip').value) || 0;
 
-            // Show loading state
-            statusDiv.className = 'status';
-            statusDiv.style.display = 'block';
-            statusDiv.style.background = '#fff3cd';
-            statusDiv.style.color = '#856404';
-            statusDiv.textContent = '⏳ Fetching calendar events...';
-            responseDiv.classList.remove('show');
+                // Show loading state
+                statusDiv.className = 'status';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.color = '#856404';
+                statusDiv.textContent = '⏳ Fetching calendar events...';
+                responseDiv.classList.remove('show');
 
-            try {
-                const response = await fetch(`${BASE_URL}/calendar/meetings?top=${top}&skip=${skip}`);
-                const data = await response.json();
+                try {
+                    const response = await fetch(`${BASE_URL}/calendar/meetings?top=${top}&skip=${skip}`);
+                    const data = await response.json();
 
-                if (response.ok && data.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = `✓ Found ${data.count} event(s)`;
+                    if (response.ok && data.status === 'success') {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = `✓ Found ${data.count} event(s)`;
 
-                    if (data.events.length > 0) {
-                        let html = `
+                        if (data.events.length > 0) {
+                            let html = `
                             <div class="profile-card">
                                 <h3>📅 My Calendar Events</h3>
                                 <p style="opacity: 0.9; margin-bottom: 20px;">
@@ -972,106 +1041,106 @@
                             </div>
                         `;
 
-                        responseDiv.innerHTML = html;
-                        responseDiv.classList.add('show');
-                    } else {
-                        responseDiv.innerHTML = `
+                            responseDiv.innerHTML = html;
+                            responseDiv.classList.add('show');
+                        } else {
+                            responseDiv.innerHTML = `
                             <div style="background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 6px; text-align: center;">
                                 <h4>📅 No Events Found</h4>
                                 <p style="margin-top: 10px;">You don't have any calendar events at the moment.</p>
                             </div>
                         `;
-                        responseDiv.classList.add('show');
-                    }
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '✗ Failed to fetch calendar events';
+                            responseDiv.classList.add('show');
+                        }
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '✗ Failed to fetch calendar events';
 
-                    responseDiv.innerHTML = `
+                        responseDiv.innerHTML = `
                         <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                             <h4>❌ Error</h4>
                             <p style="margin-top: 10px;"><strong>Details:</strong> ${data.detail || 'Unknown error'}</p>
                         </div>
                     `;
-                    responseDiv.classList.add('show');
-                }
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Error fetching events';
+                        responseDiv.classList.add('show');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Error fetching events';
 
-                responseDiv.innerHTML = `
+                    responseDiv.innerHTML = `
                     <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                         <h4>❌ Network Error</h4>
                         <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
                         <p style="margin-top: 10px;">Make sure you're signed in and the backend server is running.</p>
                     </div>
                 `;
-                responseDiv.classList.add('show');
-            }
-        }
-
-        function loadMoreEvents(top, newSkip) {
-            document.getElementById('eventsSkip').value = newSkip;
-            getMyMeetings();
-        }
-
-        // Service Account: Get User Calendar
-        async function getUserCalendar() {
-            const statusDiv = document.getElementById('serviceCalendarStatus');
-            const responseDiv = document.getElementById('serviceCalendarResponse');
-            const userEmail = document.getElementById('userEmailCalendar').value.trim();
-            const startTime = document.getElementById('calendarStartTime').value;
-            const endTime = document.getElementById('calendarEndTime').value;
-            const jwtToken = document.getElementById('jwtToken').value.trim();
-
-            if (!userEmail) {
-                alert('Please enter a user email address');
-                return;
+                    responseDiv.classList.add('show');
+                }
             }
 
-            if (!jwtToken) {
-                alert('Please enter your JWT token for authentication (HR/Admin only)');
-                return;
+            function loadMoreEvents(top, newSkip) {
+                document.getElementById('eventsSkip').value = newSkip;
+                getMyMeetings();
             }
 
-            // Show loading state
-            statusDiv.className = 'status';
-            statusDiv.style.display = 'block';
-            statusDiv.style.background = '#fff3cd';
-            statusDiv.style.color = '#856404';
-            statusDiv.textContent = `⏳ Fetching calendar for ${userEmail}...`;
-            responseDiv.classList.remove('show');
+            // Service Account: Get User Calendar
+            async function getUserCalendar() {
+                const statusDiv = document.getElementById('serviceCalendarStatus');
+                const responseDiv = document.getElementById('serviceCalendarResponse');
+                const userEmail = document.getElementById('userEmailCalendar').value.trim();
+                const startTime = document.getElementById('calendarStartTime').value;
+                const endTime = document.getElementById('calendarEndTime').value;
+                const jwtToken = document.getElementById('jwtToken').value.trim();
 
-            try {
-                // Build URL with optional date range parameters
-                let url = `${BASE_URL}/service/calendar/events/${encodeURIComponent(userEmail)}`;
-                const params = new URLSearchParams();
-
-                if (startTime) {
-                    // Convert to ISO format
-                    params.append('start_time', new Date(startTime).toISOString().slice(0, 19));
-                }
-                if (endTime) {
-                    params.append('end_time', new Date(endTime).toISOString().slice(0, 19));
+                if (!userEmail) {
+                    alert('Please enter a user email address');
+                    return;
                 }
 
-                if (params.toString()) {
-                    url += `?${params.toString()}`;
+                if (!jwtToken) {
+                    alert('Please enter your JWT token for authentication (HR/Admin only)');
+                    return;
                 }
 
-                const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${jwtToken}`
+                // Show loading state
+                statusDiv.className = 'status';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.color = '#856404';
+                statusDiv.textContent = `⏳ Fetching calendar for ${userEmail}...`;
+                responseDiv.classList.remove('show');
+
+                try {
+                    // Build URL with optional date range parameters
+                    let url = `${BASE_URL}/service/calendar/events/${encodeURIComponent(userEmail)}`;
+                    const params = new URLSearchParams();
+
+                    if (startTime) {
+                        // Convert to ISO format
+                        params.append('start_time', new Date(startTime).toISOString().slice(0, 19));
                     }
-                });
-                const data = await response.json();
+                    if (endTime) {
+                        params.append('end_time', new Date(endTime).toISOString().slice(0, 19));
+                    }
 
-                if (response.ok && data.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = `✓ Found ${data.count} event(s) for ${data.user}`;
+                    if (params.toString()) {
+                        url += `?${params.toString()}`;
+                    }
 
-                    if (data.events.length > 0) {
-                        let html = `
+                    const response = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`
+                        }
+                    });
+                    const data = await response.json();
+
+                    if (response.ok && data.status === 'success') {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = `✓ Found ${data.count} event(s) for ${data.user}`;
+
+                        if (data.events.length > 0) {
+                            let html = `
                             <div class="profile-card">
                                 <h3>📅 Calendar Events for ${data.user}</h3>
                                 <p style="opacity: 0.9; margin-bottom: 20px;">
@@ -1135,112 +1204,112 @@
                             </div>
                         `;
 
-                        responseDiv.innerHTML = html;
-                        responseDiv.classList.add('show');
-                    } else {
-                        responseDiv.innerHTML = `
+                            responseDiv.innerHTML = html;
+                            responseDiv.classList.add('show');
+                        } else {
+                            responseDiv.innerHTML = `
                             <div style="background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 6px; text-align: center;">
                                 <h4>📅 No Events Found</h4>
                                 <p style="margin-top: 10px;">${data.user} doesn't have any calendar events.</p>
                             </div>
                         `;
-                        responseDiv.classList.add('show');
-                    }
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '✗ Failed to fetch calendar';
+                            responseDiv.classList.add('show');
+                        }
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '✗ Failed to fetch calendar';
 
-                    responseDiv.innerHTML = `
+                        responseDiv.innerHTML = `
                         <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                             <h4>❌ Error</h4>
                             <p style="margin-top: 10px;"><strong>Details:</strong> ${data.detail || 'Unknown error'}</p>
                         </div>
                     `;
-                    responseDiv.classList.add('show');
-                }
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Error fetching calendar';
+                        responseDiv.classList.add('show');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Error fetching calendar';
 
-                responseDiv.innerHTML = `
+                    responseDiv.innerHTML = `
                     <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                         <h4>❌ Network Error</h4>
                         <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
                         <p style="margin-top: 10px;">Make sure the backend server is running and service account is configured.</p>
                     </div>
                 `;
-                responseDiv.classList.add('show');
-            }
-        }
-
-        // Service Account: Schedule Meeting
-        async function scheduleServiceMeeting(event) {
-            event.preventDefault();
-
-            const statusDiv = document.getElementById('serviceMeetingStatus');
-            const responseDiv = document.getElementById('serviceMeetingResponse');
-
-            const organizerEmail = document.getElementById('organizerEmail').value.trim();
-            const subject = document.getElementById('serviceMeetingSubject').value.trim();
-            const startTime = document.getElementById('serviceMeetingStart').value;
-            const endTime = document.getElementById('serviceMeetingEnd').value;
-            const attendeesInput = document.getElementById('serviceMeetingAttendees').value.trim();
-            const location = document.getElementById('serviceMeetingLocation').value.trim();
-            const teamsOnline = document.getElementById('serviceTeamsOnline').checked;
-            const jwtToken = document.getElementById('jwtToken').value.trim();
-
-            if (!jwtToken) {
-                alert('Please enter your JWT token for authentication (HR/Admin only)');
-                return;
+                    responseDiv.classList.add('show');
+                }
             }
 
-            // Parse attendees
-            const attendees = attendeesInput ? attendeesInput.split(',').map(email => email.trim()).filter(email => email) : [];
+            // Service Account: Schedule Meeting
+            async function scheduleServiceMeeting(event) {
+                event.preventDefault();
 
-            // Convert to ISO format
-            const startISO = new Date(startTime).toISOString().slice(0, 19);
-            const endISO = new Date(endTime).toISOString().slice(0, 19);
+                const statusDiv = document.getElementById('serviceMeetingStatus');
+                const responseDiv = document.getElementById('serviceMeetingResponse');
 
-            // Show loading state
-            statusDiv.className = 'status';
-            statusDiv.style.display = 'block';
-            statusDiv.style.background = '#fff3cd';
-            statusDiv.style.color = '#856404';
-            statusDiv.textContent = '⏳ Scheduling meeting...';
-            responseDiv.classList.remove('show');
+                const organizerEmail = document.getElementById('organizerEmail').value.trim();
+                const subject = document.getElementById('serviceMeetingSubject').value.trim();
+                const startTime = document.getElementById('serviceMeetingStart').value;
+                const endTime = document.getElementById('serviceMeetingEnd').value;
+                const attendeesInput = document.getElementById('serviceMeetingAttendees').value.trim();
+                const location = document.getElementById('serviceMeetingLocation').value.trim();
+                const teamsOnline = document.getElementById('serviceTeamsOnline').checked;
+                const jwtToken = document.getElementById('jwtToken').value.trim();
 
-            try {
-                const params = new URLSearchParams({
-                    organizer_email: organizerEmail,
-                    subject: subject,
-                    start_iso: startISO,
-                    end_iso: endISO,
-                    timezone: 'UTC',
-                    teams_online: teamsOnline
-                });
-
-                if (location) {
-                    params.append('location', location);
+                if (!jwtToken) {
+                    alert('Please enter your JWT token for authentication (HR/Admin only)');
+                    return;
                 }
 
-                attendees.forEach(email => {
-                    params.append('attendees', email);
-                });
+                // Parse attendees
+                const attendees = attendeesInput ? attendeesInput.split(',').map(email => email.trim()).filter(email => email) : [];
 
-                const response = await fetch(`${BASE_URL}/service/calendar/schedule?${params.toString()}`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${jwtToken}`
+                // Convert to ISO format
+                const startISO = new Date(startTime).toISOString().slice(0, 19);
+                const endISO = new Date(endTime).toISOString().slice(0, 19);
+
+                // Show loading state
+                statusDiv.className = 'status';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.color = '#856404';
+                statusDiv.textContent = '⏳ Scheduling meeting...';
+                responseDiv.classList.remove('show');
+
+                try {
+                    const params = new URLSearchParams({
+                        organizer_email: organizerEmail,
+                        subject: subject,
+                        start_iso: startISO,
+                        end_iso: endISO,
+                        timezone: 'UTC',
+                        teams_online: teamsOnline
+                    });
+
+                    if (location) {
+                        params.append('location', location);
                     }
-                });
 
-                const data = await response.json();
+                    attendees.forEach(email => {
+                        params.append('attendees', email);
+                    });
 
-                if (response.ok && data.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = '✓ Meeting scheduled successfully!';
+                    const response = await fetch(`${BASE_URL}/service/calendar/schedule?${params.toString()}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`
+                        }
+                    });
 
-                    let html = `
+                    const data = await response.json();
+
+                    if (response.ok && data.status === 'success') {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = '✓ Meeting scheduled successfully!';
+
+                        let html = `
                         <div class="profile-card">
                             <h3>✅ Meeting Scheduled</h3>
                             <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; margin-top: 15px;">
@@ -1273,38 +1342,211 @@
                         </div>
                     `;
 
-                    responseDiv.innerHTML = html;
-                    responseDiv.classList.add('show');
+                        responseDiv.innerHTML = html;
+                        responseDiv.classList.add('show');
 
-                    // Reset form
-                    document.getElementById('serviceMeetingForm').reset();
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '✗ Failed to schedule meeting';
+                        // Reset form
+                        document.getElementById('serviceMeetingForm').reset();
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '✗ Failed to schedule meeting';
 
-                    responseDiv.innerHTML = `
+                        responseDiv.innerHTML = `
                         <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                             <h4>❌ Error</h4>
                             <p style="margin-top: 10px;"><strong>Details:</strong> ${data.detail || 'Unknown error'}</p>
                         </div>
                     `;
-                    responseDiv.classList.add('show');
-                }
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '✗ Error scheduling meeting';
+                        responseDiv.classList.add('show');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '✗ Error scheduling meeting';
 
-                responseDiv.innerHTML = `
+                    responseDiv.innerHTML = `
                     <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 6px;">
                         <h4>❌ Network Error</h4>
                         <p style="margin-top: 10px;"><strong>Error:</strong> ${error.message}</p>
                         <p style="margin-top: 10px;">Make sure the backend server is running and service account is configured.</p>
                     </div>
                 `;
+                    responseDiv.classList.add('show');
+                }
+            }
+            // Newsletter Management Functions
+            const NEWSLETTER_API_URL = 'http://localhost:8000/api/v1/newsletters'; // Using main API URL for newsletters
+
+            function showNewsletterStatus(message, isError = false) {
+                const statusDiv = document.getElementById('newsletterStatus');
+                statusDiv.className = isError ? 'status error' : 'status success';
+                statusDiv.textContent = message;
+                statusDiv.style.display = 'block';
+            }
+
+            function showNewsletterResponse(data) {
+                const responseDiv = document.getElementById('newsletterResponse');
+                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
                 responseDiv.classList.add('show');
             }
-        }
-    </script>
+
+            async function subscribeNewsletter() {
+                const email = document.getElementById('nlSubscribeEmail').value.trim();
+                const name = document.getElementById('nlSubscribeName').value.trim();
+                const jwtToken = document.getElementById('jwtToken').value.trim();
+
+                if (!email) return alert('Please enter an email to subscribe');
+
+                try {
+                    const response = await fetch(`${NEWSLETTER_API_URL}/subscribe`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${jwtToken}`
+                        },
+                        body: JSON.stringify({ email, name, is_active: true })
+                    });
+                    const data = await response.json();
+                    showNewsletterResponse(data);
+                    showNewsletterStatus(response.ok ? '✓ Subscribed successfully' : '✗ Failed to subscribe', !response.ok);
+                } catch (err) {
+                    showNewsletterStatus(`✗ Error: ${err.message}`, true);
+                }
+            }
+
+            async function createNewsletter() {
+                const subject = document.getElementById('nlSubject').value.trim();
+                const content = document.getElementById('nlContent').value.trim();
+                const jwtToken = document.getElementById('jwtToken').value.trim();
+
+                if (!jwtToken) return alert('Please enter JWT Token above');
+                if (!subject || !content) return alert('Please enter subject and content');
+
+                try {
+                    const response = await fetch(`${NEWSLETTER_API_URL}/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${jwtToken}`
+                        },
+                        body: JSON.stringify({ subject, content })
+                    });
+                    const data = await response.json();
+                    showNewsletterResponse(data);
+                    showNewsletterStatus(response.ok ? '✓ Newsletter created' : '✗ Failed to create', !response.ok);
+                } catch (err) {
+                    showNewsletterStatus(`✗ Error: ${err.message}`, true);
+                }
+            }
+
+            async function scheduleNewsletter() {
+                const id = document.getElementById('nlIdToSchedule').value.trim();
+                const time = document.getElementById('nlScheduleTime').value;
+                const jwtToken = document.getElementById('jwtToken').value.trim();
+
+                if (!jwtToken) return alert('Please enter JWT Token');
+                if (!id || !time) return alert('Please enter Newsletter ID and time');
+
+                const scheduledTimeIso = new Date(time).toISOString();
+
+                try {
+                    const response = await fetch(`${NEWSLETTER_API_URL}/${id}/schedule`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${jwtToken}`
+                        },
+                        body: JSON.stringify({ scheduled_for: scheduledTimeIso })
+                    });
+                    const data = await response.json();
+                    showNewsletterResponse(data);
+                    showNewsletterStatus(response.ok ? '✓ Scheduled successfully' : '✗ Failed to schedule', !response.ok);
+                } catch (err) {
+                    showNewsletterStatus(`✗ Error: ${err.message}`, true);
+                }
+            }
+
+            async function listNewsletters() {
+                const jwtToken = document.getElementById('jwtToken').value.trim();
+                try {
+                    const response = await fetch(`${NEWSLETTER_API_URL}/`, {
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`
+                        }
+                    });
+                    const data = await response.json();
+                    showNewsletterResponse(data);
+                    showNewsletterStatus(response.ok ? `✓ Fetched ${data.length || 0} newsletters` : '✗ Failed to fetch', !response.ok);
+                } catch (err) {
+                    showNewsletterStatus(`✗ Error: ${err.message}`, true);
+                }
+            }
+
+            async function updateNewsletter() {
+                const id = document.getElementById('nlIdToUpdate').value.trim();
+                const subject = document.getElementById('nlUpdateSubject').value.trim();
+                const content = document.getElementById('nlUpdateContent').value.trim();
+                const jwtToken = document.getElementById('jwtToken').value.trim();
+
+                if (!jwtToken) return alert('Please enter JWT Token');
+                if (!id) return alert('Please enter Newsletter ID');
+
+                const updateData = {};
+                if (subject) updateData.subject = subject;
+                if (content) updateData.content = content;
+
+                if (Object.keys(updateData).length === 0) return alert('Please enter at least one field to update');
+
+                try {
+                    const response = await fetch(`${NEWSLETTER_API_URL}/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${jwtToken}`
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+                    const data = await response.json();
+                    showNewsletterResponse(data);
+                    showNewsletterStatus(response.ok ? '✓ Updated successfully' : '✗ Failed to update', !response.ok);
+                } catch (err) {
+                    showNewsletterStatus(`✗ Error: ${err.message}`, true);
+                }
+            }
+
+            async function deleteNewsletter() {
+                const id = document.getElementById('nlIdToDelete').value.trim();
+                const jwtToken = document.getElementById('jwtToken').value.trim();
+
+                if (!jwtToken) return alert('Please enter JWT Token');
+                if (!id) return alert('Please enter Newsletter ID');
+
+                if (!confirm(`Are you sure you want to delete newsletter ${id}?`)) return;
+
+                try {
+                    const response = await fetch(`${NEWSLETTER_API_URL}/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        showNewsletterStatus('✓ Deleted successfully', false);
+                        document.getElementById('newsletterResponse').innerHTML = '';
+                    } else {
+                        // Attempt to parse json error if any
+                        let errText = 'Failed to delete';
+                        try {
+                            const data = await response.json();
+                            errText = data.detail || errText;
+                        } catch (e) { }
+                        showNewsletterStatus(`✗ ${errText}`, true);
+                    }
+                } catch (err) {
+                    showNewsletterStatus(`✗ Error: ${err.message}`, true);
+                }
+            }
+        </script>
 </body>
 
 </html>

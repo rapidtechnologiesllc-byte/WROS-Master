@@ -23,6 +23,7 @@ from app.models.candidate import (
 )
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
+from app.models.newsletter import Newsletter, NewsletterSubscriber
 
 __all__ = [
     # Base
@@ -45,5 +46,8 @@ __all__ = [
     "CandidateDocument",
     # Offer Letter
     "OfferLetter",
+    # Newsletter
+    "Newsletter",
+    "NewsletterSubscriber",
 ]
 
