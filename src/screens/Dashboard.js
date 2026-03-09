@@ -25,10 +25,12 @@ function StatCard({ title, value, icon, onClick }) {
   );
 }
 
-export default function Dashboard({ candidates, jobs, interviews, offer, onGo }) {
+export default function Dashboard({ candidates, jobs, interviews, offers = [], onGo }) {
   const openJobs = jobs.filter((j) => j.status === "Open").length;
   const inPipeline = candidates.filter((c) => c.status !== "Rejected").length;
   const scheduled = interviews.filter((i) => i.status === "Scheduled").length;
+  const pendingOffers = offers.filter((o) => o.offer_status === "Pending").length;
+  const latestOffer = offers.length ? offers[offers.length - 1] : null;
 
   return (
     <div className="grid gap-4">
@@ -71,19 +73,34 @@ export default function Dashboard({ candidates, jobs, interviews, offer, onGo })
         <Card title="Offer snapshot" icon={<BadgeDollarSign className="h-4 w-4" />}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-semibold text-gray-900">{offer.id}</div>
-              <div className="mt-1 text-xs text-gray-600">
-                Start date: <span className="font-semibold">{offer.startDate}</span>
+              <div className="text-sm font-semibold text-gray-900">
+                {pendingOffers ? `${pendingOffers} pending` : "No offers"}
               </div>
-              <div className="mt-1 text-xs text-gray-600">
-                Salary:{" "}
-                <span className="font-semibold">
-                  ${offer.salary.toLocaleString()}
-                </span>
-              </div>
+              {latestOffer ? (
+                <>
+                  <div className="mt-1 text-xs text-gray-600">
+                    Latest: <span className="font-semibold">{latestOffer.position}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600">
+                    Salary:{" "}
+                    <span className="font-semibold">
+                      ${String(latestOffer.salary || 0)}
+                    </span>
+                  </div>
+                </>
+              ) : null}
             </div>
-            <StatusBadge status={offer.state} />
+            {latestOffer ? (
+              <StatusBadge status={latestOffer.offer_status} />
+            ) : null}
           </div>
+          <Button
+            variant="secondary"
+            className="mt-3 w-full"
+            onClick={() => onGo("offer")}
+          >
+            Manage Offers
+          </Button>
         </Card>
       </div>
     </div>

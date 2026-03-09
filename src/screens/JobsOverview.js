@@ -2,7 +2,13 @@
 import { Briefcase, Plus } from "lucide-react";
 import { Button, Card, StatusBadge, Table } from "../components/ui";
 
-export default function JobsOverview({ jobs, onCreate, onOpenJob, onDeleteJob }) {
+export default function JobsOverview({
+  jobs,
+  onCreate,
+  onOpenJob,
+  onDeleteJob,
+  onPostToLinkedIn
+}) {
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;
 
@@ -43,6 +49,7 @@ export default function JobsOverview({ jobs, onCreate, onOpenJob, onDeleteJob })
             { key: "location", header: "Location" },
             { key: "hm", header: "Hiring Manager" },
             { key: "edit", header: "Edit" },
+            ...(onPostToLinkedIn ? [{ key: "linkedin", header: "LinkedIn" }] : []),
             { key: "delete", header: "Delete" }
           ]}
           rows={jobs.map((j) => ({
@@ -64,6 +71,18 @@ export default function JobsOverview({ jobs, onCreate, onOpenJob, onDeleteJob })
                 Edit
               </Button>
             ),
+            ...(onPostToLinkedIn
+              ? {
+                  linkedin: (
+                    <Button
+                      variant="secondary"
+                      onClick={() => onPostToLinkedIn(j.id)}
+                    >
+                      Post to LinkedIn
+                    </Button>
+                  )
+                }
+              : {}),
             delete: (
               <Button variant="danger" onClick={() => onDeleteJob(j.id)}>
                 Delete

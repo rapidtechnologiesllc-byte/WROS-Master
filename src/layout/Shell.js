@@ -8,6 +8,8 @@ import {
   ClipboardCheck,
   FileText,
   LayoutDashboard,
+  Mail,
+  UserCheck,
   Users
 } from "lucide-react";
 import cx from "../utils/cx";
@@ -15,22 +17,24 @@ import TopBar from "./TopBar";
 
 export default function Shell({
   role,
-  setRole,
   screen,
   setScreen,
   onLogout,
   children
 }) {
+  const roleLabel = role === "ADMIN" ? "Admin" : role === "HR" ? "HR" : role || "—";
   const nav = useMemo(
     () => [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "candidateSearch", label: "Candidates", icon: Users },
+      { id: "assignments", label: "My Assignments", icon: UserCheck },
       { id: "jobs", label: "Jobs", icon: Briefcase },
       { id: "interviewSchedule", label: "Interviews", icon: Calendar },
       { id: "offer", label: "Offer", icon: BadgeDollarSign },
       { id: "documents", label: "Documents", icon: FileText },
       { id: "verification", label: "Verification", icon: ClipboardCheck },
-      { id: "preOnboarding", label: "Pre-Onboarding", icon: CheckCircle2 }
+      { id: "preOnboarding", label: "Pre-Onboarding", icon: CheckCircle2 },
+      { id: "newsletters", label: "Newsletters", icon: Mail }
     ],
     []
   );
@@ -49,21 +53,11 @@ export default function Shell({
 
             <div className="mb-4 rounded-2xl border bg-gray-50 p-3">
               <div className="mb-2 text-xs font-semibold text-gray-600">Role</div>
-              <div className="flex gap-2">
-                {["Recruiter", "Hiring Manager", "Candidate"].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRole(r)}
-                    className={cx(
-                      "rounded-xl px-2.5 py-1.5 text-xs font-semibold",
-                      role === r
-                        ? "bg-gray-900 text-white"
-                        : "bg-white text-gray-800 border"
-                    )}
-                  >
-                    {r}
-                  </button>
-                ))}
+              <div className="rounded-xl bg-gray-900 px-3 py-2 text-center text-sm font-semibold text-white">
+                {roleLabel}
+              </div>
+              <div className="mt-1 text-center text-xs text-gray-500">
+                From sign up / login
               </div>
             </div>
 

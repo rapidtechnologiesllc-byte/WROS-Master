@@ -38,3 +38,11 @@ export const deleteJob = async (jobId) => {
   });
   return data;
 };
+
+export const postJobOnLinkedIn = async (jobId) => {
+  const { data } = await apiRequest("/jobs/post-on-linkedin", {
+    method: "POST",
+    body: JSON.stringify({ job_id: jobId })
+  });
+  return data;
+};

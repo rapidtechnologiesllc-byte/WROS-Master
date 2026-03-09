@@ -11,6 +11,7 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
       dashboard: ["Dashboard"],
       candidateSearch: ["Candidates", "Search"],
       candidateCreate: ["Candidates", "Create"],
+      assignments: ["My Assignments"],
       jobs: ["Jobs"],
       jobCreate: ["Jobs", "Create"],
       jobDetails: ["Jobs", "Details"],
@@ -21,7 +22,8 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
       offer: ["Offer"],
       documents: ["Documents", "Upload"],
       verification: ["Documents", "Verification"],
-      preOnboarding: ["Pre-Onboarding"]
+      preOnboarding: ["Pre-Onboarding"],
+      newsletters: ["Newsletters"]
     };
     return map[screen] || ["Dashboard"];
   }, [screen]);

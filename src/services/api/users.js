@@ -7,3 +7,17 @@ export const getAllUsers = async () => {
   });
   return data;
 };
+
+export const getAssignedCandidates = async () => {
+  const { data } = await apiRequest("/hr/assignments/candidates", {
+    method: "GET"
+  });
+  return data;
+};
+
+export const getAssignedInterviews = async () => {
+  const { data } = await apiRequest("/hr/interviews/assigned", {
+    method: "GET"
+  });
+  return data;
+};

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthPage from "./pages/AuthPage";
 import Shell from "./layout/Shell";
 import Approval from "./screens/Approval";
+import AssignmentsScreen from "./screens/AssignmentsScreen";
 import CandidateCreate from "./screens/CandidateCreate";
 import CandidateSearch from "./screens/CandidateSearch";
 import CandidateSelfService from "./screens/CandidateSelfService";
@@ -14,12 +15,55 @@ import JobCreate from "./screens/JobCreate";
 import JobDetails from "./screens/JobDetails";
 import JobsOverview from "./screens/JobsOverview";
 import MatchingJobs from "./screens/MatchingJobs";
+import NewsletterScreen from "./screens/NewsletterScreen";
 import OfferScreen from "./screens/OfferScreen";
 import PreOnboarding from "./screens/PreOnboarding";
 import Verification from "./screens/Verification";
 import { getAllInterviews, updateInterview } from "./services/api/interviews";
-import { getAllCandidates } from "./services/api/candidates";
-import { deleteJob, getAllJobs, updateJob } from "./services/api/jobs";
+import {
+  getAllCandidates,
+  updateCandidate,
+  deleteCandidate
+} from "./services/api/candidates";
+import { deleteJob, getAllJobs, updateJob, postJobOnLinkedIn } from "./services/api/jobs";
+import {
+  createOfferLetter,
+  getAllOffers,
+  getOfferById,
+  updateOfferLetter,
+  cancelOfferLetter
+} from "./services/api/offerLetters";
+import { getAllUsers } from "./services/api/users";
+
+// Helpers to normalize API responses into UI-friendly models
+const mapCandidateFromApi = (c) => ({
+  id: c.candidate_id,
+  name: c.candidate_name,
+  email: c.candidate_email,
+  phone: c.candidate_mobile || "",
+  skills: [],
+  status: c.candidate_is_verified ? "Verified" : "New"
+});
+
+const mapJobFromApi = (j) => ({
+  id: j.job_id,
+  title: j.job_title,
+  dept: "",
+  location: j.job_location || "",
+  skills: String(j.job_skills || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  hiringManager: j.hiring_manager_id || "",
+  status: j.job_status || "Draft",
+  experienceLevel: j.job_experience || "",
+  companyType: j.company_type || "",
+  companyClient: j.company_name || "",
+  contactPerson: j.contact_person || "",
+  startDate: j.start_date || "",
+  endDate: j.end_date || "",
+  jobDescription: j.job_description || ""
+});
 
 export default function App() {
   const token = localStorage.getItem("hrms_token");
@@ -103,13 +147,21 @@ export default function App() {
   ]);
 
   const [offer, setOffer] = useState({
-    id: "O-4001",
-    candidateId: "C-1001",
-    jobId: "J-2001",
-    salary: 120000,
-    startDate: "2026-02-15",
+    candidateId: "",
+    jobId: "",
+    hiringManagerId: "",
+    reportingManagerId: "",
+    position: "",
+    salary: 0,
+    startDate: "",
+    joiningDate: "",
     state: "Draft"
   });
+
+  const [offers, setOffers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [offerLoading, setOfferLoading] = useState(false);
+  const [offerError, setOfferError] = useState("");
 
   const [selectedCandidateId, setSelectedCandidateId] = useState(
     candidates[0]?.id || ""
@@ -131,25 +183,7 @@ export default function App() {
 
   const refreshJobs = useCallback(async () => {
     const refreshed = await getAllJobs();
-    const mappedJobs = (refreshed?.jobs || []).map((j) => ({
-      id: j.job_id,
-      title: j.job_title,
-      dept: "",
-      location: j.job_location || "",
-      skills: String(j.job_skills || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-      hiringManager: j.hiring_manager_id || "",
-      status: j.job_status || "Draft",
-      experienceLevel: j.job_experience || "",
-      companyType: j.company_type || "",
-      companyClient: j.company_name || "",
-      contactPerson: j.contact_person || "",
-      startDate: j.start_date || "",
-      endDate: j.end_date || "",
-      jobDescription: j.job_description || ""
-    }));
+    const mappedJobs = (refreshed?.jobs || []).map(mapJobFromApi);
     setJobs(mappedJobs);
     if (!selectedJobId && mappedJobs.length) {
       setSelectedJobId(mappedJobs[0].id);
@@ -175,46 +209,48 @@ export default function App() {
     setInterviews(mapInterviews(refreshed));
   }, [mapInterviews]);
 
+  const refreshOffers = useCallback(async () => {
+    try {
+      const res = await getAllOffers();
+      setOffers(res?.offers || []);
+    } catch (err) {
+      setOffers([]);
+    }
+  }, []);
+
+  const refreshCandidates = useCallback(async () => {
+    try {
+      const res = await getAllCandidates();
+      const mapped = (res?.candidates || []).map(mapCandidateFromApi);
+      setCandidates(mapped);
+    } catch (err) {
+      notify("Candidates", err.message || "Failed to refresh candidates.");
+    }
+  }, [notify]);
+
   useEffect(() => {
     let isMounted = true;
     const loadData = async () => {
       try {
-        const [candidateRes, jobRes, interviewRes] = await Promise.all([
-          getAllCandidates(),
-          getAllJobs(),
-          getAllInterviews()
-        ]);
+        const [candidateRes, jobRes, interviewRes, offersRes, usersRes] =
+          await Promise.all([
+            getAllCandidates(),
+            getAllJobs(),
+            getAllInterviews(),
+            getAllOffers(),
+            getAllUsers()
+          ]);
 
         if (!isMounted) return;
 
-        const mappedCandidates = (candidateRes?.candidates || []).map((c) => ({
-          id: c.candidate_id,
-          name: c.candidate_name,
-          email: c.candidate_email,
-          phone: c.candidate_mobile || "",
-          skills: [],
-          status: c.candidate_is_verified ? "Verified" : "New"
-        }));
+        setOffers(offersRes?.offers || []);
+        setUsers(usersRes?.users || []);
 
-        const mappedJobs = (jobRes?.jobs || []).map((j) => ({
-          id: j.job_id,
-          title: j.job_title,
-          dept: "",
-          location: j.job_location || "",
-          skills: String(j.job_skills || "")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          hiringManager: j.hiring_manager_id || "",
-          status: j.job_status || "Draft",
-          experienceLevel: j.job_experience || "",
-          companyType: j.company_type || "",
-          companyClient: j.company_name || "",
-          contactPerson: j.contact_person || "",
-          startDate: j.start_date || "",
-          endDate: j.end_date || "",
-          jobDescription: j.job_description || ""
-        }));
+        const mappedCandidates = (candidateRes?.candidates || []).map(
+          mapCandidateFromApi
+        );
+
+        const mappedJobs = (jobRes?.jobs || []).map(mapJobFromApi);
 
         const mappedInterviews = mapInterviews(interviewRes);
 
@@ -242,17 +278,50 @@ export default function App() {
 
   const safeSetScreen = (next) => {
     const hmOnly = ["approval"];
-    if (hmOnly.includes(next) && role !== "Hiring Manager") {
-      notify("Access", "Switch role to Hiring Manager to open this screen.");
+    if (hmOnly.includes(next) && role !== "HR" && role !== "ADMIN") {
+      notify("Access", "Approval screen requires HR or Admin role.");
       return;
     }
     setScreen(next);
+    if (next === "offer" && selectedCandidate && selectedJob) {
+      const existing = offers.find(
+        (o) =>
+          o.candidate_id === selectedCandidate.id &&
+          o.job_id === selectedJob.id &&
+          o.offer_status === "Pending"
+      );
+      if (existing) {
+        setOffer((prev) => ({
+          ...prev,
+          candidateId: selectedCandidate.id,
+          jobId: selectedJob.id,
+          hiringManagerId: existing.hiring_manager_id,
+          reportingManagerId: existing.reporting_manager_id,
+          position: existing.position,
+          salary: Number(existing.salary) || 0,
+          startDate: existing.joining_date || "",
+          joiningDate: existing.joining_date || ""
+        }));
+      } else {
+        setOffer((prev) => ({
+          ...prev,
+          candidateId: selectedCandidate.id,
+          jobId: selectedJob.id,
+          hiringManagerId: selectedJob.hiringManager || "",
+          reportingManagerId: prev.reportingManagerId || selectedJob.hiringManager || "",
+          position: selectedJob.title || "",
+          salary: prev.salary || 0,
+          startDate: prev.startDate || "",
+          joiningDate: prev.startDate || ""
+        }));
+      }
+      setOfferError("");
+    }
   };
 
   return (
     <Shell
       role={role}
-      setRole={setRole}
       screen={screen}
       setScreen={safeSetScreen}
       onLogout={handleLogout}
@@ -262,10 +331,12 @@ export default function App() {
           candidates={candidates}
           jobs={jobs}
           interviews={interviews}
-          offer={offer}
+          offers={offers}
           onGo={(s) => safeSetScreen(s)}
         />
       )}
+
+      {screen === "assignments" && <AssignmentsScreen />}
 
       {screen === "candidateSearch" && (
         <CandidateSearch
@@ -278,6 +349,26 @@ export default function App() {
           onCreateCandidate={() => safeSetScreen("candidateCreate")}
           onMatchingJobs={() => safeSetScreen("matchingJobs")}
           onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
+          onUpdateCandidate={async (candidateId, payload) => {
+            try {
+              await updateCandidate(candidateId, payload);
+              await refreshCandidates();
+              notify("Candidate", "Candidate updated.");
+            } catch (err) {
+              notify("Candidate", err.message || "Failed to update candidate.");
+            }
+          }}
+          onDeleteCandidate={async (candidateId) => {
+            if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
+            try {
+              await deleteCandidate(candidateId);
+              await refreshCandidates();
+              setSelectedCandidateId(candidates.find((c) => c.id !== candidateId)?.id || "");
+              notify("Candidate", "Candidate deleted.");
+            } catch (err) {
+              notify("Candidate", err.message || "Failed to delete candidate.");
+            }
+          }}
         />
       )}
 
@@ -300,6 +391,14 @@ export default function App() {
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
             safeSetScreen("jobDetails");
+          }}
+          onPostToLinkedIn={async (jobId) => {
+            try {
+              const res = await postJobOnLinkedIn(jobId);
+              notify("LinkedIn", res?.message || "Job posted to LinkedIn.");
+            } catch (err) {
+              notify("LinkedIn", err.message || "Failed to post to LinkedIn.");
+            }
           }}
           onDeleteJob={async (jobId) => {
             const ok = window.confirm(`Delete job ${jobId}?`);
@@ -453,18 +552,122 @@ export default function App() {
           job={selectedJob}
           offer={offer}
           setOffer={setOffer}
-          onSend={() => {
-            setOffer((o) => ({ ...o, state: "Sent" }));
-            setCandidates((prev) =>
-              prev.map((c) =>
-                c.id === selectedCandidate.id ? { ...c, status: "Offer Sent" } : c
-              )
-            );
-            notify("Offer", "Offer letter initiated and sent (simulated).");
+          users={users}
+          existingOffer={offers.find(
+            (o) =>
+              o.candidate_id === selectedCandidate.id &&
+              o.job_id === selectedJob.id &&
+              o.offer_status === "Pending"
+          )}
+          onCreate={async () => {
+            setOfferError("");
+            setOfferLoading(true);
+            try {
+              const hiringManagerId =
+                offer.hiringManagerId || selectedJob.hiringManager;
+              const reportingManagerId =
+                offer.reportingManagerId || offer.hiringManagerId || selectedJob.hiringManager;
+              if (!hiringManagerId || !reportingManagerId) {
+                throw new Error("Please select Hiring Manager and Reporting Manager.");
+              }
+              await createOfferLetter({
+                candidateId: selectedCandidate.id,
+                jobId: selectedJob.id,
+                hiringManagerId,
+                reportingManagerId,
+                position: offer.position || selectedJob.title,
+                salary: offer.salary || 0,
+                joiningDate: offer.startDate || offer.joiningDate
+              });
+              await refreshOffers();
+              setCandidates((prev) =>
+                prev.map((c) =>
+                  c.id === selectedCandidate.id ? { ...c, status: "Offer Sent" } : c
+                )
+              );
+              notify("Offer", "Offer letter created and sent.");
+            } catch (err) {
+              setOfferError(err.message || "Failed to create offer.");
+            } finally {
+              setOfferLoading(false);
+            }
           }}
-          onNegotiate={() => setOffer((o) => ({ ...o, state: "Negotiation" }))}
+          onUpdate={async () => {
+            const existing = offers.find(
+              (o) =>
+                o.candidate_id === selectedCandidate.id &&
+                o.job_id === selectedJob.id &&
+                o.offer_status === "Pending"
+            );
+            if (!existing) return;
+            setOfferError("");
+            setOfferLoading(true);
+            try {
+              await updateOfferLetter(existing.id, {
+                position: offer.position || selectedJob.title,
+                salary: String(offer.salary ?? 0),
+                joiningDate: offer.startDate || offer.joiningDate
+              });
+              await refreshOffers();
+              notify("Offer", "Offer updated.");
+            } catch (err) {
+              setOfferError(err.message || "Failed to update offer.");
+            } finally {
+              setOfferLoading(false);
+            }
+          }}
+          onReloadDetails={async () => {
+            const existing = offers.find(
+              (o) =>
+                o.candidate_id === selectedCandidate.id &&
+                o.job_id === selectedJob.id &&
+                o.offer_status === "Pending"
+            );
+            if (!existing) return;
+            setOfferError("");
+            setOfferLoading(true);
+            try {
+              const fresh = await getOfferById(existing.id);
+              setOffers((prev) =>
+                (prev || []).map((o) => (o.id === fresh.id ? fresh : o))
+              );
+              notify("Offer", "Offer details reloaded from server.");
+            } catch (err) {
+              setOfferError(err.message || "Failed to reload offer.");
+            } finally {
+              setOfferLoading(false);
+            }
+          }}
+          onCancel={async () => {
+            const existing = offers.find(
+              (o) =>
+                o.candidate_id === selectedCandidate.id &&
+                o.job_id === selectedJob.id &&
+                o.offer_status === "Pending"
+            );
+            if (!existing) return;
+            if (!window.confirm("Cancel this offer?")) return;
+            setOfferError("");
+            setOfferLoading(true);
+            try {
+              await cancelOfferLetter(existing.id);
+              await refreshOffers();
+              setCandidates((prev) =>
+                prev.map((c) =>
+                  c.id === selectedCandidate.id
+                    ? { ...c, status: "Offer Cancelled" }
+                    : c
+                )
+              );
+              notify("Offer", "Offer cancelled.");
+              safeSetScreen("dashboard");
+            } catch (err) {
+              setOfferError(err.message || "Failed to cancel offer.");
+            } finally {
+              setOfferLoading(false);
+            }
+          }}
           onAccept={() => {
-            setOffer((o) => ({ ...o, state: "Accepted" }));
             setCandidates((prev) =>
               prev.map((c) =>
                 c.id === selectedCandidate.id
@@ -475,15 +678,18 @@ export default function App() {
             safeSetScreen("documents");
           }}
           onDecline={() => {
-            setOffer((o) => ({ ...o, state: "Declined" }));
             setCandidates((prev) =>
               prev.map((c) =>
-                c.id === selectedCandidate.id ? { ...c, status: "Offer Declined" } : c
+                c.id === selectedCandidate.id
+                  ? { ...c, status: "Offer Declined" }
+                  : c
               )
             );
             notify("Offer", "Offer declined. Workflow ended (No Hire).");
             safeSetScreen("dashboard");
           }}
+          loading={offerLoading}
+          error={offerError}
         />
       )}
 
@@ -497,8 +703,9 @@ export default function App() {
         />
       )}
 
-      {screen === "verification" && (
+      {screen === "verification" && selectedCandidate && (
         <Verification
+          candidate={selectedCandidate}
           onApprove={() => {
             notify("Verification", "Documents verified. Pre-onboarding started.");
             safeSetScreen("preOnboarding");
@@ -517,6 +724,8 @@ export default function App() {
           }}
         />
       )}
+
+      {screen === "newsletters" && <NewsletterScreen />}
     </Shell>
   );
 }

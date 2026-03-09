@@ -14,7 +14,9 @@ export default function CandidateSearch({
   setSelectedJobId,
   onCreateCandidate,
   onMatchingJobs,
-  onInterviewSchedule
+  onInterviewSchedule,
+  onUpdateCandidate,
+  onDeleteCandidate
 }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
@@ -78,7 +80,10 @@ export default function CandidateSearch({
             { key: "name", header: "Name" },
             { key: "contact", header: "Contact" },
             { key: "skills", header: "Skills" },
-            { key: "status", header: "Status" }
+            { key: "status", header: "Status" },
+            ...(onUpdateCandidate || onDeleteCandidate
+              ? [{ key: "actions", header: "Actions" }]
+              : [])
           ]}
           rows={filtered.map((c) => ({
             id: (
@@ -105,7 +110,37 @@ export default function CandidateSearch({
                 ))}
               </div>
             ),
-            status: <StatusBadge status={c.status} />
+            status: <StatusBadge status={c.status} />,
+            ...(onUpdateCandidate || onDeleteCandidate
+              ? {
+                  actions: (
+                    <div className="flex gap-1">
+                      {onUpdateCandidate ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            const name = prompt("New name:", c.name);
+                            if (name != null && name.trim())
+                              onUpdateCandidate(c.id, {
+                                candidate_first_name: name.trim()
+                              });
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      ) : null}
+                      {onDeleteCandidate ? (
+                        <Button
+                          variant="danger"
+                          onClick={() => onDeleteCandidate(c.id)}
+                        >
+                          Delete
+                        </Button>
+                      ) : null}
+                    </div>
+                  )
+                }
+              : {})
           }))}
         />
 

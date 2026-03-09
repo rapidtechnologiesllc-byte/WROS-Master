@@ -20,8 +20,39 @@ import {
   updateCandidateEducation,
   updateCandidateExperience
 } from "../services/api/candidateSelfService";
+import { getMyOffers, respondToOffer } from "../services/api/offerLetters";
+import {
+  uploadPan,
+  uploadAadhar,
+  uploadEducationCertificate,
+  uploadExperienceLetter,
+  uploadSalarySlip,
+  uploadBankStatement
+} from "../services/api/documents";
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+function DocumentUploadRow({ label, onUpload, disabled }) {
+  const [file, setFile] = useState(null);
+  return (
+    <div className="flex items-center gap-2 rounded-lg border bg-slate-50 p-3">
+      <span className="text-sm font-medium flex-1">{label}</span>
+      <input
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        onChange={(e) => setFile(e.target.files?.[0])}
+        className="text-xs"
+      />
+      <Button
+        variant="secondary"
+        onClick={() => file && onUpload(file)}
+        disabled={!file || disabled}
+      >
+        Upload
+      </Button>
+    </div>
+  );
+}
 
 export default function CandidateSelfService({ onLogout }) {
   const [loading, setLoading] = useState(false);
@@ -32,6 +63,7 @@ export default function CandidateSelfService({ onLogout }) {
     new_password: "",
     confirm_password: ""
   });
+  const [myOffers, setMyOffers] = useState([]);
 
   // Normalize backend records into UI-friendly state shape.
   const normalizeEducationRecord = (record = {}) => ({
@@ -149,7 +181,8 @@ export default function CandidateSelfService({ onLogout }) {
           experienceResult,
           aadharResult,
           panResult,
-          onboardingResult
+          onboardingResult,
+          offersResult
         ] = await Promise.allSettled([
           getCandidateMyInfo(),
           getCandidatePersonalInfo(),
@@ -157,7 +190,8 @@ export default function CandidateSelfService({ onLogout }) {
           listCandidateExperience(),
           getCandidateAadhar(),
           getCandidatePan(),
-          getCandidateOnboardingStatus()
+          getCandidateOnboardingStatus(),
+          getMyOffers()
         ]);
 
         if (!isMounted) return;
@@ -209,6 +243,10 @@ export default function CandidateSelfService({ onLogout }) {
           setOnboardingStatus(onboardingResult.value);
         }
 
+        if (offersResult.status === "fulfilled" && offersResult.value?.offers) {
+          setMyOffers(offersResult.value.offers);
+        }
+
         const errors = [
           myInfoResult,
           personalResult,
@@ -216,7 +254,8 @@ export default function CandidateSelfService({ onLogout }) {
           experienceResult,
           aadharResult,
           panResult,
-          onboardingResult
+          onboardingResult,
+          offersResult
         ]
           .filter((result) => result.status === "rejected")
           .map((result) => result.reason);
@@ -263,6 +302,74 @@ export default function CandidateSelfService({ onLogout }) {
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {notice}
           </div>
+        ) : null}
+
+        {myOffers?.length > 0 ? (
+          <Card title="Offer Letters">
+            <div className="space-y-3">
+              {myOffers.map((o) => (
+                <div
+                  key={o.id}
+                  className="rounded-lg border bg-slate-50 p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold">{o.position}</div>
+                      <div className="text-xs text-slate-600">
+                        Salary: ${o.salary} | Joining: {o.joining_date}
+                      </div>
+                      <div className="mt-1 text-xs">
+                        Status: <span className="font-medium">{o.offer_status}</span>
+                      </div>
+                    </div>
+                    {o.offer_status === "Pending" ? (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            setNotice("");
+                            try {
+                              await respondToOffer({
+                                offerId: o.id,
+                                action: "reject"
+                              });
+                              const refreshed = await getMyOffers();
+                              setMyOffers(refreshed?.offers || []);
+                              setNotice("Offer declined.");
+                            } catch (err) {
+                              setNotice(err.message || "Failed to decline offer.");
+                            }
+                          }}
+                          disabled={loading}
+                        >
+                          Decline
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            setNotice("");
+                            try {
+                              await respondToOffer({
+                                offerId: o.id,
+                                action: "accept"
+                              });
+                              const refreshed = await getMyOffers();
+                              setMyOffers(refreshed?.offers || []);
+                              setNotice("Offer accepted!");
+                            } catch (err) {
+                              setNotice(err.message || "Failed to accept offer.");
+                            }
+                          }}
+                          disabled={loading}
+                        >
+                          Accept
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
         ) : null}
 
         {onboardingStatus ? (
@@ -691,6 +798,37 @@ export default function CandidateSelfService({ onLogout }) {
             >
               Save PAN
             </Button>
+          </div>
+        </Card>
+
+        <Card title="Document Uploads">
+          <div className="text-sm text-slate-600 mb-3">
+            Upload documents (PDF, JPG, PNG). Accepted: PAN, Aadhar, Education, Experience, Salary Slip, Bank Statement.
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {[
+              { key: "pan", label: "PAN Card", upload: uploadPan },
+              { key: "aadhar", label: "Aadhar Card", upload: uploadAadhar },
+              { key: "education", label: "Education Certificate", upload: uploadEducationCertificate },
+              { key: "experience", label: "Experience Letter", upload: uploadExperienceLetter },
+              { key: "salary_slip", label: "Salary Slip", upload: uploadSalarySlip },
+              { key: "bank_statement", label: "Bank Statement", upload: uploadBankStatement }
+            ].map(({ key, label, upload }) => (
+              <DocumentUploadRow
+                key={key}
+                label={label}
+                onUpload={async (file) => {
+                  setNotice("");
+                  try {
+                    await upload(file);
+                    setNotice(`${label} uploaded.`);
+                  } catch (err) {
+                    setNotice(err.message || `Failed to upload ${label}.`);
+                  }
+                }}
+                disabled={loading}
+              />
+            ))}
           </div>
         </Card>
 
