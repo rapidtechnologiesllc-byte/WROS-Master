@@ -80,3 +80,4 @@ test.py
 .env.example
 .vercel
 .env*.local
+.env.prod

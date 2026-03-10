@@ -11,6 +11,9 @@ class Users(Base):
     UserEmail = Column(String(200), unique=True, nullable=False, index=True)
     UserPassword = Column(String(200), nullable=False)
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
+    # RBAC — nullable so existing users are not broken on upgrade
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
+
 
 class Jobs(Base):
     __tablename__ = "jobs"

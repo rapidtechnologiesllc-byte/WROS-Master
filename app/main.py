@@ -49,10 +49,19 @@ async def startup_event():
         # Start APScheduler
         from app.core.scheduler import start_scheduler
         start_scheduler()
-        
+
+        # Seed RBAC roles, attributes, and permissions (idempotent)
+        from app.core.database import SessionLocal
+        from app.services.rbac_service import RBACService
+        _db = SessionLocal()
+        try:
+            RBACService.seed_roles_and_permissions(_db)
+        finally:
+            _db.close()
+
         logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
         logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-        
+
     except Exception as e:
         logger.error(f"Startup error: {str(e)}", exc_info=True)
         raise
