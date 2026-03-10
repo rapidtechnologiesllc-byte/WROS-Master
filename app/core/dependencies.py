@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -8,41 +8,34 @@ from app.models.user import Users
 from app.models.candidate import Candidate
 
 
+# ---------------------------------------------------------------------------
+# Base user resolution
+# ---------------------------------------------------------------------------
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
     """
-    Get the current authenticated user from JWT token.
-    
-    Args:
-        credentials: HTTP Bearer credentials containing JWT token
-        db: Database session
-        
-    Returns:
-        User or Candidate object
-        
-    Raises:
-        HTTPException: If token is invalid or user not found
+    Get the current authenticated user (User or Candidate) from JWT token.
     """
     token = credentials.credentials
     payload = decode_access_token(token)
-    
+
     user_id: str = payload.get("sub")
-    user_type: str = payload.get("type", "candidate")  # Default to candidate
-    
+    user_type: str = payload.get("type", "candidate")
+
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    # Import here to avoid circular dependency
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
     if user_type == "user":
         user = db.query(Users).filter(Users.UserID == user_id).first()
     else:
         user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
-    
+
     if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
     return user
 
 
@@ -52,32 +45,20 @@ async def get_current_candidate(
 ):
     """
     Get the current authenticated candidate from JWT token.
-    Ensures the user is a candidate.
-    
-    Args:
-        credentials: HTTP Bearer credentials containing JWT token
-        db: Database session
-        
-    Returns:
-        Candidate object
-        
-    Raises:
-        HTTPException: If token is invalid, user not found, or not a candidate
     """
     token = credentials.credentials
     payload = decode_access_token(token)
-    
+
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type")
-    
+
     if not user_id or user_type != "candidate":
-        raise HTTPException(status_code=403, detail="Not authorized as candidate")
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized as candidate")
+
     candidate = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
-    
     if not candidate:
-        raise HTTPException(status_code=401, detail="Candidate not found")
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
+
     return candidate
 
 
@@ -87,36 +68,126 @@ async def get_current_hr_or_admin(
 ):
     """
     Get the current authenticated HR or Admin user from JWT token.
-    Ensures the user has HR or Admin role.
-    
-    Args:
-        credentials: HTTP Bearer credentials containing JWT token
-        db: Database session
-        
-    Returns:
-        Users object with HR or Admin role
-        
-    Raises:
-        HTTPException: If token is invalid, user not found, or not HR/Admin
+    Accepts users with UserRole of 'hr' or 'admin' (existing flat-role check, kept for backward compatibility).
     """
     token = credentials.credentials
     payload = decode_access_token(token)
-    
+
     user_id: str = payload.get("sub")
-    user_type: str = payload.get("type")
-    
+    user_type: str = payload.get("type", "")
+
     user_type = user_type.lower()
-    # Accept 'user', 'hr', or 'admin' types
     if not user_id or user_type not in ["user", "hr", "admin"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # For Microsoft SSO users, 'sub' contains email, not UserID
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # For Microsoft SSO users, 'sub' contains email
     user = db.query(Users).filter(Users.UserEmail == user_id).first()
-    
     if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
     if user.UserRole.lower() not in ["hr", "admin"]:
-        raise HTTPException(status_code=403, detail="Requires HR or Admin role")
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requires HR or Admin role")
+
     return user
+
+
+async def get_current_internal_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> Users:
+    """
+    Resolve any internal (non-candidate) user from JWT. Used as a base for RBAC guards.
+    """
+    token = credentials.credentials
+    payload = decode_access_token(token)
+
+    user_id: str = payload.get("sub")
+    user_type: str = payload.get("type", "")
+
+    if not user_id or user_type.lower() not in ["user", "hr", "admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    user = db.query(Users).filter(Users.UserEmail == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    return user
+
+
+# ---------------------------------------------------------------------------
+# RBAC — permission and attribute guards
+# ---------------------------------------------------------------------------
+
+def require_permission(permission: str):
+    """
+    FastAPI dependency factory that enforces a named RBAC permission.
+
+    Usage:
+        @router.get("/path", dependencies=[Depends(require_permission("candidate.view"))])
+
+    Returns 403 if the authenticated user's role does not include the permission.
+    Falls back gracefully if the user has no RBAC role assigned (denies access).
+    """
+    async def _check(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: Session = Depends(get_db),
+    ):
+        from app.services.rbac_service import RBACService
+
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        user_email: str = payload.get("sub", "")
+
+        user = db.query(Users).filter(Users.UserEmail == user_email).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+        # Super User bypass — always has all permissions
+        if user.UserRole and user.UserRole.lower() == "super user":
+            return user
+
+        if not RBACService.has_permission(db, user.UserID, permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: '{permission}' required",
+            )
+        return user
+
+    return _check
+
+
+def require_attribute(attribute: str, expected: bool = True):
+    """
+    FastAPI dependency factory that enforces a role attribute flag.
+
+    Usage:
+        @router.post("/pipeline", dependencies=[Depends(require_attribute("pipeline_control"))])
+
+    Returns 403 if the authenticated user's role does not have the attribute set to `expected`.
+    """
+    async def _check(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: Session = Depends(get_db),
+    ):
+        from app.services.rbac_service import RBACService
+
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        user_email: str = payload.get("sub", "")
+
+        user = db.query(Users).filter(Users.UserEmail == user_email).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+        # Super User bypass
+        if user.UserRole and user.UserRole.lower() == "super user":
+            return user
+
+        if not RBACService.has_attribute(db, user.UserID, attribute, expected):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: role attribute '{attribute}' required",
+            )
+        return user
+
+    return _check

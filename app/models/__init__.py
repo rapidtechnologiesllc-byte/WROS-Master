@@ -24,6 +24,7 @@ from app.models.candidate import (
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
+from app.models.rbac import Role, RoleAttribute, Permission, RolePermission
 
 __all__ = [
     # Base
@@ -49,5 +50,10 @@ __all__ = [
     # Newsletter
     "Newsletter",
     "NewsletterSubscriber",
+    # RBAC
+    "Role",
+    "RoleAttribute",
+    "Permission",
+    "RolePermission",
 ]
 
