@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate, get_current_user
+from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_permission
 from app.models.offer_letter import OfferLetter
 from app.models.candidate import Candidate
 from app.models.user import Users
@@ -34,17 +34,6 @@ def respond_to_offer(
 ):
     """
     Candidate responds to an offer letter (accept or reject).
-    
-    Args:
-        request: OfferAcceptanceRequest with offer_id, action, and optional response_message
-        db: Database session
-        candidate: Authenticated candidate
-        
-    Returns:
-        OfferAcceptanceResponse with status and updated offer details
-        
-    Raises:
-        HTTPException: If offer not found, doesn't belong to candidate, or invalid action
     """
     # Validate action
     if request.action.lower() not in ["accept", "reject"]:
@@ -100,13 +89,6 @@ def get_my_offers(
 ):
     """
     Get all offer letters for the authenticated candidate.
-    
-    Args:
-        db: Database session
-        candidate: Authenticated candidate
-        
-    Returns:
-        AllOffersResponse with list of offer letters
     """
     offers = db.query(OfferLetter).filter(
         OfferLetter.candidate_id == candidate.candidateID
@@ -114,7 +96,6 @@ def get_my_offers(
     
     offer_responses = []
     for offer in offers:
-        # Get candidate details
         candidate_obj = db.query(Candidate).filter(
             Candidate.candidateID == offer.candidate_id
         ).first()
@@ -160,25 +141,19 @@ def get_my_offers(
 # RECRUITER/HR ENDPOINTS
 # ============================================
 
-@router.post("/create", response_model=OfferLetterResponse)
+@router.post(
+    "/create",
+    response_model=OfferLetterResponse,
+    dependencies=[Depends(require_permission("offer.create"))],
+)
 def create_offer_letter(
     request: OfferLetterCreateRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_hr_or_admin)  # ← fixed: was get_current_user
 ):
     """
     Create a new offer letter for a candidate (HR/Recruiter only).
-    
-    Args:
-        request: OfferLetterCreateRequest with offer details
-        db: Database session
-        user: Authenticated user (HR/Recruiter)
-        
-    Returns:
-        OfferLetterResponse with created offer details
-        
-    Raises:
-        HTTPException: If candidate or managers not found
+    Requires permission: offer.create
     """
     # Verify candidate exists
     candidate = db.query(Candidate).filter(
@@ -261,27 +236,20 @@ def create_offer_letter(
     )
 
 
-@router.post("/cancel/{offer_id}", response_model=DeleteResponse)
+@router.post(
+    "/cancel/{offer_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("offer.edit"))],
+)
 def cancel_offer_letter(
     offer_id: int,
     request: OfferCancelRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_hr_or_admin)  # ← fixed: was get_current_user
 ):
     """
     Cancel an offer letter (HR/Recruiter only).
-    
-    Args:
-        offer_id: ID of the offer letter to cancel
-        request: OfferCancelRequest with optional reason
-        db: Database session
-        user: Authenticated user (HR/Recruiter)
-        
-    Returns:
-        DeleteResponse with success message
-        
-    Raises:
-        HTTPException: If offer not found or already processed
+    Requires permission: offer.edit
     """
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     
@@ -313,27 +281,20 @@ def cancel_offer_letter(
     )
 
 
-@router.put("/update/{offer_id}", response_model=OfferLetterResponse)
+@router.put(
+    "/update/{offer_id}",
+    response_model=OfferLetterResponse,
+    dependencies=[Depends(require_permission("offer.edit"))],
+)
 def update_offer_letter(
     offer_id: int,
     request: OfferLetterUpdateRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_hr_or_admin)  # ← fixed: was get_current_user
 ):
     """
     Update an offer letter (HR/Recruiter only).
-    
-    Args:
-        offer_id: ID of the offer letter to update
-        request: OfferLetterUpdateRequest with fields to update
-        db: Database session
-        user: Authenticated user (HR/Recruiter)
-        
-    Returns:
-        OfferLetterResponse with updated offer details
-        
-    Raises:
-        HTTPException: If offer not found or already processed
+    Requires permission: offer.edit
     """
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     
@@ -355,7 +316,6 @@ def update_offer_letter(
         offer.job_id = request.job_id
     
     if request.hiring_manager_id is not None:
-        # Verify hiring manager exists
         hiring_manager = db.query(Users).filter(
             Users.UserID == request.hiring_manager_id
         ).first()
@@ -367,7 +327,6 @@ def update_offer_letter(
         offer.hiring_manager_id = request.hiring_manager_id
     
     if request.reporting_manager_id is not None:
-        # Verify reporting manager exists
         reporting_manager = db.query(Users).filter(
             Users.UserID == request.reporting_manager_id
         ).first()
@@ -429,24 +388,20 @@ def update_offer_letter(
     )
 
 
-@router.get("/all", response_model=AllOffersResponse)
+@router.get(
+    "/all",
+    response_model=AllOffersResponse,
+    dependencies=[Depends(require_permission("offer.view"))],
+)
 def get_all_offers(
     status: Optional[str] = Query(None, description="Filter by offer status"),
     candidate_id: Optional[str] = Query(None, description="Filter by candidate ID"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_hr_or_admin)  # ← fixed: was get_current_user
 ):
     """
     Get all offer letters with optional filters (HR/Recruiter only).
-    
-    Args:
-        status: Optional filter by offer_status
-        candidate_id: Optional filter by candidate_id
-        db: Database session
-        user: Authenticated user (HR/Recruiter)
-        
-    Returns:
-        AllOffersResponse with list of offer letters
+    Requires permission: offer.view
     """
     query = db.query(OfferLetter)
     
@@ -460,7 +415,6 @@ def get_all_offers(
     
     offer_responses = []
     for offer in offers:
-        # Get candidate details
         candidate = db.query(Candidate).filter(
             Candidate.candidateID == offer.candidate_id
         ).first()
@@ -504,25 +458,19 @@ def get_all_offers(
     )
 
 
-@router.get("/{offer_id}", response_model=OfferLetterResponse)
+@router.get(
+    "/{offer_id}",
+    response_model=OfferLetterResponse,
+    dependencies=[Depends(require_permission("offer.view"))],
+)
 def get_offer_by_id(
     offer_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_hr_or_admin)  # ← fixed: was get_current_user
 ):
     """
     Get a specific offer letter by ID (HR/Recruiter only).
-    
-    Args:
-        offer_id: ID of the offer letter
-        db: Database session
-        user: Authenticated user (HR/Recruiter)
-        
-    Returns:
-        OfferLetterResponse with offer details
-        
-    Raises:
-        HTTPException: If offer not found
+    Requires permission: offer.view
     """
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     

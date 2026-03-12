@@ -14,7 +14,7 @@ from app.schemas.newsletter import (
 )
 from app.services.newsletter_service import NewsletterService
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_hr_or_admin, require_permission
 
 router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
 
@@ -28,6 +28,7 @@ router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
     response_model=SubscriberResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Subscribe an email to the newsletter",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def subscribe_newsletter(
     subscriber_in: SubscriberCreate,
@@ -56,6 +57,7 @@ def subscribe_newsletter(
     "/unsubscribe/{email}",
     response_model=SubscriberResponse,
     summary="Unsubscribe an email from the newsletter",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def unsubscribe_newsletter(
     email: str,
@@ -82,6 +84,7 @@ def unsubscribe_newsletter(
     "/subscribers",
     response_model=List[SubscriberResponse],
     summary="List all newsletter subscribers",
+    dependencies=[Depends(require_permission("newsletter.view"))],
 )
 def get_subscribers(
     skip: int = 0,
@@ -102,6 +105,7 @@ def get_subscribers(
     response_model=NewsletterResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a newsletter draft",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def create_newsletter(
     newsletter_in: NewsletterCreate,
@@ -125,6 +129,7 @@ def create_newsletter(
     "/all",
     response_model=List[NewsletterResponse],
     summary="List all newsletters (optionally filtered by status)",
+    dependencies=[Depends(require_permission("newsletter.view"))],
 )
 def get_newsletters(
     skip: int = 0,
@@ -149,6 +154,7 @@ def get_newsletters(
     "/dispatched",
     response_model=List[NewsletterResponse],
     summary="List newsletters that have been scheduled or sent",
+    dependencies=[Depends(require_permission("newsletter.view"))],
 )
 def get_dispatched_newsletters(
     skip: int = 0,
@@ -168,6 +174,7 @@ def get_dispatched_newsletters(
     "/update/{newsletter_id}",
     response_model=NewsletterResponse,
     summary="Update a newsletter draft",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def update_newsletter(
     newsletter_id: str,
@@ -192,6 +199,7 @@ def update_newsletter(
     "/schedule/{newsletter_id}",
     response_model=NewsletterResponse,
     summary="Schedule a newsletter for future delivery",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def schedule_newsletter(
     newsletter_id: str,
@@ -223,6 +231,7 @@ def schedule_newsletter(
     "/send/{newsletter_id}",
     response_model=NewsletterSendResult,
     summary="Send a newsletter immediately",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def send_newsletter_now(
     newsletter_id: str,
@@ -249,6 +258,7 @@ def send_newsletter_now(
     "/delete/{newsletter_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a newsletter",
+    dependencies=[Depends(require_permission("newsletter.manage"))],
 )
 def delete_newsletter(
     newsletter_id: str,

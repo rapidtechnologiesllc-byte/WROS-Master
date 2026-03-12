@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models import (
     Users, Candidate, Interview, InterviewPanel, 
     InterviewFeedback, PanelMember
@@ -35,7 +35,12 @@ router = APIRouter(prefix="/interviews", tags=["interviews"])
 # Interview Panel Endpoints
 # ============================================
 
-@router.post("/panels/create", response_model=InterviewPanelResponse, status_code=201)
+@router.post(
+    "/panels/create",
+    response_model=InterviewPanelResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def create_interview_panel(
     request: InterviewPanelCreate,
     db: Session = Depends(get_db),
@@ -81,7 +86,11 @@ def create_interview_panel(
     )
 
 
-@router.get("/panels/{panel_id}", response_model=InterviewPanelWithDetails)
+@router.get(
+    "/panels/{panel_id}",
+    response_model=InterviewPanelWithDetails,
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_interview_panel(
     panel_id: int,
     db: Session = Depends(get_db),
@@ -134,7 +143,11 @@ def get_interview_panel(
     )
 
 
-@router.get("/panels", response_model=List[InterviewPanelWithDetails])
+@router.get(
+    "/panels",
+    response_model=List[InterviewPanelWithDetails],
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_all_interview_panels(
     candidate_id: Optional[str] = Query(None, description="Filter by candidate ID"),
     round_name: Optional[str] = Query(None, description="Filter by round name"),
@@ -192,7 +205,11 @@ def get_all_interview_panels(
     return results
 
 
-@router.delete("/panels/{panel_id}", response_model=DeleteResponse)
+@router.delete(
+    "/panels/{panel_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("interview.delete"))],
+)
 def delete_interview_panel(
     panel_id: int,
     db: Session = Depends(get_db),
@@ -244,7 +261,12 @@ def delete_interview_panel(
 # Panel Member Endpoints
 # ============================================
 
-@router.post("/panel-members/assign", response_model=PanelMemberResponse, status_code=201)
+@router.post(
+    "/panel-members/assign",
+    response_model=PanelMemberResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def assign_panel_member(
     request: PanelMemberCreate,
     db: Session = Depends(get_db),
@@ -309,7 +331,11 @@ def assign_panel_member(
     )
 
 
-@router.get("/panel-members/{panel_id}", response_model=List[PanelMemberWithDetails])
+@router.get(
+    "/panel-members/{panel_id}",
+    response_model=List[PanelMemberWithDetails],
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_panel_members(
     panel_id: int,
     db: Session = Depends(get_db),
@@ -353,7 +379,11 @@ def get_panel_members(
     return results
 
 
-@router.delete("/panel-members/{member_id}", response_model=DeleteResponse)
+@router.delete(
+    "/panel-members/{member_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("interview.delete"))],
+)
 def remove_panel_member(
     member_id: int,
     db: Session = Depends(get_db),
@@ -393,7 +423,12 @@ def remove_panel_member(
 # Interview Endpoints
 # ============================================
 
-@router.post("/create", response_model=InterviewResponse, status_code=201)
+@router.post(
+    "/create",
+    response_model=InterviewResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def create_interview(
     request: InterviewCreate,
     db: Session = Depends(get_db),
@@ -463,7 +498,11 @@ def create_interview(
     )
 
 
-@router.get("/{interview_id}", response_model=InterviewDetailedResponse)
+@router.get(
+    "/{interview_id}",
+    response_model=InterviewDetailedResponse,
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_interview(
     interview_id: int,
     db: Session = Depends(get_db),
@@ -528,7 +567,11 @@ def get_interview(
     )
 
 
-@router.get("", response_model=List[InterviewDetailedResponse])
+@router.get(
+    "",
+    response_model=List[InterviewDetailedResponse],
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_all_interviews(
     candidate_id: Optional[str] = Query(None, description="Filter by candidate ID"),
     panel_id: Optional[int] = Query(None, description="Filter by panel ID"),
@@ -602,7 +645,11 @@ def get_all_interviews(
     return results
 
 
-@router.put("/{interview_id}", response_model=InterviewResponse)
+@router.put(
+    "/{interview_id}",
+    response_model=InterviewResponse,
+    dependencies=[Depends(require_permission("interview.edit"))],
+)
 def update_interview(
     interview_id: int,
     request: InterviewUpdate,
@@ -665,7 +712,11 @@ def update_interview(
     )
 
 
-@router.delete("/{interview_id}", response_model=DeleteResponse)
+@router.delete(
+    "/{interview_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("interview.delete"))],
+)
 def delete_interview(
     interview_id: int,
     db: Session = Depends(get_db),
@@ -709,7 +760,12 @@ def delete_interview(
 # Interview Feedback Endpoints
 # ============================================
 
-@router.post("/feedback/submit", response_model=InterviewFeedbackResponse, status_code=201)
+@router.post(
+    "/feedback/submit",
+    response_model=InterviewFeedbackResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def submit_interview_feedback(
     request: InterviewFeedbackCreate,
     db: Session = Depends(get_db),
@@ -746,7 +802,7 @@ def submit_interview_feedback(
         )
     
     # Validate recommendation
-    valid_recommendations = ["Hire", "Hold", "Reject"]
+    valid_recommendations = ["No Hire","Not sure","Average","Hire","Must Hire"]
     if request.recommendation not in valid_recommendations:
         raise HTTPException(
             status_code=400,
@@ -783,7 +839,11 @@ def submit_interview_feedback(
     )
 
 
-@router.get("/feedback/interview/{interview_id}", response_model=List[InterviewFeedbackWithDetails])
+@router.get(
+    "/feedback/interview/{interview_id}",
+    response_model=List[InterviewFeedbackWithDetails],
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_feedback_by_interview(
     interview_id: int,
     db: Session = Depends(get_db),
