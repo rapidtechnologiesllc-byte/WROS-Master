@@ -86,3 +86,15 @@ class RolePermission(Base):
 
     def __repr__(self) -> str:
         return f"<RolePermission role_id={self.role_id} permission_id={self.permission_id}>"
+
+class BusinessUnit(Base):
+    """A business unit (BU) that users can belong to."""
+    __tablename__ = "business_units"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<BusinessUnit id={self.id} name={self.name!r}>"

@@ -1,17 +1,13 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 import app.schemas as schema
-from app.core.database import SessionLocal, engine, check_candidate, check_user, get_db
-from app.core.security import (
-    verify_password,
-    create_access_token,
-    get_password_hash,
-)
+from app.core.database import check_candidate, get_db
+from app.core.security import get_password_hash
 from app.models.candidate import (
     Candidate,
     CandidateInfoForm,
@@ -20,10 +16,11 @@ from app.models.candidate import (
     CandidateAadharForm,
     CandidatePanForm
 )
+from app.models.user import Users, Interview, CandidateAssignment
 
-from app.core.dependencies import get_current_hr_or_admin, get_current_candidate
+from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission
 
-from app.schemas.candidate import (CandidateCreateRequest, 
+from app.schemas.candidate import (CandidateCreateRequest,
 CandidateCreateResponse, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
@@ -31,13 +28,17 @@ CandidateAadharResponse, DeleteResponse,
 AllCandidatesResponse)
 from app.schemas.user import CandidateUpdateRequest
 
-from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
+from app.utils.uniq_id_generator import candidate_id_generator, generate_password
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
 
-@router.post("/hr/create_candidate", response_model=CandidateCreateResponse)
+@router.post(
+    "/hr/create_candidate",
+    response_model=CandidateCreateResponse,
+    dependencies=[Depends(require_permission("candidate.create"))],
+)
 def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Create a new candidate account with comprehensive information.
@@ -103,7 +104,11 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
         candidate_password=password  # Return plain password
     )
 
-@router.get("/hr/get_all_candidates", response_model=AllCandidatesResponse)
+@router.get(
+    "/hr/get_all_candidates",
+    response_model=AllCandidatesResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+)
 def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Get all candidates with their complete information for HR/Admin.
@@ -212,7 +217,11 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
         candidates=candidates_data
     )
 
-@router.put("/hr/update_candidate/{candidate_id}", response_model=CandidateCreateResponse)
+@router.put(
+    "/hr/update_candidate/{candidate_id}",
+    response_model=CandidateCreateResponse,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+)
 def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Update an existing candidate.
@@ -279,7 +288,11 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
     )
 
 
-@router.delete("/hr/delete_candidate/{candidate_id}", response_model=DeleteResponse)
+@router.delete(
+    "/hr/delete_candidate/{candidate_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("candidate.delete"))],
+)
 def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Delete a candidate and all associated records.

@@ -1,34 +1,34 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-import app.schemas as schema
-from app.core.database import SessionLocal, engine, check_candidate, check_user, get_db
-from app.core.security import (
-    verify_password,
-    create_access_token,
-    get_password_hash,
-)
-from app.core.dependencies import get_current_hr_or_admin
-from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember
+from app.core.database import get_db, check_user
+from app.core.security import get_password_hash
+from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role
+from app.schemas.auth import SignupRequest
 from app.schemas.user import (
-    AllUsersResponse, UserResponse, 
-    CandidateAssignmentCreate, CandidateAssignmentResponse, 
-    InterviewCreate, InterviewResponse, InterviewUpdateRequest, 
-    InterviewFeedbackCreate, InterviewFeedbackResponse, 
-    AssignedCandidateResponse, AssignedInterviewResponse, 
-    PanelMemberCreate, PanelMemberResponse, DeleteResponse
+    AllUsersResponse, UserResponse,
+    CandidateAssignmentCreate, CandidateAssignmentResponse,
+    InterviewCreate, InterviewResponse, InterviewUpdateRequest,
+    InterviewFeedbackCreate, InterviewFeedbackResponse,
+    AssignedCandidateResponse, AssignedInterviewResponse,
+    PanelMemberCreate, PanelMemberResponse, DeleteResponse,
+    ChangePasswordRequest
 )
-from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
+from app.utils.uniq_id_generator import user_id_generator
 
 router = APIRouter(prefix="/hr", tags=["hr"])
 
 
-@router.get("/users/all", response_model=AllUsersResponse)
+@router.get(
+    "/users/all",
+    response_model=AllUsersResponse,
+    dependencies=[Depends(require_permission("user.view"))],
+)
 def get_all_users(
     db: Session = Depends(get_db), 
     user = Depends(get_current_hr_or_admin)
@@ -50,12 +50,14 @@ def get_all_users(
     # Build response
     users_data = []
     for u in users:
+        role = db.query(Role).filter(Role.id == u.role_id).first()
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
             user_email=u.UserEmail,
             user_role=u.UserRole,
-            created_at=u.CreatedAt
+            created_at=u.CreatedAt,
+            permission_role = role.name if role else None
         ))
     
     return AllUsersResponse(
@@ -64,10 +66,15 @@ def get_all_users(
     )
 
 
-@router.post("/assignments/create", response_model=CandidateAssignmentResponse, status_code=201)
+@router.post(
+    "/assignments/create",
+    response_model=CandidateAssignmentResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+)
 def create_candidate_assignment(
-    request: CandidateAssignmentCreate, 
-    db: Session = Depends(get_db), 
+    request: CandidateAssignmentCreate,
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -130,10 +137,15 @@ def create_candidate_assignment(
     )
 
 
-@router.post("/interviews/create", response_model=InterviewResponse, status_code=201)
+@router.post(
+    "/interviews/create",
+    response_model=InterviewResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def create_interview(
-    request: InterviewCreate, 
-    db: Session = Depends(get_db), 
+    request: InterviewCreate,
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -193,10 +205,15 @@ def create_interview(
     )
 
 
-@router.post("/panel-members/assign", response_model=PanelMemberResponse, status_code=201)
+@router.post(
+    "/panel-members/assign",
+    response_model=PanelMemberResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def assign_panel_member(
-    request: PanelMemberCreate, 
-    db: Session = Depends(get_db), 
+    request: PanelMemberCreate,
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -258,10 +275,15 @@ def assign_panel_member(
     )
 
 
-@router.post("/interviews/feedback", response_model=InterviewFeedbackResponse, status_code=201)
+@router.post(
+    "/interviews/feedback",
+    response_model=InterviewFeedbackResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("interview.create"))],
+)
 def submit_interview_feedback(
-    request: InterviewFeedbackCreate, 
-    db: Session = Depends(get_db), 
+    request: InterviewFeedbackCreate,
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -332,9 +354,13 @@ def submit_interview_feedback(
     )
 
 
-@router.get("/assignments/candidates", response_model=list[AssignedCandidateResponse])
+@router.get(
+    "/assignments/candidates",
+    response_model=list[AssignedCandidateResponse],
+    dependencies=[Depends(require_permission("candidate.view"))],
+)
 def get_assigned_candidates(
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -389,9 +415,13 @@ def get_assigned_candidates(
     return results
 
 
-@router.get("/interviews/assigned", response_model=list[AssignedInterviewResponse])
+@router.get(
+    "/interviews/assigned",
+    response_model=list[AssignedInterviewResponse],
+    dependencies=[Depends(require_permission("interview.view"))],
+)
 def get_assigned_interviews(
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -455,7 +485,11 @@ def get_assigned_interviews(
 
 
 
-@router.put("/update_interview/{interview_id}", response_model=InterviewResponse)
+@router.put(
+    "/update_interview/{interview_id}",
+    response_model=InterviewResponse,
+    dependencies=[Depends(require_permission("interview.edit"))],
+)
 def update_interview(interview_id: int, request: InterviewUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Update an existing interview.
@@ -507,7 +541,11 @@ def update_interview(interview_id: int, request: InterviewUpdateRequest, db: Ses
     )
 
 
-@router.delete("/delete_interview/{interview_id}", response_model=DeleteResponse)
+@router.delete(
+    "/delete_interview/{interview_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("interview.delete"))],
+)
 def delete_interview(interview_id: int, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Delete an interview and all associated feedback.
@@ -541,4 +579,154 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db), user = De
     return DeleteResponse(
         status="Success",
         message=f"Interview with ID {interview_id} and all associated feedback deleted successfully"
+    )
+
+
+# ============================================
+# HR User Management Endpoints
+# ============================================
+
+@router.post(
+    "/users/create",
+    response_model=UserResponse,
+    status_code=201,
+    summary="Create a new HR/Admin user",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def create_user(
+    request: SignupRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Create a new internal user (HR, Admin, etc.).
+    Requires permission: user.manage
+    """
+    from app.schemas.auth import SignupRequest as SR
+    from app.core.database import check_user
+    existing = check_user(db, request.user_email)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"User with email {request.user_email} already exists")
+    new_user = Users(
+        UserID=user_id_generator(),
+        UserName=request.user_name,
+        UserEmail=request.user_email,
+        UserPassword=get_password_hash(request.user_password),
+        UserRole=request.user_role
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return UserResponse(
+        user_id=new_user.UserID,
+        user_name=new_user.UserName or "",
+        user_email=new_user.UserEmail,
+        user_role=new_user.UserRole,
+        created_at=new_user.CreatedAt
+    )
+
+
+@router.put(
+    "/users/{user_id}",
+    response_model=UserResponse,
+    summary="Update an HR/Admin user's profile or role",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def update_user(
+    user_id: str,
+    user_name: Optional[str] = None,
+    user_role: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Update a user's name or role.
+    Requires permission: user.manage
+    """
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+    if user_name is not None:
+        target.UserName = user_name
+    if user_role is not None:
+        target.UserRole = user_role
+    db.commit()
+    db.refresh(target)
+    return UserResponse(
+        user_id=target.UserID,
+        user_name=target.UserName or "",
+        user_email=target.UserEmail,
+        user_role=target.UserRole,
+        created_at=target.CreatedAt
+    )
+
+
+@router.delete(
+    "/users/{user_id}",
+    response_model=DeleteResponse,
+    summary="Delete an HR/Admin user account",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Delete an internal user account.
+    Requires permission: user.manage
+    """
+    if current_user.UserID == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+    db.delete(target)
+    db.commit()
+    return DeleteResponse(
+        status="Success",
+        message=f"User {user_id} deleted successfully"
+    )
+
+
+@router.put(
+    "/users/me/change-password",
+    response_model=DeleteResponse,
+    summary="Change current user's password",
+)
+def change_password(
+    request: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Change the password of the currently logged-in user.
+    Requires the correct current password for verification.
+
+    Raises:
+        400 if current password is wrong
+        400 if new password is same as current
+    """
+    from app.core.security import verify_password
+
+    # Verify current password
+    if not verify_password(request.current_password, current_user.UserPassword):
+        raise HTTPException(
+            status_code=400,
+            detail="Current password is incorrect"
+        )
+
+    # Prevent setting the same password
+    if verify_password(request.new_password, current_user.UserPassword):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different from the current password"
+        )
+
+    current_user.UserPassword = get_password_hash(request.new_password)
+    db.commit()
+
+    return DeleteResponse(
+        status="Success",
+        message="Password changed successfully"
     )
