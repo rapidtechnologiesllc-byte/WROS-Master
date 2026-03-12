@@ -67,26 +67,22 @@ async def get_current_hr_or_admin(
     db: Session = Depends(get_db)
 ):
     """
-    Get the current authenticated HR or Admin user from JWT token.
-    Accepts users with UserRole of 'hr' or 'admin' (existing flat-role check, kept for backward compatibility).
+    Get the current authenticated internal user from JWT token.
+    Allows any user found in the Users table (any role). Candidates are excluded.
     """
     token = credentials.credentials
     payload = decode_access_token(token)
 
     user_id: str = payload.get("sub")
-    user_type: str = payload.get("type", "")
+    user_type: str = payload.get("type", "").lower()
 
-    user_type = user_type.lower()
-    if not user_id or user_type not in ["user", "hr", "admin"]:
+    if not user_id or user_type == "candidate":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     # For Microsoft SSO users, 'sub' contains email
     user = db.query(Users).filter(Users.UserEmail == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-    if user.UserRole.lower() not in ["hr", "admin"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requires HR or Admin role")
 
     return user
 
@@ -97,14 +93,15 @@ async def get_current_internal_user(
 ) -> Users:
     """
     Resolve any internal (non-candidate) user from JWT. Used as a base for RBAC guards.
+    Allows any user found in the Users table (any role). Candidates are excluded.
     """
     token = credentials.credentials
     payload = decode_access_token(token)
 
     user_id: str = payload.get("sub")
-    user_type: str = payload.get("type", "")
+    user_type: str = payload.get("type", "").lower()
 
-    if not user_id or user_type.lower() not in ["user", "hr", "admin"]:
+    if not user_id or user_type == "candidate":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     user = db.query(Users).filter(Users.UserEmail == user_id).first()
@@ -143,7 +140,12 @@ def require_permission(permission: str):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
         # Super User bypass — always has all permissions
-        if user.UserRole and user.UserRole.lower() == "super user":
+        # Check both the legacy UserRole string AND the RBAC role relationship
+        is_super_user = (
+            (user.UserRole and user.UserRole.lower() == "super user")
+            or (user.role and user.role.name and user.role.name.lower() == "super user")
+        )
+        if is_super_user:
             return user
 
         if not RBACService.has_permission(db, user.UserID, permission):
@@ -179,8 +181,12 @@ def require_attribute(attribute: str, expected: bool = True):
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-        # Super User bypass
-        if user.UserRole and user.UserRole.lower() == "super user":
+        # Super User bypass — check both legacy UserRole string and RBAC role relationship
+        is_super_user = (
+            (user.UserRole and user.UserRole.lower() == "super user")
+            or (user.role and user.role.name and user.role.name.lower() == "super user")
+        )
+        if is_super_user:
             return user
 
         if not RBACService.has_attribute(db, user.UserID, attribute, expected):

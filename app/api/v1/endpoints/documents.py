@@ -8,7 +8,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
+from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_permission
 from app.core.graph_auth import get_graph_token
 from app.schemas.document import DocumentUploadResponse
 from app.services.document_service import DocumentService
@@ -109,7 +109,11 @@ async def _upload_document_helper(
         raise HTTPException(status_code=500, detail="Failed to save document metadata")
 
 
-@router.post("/upload/resume", response_model=DocumentUploadResponse)
+@router.post(
+    "/upload/resume",
+    response_model=DocumentUploadResponse,
+    dependencies=[Depends(require_permission("document.upload"))],
+)
 async def upload_resume(
     candidate_id: str,
     file: UploadFile = File(..., description="Resume file (PDF, DOC, DOCX)"),
@@ -200,7 +204,10 @@ async def upload_bank_statement(
 # HR/Admin Document Management Endpoints
 # ============================================
 
-@router.get("/candidate/{candidate_id}")
+@router.get(
+    "/candidate/{candidate_id}",
+    dependencies=[Depends(require_permission("document.view"))],
+)
 async def get_candidate_documents(
     candidate_id: str,
     current_user = Depends(get_current_hr_or_admin),
@@ -267,7 +274,10 @@ async def get_candidate_documents(
     return result
 
 
-@router.patch("/verify/{candidate_id}/{document_type}")
+@router.patch(
+    "/verify/{candidate_id}/{document_type}",
+    dependencies=[Depends(require_permission("document.verify"))],
+)
 async def update_document_verification(
     candidate_id: str,
     document_type: str,

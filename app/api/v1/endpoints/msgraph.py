@@ -10,7 +10,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.security import create_access_token
 from app.models import Users
 from app.core.logging import logger
@@ -166,7 +166,7 @@ def me(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
         user = new_user
-        user_type = "hr"
+        user_type = graph_user.get("jobTitle")
     
     # Create JWT access token
     access_token = create_access_token(
@@ -353,7 +353,10 @@ def get_my_meetings(
 from app.core.graph_auth import get_graph_token, GraphServiceAuth
 
 
-@router.get("/service/calendar/events/{user_email}")
+@router.get(
+    "/service/calendar/events/{user_email}",
+    dependencies=[Depends(require_permission("calendar.view"))],
+)
 def get_user_calendar_events(
     user_email: str,
     start_time: str = None,
@@ -473,7 +476,10 @@ def get_user_calendar_events(
         raise HTTPException(status_code=500, detail=f"Failed to fetch calendar events: {str(e)}")
 
 
-@router.post("/service/calendar/schedule")
+@router.post(
+    "/service/calendar/schedule",
+    dependencies=[Depends(require_permission("calendar.manage"))],
+)
 def schedule_meeting_for_user(
     organizer_email: str,
     subject: str,
@@ -601,8 +607,13 @@ def schedule_meeting_for_user(
 # SharePoint Connection Test
 # ============================================
 
-@router.get("/sharepoint/test-connection")
-def test_sharepoint_connection():
+@router.get(
+    "/sharepoint/test-connection",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def test_sharepoint_connection(
+    current_user: Users = Depends(get_current_hr_or_admin)
+):
     """
     Test SharePoint connection and list available folders.
     Uses service account authentication.
@@ -748,8 +759,13 @@ def test_sharepoint_connection():
 
 
 
-@router.get("/sharepoint/list-drives")
-def list_sharepoint_drives():
+@router.get(
+    "/sharepoint/list-drives",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def list_sharepoint_drives(
+    current_user: Users = Depends(get_current_hr_or_admin)
+):
     '''
     List all drives available in the SharePoint site.
     Helps identify the correct Drive ID to use in .env file.

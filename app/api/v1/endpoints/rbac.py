@@ -7,15 +7,19 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.schemas.rbac import (
     RoleCreate, RoleResponse, RoleListItem,
     PermissionCreate, PermissionResponse,
     AssignRoleRequest, AssignPermissionRequest,
     UserPermissionSummary,
+    SetBusinessUnitRequest, SetBusinessUnitResponse,
+    BusinessUnitCreate, BusinessUnitResponse, BusinessUnitListItem,
 )
 from app.services.rbac_service import RBACService
 from app.core.logging import logger
+from app.models.rbac import BusinessUnit
+from app.models.user import Users
 
 router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
@@ -28,6 +32,7 @@ router = APIRouter(prefix="/rbac", tags=["RBAC"])
     "/roles",
     response_model=List[RoleListItem],
     summary="List all roles",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def list_roles(
     db: Session = Depends(get_db),
@@ -42,6 +47,7 @@ def list_roles(
     response_model=RoleListItem,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new role",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def create_role(
     data: RoleCreate,
@@ -62,6 +68,7 @@ def create_role(
     "/roles/{role_id}",
     response_model=RoleResponse,
     summary="Get a role with its attributes and permissions",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def get_role(
     role_id: int,
@@ -98,6 +105,7 @@ def get_role(
     "/permissions",
     response_model=List[PermissionResponse],
     summary="List all permissions",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def list_permissions(
     db: Session = Depends(get_db),
@@ -112,6 +120,7 @@ def list_permissions(
     response_model=PermissionResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new permission",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def create_permission(
     data: PermissionCreate,
@@ -136,6 +145,7 @@ def create_permission(
     "/roles/{role_id}/permissions",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Assign a permission to a role",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def assign_permission_to_role(
     role_id: int,
@@ -146,6 +156,7 @@ def assign_permission_to_role(
     """Add a permission to a role. Idempotent — no error if already assigned."""
     try:
         RBACService.assign_permission_to_role(db, role_id, data.permission_id)
+        return {"message": "Permission assigned successfully"}
     except HTTPException:
         raise
     except Exception as exc:
@@ -157,6 +168,7 @@ def assign_permission_to_role(
     "/roles/{role_id}/permissions/{permission_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a permission from a role",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def remove_permission_from_role(
     role_id: int,
@@ -167,6 +179,7 @@ def remove_permission_from_role(
     """Remove a permission from a role. Returns 404 if the mapping doesn't exist."""
     try:
         RBACService.remove_permission_from_role(db, role_id, permission_id)
+        return {"message": "Permission removed successfully"}
     except HTTPException:
         raise
     except Exception as exc:
@@ -182,6 +195,7 @@ def remove_permission_from_role(
     "/users/{user_id}/assign-role",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Assign a role to a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def assign_role_to_user(
     user_id: str,
@@ -206,6 +220,7 @@ def assign_role_to_user(
     "/users/{user_id}/permissions",
     response_model=UserPermissionSummary,
     summary="Get a user's effective permissions and attributes",
+    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def get_user_permissions(
     user_id: str,
@@ -217,3 +232,305 @@ def get_user_permissions(
     Returns an empty summary if no role is assigned.
     """
     return RBACService.get_user_permission_summary(db, user_id)
+
+
+@router.post(
+    "/users/set-business-unit",
+    response_model=SetBusinessUnitResponse,
+    summary="Assign a business unit to a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def set_business_unit_for_user(
+    data: SetBusinessUnitRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),  # renamed to avoid shadowing
+):
+    """
+    Assign a business unit to a user by their UserID.
+    Returns 404 if the user or business unit does not exist.
+    """
+    target_user = db.query(Users).filter(Users.UserID == data.user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        target_user.business_unit_id = data.business_unit_id
+        db.commit()
+        db.refresh(target_user)
+        return SetBusinessUnitResponse(
+            user_id=target_user.UserID,
+            business_unit_id=target_user.business_unit_id,
+            message="Business unit assigned successfully",
+        )
+    except Exception as exc:
+        logger.error(f"Error setting business unit for user: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to set business unit")
+
+@router.put(
+    "/users/{user_id}/business-unit",
+    response_model=SetBusinessUnitResponse,
+    summary="Update a user's business unit",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def update_business_unit_for_user(
+    user_id: str,
+    data: SetBusinessUnitRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),  # renamed to avoid shadowing
+):
+    """
+    Update a user's business unit by their UserID.
+    Returns 404 if the user or business unit does not exist.
+    """
+    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        target_user.business_unit_id = data.business_unit_id
+        db.commit()
+        db.refresh(target_user)
+        return SetBusinessUnitResponse(
+            user_id=target_user.UserID,
+            business_unit_id=target_user.business_unit_id,
+            message="Business unit updated successfully",
+        )
+    except Exception as exc:
+        logger.error(f"Error updating business unit for user: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to update business unit")
+
+@router.post(
+    "/business-units",
+    response_model=BusinessUnitResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new business unit",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def create_business_unit(
+    data: BusinessUnitCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Create a new business unit.
+    Returns 409 if the business unit name already exists.
+    """
+    if db.query(BusinessUnit).filter(BusinessUnit.name == data.name).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Business unit '{data.name}' already exists")
+    try:
+        business_unit = BusinessUnit(
+            name=data.name,
+            description=data.description,
+            # created_at is set by server_default — do NOT pass it manually
+        )
+        db.add(business_unit)
+        db.commit()
+        db.refresh(business_unit)
+        return business_unit
+    except Exception as exc:
+        logger.error(f"Error creating business unit: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to create business unit")
+
+@router.get(
+    "/business-units",
+    response_model=List[BusinessUnitListItem],
+    summary="List all business units",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def list_business_units(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Return all defined business units."""
+    try:
+        BusinessUnitList = db.query(BusinessUnit).all()
+        return BusinessUnitList
+    except Exception as exc:
+        logger.error(f"Error listing business units: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to list business units")
+
+@router.delete(
+    "/business-units/{business_unit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a business unit",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def delete_business_unit(
+    business_unit_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Delete a business unit by its ID. Returns 404 if not found."""
+    business_unit = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if not business_unit:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+    try:
+        db.delete(business_unit)
+        db.commit()
+    except Exception as exc:
+        logger.error(f"Error deleting business unit: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to delete business unit")
+
+
+# ===========================================================================
+# Missing RBAC Management Endpoints
+# ===========================================================================
+
+@router.delete(
+    "/roles/{role_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a role",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Delete an RBAC role by ID. Returns 404 if not found."""
+    role = RBACService.get_role_or_404(db, role_id)
+    try:
+        db.delete(role)
+        db.commit()
+    except Exception as exc:
+        logger.error(f"Error deleting role: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to delete role")
+
+
+@router.put(
+    "/roles/{role_id}",
+    response_model=RoleListItem,
+    summary="Update a role name/description",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def update_role(
+    role_id: int,
+    data: RoleCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Update the name or description of a role. Returns 404 if not found."""
+    role = RBACService.get_role_or_404(db, role_id)
+    try:
+        role.name = data.name
+        role.description = data.description
+        db.commit()
+        db.refresh(role)
+        return role
+    except Exception as exc:
+        logger.error(f"Error updating role: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to update role")
+
+
+@router.delete(
+    "/permissions/{permission_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a permission",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def delete_permission(
+    permission_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Delete a permission by ID. Returns 404 if not found."""
+    from app.models.rbac import Permission
+    perm = db.query(Permission).filter(Permission.id == permission_id).first()
+    if not perm:
+        raise HTTPException(status_code=404, detail="Permission not found")
+    try:
+        db.delete(perm)
+        db.commit()
+    except Exception as exc:
+        logger.error(f"Error deleting permission: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to delete permission")
+
+
+@router.get(
+    "/users/{user_id}/role",
+    response_model=RoleListItem,
+    summary="Get the RBAC role assigned to a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_user_role(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Return the role currently assigned to a user. Returns 404 if no role is set."""
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not target.role_id:
+        raise HTTPException(status_code=404, detail="No role assigned to this user")
+    from app.models.rbac import Role
+    role = db.query(Role).filter(Role.id == target.role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Assigned role not found")
+    return role
+
+
+@router.delete(
+    "/users/{user_id}/role",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke the RBAC role from a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def revoke_user_role(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Remove the RBAC role assignment from a user."""
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        target.role_id = None
+        db.commit()
+    except Exception as exc:
+        logger.error(f"Error revoking role from user: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to revoke role")
+
+
+@router.get(
+    "/business-units/{business_unit_id}",
+    response_model=BusinessUnitResponse,
+    summary="Get a single business unit by ID",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_business_unit(
+    business_unit_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Retrieve a single business unit by its ID. Returns 404 if not found."""
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+    return bu
+
+
+@router.put(
+    "/business-units/{business_unit_id}",
+    response_model=BusinessUnitResponse,
+    summary="Update a business unit",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def update_business_unit(
+    business_unit_id: int,
+    data: BusinessUnitCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Update the name or description of a business unit. Returns 404 if not found."""
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+    try:
+        bu.name = data.name
+        bu.description = data.description
+        db.commit()
+        db.refresh(bu)
+        return bu
+    except Exception as exc:
+        logger.error(f"Error updating business unit: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to update business unit")

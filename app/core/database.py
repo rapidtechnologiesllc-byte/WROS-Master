@@ -13,10 +13,13 @@ engine = create_engine(
     DATABASE_URL,
     pool_size=5,              # Number of connections to keep in pool
     max_overflow=10,          # Extra connections if pool is full
-    pool_pre_ping=True,       # Test connections before using
-    pool_recycle=3600,        # Recycle connections after 1 hour
+    pool_pre_ping=False,      # Disabled: avoids a SELECT 1 round-trip to Azure on every checkout
+    pool_recycle=1800,        # Recycle connections after 30 minutes
     echo=False,               # Set to True for SQL debugging
     fast_executemany=True,    # Improves bulk insert performance
+    connect_args={
+        "timeout": 10,        # Connection timeout in seconds
+    },
 )
 
 # SessionLocal class
