@@ -93,3 +93,34 @@ class UserPermissionSummary(BaseModel):
     role_name: Optional[str] = None
     permissions: List[str] = []
     attributes: dict = {}
+
+
+class BusinessUnitCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, example="Recruiter")
+    description: Optional[str] = None
+
+
+class BusinessUnitResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+class BusinessUnitListItem(BaseModel):
+    """Lightweight business unit representation for list endpoints."""
+    id: int
+    name: str
+    description: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+class SetBusinessUnitRequest(BaseModel):
+    user_id: str = Field(..., description="UserID of the user to assign the business unit to")
+    business_unit_id: int = Field(..., description="ID of the business unit to assign to the user")
+
+class SetBusinessUnitResponse(BaseModel):
+    user_id: str
+    business_unit_id: int
+    message: str = "Business unit assigned successfully"

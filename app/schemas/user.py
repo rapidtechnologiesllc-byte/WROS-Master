@@ -106,6 +106,7 @@ class UserResponse(BaseModel):
     user_name: str
     user_email: str
     user_role: str
+    permission_role: Optional[str] = None
     created_at: datetime
 
 class AllUsersResponse(BaseModel):
@@ -124,9 +125,13 @@ class JobCreateRequest(BaseModel):
     company_name: str
     contact_person: str
     job_status: str
-    no_of_positions: int
-    start_date: date
-    end_date: date
+    no_of_positions: Optional[int] = None
+    salary_range: Optional[str] = None
+    recuriter_id: Optional[str] = None
+    hiring_manager_id: Optional[str] = None
+    business_unit: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 class JobCreateResponse(BaseModel):
     job_id: str
@@ -144,10 +149,13 @@ class JobResponse(BaseModel):
     company_name: str
     contact_person: str
     job_status: str
-    no_of_positions: int
-    start_date: date
-    end_date: date
-    hiring_manager_id: str
+    no_of_positions: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    hiring_manager_id: Optional[str] = None
+    recuriter_id: Optional[str] = None
+    business_unit: Optional[int] = None
+    salary_range: Optional[str] = None
 
 class AllJobsResponse(BaseModel):
     total_jobs: int
@@ -208,6 +216,10 @@ class InterviewUpdateRequest(BaseModel):
 class DeleteResponse(BaseModel):
     status: str = "Success"
     message: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 # LinkedIn Job Posting Schemas
 class LinkedInPostRequest(BaseModel):

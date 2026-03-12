@@ -35,36 +35,48 @@ app.add_middleware(RequestLoggingMiddleware)
 async def startup_event():
     """
     Application startup event.
-    Initialize database tables and perform startup tasks.
+    Fast path: start scheduler immediately.
+    Slow DB work (create_all + RBAC seed) runs in a background thread.
     """
-    try:
-        # Create database tables if they don't exist
-        Base.metadata.create_all(bind=engine)
-        logger.info("[OK] Database tables initialized")
-        
-        # Validate configuration
-        settings.validate_config()
-        logger.info("[OK] Configuration validated")
-        
-        # Start APScheduler
-        from app.core.scheduler import start_scheduler
-        start_scheduler()
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
 
-        # Seed RBAC roles, attributes, and permissions (idempotent)
-        from app.core.database import SessionLocal
-        from app.services.rbac_service import RBACService
-        _db = SessionLocal()
-        try:
-            RBACService.seed_roles_and_permissions(_db)
-        finally:
-            _db.close()
+    # Start APScheduler immediately (no I/O needed)
+    from app.core.scheduler import start_scheduler
+    start_scheduler()
 
-        logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-        logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+    # Validate configuration
+    settings.validate_config()
+    logger.info("[OK] Configuration validated")
 
-    except Exception as e:
-        logger.error(f"Startup error: {str(e)}", exc_info=True)
-        raise
+    # Run slow DB operations in a thread so uvicorn reports "started" right away
+    loop = asyncio.get_event_loop()
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="startup")
+
+    async def _db_init():
+        def _run():
+            try:
+                # checkfirst=True skips tables that already exist — much faster on restarts
+                Base.metadata.create_all(bind=engine, checkfirst=True)
+                logger.info("[OK] Database tables initialized")
+
+                from app.core.database import SessionLocal
+                from app.services.rbac_service import RBACService
+                _db = SessionLocal()
+                try:
+                    RBACService.seed_roles_and_permissions(_db)
+                finally:
+                    _db.close()
+
+                logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+                logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+            except Exception as exc:
+                logger.error(f"Background startup error: {exc}", exc_info=True)
+
+        await loop.run_in_executor(executor, _run)
+
+    # Fire-and-forget — don't await so uvicorn finishes startup immediately
+    loop.create_task(_db_init())
 
 
 @app.on_event("shutdown")

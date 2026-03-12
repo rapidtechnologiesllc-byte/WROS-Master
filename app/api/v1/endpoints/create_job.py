@@ -1,18 +1,11 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-import app.schemas as schema
-from app.core.database import SessionLocal, engine, check_candidate, check_user, get_db
-from app.core.security import (
-    verify_password,
-    create_access_token,
-    get_password_hash,
-)
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.database import get_db
+from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models.user import Jobs
 from app.schemas.user import (
     GenerateJobDescriptionRequest, GenerateJobDescriptionResponse,
@@ -27,7 +20,10 @@ from app.tools.job_description_generator import generate_job_description_with_st
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-@router.post("/generate_job_description")
+@router.post(
+    "/generate_job_description",
+    dependencies=[Depends(require_permission("job.create"))],
+)
 def generate_job_description(
     request: GenerateJobDescriptionRequest,
     db: Session = Depends(get_db),
@@ -62,9 +58,13 @@ def generate_job_description(
     )
 
 
-@router.get("/all", response_model=AllJobsResponse)
+@router.get(
+    "/all",
+    response_model=AllJobsResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+)
 def get_all_jobs(
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
@@ -98,7 +98,10 @@ def get_all_jobs(
             no_of_positions=j.noOfPositions,
             start_date=j.startDate,
             end_date=j.endDate,
-            hiring_manager_id=j.hiringManagerID
+            hiring_manager_id=j.hiringManagerID,
+            recuriter_id=j.recuriterID,
+            business_unit=j.business_unit_id,
+            salary_range=j.salaryRange
         ))
     
     return AllJobsResponse(
@@ -108,7 +111,11 @@ def get_all_jobs(
 
 
 
-@router.post("/create_job", response_model=JobCreateResponse)
+@router.post(
+    "/create_job",
+    response_model=JobCreateResponse,
+    dependencies=[Depends(require_permission("job.create"))],
+)
 def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Create a new job posting.
@@ -139,7 +146,10 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
         noOfPositions=request.no_of_positions,
         startDate=request.start_date,
         endDate=request.end_date,
-        hiringManagerID=user.UserID
+        hiringManagerID=request.hiring_manager_id,
+        recuriterID=request.recuriter_id,
+        business_unit_id=request.business_unit,
+        salaryRange=request.salary_range
     )
     
     db.add(job)
@@ -149,7 +159,11 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
     return JobCreateResponse(job_id=job_id, response="Job created successfully")
 
 
-@router.put("/update_job/{job_id}", response_model=JobResponse)
+@router.put(
+    "/update_job/{job_id}",
+    response_model=JobResponse,
+    dependencies=[Depends(require_permission("job.edit"))],
+)
 def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Update an existing job posting.
@@ -199,6 +213,14 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         job.startDate = request.start_date
     if request.end_date is not None:
         job.endDate = request.end_date
+    if request.hiring_manager_id is not None:
+        job.hiringManagerID = request.hiring_manager_id
+    if request.recuriter_id is not None:
+        job.recuriterID = request.recuriter_id
+    if request.business_unit is not None:
+        job.business_unit_id = request.business_unit
+    if request.salary_range is not None:
+        job.salaryRange = request.salary_range
     
     db.commit()
     db.refresh(job)
@@ -218,11 +240,18 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         no_of_positions=job.noOfPositions,
         start_date=job.startDate,
         end_date=job.endDate,
-        hiring_manager_id=job.hiringManagerID
+        hiring_manager_id=job.hiringManagerID,
+        recuriter_id=job.recuriterID,
+        business_unit=job.business_unit_id,
+        salary_range=job.salaryRange
     )
 
 
-@router.delete("/delete_job/{job_id}", response_model=DeleteResponse)
+@router.delete(
+    "/delete_job/{job_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_permission("job.delete"))],
+)
 def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Delete a job posting.
@@ -255,7 +284,11 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
     )
 
 
-@router.post("/post-on-linkedin", response_model=LinkedInPostResponse)
+@router.post(
+    "/post-on-linkedin",
+    response_model=LinkedInPostResponse,
+    dependencies=[Depends(require_permission("job.create"))],
+)
 def post_job_on_linkedin(
     request: LinkedInPostRequest,
     db: Session = Depends(get_db),
@@ -310,7 +343,10 @@ def post_job_on_linkedin(
         no_of_positions=job.noOfPositions,
         start_date=job.startDate,
         end_date=job.endDate,
-        hiring_manager_id=job.hiringManagerID
+        hiring_manager_id=job.hiringManagerID,
+        recuriter_id=job.recuriterID,
+        business_unit=job.business_unit_id,
+        salary_range=job.salaryRange
     )
     
     # Return mock LinkedIn posting response
