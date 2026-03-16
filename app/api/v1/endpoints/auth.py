@@ -166,3 +166,4 @@ def candidate_login(request: CandidateLoginRequest, db : Session = Depends(get_d
         is_first_time=not candidate.candidateIsVerified if candidate.candidateIsVerified is not None else True,
         access_token=access_token
     )
+

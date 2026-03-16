@@ -16,7 +16,8 @@ from app.models.candidate import (
     CandidateAadharForm,
     CandidatePanForm
 )
-from app.models.user import Users, Interview, CandidateAssignment
+from app.models.user import Users, Interview, CandidateAssignment, InterviewPanel, PanelMember, InterviewFeedback
+from app.models.document import CandidateDocument
 
 from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission
 
@@ -316,16 +317,46 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
             detail=f"Candidate with ID {candidate_id} not found"
         )
     
-    # Delete all associated records
-    db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).delete()
-    db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == candidate_id).delete()
-    db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete()
-    db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID == candidate_id).delete()
-    db.query(CandidatePanForm).filter(CandidatePanForm.candidateID == candidate_id).delete()
-    db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == candidate_id).delete()
-    db.query(Interview).filter(Interview.candidate_id == candidate_id).delete()
-    
-    # Delete the candidate
+    # ---------------------------------------------------------------
+    # Delete child records in FK-safe order (deepest children first)
+    # ---------------------------------------------------------------
+
+    # 1. InterviewFeedback → references interviews.id
+    feedback_ids = [
+        row.id for row in
+        db.query(Interview.id).filter(Interview.candidate_id == candidate_id).all()
+    ]
+    if feedback_ids:
+        db.query(InterviewFeedback).filter(InterviewFeedback.interview_id.in_(feedback_ids)).delete(synchronize_session=False)
+
+    # 2. PanelMember → references interview_panels.id
+    panel_ids = [
+        row.id for row in
+        db.query(InterviewPanel.id).filter(InterviewPanel.candidate_id == candidate_id).all()
+    ]
+    if panel_ids:
+        db.query(PanelMember).filter(PanelMember.panel_id.in_(panel_ids)).delete(synchronize_session=False)
+
+    # 3. Interviews → references interview_panels.id + candidates.candidateID
+    db.query(Interview).filter(Interview.candidate_id == candidate_id).delete(synchronize_session=False)
+
+    # 4. InterviewPanel → references candidates.candidateID
+    db.query(InterviewPanel).filter(InterviewPanel.candidate_id == candidate_id).delete(synchronize_session=False)
+
+    # 5. CandidateAssignment → references candidates.candidateID
+    db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == candidate_id).delete(synchronize_session=False)
+
+    # 6. CandidateDocument (SharePoint file metadata) → references candidates.candidateID
+    db.query(CandidateDocument).filter(CandidateDocument.candidate_id == candidate_id).delete(synchronize_session=False)
+
+    # 7. Candidate form tables
+    db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).delete(synchronize_session=False)
+    db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == candidate_id).delete(synchronize_session=False)
+    db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete(synchronize_session=False)
+    db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID == candidate_id).delete(synchronize_session=False)
+    db.query(CandidatePanForm).filter(CandidatePanForm.candidateID == candidate_id).delete(synchronize_session=False)
+
+    # 8. Finally delete the candidate row
     db.delete(candidate)
     db.commit()
     

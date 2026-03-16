@@ -297,6 +297,32 @@ def update_business_unit_for_user(
         logger.error(f"Error updating business unit for user: {exc}")
         raise HTTPException(status_code=500, detail="Failed to update business unit")
 
+@router.get(
+    "/users/{user_id}/business-unit",
+    response_model=BusinessUnitResponse,
+    summary="Get the business unit assigned to a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_user_business_unit(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Retrieve the business unit assigned to a user by their UserID.
+    Returns 404 if the user does not exist or has no business unit assigned.
+    """
+    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not target_user.business_unit_id:
+        raise HTTPException(status_code=404, detail="No business unit assigned to this user")
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == target_user.business_unit_id).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Assigned business unit not found")
+    return bu
+
+
 @router.post(
     "/business-units",
     response_model=BusinessUnitResponse,
@@ -534,3 +560,4 @@ def update_business_unit(
     except Exception as exc:
         logger.error(f"Error updating business unit: {exc}")
         raise HTTPException(status_code=500, detail="Failed to update business unit")
+
