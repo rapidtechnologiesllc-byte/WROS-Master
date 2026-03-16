@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_permission
 from app.core.graph_auth import get_graph_token
 from app.schemas.document import DocumentUploadResponse
-from app.services.document_service import DocumentService
+from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID
 from app.core.logging import logger
 
 
@@ -201,6 +201,75 @@ async def upload_bank_statement(
 
 
 # ============================================
+# Candidate Self-Service Document Endpoint
+# ============================================
+
+@router.get(
+    "/my-documents",
+    dependencies=[Depends(require_permission("document.view"))],
+    summary="Get all documents uploaded by the currently authenticated candidate",
+)
+async def get_my_documents(
+    current_user=Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve all documents belonging to the currently authenticated candidate.
+    Candidates can only view their own documents.
+
+    Returns:
+        List of all documents for the authenticated candidate with verification status.
+    """
+    from app.models.document import CandidateDocument
+    from app.models.candidate import Candidate
+
+    candidate_id = current_user.candidateID
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    documents = (
+        db.query(CandidateDocument)
+        .filter(
+            CandidateDocument.candidate_id == candidate_id,
+            CandidateDocument.is_latest == True,
+            CandidateDocument.is_deleted == False,
+        )
+        .order_by(CandidateDocument.uploaded_at.desc())
+        .all()
+    )
+
+    candidate_full_name = f"{candidate.candidateFirstName or ''} {candidate.candidateMiddleName or ''} {candidate.candidateLastName or ''}".strip()
+
+    return {
+        "candidate_id": candidate_id,
+        "candidate_name": candidate_full_name,
+        "candidate_email": candidate.candidateEmail,
+        "total_documents": len(documents),
+        "verified_count": sum(1 for doc in documents if doc.is_verified),
+        "pending_count": sum(1 for doc in documents if not doc.is_verified),
+        "documents": [
+            {
+                "id": doc.id,
+                "document_type": doc.document_type,
+                "original_filename": doc.original_filename,
+                "file_size": doc.file_size,
+                "file_extension": doc.file_extension,
+                "sharepoint_url": doc.sharepoint_url,
+                "is_verified": doc.is_verified,
+                "verified_by": doc.verified_by,
+                "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
+                "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+                "notes": doc.notes,
+                "version": doc.version,
+            }
+            for doc in documents
+        ],
+    }
+
+
+# ============================================
 # HR/Admin Document Management Endpoints
 # ============================================
 
@@ -272,6 +341,85 @@ async def get_candidate_documents(
     
     logger.info(f"HR user {current_user.UserEmail} accessed documents for candidate {candidate_id}")
     return result
+
+
+
+
+@router.get(
+    "/{document_id}/view",
+    dependencies=[Depends(require_permission("document.view"))],
+    summary="Stream a document from SharePoint for inline viewing",
+)
+async def view_document(
+    document_id: int,
+    current_user=Depends(get_current_hr_or_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Proxy a document stored in SharePoint back to the frontend.
+    Uses the service account token — HR does not need a Microsoft login.
+    The response includes Content-Disposition: inline so browsers open
+    the file in a tab/iframe instead of downloading it.
+    """
+    from app.models.document import CandidateDocument
+    from fastapi.responses import StreamingResponse
+    import requests as req
+    import io
+
+    # Fetch document record
+    doc = db.query(CandidateDocument).filter(
+        CandidateDocument.id == document_id,
+        CandidateDocument.is_deleted == False,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not doc.sharepoint_file_id:
+        raise HTTPException(status_code=404, detail="No SharePoint file ID stored for this document")
+
+    # Get a fresh service account token
+    try:
+        access_token = get_graph_token()
+    except Exception as exc:
+        logger.error(f"Failed to get Graph token for document view: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to authenticate with SharePoint")
+
+    # Download file content from SharePoint via Graph API
+    download_url = (
+        f"https://graph.microsoft.com/v1.0/sites/{SHAREPOINT_SITE_ID}"
+        f"/drives/{SHAREPOINT_DRIVE_ID}/items/{doc.sharepoint_file_id}/content"
+    )
+    try:
+        sp_response = req.get(
+            download_url,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=60,
+            stream=True,
+        )
+        sp_response.raise_for_status()
+    except req.exceptions.HTTPError as exc:
+        logger.error(f"SharePoint download failed for doc {document_id}: {exc}")
+        raise HTTPException(status_code=502, detail="Failed to fetch file from SharePoint")
+
+    # Determine content type for browser rendering
+    content_type = doc.mime_type or "application/octet-stream"
+
+    # Stream file bytes back to client
+    file_bytes = io.BytesIO(sp_response.content)
+
+    logger.info(
+        f"HR user {current_user.UserEmail} viewed document {document_id} "
+        f"({doc.document_type}) for candidate {doc.candidate_id}"
+    )
+
+    return StreamingResponse(
+        file_bytes,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{doc.original_filename}"',
+            "Content-Length": str(len(sp_response.content)),
+        },
+    )
 
 
 @router.patch(
