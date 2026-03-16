@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role
 from app.schemas.auth import SignupRequest
@@ -17,11 +17,54 @@ from app.schemas.user import (
     InterviewFeedbackCreate, InterviewFeedbackResponse,
     AssignedCandidateResponse, AssignedInterviewResponse,
     PanelMemberCreate, PanelMemberResponse, DeleteResponse,
-    ChangePasswordRequest
+    ChangePasswordRequest, HrMeResponse
 )
 from app.utils.uniq_id_generator import user_id_generator
 
 router = APIRouter(prefix="/hr", tags=["hr"])
+
+
+@router.get(
+    "/me",
+    response_model=HrMeResponse,
+    summary="Get current HR/Admin user's profile with a fresh access token",
+)
+def get_me(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Return the profile of the currently authenticated HR / Admin user
+    together with a fresh access token.
+
+    Useful for:
+    - Restoring session state after page reload
+    - Refreshing the token without a full re-login
+    - Fetching up-to-date role / business-unit information
+    """
+    # Resolve the RBAC role name (if any)
+    role = db.query(Role).filter(Role.id == current_user.role_id).first() if current_user.role_id else None
+
+    # Mint a fresh token using the same claims as login
+    access_token = create_access_token(
+        data={
+            "sub": current_user.UserEmail,
+            "type": current_user.UserRole,
+            "name": current_user.UserName,
+        }
+    )
+
+    return HrMeResponse(
+        user_id=current_user.UserID,
+        user_name=current_user.UserName,
+        user_email=current_user.UserEmail,
+        user_role=current_user.UserRole,
+        permission_role=role.name if role else None,
+        role_id=current_user.role_id,
+        business_unit_id=current_user.business_unit_id,
+        created_at=current_user.CreatedAt,
+        access_token=access_token,
+    )
 
 
 @router.get(
@@ -64,6 +107,7 @@ def get_all_users(
         total_users=len(users_data),
         users=users_data
     )
+
 
 
 @router.post(

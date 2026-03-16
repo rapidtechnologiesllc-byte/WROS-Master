@@ -221,6 +221,19 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+
+class HrMeResponse(BaseModel):
+    user_id: str
+    user_name: Optional[str]
+    user_email: str
+    user_role: str
+    permission_role: Optional[str] = None
+    role_id: Optional[int] = None
+    business_unit_id: Optional[int] = None
+    created_at: datetime
+    access_token: str
+    token_type: str = "bearer"
+
 # LinkedIn Job Posting Schemas
 class LinkedInPostRequest(BaseModel):
     job_id: str
