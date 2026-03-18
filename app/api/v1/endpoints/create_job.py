@@ -1,12 +1,20 @@
-from datetime import datetime
-from typing import Optional
+import json
+import os
+from datetime import datetime, date
+from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_db, check_candidate
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.security import get_password_hash
 from app.models.user import Jobs
+from app.models.candidate import (
+    Candidate,
+    CandidateEducationForm,
+    CandidateExperienceForm,
+)
 from app.schemas.user import (
     GenerateJobDescriptionRequest, GenerateJobDescriptionResponse,
     JobCreateRequest, JobCreateResponse,
@@ -14,9 +22,13 @@ from app.schemas.user import (
     AllJobsResponse, DeleteResponse,
     LinkedInPostRequest, LinkedInPostResponse
 )
+from app.schemas.candidate import (
+    EducationEntry, ExperienceEntry, JobApplicationResponse
+)
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator, job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
+from app.api.v1.endpoints.documents import _upload_document_helper
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -109,6 +121,56 @@ def get_all_jobs(
         jobs=jobs_data
     )
 
+
+@router.get(
+    "/active-jobs",
+    response_model=AllJobsResponse,
+)
+def get_active_jobs(
+    db: Session = Depends(get_db),
+):
+    """
+    Get all jobs with status 'active' or 'public'.
+
+    Args:
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        AllJobsResponse with list of active/public jobs and total count
+    """
+    jobs = db.query(Jobs).filter(
+        Jobs.jobStatus.in_(["active", "public"])
+    ).all()
+
+    jobs_data = [
+        JobResponse(
+            job_id=j.jobID,
+            job_title=j.jobTitle,
+            job_description=j.jobDescription,
+            job_skills=j.jobSkills,
+            job_experience=j.jobExperience,
+            job_location=j.jobLocation,
+            job_created_at=j.jobCreatedAt,
+            company_type=j.companyType,
+            company_name=j.companyName,
+            contact_person=j.contactPerson,
+            job_status=j.jobStatus,
+            no_of_positions=j.noOfPositions,
+            start_date=j.startDate,
+            end_date=j.endDate,
+            hiring_manager_id=j.hiringManagerID,
+            recuriter_id=j.recuriterID,
+            business_unit=j.business_unit_id,
+            salary_range=j.salaryRange
+        )
+        for j in jobs
+    ]
+
+    return AllJobsResponse(
+        total_jobs=len(jobs_data),
+        jobs=jobs_data
+    )
 
 
 @router.post(
@@ -357,3 +419,155 @@ def post_job_on_linkedin(
         posted_at=posted_at,
         job_details=job_details
     )
+
+
+@router.post(
+    "/{job_id}/apply",
+    response_model=JobApplicationResponse,
+    status_code=201,
+    summary="Apply for a job (public — no auth required)",
+)
+async def apply_for_job(
+    job_id: str,
+    # ── Personal details ──────────────────────────────────────────────
+    full_name: str = Form(..., description="Applicant's full name"),
+    email: str = Form(..., description="Personal email address"),
+    phone: str = Form(..., description="Phone / mobile number"),
+    total_experience_years: Optional[str] = Form(None, description="Total years of experience, e.g. '3.5'"),
+    current_location: Optional[str] = Form(None),
+    current_lpa: Optional[str] = Form(None, description="Current salary in LPA"),
+    expected_lpa: Optional[str] = Form(None, description="Expected salary in LPA"),
+    preferred_location: Optional[str] = Form(None),
+    # ── Education & Experience (JSON arrays passed as form strings) ───
+    education: Optional[str] = Form(None, description='JSON array of education entries. Example: [{"institution":"MIT","degree":"B.Tech","field_of_study":"CS","start_year":"2018","end_year":"2022"}]'),
+    experience: Optional[str] = Form(None, description='JSON array of experience entries. Example: [{"company_name":"Acme","job_title":"SDE","start_date":"2022-07-01","end_date":"2024-01-01","years_of_experience":"1.5"}]'),
+    # ── Resume upload ─────────────────────────────────────────────────
+    resume: Optional[UploadFile] = File(None, description="Resume file (PDF, DOC, DOCX)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Public endpoint — no authentication required.
+
+    Submit a job application for a specific open job.
+    Education and experience are provided as JSON-encoded strings in the form body.
+
+    Returns 409 if a candidate with the same email has already applied.
+    """
+    # 1. Verify the job exists and is open
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    if job.jobStatus.lower() not in ("active", "public"):
+        raise HTTPException(status_code=400, detail="This job is not open for applications")
+
+    # 2. Duplicate-application check — by email
+    existing = check_candidate(db, email)
+    if existing:
+        return JobApplicationResponse(
+            status="Already Applied",
+            message="An application with this email address already exists.",
+            candidate_id=existing.candidateID,
+        )
+
+    # 3. Parse education JSON
+    education_entries: List[EducationEntry] = []
+    if education:
+        try:
+            raw_edu = json.loads(education)
+            education_entries = [EducationEntry(**e) for e in raw_edu]
+        except Exception:
+            raise HTTPException(
+                status_code=422,
+                detail="'education' must be a valid JSON array of education objects.",
+            )
+
+    # 4. Parse experience JSON
+    experience_entries: List[ExperienceEntry] = []
+    if experience:
+        try:
+            raw_exp = json.loads(experience)
+            experience_entries = [ExperienceEntry(**e) for e in raw_exp]
+        except Exception:
+            raise HTTPException(
+                status_code=422,
+                detail="'experience' must be a valid JSON array of experience objects.",
+            )
+
+    # 5. Generate candidate ID and a random password
+    candidate_id = candidate_id_generator()
+    plain_password = generate_password()
+    hashed_password = get_password_hash(plain_password)
+
+    # 6. Split full_name into first / last
+    name_parts = full_name.strip().split(" ", 1)
+    first_name = name_parts[0]
+    last_name = name_parts[1] if len(name_parts) > 1 else None
+
+    # 7. Create the Candidate row
+    candidate = Candidate(
+        candidateID=candidate_id,
+        candidateRole="Candidate",
+        candidateFirstName=first_name,
+        candidateLastName=last_name,
+        candidateEmail=email,
+        candidateMobile=phone,
+        candidateExperience=total_experience_years,
+        candidateCurrentLocation=current_location,
+        candidateCurrentSalary=current_lpa,
+        candidateExpectedSalary=expected_lpa,
+        candidateSource="public_application",
+        candidatePassword=hashed_password,
+        candidateIsVerified=False,
+        candidateCreatedAt=datetime.now(),
+    )
+    db.add(candidate)
+
+    # 8. Bulk-insert education records
+    today = date.today()
+    for edu in education_entries:
+        db.add(CandidateEducationForm(
+            candidateID=candidate_id,
+            education_institute=edu.institution,
+            degree=edu.degree,
+            field_of_study=edu.field_of_study,
+            starting_year=edu.start_year,
+            year_of_passing=edu.end_year,
+            percentage=edu.percentage,
+            submittedAt=today,
+            document_is_submitted=False,
+        ))
+
+    # 9. Bulk-insert experience records
+    for exp in experience_entries:
+        db.add(CandidateExperienceForm(
+            candidateID=candidate_id,
+            company_name=exp.company_name,
+            job_title=exp.job_title,
+            start_date=exp.start_date,
+            end_date=exp.end_date,
+            year_of_experience=exp.years_of_experience,
+            submittedAt=today,
+            document_is_submitted=False,
+        ))
+
+    # 10. Commit candidate + education/experience rows first so the FK exists
+    #     before we save the SharePoint document metadata
+    db.commit()
+    db.refresh(candidate)
+
+    # 11. Upload resume to SharePoint (if provided)
+    #     _upload_document_helper handles validation, Graph token, SP upload,
+    #     and CandidateDocument metadata — exactly like the HR upload endpoint.
+    if resume and resume.filename:
+        try:
+            await _upload_document_helper(resume, "resume", candidate, db)
+        except HTTPException:
+            # If SP upload fails we don't roll back the application — just surface the error
+            raise
+
+    return JobApplicationResponse(
+        status="Success",
+        message=f"Application submitted successfully for job '{job.jobTitle}'.",
+        candidate_id=candidate_id,
+    )
+
