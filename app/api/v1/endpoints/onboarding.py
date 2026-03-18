@@ -218,6 +218,119 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
         candidates=candidates_data
     )
 
+
+@router.get(
+    "/hr/candidate/{candidate_id}",
+    response_model=CandidateCompleteResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+)
+def get_candidate_by_id(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Get full details of a single candidate by candidate ID.
+
+    Returns all profile data including personal info form, education,
+    experience, Aadhar, and PAN records.
+
+    Raises:
+        HTTPException 404: If no candidate with the given ID exists.
+    """
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate with ID '{candidate_id}' not found"
+        )
+
+    # Construct display name
+    name_parts = [
+        candidate.candidateFirstName or "",
+        candidate.candidateMiddleName or "",
+        candidate.candidateLastName or "",
+    ]
+    candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
+
+    personal_info = db.query(CandidateInfoForm).filter(
+        CandidateInfoForm.candidateID == candidate_id
+    ).first()
+
+    education_records = db.query(CandidateEducationForm).filter(
+        CandidateEducationForm.candidateID == candidate_id
+    ).all()
+
+    experience_records = db.query(CandidateExperienceForm).filter(
+        CandidateExperienceForm.candidateID == candidate_id
+    ).all()
+
+    aadhar_form = db.query(CandidateAadharForm).filter(
+        CandidateAadharForm.candidateID == candidate_id
+    ).first()
+
+    pan_form = db.query(CandidatePanForm).filter(
+        CandidatePanForm.candidateID == candidate_id
+    ).first()
+
+    return CandidateCompleteResponse(
+        candidate_id=candidate.candidateID,
+        candidate_name=candidate_name,
+        candidate_email=candidate.candidateEmail,
+        candidate_mobile=candidate.candidateMobile,
+        candidate_role=candidate.candidateRole,
+        candidate_is_verified=candidate.candidateIsVerified,
+        candidate_created_at=candidate.candidateCreatedAt,
+        personal_info=CandidateInfoResponse(
+            position=personal_info.position if personal_info else None,
+            department=personal_info.department if personal_info else None,
+            dob=personal_info.dob if personal_info else None,
+            gender=personal_info.gender if personal_info else None,
+            marital_status=personal_info.marital_status if personal_info else None,
+            nationality=personal_info.nationality if personal_info else None,
+            current_address=personal_info.current_address if personal_info else None,
+            permanent_address=personal_info.permanent_address if personal_info else None,
+        ) if personal_info else None,
+        education=[
+            CandidateEducationResponse(
+                education_institute=edu.education_institute,
+                degree=edu.degree,
+                field_of_study=edu.field_of_study,
+                starting_year=edu.starting_year,
+                year_of_passing=edu.year_of_passing,
+                percentage=edu.percentage,
+                document_is_submitted=edu.document_is_submitted,
+            )
+            for edu in education_records
+        ],
+        experience=[
+            CandidateExperienceResponse(
+                company_name=exp.company_name,
+                job_title=exp.job_title,
+                start_date=exp.start_date,
+                end_date=exp.end_date,
+                year_of_experience=exp.year_of_experience,
+                document_is_submitted=exp.document_is_submitted,
+            )
+            for exp in experience_records
+        ],
+        aadhar=CandidateAadharResponse(
+            aadhar=aadhar_form.aadhar if aadhar_form else None,
+            name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
+            enrollment_number=aadhar_form.enrollment_number if aadhar_form else None,
+            aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
+            is_verified=aadhar_form.is_verified if aadhar_form else None,
+        ) if aadhar_form else None,
+        pan=CandidatePanResponse(
+            pan=pan_form.pan if pan_form else None,
+            name_in_pan=pan_form.name_in_pan if pan_form else None,
+            father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
+            pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
+            is_verified=pan_form.is_verified if pan_form else None,
+        ) if pan_form else None,
+    )
+
+
 @router.put(
     "/hr/update_candidate/{candidate_id}",
     response_model=CandidateCreateResponse,
@@ -284,8 +397,8 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
     
     return CandidateCreateResponse(
         candidate_id=candidate.candidateID,
-        candidate_is_first_time=candidate.candidateIsFirstTime,
-        candidate_password=candidate.candidatePassword
+        candidate_is_first_time=False,
+        candidate_password=""
     )
 
 

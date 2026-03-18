@@ -9,6 +9,10 @@ from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role
+from app.models.user import Jobs
+from app.models.offer_letter import OfferLetter
+from app.models.document import CandidateDocument
+from app.models.newsletter import Newsletter
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
     AllUsersResponse, UserResponse,
@@ -718,15 +722,77 @@ def delete_user(
 ):
     """
     Delete an internal user account.
+    Before deleting, all FK references to this user across every table are
+    set to NULL so that no foreign-key constraint blocks the delete.
     Requires permission: user.manage
     """
     if current_user.UserID == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
+    # ------------------------------------------------------------------
+    # Null out every FK that references this user before deleting them
+    # ------------------------------------------------------------------
+
+    # 1. Jobs — recruiter / hiring-manager
+    db.query(Jobs).filter(Jobs.recuriterID == user_id).update(
+        {Jobs.recuriterID: None}, synchronize_session=False
+    )
+    db.query(Jobs).filter(Jobs.hiringManagerID == user_id).update(
+        {Jobs.hiringManagerID: None}, synchronize_session=False
+    )
+
+    # 2. CandidateAssignment — hiring / reporting manager
+    db.query(CandidateAssignment).filter(
+        CandidateAssignment.hiring_manager_id == user_id
+    ).update({CandidateAssignment.hiring_manager_id: None}, synchronize_session=False)
+    db.query(CandidateAssignment).filter(
+        CandidateAssignment.reporting_manager_id == user_id
+    ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
+
+    # 3. PanelMember — interviewer
+    db.query(PanelMember).filter(PanelMember.interviewer_id == user_id).update(
+        {PanelMember.interviewer_id: None}, synchronize_session=False
+    )
+
+    # 4. InterviewFeedback — interviewer
+    db.query(InterviewFeedback).filter(InterviewFeedback.interviewer_id == user_id).update(
+        {InterviewFeedback.interviewer_id: None}, synchronize_session=False
+    )
+
+    # 5. OfferLetter — hiring manager / reporting manager / created_by / cancelled_by
+    db.query(OfferLetter).filter(OfferLetter.hiring_manager_id == user_id).update(
+        {OfferLetter.hiring_manager_id: None}, synchronize_session=False
+    )
+    db.query(OfferLetter).filter(OfferLetter.reporting_manager_id == user_id).update(
+        {OfferLetter.reporting_manager_id: None}, synchronize_session=False
+    )
+    db.query(OfferLetter).filter(OfferLetter.created_by == user_id).update(
+        {OfferLetter.created_by: None}, synchronize_session=False
+    )
+    db.query(OfferLetter).filter(OfferLetter.cancelled_by == user_id).update(
+        {OfferLetter.cancelled_by: None}, synchronize_session=False
+    )
+
+    # 6. CandidateDocument — verified_by
+    db.query(CandidateDocument).filter(CandidateDocument.verified_by == user_id).update(
+        {CandidateDocument.verified_by: None}, synchronize_session=False
+    )
+
+    # 7. Newsletter — created_by
+    db.query(Newsletter).filter(Newsletter.created_by == user_id).update(
+        {Newsletter.created_by: None}, synchronize_session=False
+    )
+
+    # ------------------------------------------------------------------
+    # Now it is safe to delete the user row
+    # ------------------------------------------------------------------
     db.delete(target)
     db.commit()
+
     return DeleteResponse(
         status="Success",
         message=f"User {user_id} deleted successfully"
