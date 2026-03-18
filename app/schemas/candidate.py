@@ -221,3 +221,30 @@ class ChangePasswordRequest(BaseModel):
 class ChangePasswordResponse(BaseModel):
     status: str
     message: str
+
+
+# ---------------------------------------------------------------------------
+# Public Job Application schemas
+# ---------------------------------------------------------------------------
+
+class EducationEntry(BaseModel):
+    institution: str
+    degree: str
+    field_of_study: str
+    start_year: str
+    end_year: str
+    percentage: Optional[str] = None
+
+
+class ExperienceEntry(BaseModel):
+    company_name: str
+    job_title: str
+    start_date: date
+    end_date: Optional[date] = None
+    years_of_experience: Optional[str] = None
+
+
+class JobApplicationResponse(BaseModel):
+    status: str
+    message: str
+    candidate_id: Optional[str] = None
