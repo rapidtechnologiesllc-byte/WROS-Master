@@ -459,7 +459,6 @@ async def apply_for_job(
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     if job.jobStatus.lower() not in ("active", "public"):
         raise HTTPException(status_code=400, detail="This job is not open for applications")
-
     # 2. Duplicate-application check — by email
     existing = check_candidate(db, email)
     if existing:
@@ -506,7 +505,7 @@ async def apply_for_job(
     # 7. Create the Candidate row
     candidate = Candidate(
         candidateID=candidate_id,
-        candidateRole="Candidate",
+        candidateRole=job.jobTitle,
         candidateFirstName=first_name,
         candidateLastName=last_name,
         candidateEmail=email,
