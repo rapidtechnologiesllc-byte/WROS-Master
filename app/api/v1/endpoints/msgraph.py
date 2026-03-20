@@ -12,9 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.security import create_access_token
-from app.models import Users
+from app.models import Users,Role
 from app.core.logging import logger
-
 
 
 
@@ -147,11 +146,13 @@ def me(request: Request, db: Session = Depends(get_db)):
     
     # Check if user exists in database
     existing_user = db.query(Users).filter(Users.UserEmail == email).first()
-    
+    role = None  # Default; set below for existing users with an RBAC role
+
     if existing_user:
         # User exists - update last login and return details
         user = existing_user
         user_type = user.UserRole
+        role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
     else:
         # New user - create in database
         # Default to HR role for Microsoft authenticated users
@@ -159,15 +160,16 @@ def me(request: Request, db: Session = Depends(get_db)):
             UserID=user_id,
             UserName=display_name,
             UserEmail=email,
-            UserRole="hr",  # Default role for Microsoft SSO users
+            UserRole="employee",  # Default role for Microsoft SSO users
             UserPassword=""  # No password for SSO users
         )
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         user = new_user
-        user_type = graph_user.get("jobTitle")
+        user_type = "employee"
     
+
     # Create JWT access token
     access_token = create_access_token(
         data={
@@ -188,7 +190,8 @@ def me(request: Request, db: Session = Depends(get_db)):
             "display_name": display_name,
             "job_title": graph_user.get("jobTitle"),
             "mobile_phone": graph_user.get("mobilePhone"),
-            "office_location": graph_user.get("officeLocation")
+            "office_location": graph_user.get("officeLocation"),
+            "permission_role":role.role_name if role else None
         },
         "access_token": access_token,
         "token_type": "bearer"
