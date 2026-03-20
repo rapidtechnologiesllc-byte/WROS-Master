@@ -191,7 +191,7 @@ def me(request: Request, db: Session = Depends(get_db)):
             "job_title": graph_user.get("jobTitle"),
             "mobile_phone": graph_user.get("mobilePhone"),
             "office_location": graph_user.get("officeLocation"),
-            "permission_role":role.role_name if role else None
+            "permission_role":role.name if role else None
         },
         "access_token": access_token,
         "token_type": "bearer"
