@@ -132,15 +132,17 @@ PERMISSIONS_SEED = [
     {"name": "job.edit",             "description": "Edit a job posting"},
     {"name": "job.delete",           "description": "Delete a job posting"},
     {"name": "pipeline.move",        "description": "Move candidate through pipeline stages"},
-    {"name": "interview.schedule",   "description": "Schedule interviews"},
+    {"name": "interview.view",       "description": "View interview details"},
+    {"name": "interview.manage",     "description": "Manage interviews"},
     {"name": "interview.feedback",   "description": "Submit interview feedback"},
-    {"name": "offer.create",         "description": "Create an offer letter"},
-    {"name": "offer.approve",        "description": "Approve or reject an offer"},
+    {"name": "offer.view",           "description": "View offer letters"},
+    {"name": "offer.manage",        "description": "Create, edit, approve or reject an offer"},
     {"name": "employee.view",        "description": "View employee records"},
     {"name": "employee.edit",        "description": "Edit employee records"},
     {"name": "newsletter.manage",    "description": "Create and send newsletters"},
     {"name": "user.manage",          "description": "Create, edit, and deactivate users"},
-    {"name": "role.manage",          "description": "Manage RBAC roles and permissions"},
+    {"name": "rbac.manage",          "description": "Manage RBAC roles and permissions"},
+    {"name":"newsletter.view",       "description":"View newsletters"},
 ]
 
 # role_name → list of permission names it should have
@@ -148,42 +150,48 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
     "Super User": [p["name"] for p in PERMISSIONS_SEED],   # all permissions
     "BU Head": [
         "candidate.view", "candidate.edit", "job.view", "job.create", "job.edit",
-        "pipeline.move", "interview.schedule", "interview.feedback",
-        "offer.create", "offer.approve", "employee.view", "employee.edit",
+        "pipeline.move", "interview.feedback",
+        "offer.manage", "employee.view", "employee.edit",
+        "interview.manage","interview.view","newsletter.view",
     ],
     "Hiring Manager": [
-        "candidate.view", "job.view", "interview.feedback",
+        "candidate.view", "job.view", "interview.feedback","offer.manage","offer.view",
+        "interview.manage","interview.view","newsletter.view",
     ],
     "HR Manager": [
         "candidate.view", "candidate.edit", "employee.view", "employee.edit",
-        "user.manage", "newsletter.manage",
+        "user.manage", "newsletter.manage","newsletter.view",
     ],
     "HR Operations": [
-        "candidate.view", "candidate.edit", "employee.view",
+        "candidate.view", "candidate.edit", "employee.view","newsletter.view",
     ],
     "HRBP": [
-        "candidate.view", "candidate.edit",
+        "candidate.view", "candidate.edit","newsletter.view",
     ],
     "Recruitment Manager": [
         "candidate.view", "candidate.create", "candidate.edit",
         "job.view", "job.create", "job.edit",
-        "pipeline.move", "interview.schedule", "interview.feedback",
-        "offer.create", "offer.approve",
+        "pipeline.move", "interview.feedback",
+        "offer.manage", "offer.view",
+        "interview.manage","interview.view","newsletter.view",
     ],
     "Recruitment Team Lead": [
         "candidate.view", "candidate.create", "candidate.edit",
-        "job.view", "pipeline.move", "interview.schedule", "interview.feedback",
+        "job.view", "pipeline.move", "interview.feedback",
+        "offer.manage", "offer.view",
+        "interview.manage","interview.view","newsletter.view",
     ],
     "Recruiter": [
         "candidate.view", "candidate.create", "candidate.edit",
-        "job.view", "pipeline.move", "interview.schedule", "interview.feedback",
-        "offer.create",
+        "job.view", "pipeline.move", "interview.feedback",
+        "offer.manage", "offer.view",
+        "interview.manage","interview.view","newsletter.view",
     ],
     "Employee": [
-        "job.view",
+        "job.view","newsletter.view",
     ],
     "Consultant": [
-        "job.view",
+        "job.view","newsletter.view",
     ],
     "Candidate": [],
 }

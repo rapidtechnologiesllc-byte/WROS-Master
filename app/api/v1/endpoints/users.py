@@ -74,7 +74,6 @@ def get_me(
 @router.get(
     "/users/all",
     response_model=AllUsersResponse,
-    dependencies=[Depends(require_permission("user.view"))],
 )
 def get_all_users(
     db: Session = Depends(get_db), 
@@ -803,6 +802,7 @@ def delete_user(
     "/users/me/change-password",
     response_model=DeleteResponse,
     summary="Change current user's password",
+    dependencies=[Depends(require_permission("user.manage"))],
 )
 def change_password(
     request: ChangePasswordRequest,
