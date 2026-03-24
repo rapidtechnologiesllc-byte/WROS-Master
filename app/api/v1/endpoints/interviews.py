@@ -39,7 +39,7 @@ router = APIRouter(prefix="/interviews", tags=["interviews"])
     "/panels/create",
     response_model=InterviewPanelResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("interview.create"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def create_interview_panel(
     request: InterviewPanelCreate,
@@ -208,7 +208,7 @@ def get_all_interview_panels(
 @router.delete(
     "/panels/{panel_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_permission("interview.delete"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def delete_interview_panel(
     panel_id: int,
@@ -265,7 +265,7 @@ def delete_interview_panel(
     "/panel-members/assign",
     response_model=PanelMemberResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("interview.create"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def assign_panel_member(
     request: PanelMemberCreate,
@@ -382,7 +382,7 @@ def get_panel_members(
 @router.delete(
     "/panel-members/{member_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_permission("interview.delete"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def remove_panel_member(
     member_id: int,
@@ -427,7 +427,7 @@ def remove_panel_member(
     "/create",
     response_model=InterviewResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("interview.create"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def create_interview(
     request: InterviewCreate,
@@ -648,7 +648,7 @@ def get_all_interviews(
 @router.put(
     "/{interview_id}",
     response_model=InterviewResponse,
-    dependencies=[Depends(require_permission("interview.edit"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def update_interview(
     interview_id: int,
@@ -715,7 +715,7 @@ def update_interview(
 @router.delete(
     "/{interview_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_permission("interview.delete"))],
+    dependencies=[Depends(require_permission("interview.manage"))],
 )
 def delete_interview(
     interview_id: int,
@@ -764,7 +764,7 @@ def delete_interview(
     "/feedback/submit",
     response_model=InterviewFeedbackResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("interview.create"))],
+    dependencies=[Depends(require_permission("interview.feedback"))],
 )
 def submit_interview_feedback(
     request: InterviewFeedbackCreate,
@@ -1110,7 +1110,10 @@ def get_interview_statistics(
     )
 
 
-@router.get("/candidate-history/{candidate_id}", response_model=CandidateInterviewHistory)
+@router.get("/candidate-history/{candidate_id}",
+ response_model=CandidateInterviewHistory,
+ dependencies=[Depends(require_permission("candidate.view"))],
+ )
 def get_candidate_interview_history(
     candidate_id: str,
     db: Session = Depends(get_db),

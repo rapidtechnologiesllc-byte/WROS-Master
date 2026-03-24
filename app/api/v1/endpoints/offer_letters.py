@@ -144,7 +144,7 @@ def get_my_offers(
 @router.post(
     "/create",
     response_model=OfferLetterResponse,
-    dependencies=[Depends(require_permission("offer.create"))],
+    dependencies=[Depends(require_permission("offer.manage"))],
 )
 def create_offer_letter(
     request: OfferLetterCreateRequest,
@@ -239,7 +239,7 @@ def create_offer_letter(
 @router.post(
     "/cancel/{offer_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_permission("offer.edit"))],
+    dependencies=[Depends(require_permission("offer.manage"))],
 )
 def cancel_offer_letter(
     offer_id: int,
@@ -284,7 +284,7 @@ def cancel_offer_letter(
 @router.put(
     "/update/{offer_id}",
     response_model=OfferLetterResponse,
-    dependencies=[Depends(require_permission("offer.edit"))],
+    dependencies=[Depends(require_permission("offer.manage"))],
 )
 def update_offer_letter(
     offer_id: int,
