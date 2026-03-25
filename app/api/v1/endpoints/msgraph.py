@@ -75,9 +75,20 @@ def callback(request: Request):
 
     # Use user’s oid (object id) as key; UPN works too
     account_id = token_result.get("id_token_claims", {}).get("oid")
+    if not account_id:
+        raise HTTPException(401, "Could not determine user identity (missing oid claim)")
     user_tokens[account_id] = token_result  # store access & refresh token for later
 
-    return RedirectResponse(url=redirect_url)
+    # Set a cookie so subsequent requests know which account this browser session belongs to
+    response = RedirectResponse(url=redirect_url)
+    response.set_cookie(
+        key="account_id",
+        value=account_id,
+        httponly=True,
+        samesite="lax",
+        max_age=86400
+    )
+    return response
 
 def _graph_client_for(account_id: str) -> dict:
     """
@@ -198,11 +209,16 @@ def me(request: Request, db: Session = Depends(get_db)):
     })
 
 def _require_account(request: Request) -> str:
-    # In production, read from a real session or JWT
-    # For demo, pick the first cached account
-    if not user_tokens:
-        raise HTTPException(401, "Sign in first at /auth/signin")
-    return next(iter(user_tokens.keys()))
+    """
+    Identify the calling user from their session cookie.
+    The cookie is set by /auth/callback after a successful OAuth flow.
+    """
+    account_id = request.cookies.get("account_id")
+    if not account_id:
+        raise HTTPException(401, "Not authenticated. Please sign in at /msgraph/auth/signin")
+    if account_id not in user_tokens:
+        raise HTTPException(401, "Session expired or invalid. Please sign in again at /msgraph/auth/signin")
+    return account_id
 
 # ---------- SEND MAIL ----------
 @router.post("/mail/send")
