@@ -20,7 +20,8 @@ from app.schemas.user import (
     JobCreateRequest, JobCreateResponse,
     JobUpdateRequest, JobResponse,
     AllJobsResponse, DeleteResponse,
-    LinkedInPostRequest, LinkedInPostResponse
+    LinkedInPostRequest, LinkedInPostResponse,
+    JobApproveResponse,
 )
 from app.schemas.candidate import (
     EducationEntry, ExperienceEntry, JobApplicationResponse
@@ -31,6 +32,25 @@ from app.tools.job_description_generator import generate_job_description_with_st
 from app.api.v1.endpoints.documents import _upload_document_helper
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+# ---------------------------------------------------------------------------
+# Auto-approval logic
+# ---------------------------------------------------------------------------
+
+# Roles that can publish jobs immediately — no approval workflow needed
+AUTO_APPROVE_ROLES = {"super user", "bu head", "hiring manager"}
+
+def _can_auto_approve_job(user) -> bool:
+    """
+    Returns True if the user's role allows immediate job publishing.
+    Checks the RBAC role first, then falls back to the legacy UserRole string.
+    """
+    role_name = ""
+    if user.role and user.role.name:
+        role_name = user.role.name
+    elif user.UserRole:
+        role_name = user.UserRole
+    return role_name.lower() in AUTO_APPROVE_ROLES
 
 @router.post(
     "/generate_job_description",
@@ -181,17 +201,30 @@ def get_active_jobs(
 def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Create a new job posting.
-    
+
+    Job status is determined by the creator's role — it is NOT taken from the request body.
+    - Super User / BU Head / Hiring Manager → published immediately (status: active)
+    - All other roles (HR, HRBP, Recruiter, etc.) → saved as draft (status: pending_approval)
+
     Args:
         request: JobCreateRequest containing job details
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
-        JobCreateResponse with job_id and success message
+        JobCreateResponse with job_id and message indicating publish or pending state
     """
+    # Determine job status based on the creator's role
+    if _can_auto_approve_job(user):
+        job_status = "active"
+        response_message = "Job published successfully"
+    else:
+        job_status = "pending_approval"
+        response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+
     # Generate unique job ID
     job_id = job_id_generator()
+
     # Create new job
     job = Jobs(
         jobID=job_id,
@@ -204,7 +237,7 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
         companyType=request.company_type,
         companyName=request.company_name,
         contactPerson=request.contact_person,
-        jobStatus=request.job_status,
+        jobStatus=job_status,          # role-based, never from request
         noOfPositions=request.no_of_positions,
         startDate=request.start_date,
         endDate=request.end_date,
@@ -213,12 +246,66 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
         business_unit_id=request.business_unit,
         salaryRange=request.salary_range
     )
-    
+
     db.add(job)
     db.commit()
     db.refresh(job)
-    
-    return JobCreateResponse(job_id=job_id, response="Job created successfully")
+
+    return JobCreateResponse(job_id=job_id, response=response_message)
+
+
+@router.post(
+    "/{job_id}/approve",
+    response_model=JobApproveResponse,
+    dependencies=[Depends(require_permission("job.approve"))],
+)
+def approve_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Approve a pending job posting and make it live.
+
+    Only users with the `job.approve` permission (Super User, BU Head) can call this.
+    Only jobs in `pending_approval` status can be approved.
+
+    Args:
+        job_id: ID of the job to approve
+        db: Database session
+        user: Authenticated user with job.approve permission
+
+    Returns:
+        JobApproveResponse confirming the job is now active
+
+    Raises:
+        404: Job not found
+        400: Job is not in pending_approval status
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job '{job_id}' not found"
+        )
+
+    if job.jobStatus != "pending_approval":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job cannot be approved — current status is '{job.jobStatus}'. Only 'pending_approval' jobs can be approved."
+        )
+
+    job.jobStatus = "active"
+    db.commit()
+    db.refresh(job)
+
+    approver_name = user.UserName or user.UserEmail
+    return JobApproveResponse(
+        job_id=job_id,
+        status="active",
+        message=f"Job '{job.jobTitle}' approved and is now live.",
+        approved_by=approver_name
+    )
 
 
 @router.put(
