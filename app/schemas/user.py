@@ -161,6 +161,12 @@ class AllJobsResponse(BaseModel):
     total_jobs: int
     jobs: list[JobResponse]
 
+class JobApproveResponse(BaseModel):
+    job_id: str
+    status: str
+    message: str
+    approved_by: str
+
 class GenerateJobDescriptionRequest(BaseModel):
     job_title: str
     job_description: str

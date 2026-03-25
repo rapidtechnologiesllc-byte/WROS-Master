@@ -131,6 +131,7 @@ PERMISSIONS_SEED = [
     {"name": "job.create",           "description": "Create a job posting"},
     {"name": "job.edit",             "description": "Edit a job posting"},
     {"name": "job.delete",           "description": "Delete a job posting"},
+    {"name": "job.approve",          "description": "Approve a pending job posting"},
     {"name": "pipeline.move",        "description": "Move candidate through pipeline stages"},
     {"name": "interview.view",       "description": "View interview details"},
     {"name": "interview.manage",     "description": "Manage interviews"},
@@ -150,7 +151,7 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
     "Super User": [p["name"] for p in PERMISSIONS_SEED],   # all permissions
     "BU Head": [
         "candidate.view", "candidate.edit", "job.view", "job.create", "job.edit",
-        "pipeline.move", "interview.feedback",
+        "job.approve", "pipeline.move", "interview.feedback",
         "offer.manage", "employee.view", "employee.edit",
         "interview.manage","interview.view","newsletter.view",
     ],
