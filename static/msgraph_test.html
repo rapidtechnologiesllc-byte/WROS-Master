@@ -484,7 +484,7 @@
 
             async function getMe() {
                 try {
-                    const response = await fetch(`${BASE_URL}/me`);
+                    const response = await fetch(`${BASE_URL}/me`, { credentials: 'include' });
                     const data = await response.json();
 
                     const responseDiv = document.getElementById('authResponse');
