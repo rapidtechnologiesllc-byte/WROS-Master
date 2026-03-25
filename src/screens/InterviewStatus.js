@@ -191,7 +191,7 @@ export default function InterviewStatus({
                 >
                   <div className="font-semibold">{panel.round_name}</div>
                   <div className="text-xs text-gray-500">
-                    Candidate: {panel.candidate_name} ({panel.candidate_id})
+                    Candidate: {panel.candidate_name}
                   </div>
                 </button>
               ))
@@ -205,7 +205,7 @@ export default function InterviewStatus({
                   Round: {panelDetails.round_name}
                 </div>
                 <div className="text-xs text-gray-500">
-                  Candidate: {panelDetails.candidate_name} ({panelDetails.candidate_id})
+                  Candidate: {panelDetails.candidate_name}
                 </div>
                 <div className="mt-2 text-xs font-semibold text-gray-600">Members</div>
                 {panelMembers.length === 0 ? (
@@ -277,7 +277,7 @@ export default function InterviewStatus({
           ]}
           rows={interviews.map((i) => ({
             id: <span className="font-semibold">{i.id}</span>,
-            candidate: cMap[i.candidateId]?.name || i.candidateId,
+            candidate: cMap[i.candidateId]?.name || "Unknown",
             panel: i.panelRoundName
               ? `${i.panelRoundName} (${i.panelId || "N/A"})`
               : i.panelId || "N/A",

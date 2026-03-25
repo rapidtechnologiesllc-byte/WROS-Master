@@ -1,10 +1,11 @@
 // HR create-candidate screen with optional resume upload and email.
 import { useState } from "react";
-import { Users } from "lucide-react";
+import { FileText, Users } from "lucide-react";
 import { createCandidate, createCandidateAssignment } from "../services/api/candidates";
 import { uploadResume } from "../services/api/documents";
 import { getMicrosoftSigninUrl, sendGraphMail } from "../services/api/msgraph";
 import { Button, Card, Input, Select } from "../components/ui";
+import { extractResumeText, inferFieldsFromResumeText } from "../utils/resumeAutofill";
 
 export default function CandidateCreate({ onBack, onSave }) {
   // These fields map 1:1 to CandidateCreateRequest on the backend.
@@ -26,11 +27,58 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [assignedHrManagerId, setAssignedHrManagerId] = useState("");
   const [assignedReportManagerId, setAssignedReportManagerId] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
+  const [resumeParsing, setResumeParsing] = useState(false);
   const [sendLoginEmail, setSendLoginEmail] = useState(true);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const handleResumeFileChange = async (event) => {
+    const file = event.target.files?.[0] || null;
+    setResumeFile(file);
+    if (!file) return;
+    setResumeParsing(true);
+    setActionNotice("");
+    try {
+      const text = await extractResumeText(file);
+      const fields = inferFieldsFromResumeText(text);
+      if (fields.email) setEmail(fields.email);
+      if (fields.firstName) setFirstName(fields.firstName);
+      if (fields.middleName) setMiddleName(fields.middleName);
+      if (fields.lastName) setLastName(fields.lastName);
+      if (fields.mobile) setMobile(fields.mobile);
+      if (fields.skills) setSkills(fields.skills);
+      if (fields.experience) setExperience(fields.experience);
+      if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
+      const filled = Object.keys(fields).filter((k) => fields[k]).length;
+      setActionNotice(
+        filled
+          ? `Resume parsed: filled ${filled} field(s). Review and correct before saving.`
+          : "Resume attached. Could not infer details — fill the form manually."
+      );
+    } catch (err) {
+      setActionNotice(err.message || "Could not read resume for auto-fill.");
+    } finally {
+      setResumeParsing(false);
+    }
+  };
+
   const handleCreateCandidate = async () => {
+    if (!firstName.trim()) {
+      setActionNotice("First Name is required.");
+      return;
+    }
+    if (!lastName.trim()) {
+      setActionNotice("Last Name is required.");
+      return;
+    }
+    if (!gender.trim()) {
+      setActionNotice("Gender is required.");
+      return;
+    }
+    if (!mobile.trim()) {
+      setActionNotice("Mobile is required.");
+      return;
+    }
     if (!email.trim()) {
       setActionNotice("Email is required.");
       return;
@@ -141,6 +189,29 @@ export default function CandidateCreate({ onBack, onSave }) {
           </Button>
         }
       >
+        <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <FileText className="h-4 w-4 text-blue-600" />
+            Resume attachment
+          </div>
+          <p className="mb-3 text-xs text-gray-600">
+            Upload first — we read PDF or DOCX and suggest name, email, phone, skills, experience, and
+            location when we can detect them.
+          </p>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx"
+            disabled={resumeParsing}
+            onChange={handleResumeFileChange}
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-blue-700"
+          />
+          {resumeParsing ? (
+            <div className="mt-2 text-xs font-medium text-blue-700">Reading resume…</div>
+          ) : resumeFile ? (
+            <div className="mt-2 text-xs text-gray-600">Selected: {resumeFile.name}</div>
+          ) : null}
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
           <Select
             label="Role"
@@ -149,12 +220,12 @@ export default function CandidateCreate({ onBack, onSave }) {
             options={["Candidate", "Employee", "Contractor"]}
           />
           <Input label="Email *" value={email} onChange={setEmail} />
-          <Input label="First Name" value={firstName} onChange={setFirstName} />
+          <Input label="First Name *" value={firstName} onChange={setFirstName} />
           <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
-          <Input label="Last Name" value={lastName} onChange={setLastName} />
-          <Input label="Mobile" value={mobile} onChange={setMobile} />
+          <Input label="Last Name *" value={lastName} onChange={setLastName} />
+          <Input label="Mobile *" value={mobile} onChange={setMobile} />
           <Select
-            label="Gender"
+            label="Gender *"
             value={gender}
             onChange={setGender}
             options={["", "Female", "Male", "Other"]}
@@ -194,15 +265,6 @@ export default function CandidateCreate({ onBack, onSave }) {
             value={assignedReportManagerId}
             onChange={setAssignedReportManagerId}
           />
-          <label className="block md:col-span-2">
-            <div className="mb-1 text-xs font-semibold text-gray-700">Resume</div>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={(event) => setResumeFile(event.target.files?.[0] || null)}
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-            />
-          </label>
           <label className="flex items-center gap-2 text-sm md:col-span-2">
             <input
               type="checkbox"

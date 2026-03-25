@@ -29,10 +29,6 @@ export default function InterviewAnalytics({ candidates, users }) {
   const [workload, setWorkload] = useState(null);
   const [workloadBusy, setWorkloadBusy] = useState(false);
 
-  const candidateOptions = useMemo(() => {
-    return ["", ...(candidates || []).map((c) => c.id)];
-  }, [candidates]);
-
   const interviewerOptions = useMemo(() => {
     return ["", ...(users || []).map((u) => u.user_id)];
   }, [users]);
@@ -163,18 +159,29 @@ export default function InterviewAnalytics({ candidates, users }) {
           }
         >
           <div className="grid gap-3">
-            <Select
-              label="Candidate"
-              value={candidateId}
-              onChange={setCandidateId}
-              options={candidateOptions}
-            />
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-gray-700">
+                Candidate
+              </div>
+              <select
+                value={candidateId}
+                onChange={(e) => setCandidateId(e.target.value)}
+                className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+              >
+                <option value="">Select</option>
+                {(candidates || []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {candidateHistory ? (
             <div className="mt-4">
               <div className="mb-2 text-sm text-gray-700">
-                {candidateHistory.candidate_name} ({candidateHistory.candidate_id})
+                {candidateHistory.candidate_name}
               </div>
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
                 <div className="rounded-xl border bg-gray-50 px-3 py-1">
@@ -252,7 +259,7 @@ export default function InterviewAnalytics({ candidates, users }) {
                     { key: "status", header: "Status" }
                   ]}
                   rows={workload.upcoming_interviews.map((i) => ({
-                    candidate: `${i.candidate_name} (${i.candidate_id})`,
+                    candidate: i.candidate_name,
                     round: i.panel_round_name,
                     start: formatDateTime(i.start_time),
                     status: <StatusBadge status={i.status} />

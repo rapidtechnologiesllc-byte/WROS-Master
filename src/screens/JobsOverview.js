@@ -9,6 +9,7 @@ export default function JobsOverview({
   onDeleteJob,
   onPostToLinkedIn
 }) {
+  const canDelete = Boolean(onDeleteJob);
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;
 
@@ -42,7 +43,6 @@ export default function JobsOverview({
       <Card title="All Jobs" icon={<Briefcase className="h-4 w-4" />}>
         <Table
           columns={[
-            { key: "id", header: "Job ID" },
             { key: "title", header: "Title" },
             { key: "status", header: "Status" },
             { key: "dept", header: "Department" },
@@ -50,17 +50,9 @@ export default function JobsOverview({
             { key: "hm", header: "Hiring Manager" },
             { key: "edit", header: "Edit" },
             ...(onPostToLinkedIn ? [{ key: "linkedin", header: "LinkedIn" }] : []),
-            { key: "delete", header: "Delete" }
+            ...(canDelete ? [{ key: "delete", header: "Delete" }] : [])
           ]}
           rows={jobs.map((j) => ({
-            id: (
-              <button
-                className="font-semibold hover:underline"
-                onClick={() => onOpenJob(j.id)}
-              >
-                {j.id}
-              </button>
-            ),
             title: j.title,
             status: <StatusBadge status={j.status} />,
             dept: j.dept || "-",
@@ -83,11 +75,11 @@ export default function JobsOverview({
                   )
                 }
               : {}),
-            delete: (
+            delete: canDelete ? (
               <Button variant="danger" onClick={() => onDeleteJob(j.id)}>
                 Delete
               </Button>
-            )
+            ) : undefined
           }))}
         />
       </Card>

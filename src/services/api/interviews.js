@@ -213,10 +213,48 @@ export const deleteInterviewFeedback = async (feedbackId) => {
 
 export const getInterviewStatistics = async () => {
   // High-level interview metrics for dashboards.
-  const { data } = await apiRequest("/interviews/statistics", {
-    method: "GET"
-  });
-  return data;
+  // Some backends may not have `/interviews/statistics` registered correctly;
+  // in that case, we compute stats from `/interviews` as a fallback.
+  try {
+    const { data } = await apiRequest("/interviews/statistics", {
+      method: "GET"
+    });
+    return data;
+  } catch (err) {
+    const { data: listData } = await apiRequest("/interviews", {
+      method: "GET"
+    });
+
+    const interviews = Array.isArray(listData)
+      ? listData
+      : Array.isArray(listData?.interviews)
+        ? listData.interviews
+        : Array.isArray(listData?.records)
+          ? listData.records
+          : [];
+
+    const normalize = (s) => String(s || "").trim().toLowerCase();
+
+    const total_interviews = interviews.length;
+    const scheduled = interviews.filter((i) =>
+      ["scheduled"].includes(normalize(i.status))
+    ).length;
+    const completed = interviews.filter((i) =>
+      ["completed"].includes(normalize(i.status))
+    ).length;
+    const cancelled = interviews.filter((i) => {
+      const st = normalize(i.status);
+      return st === "cancelled" || st === "canceled";
+    }).length;
+
+    return {
+      total_interviews,
+      scheduled,
+      completed,
+      cancelled,
+      average_feedback_score: null
+    };
+  }
 };
 
 export const getCandidateInterviewHistory = async (candidateId) => {

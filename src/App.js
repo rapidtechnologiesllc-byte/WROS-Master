@@ -41,14 +41,37 @@ import {
 import { getAllUsers } from "./services/api/users";
 
 // Helpers to normalize API responses into UI-friendly models
-const mapCandidateFromApi = (c) => ({
-  id: c.candidate_id,
-  name: c.candidate_name,
-  email: c.candidate_email,
-  phone: c.candidate_mobile || "",
-  skills: [],
-  status: c.candidate_is_verified ? "Verified" : "New"
-});
+const mapCandidateFromApi = (c) => {
+  const parseSkills = (raw) => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
+    return String(raw)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  return {
+    id: c.candidate_id,
+    name: c.candidate_name,
+    email: c.candidate_email,
+    phone: c.candidate_mobile || "",
+    skills: parseSkills(c.candidate_skills),
+    status: c.candidate_is_verified ? "Verified" : "New",
+
+    // Extra fields for edit form prefill (best-effort).
+    gender: c.candidate_gender || "",
+    dob: c.candidate_date_of_birth || "",
+    source: c.candidate_source || "",
+    experience: c.candidate_experience || "",
+    joiningDate: c.candidate_joining_date || "",
+    expectedSalary: c.candidate_expected_salary || "",
+    currentSalary: c.candidate_current_salary || "",
+    currentLocation: c.candidate_current_location || "",
+    assignedHrManagerId: c.assigned_hr_manager_id || "",
+    assignedReportManagerId: c.assigned_report_manager_id || ""
+  };
+};
 
 const mapJobFromApi = (j) => ({
   id: j.job_id,
@@ -111,6 +134,7 @@ export default function App() {
   const storedRole = localStorage.getItem("hrms_role");
   const normalizedRole = normalizeRole(storedRole);
   const isAdminOrSuperUser = normalizedRole === "ADMIN" || normalizedRole === "SUPER_USER";
+  const isSuperUser = normalizedRole === "SUPER_USER";
 
   const handleLogout = () => {
     // Clear all identity context from storage on logout.
@@ -457,17 +481,21 @@ export default function App() {
               notify("LinkedIn", err.message || "Failed to post to LinkedIn.");
             }
           }}
-          onDeleteJob={async (jobId) => {
-            const ok = window.confirm(`Delete job ${jobId}?`);
-            if (!ok) return;
-            try {
-              await deleteJob(jobId);
-              await refreshJobs();
-              notify("Job", `Deleted job ${jobId}.`);
-            } catch (err) {
-              notify("Job", err.message || "Failed to delete job.");
-            }
-          }}
+          onDeleteJob={
+            isSuperUser
+              ? async (jobId) => {
+                  const ok = window.confirm(`Delete job ${jobId}?`);
+                  if (!ok) return;
+                  try {
+                    await deleteJob(jobId);
+                    await refreshJobs();
+                    notify("Job", `Deleted job ${jobId}.`);
+                  } catch (err) {
+                    notify("Job", err.message || "Failed to delete job.");
+                  }
+                }
+              : undefined
+          }
         />
       )}
 
@@ -486,17 +514,21 @@ export default function App() {
               notify("LinkedIn", err.message || "Failed to post to LinkedIn.");
             }
           }}
-          onDeleteJob={async (jobId) => {
-            const ok = window.confirm(`Delete job ${jobId}?`);
-            if (!ok) return;
-            try {
-              await deleteJob(jobId);
-              await refreshJobs();
-              notify("Job", `Deleted job ${jobId}.`);
-            } catch (err) {
-              notify("Job", err.message || "Failed to delete job.");
-            }
-          }}
+          onDeleteJob={
+            isSuperUser
+              ? async (jobId) => {
+                  const ok = window.confirm(`Delete job ${jobId}?`);
+                  if (!ok) return;
+                  try {
+                    await deleteJob(jobId);
+                    await refreshJobs();
+                    notify("Job", `Deleted job ${jobId}.`);
+                  } catch (err) {
+                    notify("Job", err.message || "Failed to delete job.");
+                  }
+                }
+              : undefined
+          }
         />
       )}
 

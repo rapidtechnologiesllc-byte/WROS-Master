@@ -4,6 +4,7 @@ import { Plus, Search, Users } from "lucide-react";
 import { Button, Card, Input, Select, StatusBadge, Table } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
+import CandidateEditModal from "./CandidateEditModal";
 
 export default function CandidateSearch({
   candidates,
@@ -19,6 +20,13 @@ export default function CandidateSearch({
   onDeleteCandidate
 }) {
   const [query, setQuery] = useState("");
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editCandidateId, setEditCandidateId] = useState("");
+
+  const editingCandidate = useMemo(
+    () => candidates.find((c) => c.id === editCandidateId) || null,
+    [candidates, editCandidateId]
+  );
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return candidates;
@@ -26,8 +34,7 @@ export default function CandidateSearch({
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q)
+        c.phone.toLowerCase().includes(q)
     );
   }, [candidates, query]);
 
@@ -49,12 +56,22 @@ export default function CandidateSearch({
             onChange={setQuery}
             placeholder="+1 555... or name@..."
           />
-          <Select
-            label="Selected Candidate"
-            value={selectedCandidateId}
-            onChange={setSelectedCandidateId}
-            options={candidates.map((c) => c.id)}
-          />
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">
+              Selected Candidate
+            </div>
+            <select
+              value={selectedCandidateId}
+              onChange={(e) => setSelectedCandidateId(e.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <Select
             label="Selected Job"
             value={selectedJobId}
@@ -76,25 +93,24 @@ export default function CandidateSearch({
       <Card title="Candidates" icon={<Users className="h-4 w-4" />}>
         <Table
           columns={[
-            { key: "id", header: "ID" },
             { key: "name", header: "Name" },
             { key: "contact", header: "Contact" },
             { key: "skills", header: "Skills" },
             { key: "status", header: "Status" },
-            ...(onUpdateCandidate || onDeleteCandidate
-              ? [{ key: "actions", header: "Actions" }]
-              : [])
           ]}
           rows={filtered.map((c) => ({
-            id: (
+            name: (
               <button
                 className="font-semibold hover:underline"
-                onClick={() => setSelectedCandidateId(c.id)}
+                onClick={() => {
+                  setSelectedCandidateId(c.id);
+                  setEditCandidateId(c.id);
+                  setEditModalOpen(true);
+                }}
               >
-                {c.id}
+                {c.name}
               </button>
             ),
-            name: c.name,
             contact: (
               <div className="text-xs text-gray-700">
                 <div>{c.email}</div>
@@ -111,36 +127,6 @@ export default function CandidateSearch({
               </div>
             ),
             status: <StatusBadge status={c.status} />,
-            ...(onUpdateCandidate || onDeleteCandidate
-              ? {
-                  actions: (
-                    <div className="flex gap-1">
-                      {onUpdateCandidate ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            const name = prompt("New name:", c.name);
-                            if (name != null && name.trim())
-                              onUpdateCandidate(c.id, {
-                                candidate_first_name: name.trim()
-                              });
-                          }}
-                        >
-                          Edit
-                        </Button>
-                      ) : null}
-                      {onDeleteCandidate ? (
-                        <Button
-                          variant="danger"
-                          onClick={() => onDeleteCandidate(c.id)}
-                        >
-                          Delete
-                        </Button>
-                      ) : null}
-                    </div>
-                  )
-                }
-              : {})
           }))}
         />
 
@@ -148,6 +134,17 @@ export default function CandidateSearch({
           Duplicate check (phone/email) + merge popup can be added here.
         </div>
       </Card>
+
+      {editModalOpen && editingCandidate ? (
+        <CandidateEditModal
+          candidate={editingCandidate}
+          onClose={() => {
+            setEditModalOpen(false);
+            setEditCandidateId("");
+          }}
+          onUpdateCandidate={onUpdateCandidate}
+        />
+      ) : null}
     </div>
   );
 }

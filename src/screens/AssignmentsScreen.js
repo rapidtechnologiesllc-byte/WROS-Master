@@ -58,13 +58,11 @@ export default function AssignmentsScreen() {
         {candidates.length ? (
           <Table
             columns={[
-              { key: "candidate_id", header: "Candidate ID" },
               { key: "candidate_name", header: "Name" },
               { key: "candidate_email", header: "Email" },
               { key: "assignment_type", header: "Role" }
             ]}
             rows={candidates.map((c) => ({
-              candidate_id: c.candidate_id,
               candidate_name: c.candidate_name,
               candidate_email: c.candidate_email,
               assignment_type: c.assignment_type?.replace("_", " ") || "-"

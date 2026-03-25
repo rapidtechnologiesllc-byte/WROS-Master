@@ -36,6 +36,7 @@ export default function ActiveJobs({ onCreate, onOpenJob, onDeleteJob, onPostToL
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [jobs, setJobs] = useState([]);
+  const canDelete = Boolean(onDeleteJob);
 
   const refresh = async () => {
     setLoading(true);
@@ -85,21 +86,15 @@ export default function ActiveJobs({ onCreate, onOpenJob, onDeleteJob, onPostToL
       >
         <Table
           columns={[
-            { key: "id", header: "Job ID" },
             { key: "title", header: "Title" },
             { key: "status", header: "Status" },
             { key: "location", header: "Location" },
             { key: "hm", header: "Hiring Manager" },
             { key: "edit", header: "Edit" },
             ...(onPostToLinkedIn ? [{ key: "linkedin", header: "LinkedIn" }] : []),
-            { key: "delete", header: "Delete" }
+            ...(canDelete ? [{ key: "delete", header: "Delete" }] : [])
           ]}
           rows={jobs.map((j) => ({
-            id: (
-              <button className="font-semibold hover:underline" onClick={() => onOpenJob(j.id)}>
-                {j.id}
-              </button>
-            ),
             title: j.title,
             status: <StatusBadge status={j.status} />,
             location: j.location || "-",
@@ -114,11 +109,11 @@ export default function ActiveJobs({ onCreate, onOpenJob, onDeleteJob, onPostToL
                 Post to LinkedIn
               </Button>
             ) : null,
-            delete: (
+            delete: canDelete ? (
               <Button variant="danger" onClick={() => onDeleteJob(j.id)}>
                 Delete
               </Button>
-            )
+            ) : undefined
           }))}
         />
       </Card>

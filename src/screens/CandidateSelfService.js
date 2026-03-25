@@ -475,17 +475,11 @@ export default function CandidateSelfService({ onLogout }) {
 
         {onboardingStatus ? (
           <Card title="Onboarding Status">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-1">
               <div>
                 <div className="text-xs text-slate-500">Overall completion</div>
                 <div className="text-lg font-semibold">
                   {Number(onboardingStatus.overall_completion || 0).toFixed(0)}%
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500">Candidate ID</div>
-                <div className="text-sm font-semibold">
-                  {onboardingStatus.candidate_id || "-"}
                 </div>
               </div>
             </div>
