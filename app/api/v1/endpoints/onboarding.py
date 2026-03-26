@@ -75,6 +75,7 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
     candidate = Candidate(
         candidateID=candidate_id,
         candidateRole=request.candidate_role,
+        candidateJobTitle=request.candidate_job_title,
         candidateFirstName=request.candidate_first_name,
         candidateMiddleName=request.candidate_middle_name,
         candidateLastName=request.candidate_last_name,
@@ -97,11 +98,45 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
     db.add(candidate)
     db.commit()
     db.refresh(candidate)
-    
+
+    # Bulk-insert education records if provided
+    if request.education_records:
+        for edu in request.education_records:
+            edu_row = CandidateEducationForm(
+                candidateID=candidate_id,
+                education_institute=edu.education_institute,
+                degree=edu.degree,
+                field_of_study=edu.field_of_study,
+                starting_year=edu.starting_year,
+                year_of_passing=edu.year_of_passing,
+                percentage=edu.percentage,
+                submittedAt=edu.submitted_at,
+                document_is_submitted=edu.document_is_submitted,
+            )
+            db.add(edu_row)
+
+    # Bulk-insert experience records if provided
+    if request.experience_records:
+        for exp in request.experience_records:
+            exp_row = CandidateExperienceForm(
+                candidateID=candidate_id,
+                company_name=exp.company_name,
+                job_title=exp.job_title,
+                start_date=exp.start_date,
+                end_date=exp.end_date,
+                year_of_experience=exp.year_of_experience,
+                submittedAt=exp.submitted_at,
+                document_is_submitted=exp.document_is_submitted,
+            )
+            db.add(exp_row)
+
+    if request.education_records or request.experience_records:
+        db.commit()
+
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(
-        candidate_id=candidate_id, 
-        candidate_is_first_time=True, 
+        candidate_id=candidate_id,
+        candidate_is_first_time=True,
         candidate_password=password  # Return plain password
     )
 
