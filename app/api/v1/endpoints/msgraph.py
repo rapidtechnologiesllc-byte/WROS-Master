@@ -59,7 +59,7 @@ def signin():
     return RedirectResponse(_auth_url())
 
 @router.get("/auth/callback")
-def callback(request: Request):
+def callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
     if not code:
         raise HTTPException(400, "Missing auth code")
@@ -73,22 +73,54 @@ def callback(request: Request):
     if "access_token" not in token_result:
         raise HTTPException(401, f"Token error: {token_result.get('error_description')}")
 
-    # Use user’s oid (object id) as key; UPN works too
+    # Persist token in-memory (used by Graph API endpoints like /mail/send)
     account_id = token_result.get("id_token_claims", {}).get("oid")
     if not account_id:
         raise HTTPException(401, "Could not determine user identity (missing oid claim)")
-    user_tokens[account_id] = token_result  # store access & refresh token for later
+    user_tokens[account_id] = token_result
 
-    # Set a cookie so subsequent requests know which account this browser session belongs to
-    response = RedirectResponse(url=redirect_url)
-    response.set_cookie(
-        key="account_id",
-        value=account_id,
-        httponly=True,
-        samesite="lax",
-        max_age=86400
+    # Fetch user profile from Graph to get email + display name
+    graph_resp = requests.get(
+        "https://graph.microsoft.com/v1.0/me",
+        headers={"Authorization": f"Bearer {token_result['access_token']}"},
+        timeout=10,
     )
-    return response
+    graph_resp.raise_for_status()
+    graph_user = graph_resp.json()
+
+    email = graph_user.get("mail") or graph_user.get("userPrincipalName")
+    display_name = graph_user.get("displayName", "")
+    ms_user_id = graph_user.get("id")
+
+    # Look up or auto-create user in DB
+    user = db.query(Users).filter(Users.UserEmail == email).first()
+    if not user:
+        user = Users(
+            UserID=ms_user_id,
+            UserName=display_name,
+            UserEmail=email,
+            UserRole="employee",
+            UserPassword="",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
+
+    # Create JWT — this is all the client needs going forward
+    jwt_token = create_access_token(
+        data={
+            "sub": user.UserEmail,
+            "type": user.UserRole,
+            "name": user.UserName,
+        }
+    )
+
+    # Redirect to frontend with the JWT as a query param
+    # The frontend should store this token and send it as `Authorization: Bearer <token>`
+    params = urlencode({"token": jwt_token})
+    return RedirectResponse(url=f"{redirect_url}?{params}")
 
 def _graph_client_for(account_id: str) -> dict:
     """
@@ -136,76 +168,24 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
     return response
 
 @router.get("/me")
-def me(request: Request, db: Session = Depends(get_db)):
+def me(db: Session = Depends(get_db), user: Users = Depends(get_current_hr_or_admin)):
     """
-    Get user profile from Microsoft Graph and auto-register in database.
-    
+    Return the current authenticated user's profile from the database.
+    Requires a valid JWT Bearer token (obtained from /auth/callback redirect).
+
     Returns:
-        User details with JWT access token
+        User details
     """
-    account_id = _require_account(request)
-    token_data = _graph_client_for(account_id)
-    
-    # Get user info from Microsoft Graph
-    resp = _make_graph_request("GET", "/me", token_data["access_token"])
-    graph_user = resp.json()
-    
-    # Extract user details
-    email = graph_user.get("mail") or graph_user.get("userPrincipalName")
-    display_name = graph_user.get("displayName", "")
-    user_id = graph_user.get("id")
-    
-    # Check if user exists in database
-    existing_user = db.query(Users).filter(Users.UserEmail == email).first()
-    role = None  # Default; set below for existing users with an RBAC role
+    role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
 
-    if existing_user:
-        # User exists - update last login and return details
-        user = existing_user
-        user_type = user.UserRole
-        role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
-    else:
-        # New user - create in database
-        # Default to HR role for Microsoft authenticated users
-        new_user = Users(
-            UserID=user_id,
-            UserName=display_name,
-            UserEmail=email,
-            UserRole="employee",  # Default role for Microsoft SSO users
-            UserPassword=""  # No password for SSO users
-        )
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        user = new_user
-        user_type = "employee"
-    
-
-    # Create JWT access token
-    access_token = create_access_token(
-        data={
-            "sub": user.UserEmail,
-            "type": user_type,
-            "name": user.UserName
-        }
-    )
-    
-    # Return user details with access token
     return JSONResponse({
         "user": {
             "id": user.UserID,
             "name": user.UserName,
             "email": user.UserEmail,
             "type": user.UserRole,
-            "microsoft_id": user_id,
-            "display_name": display_name,
-            "job_title": graph_user.get("jobTitle"),
-            "mobile_phone": graph_user.get("mobilePhone"),
-            "office_location": graph_user.get("officeLocation"),
-            "permission_role":role.name if role else None
-        },
-        "access_token": access_token,
-        "token_type": "bearer"
+            "permission_role": role.name if role else None,
+        }
     })
 
 def _require_account(request: Request) -> str:
