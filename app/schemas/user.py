@@ -194,6 +194,10 @@ class JobUpdateRequest(BaseModel):
     no_of_positions: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    salary_range: Optional[str] = None
+    recuriter_id: Optional[str] = None
+    hiring_manager_id: Optional[str] = None
+    business_unit: Optional[int] = None
 
 class CandidateUpdateRequest(BaseModel):
     candidate_first_name: Optional[str] = None

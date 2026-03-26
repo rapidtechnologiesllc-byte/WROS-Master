@@ -10,7 +10,7 @@ class CandidateCreateRequest(BaseModel):
     
     # Role (optional, defaults to "Candidate")
     candidate_role: Optional[str] = "Candidate"
-    
+    candidate_job_title: Optional[str] = None
     # Name fields (optional)
     candidate_first_name: Optional[str] = None
     candidate_middle_name: Optional[str] = None
@@ -36,6 +36,10 @@ class CandidateCreateRequest(BaseModel):
 
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
+
+    # Optional pre-filled education and experience details
+    education_records: Optional[List["EducationRecord"]] = None
+    experience_records: Optional[List["ExperienceRecord"]] = None
 
 class CandidateCreateResponse(BaseModel):
     candidate_id: str
@@ -247,4 +251,4 @@ class ExperienceEntry(BaseModel):
 class JobApplicationResponse(BaseModel):
     status: str
     message: str
-    candidate_id: Optional[str] = None
+    candidate_id: Optional[str] = None

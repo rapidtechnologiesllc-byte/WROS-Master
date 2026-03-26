@@ -328,9 +328,9 @@
             </div>
             <p style="font-size: 0.85rem; opacity: 0.8; margin-top: 10px;">
                 💡 <strong>How to get your token:</strong><br>
-                1. Login via POST <code>/auth/login</code> with HR/Admin credentials<br>
-                2. Copy the <code>access_token</code> from the response<br>
-                3. Paste it above
+                1. Click <strong>Sign In with Microsoft</strong> above &amp; complete SSO<br>
+                2. You'll be redirected back here — token is auto-captured &amp; filled below<br>
+                3. Or manually paste a token from <code>POST /auth/login</code>
             </p>
         </div>
 
@@ -478,79 +478,75 @@
         <script>
             const BASE_URL = "https://hrms-backend.blitzenx.com/msgraph";
 
+            // On page load: capture token from ?token= query param (set by /auth/callback)
+            (function captureTokenFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token');
+                if (token) {
+                    localStorage.setItem('access_token', token);
+                    // Auto-fill the JWT textarea
+                    const jwtInput = document.getElementById('jwtToken');
+                    if (jwtInput) jwtInput.value = token;
+                    // Clean the token from the URL so it's not visible
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                    console.log('✅ Token captured from SSO callback and saved to localStorage');
+                }
+            })();
+
+            function getToken() {
+                return localStorage.getItem('access_token') ||
+                       document.getElementById('jwtToken')?.value?.trim() ||
+                       null;
+            }
+
             function signIn() {
                 window.location.href = `${BASE_URL}/auth/signin`;
             }
 
             async function getMe() {
+                const token = getToken();
+                if (!token) {
+                    alert('No token found. Please sign in first.');
+                    return;
+                }
                 try {
-                    const response = await fetch(`${BASE_URL}/me`, { credentials: 'include' });
+                    const response = await fetch(`${BASE_URL}/me`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     const data = await response.json();
 
                     const responseDiv = document.getElementById('authResponse');
-
-                    // Check if response has user object (new format) or is direct user data (old format)
                     const user = data.user || data;
-                    const accessToken = data.access_token;
 
-                    // Create a beautiful profile card
                     responseDiv.innerHTML = `
                     <div class="profile-card">
-                        <h3>👤 User Profile ${data.user ? '✅ Registered' : ''}</h3>
+                        <h3>👤 User Profile ✅</h3>
                         <div class="profile-info">
                             <div class="profile-item">
                                 <label>User ID</label>
                                 <span class="profile-value">${user.id || 'N/A'}</span>
                             </div>
                             <div class="profile-item">
-                                <label>Display Name</label>
-                                <span class="profile-value">${user.display_name || user.displayName || 'N/A'}</span>
+                                <label>Name</label>
+                                <span class="profile-value">${user.name || 'N/A'}</span>
                             </div>
                             <div class="profile-item">
                                 <label>Email</label>
-                                <span class="profile-value">${user.email || user.mail || user.userPrincipalName || 'N/A'}</span>
+                                <span class="profile-value">${user.email || 'N/A'}</span>
                             </div>
                             <div class="profile-item">
-                                <label>User Type</label>
+                                <label>Role</label>
                                 <span class="profile-value">${user.type || 'N/A'}</span>
                             </div>
                             <div class="profile-item">
-                                <label>Job Title</label>
-                                <span class="profile-value">${user.job_title || user.jobTitle || 'N/A'}</span>
-                            </div>
-                            <div class="profile-item">
-                                <label>Mobile Phone</label>
-                                <span class="profile-value">${user.mobile_phone || user.mobilePhone || 'N/A'}</span>
-                            </div>
-                            <div class="profile-item">
-                                <label>Office Location</label>
-                                <span class="profile-value">${user.office_location || user.officeLocation || 'N/A'}</span>
-                            </div>
-                            <div class="profile-item">
-                                <label>Microsoft ID</label>
-                                <span class="profile-value">${user.microsoft_id || 'N/A'}</span>
+                                <label>Permission Role</label>
+                                <span class="profile-value">${user.permission_role || 'N/A'}</span>
                             </div>
                         </div>
-                        ${accessToken ? `
-                            <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 6px;">
-                                <h4 style="margin-bottom: 10px;">🔑 Access Token</h4>
-                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px; word-break: break-all; font-family: monospace; font-size: 0.85rem;">
-                                    ${accessToken}
-                                </div>
-                                <p style="margin-top: 10px; font-size: 0.9rem; opacity: 0.8;">
-                                    Use this token in the Authorization header: <code>Bearer ${accessToken.substring(0, 20)}...</code>
-                                </p>
-                            </div>
-                        ` : ''}
                     </div>
                 `;
                     responseDiv.classList.add('show');
-
-                    // Store token in localStorage for future API calls
-                    if (accessToken) {
-                        localStorage.setItem('access_token', accessToken);
-                        console.log('Access token saved to localStorage');
-                    }
                 } catch (error) {
                     alert('Error: ' + error.message);
                 }
