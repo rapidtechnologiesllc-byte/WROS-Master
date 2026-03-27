@@ -684,11 +684,17 @@ export default function App() {
         <InterviewSchedule
           candidate={selectedCandidate}
           job={selectedJob}
+          candidates={candidates}
+          jobs={jobs}
+          selectedCandidateId={selectedCandidateId}
+          selectedJobId={selectedJobId}
+          onChangeCandidate={setSelectedCandidateId}
+          onChangeJob={setSelectedJobId}
           onSchedule={(i) => {
             setInterviews((prev) => [i, ...prev]);
             setCandidates((prev) =>
               prev.map((c) =>
-                c.id === selectedCandidate.id
+                c.id === i.candidateId
                   ? { ...c, status: "Interview Scheduled" }
                   : c
               )
@@ -751,6 +757,12 @@ export default function App() {
         <OfferScreen
           candidate={selectedCandidate}
           job={selectedJob}
+          candidates={candidates}
+          jobs={jobs}
+          selectedCandidateId={selectedCandidateId}
+          selectedJobId={selectedJobId}
+          onChangeCandidate={setSelectedCandidateId}
+          onChangeJob={setSelectedJobId}
           offer={offer}
           setOffer={setOffer}
           users={users}
@@ -897,6 +909,9 @@ export default function App() {
       {screen === "documents" && selectedCandidate && (
         <Documents
           candidate={selectedCandidate}
+          candidates={candidates}
+          selectedCandidateId={selectedCandidateId}
+          onChangeCandidate={setSelectedCandidateId}
           onSubmit={() => {
             notify("Documents", "Documents uploaded. Sent for verification.");
             safeSetScreen("verification");
@@ -907,6 +922,9 @@ export default function App() {
       {screen === "verification" && selectedCandidate && (
         <Verification
           candidate={selectedCandidate}
+          candidates={candidates}
+          selectedCandidateId={selectedCandidateId}
+          onChangeCandidate={setSelectedCandidateId}
           onApprove={() => {
             notify("Verification", "Documents verified. Pre-onboarding started.");
             safeSetScreen("preOnboarding");
@@ -917,8 +935,12 @@ export default function App() {
         />
       )}
 
-      {screen === "preOnboarding" && (
+      {screen === "preOnboarding" && selectedCandidate && (
         <PreOnboarding
+          candidate={selectedCandidate}
+          candidates={candidates}
+          selectedCandidateId={selectedCandidateId}
+          onChangeCandidate={setSelectedCandidateId}
           onFinish={() => {
             notify("Hire", "Hire completed. Workflow ended.");
             safeSetScreen("dashboard");

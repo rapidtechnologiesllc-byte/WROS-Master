@@ -159,7 +159,10 @@ export const getUserBusinessUnit = async (userId) => {
 export const updateUserBusinessUnit = async (userId, businessUnitId) => {
   const { data } = await apiRequest(`/rbac/users/${userId}/business-unit`, {
     method: "PUT",
-    body: JSON.stringify({ business_unit_id: businessUnitId })
+    body: JSON.stringify({
+      user_id: userId,
+      business_unit_id: businessUnitId
+    })
   });
   return data;
 };

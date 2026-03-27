@@ -714,7 +714,12 @@ export default function RbacSettingsScreen() {
                     setUserDetailNotice("User role loaded.");
                   } catch (err) {
                     setUserRoleDetail(null);
-                    setError(err.message || "Failed to load user role.");
+                    const message = String(err.message || "");
+                    if (message.toLowerCase().includes("no role assigned")) {
+                      setUserDetailNotice("No role assigned to this user.");
+                    } else {
+                      setError(message || "Failed to load user role.");
+                    }
                   } finally {
                     setBusy(false);
                   }
@@ -737,7 +742,12 @@ export default function RbacSettingsScreen() {
                     setUserDetailNotice("User business unit loaded.");
                   } catch (err) {
                     setUserBusinessUnitDetail(null);
-                    setError(err.message || "Failed to load user business unit.");
+                    const message = String(err.message || "");
+                    if (message.toLowerCase().includes("no business unit assigned")) {
+                      setUserDetailNotice("No business unit assigned to this user.");
+                    } else {
+                      setError(message || "Failed to load user business unit.");
+                    }
                   } finally {
                     setBusy(false);
                   }

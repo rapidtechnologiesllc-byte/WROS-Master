@@ -14,7 +14,42 @@ import {
 } from "../services/api/msgraph";
 import { getAllUsers } from "../services/api/users";
 
-export default function InterviewSchedule({ candidate, job, onSchedule, onViewStatus }) {
+export default function InterviewSchedule({
+  candidate,
+  job,
+  candidates = [],
+  jobs = [],
+  selectedCandidateId = "",
+  selectedJobId = "",
+  onChangeCandidate,
+  onChangeJob,
+  onSchedule,
+  onViewStatus
+}) {
+  const normalizeText = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const findMatchingJobForCandidate = (candidateJobTitle) => {
+    const normalizedCandidateJob = normalizeText(candidateJobTitle);
+    if (!normalizedCandidateJob || !Array.isArray(jobs) || !jobs.length) return null;
+    const exact = jobs.find(
+      (j) => normalizeText(j?.title) === normalizedCandidateJob
+    );
+    if (exact) return exact;
+    const contains = jobs.find((j) => {
+      const normalizedJobTitle = normalizeText(j?.title);
+      return (
+        normalizedJobTitle.includes(normalizedCandidateJob) ||
+        normalizedCandidateJob.includes(normalizedJobTitle)
+      );
+    });
+    return contains || null;
+  };
+
   const [roundName, setRoundName] = useState("HR");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -33,11 +68,31 @@ export default function InterviewSchedule({ candidate, job, onSchedule, onViewSt
     return `I-${n}`;
   }, []);
 
+  const activeCandidate = useMemo(() => {
+    return (
+      candidates.find((c) => String(c.id) === String(selectedCandidateId || candidate?.id)) ||
+      candidate
+    );
+  }, [candidates, selectedCandidateId, candidate]);
+
+  const activeJob = useMemo(() => {
+    return jobs.find((j) => String(j.id) === String(selectedJobId || job?.id)) || job;
+  }, [jobs, selectedJobId, job]);
+
   useEffect(() => {
-    if (!attendeeEmails && candidate?.email) {
-      setAttendeeEmails(candidate.email);
+    if (!attendeeEmails && activeCandidate?.email) {
+      setAttendeeEmails(activeCandidate.email);
     }
-  }, [attendeeEmails, candidate?.email]);
+  }, [attendeeEmails, activeCandidate?.email]);
+
+  useEffect(() => {
+    if (!activeCandidate?.jobTitle || !Array.isArray(jobs) || !jobs.length) return;
+    const matchedJob = findMatchingJobForCandidate(activeCandidate.jobTitle);
+    if (matchedJob && String(matchedJob.id) !== String(activeJob?.id || "")) {
+      onChangeJob?.(matchedJob.id);
+      setStatusNotice(`Auto-selected job "${matchedJob.title}" for ${activeCandidate.name}.`);
+    }
+  }, [activeCandidate?.id, activeCandidate?.jobTitle, jobs, activeJob?.id, onChangeJob]);
 
   useEffect(() => {
     let isMounted = true;
@@ -105,15 +160,59 @@ export default function InterviewSchedule({ candidate, job, onSchedule, onViewSt
           <div className="rounded-2xl border bg-gray-50 p-4">
             <div className="text-xs font-semibold text-gray-500">Candidate</div>
             <div className="text-sm font-extrabold tracking-tight">
-              {candidate.name}
+              {activeCandidate?.name}
             </div>
-            <div className="mt-1 text-xs text-gray-600">{candidate.id}</div>
+            <div className="mt-1 text-xs text-gray-600">{activeCandidate?.id}</div>
           </div>
           <div className="rounded-2xl border bg-gray-50 p-4">
             <div className="text-xs font-semibold text-gray-500">Job</div>
-            <div className="text-sm font-extrabold tracking-tight">{job.title}</div>
-            <div className="mt-1 text-xs text-gray-600">{job.id}</div>
+            <div className="text-sm font-extrabold tracking-tight">{activeJob?.title}</div>
+            <div className="mt-1 text-xs text-gray-600">{activeJob?.id}</div>
           </div>
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Candidate</div>
+            <select
+              value={activeCandidate?.id || ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                onChangeCandidate?.(value);
+                const nextCandidate = candidates.find((c) => String(c.id) === String(value));
+                if (nextCandidate?.email) {
+                  setAttendeeEmails(nextCandidate.email);
+                }
+                const matchedJob = findMatchingJobForCandidate(nextCandidate?.jobTitle);
+                if (matchedJob) {
+                  onChangeJob?.(matchedJob.id);
+                  setStatusNotice(`Auto-selected job "${matchedJob.title}" for ${nextCandidate?.name}.`);
+                } else if (nextCandidate?.jobTitle) {
+                  setStatusNotice(
+                    `No matching job found for candidate job title "${nextCandidate.jobTitle}".`
+                  );
+                }
+              }}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Job</div>
+            <select
+              value={activeJob?.id || ""}
+              onChange={(event) => onChangeJob?.(event.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {jobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title} ({j.id})
+                </option>
+              ))}
+            </select>
+          </label>
 
           <Select
             label="Round"
@@ -219,7 +318,7 @@ export default function InterviewSchedule({ candidate, job, onSchedule, onViewSt
               setIsScheduling(true);
               try {
                 const panel = await createInterviewPanel({
-                  candidateId: candidate.id,
+                  candidateId: activeCandidate.id,
                   roundName
                 });
                 const panelId = panel?.id;
@@ -229,7 +328,7 @@ export default function InterviewSchedule({ candidate, job, onSchedule, onViewSt
                 const startIso = new Date(startTime).toISOString();
                 const endIso = new Date(endTime).toISOString();
                 const meeting = await scheduleUserMeeting({
-                  subject: `Interview - ${candidate.name} (${roundName})`,
+                  subject: `Interview - ${activeCandidate.name} (${roundName})`,
                   startIso,
                   endIso,
                   attendees: attendeeList,
@@ -238,7 +337,7 @@ export default function InterviewSchedule({ candidate, job, onSchedule, onViewSt
                 });
                 const interview = await createInterview({
                   panelId,
-                  candidateId: candidate.id,
+                  candidateId: activeCandidate.id,
                   startTime: startIso,
                   endTime: endIso,
                   meetingLink: meeting?.joinUrl || null,
@@ -249,7 +348,7 @@ export default function InterviewSchedule({ candidate, job, onSchedule, onViewSt
                   id: interview.id || newId,
                   panelId,
                   panelRoundName: roundName,
-                  candidateId: candidate.id,
+                  candidateId: activeCandidate.id,
                   startTime: interview.start_time,
                   endTime: interview.end_time,
                   meetingLink: interview.meeting_link || meeting?.joinUrl || "",

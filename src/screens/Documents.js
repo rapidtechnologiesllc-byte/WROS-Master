@@ -1,5 +1,5 @@
 // HR view of candidate documents (from backend API).
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { getCandidateDocuments, viewDocument } from "../services/api/documents";
@@ -14,10 +14,23 @@ const DOC_LABELS = {
   bank_statement: "Bank Statement"
 };
 
-export default function Documents({ candidate, onSubmit }) {
+export default function Documents({
+  candidate,
+  candidates = [],
+  selectedCandidateId = "",
+  onChangeCandidate,
+  onSubmit
+}) {
   const [docs, setDocs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const activeCandidate = useMemo(() => {
+    return (
+      candidates.find((c) => String(c.id) === String(selectedCandidateId || candidate?.id)) ||
+      candidate
+    );
+  }, [candidates, selectedCandidateId, candidate]);
 
   const handleView = async (documentId) => {
     try {
@@ -31,13 +44,13 @@ export default function Documents({ candidate, onSubmit }) {
   };
 
   useEffect(() => {
-    if (!candidate?.id) return;
+    if (!activeCandidate?.id) return;
     let isMounted = true;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
-        const res = await getCandidateDocuments(candidate.id);
+        const res = await getCandidateDocuments(activeCandidate.id);
         if (isMounted) setDocs(res);
       } catch (err) {
         if (isMounted) setError(err.message || "Failed to load documents.");
@@ -47,37 +60,48 @@ export default function Documents({ candidate, onSubmit }) {
     };
     load();
     return () => { isMounted = false; };
-  }, [candidate?.id]);
-
-  if (loading) {
-    return (
-      <div className="grid gap-4">
-        <Card title="Candidate Documents" icon={<FileText className="h-4 w-4" />}>
-          <div className="py-4 text-center text-sm text-gray-500">
-            Loading documents…
-          </div>
-        </Card>
-      </div>
-    );
-  }
+  }, [activeCandidate?.id]);
 
   return (
     <div className="grid gap-4">
       <Card title="Candidate Documents" icon={<FileText className="h-4 w-4" />}>
+        {candidates.length > 0 && onChangeCandidate ? (
+          <label className="mb-4 block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Candidate</div>
+            <select
+              value={activeCandidate?.id || ""}
+              onChange={(e) => onChangeCandidate(e.target.value)}
+              className="w-full max-w-md rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.id})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
         <div className="mb-3 text-sm text-gray-700">
-          Candidate: <span className="font-semibold">{candidate?.name}</span>
-          {candidate?.email ? (
-            <span className="ml-2 text-gray-500">({candidate.email})</span>
+          Candidate: <span className="font-semibold">{activeCandidate?.name}</span>
+          {activeCandidate?.email ? (
+            <span className="ml-2 text-gray-500">({activeCandidate.email})</span>
           ) : null}
         </div>
 
-        {error ? (
+        {loading ? (
+          <div className="py-4 text-center text-sm text-gray-500">
+            Loading documents…
+          </div>
+        ) : null}
+
+        {!loading && error ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
 
-        {docs?.documents?.length ? (
+        {!loading && docs?.documents?.length ? (
           <div className="space-y-2">
             {docs.documents.map((doc) => (
               <div
@@ -111,11 +135,11 @@ export default function Documents({ candidate, onSubmit }) {
               </div>
             ))}
           </div>
-        ) : (
+        ) : !loading ? (
           <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-600">
             No documents uploaded yet. Candidate can upload from their portal.
           </div>
-        )}
+        ) : null}
 
         <div className="mt-4 flex justify-end">
           <button

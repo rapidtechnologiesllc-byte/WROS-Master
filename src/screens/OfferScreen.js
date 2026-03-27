@@ -1,10 +1,17 @@
 // Offer creation and negotiation view (integrated with backend API).
+import { useMemo, useState } from "react";
 import { BadgeDollarSign } from "lucide-react";
 import { Button, Card, Input, Select, StatusBadge } from "../components/ui";
 
 export default function OfferScreen({
   candidate,
   job,
+  candidates = [],
+  jobs = [],
+  selectedCandidateId = "",
+  selectedJobId = "",
+  onChangeCandidate,
+  onChangeJob,
   offer,
   setOffer,
   users = [],
@@ -18,6 +25,43 @@ export default function OfferScreen({
   loading,
   error
 }) {
+  const normalizeText = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const findMatchingJobForCandidate = (candidateJobTitle) => {
+    const normalizedCandidateJob = normalizeText(candidateJobTitle);
+    if (!normalizedCandidateJob || !Array.isArray(jobs) || !jobs.length) return null;
+    const exact = jobs.find(
+      (j) => normalizeText(j?.title) === normalizedCandidateJob
+    );
+    if (exact) return exact;
+    const contains = jobs.find((j) => {
+      const normalizedJobTitle = normalizeText(j?.title);
+      return (
+        normalizedJobTitle.includes(normalizedCandidateJob) ||
+        normalizedCandidateJob.includes(normalizedJobTitle)
+      );
+    });
+    return contains || null;
+  };
+
+  const [selectionNotice, setSelectionNotice] = useState("");
+
+  const activeCandidate = useMemo(() => {
+    return (
+      candidates.find((c) => String(c.id) === String(selectedCandidateId || candidate?.id)) ||
+      candidate
+    );
+  }, [candidates, selectedCandidateId, candidate]);
+
+  const activeJob = useMemo(() => {
+    return jobs.find((j) => String(j.id) === String(selectedJobId || job?.id)) || job;
+  }, [jobs, selectedJobId, job]);
+
   const isPending = existingOffer?.offer_status === "Pending";
   const canEdit = !existingOffer || isPending;
 
@@ -42,20 +86,76 @@ export default function OfferScreen({
           </div>
         ) : null}
 
+        {candidates.length > 0 && jobs.length > 0 ? (
+          <div className="mb-4 grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-gray-700">Candidate</div>
+              <select
+                value={activeCandidate?.id || ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  onChangeCandidate?.(value);
+                  const nextCandidate = candidates.find((c) => String(c.id) === String(value));
+                  const matchedJob = findMatchingJobForCandidate(nextCandidate?.jobTitle);
+                  if (matchedJob) {
+                    onChangeJob?.(matchedJob.id);
+                    setSelectionNotice(`Auto-selected job "${matchedJob.title}" for ${nextCandidate?.name}.`);
+                  } else if (nextCandidate?.jobTitle) {
+                    setSelectionNotice(
+                      `No matching job for job title "${nextCandidate.jobTitle}".`
+                    );
+                  } else {
+                    setSelectionNotice("");
+                  }
+                }}
+                className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+              >
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.id})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-gray-700">Job</div>
+              <select
+                value={activeJob?.id || ""}
+                onChange={(event) => {
+                  onChangeJob?.(event.target.value);
+                  setSelectionNotice("");
+                }}
+                className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+              >
+                {jobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.title} ({j.id})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectionNotice ? (
+              <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                {selectionNotice}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border bg-gray-50 p-4">
             <div className="text-xs font-semibold text-gray-500">Candidate</div>
             <div className="text-sm font-extrabold tracking-tight">
-              {candidate?.name}
+              {activeCandidate?.name}
             </div>
-            <div className="mt-1 text-xs text-gray-600">{candidate?.email}</div>
+            <div className="mt-1 text-xs text-gray-600">{activeCandidate?.email}</div>
           </div>
           <div className="rounded-2xl border bg-gray-50 p-4">
             <div className="text-xs font-semibold text-gray-500">Job</div>
             <div className="text-sm font-extrabold tracking-tight">
-              {job?.title}
+              {activeJob?.title}
             </div>
-            <div className="mt-1 text-xs text-gray-600">{job?.location}</div>
+            <div className="mt-1 text-xs text-gray-600">{activeJob?.location}</div>
           </div>
 
           {users?.length > 0 ? (
@@ -63,13 +163,13 @@ export default function OfferScreen({
               <div className="grid gap-3 md:grid-cols-2">
                 <Select
                   label="Hiring Manager"
-                  value={offer?.hiringManagerId || job?.hiringManager || ""}
+                  value={offer?.hiringManagerId || activeJob?.hiringManager || ""}
                   onChange={(v) => setOffer((o) => ({ ...o, hiringManagerId: v }))}
                   options={["", ...users.map((u) => u.user_id)]}
                 />
                 <Select
                   label="Reporting Manager"
-                  value={offer?.reportingManagerId || offer?.hiringManagerId || job?.hiringManager || ""}
+                  value={offer?.reportingManagerId || offer?.hiringManagerId || activeJob?.hiringManager || ""}
                   onChange={(v) => setOffer((o) => ({ ...o, reportingManagerId: v }))}
                   options={["", ...users.map((u) => u.user_id)]}
                 />
@@ -81,7 +181,7 @@ export default function OfferScreen({
             <div className="grid gap-3">
               <Input
                 label="Position"
-                value={offer?.position || job?.title || ""}
+                value={offer?.position || activeJob?.title || ""}
                 onChange={(v) => setOffer((o) => ({ ...o, position: v }))}
                 disabled={!canEdit}
               />

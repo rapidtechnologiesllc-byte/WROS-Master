@@ -10,8 +10,7 @@ import {
   getHrMe,
   updateHrUser
 } from "../services/api/users";
-
-const ROLE_OPTIONS = ["", "ADMIN", "HR", "RECRUITER"];
+import { listRoles } from "../services/api/rbac";
 
 function safeText(v) {
   return v == null ? "" : String(v);
@@ -23,6 +22,7 @@ export default function HrUserManagement() {
 
   const [users, setUsers] = useState([]);
   const [me, setMe] = useState(null);
+  const [rbacRoles, setRbacRoles] = useState([]);
 
   const [busy, setBusy] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -31,12 +31,12 @@ export default function HrUserManagement() {
     user_name: "",
     user_email: "",
     user_password: "",
-    user_role: "HR"
+    user_role: ""
   });
 
   const [updateForm, setUpdateForm] = useState({
     user_name: "",
-    user_role: "HR"
+    user_role: ""
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -47,14 +47,28 @@ export default function HrUserManagement() {
   const userOptions = useMemo(() => {
     return ["", ...users.map((u) => u.user_id)];
   }, [users]);
+  const roleOptions = useMemo(() => {
+    return ["", ...rbacRoles.map((r) => String(r.name || "").trim()).filter(Boolean)];
+  }, [rbacRoles]);
 
   const refresh = async () => {
     setLoading(true);
     setError("");
     try {
-      const [usersRes, meRes] = await Promise.all([getAllUsers(), getHrMe()]);
+      const [usersRes, meRes, rolesRes] = await Promise.all([
+        getAllUsers(),
+        getHrMe(),
+        listRoles()
+      ]);
       setUsers(Array.isArray(usersRes?.users) ? usersRes.users : []);
       setMe(meRes || null);
+      const nextRoles = Array.isArray(rolesRes) ? rolesRes : [];
+      setRbacRoles(nextRoles);
+      const firstRoleName = String(nextRoles[0]?.name || "").trim();
+      if (firstRoleName) {
+        setCreateForm((prev) => (prev.user_role ? prev : { ...prev, user_role: firstRoleName }));
+        setUpdateForm((prev) => (prev.user_role ? prev : { ...prev, user_role: firstRoleName }));
+      }
     } catch (err) {
       setError(err.message || "Failed to load users.");
     } finally {
@@ -71,9 +85,9 @@ export default function HrUserManagement() {
     if (!u) return;
     setUpdateForm({
       user_name: safeText(u.user_name),
-      user_role: safeText(u.user_role) || "HR"
+      user_role: safeText(u.user_role) || roleOptions[1] || ""
     });
-  }, [selectedUserId, users]);
+  }, [selectedUserId, users, roleOptions]);
 
   const handleCreate = async () => {
     if (!createForm.user_name.trim()) return setError("User name is required.");
@@ -85,7 +99,12 @@ export default function HrUserManagement() {
     setError("");
     try {
       await createHrUser(createForm);
-      setCreateForm({ user_name: "", user_email: "", user_password: "", user_role: "HR" });
+      setCreateForm({
+        user_name: "",
+        user_email: "",
+        user_password: "",
+        user_role: roleOptions[1] || ""
+      });
       setSelectedUserId("");
       await refresh();
     } catch (err) {
@@ -213,7 +232,7 @@ export default function HrUserManagement() {
               label="Role"
               value={createForm.user_role}
               onChange={(v) => setCreateForm((f) => ({ ...f, user_role: v }))}
-              options={ROLE_OPTIONS}
+              options={roleOptions}
             />
             <div className="flex justify-end">
               <Button onClick={handleCreate} disabled={busy}>
@@ -241,7 +260,7 @@ export default function HrUserManagement() {
               label="Role"
               value={updateForm.user_role}
               onChange={(v) => setUpdateForm((f) => ({ ...f, user_role: v }))}
-              options={ROLE_OPTIONS}
+              options={roleOptions}
               disabled={!selectedUserId}
             />
             <div className="flex justify-end">
