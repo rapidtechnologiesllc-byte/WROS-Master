@@ -12,6 +12,9 @@ import {
   deleteBusinessUnit,
   deletePermission,
   deleteRole,
+  getUserBusinessUnit,
+  getUserPermissionSummary,
+  getUserRole,
   getRoleById,
   listBusinessUnits,
   listPermissions,
@@ -41,6 +44,11 @@ export default function RbacSettingsScreen() {
   const [selectedBuId, setSelectedBuId] = useState("");
 
   const [roleDetail, setRoleDetail] = useState(null);
+  const [userPermissionSummary, setUserPermissionSummary] = useState(null);
+  const [userRoleDetail, setUserRoleDetail] = useState(null);
+  const [userBusinessUnitDetail, setUserBusinessUnitDetail] = useState(null);
+  const [userDetailNotice, setUserDetailNotice] = useState("");
+  const [userBuUpdateId, setUserBuUpdateId] = useState("");
 
   const [newRole, setNewRole] = useState({ name: "", description: "" });
   const [newPermission, setNewPermission] = useState({
@@ -651,6 +659,146 @@ export default function RbacSettingsScreen() {
                   Revoke User Role
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="User RBAC Details">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border bg-gray-50 p-4">
+            <Select
+              label="User"
+              value={selectedUserId}
+              onChange={setSelectedUserId}
+              options={userOptions}
+            />
+            <Select
+              label="Update User Business Unit"
+              value={userBuUpdateId}
+              onChange={setUserBuUpdateId}
+              options={buOptions}
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!selectedUserId) return;
+                  setBusy(true);
+                  setError("");
+                  setUserDetailNotice("");
+                  try {
+                    const summary = await getUserPermissionSummary(selectedUserId);
+                    setUserPermissionSummary(summary || null);
+                    setUserDetailNotice("Permission summary loaded.");
+                  } catch (err) {
+                    setError(err.message || "Failed to load user permissions.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy || !selectedUserId}
+              >
+                Load Permission Summary
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!selectedUserId) return;
+                  setBusy(true);
+                  setError("");
+                  setUserDetailNotice("");
+                  try {
+                    const role = await getUserRole(selectedUserId);
+                    setUserRoleDetail(role || null);
+                    setUserDetailNotice("User role loaded.");
+                  } catch (err) {
+                    setUserRoleDetail(null);
+                    setError(err.message || "Failed to load user role.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy || !selectedUserId}
+              >
+                Load User Role
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!selectedUserId) return;
+                  setBusy(true);
+                  setError("");
+                  setUserDetailNotice("");
+                  try {
+                    const bu = await getUserBusinessUnit(selectedUserId);
+                    setUserBusinessUnitDetail(bu || null);
+                    setUserBuUpdateId(String(bu?.id || ""));
+                    setUserDetailNotice("User business unit loaded.");
+                  } catch (err) {
+                    setUserBusinessUnitDetail(null);
+                    setError(err.message || "Failed to load user business unit.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy || !selectedUserId}
+              >
+                Load User Business Unit
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedUserId || !userBuUpdateId) return;
+                  setBusy(true);
+                  setError("");
+                  setNotice("");
+                  setUserDetailNotice("");
+                  try {
+                    await updateUserBusinessUnit(selectedUserId, Number(userBuUpdateId));
+                    const bu = await getUserBusinessUnit(selectedUserId);
+                    setUserBusinessUnitDetail(bu || null);
+                    await loadAll();
+                    setNotice("User business unit updated.");
+                  } catch (err) {
+                    setError(err.message || "Failed to update user business unit.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy || !selectedUserId || !userBuUpdateId}
+              >
+                Update User BU
+              </Button>
+            </div>
+            {userDetailNotice ? (
+              <div className="mt-2 text-xs text-gray-600">{userDetailNotice}</div>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border bg-white p-4 text-sm">
+            <div className="mb-2 font-semibold">Loaded User Details</div>
+            <div className="space-y-2 text-xs text-gray-700">
+              <div>
+                <span className="font-semibold">Role:</span>{" "}
+                {userRoleDetail ? `${userRoleDetail.name} (${userRoleDetail.id})` : "-"}
+              </div>
+              <div>
+                <span className="font-semibold">Business Unit:</span>{" "}
+                {userBusinessUnitDetail
+                  ? `${userBusinessUnitDetail.name} (${userBusinessUnitDetail.id})`
+                  : "-"}
+              </div>
+              <div>
+                <span className="font-semibold">Permissions:</span>{" "}
+                {userPermissionSummary?.permissions?.length || 0}
+              </div>
+              {userPermissionSummary?.permissions?.length ? (
+                <ul className="max-h-40 list-disc overflow-auto pl-5">
+                  {userPermissionSummary.permissions.map((permission) => (
+                    <li key={permission}>{permission}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           </div>
         </div>

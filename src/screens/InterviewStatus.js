@@ -3,8 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { Button, Card, Input, Select, StatusBadge, Table, TextArea } from "../components/ui";
 import {
+  deleteInterviewFeedback,
   deleteInterview,
+  deletePanelMember,
   deleteInterviewPanel,
+  getFeedbackById,
+  getInterviewById,
   getInterviewPanel,
   getInterviewPanels,
   getPanelMembers,
@@ -82,6 +86,8 @@ export default function InterviewStatus({
     });
   }, [isUpdatingFeedback]);
   const [feedbackNotice, setFeedbackNotice] = useState("");
+  const [interviewDetail, setInterviewDetail] = useState(null);
+  const [feedbackDetail, setFeedbackDetail] = useState(null);
   const [meetings, setMeetings] = useState([]);
   const [serviceMeetings, setServiceMeetings] = useState([]);
   const [serviceEmail, setServiceEmail] = useState("");
@@ -211,10 +217,31 @@ export default function InterviewStatus({
                 {panelMembers.length === 0 ? (
                   <div className="text-xs text-gray-500">No members found.</div>
                 ) : (
-                  <ul className="mt-1 list-disc pl-4">
+                  <ul className="mt-1 space-y-1">
                     {panelMembers.map((m) => (
-                      <li key={m.id}>
-                        {m.interviewer_name} ({m.interviewer_id})
+                      <li key={m.id} className="flex items-center justify-between gap-2">
+                        <span>
+                          {m.interviewer_name} ({m.interviewer_id})
+                        </span>
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            const ok = window.confirm(
+                              `Remove member ${m.interviewer_name || m.interviewer_id}?`
+                            );
+                            if (!ok) return;
+                            try {
+                              await deletePanelMember(m.id);
+                              const members = await getPanelMembers(panelDetails.id);
+                              setPanelMembers(members || []);
+                              setPanelNotice("Panel member removed.");
+                            } catch (err) {
+                              setPanelNotice(err.message || "Failed to remove panel member.");
+                            }
+                          }}
+                        >
+                          Remove
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -312,6 +339,20 @@ export default function InterviewStatus({
                   Feedback
                 </Button>
                 <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      const detail = await getInterviewById(i.id);
+                      setInterviewDetail(detail || null);
+                      setFeedbackNotice("");
+                    } catch (err) {
+                      setFeedbackNotice(err.message || "Failed to load interview details.");
+                    }
+                  }}
+                >
+                  View Details
+                </Button>
+                <Button
                   variant="danger"
                   onClick={async () => {
                     const ok = window.confirm(`Delete interview ${i.id}?`);
@@ -332,6 +373,20 @@ export default function InterviewStatus({
             )
           }))}
         />
+        {interviewDetail ? (
+          <div className="mt-3 rounded-xl border bg-slate-50 p-3 text-xs text-gray-700">
+            <div className="mb-1 font-semibold">Interview Detail</div>
+            <div>ID: {interviewDetail.id}</div>
+            <div>Panel ID: {interviewDetail.panel_id}</div>
+            <div>Candidate ID: {interviewDetail.candidate_id}</div>
+            <div>Start: {formatDate(interviewDetail.start_time)}</div>
+            <div>End: {formatDate(interviewDetail.end_time)}</div>
+            <div>Status: {interviewDetail.status || "-"}</div>
+            <div>
+              Meeting: {interviewDetail.meeting_link ? String(interviewDetail.meeting_link) : "-"}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card title="Interview Feedback" icon={<ClipboardCheck className="h-4 w-4" />}>
@@ -461,7 +516,63 @@ export default function InterviewStatus({
           <Button variant="secondary" onClick={resetFeedback}>
             Clear
           </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              if (!feedbackForm.feedbackId) {
+                setFeedbackNotice("Feedback ID is required.");
+                return;
+              }
+              try {
+                const detail = await getFeedbackById(feedbackForm.feedbackId);
+                setFeedbackDetail(detail || null);
+                setFeedbackNotice("Feedback loaded.");
+              } catch (err) {
+                setFeedbackNotice(err.message || "Failed to load feedback detail.");
+              }
+            }}
+          >
+            Load Feedback By ID
+          </Button>
+          <Button
+            variant="danger"
+            onClick={async () => {
+              if (!feedbackForm.feedbackId) {
+                setFeedbackNotice("Feedback ID is required.");
+                return;
+              }
+              const ok = window.confirm(`Delete feedback ${feedbackForm.feedbackId}?`);
+              if (!ok) return;
+              try {
+                await deleteInterviewFeedback(feedbackForm.feedbackId);
+                setFeedbackDetail(null);
+                setFeedbackNotice("Feedback deleted.");
+                setFeedbackForm((prev) => ({ ...prev, feedbackId: "" }));
+                if (onRefreshInterviews) {
+                  await onRefreshInterviews();
+                }
+              } catch (err) {
+                setFeedbackNotice(err.message || "Failed to delete feedback.");
+              }
+            }}
+          >
+            Delete Feedback By ID
+          </Button>
         </div>
+        {feedbackDetail ? (
+          <div className="mt-3 rounded-xl border bg-slate-50 p-3 text-xs text-gray-700">
+            <div className="mb-1 font-semibold">Feedback Detail</div>
+            <div>ID: {feedbackDetail.id}</div>
+            <div>Interview ID: {feedbackDetail.interview_id}</div>
+            <div>Interviewer ID: {feedbackDetail.interviewer_id}</div>
+            <div>Technical: {feedbackDetail.technical_score}</div>
+            <div>Communication: {feedbackDetail.communication_score}</div>
+            <div>Problem Solving: {feedbackDetail.problem_solving_score}</div>
+            <div>Culture Fit: {feedbackDetail.culture_fit_score}</div>
+            <div>Recommendation: {feedbackDetail.recommendation || "-"}</div>
+            <div>Comments: {feedbackDetail.comments || "-"}</div>
+          </div>
+        ) : null}
         {feedbackNotice ? (
           <div className="mt-2 text-xs text-gray-500">{feedbackNotice}</div>
         ) : null}
