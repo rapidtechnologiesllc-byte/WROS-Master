@@ -47,7 +47,8 @@ export default function MatchingJobs({ candidate, jobs, onApply }) {
                   <StatusBadge status={job.status} />
                 </div>
                 <div className="mt-1 text-xs text-gray-600">
-                  {job.dept} • {job.location} • HM: {job.hiringManager}
+                  {job.dept} • {job.location} • HM:{" "}
+                  {job.hiringManagerName || job.hiringManager}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {job.skills.map((s) => (

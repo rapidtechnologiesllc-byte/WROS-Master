@@ -1,39 +1,83 @@
 // HR view of assigned candidates and interviews.
 import { useEffect, useState } from "react";
 import { UserCheck, Calendar } from "lucide-react";
-import { Card, Table, StatusBadge } from "../components/ui";
+import { Button, Card, Table, StatusBadge } from "../components/ui";
 import { getAssignedCandidates, getAssignedInterviews } from "../services/api/users";
+import { getAllUsers } from "../services/api/users";
+import { createCandidateAssignment, getAllCandidates } from "../services/api/candidates";
 
 export default function AssignmentsScreen() {
   const [candidates, setCandidates] = useState([]);
   const [interviews, setInterviews] = useState([]);
+  const [allCandidates, setAllCandidates] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [candidateId, setCandidateId] = useState("");
+  const [hiringManagerId, setHiringManagerId] = useState("");
+  const [reportingManagerId, setReportingManagerId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formNotice, setFormNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const [candRes, intRes] = await Promise.all([
-          getAssignedCandidates(),
-          getAssignedInterviews()
-        ]);
-        if (isMounted) {
-          setCandidates(Array.isArray(candRes) ? candRes : []);
-          setInterviews(Array.isArray(intRes) ? intRes : []);
-        }
-      } catch (err) {
-        if (isMounted)
-          setError(err.message || "Failed to load assignments.");
-      } finally {
-        if (isMounted) setLoading(false);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [candRes, intRes, allCandidatesRes, usersRes] = await Promise.all([
+        getAssignedCandidates(),
+        getAssignedInterviews(),
+        getAllCandidates(),
+        getAllUsers()
+      ]);
+      setCandidates(Array.isArray(candRes) ? candRes : []);
+      setInterviews(Array.isArray(intRes) ? intRes : []);
+      const nextAllCandidates = Array.isArray(allCandidatesRes?.candidates)
+        ? allCandidatesRes.candidates
+        : [];
+      const nextUsers = Array.isArray(usersRes?.users) ? usersRes.users : [];
+      setAllCandidates(nextAllCandidates);
+      setAllUsers(nextUsers);
+      if (!candidateId && nextAllCandidates.length) {
+        setCandidateId(nextAllCandidates[0].candidate_id);
       }
-    };
+      if (!hiringManagerId && nextUsers.length) {
+        setHiringManagerId(nextUsers[0].user_id);
+      }
+      if (!reportingManagerId && nextUsers.length) {
+        setReportingManagerId(nextUsers[0].user_id);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load assignments.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     load();
-    return () => { isMounted = false; };
   }, []);
+
+  const handleCreateAssignment = async () => {
+    if (!candidateId) {
+      setFormNotice("Please select a candidate.");
+      return;
+    }
+    setSubmitting(true);
+    setFormNotice("");
+    try {
+      await createCandidateAssignment({
+        candidateId,
+        hiringManagerId: hiringManagerId || null,
+        reportingManagerId: reportingManagerId || null
+      });
+      setFormNotice("Assignment created successfully.");
+      await load();
+    } catch (err) {
+      setFormNotice(err.message || "Failed to create assignment.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -55,6 +99,60 @@ export default function AssignmentsScreen() {
             {error}
           </div>
         ) : null}
+        <div className="mb-4 grid gap-3 rounded-xl border bg-slate-50 p-3 md:grid-cols-4">
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Candidate</div>
+            <select
+              value={candidateId}
+              onChange={(event) => setCandidateId(event.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {allCandidates.map((candidate) => (
+                <option key={candidate.candidate_id} value={candidate.candidate_id}>
+                  {candidate.candidate_name} ({candidate.candidate_id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Hiring Manager</div>
+            <select
+              value={hiringManagerId}
+              onChange={(event) => setHiringManagerId(event.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              <option value="">None</option>
+              {allUsers.map((user) => (
+                <option key={`hm-${user.user_id}`} value={user.user_id}>
+                  {user.user_name || user.user_email} ({user.user_id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Reporting Manager</div>
+            <select
+              value={reportingManagerId}
+              onChange={(event) => setReportingManagerId(event.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              <option value="">None</option>
+              {allUsers.map((user) => (
+                <option key={`rm-${user.user_id}`} value={user.user_id}>
+                  {user.user_name || user.user_email} ({user.user_id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-end">
+            <Button onClick={handleCreateAssignment} disabled={submitting}>
+              {submitting ? "Assigning..." : "Create Assignment"}
+            </Button>
+          </div>
+          {formNotice ? (
+            <div className="text-xs text-gray-600 md:col-span-4">{formNotice}</div>
+          ) : null}
+        </div>
         {candidates.length ? (
           <Table
             columns={[

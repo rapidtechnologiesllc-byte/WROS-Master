@@ -26,10 +26,17 @@ import Verification from "./screens/Verification";
 import { getAllInterviews, updateInterview } from "./services/api/interviews";
 import {
   getAllCandidates,
+  getCandidateById,
   updateCandidate,
   deleteCandidate
 } from "./services/api/candidates";
-import { deleteJob, getAllJobs, updateJob, postJobOnLinkedIn } from "./services/api/jobs";
+import {
+  approveJob,
+  deleteJob,
+  getAllJobs,
+  updateJob,
+  postJobOnLinkedIn
+} from "./services/api/jobs";
 import { applyForJob } from "./services/api/jobs";
 import {
   createOfferLetter,
@@ -58,6 +65,7 @@ const mapCandidateFromApi = (c) => {
     phone: c.candidate_mobile || "",
     skills: parseSkills(c.candidate_skills),
     status: c.candidate_is_verified ? "Verified" : "New",
+    jobTitle: c.candidate_job_title || "",
 
     // Extra fields for edit form prefill (best-effort).
     gender: c.candidate_gender || "",
@@ -73,7 +81,16 @@ const mapCandidateFromApi = (c) => {
   };
 };
 
-const mapJobFromApi = (j) => ({
+const mapJobFromApi = (j, users = []) => {
+  const usersList = Array.isArray(users) ? users : [];
+  const hmId = j?.hiring_manager_id || "";
+  const hmUser = usersList.find(
+    (u) => String(u?.user_id || "") === String(hmId || "")
+  );
+  const hiringManagerName =
+    hmUser?.user_name || hmUser?.user_email || (hmId ? String(hmId) : "");
+
+  return ({
   id: j.job_id,
   title: j.job_title,
   dept: "",
@@ -82,13 +99,15 @@ const mapJobFromApi = (j) => ({
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
-  hiringManager: j.hiring_manager_id || "",
+  hiringManager: hmId,
+  hiringManagerName,
   status: (() => {
     const raw = String(j.job_status || "").trim().toLowerCase();
     if (raw === "active") return "Open";
     if (raw === "public") return "Public";
     if (raw === "draft") return "Draft";
     if (raw === "submitted") return "Submitted";
+    if (raw === "pending_approval") return "Pending Approval";
     if (raw === "closed") return "Closed";
     // Keep unknown statuses as-is (but preserve original casing from API if possible).
     return j.job_status || "Draft";
@@ -100,7 +119,8 @@ const mapJobFromApi = (j) => ({
   startDate: j.start_date || "",
   endDate: j.end_date || "",
   jobDescription: j.job_description || ""
-});
+  });
+};
 
 const normalizeJobStatusForApi = (uiStatus) => {
   const raw = String(uiStatus || "").trim();
@@ -228,6 +248,8 @@ export default function App() {
     candidates[0]?.id || ""
   );
   const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
+  const [jobDetailsMode, setJobDetailsMode] = useState("view");
+  const [jobCreateMode, setJobCreateMode] = useState("create");
 
   const selectedCandidate = useMemo(
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
@@ -244,12 +266,12 @@ export default function App() {
 
   const refreshJobs = useCallback(async () => {
     const refreshed = await getAllJobs();
-    const mappedJobs = (refreshed?.jobs || []).map(mapJobFromApi);
+    const mappedJobs = (refreshed?.jobs || []).map((j) => mapJobFromApi(j, users));
     setJobs(mappedJobs);
     if (!selectedJobId && mappedJobs.length) {
       setSelectedJobId(mappedJobs[0].id);
     }
-  }, [selectedJobId]);
+  }, [selectedJobId, users]);
 
   const mapInterviews = useCallback((interviewRes) => {
     return (interviewRes || []).map((i) => ({
@@ -311,7 +333,9 @@ export default function App() {
           mapCandidateFromApi
         );
 
-        const mappedJobs = (jobRes?.jobs || []).map(mapJobFromApi);
+        const mappedJobs = (jobRes?.jobs || []).map((j) =>
+          mapJobFromApi(j, usersRes?.users || [])
+        );
 
         const mappedInterviews = mapInterviews(interviewRes);
 
@@ -450,6 +474,10 @@ export default function App() {
               notify("Candidate", err.message || "Failed to delete candidate.");
             }
           }}
+          onFetchCandidateById={async (candidateId) => {
+            const res = await getCandidateById(candidateId);
+            return mapCandidateFromApi(res || {});
+          }}
         />
       )}
 
@@ -468,9 +496,18 @@ export default function App() {
       {screen === "jobs" && (
         <JobsOverview
           jobs={jobs}
-          onCreate={() => safeSetScreen("jobCreate")}
+          onCreate={() => {
+            setJobCreateMode("create");
+            safeSetScreen("jobCreate");
+          }}
+          onViewJob={(jobId) => {
+            setSelectedJobId(jobId);
+            setJobCreateMode("view");
+            safeSetScreen("jobCreate");
+          }}
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
+            setJobDetailsMode("edit");
             safeSetScreen("jobDetails");
           }}
           onPostToLinkedIn={async (jobId) => {
@@ -479,6 +516,15 @@ export default function App() {
               notify("LinkedIn", res?.message || "Job posted to LinkedIn.");
             } catch (err) {
               notify("LinkedIn", err.message || "Failed to post to LinkedIn.");
+            }
+          }}
+          onApproveJob={async (jobId) => {
+            try {
+              const response = await approveJob(jobId);
+              await refreshJobs();
+              notify("Job", response?.message || `Approved job ${jobId}.`);
+            } catch (err) {
+              notify("Job", err.message || "Failed to approve job.");
             }
           }}
           onDeleteJob={
@@ -501,9 +547,18 @@ export default function App() {
 
       {screen === "activeJobs" && (
         <ActiveJobs
-          onCreate={() => safeSetScreen("jobCreate")}
+          onCreate={() => {
+            setJobCreateMode("create");
+            safeSetScreen("jobCreate");
+          }}
+          onViewJob={(jobId) => {
+            setSelectedJobId(jobId);
+            setJobCreateMode("view");
+            safeSetScreen("jobCreate");
+          }}
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
+            setJobDetailsMode("edit");
             safeSetScreen("jobDetails");
           }}
           onPostToLinkedIn={async (jobId) => {
@@ -540,6 +595,8 @@ export default function App() {
 
       {screen === "jobCreate" && (
         <JobCreate
+          mode={jobCreateMode}
+          initialJob={jobCreateMode === "view" ? selectedJob : null}
           onSave={(j) => {
             setJobs((prev) => [j, ...prev]);
             setSelectedJobId(j.id);
@@ -552,6 +609,7 @@ export default function App() {
       {screen === "jobDetails" && selectedJob && (
         <JobDetails
           job={selectedJob}
+          mode={jobDetailsMode}
           onUpdate={async (next) => {
             try {
               const payload = {
@@ -564,9 +622,14 @@ export default function App() {
                 company_name: next.companyClient,
                 contact_person: next.contactPerson,
                 job_status: normalizeJobStatusForApi(next.jobStatus || next.status),
-                no_of_positions: next.noOfPositions,
-                start_date: next.startDate,
-                end_date: next.endDate
+                no_of_positions: Number(next.noOfPositions ?? 0),
+                // Only include hiring_manager_id when we have a non-empty value.
+                ...(next.hiringManager || selectedJob?.hiringManager
+                  ? { hiring_manager_id: next.hiringManager || selectedJob?.hiringManager }
+                  : {}),
+                // Only send dates if they have values; backend schema expects Optional[date].
+                ...((next.startDate || "").trim() ? { start_date: next.startDate } : {}),
+                ...((next.endDate || "").trim() ? { end_date: next.endDate } : {})
               };
               await updateJob(selectedJob.id, payload);
               await refreshJobs();

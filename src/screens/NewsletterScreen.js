@@ -4,7 +4,9 @@ import { Mail, Plus } from "lucide-react";
 import { Button, Card, Input, Select, Table, StatusBadge } from "../components/ui";
 import {
   createNewsletter,
+  updateNewsletter,
   getNewsletters,
+  getDispatchedNewsletters,
   getSubscribers,
   scheduleNewsletter,
   sendNewsletterNow,
@@ -23,15 +25,24 @@ export default function NewsletterScreen() {
     subject: "",
     content: ""
   });
+  const [editingNewsletterId, setEditingNewsletterId] = useState("");
   const [subscribeEmail, setSubscribeEmail] = useState("");
+  const [subscribeName, setSubscribeName] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [showDispatchedOnly, setShowDispatchedOnly] = useState(false);
+  const [scheduleInputs, setScheduleInputs] = useState({});
+  const [subscriberPage, setSubscriberPage] = useState(0);
+  const subscriberLimit = 20;
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
       const [nlRes, subRes] = await Promise.all([
-        getNewsletters(),
-        getSubscribers()
+        showDispatchedOnly
+          ? getDispatchedNewsletters()
+          : getNewsletters(0, 100, statusFilter || undefined),
+        getSubscribers(subscriberPage * subscriberLimit, subscriberLimit)
       ]);
       setNewsletters(Array.isArray(nlRes) ? nlRes : []);
       setSubscribers(Array.isArray(subRes) ? subRes : []);
@@ -44,7 +55,7 @@ export default function NewsletterScreen() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [statusFilter, showDispatchedOnly, subscriberPage]);
 
   const handleCreate = async () => {
     if (!createForm.subject?.trim() || !createForm.content?.trim()) {
@@ -53,12 +64,17 @@ export default function NewsletterScreen() {
     }
     setError("");
     try {
-      await createNewsletter(createForm);
+      if (editingNewsletterId) {
+        await updateNewsletter(editingNewsletterId, createForm);
+      } else {
+        await createNewsletter(createForm);
+      }
       setCreateForm({ subject: "", content: "" });
       setShowCreate(false);
+      setEditingNewsletterId("");
       await load();
     } catch (err) {
-      setError(err.message || "Failed to create newsletter.");
+      setError(err.message || "Failed to save newsletter.");
     }
   };
 
@@ -66,8 +82,12 @@ export default function NewsletterScreen() {
     if (!subscribeEmail?.trim()) return;
     setError("");
     try {
-      await subscribeNewsletter({ email: subscribeEmail.trim() });
+      await subscribeNewsletter({
+        email: subscribeEmail.trim(),
+        name: subscribeName.trim() || null
+      });
       setSubscribeEmail("");
+      setSubscribeName("");
       await load();
     } catch (err) {
       setError(err.message || "Failed to subscribe.");
@@ -85,11 +105,12 @@ export default function NewsletterScreen() {
   };
 
   const handleSchedule = async (id) => {
-    const date = prompt("Schedule for (YYYY-MM-DDTHH:mm:ss):");
+    const date = scheduleInputs[id];
     if (!date) return;
     setError("");
     try {
-      await scheduleNewsletter(id, date);
+      await scheduleNewsletter(id, new Date(date).toISOString());
+      setScheduleInputs((prev) => ({ ...prev, [id]: "" }));
       await load();
     } catch (err) {
       setError(err.message || "Failed to schedule.");
@@ -121,7 +142,13 @@ export default function NewsletterScreen() {
         title="Newsletters"
         icon={<Mail className="h-4 w-4" />}
         right={
-          <Button onClick={() => setShowCreate(!showCreate)}>
+          <Button
+            onClick={() => {
+              setEditingNewsletterId("");
+              setCreateForm({ subject: "", content: "" });
+              setShowCreate(!showCreate);
+            }}
+          >
             <Plus className="h-4 w-4" /> Create
           </Button>
         }
@@ -155,15 +182,48 @@ export default function NewsletterScreen() {
               />
             </div>
             <div className="mt-2 flex gap-2">
-              <Button onClick={handleCreate}>Create Draft</Button>
-              <Button variant="secondary" onClick={() => setShowCreate(false)}>
+              <Button onClick={handleCreate}>
+                {editingNewsletterId ? "Update Draft" : "Create Draft"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowCreate(false);
+                  setEditingNewsletterId("");
+                  setCreateForm({ subject: "", content: "" });
+                }}
+              >
                 Cancel
               </Button>
             </div>
           </div>
         ) : null}
 
-        <div className="mb-4 flex gap-2">
+        <div className="mb-4 grid gap-2 md:grid-cols-3">
+          <Select
+            label="Status Filter"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={["", "draft", "scheduled", "sent", "failed"]}
+          />
+          <label className="flex items-center gap-2 text-sm pt-6">
+            <input
+              type="checkbox"
+              checked={showDispatchedOnly}
+              onChange={(e) => setShowDispatchedOnly(e.target.checked)}
+            />
+            Show only dispatched (scheduled/sent)
+          </label>
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          <input
+            type="text"
+            placeholder="Subscriber name (optional)"
+            value={subscribeName}
+            onChange={(e) => setSubscribeName(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm"
+          />
           <input
             type="email"
             placeholder="Subscribe email"
@@ -196,6 +256,30 @@ export default function NewsletterScreen() {
                     <>
                       <Button
                         variant="secondary"
+                        onClick={() => {
+                          setEditingNewsletterId(n.id);
+                          setCreateForm({
+                            subject: n.subject || "",
+                            content: n.content || ""
+                          });
+                          setShowCreate(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <input
+                        type="datetime-local"
+                        value={scheduleInputs[n.id] || ""}
+                        onChange={(e) =>
+                          setScheduleInputs((prev) => ({
+                            ...prev,
+                            [n.id]: e.target.value
+                          }))
+                        }
+                        className="rounded-xl border px-2 py-1 text-xs"
+                      />
+                      <Button
+                        variant="secondary"
                         onClick={() => handleSchedule(n.id)}
                       >
                         Schedule
@@ -223,7 +307,7 @@ export default function NewsletterScreen() {
       <Card title="Subscribers">
         {subscribers.length ? (
           <div className="space-y-1 text-sm">
-            {subscribers.slice(0, 20).map((s) => (
+            {subscribers.map((s) => (
               <div key={s.id} className="flex items-center justify-between gap-2">
                 <span>{s.email}</span>
                 <div className="flex items-center gap-2">
@@ -247,11 +331,23 @@ export default function NewsletterScreen() {
                 </div>
               </div>
             ))}
-            {subscribers.length > 20 ? (
-              <div className="text-xs text-gray-500">
-                +{subscribers.length - 20} more
-              </div>
-            ) : null}
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setSubscriberPage((p) => Math.max(0, p - 1))}
+                disabled={subscriberPage === 0}
+              >
+                Prev
+              </Button>
+              <div className="text-xs text-gray-500">Page {subscriberPage + 1}</div>
+              <Button
+                variant="secondary"
+                onClick={() => setSubscriberPage((p) => p + 1)}
+                disabled={subscribers.length < subscriberLimit}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="text-sm text-gray-600">No subscribers.</div>

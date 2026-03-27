@@ -2,8 +2,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Search, Users } from "lucide-react";
 import { Button, Card, Input, Select, StatusBadge, Table } from "../components/ui";
-import cx from "../utils/cx";
-import { pill } from "../utils/pill";
 import CandidateEditModal from "./CandidateEditModal";
 
 export default function CandidateSearch({
@@ -17,16 +15,23 @@ export default function CandidateSearch({
   onMatchingJobs,
   onInterviewSchedule,
   onUpdateCandidate,
-  onDeleteCandidate
+  onDeleteCandidate,
+  onFetchCandidateById
 }) {
   const [query, setQuery] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editCandidateId, setEditCandidateId] = useState("");
+  const [overrideEditingCandidate, setOverrideEditingCandidate] = useState(null);
 
-  const editingCandidate = useMemo(
-    () => candidates.find((c) => c.id === editCandidateId) || null,
-    [candidates, editCandidateId]
-  );
+  const editingCandidate = useMemo(() => {
+    if (
+      overrideEditingCandidate &&
+      String(overrideEditingCandidate.id || "") === String(editCandidateId || "")
+    ) {
+      return overrideEditingCandidate;
+    }
+    return candidates.find((c) => c.id === editCandidateId) || null;
+  }, [candidates, editCandidateId, overrideEditingCandidate]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return candidates;
@@ -95,16 +100,27 @@ export default function CandidateSearch({
           columns={[
             { key: "name", header: "Name" },
             { key: "contact", header: "Contact" },
-            { key: "skills", header: "Skills" },
+            { key: "jobTitle", header: "Job Title" },
             { key: "status", header: "Status" },
           ]}
           rows={filtered.map((c) => ({
             name: (
               <button
                 className="font-semibold hover:underline"
-                onClick={() => {
+                onClick={async () => {
                   setSelectedCandidateId(c.id);
                   setEditCandidateId(c.id);
+                  setOverrideEditingCandidate(null);
+                  if (onFetchCandidateById) {
+                    try {
+                      const fresh = await onFetchCandidateById(c.id);
+                      if (fresh) {
+                        setOverrideEditingCandidate(fresh);
+                      }
+                    } catch (err) {
+                      // Fall back to list data if detail fetch fails.
+                    }
+                  }
                   setEditModalOpen(true);
                 }}
               >
@@ -117,15 +133,7 @@ export default function CandidateSearch({
                 <div>{c.phone}</div>
               </div>
             ),
-            skills: (
-              <div className="flex flex-wrap gap-1">
-                {c.skills.map((s) => (
-                  <span key={s} className={cx(pill, "border-gray-200 bg-gray-50")}>
-                    {s}
-                  </span>
-                ))}
-              </div>
-            ),
+            jobTitle: c.jobTitle || "-",
             status: <StatusBadge status={c.status} />,
           }))}
         />
@@ -141,6 +149,7 @@ export default function CandidateSearch({
           onClose={() => {
             setEditModalOpen(false);
             setEditCandidateId("");
+            setOverrideEditingCandidate(null);
           }}
           onUpdateCandidate={onUpdateCandidate}
         />

@@ -1,7 +1,7 @@
 // HR create-candidate screen with optional resume upload and email.
 import { useState } from "react";
 import { FileText, Users } from "lucide-react";
-import { createCandidate, createCandidateAssignment } from "../services/api/candidates";
+import { createCandidate } from "../services/api/candidates";
 import { uploadResume } from "../services/api/documents";
 import { getMicrosoftSigninUrl, sendGraphMail } from "../services/api/msgraph";
 import { Button, Card, Input, Select } from "../components/ui";
@@ -10,6 +10,7 @@ import { extractResumeText, inferFieldsFromResumeText } from "../utils/resumeAut
 export default function CandidateCreate({ onBack, onSave }) {
   // These fields map 1:1 to CandidateCreateRequest on the backend.
   const [candidateRole, setCandidateRole] = useState("Candidate");
+  const [candidateJobTitle, setCandidateJobTitle] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -31,6 +32,67 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [sendLoginEmail, setSendLoginEmail] = useState(true);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [educationRows, setEducationRows] = useState([]);
+  const [experienceRows, setExperienceRows] = useState([]);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const inferEducationRows = (text) => {
+    const normalized = String(text || "").replace(/\r/g, "\n");
+    const lines = normalized.split("\n").map((l) => l.trim()).filter(Boolean);
+    const eduStart = lines.findIndex((l) => /^(education|academic|academics)\b/i.test(l));
+    if (eduStart === -1) return [];
+    const windowLines = lines.slice(eduStart + 1, eduStart + 20);
+    const joined = windowLines.join(" ");
+    const degreeMatch = joined.match(
+      /(b\.?\s?tech|m\.?\s?tech|b\.?\s?e|m\.?\s?e|bca|mca|bsc|msc|mba|phd|diploma|bachelor|master)/i
+    );
+    const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
+    const instituteLine = windowLines.find((l) =>
+      /(university|college|institute|school)/i.test(l)
+    );
+    if (!degreeMatch && !instituteLine) return [];
+    const startYear = years[0] || "";
+    const endYear = years.length > 1 ? years[1] : "";
+    return [
+      {
+        education_institute: instituteLine || "",
+        degree: degreeMatch ? degreeMatch[0].toUpperCase().replace(/\s+/g, " ").trim() : "",
+        field_of_study: "",
+        starting_year: startYear,
+        year_of_passing: endYear,
+        percentage: ""
+      }
+    ];
+  };
+
+  const inferExperienceRows = (text) => {
+    const normalized = String(text || "").replace(/\r/g, "\n");
+    const lines = normalized.split("\n").map((l) => l.trim()).filter(Boolean);
+    const expStart = lines.findIndex((l) => /^(experience|work experience|employment)\b/i.test(l));
+    if (expStart === -1) return [];
+    const windowLines = lines.slice(expStart + 1, expStart + 25);
+    const joined = windowLines.join(" ");
+    const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
+    const titleLine = windowLines.find((l) =>
+      /(engineer|developer|analyst|consultant|manager|intern)/i.test(l)
+    );
+    const companyLine = windowLines.find((l) =>
+      /(pvt|llp|inc|corp|technologies|solutions|systems|labs|company)/i.test(l)
+    );
+    if (!titleLine && !companyLine) return [];
+    const startYear = years[0] || "";
+    const endYear = years.length > 1 ? years[1] : "";
+    return [
+      {
+        company_name: companyLine || "",
+        job_title: titleLine || "",
+        start_date: startYear ? `${startYear}-01-01` : "",
+        end_date: endYear ? `${endYear}-12-31` : "",
+        year_of_experience: ""
+      }
+    ];
+  };
 
   const handleResumeFileChange = async (event) => {
     const file = event.target.files?.[0] || null;
@@ -49,6 +111,11 @@ export default function CandidateCreate({ onBack, onSave }) {
       if (fields.skills) setSkills(fields.skills);
       if (fields.experience) setExperience(fields.experience);
       if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
+      // Best-effort defaults for structured sections from resume text.
+      const inferredEducation = inferEducationRows(text);
+      if (inferredEducation.length) setEducationRows(inferredEducation);
+      const inferredExperience = inferExperienceRows(text);
+      if (inferredExperience.length) setExperienceRows(inferredExperience);
       const filled = Object.keys(fields).filter((k) => fields[k]).length;
       setActionNotice(
         filled
@@ -83,6 +150,46 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice("Email is required.");
       return;
     }
+    const filledEducationRows = educationRows.filter((row) =>
+      [
+        row.education_institute,
+        row.degree,
+        row.field_of_study,
+        row.starting_year,
+        row.year_of_passing,
+        row.percentage
+      ].some((v) => String(v || "").trim())
+    );
+    const invalidEducation = filledEducationRows.some((row) =>
+      [
+        row.education_institute,
+        row.degree,
+        row.field_of_study,
+        row.starting_year,
+        row.year_of_passing,
+        row.percentage
+      ].some((v) => !String(v || "").trim())
+    );
+    if (invalidEducation) {
+      setActionNotice("Please complete all education prefill fields or remove incomplete rows.");
+      return;
+    }
+
+    const filledExperienceRows = experienceRows.filter((row) =>
+      [row.company_name, row.job_title, row.start_date, row.end_date, row.year_of_experience].some(
+        (v) => String(v || "").trim()
+      )
+    );
+    const invalidExperience = filledExperienceRows.some((row) =>
+      [row.company_name, row.job_title, row.start_date, row.end_date, row.year_of_experience].some(
+        (v) => !String(v || "").trim()
+      )
+    );
+    if (invalidExperience) {
+      setActionNotice("Please complete all experience prefill fields or remove incomplete rows.");
+      return;
+    }
+
     setActionNotice("");
     setIsSaving(true);
     try {
@@ -90,6 +197,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       const data = await createCandidate({
         candidate_email: email.trim(),
         candidate_role: candidateRole || "Candidate",
+        candidate_job_title: candidateJobTitle || null,
         candidate_first_name: firstName || null,
         candidate_middle_name: middleName || null,
         candidate_last_name: lastName || null,
@@ -104,35 +212,42 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_current_salary: currentSalary || null,
         candidate_current_location: currentLocation || null,
         assigned_hr_manager_id: assignedHrManagerId || null,
-        assigned_report_manager_id: assignedReportManagerId || null
+        assigned_report_manager_id: assignedReportManagerId || null,
+        education_records: filledEducationRows.length
+          ? filledEducationRows.map((row) => ({
+              education_institute: row.education_institute.trim(),
+              degree: row.degree.trim(),
+              field_of_study: row.field_of_study.trim(),
+              starting_year: row.starting_year.trim(),
+              year_of_passing: row.year_of_passing.trim(),
+              percentage: row.percentage.trim(),
+              submitted_at: today,
+              document_is_submitted: false
+            }))
+          : null,
+        experience_records: filledExperienceRows.length
+          ? filledExperienceRows.map((row) => ({
+              company_name: row.company_name.trim(),
+              job_title: row.job_title.trim(),
+              start_date: row.start_date,
+              end_date: row.end_date,
+              year_of_experience: row.year_of_experience.trim(),
+              submitted_at: today,
+              document_is_submitted: false
+            }))
+          : null
       });
       const candidateName = [firstName, middleName, lastName]
         .filter(Boolean)
         .join(" ")
         .trim();
       const createdCandidateId = data?.candidate_id;
-      if (
-        createdCandidateId &&
-        (assignedHrManagerId.trim() || assignedReportManagerId.trim())
-      ) {
-        try {
-          // Optional: assign HR/reporting managers after candidate creation.
-          await createCandidateAssignment({
-            candidateId: createdCandidateId,
-            hiringManagerId: assignedHrManagerId.trim() || null,
-            reportingManagerId: assignedReportManagerId.trim() || null
-          });
-        } catch (assignmentErr) {
-          setActionNotice(
-            assignmentErr.message || "Candidate created, but assignment failed."
-          );
-        }
-      }
       onSave({
         id: createdCandidateId,
         name: candidateName || "New Candidate",
         email,
         phone: mobile,
+        jobTitle: candidateJobTitle || "",
         skills: skills
           .split(",")
           .map((s) => s.trim())
@@ -219,6 +334,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={setCandidateRole}
             options={["Candidate", "Employee", "Contractor"]}
           />
+          <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
           <Input label="Email *" value={email} onChange={setEmail} />
           <Input label="First Name *" value={firstName} onChange={setFirstName} />
           <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
@@ -265,7 +381,200 @@ export default function CandidateCreate({ onBack, onSave }) {
             value={assignedReportManagerId}
             onChange={setAssignedReportManagerId}
           />
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="rounded-xl border bg-slate-50 p-3">
+            <div className="text-sm font-semibold text-slate-800">Education records</div>
+            <div className="mt-3 space-y-3">
+              {educationRows.map((row, idx) => (
+                <div key={`edu-${idx}`} className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2">
+                  <Input
+                    label="Institute"
+                    value={row.education_institute}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, education_institute: v } : r
+                        )
+                      )
+                    }
+                  />
+                  <Input
+                    label="Degree"
+                    value={row.degree}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, degree: v } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    label="Field of Study"
+                    value={row.field_of_study}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, field_of_study: v } : r
+                        )
+                      )
+                    }
+                  />
+                  <Input
+                    label="Starting Year"
+                    value={row.starting_year}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, starting_year: v } : r
+                        )
+                      )
+                    }
+                  />
+                  <Input
+                    label="Year of Passing"
+                    value={row.year_of_passing}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, year_of_passing: v } : r
+                        )
+                      )
+                    }
+                  />
+                  <Input
+                    label="Percentage"
+                    value={row.percentage}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, percentage: v } : r
+                        )
+                      )
+                    }
+                  />
+                  <div className="md:col-span-2 flex justify-end">
+                    <Button
+                      variant="danger"
+                      onClick={() =>
+                        setEducationRows((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    >
+                      Remove Row
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setEducationRows((prev) => [
+                    ...prev,
+                    {
+                      education_institute: "",
+                      degree: "",
+                      field_of_study: "",
+                      starting_year: "",
+                      year_of_passing: "",
+                      percentage: ""
+                    }
+                  ])
+                }
+              >
+                Add Education Row
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-slate-50 p-3">
+            <div className="text-sm font-semibold text-slate-800">Experience records</div>
+            <div className="mt-3 space-y-3">
+              {experienceRows.map((row, idx) => (
+                <div className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2" key={`exp-${idx}`}>
+                  <Input
+                    label="Company Name"
+                    value={row.company_name}
+                    onChange={(v) =>
+                      setExperienceRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, company_name: v } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    label="Job Title"
+                    value={row.job_title}
+                    onChange={(v) =>
+                      setExperienceRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, job_title: v } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    label="Start Date"
+                    type="date"
+                    value={row.start_date}
+                    onChange={(v) =>
+                      setExperienceRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, start_date: v } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    label="End Date"
+                    type="date"
+                    value={row.end_date}
+                    onChange={(v) =>
+                      setExperienceRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, end_date: v } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    label="Years of Experience"
+                    value={row.year_of_experience}
+                    onChange={(v) =>
+                      setExperienceRows((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, year_of_experience: v } : r
+                        )
+                      )
+                    }
+                  />
+                  <div className="md:col-span-2 flex justify-end">
+                    <Button
+                      variant="danger"
+                      onClick={() =>
+                        setExperienceRows((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    >
+                      Remove Row
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setExperienceRows((prev) => [
+                    ...prev,
+                    {
+                      company_name: "",
+                      job_title: "",
+                      start_date: "",
+                      end_date: "",
+                      year_of_experience: ""
+                    }
+                  ])
+                }
+              >
+                Add Experience Row
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={sendLoginEmail}

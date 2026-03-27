@@ -5,8 +5,8 @@ import { Button, Card, Input, Select, StatusBadge, TextArea } from "../component
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
 
-export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate }) {
-  const [isEditing, setIsEditing] = useState(false);
+export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view" }) {
+  const [isEditing, setIsEditing] = useState(mode === "edit");
   const [title, setTitle] = useState(job.title || "");
   const [positionType, setPositionType] = useState(job.positionType || "");
   const [priority, setPriority] = useState(job.priority || "");
@@ -70,6 +70,10 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate }) {
     setHmOneLiner(job.hiringManagerOneLiner || "");
     setInternalJD(job.internalJD || job.jobDescription || "");
   }, [job]);
+
+  useEffect(() => {
+    setIsEditing(mode === "edit");
+  }, [mode]);
 
   const saveEdits = () => {
     const skills = skillsText
@@ -271,9 +275,11 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate }) {
             </>
           ) : (
             <>
-              <Button variant="secondary" onClick={() => setIsEditing(true)}>
-                Edit Job
-              </Button>
+              {mode !== "view" ? (
+                <Button variant="secondary" onClick={() => setIsEditing(true)}>
+                  Edit Job
+                </Button>
+              ) : null}
               <Button variant="secondary" onClick={onGoApproval}>
                 Send to hiring manager (approval)
               </Button>

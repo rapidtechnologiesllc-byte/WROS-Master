@@ -3,10 +3,17 @@ import { getApiBaseUrl } from "./client";
 
 export const getMicrosoftSigninUrl = () => `${getApiBaseUrl()}/msgraph/auth/signin`;
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("hrms_token");
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
+
 export const getGraphMe = async () => {
   // Checks if a Microsoft account is connected.
   const response = await fetch(`${getApiBaseUrl()}/msgraph/me`, {
-    method: "GET"
+    method: "GET",
+    credentials: "include",
+    headers: getAuthHeaders()
   });
 
   let data = null;
@@ -53,7 +60,9 @@ export const scheduleUserMeeting = async ({
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/calendar/schedule?${params.toString()}`,
     {
-      method: "POST"
+      method: "POST",
+      credentials: "include",
+      headers: getAuthHeaders()
     }
   );
 
@@ -108,12 +117,11 @@ export const scheduleTeamsMeeting = async ({
     params.append("attendees", email);
   });
 
-  const token = localStorage.getItem("hrms_token");
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/service/calendar/schedule?${params.toString()}`,
     {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      headers: getAuthHeaders()
     }
   );
 
@@ -136,7 +144,7 @@ export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
   // Lists meetings for the signed-in Microsoft account.
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/calendar/meetings?top=${top}&skip=${skip}`,
-    { method: "GET" }
+    { method: "GET", credentials: "include", headers: getAuthHeaders() }
   );
 
   let data = null;
@@ -170,7 +178,7 @@ export const getServiceCalendarEvents = async ({
     `${getApiBaseUrl()}/msgraph/service/calendar/events/${encodeURIComponent(
       userEmail
     )}?${params.toString()}`,
-    { method: "GET" }
+    { method: "GET", headers: getAuthHeaders() }
   );
 
   let data = null;
@@ -206,9 +214,14 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
   params.set("subject", subject);
   params.set("body_text", bodyText);
 
-  const response = await fetch(`${getApiBaseUrl()}/msgraph/mail/send?${params.toString()}`, {
-    method: "POST"
-  });
+  const response = await fetch(
+    `${getApiBaseUrl()}/msgraph/mail/send?${params.toString()}`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: getAuthHeaders()
+    }
+  );
 
   let data = null;
   try {
@@ -228,7 +241,8 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
 export const testSharepointConnection = async () => {
   // Verifies SharePoint service account configuration.
   const response = await fetch(`${getApiBaseUrl()}/msgraph/sharepoint/test-connection`, {
-    method: "GET"
+    method: "GET",
+    headers: getAuthHeaders()
   });
 
   let data = null;
@@ -249,7 +263,8 @@ export const testSharepointConnection = async () => {
 export const listSharepointDrives = async () => {
   // Lists SharePoint drives to help choose a drive ID.
   const response = await fetch(`${getApiBaseUrl()}/msgraph/sharepoint/list-drives`, {
-    method: "GET"
+    method: "GET",
+    headers: getAuthHeaders()
   });
 
   let data = null;

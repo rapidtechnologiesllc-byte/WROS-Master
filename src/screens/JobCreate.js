@@ -1,10 +1,12 @@
 // Job creation form (simple flow).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Briefcase } from "lucide-react";
 import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
+import { getAllUsers } from "../services/api/users";
 
-export default function JobCreate({ onSave }) {
+export default function JobCreate({ onSave, mode = "create", initialJob = null }) {
+  const isReadOnly = mode === "view";
   const [title, setTitle] = useState("Frontend Engineer");
   const [positionType, setPositionType] = useState("");
   const [priority, setPriority] = useState("");
@@ -24,7 +26,12 @@ export default function JobCreate({ onSave }) {
   const [skills, setSkills] = useState("React, TypeScript");
   const [jobStatus, setJobStatus] = useState("Draft");
   const [noOfPositions, setNoOfPositions] = useState(1);
-  const [hm, setHm] = useState("Sanjay");
+  const [hmInput, setHmInput] = useState("Sanjay");
+  const [hmUserId, setHmUserId] = useState("");
+  const [rmInput, setRmInput] = useState("");
+  const [rmUserId, setRmUserId] = useState("");
+  const [users, setUsers] = useState([]);
+  const [usersBusy, setUsersBusy] = useState(false);
   const [hmOneLiner, setHmOneLiner] = useState("");
   const internalJdTemplate =
     "Overview:\n\nRoles & Responsibilities:\n- \n\nQualifications:\n- ";
@@ -33,6 +40,92 @@ export default function JobCreate({ onSave }) {
   const [actionNotice, setActionNotice] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      setUsersBusy(true);
+      try {
+        const res = await getAllUsers();
+        if (!isMounted) return;
+        setUsers(Array.isArray(res?.users) ? res.users : []);
+      } catch {
+        if (!isMounted) return;
+        setUsers([]);
+      } finally {
+        if (!isMounted) return;
+        setUsersBusy(false);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!initialJob || mode !== "view") return;
+    const parsePay = (value) => {
+      const next = { currency: "USD", frequency: "Annual", amount: "" };
+      if (!value) return next;
+      const parts = String(value).trim().split(/\s+/);
+      if (parts[0] === "USD" || parts[0] === "INR") next.currency = parts[0];
+      if (parts[1] === "Hourly" || parts[1] === "Annual") next.frequency = parts[1];
+      if (parts.length >= 3) next.amount = parts.slice(2).join(" ");
+      return next;
+    };
+    const parsedPay = parsePay(initialJob.payRange || "");
+    setTitle(initialJob.title || "");
+    setPositionType(initialJob.positionType || "");
+    setPriority(initialJob.priority || "");
+    setCompanyClient(initialJob.companyClient || "");
+    setCompanyType(initialJob.companyType || "");
+    setContactPerson(initialJob.contactPerson || "");
+    setDivision(initialJob.division || "");
+    setDept(initialJob.dept || "");
+    setLocation(initialJob.location || "");
+    setExperienceLevel(initialJob.experienceLevel || "");
+    setPayRange(initialJob.payRange || "");
+    setPayCurrency(parsedPay.currency);
+    setPayFrequency(parsedPay.frequency);
+    setPayAmount(parsedPay.amount);
+    setStartDate(initialJob.startDate || "");
+    setEndDate(initialJob.endDate || "");
+    setSkills((initialJob.skills || []).join(", "));
+    setJobStatus(initialJob.jobStatus || initialJob.status || "Draft");
+    setNoOfPositions(initialJob.noOfPositions || 1);
+    setHmInput(initialJob.hiringManager || "");
+    setRmInput(initialJob.reportingManager || "");
+    setHmOneLiner(initialJob.hiringManagerOneLiner || "");
+    setInternalJD(initialJob.internalJD || initialJob.jobDescription || "");
+  }, [initialJob, mode]);
+
+  const hmSuggestions = useMemo(() => {
+    const q = String(hmInput || "").trim().toLowerCase();
+    if (!q) return [];
+    return (users || [])
+      .filter((u) => {
+        const name = String(u?.user_name || "").toLowerCase();
+        const email = String(u?.user_email || "").toLowerCase();
+        return name.includes(q) || email.includes(q);
+      })
+      .slice(0, 8);
+  }, [users, hmInput]);
+
+  const rmSuggestions = useMemo(() => {
+    const q = String(rmInput || "").trim().toLowerCase();
+    if (!q) return [];
+    return (users || [])
+      .filter((u) => {
+        const name = String(u?.user_name || "").toLowerCase();
+        const email = String(u?.user_email || "").toLowerCase();
+        return name.includes(q) || email.includes(q);
+      })
+      .slice(0, 8);
+  }, [users, rmInput]);
+
+  const hiringManagerForApi = hmUserId || String(hmInput || "").trim();
+  const reportingManagerForApi = rmUserId || String(rmInput || "").trim();
 
   const normalizeJobStatusForApi = (uiStatus) => {
     const raw = String(uiStatus || "").trim();
@@ -120,7 +213,11 @@ export default function JobCreate({ onSave }) {
         job_status: normalizeJobStatusForApi(jobStatus),
         no_of_positions: Number(noOfPositions || 0),
         start_date: startDate,
-        end_date: endDate
+        end_date: endDate,
+        // Azure AD (best-effort): if we find a matching user, send user_id.
+        // If not found, we keep showing the typed text; backend may accept either name or id.
+        hiring_manager_id: hiringManagerForApi || null,
+        reporting_manager_id: reportingManagerForApi || null
       });
       const createdId = data?.job_id || newId;
       onSave({
@@ -146,7 +243,8 @@ export default function JobCreate({ onSave }) {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
-        hiringManager: hm,
+        hiringManager: hiringManagerForApi,
+        reportingManager: reportingManagerForApi,
         hiringManagerOneLiner: hmOneLiner,
         internalJD,
         externalJD,
@@ -162,9 +260,10 @@ export default function JobCreate({ onSave }) {
 
   return (
     <div className="grid gap-4">
-      <Card title="Create New Job" icon={<Briefcase className="h-4 w-4" />}>
+      <Card title={isReadOnly ? "View Job" : "Create New Job"} icon={<Briefcase className="h-4 w-4" />}>
+        <fieldset disabled={isReadOnly}>
         <div className="grid gap-3 md:grid-cols-2">
-          <Input label="Job ID" value={newId} onChange={() => {}} />
+          <Input label="Job ID" value={isReadOnly ? (initialJob?.id || newId) : newId} onChange={() => {}} />
           <Input label="Job Title *" value={title} onChange={setTitle} />
           <Select
             label="Position Type"
@@ -251,7 +350,79 @@ export default function JobCreate({ onSave }) {
             type="date"
           />
           <Input label="End Date *" value={endDate} onChange={setEndDate} type="date" />
-          <Input label="Hiring Manager (Azure AD)" value={hm} onChange={setHm} />
+          <div className="md:col-span-2 relative">
+            <Input
+              label="Hiring Manager (Azure AD)"
+              value={hmInput}
+              onChange={(v) => {
+                setHmInput(v);
+                setHmUserId("");
+              }}
+            />
+            {hmSuggestions.length ? (
+              <div className="absolute left-0 right-0 z-10 mt-1 overflow-hidden rounded-xl border bg-white shadow">
+                {hmSuggestions.map((u) => (
+                  <button
+                    key={u.user_id}
+                    type="button"
+                    onClick={() => {
+                      setHmInput(u.user_name || u.user_email || String(u.user_id));
+                      setHmUserId(u.user_id);
+                    }}
+                    className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                  >
+                    <div className="text-sm font-semibold">
+                      {u.user_name || u.user_email}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {u.user_email || u.user_id}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : usersBusy ? (
+              <div className="absolute left-0 right-0 z-10 mt-1 rounded-xl border bg-white px-3 py-2 text-xs text-gray-500 shadow">
+                Searching…
+              </div>
+            ) : null}
+          </div>
+
+          <div className="md:col-span-2 relative">
+            <Input
+              label="Reporting Manager (Azure AD)"
+              value={rmInput}
+              onChange={(v) => {
+                setRmInput(v);
+                setRmUserId("");
+              }}
+            />
+            {rmSuggestions.length ? (
+              <div className="absolute left-0 right-0 z-10 mt-1 overflow-hidden rounded-xl border bg-white shadow">
+                {rmSuggestions.map((u) => (
+                  <button
+                    key={u.user_id}
+                    type="button"
+                    onClick={() => {
+                      setRmInput(u.user_name || u.user_email || String(u.user_id));
+                      setRmUserId(u.user_id);
+                    }}
+                    className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                  >
+                    <div className="text-sm font-semibold">
+                      {u.user_name || u.user_email}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {u.user_email || u.user_id}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : usersBusy ? (
+              <div className="absolute left-0 right-0 z-10 mt-1 rounded-xl border bg-white px-3 py-2 text-xs text-gray-500 shadow">
+                Searching…
+              </div>
+            ) : null}
+          </div>
           <div className="md:col-span-2">
             <Input
               label="Skills (comma separated) *"
@@ -287,20 +458,23 @@ export default function JobCreate({ onSave }) {
             />
           </div>
         </div>
+        </fieldset>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setActionNotice("Draft saved (mock).")}>
-              Save Draft
-            </Button>
-            <Button onClick={() => setActionNotice("Submitted for approval (mock).")}>
-              Submit for Approval
+        {!isReadOnly ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setActionNotice("Draft saved (mock).")}>
+                Save Draft
+              </Button>
+              <Button onClick={() => setActionNotice("Submitted for approval (mock).")}>
+                Submit for Approval
+              </Button>
+            </div>
+            <Button onClick={handleCreateJob} disabled={isSaving}>
+              {isSaving ? "Creating..." : "Create Job"}
             </Button>
           </div>
-          <Button onClick={handleCreateJob} disabled={isSaving}>
-            {isSaving ? "Creating..." : "Create Job"}
-          </Button>
-        </div>
+        ) : null}
         {actionNotice ? (
           <div className="mt-2 text-xs text-gray-500">{actionNotice}</div>
         ) : null}

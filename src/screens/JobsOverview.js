@@ -6,10 +6,13 @@ export default function JobsOverview({
   jobs,
   onCreate,
   onOpenJob,
+  onViewJob,
   onDeleteJob,
-  onPostToLinkedIn
+  onPostToLinkedIn,
+  onApproveJob
 }) {
   const canDelete = Boolean(onDeleteJob);
+  const canApprove = Boolean(onApproveJob);
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;
 
@@ -49,20 +52,41 @@ export default function JobsOverview({
             { key: "location", header: "Location" },
             { key: "hm", header: "Hiring Manager" },
             { key: "edit", header: "Edit" },
+            ...(canApprove ? [{ key: "approve", header: "Approve" }] : []),
             ...(onPostToLinkedIn ? [{ key: "linkedin", header: "LinkedIn" }] : []),
             ...(canDelete ? [{ key: "delete", header: "Delete" }] : [])
           ]}
           rows={jobs.map((j) => ({
-            title: j.title,
+            title: (
+              <button
+                className="font-semibold hover:underline"
+                onClick={() => (onViewJob ? onViewJob(j.id) : onOpenJob(j.id))}
+              >
+                {j.title}
+              </button>
+            ),
             status: <StatusBadge status={j.status} />,
             dept: j.dept || "-",
             location: j.location || "-",
-            hm: j.hiringManager || "-",
+            hm: j.hiringManagerName || j.hiringManager || "-",
             edit: (
               <Button variant="secondary" onClick={() => onOpenJob(j.id)}>
                 Edit
               </Button>
             ),
+            ...(canApprove
+              ? {
+                  approve:
+                    String(j.status || "").trim().toLowerCase() === "pending approval" ||
+                    String(j.status || "").trim().toLowerCase() === "pending_approval" ? (
+                      <Button variant="success" onClick={() => onApproveJob(j.id)}>
+                        Approve
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-500">-</span>
+                    )
+                }
+              : {}),
             ...(onPostToLinkedIn
               ? {
                   linkedin: (

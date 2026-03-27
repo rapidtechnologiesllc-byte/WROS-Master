@@ -46,6 +46,13 @@ export const deleteJob = async (jobId) => {
   return data;
 };
 
+export const approveJob = async (jobId) => {
+  const { data } = await apiRequest(`/jobs/${jobId}/approve`, {
+    method: "POST"
+  });
+  return data;
+};
+
 export const postJobOnLinkedIn = async (jobId) => {
   const { data } = await apiRequest("/jobs/post-on-linkedin", {
     method: "POST",

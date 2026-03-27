@@ -16,6 +16,13 @@ export const getAllCandidates = async () => {
   return data;
 };
 
+export const getCandidateById = async (candidateId) => {
+  const { data } = await apiRequest(`/onboarding/hr/candidate/${candidateId}`, {
+    method: "GET"
+  });
+  return data;
+};
+
 export const createCandidateAssignment = async ({
   candidateId,
   hiringManagerId,
@@ -34,6 +41,7 @@ export const createCandidateAssignment = async ({
 
 export const updateCandidate = async (candidateId, payload) => {
   const body = {};
+  if (payload.candidate_job_title != null) body.candidate_job_title = payload.candidate_job_title;
   if (payload.candidate_first_name != null) body.candidate_first_name = payload.candidate_first_name;
   if (payload.candidate_middle_name != null) body.candidate_middle_name = payload.candidate_middle_name;
   if (payload.candidate_last_name != null) body.candidate_last_name = payload.candidate_last_name;

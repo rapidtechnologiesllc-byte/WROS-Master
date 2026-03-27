@@ -27,6 +27,7 @@ export default function CandidateEditModal({
   const initialName = useMemo(() => splitFullName(candidate?.name || ""), [candidate]);
 
   const [candidateRole] = useState("Candidate");
+  const [candidateJobTitle, setCandidateJobTitle] = useState(candidate?.jobTitle || "");
   const [firstName, setFirstName] = useState(initialName.firstName);
   const [middleName, setMiddleName] = useState(initialName.middleName);
   const [lastName, setLastName] = useState(initialName.lastName);
@@ -65,6 +66,7 @@ export default function CandidateEditModal({
     setMiddleName(nameParts.middleName);
     setLastName(nameParts.lastName);
     setEmail(candidate?.email || "");
+    setCandidateJobTitle(candidate?.jobTitle || "");
     setMobile(candidate?.phone || "");
     setGender(candidate?.gender || "");
     setDob(candidate?.dob || "");
@@ -137,6 +139,7 @@ export default function CandidateEditModal({
     setIsSaving(true);
     try {
       await onUpdateCandidate(candidateId, {
+        candidate_job_title: candidateJobTitle.trim() || null,
         candidate_first_name: firstName.trim() || null,
         candidate_middle_name: middleName.trim() || null,
         candidate_last_name: lastName.trim() || null,
@@ -202,6 +205,7 @@ export default function CandidateEditModal({
               onChange={() => {}}
               disabled
             />
+            <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
             <Input label="First Name *" value={firstName} onChange={setFirstName} />
             <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
             <Input label="Last Name *" value={lastName} onChange={setLastName} />

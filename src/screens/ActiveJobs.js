@@ -3,8 +3,18 @@ import { useEffect, useState } from "react";
 import { Briefcase, Plus } from "lucide-react";
 import { Button, Card, StatusBadge, Table } from "../components/ui";
 import { getActiveJobs } from "../services/api/jobs";
+import { getAllUsers } from "../services/api/users";
 
-const mapJobFromApi = (j) => ({
+const mapJobFromApi = (j, users = []) => {
+  const usersList = Array.isArray(users) ? users : [];
+  const hmId = j?.hiring_manager_id || "";
+  const hmUser = usersList.find(
+    (u) => String(u?.user_id || "") === String(hmId || "")
+  );
+  const hiringManagerName =
+    hmUser?.user_name || hmUser?.user_email || (hmId ? String(hmId) : "");
+
+  return ({
   id: j.job_id,
   title: j.job_title,
   dept: "",
@@ -13,7 +23,8 @@ const mapJobFromApi = (j) => ({
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
-  hiringManager: j.hiring_manager_id || "",
+  hiringManager: hmId,
+  hiringManagerName,
   status: (() => {
     const raw = String(j.job_status || "").trim().toLowerCase();
     if (raw === "active") return "Open";
@@ -31,8 +42,9 @@ const mapJobFromApi = (j) => ({
   endDate: j.end_date || "",
   jobDescription: j.job_description || ""
 });
+};
 
-export default function ActiveJobs({ onCreate, onOpenJob, onDeleteJob, onPostToLinkedIn }) {
+export default function ActiveJobs({ onCreate, onOpenJob, onViewJob, onDeleteJob, onPostToLinkedIn }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [jobs, setJobs] = useState([]);
@@ -42,9 +54,13 @@ export default function ActiveJobs({ onCreate, onOpenJob, onDeleteJob, onPostToL
     setLoading(true);
     setError("");
     try {
-      const res = await getActiveJobs();
-      const list = Array.isArray(res?.jobs) ? res.jobs : [];
-      setJobs(list.map(mapJobFromApi));
+      const [jobsRes, usersRes] = await Promise.all([
+        getActiveJobs(),
+        getAllUsers()
+      ]);
+      const list = Array.isArray(jobsRes?.jobs) ? jobsRes.jobs : [];
+      const users = usersRes?.users || [];
+      setJobs(list.map((j) => mapJobFromApi(j, users)));
     } catch (err) {
       setError(err.message || "Failed to load active jobs.");
       setJobs([]);
@@ -95,10 +111,17 @@ export default function ActiveJobs({ onCreate, onOpenJob, onDeleteJob, onPostToL
             ...(canDelete ? [{ key: "delete", header: "Delete" }] : [])
           ]}
           rows={jobs.map((j) => ({
-            title: j.title,
+            title: (
+              <button
+                className="font-semibold hover:underline"
+                onClick={() => (onViewJob ? onViewJob(j.id) : onOpenJob(j.id))}
+              >
+                {j.title}
+              </button>
+            ),
             status: <StatusBadge status={j.status} />,
             location: j.location || "-",
-            hm: j.hiringManager || "-",
+            hm: j.hiringManagerName || j.hiringManager || "-",
             edit: (
               <Button variant="secondary" onClick={() => onOpenJob(j.id)}>
                 Edit
