@@ -152,6 +152,9 @@ export default function App() {
   }
 
   const storedRole = localStorage.getItem("hrms_role");
+  const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
+    .trim()
+    .toLowerCase();
   const normalizedRole = normalizeRole(storedRole);
   const isAdminOrSuperUser = normalizedRole === "ADMIN" || normalizedRole === "SUPER_USER";
   const isSuperUser = normalizedRole === "SUPER_USER";
@@ -163,11 +166,12 @@ export default function App() {
     localStorage.removeItem("hrms_user_name");
     localStorage.removeItem("hrms_user_email");
     localStorage.removeItem("hrms_candidate_id");
+    localStorage.removeItem("hrms_user_type");
     window.location.href = "/";
   };
 
   // Candidate users bypass the HR shell and land on their portal.
-  if (normalizedRole === "CANDIDATE") {
+  if (storedUserType === "candidate" || normalizedRole === "CANDIDATE") {
     return <CandidateSelfService onLogout={handleLogout} />;
   }
 

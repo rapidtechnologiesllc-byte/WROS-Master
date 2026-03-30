@@ -16,12 +16,13 @@ const withAuthHeaders = (headers = {}) => {
 };
 
 export const apiRequest = async (path, options = {}) => {
-  const { headers, ...rest } = options;
+  const { headers, skipAuth = false, ...rest } = options;
+  const baseHeaders = {
+    "Content-Type": "application/json",
+    ...(headers || {})
+  };
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: withAuthHeaders({
-      "Content-Type": "application/json",
-      ...(headers || {})
-    }),
+    headers: (skipAuth ? baseHeaders : withAuthHeaders(baseHeaders)),
     ...rest
   });
 

@@ -39,6 +39,7 @@ export default function AuthPage() {
       const data = await login(loginForm);
       if (data?.access_token) {
         localStorage.setItem("hrms_token", data.access_token);
+        localStorage.setItem("hrms_user_type", "employee");
         if (data?.user_role) {
           localStorage.setItem("hrms_role", data.user_role.toUpperCase());
         }
@@ -81,11 +82,21 @@ export default function AuthPage() {
     setNotice("");
     setLoading(true);
     try {
+      // Clear stale auth context before candidate auth attempt.
+      localStorage.removeItem("hrms_token");
+      localStorage.removeItem("hrms_role");
+      localStorage.removeItem("hrms_user_name");
+      localStorage.removeItem("hrms_user_email");
+      localStorage.removeItem("hrms_candidate_id");
+      localStorage.removeItem("hrms_user_type");
+
       // Candidate login uses a dedicated endpoint and role token.
       const data = await candidateLogin(candidateForm);
-      if (data?.access_token) {
-        localStorage.setItem("hrms_token", data.access_token);
+      if (!data?.access_token) {
+        throw new Error("Candidate login failed: token not returned by server.");
       }
+      localStorage.setItem("hrms_token", data.access_token);
+      localStorage.setItem("hrms_user_type", "candidate");
       // Store candidate identity for role-based routing.
       localStorage.setItem("hrms_role", String(data?.candidate_role || "Candidate").toUpperCase());
       if (data?.candidate_name) {
@@ -119,6 +130,7 @@ export default function AuthPage() {
       const data = await fetchAzureProfile();
       if (data?.access_token) {
         localStorage.setItem("hrms_token", data.access_token);
+        localStorage.setItem("hrms_user_type", "employee");
       }
       if (data?.user?.type) {
         localStorage.setItem("hrms_role", String(data.user.type).toUpperCase());
