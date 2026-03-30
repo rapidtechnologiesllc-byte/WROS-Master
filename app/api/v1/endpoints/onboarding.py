@@ -197,6 +197,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate_email=candidate.candidateEmail,
             candidate_mobile=candidate.candidateMobile,
             candidate_role=candidate.candidateRole,
+            candidate_job_title=candidate.candidateJobTitle,
             candidate_is_verified=candidate.candidateIsVerified,
             candidate_created_at=candidate.candidateCreatedAt,
             personal_info=CandidateInfoResponse(
@@ -314,6 +315,7 @@ def get_candidate_by_id(
         candidate_email=candidate.candidateEmail,
         candidate_mobile=candidate.candidateMobile,
         candidate_role=candidate.candidateRole,
+        candidate_job_title=candidate.candidateJobTitle,
         candidate_is_verified=candidate.candidateIsVerified,
         candidate_created_at=candidate.candidateCreatedAt,
         personal_info=CandidateInfoResponse(
@@ -422,6 +424,8 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.candidateCurrentSalary = request.candidate_current_salary
     if request.candidate_current_location is not None:
         candidate.candidateCurrentLocation = request.candidate_current_location
+    if request.candidate_job_title is not None:
+        candidate.candidateJobTitle = request.candidate_job_title
     if request.assigned_hr_manager_id is not None:
         candidate.assignedHRManagerID = request.assigned_hr_manager_id
     if request.assigned_report_manager_id is not None:

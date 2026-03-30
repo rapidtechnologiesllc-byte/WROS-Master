@@ -94,6 +94,7 @@ class CandidateCompleteResponse(BaseModel):
     candidate_email: str
     candidate_mobile: str | None = None
     candidate_role: str | None = None
+    candidate_job_title: str | None = None
     candidate_is_verified: bool | None = None
     candidate_created_at: datetime | None = None
     personal_info: CandidateInfoResponse | None = None
