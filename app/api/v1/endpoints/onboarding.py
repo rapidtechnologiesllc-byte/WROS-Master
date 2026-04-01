@@ -18,6 +18,7 @@ from app.models.candidate import (
 )
 from app.models.user import Users, Interview, CandidateAssignment, InterviewPanel, PanelMember, InterviewFeedback
 from app.models.document import CandidateDocument
+from app.models.checklist import CandidateChecklist, CandidateChecklistItem
 
 from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission
 
@@ -507,6 +508,19 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete(synchronize_session=False)
     db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID == candidate_id).delete(synchronize_session=False)
     db.query(CandidatePanForm).filter(CandidatePanForm.candidateID == candidate_id).delete(synchronize_session=False)
+
+    # 8. Checklist items then checklists
+    checklist_ids = [
+        row.id for row in
+        db.query(CandidateChecklist.id).filter(CandidateChecklist.candidate_id == candidate_id).all()
+    ]
+    if checklist_ids:
+        db.query(CandidateChecklistItem).filter(
+            CandidateChecklistItem.checklist_id.in_(checklist_ids)
+        ).delete(synchronize_session=False)
+    db.query(CandidateChecklist).filter(
+        CandidateChecklist.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
 
     # 8. Finally delete the candidate row
     db.delete(candidate)
