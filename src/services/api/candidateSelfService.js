@@ -5,8 +5,7 @@ export const getCandidateMyInfo = async () => {
   // Combined profile response (personal/education/experience/aadhar/pan).
   const { data } = await apiRequest("/candidate/my-info", {
     method: "GET",
-    allow404: true,
-    allowStatuses: [401]
+    allow404: true
   });
   return data;
 };
@@ -15,8 +14,7 @@ export const getCandidatePersonalInfo = async () => {
   // Personal info only (404 until first save — treat as empty).
   const { data } = await apiRequest("/candidate/personal-info", {
     method: "GET",
-    allow404: true,
-    allowStatuses: [401]
+    allow404: true
   });
   return data;
 };
@@ -25,8 +23,7 @@ export const getCandidateAadhar = async () => {
   // Aadhar form data (404 until first save — treat as empty).
   const { data } = await apiRequest("/candidate/aadhar", {
     method: "GET",
-    allow404: true,
-    allowStatuses: [401]
+    allow404: true
   });
   return data;
 };
@@ -35,8 +32,7 @@ export const getCandidatePan = async () => {
   // PAN form data (404 until first save — treat as empty).
   const { data } = await apiRequest("/candidate/pan", {
     method: "GET",
-    allow404: true,
-    allowStatuses: [401]
+    allow404: true
   });
   return data;
 };
@@ -45,8 +41,7 @@ export const getCandidateOnboardingStatus = async () => {
   // Completion status for onboarding forms.
   const { data } = await apiRequest("/candidate/onboarding-status", {
     method: "GET",
-    allow404: true,
-    allowStatuses: [401]
+    allow404: true
   });
   return data;
 };

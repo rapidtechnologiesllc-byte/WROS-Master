@@ -162,6 +162,29 @@ const normalizeRole = (rawRole) => {
   return upper || "RECRUITER";
 };
 
+const getOfferJoiningDateAndSalary = (offer) => {
+  const joiningDate = String(offer?.startDate || offer?.joiningDate || "").trim();
+  const salaryNum = Number(offer?.salary ?? 0);
+  return { joiningDate, salaryNum };
+};
+
+/** Returns a user-facing message if joining date or salary is missing/invalid; otherwise null. */
+const validateOfferJoiningDateAndSalaryMessage = (offer) => {
+  const { joiningDate, salaryNum } = getOfferJoiningDateAndSalary(offer);
+  const missingDate = !joiningDate;
+  const missingSalary = !Number.isFinite(salaryNum) || salaryNum <= 0;
+  if (missingDate && missingSalary) {
+    return "Joining date and salary are not mentioned. Please fill both.";
+  }
+  if (missingDate) {
+    return "Joining date is not mentioned.";
+  }
+  if (missingSalary) {
+    return "Salary is not mentioned.";
+  }
+  return null;
+};
+
 export default function App() {
   const token = localStorage.getItem("hrms_token");
   // Auth guard: unauthenticated users or auth routes land on AuthPage.
@@ -823,14 +846,19 @@ export default function App() {
               if (!hiringManagerId || !reportingManagerId) {
                 throw new Error("Please select Hiring Manager and Reporting Manager.");
               }
+              const offerFieldsError = validateOfferJoiningDateAndSalaryMessage(offer);
+              if (offerFieldsError) {
+                throw new Error(offerFieldsError);
+              }
+              const { joiningDate, salaryNum } = getOfferJoiningDateAndSalary(offer);
               await createOfferLetter({
                 candidateId: selectedCandidate.id,
                 jobId: selectedJob.id,
                 hiringManagerId,
                 reportingManagerId,
                 position: offer.position || selectedJob.title,
-                salary: offer.salary || 0,
-                joiningDate: offer.startDate || offer.joiningDate
+                salary: salaryNum,
+                joiningDate
               });
               await refreshOffers();
               setCandidates((prev) =>
@@ -856,10 +884,15 @@ export default function App() {
             setOfferError("");
             setOfferLoading(true);
             try {
+              const offerFieldsError = validateOfferJoiningDateAndSalaryMessage(offer);
+              if (offerFieldsError) {
+                throw new Error(offerFieldsError);
+              }
+              const { joiningDate, salaryNum } = getOfferJoiningDateAndSalary(offer);
               await updateOfferLetter(existing.id, {
                 position: offer.position || selectedJob.title,
-                salary: String(offer.salary ?? 0),
-                joiningDate: offer.startDate || offer.joiningDate
+                salary: String(salaryNum),
+                joiningDate
               });
               await refreshOffers();
               notify("Offer", "Offer updated.");

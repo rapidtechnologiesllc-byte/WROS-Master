@@ -1,5 +1,5 @@
 // Job management API wrappers.
-import { apiRequest, getApiBaseUrl } from "./client";
+import { apiRequest, getApiBaseUrl, maybeRedirectOnUnauthorized } from "./client";
 
 export const generateJobDescription = async (payload) => {
   const { data } = await apiRequest("/jobs/generate_job_description", {
@@ -124,6 +124,9 @@ export const applyForJob = async ({
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Job application failed.";
     throw new Error(message);
   }

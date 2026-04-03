@@ -1,5 +1,5 @@
 // Document upload helpers (resume and candidate documents).
-import { getApiBaseUrl, apiRequest } from "./client";
+import { getApiBaseUrl, apiRequest, maybeRedirectOnUnauthorized } from "./client";
 
 const _uploadDocument = async (path, file, token) => {
   if (!file) throw new Error("File is required.");
@@ -20,6 +20,9 @@ const _uploadDocument = async (path, file, token) => {
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Upload failed.";
     throw new Error(message);
   }
@@ -89,8 +92,7 @@ export const verifyDocument = async (candidateId, documentType, isVerified, note
 export const getMyDocuments = async () => {
   const { data } = await apiRequest("/documents/my-documents", {
     method: "GET",
-    // Candidate may not have a documents profile yet, or endpoint may return unauthorized for fresh accounts.
-    allowStatuses: [401, 404]
+    allow404: true
   });
   return data;
 };
@@ -108,6 +110,9 @@ export const viewDocument = async (documentId) => {
   );
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     let data = null;
     try {
       data = await response.json();

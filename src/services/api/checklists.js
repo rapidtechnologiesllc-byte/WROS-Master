@@ -93,8 +93,7 @@ export const getMyChecklists = async () => {
   const { data } = await apiRequest("/checklist/candidate/my-checklists", {
     method: "GET",
     // Some candidates do not have checklist assignments yet.
-    allow404: true,
-    allowStatuses: [401]
+    allow404: true
   });
   return data;
 };

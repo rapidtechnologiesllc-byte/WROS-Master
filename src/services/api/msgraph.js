@@ -1,5 +1,5 @@
 // Microsoft Graph API wrappers used by scheduling/email/SharePoint features.
-import { getApiBaseUrl } from "./client";
+import { getApiBaseUrl, maybeRedirectOnUnauthorized } from "./client";
 
 export const getMicrosoftSigninUrl = () => `${getApiBaseUrl()}/msgraph/auth/signin`;
 
@@ -24,6 +24,9 @@ export const getGraphMe = async () => {
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Microsoft sign-in required.";
     throw new Error(message);
   }
@@ -74,6 +77,9 @@ export const scheduleUserMeeting = async ({
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message =
       data?.detail || data?.message || "Failed to schedule Microsoft meeting.";
     throw new Error(message);
@@ -133,6 +139,9 @@ export const scheduleTeamsMeeting = async ({
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Failed to schedule Teams meeting.";
     throw new Error(message);
   }
@@ -155,6 +164,9 @@ export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Failed to fetch meetings.";
     throw new Error(message);
   }
@@ -189,6 +201,9 @@ export const getServiceCalendarEvents = async ({
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message =
       data?.detail || data?.message || "Failed to fetch service calendar.";
     throw new Error(message);
@@ -231,6 +246,9 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Failed to send mail.";
     throw new Error(message);
   }
@@ -253,6 +271,9 @@ export const testSharepointConnection = async () => {
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Failed to test SharePoint connection.";
     throw new Error(message);
   }
@@ -275,6 +296,9 @@ export const listSharepointDrives = async () => {
   }
 
   if (!response.ok) {
+    if (maybeRedirectOnUnauthorized(response)) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     const message = data?.detail || data?.message || "Failed to list SharePoint drives.";
     throw new Error(message);
   }
