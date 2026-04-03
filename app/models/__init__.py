@@ -19,7 +19,8 @@ from app.models.candidate import (
     CandidateEducationForm,
     CandidateExperienceForm,
     CandidateAadharForm,
-    CandidatePanForm
+    CandidatePanForm,
+    CandidateStatus
 )
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
@@ -50,6 +51,7 @@ __all__ = [
     "CandidateExperienceForm",
     "CandidateAadharForm",
     "CandidatePanForm",
+    "CandidateStatus",
     "CandidateDocument",
     # Offer Letter
     "OfferLetter",
