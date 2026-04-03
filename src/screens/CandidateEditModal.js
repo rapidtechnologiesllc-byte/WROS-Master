@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { Button, Card, Input, Select } from "../components/ui";
 import { uploadResume } from "../services/api/documents";
+import { updateCandidateStatus } from "../services/api/candidateStatus";
 import { extractResumeText, inferFieldsFromResumeText } from "../utils/resumeAutofill";
 
 function splitFullName(full) {
@@ -19,10 +20,21 @@ function splitFullName(full) {
   };
 }
 
+const PIPELINE_OPTIONS = [
+  "Applied",
+  "Screening",
+  "Interview",
+  "Pre-Boarding",
+  "Onboarded",
+  "Hired",
+  "Rejected"
+];
+
 export default function CandidateEditModal({
   candidate,
   onClose,
-  onUpdateCandidate
+  onUpdateCandidate,
+  onRefreshCandidates
 }) {
   const initialName = useMemo(() => splitFullName(candidate?.name || ""), [candidate]);
 
@@ -56,6 +68,9 @@ export default function CandidateEditModal({
   const [sendLoginEmail, setSendLoginEmail] = useState(false);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [accountStatusEdit, setAccountStatusEdit] = useState("Active");
+  const [pipelineStatusEdit, setPipelineStatusEdit] = useState("Applied");
+  const [statusSaving, setStatusSaving] = useState(false);
 
   const candidateId = candidate?.id;
 
@@ -82,7 +97,9 @@ export default function CandidateEditModal({
     setResumeFile(null);
     setResumeParsing(false);
     setActionNotice("");
-  }, [candidateId]);
+    setAccountStatusEdit(candidate?.accountStatus || "Active");
+    setPipelineStatusEdit(candidate?.pipelineStatus || "Applied");
+  }, [candidateId, candidate?.accountStatus, candidate?.pipelineStatus]);
 
   const handleResumeFileChange = async (event) => {
     const file = event.target.files?.[0] || null;
@@ -171,6 +188,24 @@ export default function CandidateEditModal({
       setActionNotice(err.message || "Failed to update candidate.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveStatus = async () => {
+    if (!candidateId) return;
+    setActionNotice("");
+    setStatusSaving(true);
+    try {
+      await updateCandidateStatus(candidateId, {
+        status: accountStatusEdit,
+        pipeline_status: pipelineStatusEdit
+      });
+      await onRefreshCandidates?.();
+      setActionNotice("Account status and pipeline updated.");
+    } catch (err) {
+      setActionNotice(err.message || "Failed to update status.");
+    } finally {
+      setStatusSaving(false);
     }
   };
 
@@ -278,6 +313,31 @@ export default function CandidateEditModal({
               <input type="checkbox" checked={sendLoginEmail} disabled />
               Send login email to candidate (not available for edit in this UI).
             </label>
+          </div>
+
+          <div className="mt-6 border-t border-gray-200 pt-4 md:col-span-2">
+            <div className="mb-2 text-xs font-semibold text-gray-700">
+              Account & pipeline (HR)
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Select
+                label="Account status"
+                value={accountStatusEdit}
+                onChange={setAccountStatusEdit}
+                options={["Active", "Inactive"]}
+              />
+              <Select
+                label="Pipeline status"
+                value={pipelineStatusEdit}
+                onChange={setPipelineStatusEdit}
+                options={PIPELINE_OPTIONS}
+              />
+            </div>
+            <div className="mt-3">
+              <Button onClick={handleSaveStatus} disabled={statusSaving} variant="secondary">
+                {statusSaving ? "Saving…" : "Save status"}
+              </Button>
+            </div>
           </div>
 
           <div className="mt-4 flex items-center justify-end gap-2">

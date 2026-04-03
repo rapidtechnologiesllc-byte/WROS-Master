@@ -21,6 +21,7 @@ import MatchingJobs from "./screens/MatchingJobs";
 import NewsletterScreen from "./screens/NewsletterScreen";
 import OfferScreen from "./screens/OfferScreen";
 import PreOnboarding from "./screens/PreOnboarding";
+import ChecklistTemplatesScreen from "./screens/ChecklistTemplatesScreen";
 import RbacSettingsScreen from "./screens/RbacSettingsScreen";
 import Verification from "./screens/Verification";
 import { getAllInterviews, updateInterview } from "./services/api/interviews";
@@ -46,6 +47,7 @@ import {
   cancelOfferLetter
 } from "./services/api/offerLetters";
 import { getAllUsers } from "./services/api/users";
+import { getAllCandidateStatuses, updateCandidateStatus } from "./services/api/candidateStatus";
 
 // Helpers to normalize API responses into UI-friendly models
 const mapCandidateFromApi = (c) => {
@@ -77,8 +79,24 @@ const mapCandidateFromApi = (c) => {
     currentSalary: c.candidate_current_salary || "",
     currentLocation: c.candidate_current_location || "",
     assignedHrManagerId: c.assigned_hr_manager_id || "",
-    assignedReportManagerId: c.assigned_report_manager_id || ""
+    assignedReportManagerId: c.assigned_report_manager_id || "",
+    pipelineStatus: c.pipline_status || c.pipeline_status || "",
+    accountStatus: c.status || ""
   };
+};
+
+const mergeCandidateStatuses = (candidates, statusRes) => {
+  const rows = statusRes?.candidates || [];
+  const byId = new Map(rows.map((r) => [r.candidate_id, r]));
+  return candidates.map((c) => {
+    const s = byId.get(c.id);
+    if (!s) return c;
+    return {
+      ...c,
+      pipelineStatus: s.pipeline_status || c.pipelineStatus || "",
+      accountStatus: s.status || c.accountStatus || ""
+    };
+  });
 };
 
 const mapJobFromApi = (j, users = []) => {
@@ -307,8 +325,14 @@ export default function App() {
 
   const refreshCandidates = useCallback(async () => {
     try {
-      const res = await getAllCandidates();
-      const mapped = (res?.candidates || []).map(mapCandidateFromApi);
+      const [res, statusRes] = await Promise.all([
+        getAllCandidates(),
+        getAllCandidateStatuses().catch(() => null)
+      ]);
+      let mapped = (res?.candidates || []).map(mapCandidateFromApi);
+      if (statusRes) {
+        mapped = mergeCandidateStatuses(mapped, statusRes);
+      }
       setCandidates(mapped);
     } catch (err) {
       notify("Candidates", err.message || "Failed to refresh candidates.");
@@ -319,13 +343,14 @@ export default function App() {
     let isMounted = true;
     const loadData = async () => {
       try {
-        const [candidateRes, jobRes, interviewRes, offersRes, usersRes] =
+        const [candidateRes, jobRes, interviewRes, offersRes, usersRes, statusRes] =
           await Promise.all([
             getAllCandidates(),
             getAllJobs(),
             getAllInterviews(),
             getAllOffers(),
-            getAllUsers()
+            getAllUsers(),
+            getAllCandidateStatuses().catch(() => null)
           ]);
 
         if (!isMounted) return;
@@ -333,9 +358,12 @@ export default function App() {
         setOffers(offersRes?.offers || []);
         setUsers(usersRes?.users || []);
 
-        const mappedCandidates = (candidateRes?.candidates || []).map(
+        let mappedCandidates = (candidateRes?.candidates || []).map(
           mapCandidateFromApi
         );
+        if (statusRes) {
+          mappedCandidates = mergeCandidateStatuses(mappedCandidates, statusRes);
+        }
 
         const mappedJobs = (jobRes?.jobs || []).map((j) =>
           mapJobFromApi(j, usersRes?.users || [])
@@ -383,7 +411,12 @@ export default function App() {
       notify("Access", "RBAC Settings requires Admin role.");
       return;
     }
-    if ((next === "activeJobs" || next === "interviewAnalytics") && !canUseHrScreens) {
+    if (
+      (next === "activeJobs" ||
+        next === "interviewAnalytics" ||
+        next === "checklistTemplates") &&
+      !canUseHrScreens
+    ) {
       notify("Access", "This screen requires HR or Admin role.");
       return;
     }
@@ -482,8 +515,11 @@ export default function App() {
             const res = await getCandidateById(candidateId);
             return mapCandidateFromApi(res || {});
           }}
+          onRefreshCandidates={refreshCandidates}
         />
       )}
+
+      {screen === "checklistTemplates" && <ChecklistTemplatesScreen />}
 
       {screen === "candidateCreate" && (
         <CandidateCreate
@@ -929,9 +965,23 @@ export default function App() {
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
-          onApprove={() => {
-            notify("Verification", "Documents verified. Pre-onboarding started.");
-            safeSetScreen("preOnboarding");
+          onApprove={async () => {
+            try {
+              await updateCandidateStatus(selectedCandidate.id, {
+                pipeline_status: "Pre-Boarding"
+              });
+              setCandidates((prev) =>
+                prev.map((c) =>
+                  c.id === selectedCandidate.id
+                    ? { ...c, pipelineStatus: "Pre-Boarding" }
+                    : c
+                )
+              );
+              notify("Verification", "Documents verified. Pre-onboarding started.");
+              safeSetScreen("preOnboarding");
+            } catch (err) {
+              notify("Verification", err.message || "Failed to update pipeline status.");
+            }
           }}
           onReject={() => {
             notify("Verification", "Documents marked Pending/Rejected.");
@@ -945,9 +995,21 @@ export default function App() {
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
-          onFinish={() => {
-            notify("Hire", "Hire completed. Workflow ended.");
-            safeSetScreen("dashboard");
+          onFinish={async () => {
+            try {
+              await updateCandidateStatus(selectedCandidate.id, {
+                pipeline_status: "Onboarded"
+              });
+              setCandidates((prev) =>
+                prev.map((c) =>
+                  c.id === selectedCandidate.id ? { ...c, pipelineStatus: "Onboarded" } : c
+                )
+              );
+              notify("Hire", "Hire completed. Candidate marked Onboarded.");
+              safeSetScreen("dashboard");
+            } catch (err) {
+              notify("Hire", err.message || "Failed to complete hire.");
+            }
           }}
         />
       )}

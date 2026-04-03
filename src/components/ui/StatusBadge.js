@@ -29,7 +29,14 @@ export default function StatusBadge({ status }) {
     Negotiation: "border-amber-200 bg-amber-50 text-amber-800",
     Sent: "border-blue-200 bg-blue-50 text-blue-800",
     Accepted: "border-green-200 bg-green-50 text-green-800",
-    Declined: "border-red-200 bg-red-50 text-red-800"
+    Declined: "border-red-200 bg-red-50 text-red-800",
+    Screening: "border-blue-200 bg-blue-50 text-blue-800",
+    Interview: "border-purple-200 bg-purple-50 text-purple-800",
+    "Pre-Boarding": "border-amber-200 bg-amber-50 text-amber-900",
+    Onboarded: "border-green-200 bg-green-50 text-green-900",
+    Hired: "border-green-200 bg-green-50 text-green-900",
+    Active: "border-green-200 bg-green-50 text-green-800",
+    Inactive: "border-gray-200 bg-gray-100 text-gray-600"
   };
 
   let key = status;
@@ -38,6 +45,8 @@ export default function StatusBadge({ status }) {
 
   if (lower.includes("offer cancelled")) key = "Offer Cancelled";
   else if (lower.includes("cancelled")) key = "Cancelled";
+  else if (lower === "completed") key = "Completed";
+  else if (lower === "active") key = "Requested";
   else if (lower.includes("verified")) key = "Verified";
   else if (lower.includes("pending")) key = "Pending";
 

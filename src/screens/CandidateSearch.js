@@ -16,7 +16,8 @@ export default function CandidateSearch({
   onInterviewSchedule,
   onUpdateCandidate,
   onDeleteCandidate,
-  onFetchCandidateById
+  onFetchCandidateById,
+  onRefreshCandidates
 }) {
   const [query, setQuery] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -101,7 +102,9 @@ export default function CandidateSearch({
             { key: "name", header: "Name" },
             { key: "contact", header: "Contact" },
             { key: "jobTitle", header: "Job Title" },
-            { key: "status", header: "Status" },
+            { key: "pipeline", header: "Pipeline" },
+            { key: "account", header: "Account" },
+            { key: "status", header: "Verified" },
           ]}
           rows={filtered.map((c) => ({
             name: (
@@ -134,6 +137,16 @@ export default function CandidateSearch({
               </div>
             ),
             jobTitle: c.jobTitle || "-",
+            pipeline: c.pipelineStatus ? (
+              <StatusBadge status={c.pipelineStatus} />
+            ) : (
+              <span className="text-xs text-gray-400">—</span>
+            ),
+            account: c.accountStatus ? (
+              <StatusBadge status={c.accountStatus} />
+            ) : (
+              <span className="text-xs text-gray-400">—</span>
+            ),
             status: <StatusBadge status={c.status} />,
           }))}
         />
@@ -152,6 +165,7 @@ export default function CandidateSearch({
             setOverrideEditingCandidate(null);
           }}
           onUpdateCandidate={onUpdateCandidate}
+          onRefreshCandidates={onRefreshCandidates}
         />
       ) : null}
     </div>

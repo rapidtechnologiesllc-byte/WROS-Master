@@ -16,7 +16,13 @@ const withAuthHeaders = (headers = {}) => {
 };
 
 export const apiRequest = async (path, options = {}) => {
-  const { headers, skipAuth = false, ...rest } = options;
+  const {
+    headers,
+    skipAuth = false,
+    allow404 = false,
+    allowStatuses = [],
+    ...rest
+  } = options;
   const baseHeaders = {
     "Content-Type": "application/json",
     ...(headers || {})
@@ -34,8 +40,17 @@ export const apiRequest = async (path, options = {}) => {
   }
 
   if (!response.ok) {
+    // Backend often returns 404 when optional candidate form rows do not exist yet.
+    if (allow404 && response.status === 404) {
+      return { data: null, response };
+    }
+    if (Array.isArray(allowStatuses) && allowStatuses.includes(response.status)) {
+      return { data: null, response };
+    }
     const message = data?.detail || data?.message || "Request failed.";
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return { data, response };

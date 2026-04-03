@@ -7,6 +7,7 @@ import {
   Calendar,
   CheckCircle2,
   ClipboardCheck,
+  ListChecks,
   FileText,
   LayoutDashboard,
   Mail,
@@ -44,7 +45,8 @@ export default function Shell({
       ...(isHr || isAdmin || isSuperUser
         ? [
             { id: "activeJobs", label: "Active Jobs", icon: Briefcase },
-            { id: "interviewAnalytics", label: "Interview Analytics", icon: BarChart3 }
+            { id: "interviewAnalytics", label: "Interview Analytics", icon: BarChart3 },
+            { id: "checklistTemplates", label: "Checklist Templates", icon: ListChecks }
           ]
         : []),
       { id: "interviewSchedule", label: "Interviews", icon: Calendar },

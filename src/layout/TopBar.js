@@ -25,6 +25,7 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
       documents: ["Documents", "Upload"],
       verification: ["Documents", "Verification"],
       preOnboarding: ["Pre-Onboarding"],
+      checklistTemplates: ["Checklists", "Templates"],
       newsletters: ["Newsletters"],
       rbac: ["Admin", "RBAC Settings"],
       hrUsers: ["Admin", "HR Users"]

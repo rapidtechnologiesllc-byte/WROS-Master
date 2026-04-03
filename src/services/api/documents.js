@@ -87,7 +87,11 @@ export const verifyDocument = async (candidateId, documentType, isVerified, note
 
 // Candidate endpoint: list documents uploaded by the authenticated candidate.
 export const getMyDocuments = async () => {
-  const { data } = await apiRequest("/documents/my-documents", { method: "GET" });
+  const { data } = await apiRequest("/documents/my-documents", {
+    method: "GET",
+    // Candidate may not have a documents profile yet, or endpoint may return unauthorized for fresh accounts.
+    allowStatuses: [401, 404]
+  });
   return data;
 };
 

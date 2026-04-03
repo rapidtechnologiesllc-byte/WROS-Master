@@ -27,7 +27,13 @@ function StatCard({ title, value, icon, onClick }) {
 
 export default function Dashboard({ candidates, jobs, interviews, offers = [], onGo }) {
   const openJobs = jobs.filter((j) => j.status === "Open" || j.status === "Public").length;
-  const inPipeline = candidates.filter((c) => c.status !== "Rejected").length;
+  const inPipeline = candidates.filter((c) => {
+    const p = (c.pipelineStatus || "").trim();
+    if (p === "Rejected") return false;
+    const a = (c.accountStatus || "").trim();
+    if (a === "Inactive") return false;
+    return true;
+  }).length;
   const scheduled = interviews.filter((i) => i.status === "Scheduled").length;
   const pendingOffers = offers.filter((o) => o.offer_status === "Pending").length;
   const latestOffer = offers.length ? offers[offers.length - 1] : null;

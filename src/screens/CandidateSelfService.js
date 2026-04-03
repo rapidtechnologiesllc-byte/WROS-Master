@@ -1,5 +1,6 @@
 // Candidate portal for personal info, education, experience, and documents.
 import { useEffect, useMemo, useState } from "react";
+import { ListChecks } from "lucide-react";
 import { Button, Card, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import {
   addCandidateEducation,
@@ -32,6 +33,10 @@ import {
   viewDocument
 } from "../services/api/documents";
 import { getActiveJobs, applyForJob } from "../services/api/jobs";
+import {
+  candidateCompleteChecklistItem,
+  getMyChecklists
+} from "../services/api/checklists";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -44,6 +49,13 @@ const DOC_LABELS = {
   salary_slip: "Salary Slip",
   bank_statement: "Bank Statement"
 };
+
+function canCandidateCompleteItem(item) {
+  if (!item || item.status === "completed") return false;
+  if (item.item_type === "todo") return item.status === "pending";
+  if (item.item_type === "queue") return item.status === "active";
+  return false;
+}
 
 const normalizeJobStatus = (rawStatus) => {
   const raw = String(rawStatus || "").trim().toLowerCase();
@@ -90,6 +102,10 @@ export default function CandidateSelfService({ onLogout }) {
   const [myDocuments, setMyDocuments] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
   const [jobResumeFile, setJobResumeFile] = useState(null);
+  const [myChecklistsPayload, setMyChecklistsPayload] = useState(null);
+  const [checklistCompletingId, setChecklistCompletingId] = useState(null);
+  const storedCandidateName = localStorage.getItem("hrms_user_name") || "";
+  const storedCandidateEmail = localStorage.getItem("hrms_user_email") || "";
 
   // Normalize backend records into UI-friendly state shape.
   const normalizeEducationRecord = (record = {}) => ({
@@ -271,7 +287,8 @@ export default function CandidateSelfService({ onLogout }) {
           onboardingResult,
           offersResult,
           documentsResult,
-          jobsResult
+          jobsResult,
+          checklistsResult
         ] = await Promise.allSettled([
           getCandidateMyInfo(),
           getCandidatePersonalInfo(),
@@ -282,7 +299,8 @@ export default function CandidateSelfService({ onLogout }) {
           getCandidateOnboardingStatus(),
           getMyOffers(),
           getMyDocuments(),
-          getActiveJobs()
+          getActiveJobs(),
+          getMyChecklists()
         ]);
 
         if (!isMounted) return;
@@ -346,6 +364,10 @@ export default function CandidateSelfService({ onLogout }) {
           setActiveJobs(Array.isArray(jobsResult.value?.jobs) ? jobsResult.value.jobs : []);
         }
 
+        if (checklistsResult.status === "fulfilled" && checklistsResult.value) {
+          setMyChecklistsPayload(checklistsResult.value);
+        }
+
         const errors = [
           myInfoResult,
           personalResult,
@@ -356,7 +378,8 @@ export default function CandidateSelfService({ onLogout }) {
           onboardingResult,
           offersResult,
           documentsResult,
-          jobsResult
+          jobsResult,
+          checklistsResult
         ]
           .filter((result) => result.status === "rejected")
           .map((result) => result.reason);
@@ -380,8 +403,21 @@ export default function CandidateSelfService({ onLogout }) {
   }, []);
 
   const candidateName = useMemo(() => {
-    return profile?.candidate_name || "Candidate";
-  }, [profile]);
+    return profile?.candidate_name || storedCandidateName || "Candidate";
+  }, [profile, storedCandidateName]);
+
+  const candidateEmail = useMemo(() => {
+    return profile?.candidate_email || storedCandidateEmail || "";
+  }, [profile, storedCandidateEmail]);
+
+  const checklistList = myChecklistsPayload?.checklists || [];
+  const profilePipeline = String(
+    profile?.pipeline_status || profile?.pipline_status || profile?.status || ""
+  )
+    .trim()
+    .toLowerCase();
+  const isPreBoarding = profilePipeline.includes("pre");
+  const shouldShowChecklists = checklistList.length > 0 || isPreBoarding;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900">
@@ -390,8 +426,8 @@ export default function CandidateSelfService({ onLogout }) {
           <div>
             <div className="text-xs font-semibold text-slate-500">Candidate Portal</div>
             <div className="text-xl font-bold">{candidateName}</div>
-            {profile?.candidate_email ? (
-              <div className="text-xs text-slate-500">{profile.candidate_email}</div>
+            {candidateEmail ? (
+              <div className="text-xs text-slate-500">{candidateEmail}</div>
             ) : null}
           </div>
           <Button variant="secondary" onClick={onLogout}>
@@ -470,6 +506,89 @@ export default function CandidateSelfService({ onLogout }) {
                 </div>
               ))}
             </div>
+          </Card>
+        ) : null}
+
+        {shouldShowChecklists ? (
+          <Card title="My checklists" icon={<ListChecks className="h-4 w-4" />}>
+            {checklistList.length ? (
+              <>
+                <p className="mb-3 text-sm text-slate-600">
+                  Complete assigned tasks. Queue steps unlock in order.
+                </p>
+                <div className="space-y-4">
+                  {checklistList.map((cl) => (
+                    <div key={cl.id} className="rounded-xl border bg-white p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-semibold text-slate-900">
+                          {cl.template_name || `Checklist ${cl.id}`}
+                        </div>
+                        <StatusBadge status={cl.status === "completed" ? "Completed" : "Scheduled"} />
+                      </div>
+                      <ul className="space-y-2">
+                        {(cl.items || [])
+                          .slice()
+                          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                          .map((item) => {
+                            const actionable = canCandidateCompleteItem(item);
+                            const waitingQueue =
+                              item.item_type === "queue" &&
+                              item.status === "pending" &&
+                              !actionable;
+                            return (
+                              <li
+                                key={item.id}
+                                className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <div>
+                                  <div className="text-sm font-medium">{item.title}</div>
+                                  {item.description ? (
+                                    <div className="text-xs text-slate-600">{item.description}</div>
+                                  ) : null}
+                                  <div className="mt-1">
+                                    <StatusBadge status={item.status} />
+                                  </div>
+                                  {waitingQueue ? (
+                                    <div className="mt-1 text-xs text-amber-700">Awaiting previous step</div>
+                                  ) : null}
+                                </div>
+                                {item.status !== "completed" ? (
+                                  <Button
+                                    variant="secondary"
+                                    onClick={async () => {
+                                      setNotice("");
+                                      setChecklistCompletingId(item.id);
+                                      try {
+                                        await candidateCompleteChecklistItem(item.id);
+                                        const refreshed = await getMyChecklists();
+                                        setMyChecklistsPayload(refreshed);
+                                        setNotice("Task marked complete.");
+                                      } catch (err) {
+                                        setNotice(err.message || "Could not complete task.");
+                                      } finally {
+                                        setChecklistCompletingId(null);
+                                      }
+                                    }}
+                                    disabled={!actionable || checklistCompletingId === item.id}
+                                  >
+                                    {checklistCompletingId === item.id ? "Saving…" : "Mark complete"}
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs font-semibold text-green-700">Done</span>
+                                )}
+                              </li>
+                            );
+                          })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">
+                No checklist assigned yet.
+              </div>
+            )}
           </Card>
         ) : null}
 
