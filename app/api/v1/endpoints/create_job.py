@@ -14,6 +14,7 @@ from app.models.candidate import (
     Candidate,
     CandidateEducationForm,
     CandidateExperienceForm,
+    CandidateStatus,
 )
 from app.schemas.user import (
     GenerateJobDescriptionRequest, GenerateJobDescriptionResponse,
@@ -589,7 +590,7 @@ async def apply_for_job(
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else None
 
-    # 7. Create the Candidate row
+    # 7. Create the Candidate row first (CandidateStatus has FK → candidates)
     candidate = Candidate(
         candidateID=candidate_id,
         candidateRole=job.jobTitle,
@@ -607,8 +608,17 @@ async def apply_for_job(
         candidateCreatedAt=datetime.now(),
     )
     db.add(candidate)
+    db.flush()  # persist candidate so FK is satisfied
 
-    # 8. Bulk-insert education records
+    # 8. Create CandidateStatus row (after candidate row exists)
+    candidate_status = CandidateStatus(
+        candidateID=candidate_id,
+        piplineStatus="Applied",
+        status="Active",
+    )
+    db.add(candidate_status)
+
+    # 9. Bulk-insert education records
     today = date.today()
     for edu in education_entries:
         db.add(CandidateEducationForm(
@@ -623,7 +633,7 @@ async def apply_for_job(
             document_is_submitted=False,
         ))
 
-    # 9. Bulk-insert experience records
+    # 10. Bulk-insert experience records
     for exp in experience_entries:
         db.add(CandidateExperienceForm(
             candidateID=candidate_id,
@@ -636,12 +646,12 @@ async def apply_for_job(
             document_is_submitted=False,
         ))
 
-    # 10. Commit candidate + education/experience rows first so the FK exists
+    # 11. Commit candidate + education/experience rows first so the FK exists
     #     before we save the SharePoint document metadata
     db.commit()
     db.refresh(candidate)
 
-    # 11. Upload resume to SharePoint (if provided)
+    # 12. Upload resume to SharePoint (if provided)
     #     _upload_document_helper handles validation, Graph token, SP upload,
     #     and CandidateDocument metadata — exactly like the HR upload endpoint.
     if resume and resume.filename:
