@@ -14,7 +14,8 @@ from app.models.candidate import (
     CandidateEducationForm,
     CandidateExperienceForm,
     CandidateAadharForm,
-    CandidatePanForm
+    CandidatePanForm,
+    CandidateStatus,
 )
 from app.models.user import Users, Interview, CandidateAssignment, InterviewPanel, PanelMember, InterviewFeedback
 from app.models.document import CandidateDocument
@@ -99,6 +100,16 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
     db.add(candidate)
     db.commit()
     db.refresh(candidate)
+    # Create candidate status
+    candidate_status = CandidateStatus(
+        candidateID=candidate_id,
+        piplineStatus="Applied",
+        status="Active",
+        createdAt=datetime.now(),
+        updatedAt=datetime.now(),
+    )
+    db.add(candidate_status)
+    db.commit()
 
     # Bulk-insert education records if provided
     if request.education_records:
@@ -155,7 +166,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     """
     # Get all candidates
     candidates = db.query(Candidate).all()
-    
+
     candidates_data = []
     for candidate in candidates:
         # Construct candidate name
@@ -190,7 +201,12 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
         pan_form = db.query(CandidatePanForm).filter(
             CandidatePanForm.candidateID == candidate.candidateID
         ).first()
-        
+
+        # Get candidate status (scoped per candidate)
+        candidate_status = db.query(CandidateStatus).filter(
+            CandidateStatus.candidateID == candidate.candidateID
+        ).first()
+
         # Build response object
         candidate_response = CandidateCompleteResponse(
             candidate_id=candidate.candidateID,
@@ -245,7 +261,9 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
                 father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
                 pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
                 is_verified=pan_form.is_verified if pan_form else None
-            ) if pan_form else None
+            ) if pan_form else None,
+            status=candidate_status.status if candidate_status else None,
+            pipline_status=candidate_status.piplineStatus if candidate_status else None
         )
         
         candidates_data.append(candidate_response)
@@ -310,6 +328,11 @@ def get_candidate_by_id(
         CandidatePanForm.candidateID == candidate_id
     ).first()
 
+    # Get candidate status
+    candidate_status = db.query(CandidateStatus).filter(
+        CandidateStatus.candidateID == candidate_id
+    ).first()
+
     return CandidateCompleteResponse(
         candidate_id=candidate.candidateID,
         candidate_name=candidate_name,
@@ -366,6 +389,8 @@ def get_candidate_by_id(
             pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
             is_verified=pan_form.is_verified if pan_form else None,
         ) if pan_form else None,
+        status=candidate_status.status if candidate_status else None,
+        pipline_status=candidate_status.piplineStatus if candidate_status else None
     )
 
 
@@ -508,6 +533,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete(synchronize_session=False)
     db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID == candidate_id).delete(synchronize_session=False)
     db.query(CandidatePanForm).filter(CandidatePanForm.candidateID == candidate_id).delete(synchronize_session=False)
+    db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).delete(synchronize_session=False)
 
     # 8. Checklist items then checklists
     checklist_ids = [
@@ -522,7 +548,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         CandidateChecklist.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 8. Finally delete the candidate row
+    # 9. Finally delete the candidate row
     db.delete(candidate)
     db.commit()
     

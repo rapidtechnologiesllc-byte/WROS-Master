@@ -107,3 +107,14 @@ class CandidatePanForm(Base):
     formCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")   
+
+
+class CandidateStatus(Base):
+    __tablename__ = "candidate_status"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    piplineStatus = Column(String(50), nullable=True, default="Applied")
+    status = Column(String(50), nullable=True, default="Active")
+    createdAt = Column(DateTime(timezone=False), server_default=func.now())
+    updatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
+    # candidate = relationship("Candidate")

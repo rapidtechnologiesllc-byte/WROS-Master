@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
 from datetime import datetime, date
-
+from pydantic import Field
 
 # Candidate schemas
 class CandidateCreateRequest(BaseModel):
@@ -102,6 +102,8 @@ class CandidateCompleteResponse(BaseModel):
     experience: list[CandidateExperienceResponse] = []
     aadhar: CandidateAadharResponse | None = None
     pan: CandidatePanResponse | None = None
+    status: str | None = None
+    pipline_status: str | None = None
 
 class AllCandidatesResponse(BaseModel):
     total_candidates: int
@@ -253,3 +255,42 @@ class JobApplicationResponse(BaseModel):
     status: str
     message: str
     candidate_id: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
+
+class CandidateStatusUpdateRequest(BaseModel):
+    status: Optional[str] = Field(
+        default=None,
+        description="Account status. Allowed values: 'Active', 'Inactive'",
+    )
+    pipeline_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "Hiring pipeline stage. Allowed values: "
+            "'Applied', 'Screening', 'Interview', 'Pre-Boarding', 'Onboarded', 'Rejected'"
+        ),
+    )
+
+
+class CandidateStatusResponse(BaseModel):
+    candidate_id: str
+    candidate_name: Optional[str] = None
+    candidate_email: Optional[str] = None
+    status: Optional[str] = None
+    pipeline_status: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class AllCandidateStatusResponse(BaseModel):
+    total: int
+    candidates: List[CandidateStatusResponse]
+
+
+class StatusActionResponse(BaseModel):
+    status: str
+    message: str
+    data: CandidateStatusResponse
+
