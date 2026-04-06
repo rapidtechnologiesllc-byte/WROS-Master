@@ -186,6 +186,20 @@ const validateOfferJoiningDateAndSalaryMessage = (offer) => {
 };
 
 export default function App() {
+  // Accept SSO redirects like /?token=... and persist the session token.
+  const url = new URL(window.location.href);
+  const tokenFromQuery = url.searchParams.get("token");
+  if (tokenFromQuery) {
+    localStorage.setItem("hrms_token", tokenFromQuery);
+    // SSO in this app maps to employee-side shell by default.
+    if (!localStorage.getItem("hrms_user_type")) {
+      localStorage.setItem("hrms_user_type", "employee");
+    }
+    url.searchParams.delete("token");
+    const cleanedUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", cleanedUrl || "/");
+  }
+
   const token = localStorage.getItem("hrms_token");
   // Auth guard: unauthenticated users or auth routes land on AuthPage.
   if (!token || window.location.pathname.startsWith("/auth")) {
