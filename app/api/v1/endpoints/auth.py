@@ -23,7 +23,7 @@ from app.core.security import (
 from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse
+from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -74,96 +74,72 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
 
 
 
-@router.post("/v1/login", response_model=LoginResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """
-    User login endpoint
-    
-    Args:
-        request: LoginRequest containing email and password
-        db: Database session
-        
-    Returns:
-        LoginResponse with user details and access token
-        
-    Raises:
-        HTTPException: If credentials are invalid
-    """
-    # Authenticate user
-    user = authenticate_user(db, request.UserEmail, request.UserPassword)
-    
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
-    
-    # Create access token
-    access_token = create_access_token(
-        data={
-            "sub": user.UserEmail,
-            "type": user.UserRole,
-            "name": user.UserName
-        }
-    )
-    
-    # Return user info and token
-    return LoginResponse(
-        user_role=user.UserRole,
-        user_name=user.UserName or "",
-        user_email=user.UserEmail,
-        is_first_time=False,  # Assuming existing users are not first time
-        access_token=access_token
-    )
 
-@router.post("/candidate/login", response_model=CandidateLoginResponse)
-def candidate_login(request: CandidateLoginRequest, db : Session = Depends(get_db)):
+@router.post("/login", response_model=UnifiedLoginResponse)
+def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     """
-    Candidate login endpoint
-    
-    Args:
-        request: CandidateLoginRequest containing email and password
-        db: Database session
-        
-    Returns:
-        CandidateLoginResponse with candidate details and access token
-        
-    Raises:
-        HTTPException: If credentials are invalid
-    """
-    # Authenticate candidate
-    candidate = authenticate_candidate(db, request.candidate_email, request.candidate_password)
-    
-    if not candidate:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
-    
-    # Create access token
-    access_token = create_access_token(
-        data={
-            "sub": candidate.candidateID,
-            "type": "candidate"
-        }
-    )
-    
-    # Construct full name from name fields
-    name_parts = [
-        candidate.candidateFirstName,
-        candidate.candidateMiddleName,
-        candidate.candidateLastName
-    ]
-    candidate_name = " ".join(filter(None, name_parts)) or ""
-    
-    # Return candidate info and token
-    return CandidateLoginResponse(
-        candidate_id=candidate.candidateID,
-        candidate_role=candidate.candidateRole or "Candidate",
-        candidate_name=candidate_name,
-        candidate_email=candidate.candidateEmail,
-        candidate_mobile=candidate.candidateMobile,
-        is_first_time=not candidate.candidateIsVerified if candidate.candidateIsVerified is not None else True,
-        access_token=access_token
-    )
+    Unified login endpoint.
 
+    Accepts a single email + password and automatically determines whether
+    the credentials belong to a **User** (HR / Admin / etc.) or a **Candidate**.
+    The response includes an `entity_type` field ("user" or "candidate") so
+    the frontend can route accordingly.
+
+    Raises:
+        HTTPException 401: If credentials do not match any user or candidate.
+    """
+    # ── 1. Try authenticating as a User first ───────────────────
+    user = authenticate_user(db, request.email, request.password)
+    if user:
+        access_token = create_access_token(
+            data={
+                "sub": user.UserEmail,
+                "type": user.UserRole,
+                "name": user.UserName,
+            }
+        )
+        return UnifiedLoginResponse(
+            entity_type="user",
+            access_token=access_token,
+            is_first_time=False,
+            user_role=user.UserRole,
+            user_name=user.UserName or "",
+            user_email=user.UserEmail,
+        )
+
+    # ── 2. Fall back to Candidate ────────────────────────────────
+    candidate = authenticate_candidate(db, request.email, request.password)
+    if candidate:
+        access_token = create_access_token(
+            data={
+                "sub": candidate.candidateID,
+                "type": "candidate",
+            }
+        )
+        name_parts = [
+            candidate.candidateFirstName,
+            candidate.candidateMiddleName,
+            candidate.candidateLastName,
+        ]
+        candidate_name = " ".join(filter(None, name_parts)) or ""
+
+        return UnifiedLoginResponse(
+            entity_type="candidate",
+            access_token=access_token,
+            is_first_time=(
+                not candidate.candidateIsVerified
+                if candidate.candidateIsVerified is not None
+                else True
+            ),
+            candidate_id=candidate.candidateID,
+            candidate_role=candidate.candidateRole or "Candidate",
+            candidate_name=candidate_name,
+            candidate_email=candidate.candidateEmail,
+            candidate_mobile=candidate.candidateMobile,
+        )
+
+    # ── 3. Neither matched ───────────────────────────────────────
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid email or password",
+    )
