@@ -21,7 +21,8 @@ from app.schemas.user import (
     InterviewFeedbackCreate, InterviewFeedbackResponse,
     AssignedCandidateResponse, AssignedInterviewResponse,
     PanelMemberCreate, PanelMemberResponse, DeleteResponse,
-    ChangePasswordRequest, HrMeResponse
+    ChangePasswordRequest, HrMeResponse,
+    SingleUserResponse, HiringManagerAssignedCandidateResponse,
 )
 from app.utils.uniq_id_generator import user_id_generator
 
@@ -840,3 +841,142 @@ def change_password(
         status="Success",
         message="Password changed successfully"
     )
+
+
+# ============================================================
+# User Section
+# ============================================================
+
+@router.get(
+    "/users/{user_id}",
+    response_model=SingleUserResponse,
+    summary="Get a single user by ID",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def get_user_by_id(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Retrieve the full profile of a single internal user (HR, Admin, etc.)
+    by their User ID.
+
+    Args:
+        user_id: The unique ID of the user to retrieve.
+        db: Database session.
+        current_user: Authenticated HR/Admin user (requires user.manage permission).
+
+    Returns:
+        SingleUserResponse with all user details.
+
+    Raises:
+        HTTPException 404: If the user is not found.
+    """
+    from app.models.rbac import Role  # avoid circular if needed
+
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User with ID '{user_id}' not found",
+        )
+
+    role = db.query(Role).filter(Role.id == target.role_id).first() if target.role_id else None
+
+    return SingleUserResponse(
+        user_id=target.UserID,
+        user_name=target.UserName,
+        user_email=target.UserEmail,
+        user_role=target.UserRole,
+        permission_role=role.name if role else None,
+        role_id=target.role_id,
+        business_unit_id=target.business_unit_id,
+        created_at=target.CreatedAt,
+    )
+
+
+# ============================================================
+# Hiring Manager Section
+# ============================================================
+
+@router.get(
+    "/hiring_manager/assigned/candidate",
+    response_model=list[HiringManagerAssignedCandidateResponse],
+    summary="List candidates assigned to the authenticated hiring manager",
+    dependencies=[Depends(require_permission("candidate.view"))],
+)
+def get_hiring_manager_assigned_candidates(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Retrieve all candidates that are directly assigned to the currently
+    authenticated user **as a hiring manager**.
+
+    Returns enriched candidate details including pipeline status so the
+    hiring manager can see the full picture at a glance.
+
+    Args:
+        db: Database session.
+        current_user: The authenticated hiring manager.
+
+    Returns:
+        List of HiringManagerAssignedCandidateResponse.
+    """
+    from app.models.candidate import CandidateStatus
+
+    assignments = (
+        db.query(CandidateAssignment)
+        .filter(CandidateAssignment.hiring_manager_id == current_user.UserID)
+        .all()
+    )
+
+    results = []
+    for assignment in assignments:
+        candidate = (
+            db.query(Candidate)
+            .filter(Candidate.candidateID == assignment.candidate_id)
+            .first()
+        )
+        if not candidate:
+            continue
+
+        # Build full name
+        name_parts = [
+            candidate.candidateFirstName,
+            candidate.candidateMiddleName,
+            candidate.candidateLastName,
+        ]
+        candidate_name = " ".join(filter(None, name_parts)) or "N/A"
+
+        # Latest pipeline status (most recently updated row)
+        status_row = (
+            db.query(CandidateStatus)
+            .filter(CandidateStatus.candidateID == candidate.candidateID)
+            .order_by(CandidateStatus.updatedAt.desc())
+            .first()
+        )
+        pipeline_status = status_row.piplineStatus if status_row else None
+
+        results.append(
+            HiringManagerAssignedCandidateResponse(
+                assignment_id=assignment.id,
+                candidate_id=candidate.candidateID,
+                candidate_name=candidate_name,
+                candidate_email=candidate.candidateEmail,
+                candidate_mobile=candidate.candidateMobile,
+                candidate_job_title=candidate.candidateJobTitle,
+                candidate_experience=candidate.candidateExperience,
+                candidate_current_location=candidate.candidateCurrentLocation,
+                candidate_joining_date=candidate.candidateJoiningDate,
+                candidate_expected_salary=candidate.candidateExpectedSalary,
+                candidate_current_salary=candidate.candidateCurrentSalary,
+                candidate_is_verified=candidate.candidateIsVerified,
+                pipeline_status=pipeline_status,
+                assigned_at=assignment.created_at,
+            )
+        )
+
+    return results
+
