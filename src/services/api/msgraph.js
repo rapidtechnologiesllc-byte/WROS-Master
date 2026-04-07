@@ -24,6 +24,14 @@ export const getGraphMe = async () => {
   }
 
   if (!response.ok) {
+    // 401 here usually means "Microsoft account not linked yet", not expired HR JWT.
+    // Do not run session logout redirect — that made Connect Microsoft appear broken.
+    if (response.status === 401) {
+      const message = data?.detail || data?.message || "Microsoft sign-in required.";
+      throw new Error(
+        typeof message === "string" ? message : "Microsoft sign-in required."
+      );
+    }
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
     }

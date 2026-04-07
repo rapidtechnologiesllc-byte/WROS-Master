@@ -112,8 +112,23 @@ export default function InterviewSchedule({
       }
     };
     checkMicrosoft();
+    // OAuth opens another tab; when user returns here, re-check connection.
+    let debounceTimer;
+    const scheduleRecheck = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => checkMicrosoft(), 400);
+    };
+    const onFocus = () => scheduleRecheck();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRecheck();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       isMounted = false;
+      clearTimeout(debounceTimer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
