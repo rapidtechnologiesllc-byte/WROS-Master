@@ -311,3 +311,37 @@ class OfferCancelRequest(BaseModel):
 class AllOffersResponse(BaseModel):
     total_offers: int
     offers: list[OfferLetterResponse]
+
+
+# ── User Section ─────────────────────────────────────────────────────────────
+
+class SingleUserResponse(BaseModel):
+    """Full profile of a single internal user."""
+    user_id: str
+    user_name: Optional[str]
+    user_email: str
+    user_role: str
+    permission_role: Optional[str] = None
+    role_id: Optional[int] = None
+    business_unit_id: Optional[int] = None
+    created_at: datetime
+
+
+# ── Hiring Manager Section ────────────────────────────────────────────────────
+
+class HiringManagerAssignedCandidateResponse(BaseModel):
+    """Candidate assigned to the authenticated hiring manager."""
+    assignment_id: int
+    candidate_id: str
+    candidate_name: str
+    candidate_email: str
+    candidate_mobile: Optional[str] = None
+    candidate_job_title: Optional[str] = None
+    candidate_experience: Optional[str] = None
+    candidate_current_location: Optional[str] = None
+    candidate_joining_date: Optional[date] = None
+    candidate_expected_salary: Optional[str] = None
+    candidate_current_salary: Optional[str] = None
+    candidate_is_verified: Optional[bool] = None
+    pipeline_status: Optional[str] = None
+    assigned_at: datetime
