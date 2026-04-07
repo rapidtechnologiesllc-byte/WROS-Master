@@ -9,10 +9,9 @@ const getAuthHeaders = () => {
 };
 
 export const getGraphMe = async () => {
-  // Checks if a Microsoft account is connected.
+  // Checks if a Microsoft account is connected (Bearer JWT only; avoid credentials:include + wildcard CORS).
   const response = await fetch(`${getApiBaseUrl()}/msgraph/me`, {
     method: "GET",
-    credentials: "include",
     headers: getAuthHeaders()
   });
 
@@ -72,7 +71,6 @@ export const scheduleUserMeeting = async ({
     `${getApiBaseUrl()}/msgraph/calendar/schedule?${params.toString()}`,
     {
       method: "POST",
-      credentials: "include",
       headers: getAuthHeaders()
     }
   );
@@ -161,7 +159,7 @@ export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
   // Lists meetings for the signed-in Microsoft account.
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/calendar/meetings?top=${top}&skip=${skip}`,
-    { method: "GET", credentials: "include", headers: getAuthHeaders() }
+    { method: "GET", headers: getAuthHeaders() }
   );
 
   let data = null;
@@ -241,7 +239,6 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
     `${getApiBaseUrl()}/msgraph/mail/send?${params.toString()}`,
     {
       method: "POST",
-      credentials: "include",
       headers: getAuthHeaders()
     }
   );
