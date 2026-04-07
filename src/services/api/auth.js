@@ -2,7 +2,7 @@
 import { apiRequest, getApiBaseUrl } from "./client";
 
 export const login = async (payload) => {
-  const { data } = await apiRequest("/auth/v1/login", {
+  const { data } = await apiRequest("/auth/login", {
     method: "POST",
     skipAuth: true,
     body: JSON.stringify(payload)
@@ -12,15 +12,6 @@ export const login = async (payload) => {
 
 export const signup = async (payload) => {
   const { data } = await apiRequest("/auth/v1/signup", {
-    method: "POST",
-    skipAuth: true,
-    body: JSON.stringify(payload)
-  });
-  return data;
-};
-
-export const candidateLogin = async (payload) => {
-  const { data } = await apiRequest("/auth/candidate/login", {
     method: "POST",
     skipAuth: true,
     body: JSON.stringify(payload)

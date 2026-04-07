@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import { Lock, Mail, User } from "lucide-react";
 import {
-  candidateLogin,
   fetchAzureProfile,
   getAzureSigninUrl,
   login,
@@ -25,31 +24,62 @@ export default function AuthPage() {
     user_password: "",
     user_role: ""
   });
-  const [candidateForm, setCandidateForm] = useState({
-    candidate_email: "",
-    candidate_password: ""
-  });
-
   const submitLogin = async (event) => {
     event.preventDefault();
     setError("");
     setNotice("");
     setLoading(true);
     try {
-      const data = await login(loginForm);
+      // Clear stale auth context before a fresh unified login attempt.
+      localStorage.removeItem("hrms_token");
+      localStorage.removeItem("hrms_role");
+      localStorage.removeItem("hrms_user_name");
+      localStorage.removeItem("hrms_user_email");
+      localStorage.removeItem("hrms_candidate_id");
+      localStorage.removeItem("hrms_user_type");
+
+      const data = await login({
+        email: loginForm.UserEmail,
+        password: loginForm.UserPassword
+      });
       if (data?.access_token) {
+        const entityType = String(data?.entity_type || "").trim().toLowerCase();
+        const looksLikeCandidate =
+          entityType === "candidate" ||
+          Boolean(data?.candidate_id || data?.candidate_email || data?.candidate_role);
+
         localStorage.setItem("hrms_token", data.access_token);
-        localStorage.setItem("hrms_user_type", "employee");
-        if (data?.user_role) {
-          localStorage.setItem("hrms_role", data.user_role.toUpperCase());
-        }
-        if (data?.user_name) {
-          localStorage.setItem("hrms_user_name", data.user_name);
+        if (looksLikeCandidate) {
+          localStorage.setItem("hrms_user_type", "candidate");
+          localStorage.setItem(
+            "hrms_role",
+            String(data?.candidate_role || "Candidate").toUpperCase()
+          );
+          if (data?.candidate_name) {
+            localStorage.setItem("hrms_user_name", data.candidate_name);
+          }
+          if (data?.candidate_email) {
+            localStorage.setItem("hrms_user_email", data.candidate_email);
+          }
+          if (data?.candidate_id) {
+            localStorage.setItem("hrms_candidate_id", data.candidate_id);
+          }
+        } else {
+          localStorage.setItem("hrms_user_type", "employee");
+          if (data?.user_role) {
+            localStorage.setItem("hrms_role", data.user_role.toUpperCase());
+          }
+          if (data?.user_name) {
+            localStorage.setItem("hrms_user_name", data.user_name);
+          }
+          if (data?.user_email) {
+            localStorage.setItem("hrms_user_email", data.user_email);
+          }
         }
         window.location.href = "/";
         return;
       }
-      setNotice(`Welcome ${data?.user_name || ""}`.trim());
+      setNotice("Login successful.");
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
@@ -71,46 +101,6 @@ export default function AuthPage() {
       setMode("login");
     } catch (err) {
       setError(err.message || "Signup failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitCandidateLogin = async (event) => {
-    event.preventDefault();
-    setError("");
-    setNotice("");
-    setLoading(true);
-    try {
-      // Clear stale auth context before candidate auth attempt.
-      localStorage.removeItem("hrms_token");
-      localStorage.removeItem("hrms_role");
-      localStorage.removeItem("hrms_user_name");
-      localStorage.removeItem("hrms_user_email");
-      localStorage.removeItem("hrms_candidate_id");
-      localStorage.removeItem("hrms_user_type");
-
-      // Candidate login uses a dedicated endpoint and role token.
-      const data = await candidateLogin(candidateForm);
-      if (!data?.access_token) {
-        throw new Error("Candidate login failed: token not returned by server.");
-      }
-      localStorage.setItem("hrms_token", data.access_token);
-      localStorage.setItem("hrms_user_type", "candidate");
-      // Store candidate identity for role-based routing.
-      localStorage.setItem("hrms_role", String(data?.candidate_role || "Candidate").toUpperCase());
-      if (data?.candidate_name) {
-        localStorage.setItem("hrms_user_name", data.candidate_name);
-      }
-      if (data?.candidate_email) {
-        localStorage.setItem("hrms_user_email", data.candidate_email);
-      }
-      if (data?.candidate_id) {
-        localStorage.setItem("hrms_candidate_id", data.candidate_id);
-      }
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Candidate login failed.");
     } finally {
       setLoading(false);
     }
@@ -197,7 +187,7 @@ export default function AuthPage() {
                   Sign in to continue
                 </p>
 
-                <div className="mt-6 grid grid-cols-2 gap-2 rounded-xl border border-white/80 bg-white/65 p-1 shadow-sm backdrop-blur sm:grid-cols-4">
+                <div className="mt-6 grid grid-cols-2 gap-2 rounded-xl border border-white/80 bg-white/65 p-1 shadow-sm backdrop-blur sm:grid-cols-3">
                   <button
                     type="button"
                     className={`rounded-lg px-2 py-2 text-xs font-semibold ${
@@ -230,17 +220,6 @@ export default function AuthPage() {
                     onClick={() => setMode("azure")}
                   >
                     Azure SSO
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-lg px-2 py-2 text-xs font-semibold ${
-                      mode === "candidate"
-                        ? "bg-white text-emerald-700 shadow-sm"
-                        : "text-emerald-700/80"
-                    }`}
-                    onClick={() => setMode("candidate")}
-                  >
-                    Candidate
                   </button>
                 </div>
 
@@ -387,7 +366,7 @@ export default function AuthPage() {
                         {loading ? "Creating account..." : "Create Account"}
                       </button>
                     </form>
-                  ) : mode === "azure" ? (
+                  ) : (
                     <form className="space-y-4" onSubmit={submitAzure}>
                       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                         Sign in with Azure Active Directory using your company account.
@@ -406,52 +385,6 @@ export default function AuthPage() {
                         disabled={loading}
                       >
                         Complete Azure SSO
-                      </button>
-                    </form>
-                  ) : (
-                    <form className="space-y-4" onSubmit={submitCandidateLogin}>
-                      <div>
-                        <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-700">
-                          <Mail className="h-4 w-4 text-slate-500" />
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          required
-                          className="w-full rounded-lg border border-white/80 bg-white/70 px-3 py-2 text-sm outline-none backdrop-blur focus:border-slate-400"
-                          value={candidateForm.candidate_email}
-                          onChange={(event) =>
-                            setCandidateForm((prev) => ({
-                              ...prev,
-                              candidate_email: event.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-700">
-                          <Lock className="h-4 w-4 text-slate-500" />
-                          Password
-                        </label>
-                        <input
-                          type="password"
-                          required
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                          value={candidateForm.candidate_password}
-                          onChange={(event) =>
-                            setCandidateForm((prev) => ({
-                              ...prev,
-                              candidate_password: event.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-70"
-                        disabled={loading}
-                      >
-                        {loading ? "Signing in..." : "Login as Candidate"}
                       </button>
                     </form>
                   )}

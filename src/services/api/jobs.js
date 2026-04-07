@@ -26,7 +26,9 @@ export const getAllJobs = async () => {
 
 export const getActiveJobs = async () => {
   const { data } = await apiRequest("/jobs/active-jobs", {
-    method: "GET"
+    method: "GET",
+    // Public listing used by both Auth and Candidate portal; avoid candidate-token 401 loops.
+    skipAuth: true
   });
   return data;
 };
