@@ -59,18 +59,32 @@ export default function RbacSettingsScreen() {
   const [editRole, setEditRole] = useState({ name: "", description: "" });
   const [editBu, setEditBu] = useState({ name: "", description: "" });
 
-  const roleOptions = useMemo(
-    () => ["", ...roles.map((r) => String(r.id))],
-    [roles]
-  );
+  const roleOptions = useMemo(() => {
+    const rows = roles.map((r) => {
+      const id = String(r.id ?? "");
+      const name = String(r.name || "").trim();
+      const label = name ? `${name} (${id})` : id || "Unnamed role";
+      return { value: id, label };
+    });
+    return [{ value: "", label: "—" }, ...rows];
+  }, [roles]);
   const permissionOptions = useMemo(
     () => ["", ...permissions.map((p) => String(p.id))],
     [permissions]
   );
-  const userOptions = useMemo(
-    () => ["", ...users.map((u) => u.user_id)],
-    [users]
-  );
+  const userOptions = useMemo(() => {
+    const rows = users.map((u) => {
+      const id = String(u.user_id ?? "");
+      const name = String(u.user_name || "").trim();
+      const email = String(u.user_email || "").trim();
+      const parts = [];
+      if (name) parts.push(name);
+      if (email && email !== name) parts.push(email);
+      const label = parts.length ? parts.join(" — ") : id || "Unknown user";
+      return { value: id, label };
+    });
+    return [{ value: "", label: "—" }, ...rows];
+  }, [users]);
   const buOptions = useMemo(
     () => ["", ...businessUnits.map((b) => String(b.id))],
     [businessUnits]
@@ -330,7 +344,7 @@ export default function RbacSettingsScreen() {
               <Button
                 onClick={async () => {
                   if (!selectedUserId || !selectedUserRoleId) return;
-                  if (!users.some((u) => u.user_id === selectedUserId)) {
+                  if (!users.some((u) => String(u.user_id) === String(selectedUserId))) {
                     setError("Selected user is not in backend list.");
                     return;
                   }
@@ -342,7 +356,7 @@ export default function RbacSettingsScreen() {
                   setError("");
                   setNotice("");
                   try {
-                    await assignRoleToUser(selectedUserId, Number(selectedUserRoleId));
+                    await assignRoleToUser(String(selectedUserId), Number(selectedUserRoleId));
                     setNotice("Role assigned to user.");
                   } catch (err) {
                     setError(err.message || "Failed to assign role.");
@@ -377,7 +391,7 @@ export default function RbacSettingsScreen() {
               <Button
                 onClick={async () => {
                   if (!selectedUserId || !selectedBuId) return;
-                  if (!users.some((u) => u.user_id === selectedUserId)) {
+                  if (!users.some((u) => String(u.user_id) === String(selectedUserId))) {
                     setError("Selected user is not in backend list.");
                     return;
                   }
@@ -389,7 +403,7 @@ export default function RbacSettingsScreen() {
                   setError("");
                   setNotice("");
                   try {
-                    await setBusinessUnitForUser(selectedUserId, Number(selectedBuId));
+                    await setBusinessUnitForUser(String(selectedUserId), Number(selectedBuId));
                     setNotice("Business unit assigned.");
                   } catch (err) {
                     setError(err.message || "Failed to assign business unit.");
@@ -645,7 +659,7 @@ export default function RbacSettingsScreen() {
                     setError("");
                     setNotice("");
                     try {
-                      await revokeUserRole(selectedUserId);
+                      await revokeUserRole(String(selectedUserId));
                       await loadAll();
                       setNotice("User role revoked.");
                     } catch (err) {
