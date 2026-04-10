@@ -49,6 +49,7 @@ import {
 } from "./services/api/offerLetters";
 import { getAllUsers } from "./services/api/users";
 import { getAllCandidateStatuses, updateCandidateStatus } from "./services/api/candidateStatus";
+import CandidateDetailsScreen from "./screens/CandidateDetailsScreen";
 
 // Helpers to normalize API responses into UI-friendly models
 const mapCandidateFromApi = (c) => {
@@ -310,6 +311,7 @@ export default function App() {
   const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
   const [jobDetailsMode, setJobDetailsMode] = useState("view");
   const [jobCreateMode, setJobCreateMode] = useState("create");
+  const [selectedCandidateData, setSelectedCandidateData] = useState(null);
 
   const selectedCandidate = useMemo(
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
@@ -554,6 +556,8 @@ export default function App() {
             return mapCandidateFromApi(res || {});
           }}
           onRefreshCandidates={refreshCandidates}
+          setScreen={safeSetScreen}
+setSelectedCandidate={setSelectedCandidateData}
         />
       )}
 
@@ -570,6 +574,12 @@ export default function App() {
           }}
         />
       )}
+      {screen === "candidateDetails" && (
+  <CandidateDetailsScreen
+    candidate={selectedCandidateData}
+    onBack={() => safeSetScreen("candidateSearch")}
+  />
+)}
 
       {screen === "jobs" && (
         <JobsOverview

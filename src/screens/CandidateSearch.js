@@ -17,6 +17,8 @@ export default function CandidateSearch({
   onUpdateCandidate,
   onDeleteCandidate,
   onFetchCandidateById,
+  setScreen,
+setSelectedCandidate,
   onRefreshCandidates
 }) {
   const [query, setQuery] = useState("");
@@ -110,22 +112,24 @@ export default function CandidateSearch({
             name: (
               <button
                 className="font-semibold hover:underline"
+               
                 onClick={async () => {
-                  setSelectedCandidateId(c.id);
-                  setEditCandidateId(c.id);
-                  setOverrideEditingCandidate(null);
-                  if (onFetchCandidateById) {
-                    try {
-                      const fresh = await onFetchCandidateById(c.id);
-                      if (fresh) {
-                        setOverrideEditingCandidate(fresh);
-                      }
-                    } catch (err) {
-                      // Fall back to list data if detail fetch fails.
-                    }
-                  }
-                  setEditModalOpen(true);
-                }}
+  setSelectedCandidateId(c.id);
+
+  let finalCandidate = c;
+
+  if (onFetchCandidateById) {
+    try {
+      const fresh = await onFetchCandidateById(c.id);
+      if (fresh) {
+        finalCandidate = fresh;
+      }
+    } catch (err) {}
+  }
+
+  setSelectedCandidate(finalCandidate);
+  setScreen("candidateDetails");
+}}
               >
                 {c.name}
               </button>
@@ -156,18 +160,19 @@ export default function CandidateSearch({
         </div>
       </Card>
 
-      {editModalOpen && editingCandidate ? (
-        <CandidateEditModal
-          candidate={editingCandidate}
-          onClose={() => {
-            setEditModalOpen(false);
-            setEditCandidateId("");
-            setOverrideEditingCandidate(null);
-          }}
-          onUpdateCandidate={onUpdateCandidate}
-          onRefreshCandidates={onRefreshCandidates}
-        />
-      ) : null}
+     
+      {false && editingCandidate ? (
+  <CandidateEditModal
+    candidate={editingCandidate}
+    onClose={() => {
+      setEditModalOpen(false);
+      setEditCandidateId("");
+      setOverrideEditingCandidate(null);
+    }}
+    onUpdateCandidate={onUpdateCandidate}
+    onRefreshCandidates={onRefreshCandidates}
+  />
+) : null}
     </div>
   );
 }
