@@ -17,6 +17,7 @@ import HrUserManagement from "./screens/HrUserManagement";
 import JobCreate from "./screens/JobCreate";
 import JobDetails from "./screens/JobDetails";
 import JobsOverview from "./screens/JobsOverview";
+import JobWorkspaceScreen from "./screens/JobWorkspaceScreen";
 import MatchingJobs from "./screens/MatchingJobs";
 import NewsletterScreen from "./screens/NewsletterScreen";
 import OfferScreen from "./screens/OfferScreen";
@@ -579,8 +580,7 @@ export default function App() {
           }}
           onViewJob={(jobId) => {
             setSelectedJobId(jobId);
-            setJobCreateMode("view");
-            safeSetScreen("jobCreate");
+            safeSetScreen("jobWorkspace");
           }}
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
@@ -630,8 +630,7 @@ export default function App() {
           }}
           onViewJob={(jobId) => {
             setSelectedJobId(jobId);
-            setJobCreateMode("view");
-            safeSetScreen("jobCreate");
+            safeSetScreen("jobWorkspace");
           }}
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
@@ -669,6 +668,18 @@ export default function App() {
       )}
 
       {screen === "hrUsers" && <HrUserManagement />}
+
+      {screen === "jobWorkspace" && selectedJob && (
+        <JobWorkspaceScreen
+          job={selectedJob}
+          candidates={candidates}
+          onAddCandidate={() => safeSetScreen("candidateCreate")}
+          onOpenCandidate={(candidateId) => {
+            setSelectedCandidateId(candidateId);
+            safeSetScreen("candidateSearch");
+          }}
+        />
+      )}
 
       {screen === "jobCreate" && (
         <JobCreate
