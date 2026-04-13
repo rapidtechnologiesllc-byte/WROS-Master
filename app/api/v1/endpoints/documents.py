@@ -206,7 +206,6 @@ async def upload_bank_statement(
 
 @router.get(
     "/my-documents",
-    dependencies=[Depends(require_permission("document.view"))],
     summary="Get all documents uploaded by the currently authenticated candidate",
 )
 async def get_my_documents(

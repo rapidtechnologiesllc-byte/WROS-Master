@@ -3,7 +3,7 @@ import os
 from datetime import datetime, date
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_candidate
@@ -517,6 +517,7 @@ def post_job_on_linkedin(
 )
 async def apply_for_job(
     job_id: str,
+    background_tasks: BackgroundTasks,
     # ── Personal details ──────────────────────────────────────────────
     full_name: str = Form(..., description="Applicant's full name"),
     email: str = Form(..., description="Personal email address"),
@@ -660,6 +661,13 @@ async def apply_for_job(
         except HTTPException:
             # If SP upload fails we don't roll back the application — just surface the error
             raise
+
+    # 13. Fire ATS scoring in the background — does NOT block the response
+    try:
+        from app.api.v1.endpoints.ats import _run_and_persist_ats
+        background_tasks.add_task(_run_and_persist_ats, candidate, job, db)
+    except Exception:
+        pass  # ATS failure must never block an application submission
 
     return JobApplicationResponse(
         status="Success",
