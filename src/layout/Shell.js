@@ -75,16 +75,7 @@ export default function Shell({
               </div>
             </div>
 
-            <div className="mb-4 rounded-2xl border bg-gray-50 p-3">
-              <div className="mb-2 text-xs font-semibold text-gray-600">Role</div>
-              <div className="rounded-xl bg-gray-900 px-3 py-2 text-center text-sm font-semibold text-white">
-                {roleLabel}
-              </div>
-              <div className="mt-1 text-center text-xs text-gray-500">
-                From sign up / login
-              </div>
-            </div>
-
+            
             <nav className="space-y-1">
               {nav.map((n) => {
                 const Icon = n.icon;
