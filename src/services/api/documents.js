@@ -92,7 +92,10 @@ export const verifyDocument = async (candidateId, documentType, isVerified, note
 export const getMyDocuments = async () => {
   const { data } = await apiRequest("/documents/my-documents", {
     method: "GET",
-    allow404: true
+    allow404: true,
+    // Some environments still gate this endpoint with HR-only permission.
+    // Treat 401 as "no documents yet" so candidate portal does not auto-logout.
+    allowStatuses: [401]
   });
   return data;
 };
