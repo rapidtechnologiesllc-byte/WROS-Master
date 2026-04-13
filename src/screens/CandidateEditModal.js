@@ -76,6 +76,7 @@ export default function CandidateEditModal({
 
   // Keep state in sync when switching the candidate inside the modal.
   useEffect(() => {
+     
     const nameParts = splitFullName(candidate?.name || "");
     setFirstName(nameParts.firstName);
     setMiddleName(nameParts.middleName);
@@ -97,9 +98,12 @@ export default function CandidateEditModal({
     setResumeFile(null);
     setResumeParsing(false);
     setActionNotice("");
-    setAccountStatusEdit(candidate?.accountStatus || "Active");
-    setPipelineStatusEdit(candidate?.pipelineStatus || "Applied");
-  }, [candidateId, candidate?.accountStatus, candidate?.pipelineStatus]);
+    setAccountStatusEdit(candidate?.status || "Active");
+
+setPipelineStatusEdit(
+  candidate?.pipelineStatus || candidate?.pipeline_status || "Applied"
+);
+  }, [candidateId, candidate?.status, candidate?.pipelineStatus]);
 
   const handleResumeFileChange = async (event) => {
     const file = event.target.files?.[0] || null;
