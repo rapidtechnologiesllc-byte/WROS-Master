@@ -96,7 +96,14 @@ export default function PreOnboarding({
     };
   }, []);
 
-  const checklists = checklistsPayload?.checklists || [];
+  // const checklists = checklistsPayload?.checklists || [];
+  const allChecklists = checklistsPayload?.checklists || [];
+
+// pick only active OR latest checklist
+const activeChecklist =
+  allChecklists.find((c) => c.status === "active") || allChecklists[0];
+
+const checklists = activeChecklist ? [activeChecklist] : [];
   const allChecklistsComplete =
     checklists.length > 0 && checklists.every((cl) => cl.status === "completed");
 
