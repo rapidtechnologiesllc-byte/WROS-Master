@@ -1,46 +1,65 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../../services/api/client";
+import { hrCompleteChecklistItem } from "../../services/api/checklists";
 
 export default function TasksTab({ candidateId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [completingId, setCompletingId] = useState(null);
+
+  // ✅ Auto-hide notice (FIXED PROPERLY)
+  useEffect(() => {
+    if (!notice) return;
+
+    const timer = setTimeout(() => {
+      setNotice("");
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const { data } = await apiRequest(
+        `/checklist/hr/candidate/${candidateId}`,
+        { method: "GET" }
+      );
+
+      setData(data || null);
+    } catch (err) {
+      setError(err.message || "Failed to load tasks");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!candidateId) return;
-
-    let isMounted = true;
-
-    const fetchTasks = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const { data } = await apiRequest(
-          `/checklist/hr/candidate/${candidateId}`,
-          { method: "GET" }
-        );
-
-        if (isMounted) {
-          setData(data || null);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err.message || "Failed to load tasks");
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     fetchTasks();
-
-    return () => {
-      isMounted = false;
-    };
   }, [candidateId]);
+
+  const handleCompleteItem = async (itemId) => {
+    try {
+      setCompletingId(itemId);
+
+      const res = await hrCompleteChecklistItem(itemId);
+
+      await fetchTasks();
+
+      // ✅ Show message (timer handled by useEffect)
+      setNotice(res?.message || "Item marked complete");
+
+    } catch (err) {
+      setError(err.message || "Failed to complete item");
+    } finally {
+      setCompletingId(null);
+    }
+  };
 
   if (loading) {
     return <div className="p-6 text-center text-gray-500">Loading tasks...</div>;
@@ -61,6 +80,13 @@ export default function TasksTab({ candidateId }) {
   return (
     <div className="grid gap-6">
 
+      {/* ✅ Notice Message */}
+      {notice && (
+        <div className="bg-green-100 text-green-700 p-2 rounded text-sm">
+          {notice}
+        </div>
+      )}
+
       {data.checklists.map((checklist) => {
         const progress =
           (checklist.completed_items / checklist.total_items) * 100;
@@ -70,7 +96,7 @@ export default function TasksTab({ candidateId }) {
             key={checklist.id}
             className="bg-white border rounded-2xl p-5 shadow-sm"
           >
-          
+            {/* Header */}
             <div className="flex justify-between items-center mb-3">
               <div>
                 <div className="font-semibold text-gray-900">
@@ -86,7 +112,7 @@ export default function TasksTab({ candidateId }) {
               </div>
             </div>
 
-         
+            {/* Progress bar */}
             <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
               <div
                 className="h-2 bg-green-500 rounded-full transition-all"
@@ -94,12 +120,12 @@ export default function TasksTab({ candidateId }) {
               />
             </div>
 
-          
+            {/* Items */}
             <div className="grid gap-3">
               {checklist.items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex justify-between items-center border rounded-xl px-4 py-3 hover:bg-gray-50 transition"
+                  className="flex justify-between items-center border rounded-xl px-4 py-3"
                 >
                   <div>
                     <div className="text-sm font-medium text-gray-900">
@@ -113,7 +139,20 @@ export default function TasksTab({ candidateId }) {
                     </div>
                   </div>
 
-                  <StatusBadge status={item.status} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={item.status} />
+
+                    {/* ✅ Complete button */}
+                    {item.status !== "completed" && (
+                      <button
+                        onClick={() => handleCompleteItem(item.id)}
+                        disabled={completingId === item.id}
+                        className="text-xs bg-blue-500 text-white px-3 py-1 rounded"
+                      >
+                        {completingId === item.id ? "..." : "Complete"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -123,7 +162,6 @@ export default function TasksTab({ candidateId }) {
     </div>
   );
 }
-
 
 function StatusBadge({ status }) {
   let styles = "bg-gray-100 text-gray-600";
@@ -142,7 +180,6 @@ function StatusBadge({ status }) {
     </span>
   );
 }
-
 
 function formatDate(date) {
   if (!date) return "-";
