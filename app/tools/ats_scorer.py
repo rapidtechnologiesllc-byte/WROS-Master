@@ -30,7 +30,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 _llm = ChatGoogleGenerativeAI(
     api_key=GEMINI_API_KEY,
-    model="gemini-2.0-flash",          # fast, cheap, sufficient for scoring
+    model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
     temperature=0.2,                    # low temp → consistent scores
 )
 

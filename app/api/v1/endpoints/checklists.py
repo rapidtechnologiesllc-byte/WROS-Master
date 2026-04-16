@@ -456,6 +456,24 @@ def assign_checklist(
     if not template:
         raise HTTPException(status_code=404, detail=f"Template {request.template_id} not found.")
 
+    # Prevent duplicate assignment — same template cannot be assigned to the same candidate twice
+    existing_assignment = (
+        db.query(CandidateChecklist)
+        .filter(
+            CandidateChecklist.candidate_id == request.candidate_id,
+            CandidateChecklist.template_id == request.template_id,
+        )
+        .first()
+    )
+    if existing_assignment:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Template '{template.name}' (ID {request.template_id}) is already assigned "
+                f"to candidate '{request.candidate_id}'. Duplicate assignment is not allowed."
+            ),
+        )
+
     # Create candidate checklist
     checklist = CandidateChecklist(
         candidate_id=request.candidate_id,
