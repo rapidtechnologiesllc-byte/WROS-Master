@@ -40,7 +40,7 @@ useEffect(() => {
 
   const timer = setTimeout(() => {
     setNotice("");
-  }, 3000);
+  }, 5000);
 
   return () => clearTimeout(timer);
 }, [notice]);

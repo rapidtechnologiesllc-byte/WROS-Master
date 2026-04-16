@@ -18,10 +18,9 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [statusData, setStatusData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
-  // ✅ NEW: success message
   const [notice, setNotice] = useState("");
 
-  // Assign checklist states
+  
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -29,10 +28,8 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [selectedTemplateData, setSelectedTemplateData] = useState(null);
   const [assigning, setAssigning] = useState(false);
 
-  // Prevent duplicate assignment
   const [isChecklistAssigned, setIsChecklistAssigned] = useState(false);
 
-  // Fetch candidate status
   useEffect(() => {
     if (!candidate?.id) return;
 
@@ -48,7 +45,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     fetchStatus();
   }, [candidate?.id]);
 
-  // Check if checklist already exists
+ 
   useEffect(() => {
     if (!candidate?.id) return;
 
@@ -69,7 +66,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     checkChecklist();
   }, [candidate?.id]);
 
-  // Fetch templates when modal opens
+ 
   useEffect(() => {
     if (!showAssignModal) return;
 
@@ -88,7 +85,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     fetchTemplates();
   }, [showAssignModal]);
 
-  // Fetch template details (preview)
+ 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
 
@@ -100,7 +97,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     }
   };
 
-  // Assign checklist
+
   const handleAssignChecklist = async () => {
     if (!selectedTemplate) return;
 
@@ -112,19 +109,19 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
         templateId: selectedTemplate,
       });
 
-      // ✅ Success message
+      
      setNotice("Checklist assigned successfully");
 
 setTimeout(() => {
   setNotice("");
 }, 3000); 
-      // ✅ Switch to Tasks tab
+   
       setActiveTab("tasks");
 
-      // Update UI
+      
       setIsChecklistAssigned(true);
 
-      // Reset modal
+    
       setShowAssignModal(false);
       setSelectedTemplate("");
       setSelectedTemplateData(null);
@@ -140,14 +137,14 @@ setTimeout(() => {
   return (
     <div className="grid gap-4">
 
-      {/* ✅ SUCCESS MESSAGE */}
+     
       {notice && (
         <div className="bg-green-100 text-green-700 p-2 rounded text-sm">
           {notice}
         </div>
       )}
 
-      {/* HEADER */}
+   
       <Card
         title={
           <div className="flex items-center gap-3">
@@ -185,7 +182,7 @@ setTimeout(() => {
         </div>
       </Card>
 
-      {/* TABS */}
+      
       <div className="flex gap-2 border-b pb-2">
         {["profile", "messages", "feedback", "documents", "tasks", "activity"].map((tab) => (
           <button
@@ -202,7 +199,7 @@ setTimeout(() => {
         ))}
       </div>
 
-      {/* TAB CONTENT */}
+  
       <div className="mt-4 p-4 bg-white border rounded-xl shadow-sm">
         {activeTab === "profile" && <ProfileTab candidateId={candidate?.id} />}
         {activeTab === "feedback" && <FeedbackTab candidateId={candidate?.id} />}
@@ -212,7 +209,7 @@ setTimeout(() => {
         {activeTab === "activity" && <div className="text-gray-500">Activity Coming Soon</div>}
       </div>
 
-      {/* EDIT MODAL */}
+   
       {editModalOpen && (
         <CandidateEditModal
           candidate={candidate}
@@ -220,7 +217,7 @@ setTimeout(() => {
         />
       )}
 
-      {/* ASSIGN MODAL */}
+    
       {showAssignModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
 
