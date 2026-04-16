@@ -18,6 +18,9 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [statusData, setStatusData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+  // ✅ NEW: success message
+  const [notice, setNotice] = useState("");
+
   // Assign checklist states
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [templates, setTemplates] = useState([]);
@@ -26,7 +29,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [selectedTemplateData, setSelectedTemplateData] = useState(null);
   const [assigning, setAssigning] = useState(false);
 
-  // NEW: prevent duplicate assignment
+  // Prevent duplicate assignment
   const [isChecklistAssigned, setIsChecklistAssigned] = useState(false);
 
   // Fetch candidate status
@@ -45,7 +48,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     fetchStatus();
   }, [candidate?.id]);
 
-  // NEW: Check if checklist already exists
+  // Check if checklist already exists
   useEffect(() => {
     if (!candidate?.id) return;
 
@@ -109,17 +112,26 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
         templateId: selectedTemplate,
       });
 
-      // update UI immediately
+      // ✅ Success message
+     setNotice("Checklist assigned successfully");
+
+setTimeout(() => {
+  setNotice("");
+}, 3000); 
+      // ✅ Switch to Tasks tab
+      setActiveTab("tasks");
+
+      // Update UI
       setIsChecklistAssigned(true);
 
-      // reset modal
+      // Reset modal
       setShowAssignModal(false);
       setSelectedTemplate("");
       setSelectedTemplateData(null);
 
     } catch (err) {
       console.error(err);
-      alert("Failed to assign checklist");
+      setNotice("Failed to assign checklist");
     } finally {
       setAssigning(false);
     }
@@ -127,6 +139,13 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
 
   return (
     <div className="grid gap-4">
+
+      {/* ✅ SUCCESS MESSAGE */}
+      {notice && (
+        <div className="bg-green-100 text-green-700 p-2 rounded text-sm">
+          {notice}
+        </div>
+      )}
 
       {/* HEADER */}
       <Card
@@ -144,7 +163,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
           </div>
         }
         right={
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={onBack}>Back</Button>
 
             <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
@@ -229,10 +248,8 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
               </select>
             )}
 
-            {/* PREVIEW */}
             {selectedTemplateData && (
               <div className="border rounded-lg p-3 bg-gray-50 mb-4">
-
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-semibold">Preview</span>
                   <span className="text-xs text-gray-500">
@@ -245,7 +262,6 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
                     <li key={item.id}>• {item.title}</li>
                   ))}
                 </ul>
-
               </div>
             )}
 
@@ -270,8 +286,6 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   );
 }
 
-
-// INFO COMPONENT
 function Info({ label, value }) {
   return (
     <div>
@@ -281,8 +295,6 @@ function Info({ label, value }) {
   );
 }
 
-
-// STATUS BADGE
 function StatusBadge({ type, value }) {
   let styles = "bg-gray-100 text-gray-600";
 

@@ -34,6 +34,16 @@ export default function PreOnboarding({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [completingId, setCompletingId] = useState(null);
+  
+useEffect(() => {
+  if (!notice) return;
+
+  const timer = setTimeout(() => {
+    setNotice("");
+  }, 3000);
+
+  return () => clearTimeout(timer);
+}, [notice]);
 
   const activeCandidate = useMemo(() => {
     return (
@@ -96,14 +106,8 @@ export default function PreOnboarding({
     };
   }, []);
 
-  // const checklists = checklistsPayload?.checklists || [];
-  const allChecklists = checklistsPayload?.checklists || [];
+  const checklists = checklistsPayload?.checklists || [];
 
-// pick only active OR latest checklist
-const activeChecklist =
-  allChecklists.find((c) => c.status === "active") || allChecklists[0];
-
-const checklists = activeChecklist ? [activeChecklist] : [];
   const allChecklistsComplete =
     checklists.length > 0 && checklists.every((cl) => cl.status === "completed");
 
