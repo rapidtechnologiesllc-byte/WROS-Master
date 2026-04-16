@@ -34,6 +34,16 @@ export default function PreOnboarding({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [completingId, setCompletingId] = useState(null);
+  
+useEffect(() => {
+  if (!notice) return;
+
+  const timer = setTimeout(() => {
+    setNotice("");
+  }, 5000);
+
+  return () => clearTimeout(timer);
+}, [notice]);
 
   const activeCandidate = useMemo(() => {
     return (
@@ -97,6 +107,7 @@ export default function PreOnboarding({
   }, []);
 
   const checklists = checklistsPayload?.checklists || [];
+
   const allChecklistsComplete =
     checklists.length > 0 && checklists.every((cl) => cl.status === "completed");
 
