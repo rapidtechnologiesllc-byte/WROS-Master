@@ -9,7 +9,7 @@ export default function TasksTab({ candidateId }) {
   const [notice, setNotice] = useState("");
   const [completingId, setCompletingId] = useState(null);
 
-  // ✅ Auto-hide notice (FIXED PROPERLY)
+ 
   useEffect(() => {
     if (!notice) return;
 
@@ -51,7 +51,7 @@ export default function TasksTab({ candidateId }) {
 
       await fetchTasks();
 
-      // ✅ Show message (timer handled by useEffect)
+      
       setNotice(res?.message || "Item marked complete");
 
     } catch (err) {
@@ -80,7 +80,7 @@ export default function TasksTab({ candidateId }) {
   return (
     <div className="grid gap-6">
 
-      {/* ✅ Notice Message */}
+  
       {notice && (
         <div className="bg-green-100 text-green-700 p-2 rounded text-sm">
           {notice}
@@ -96,7 +96,7 @@ export default function TasksTab({ candidateId }) {
             key={checklist.id}
             className="bg-white border rounded-2xl p-5 shadow-sm"
           >
-            {/* Header */}
+         
             <div className="flex justify-between items-center mb-3">
               <div>
                 <div className="font-semibold text-gray-900">
@@ -112,7 +112,7 @@ export default function TasksTab({ candidateId }) {
               </div>
             </div>
 
-            {/* Progress bar */}
+        
             <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
               <div
                 className="h-2 bg-green-500 rounded-full transition-all"
@@ -120,7 +120,7 @@ export default function TasksTab({ candidateId }) {
               />
             </div>
 
-            {/* Items */}
+           
             <div className="grid gap-3">
               {checklist.items.map((item) => (
                 <div
@@ -142,7 +142,7 @@ export default function TasksTab({ candidateId }) {
                   <div className="flex items-center gap-2">
                     <StatusBadge status={item.status} />
 
-                    {/* ✅ Complete button */}
+               
                     {item.status !== "completed" && (
                       <button
                         onClick={() => handleCompleteItem(item.id)}
