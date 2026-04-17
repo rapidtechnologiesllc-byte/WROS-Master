@@ -134,6 +134,7 @@ def get_all_jobs(
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
             business_unit=j.business_unit_id,
+            department_id=j.department_id,
             salary_range=j.salaryRange
         ))
     
@@ -183,6 +184,7 @@ def get_active_jobs(
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
             business_unit=j.business_unit_id,
+            department_id=j.department_id,
             salary_range=j.salaryRange
         )
         for j in jobs
@@ -192,6 +194,143 @@ def get_active_jobs(
         total_jobs=len(jobs_data),
         jobs=jobs_data
     )
+
+
+@router.get(
+    "/filter",
+    response_model=AllJobsResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+)
+def filter_jobs(
+    business_unit: Optional[int] = None,
+    department_id: Optional[int] = None,
+    job_status: Optional[str] = None,
+    contact_person: Optional[str] = None,
+    company_type: Optional[str] = None,
+    company_name: Optional[str] = None,
+    job_location: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Filter jobs by one or more columns. All parameters are optional and combined
+    with AND logic.
+
+    - **business_unit**: business_unit_id (integer)
+    - **department_id**: department_id (integer)
+    - **job_status**: e.g. active, pending_approval, draft
+    - **contact_person**: partial / exact match on contact_person field
+    - **company_type**: e.g. full time, contract, internship
+    - **company_name**: partial / exact match on company name
+    - **job_location**: partial / exact match on job location
+    """
+    query = db.query(Jobs)
+
+    if business_unit is not None:
+        query = query.filter(Jobs.business_unit_id == business_unit)
+    if department_id is not None:
+        query = query.filter(Jobs.department_id == department_id)
+    if job_status is not None:
+        query = query.filter(Jobs.jobStatus == job_status)
+    if contact_person is not None:
+        query = query.filter(Jobs.contactPerson.ilike(f"%{contact_person}%"))
+    if company_type is not None:
+        query = query.filter(Jobs.companyType.ilike(f"%{company_type}%"))
+    if company_name is not None:
+        query = query.filter(Jobs.companyName.ilike(f"%{company_name}%"))
+    if job_location is not None:
+        query = query.filter(Jobs.jobLocation.ilike(f"%{job_location}%"))
+
+    jobs = query.all()
+
+    jobs_data = [
+        JobResponse(
+            job_id=j.jobID,
+            job_title=j.jobTitle,
+            job_description=j.jobDescription,
+            job_skills=j.jobSkills,
+            job_experience=j.jobExperience,
+            job_location=j.jobLocation,
+            job_created_at=j.jobCreatedAt,
+            company_type=j.companyType,
+            company_name=j.companyName,
+            contact_person=j.contactPerson,
+            job_status=j.jobStatus,
+            no_of_positions=j.noOfPositions,
+            start_date=j.startDate,
+            end_date=j.endDate,
+            hiring_manager_id=j.hiringManagerID,
+            recuriter_id=j.recuriterID,
+            business_unit=j.business_unit_id,
+            department_id=j.department_id,
+            salary_range=j.salaryRange
+        )
+        for j in jobs
+    ]
+
+    return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
+
+
+@router.get(
+    "/my-jobs",
+    response_model=AllJobsResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+)
+def get_my_jobs(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Get all jobs where the current authenticated user is assigned as:
+    - **Recruiter** (`recuriterID`)
+    - **Hiring Manager** (`hiringManagerID`)
+    - **Contact Person** (`contactPerson`)
+
+    All three roles are checked with OR logic — a job appears once even if
+    the user matches more than one column.
+    """
+    from sqlalchemy import or_
+
+    my_id = user.UserID
+
+    jobs = (
+        db.query(Jobs)
+        .filter(
+            or_(
+                Jobs.recuriterID == my_id,
+                Jobs.hiringManagerID == my_id,
+                Jobs.contactPerson == my_id,
+            )
+        )
+        .all()
+    )
+
+    jobs_data = [
+        JobResponse(
+            job_id=j.jobID,
+            job_title=j.jobTitle,
+            job_description=j.jobDescription,
+            job_skills=j.jobSkills,
+            job_experience=j.jobExperience,
+            job_location=j.jobLocation,
+            job_created_at=j.jobCreatedAt,
+            company_type=j.companyType,
+            company_name=j.companyName,
+            contact_person=j.contactPerson,
+            job_status=j.jobStatus,
+            no_of_positions=j.noOfPositions,
+            start_date=j.startDate,
+            end_date=j.endDate,
+            hiring_manager_id=j.hiringManagerID,
+            recuriter_id=j.recuriterID,
+            business_unit=j.business_unit_id,
+            department_id=j.department_id,
+            salary_range=j.salaryRange,
+        )
+        for j in jobs
+    ]
+
+    return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
 
 
 @router.post(
@@ -245,6 +384,7 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
         hiringManagerID=request.hiring_manager_id,
         recuriterID=request.recuriter_id,
         business_unit_id=request.business_unit,
+        department_id=request.department_id,
         salaryRange=request.salary_range
     )
 
@@ -369,6 +509,8 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         job.recuriterID = request.recuriter_id
     if request.business_unit is not None:
         job.business_unit_id = request.business_unit
+    if request.department_id is not None:
+        job.department_id = request.department_id
     if request.salary_range is not None:
         job.salaryRange = request.salary_range
     
@@ -393,6 +535,7 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         hiring_manager_id=job.hiringManagerID,
         recuriter_id=job.recuriterID,
         business_unit=job.business_unit_id,
+        department_id=job.department_id,
         salary_range=job.salaryRange
     )
 

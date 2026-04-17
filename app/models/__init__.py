@@ -25,7 +25,7 @@ from app.models.candidate import (
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
-from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
+from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit, Department
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -65,6 +65,7 @@ __all__ = [
     "Permission",
     "RolePermission",
     "BusinessUnit",
+    "Department",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",
