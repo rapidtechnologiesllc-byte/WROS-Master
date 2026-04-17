@@ -14,9 +14,11 @@ class Users(Base):
     # RBAC — nullable so existing users are not broken on upgrade
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    department = relationship("Department", foreign_keys=[department_id], lazy="select")
 
 class Jobs(Base):
     __tablename__ = "jobs"
@@ -30,7 +32,7 @@ class Jobs(Base):
     jobCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     companyType = Column(String(50), nullable=False)#full time, part time, contract, temporary, internship
     companyName = Column(String(50), nullable=False)
-    contactPerson = Column(String(100), nullable=True)
+    contactPerson = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     jobStatus = Column(String(50), nullable=False)
     noOfPositions = Column(Integer, nullable=True)
     startDate = Column(Date, nullable=True)
@@ -38,9 +40,12 @@ class Jobs(Base):
     recuriterID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
     recuriter = relationship("Users", foreign_keys=[recuriterID], lazy="select")
+    contact_person_user = relationship("Users", foreign_keys=[contactPerson], lazy="select")
 
 
 
