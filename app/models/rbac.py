@@ -98,3 +98,16 @@ class BusinessUnit(Base):
 
     def __repr__(self) -> str:
         return f"<BusinessUnit id={self.id} name={self.name!r}>"
+
+
+class Department(Base):
+    """A department that users can belong to."""
+    __tablename__ = "departments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Department id={self.id} name={self.name!r}>"
