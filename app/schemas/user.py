@@ -130,6 +130,7 @@ class JobCreateRequest(BaseModel):
     recuriter_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     business_unit: Optional[int] = None
+    department_id: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -155,6 +156,7 @@ class JobResponse(BaseModel):
     hiring_manager_id: Optional[str] = None
     recuriter_id: Optional[str] = None
     business_unit: Optional[int] = None
+    department_id: Optional[int] = None
     salary_range: Optional[str] = None
 
 class AllJobsResponse(BaseModel):
@@ -198,6 +200,7 @@ class JobUpdateRequest(BaseModel):
     recuriter_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     business_unit: Optional[int] = None
+    department_id: Optional[int] = None
 
 class CandidateUpdateRequest(BaseModel):
     candidate_first_name: Optional[str] = None
