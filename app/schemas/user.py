@@ -148,7 +148,7 @@ class JobResponse(BaseModel):
     job_created_at: datetime
     company_type: str
     company_name: str
-    contact_person: str
+    contact_person: Optional[str] = None
     job_status: str
     no_of_positions: Optional[int] = None
     start_date: Optional[date] = None
