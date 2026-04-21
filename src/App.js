@@ -317,6 +317,7 @@ export default function App() {
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
     [candidates, selectedCandidateId]
   );
+
   const selectedJob = useMemo(
     () => jobs.find((j) => j.id === selectedJobId) || jobs[0],
     [jobs, selectedJobId]
@@ -330,9 +331,9 @@ export default function App() {
     const refreshed = await getAllJobs();
     const mappedJobs = (refreshed?.jobs || []).map((j) => mapJobFromApi(j, users));
     setJobs(mappedJobs);
-    if (!selectedJobId && mappedJobs.length) {
-      setSelectedJobId(mappedJobs[0].id);
-    }
+     if (!selectedJobId && mappedJobs.length) {
+       setSelectedJobId(mappedJobs[0].id);
+     }
   }, [selectedJobId, users]);
 
   const mapInterviews = useCallback((interviewRes) => {
@@ -507,44 +508,44 @@ export default function App() {
       screen={screen}
       setScreen={safeSetScreen}
       onLogout={handleLogout}
-    >
+      >
       {screen === "dashboard" && (
-        <Dashboard
-          candidates={candidates}
-          jobs={jobs}
-          interviews={interviews}
-          offers={offers}
+            <Dashboard
+              candidates={candidates}
+              jobs={jobs}
+              interviews={interviews}
+              offers={offers}
           onGo={(s) => safeSetScreen(s)}
-        />
+            />
       )}
 
       {screen === "assignments" && <AssignmentsScreen />}
 
       {screen === "candidateSearch" && (
-        <CandidateSearch
-          candidates={candidates}
-          jobs={jobs}
-          selectedCandidateId={selectedCandidateId}
-          setSelectedCandidateId={setSelectedCandidateId}
-          selectedJobId={selectedJobId}
-          setSelectedJobId={setSelectedJobId}
+            <CandidateSearch
+              candidates={candidates}
+              jobs={jobs}
+              selectedCandidateId={selectedCandidateId}
+              setSelectedCandidateId={setSelectedCandidateId}
+              selectedJobId={selectedJobId}
+              setSelectedJobId={setSelectedJobId}
           onCreateCandidate={() => safeSetScreen("candidateCreate")}
           onMatchingJobs={() => safeSetScreen("matchingJobs")}
           onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
-          onUpdateCandidate={async (candidateId, payload) => {
+              onUpdateCandidate={async (candidateId, payload) => {
             try {
-              await updateCandidate(candidateId, payload);
-              await refreshCandidates();
+                await updateCandidate(candidateId, payload);
+                await refreshCandidates();
               notify("Candidate", "Candidate updated.");
             } catch (err) {
               notify("Candidate", err.message || "Failed to update candidate.");
             }
-          }}
-          onDeleteCandidate={async (candidateId) => {
+              }}
+              onDeleteCandidate={async (candidateId) => {
             if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
             try {
-              await deleteCandidate(candidateId);
-              await refreshCandidates();
+                await deleteCandidate(candidateId);
+                await refreshCandidates();
               setSelectedCandidateId(candidates.find((c) => c.id !== candidateId)?.id || "");
               notify("Candidate", "Candidate deleted.");
             } catch (err) {
@@ -564,26 +565,26 @@ setSelectedCandidate={setSelectedCandidateData}
       {screen === "checklistTemplates" && <ChecklistTemplatesScreen />}
 
       {screen === "candidateCreate" && (
-        <CandidateCreate
+            <CandidateCreate
           onBack={() => safeSetScreen("candidateSearch")}
-          onSave={(c) => {
-            setCandidates((prev) => [c, ...prev]);
-            setSelectedCandidateId(c.id);
+              onSave={(c) => {
+                setCandidates((prev) => [c, ...prev]);
+                setSelectedCandidateId(c.id);
             notify("Candidate", `Created ${c.name} (${c.id})`);
             safeSetScreen("candidateSearch");
-          }}
-        />
+              }}
+            />
       )}
       {screen === "candidateDetails" && (
   <CandidateDetailsScreen
     candidate={selectedCandidateData}
     onBack={() => safeSetScreen("candidateSearch")}
-  />
+        />
 )}
 
       {screen === "jobs" && (
-        <JobsOverview
-          jobs={jobs}
+            <JobsOverview
+              jobs={jobs}
           onCreate={() => {
             setJobCreateMode("create");
             safeSetScreen("jobCreate");
@@ -692,23 +693,23 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "jobCreate" && (
-        <JobCreate
+            <JobCreate
           mode={jobCreateMode}
           initialJob={jobCreateMode === "view" ? selectedJob : null}
-          onSave={(j) => {
-            setJobs((prev) => [j, ...prev]);
+              onSave={(j) => {
+                setJobs((prev) => [j, ...prev]);
             setSelectedJobId(j.id);
             notify("Job", `Created job ${j.title} (${j.id})`);
             safeSetScreen("jobDetails");
-          }}
-        />
+              }}
+            />
       )}
 
       {screen === "jobDetails" && selectedJob && (
-        <JobDetails
-          job={selectedJob}
+            <JobDetails
+              job={selectedJob}
           mode={jobDetailsMode}
-          onUpdate={async (next) => {
+              onUpdate={async (next) => {
             try {
               const payload = {
                 job_title: next.title,
@@ -730,7 +731,7 @@ setSelectedCandidate={setSelectedCandidateData}
                 ...((next.endDate || "").trim() ? { end_date: next.endDate } : {})
               };
               await updateJob(selectedJob.id, payload);
-              await refreshJobs();
+                await refreshJobs();
               notify("Job", `Updated job ${next.title} (${selectedJob.id})`);
             } catch (err) {
               notify("Job", err.message || "Failed to update job.");
@@ -745,13 +746,13 @@ setSelectedCandidate={setSelectedCandidateData}
             notify("Submitted", "Submitted to internal hiring team (simulated).");
           }}
           onGoApproval={() => safeSetScreen("approval")}
-        />
+            />
       )}
 
       {screen === "matchingJobs" && selectedCandidate && (
-        <MatchingJobs
-          candidate={selectedCandidate}
-          jobs={jobs}
+            <MatchingJobs
+              candidate={selectedCandidate}
+              jobs={jobs}
           onApply={async (jobId) => {
             try {
               if (!selectedCandidate.phone) {
@@ -779,9 +780,9 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "interviewSchedule" && selectedCandidate && selectedJob && (
-        <InterviewSchedule
-          candidate={selectedCandidate}
-          job={selectedJob}
+            <InterviewSchedule
+              candidate={selectedCandidate}
+              job={selectedJob}
           candidates={candidates}
           jobs={jobs}
           selectedCandidateId={selectedCandidateId}
@@ -828,8 +829,8 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "approval" && selectedCandidate && (
-        <Approval
-          candidate={selectedCandidate}
+            <Approval
+              candidate={selectedCandidate}
           onApprove={() => {
             setCandidates((prev) =>
               prev.map((c) =>
@@ -848,13 +849,13 @@ setSelectedCandidate={setSelectedCandidateData}
             notify("Rejected", "Candidate marked as No Hire.");
             safeSetScreen("dashboard");
           }}
-        />
+            />
       )}
 
       {screen === "offer" && selectedCandidate && selectedJob && (
-        <OfferScreen
-          candidate={selectedCandidate}
-          job={selectedJob}
+            <OfferScreen
+              candidate={selectedCandidate}
+              job={selectedJob}
           candidates={candidates}
           jobs={jobs}
           selectedCandidateId={selectedCandidateId}
@@ -1015,8 +1016,8 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "documents" && selectedCandidate && (
-        <Documents
-          candidate={selectedCandidate}
+            <Documents
+              candidate={selectedCandidate}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
@@ -1028,8 +1029,8 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "verification" && selectedCandidate && (
-        <Verification
-          candidate={selectedCandidate}
+            <Verification
+              candidate={selectedCandidate}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
@@ -1058,8 +1059,8 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "preOnboarding" && selectedCandidate && (
-        <PreOnboarding
-          candidate={selectedCandidate}
+            <PreOnboarding
+              candidate={selectedCandidate}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
