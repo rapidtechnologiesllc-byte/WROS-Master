@@ -335,11 +335,11 @@ export default function CandidateCreate({ onBack, onSave }) {
             options={["Candidate", "Employee", "Contractor"]}
           />
           <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
-          <Input label="Email *" value={email} onChange={setEmail} />
-          <Input label="First Name *" value={firstName} onChange={setFirstName} />
+          <Input label="Email *" value={email} onChange={setEmail} actionNotice={actionNotice} />
+          <Input label="First Name *" value={firstName} onChange={setFirstName} actionNotice={actionNotice} />
           <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
-          <Input label="Last Name *" value={lastName} onChange={setLastName} />
-          <Input label="Mobile *" value={mobile} onChange={setMobile} />
+          <Input label="Last Name *" value={lastName} onChange={setLastName} actionNotice={actionNotice}  />
+          <Input label="Mobile *" value={mobile} onChange={setMobile} actionNotice={actionNotice} />
           <Select
             label="Gender *"
             value={gender}
