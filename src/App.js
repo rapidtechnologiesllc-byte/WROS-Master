@@ -30,14 +30,14 @@ import {
   getAllCandidates,
   getCandidateById,
   updateCandidate,
-  deleteCandidate
+  deleteCandidate,
 } from "./services/api/candidates";
 import {
   approveJob,
   deleteJob,
   getAllJobs,
   updateJob,
-  postJobOnLinkedIn
+  postJobOnLinkedIn,
 } from "./services/api/jobs";
 import { applyForJob } from "./services/api/jobs";
 import {
@@ -45,17 +45,21 @@ import {
   getAllOffers,
   getOfferById,
   updateOfferLetter,
-  cancelOfferLetter
+  cancelOfferLetter,
 } from "./services/api/offerLetters";
 import { getAllUsers } from "./services/api/users";
-import { getAllCandidateStatuses, updateCandidateStatus } from "./services/api/candidateStatus";
+import {
+  getAllCandidateStatuses,
+  updateCandidateStatus,
+} from "./services/api/candidateStatus";
 import CandidateDetailsScreen from "./screens/CandidateDetailsScreen";
 
 // Helpers to normalize API responses into UI-friendly models
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
     if (!raw) return [];
-    if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
+    if (Array.isArray(raw))
+      return raw.map((s) => String(s).trim()).filter(Boolean);
     return String(raw)
       .split(",")
       .map((s) => s.trim())
@@ -83,7 +87,7 @@ const mapCandidateFromApi = (c) => {
     assignedHrManagerId: c.assigned_hr_manager_id || "",
     assignedReportManagerId: c.assigned_report_manager_id || "",
     pipelineStatus: c.pipline_status || c.pipeline_status || "",
-    accountStatus: c.status || ""
+    accountStatus: c.status || "",
   };
 };
 
@@ -96,7 +100,7 @@ const mergeCandidateStatuses = (candidates, statusRes) => {
     return {
       ...c,
       pipelineStatus: s.pipeline_status || c.pipelineStatus || "",
-      accountStatus: s.status || c.accountStatus || ""
+      accountStatus: s.status || c.accountStatus || "",
     };
   });
 };
@@ -105,41 +109,43 @@ const mapJobFromApi = (j, users = []) => {
   const usersList = Array.isArray(users) ? users : [];
   const hmId = j?.hiring_manager_id || "";
   const hmUser = usersList.find(
-    (u) => String(u?.user_id || "") === String(hmId || "")
+    (u) => String(u?.user_id || "") === String(hmId || ""),
   );
   const hiringManagerName =
     hmUser?.user_name || hmUser?.user_email || (hmId ? String(hmId) : "");
 
-  return ({
-  id: j.job_id,
-  title: j.job_title,
-  dept: "",
-  location: j.job_location || "",
-  skills: String(j.job_skills || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
-  hiringManager: hmId,
-  hiringManagerName,
-  status: (() => {
-    const raw = String(j.job_status || "").trim().toLowerCase();
-    if (raw === "active") return "Open";
-    if (raw === "public") return "Public";
-    if (raw === "draft") return "Draft";
-    if (raw === "submitted") return "Submitted";
-    if (raw === "pending_approval") return "Pending Approval";
-    if (raw === "closed") return "Closed";
-    // Keep unknown statuses as-is (but preserve original casing from API if possible).
-    return j.job_status || "Draft";
-  })(),
-  experienceLevel: j.job_experience || "",
-  companyType: j.company_type || "",
-  companyClient: j.company_name || "",
-  contactPerson: j.contact_person || "",
-  startDate: j.start_date || "",
-  endDate: j.end_date || "",
-  jobDescription: j.job_description || ""
-  });
+  return {
+    id: j.job_id,
+    title: j.job_title,
+    dept: "",
+    location: j.job_location || "",
+    skills: String(j.job_skills || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+    hiringManager: hmId,
+    hiringManagerName,
+    status: (() => {
+      const raw = String(j.job_status || "")
+        .trim()
+        .toLowerCase();
+      if (raw === "active") return "Open";
+      if (raw === "public") return "Public";
+      if (raw === "draft") return "Draft";
+      if (raw === "submitted") return "Submitted";
+      if (raw === "pending_approval") return "Pending Approval";
+      if (raw === "closed") return "Closed";
+      // Keep unknown statuses as-is (but preserve original casing from API if possible).
+      return j.job_status || "Draft";
+    })(),
+    experienceLevel: j.job_experience || "",
+    companyType: j.company_type || "",
+    companyClient: j.company_name || "",
+    contactPerson: j.contact_person || "",
+    startDate: j.start_date || "",
+    endDate: j.end_date || "",
+    jobDescription: j.job_description || "",
+  };
 };
 
 const normalizeJobStatusForApi = (uiStatus) => {
@@ -154,7 +160,9 @@ const normalizeJobStatusForApi = (uiStatus) => {
 };
 
 const normalizeRole = (rawRole) => {
-  const upper = String(rawRole || "").trim().toUpperCase();
+  const upper = String(rawRole || "")
+    .trim()
+    .toUpperCase();
   if (["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(upper)) {
     return "SUPER_USER";
   }
@@ -165,7 +173,9 @@ const normalizeRole = (rawRole) => {
 };
 
 const getOfferJoiningDateAndSalary = (offer) => {
-  const joiningDate = String(offer?.startDate || offer?.joiningDate || "").trim();
+  const joiningDate = String(
+    offer?.startDate || offer?.joiningDate || "",
+  ).trim();
   const salaryNum = Number(offer?.salary ?? 0);
   return { joiningDate, salaryNum };
 };
@@ -213,7 +223,8 @@ export default function App() {
     .trim()
     .toLowerCase();
   const normalizedRole = normalizeRole(storedRole);
-  const isAdminOrSuperUser = normalizedRole === "ADMIN" || normalizedRole === "SUPER_USER";
+  const isAdminOrSuperUser =
+    normalizedRole === "ADMIN" || normalizedRole === "SUPER_USER";
   const isSuperUser = normalizedRole === "SUPER_USER";
 
   const handleLogout = () => {
@@ -242,7 +253,7 @@ export default function App() {
       email: "asha@example.com",
       phone: "+1 555 0101",
       skills: ["React", "TypeScript", "Node"],
-      status: "Applied"
+      status: "Applied",
     },
     {
       id: "C-1002",
@@ -250,8 +261,8 @@ export default function App() {
       email: "rahul@example.com",
       phone: "+1 555 0102",
       skills: ["Java", "Spring", "SQL"],
-      status: "Interview Scheduled"
-    }
+      status: "Interview Scheduled",
+    },
   ]);
 
   const [jobs, setJobs] = useState([
@@ -262,7 +273,7 @@ export default function App() {
       location: "Remote",
       skills: ["React", "TypeScript"],
       hiringManager: "Sanjay",
-      status: "Open"
+      status: "Open",
     },
     {
       id: "J-2002",
@@ -271,8 +282,8 @@ export default function App() {
       location: "Kansas City",
       skills: ["Java", "Spring"],
       hiringManager: "Avinash",
-      status: "Submitted"
-    }
+      status: "Submitted",
+    },
   ]);
 
   const [interviews, setInterviews] = useState([
@@ -284,8 +295,8 @@ export default function App() {
       startTime: "2026-01-25T10:00:00",
       endTime: "2026-01-25T11:00:00",
       meetingLink: "",
-      status: "Scheduled"
-    }
+      status: "Scheduled",
+    },
   ]);
 
   const [offer, setOffer] = useState({
@@ -297,7 +308,7 @@ export default function App() {
     salary: 0,
     startDate: "",
     joiningDate: "",
-    state: "Draft"
+    state: "Draft",
   });
 
   const [offers, setOffers] = useState([]);
@@ -306,7 +317,7 @@ export default function App() {
   const [offerError, setOfferError] = useState("");
 
   const [selectedCandidateId, setSelectedCandidateId] = useState(
-    candidates[0]?.id || ""
+    candidates[0]?.id || "",
   );
   const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
   const [jobDetailsMode, setJobDetailsMode] = useState("view");
@@ -315,12 +326,12 @@ export default function App() {
 
   const selectedCandidate = useMemo(
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
-    [candidates, selectedCandidateId]
+    [candidates, selectedCandidateId],
   );
 
   const selectedJob = useMemo(
     () => jobs.find((j) => j.id === selectedJobId) || jobs[0],
-    [jobs, selectedJobId]
+    [jobs, selectedJobId],
   );
 
   const notify = useCallback((title, message) => {
@@ -329,11 +340,13 @@ export default function App() {
 
   const refreshJobs = useCallback(async () => {
     const refreshed = await getAllJobs();
-    const mappedJobs = (refreshed?.jobs || []).map((j) => mapJobFromApi(j, users));
+    const mappedJobs = (refreshed?.jobs || []).map((j) =>
+      mapJobFromApi(j, users),
+    );
     setJobs(mappedJobs);
-     if (!selectedJobId && mappedJobs.length) {
-       setSelectedJobId(mappedJobs[0].id);
-     }
+    if (!selectedJobId && mappedJobs.length) {
+      setSelectedJobId(mappedJobs[0].id);
+    }
   }, [selectedJobId, users]);
 
   const mapInterviews = useCallback((interviewRes) => {
@@ -346,7 +359,7 @@ export default function App() {
       endTime: i.end_time,
       meetingLink: i.meeting_link || "",
       outlookEventId: i.outlook_event_id || "",
-      status: i.status
+      status: i.status,
     }));
   }, []);
 
@@ -368,7 +381,7 @@ export default function App() {
     try {
       const [res, statusRes] = await Promise.all([
         getAllCandidates(),
-        getAllCandidateStatuses().catch(() => null)
+        getAllCandidateStatuses().catch(() => null),
       ]);
       let mapped = (res?.candidates || []).map(mapCandidateFromApi);
       if (statusRes) {
@@ -384,15 +397,21 @@ export default function App() {
     let isMounted = true;
     const loadData = async () => {
       try {
-        const [candidateRes, jobRes, interviewRes, offersRes, usersRes, statusRes] =
-          await Promise.all([
-            getAllCandidates(),
-            getAllJobs(),
-            getAllInterviews(),
-            getAllOffers(),
-            getAllUsers(),
-            getAllCandidateStatuses().catch(() => null)
-          ]);
+        const [
+          candidateRes,
+          jobRes,
+          interviewRes,
+          offersRes,
+          usersRes,
+          statusRes,
+        ] = await Promise.all([
+          getAllCandidates(),
+          getAllJobs(),
+          getAllInterviews(),
+          getAllOffers(),
+          getAllUsers(),
+          getAllCandidateStatuses().catch(() => null),
+        ]);
 
         if (!isMounted) return;
 
@@ -400,14 +419,17 @@ export default function App() {
         setUsers(usersRes?.users || []);
 
         let mappedCandidates = (candidateRes?.candidates || []).map(
-          mapCandidateFromApi
+          mapCandidateFromApi,
         );
         if (statusRes) {
-          mappedCandidates = mergeCandidateStatuses(mappedCandidates, statusRes);
+          mappedCandidates = mergeCandidateStatuses(
+            mappedCandidates,
+            statusRes,
+          );
         }
 
         const mappedJobs = (jobRes?.jobs || []).map((j) =>
-          mapJobFromApi(j, usersRes?.users || [])
+          mapJobFromApi(j, usersRes?.users || []),
         );
 
         const mappedInterviews = mapInterviews(interviewRes);
@@ -442,7 +464,8 @@ export default function App() {
       normalizedCurrentRole === "ADMIN" ||
       normalizedCurrentRole === "SUPER_USER";
     const canUseAdminScreens =
-      normalizedCurrentRole === "ADMIN" || normalizedCurrentRole === "SUPER_USER";
+      normalizedCurrentRole === "ADMIN" ||
+      normalizedCurrentRole === "SUPER_USER";
 
     if (hmOnly.includes(next) && !canUseHrScreens) {
       notify("Access", "Approval screen requires HR or Admin role.");
@@ -471,7 +494,7 @@ export default function App() {
         (o) =>
           o.candidate_id === selectedCandidate.id &&
           o.job_id === selectedJob.id &&
-          o.offer_status === "Pending"
+          o.offer_status === "Pending",
       );
       if (existing) {
         setOffer((prev) => ({
@@ -483,7 +506,7 @@ export default function App() {
           position: existing.position,
           salary: Number(existing.salary) || 0,
           startDate: existing.joining_date || "",
-          joiningDate: existing.joining_date || ""
+          joiningDate: existing.joining_date || "",
         }));
       } else {
         setOffer((prev) => ({
@@ -491,11 +514,12 @@ export default function App() {
           candidateId: selectedCandidate.id,
           jobId: selectedJob.id,
           hiringManagerId: selectedJob.hiringManager || "",
-          reportingManagerId: prev.reportingManagerId || selectedJob.hiringManager || "",
+          reportingManagerId:
+            prev.reportingManagerId || selectedJob.hiringManager || "",
           position: selectedJob.title || "",
           salary: prev.salary || 0,
           startDate: prev.startDate || "",
-          joiningDate: prev.startDate || ""
+          joiningDate: prev.startDate || "",
         }));
       }
       setOfferError("");
@@ -508,45 +532,47 @@ export default function App() {
       screen={screen}
       setScreen={safeSetScreen}
       onLogout={handleLogout}
-      >
+    >
       {screen === "dashboard" && (
-            <Dashboard
-              candidates={candidates}
-              jobs={jobs}
-              interviews={interviews}
-              offers={offers}
+        <Dashboard
+          candidates={candidates}
+          jobs={jobs}
+          interviews={interviews}
+          offers={offers}
           onGo={(s) => safeSetScreen(s)}
-            />
+        />
       )}
 
       {screen === "assignments" && <AssignmentsScreen />}
 
       {screen === "candidateSearch" && (
-            <CandidateSearch
-              candidates={candidates}
-              jobs={jobs}
-              selectedCandidateId={selectedCandidateId}
-              setSelectedCandidateId={setSelectedCandidateId}
-              selectedJobId={selectedJobId}
-              setSelectedJobId={setSelectedJobId}
+        <CandidateSearch
+          candidates={candidates}
+          jobs={jobs}
+          selectedCandidateId={selectedCandidateId}
+          setSelectedCandidateId={setSelectedCandidateId}
+          selectedJobId={selectedJobId}
+          setSelectedJobId={setSelectedJobId}
           onCreateCandidate={() => safeSetScreen("candidateCreate")}
           onMatchingJobs={() => safeSetScreen("matchingJobs")}
           onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
-              onUpdateCandidate={async (candidateId, payload) => {
+          onUpdateCandidate={async (candidateId, payload) => {
             try {
-                await updateCandidate(candidateId, payload);
-                await refreshCandidates();
+              await updateCandidate(candidateId, payload);
+              await refreshCandidates();
               notify("Candidate", "Candidate updated.");
             } catch (err) {
               notify("Candidate", err.message || "Failed to update candidate.");
             }
-              }}
-              onDeleteCandidate={async (candidateId) => {
+          }}
+          onDeleteCandidate={async (candidateId) => {
             if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
             try {
-                await deleteCandidate(candidateId);
-                await refreshCandidates();
-              setSelectedCandidateId(candidates.find((c) => c.id !== candidateId)?.id || "");
+              await deleteCandidate(candidateId);
+              await refreshCandidates();
+              setSelectedCandidateId(
+                candidates.find((c) => c.id !== candidateId)?.id || "",
+              );
               notify("Candidate", "Candidate deleted.");
             } catch (err) {
               notify("Candidate", err.message || "Failed to delete candidate.");
@@ -558,33 +584,33 @@ export default function App() {
           }}
           onRefreshCandidates={refreshCandidates}
           setScreen={safeSetScreen}
-setSelectedCandidate={setSelectedCandidateData}
+          setSelectedCandidate={setSelectedCandidateData}
         />
       )}
 
       {screen === "checklistTemplates" && <ChecklistTemplatesScreen />}
 
       {screen === "candidateCreate" && (
-            <CandidateCreate
+        <CandidateCreate
           onBack={() => safeSetScreen("candidateSearch")}
-              onSave={(c) => {
-                setCandidates((prev) => [c, ...prev]);
-                setSelectedCandidateId(c.id);
+          onSave={(c) => {
+            setCandidates((prev) => [c, ...prev]);
+            setSelectedCandidateId(c.id);
             notify("Candidate", `Created ${c.name} (${c.id})`);
             safeSetScreen("candidateSearch");
-              }}
-            />
+          }}
+        />
       )}
       {screen === "candidateDetails" && (
-  <CandidateDetailsScreen
-    candidate={selectedCandidateData}
-    onBack={() => safeSetScreen("candidateSearch")}
+        <CandidateDetailsScreen
+          candidate={selectedCandidateData}
+          onBack={() => safeSetScreen("candidateSearch")}
         />
-)}
+      )}
 
       {screen === "jobs" && (
-            <JobsOverview
-              jobs={jobs}
+        <JobsOverview
+          jobs={jobs}
           onCreate={() => {
             setJobCreateMode("create");
             safeSetScreen("jobCreate");
@@ -693,23 +719,23 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "jobCreate" && (
-            <JobCreate
+        <JobCreate
           mode={jobCreateMode}
           initialJob={jobCreateMode === "view" ? selectedJob : null}
-              onSave={(j) => {
-                setJobs((prev) => [j, ...prev]);
+          onSave={(j) => {
+            setJobs((prev) => [j, ...prev]);
             setSelectedJobId(j.id);
             notify("Job", `Created job ${j.title} (${j.id})`);
             safeSetScreen("jobDetails");
-              }}
-            />
+          }}
+        />
       )}
 
       {screen === "jobDetails" && selectedJob && (
-            <JobDetails
-              job={selectedJob}
+        <JobDetails
+          job={selectedJob}
           mode={jobDetailsMode}
-              onUpdate={async (next) => {
+          onUpdate={async (next) => {
             try {
               const payload = {
                 job_title: next.title,
@@ -720,18 +746,27 @@ setSelectedCandidate={setSelectedCandidateData}
                 company_type: next.companyType,
                 company_name: next.companyClient,
                 contact_person: next.contactPerson,
-                job_status: normalizeJobStatusForApi(next.jobStatus || next.status),
+                job_status: normalizeJobStatusForApi(
+                  next.jobStatus || next.status,
+                ),
                 no_of_positions: Number(next.noOfPositions ?? 0),
                 // Only include hiring_manager_id when we have a non-empty value.
                 ...(next.hiringManager || selectedJob?.hiringManager
-                  ? { hiring_manager_id: next.hiringManager || selectedJob?.hiringManager }
+                  ? {
+                      hiring_manager_id:
+                        next.hiringManager || selectedJob?.hiringManager,
+                    }
                   : {}),
                 // Only send dates if they have values; backend schema expects Optional[date].
-                ...((next.startDate || "").trim() ? { start_date: next.startDate } : {}),
-                ...((next.endDate || "").trim() ? { end_date: next.endDate } : {})
+                ...((next.startDate || "").trim()
+                  ? { start_date: next.startDate }
+                  : {}),
+                ...((next.endDate || "").trim()
+                  ? { end_date: next.endDate }
+                  : {}),
               };
               await updateJob(selectedJob.id, payload);
-                await refreshJobs();
+              await refreshJobs();
               notify("Job", `Updated job ${next.title} (${selectedJob.id})`);
             } catch (err) {
               notify("Job", err.message || "Failed to update job.");
@@ -740,38 +775,48 @@ setSelectedCandidate={setSelectedCandidateData}
           onSubmit={() => {
             setJobs((prev) =>
               prev.map((x) =>
-                x.id === selectedJob.id ? { ...x, status: "Submitted" } : x
-              )
+                x.id === selectedJob.id ? { ...x, status: "Submitted" } : x,
+              ),
             );
-            notify("Submitted", "Submitted to internal hiring team (simulated).");
+            notify(
+              "Submitted",
+              "Submitted to internal hiring team (simulated).",
+            );
           }}
           onGoApproval={() => safeSetScreen("approval")}
-            />
+        />
       )}
 
       {screen === "matchingJobs" && selectedCandidate && (
-            <MatchingJobs
-              candidate={selectedCandidate}
-              jobs={jobs}
+        <MatchingJobs
+          candidate={selectedCandidate}
+          jobs={jobs}
           onApply={async (jobId) => {
             try {
               if (!selectedCandidate.phone) {
-                throw new Error("Candidate phone is missing. Add phone number before applying.");
+                throw new Error(
+                  "Candidate phone is missing. Add phone number before applying.",
+                );
               }
               const res = await applyForJob({
                 jobId,
                 fullName: selectedCandidate.name,
                 email: selectedCandidate.email,
-                phone: selectedCandidate.phone
+                phone: selectedCandidate.phone,
               });
 
               setSelectedJobId(jobId);
               setCandidates((prev) =>
                 prev.map((c) =>
-                  c.id === selectedCandidate.id ? { ...c, status: "Applied" } : c
-                )
+                  c.id === selectedCandidate.id
+                    ? { ...c, status: "Applied" }
+                    : c,
+                ),
               );
-              notify("Applied", res?.message || "Candidate applied successfully.");
+              notify(
+                "Applied",
+                res?.message || "Candidate applied successfully.",
+              );
             } catch (err) {
               notify("Applied", err.message || "Failed to apply for the job.");
             }
@@ -780,9 +825,9 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "interviewSchedule" && selectedCandidate && selectedJob && (
-            <InterviewSchedule
-              candidate={selectedCandidate}
-              job={selectedJob}
+        <InterviewSchedule
+          candidate={selectedCandidate}
+          job={selectedJob}
           candidates={candidates}
           jobs={jobs}
           selectedCandidateId={selectedCandidateId}
@@ -795,12 +840,12 @@ setSelectedCandidate={setSelectedCandidateData}
               prev.map((c) =>
                 c.id === i.candidateId
                   ? { ...c, status: "Interview Scheduled" }
-                  : c
-              )
+                  : c,
+              ),
             );
             notify(
               "Interview",
-              "Interview scheduled. Candidate + recruiter notified (simulated)."
+              "Interview scheduled. Candidate + recruiter notified (simulated).",
             );
             safeSetScreen("interviewStatus");
           }}
@@ -816,7 +861,7 @@ setSelectedCandidate={setSelectedCandidateData}
             try {
               await updateInterview({
                 interviewId: interview.id,
-                status: "Completed"
+                status: "Completed",
               });
               await refreshInterviews();
             } catch (err) {
@@ -829,33 +874,40 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "approval" && selectedCandidate && (
-            <Approval
-              candidate={selectedCandidate}
+        <Approval
+          candidate={selectedCandidate}
           onApprove={() => {
             setCandidates((prev) =>
               prev.map((c) =>
-                c.id === selectedCandidate.id ? { ...c, status: "Selected" } : c
-              )
+                c.id === selectedCandidate.id
+                  ? { ...c, status: "Selected" }
+                  : c,
+              ),
             );
-            notify("Approved", "Candidate approved for hire. Proceed to offer.");
+            notify(
+              "Approved",
+              "Candidate approved for hire. Proceed to offer.",
+            );
             safeSetScreen("offer");
           }}
           onReject={() => {
             setCandidates((prev) =>
               prev.map((c) =>
-                c.id === selectedCandidate.id ? { ...c, status: "Rejected" } : c
-              )
+                c.id === selectedCandidate.id
+                  ? { ...c, status: "Rejected" }
+                  : c,
+              ),
             );
             notify("Rejected", "Candidate marked as No Hire.");
             safeSetScreen("dashboard");
           }}
-            />
+        />
       )}
 
       {screen === "offer" && selectedCandidate && selectedJob && (
-            <OfferScreen
-              candidate={selectedCandidate}
-              job={selectedJob}
+        <OfferScreen
+          candidate={selectedCandidate}
+          job={selectedJob}
           candidates={candidates}
           jobs={jobs}
           selectedCandidateId={selectedCandidateId}
@@ -869,7 +921,7 @@ setSelectedCandidate={setSelectedCandidateData}
             (o) =>
               o.candidate_id === selectedCandidate.id &&
               o.job_id === selectedJob.id &&
-              o.offer_status === "Pending"
+              o.offer_status === "Pending",
           )}
           onCreate={async () => {
             setOfferError("");
@@ -878,15 +930,21 @@ setSelectedCandidate={setSelectedCandidateData}
               const hiringManagerId =
                 offer.hiringManagerId || selectedJob.hiringManager;
               const reportingManagerId =
-                offer.reportingManagerId || offer.hiringManagerId || selectedJob.hiringManager;
+                offer.reportingManagerId ||
+                offer.hiringManagerId ||
+                selectedJob.hiringManager;
               if (!hiringManagerId || !reportingManagerId) {
-                throw new Error("Please select Hiring Manager and Reporting Manager.");
+                throw new Error(
+                  "Please select Hiring Manager and Reporting Manager.",
+                );
               }
-              const offerFieldsError = validateOfferJoiningDateAndSalaryMessage(offer);
+              const offerFieldsError =
+                validateOfferJoiningDateAndSalaryMessage(offer);
               if (offerFieldsError) {
                 throw new Error(offerFieldsError);
               }
-              const { joiningDate, salaryNum } = getOfferJoiningDateAndSalary(offer);
+              const { joiningDate, salaryNum } =
+                getOfferJoiningDateAndSalary(offer);
               await createOfferLetter({
                 candidateId: selectedCandidate.id,
                 jobId: selectedJob.id,
@@ -894,13 +952,15 @@ setSelectedCandidate={setSelectedCandidateData}
                 reportingManagerId,
                 position: offer.position || selectedJob.title,
                 salary: salaryNum,
-                joiningDate
+                joiningDate,
               });
               await refreshOffers();
               setCandidates((prev) =>
                 prev.map((c) =>
-                  c.id === selectedCandidate.id ? { ...c, status: "Offer Sent" } : c
-                )
+                  c.id === selectedCandidate.id
+                    ? { ...c, status: "Offer Sent" }
+                    : c,
+                ),
               );
               notify("Offer", "Offer letter created and sent.");
             } catch (err) {
@@ -914,21 +974,23 @@ setSelectedCandidate={setSelectedCandidateData}
               (o) =>
                 o.candidate_id === selectedCandidate.id &&
                 o.job_id === selectedJob.id &&
-                o.offer_status === "Pending"
+                o.offer_status === "Pending",
             );
             if (!existing) return;
             setOfferError("");
             setOfferLoading(true);
             try {
-              const offerFieldsError = validateOfferJoiningDateAndSalaryMessage(offer);
+              const offerFieldsError =
+                validateOfferJoiningDateAndSalaryMessage(offer);
               if (offerFieldsError) {
                 throw new Error(offerFieldsError);
               }
-              const { joiningDate, salaryNum } = getOfferJoiningDateAndSalary(offer);
+              const { joiningDate, salaryNum } =
+                getOfferJoiningDateAndSalary(offer);
               await updateOfferLetter(existing.id, {
                 position: offer.position || selectedJob.title,
                 salary: String(salaryNum),
-                joiningDate
+                joiningDate,
               });
               await refreshOffers();
               notify("Offer", "Offer updated.");
@@ -943,7 +1005,7 @@ setSelectedCandidate={setSelectedCandidateData}
               (o) =>
                 o.candidate_id === selectedCandidate.id &&
                 o.job_id === selectedJob.id &&
-                o.offer_status === "Pending"
+                o.offer_status === "Pending",
             );
             if (!existing) return;
             setOfferError("");
@@ -951,7 +1013,7 @@ setSelectedCandidate={setSelectedCandidateData}
             try {
               const fresh = await getOfferById(existing.id);
               setOffers((prev) =>
-                (prev || []).map((o) => (o.id === fresh.id ? fresh : o))
+                (prev || []).map((o) => (o.id === fresh.id ? fresh : o)),
               );
               notify("Offer", "Offer details reloaded from server.");
             } catch (err) {
@@ -965,7 +1027,7 @@ setSelectedCandidate={setSelectedCandidateData}
               (o) =>
                 o.candidate_id === selectedCandidate.id &&
                 o.job_id === selectedJob.id &&
-                o.offer_status === "Pending"
+                o.offer_status === "Pending",
             );
             if (!existing) return;
             if (!window.confirm("Cancel this offer?")) return;
@@ -978,8 +1040,8 @@ setSelectedCandidate={setSelectedCandidateData}
                 prev.map((c) =>
                   c.id === selectedCandidate.id
                     ? { ...c, status: "Offer Cancelled" }
-                    : c
-                )
+                    : c,
+                ),
               );
               notify("Offer", "Offer cancelled.");
               safeSetScreen("dashboard");
@@ -994,8 +1056,8 @@ setSelectedCandidate={setSelectedCandidateData}
               prev.map((c) =>
                 c.id === selectedCandidate.id
                   ? { ...c, status: "Offer Accepted" }
-                  : c
-              )
+                  : c,
+              ),
             );
             safeSetScreen("documents");
           }}
@@ -1004,8 +1066,8 @@ setSelectedCandidate={setSelectedCandidateData}
               prev.map((c) =>
                 c.id === selectedCandidate.id
                   ? { ...c, status: "Offer Declined" }
-                  : c
-              )
+                  : c,
+              ),
             );
             notify("Offer", "Offer declined. Workflow ended (No Hire).");
             safeSetScreen("dashboard");
@@ -1016,8 +1078,8 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "documents" && selectedCandidate && (
-            <Documents
-              candidate={selectedCandidate}
+        <Documents
+          candidate={selectedCandidate}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
@@ -1029,27 +1091,33 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "verification" && selectedCandidate && (
-            <Verification
-              candidate={selectedCandidate}
+        <Verification
+          candidate={selectedCandidate}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
           onApprove={async () => {
             try {
               await updateCandidateStatus(selectedCandidate.id, {
-                pipeline_status: "Pre-Boarding"
+                pipeline_status: "Pre-Boarding",
               });
               setCandidates((prev) =>
                 prev.map((c) =>
                   c.id === selectedCandidate.id
                     ? { ...c, pipelineStatus: "Pre-Boarding" }
-                    : c
-                )
+                    : c,
+                ),
               );
-              notify("Verification", "Documents verified. Pre-onboarding started.");
+              notify(
+                "Verification",
+                "Documents verified. Pre-onboarding started.",
+              );
               safeSetScreen("preOnboarding");
             } catch (err) {
-              notify("Verification", err.message || "Failed to update pipeline status.");
+              notify(
+                "Verification",
+                err.message || "Failed to update pipeline status.",
+              );
             }
           }}
           onReject={() => {
@@ -1059,20 +1127,22 @@ setSelectedCandidate={setSelectedCandidateData}
       )}
 
       {screen === "preOnboarding" && selectedCandidate && (
-            <PreOnboarding
-              candidate={selectedCandidate}
+        <PreOnboarding
+          candidate={selectedCandidate}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           onChangeCandidate={setSelectedCandidateId}
           onFinish={async () => {
             try {
               await updateCandidateStatus(selectedCandidate.id, {
-                pipeline_status: "Onboarded"
+                pipeline_status: "Onboarded",
               });
               setCandidates((prev) =>
                 prev.map((c) =>
-                  c.id === selectedCandidate.id ? { ...c, pipelineStatus: "Onboarded" } : c
-                )
+                  c.id === selectedCandidate.id
+                    ? { ...c, pipelineStatus: "Onboarded" }
+                    : c,
+                ),
               );
               notify("Hire", "Hire completed. Candidate marked Onboarded.");
               safeSetScreen("dashboard");
