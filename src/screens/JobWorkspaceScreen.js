@@ -1,14 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Input, StatusBadge, Table } from "../components/ui";
+import FilterDrawers from "../components/ui/FilterDrawers";
+import Toolbar from "../components/ui/Toolbar";
+import mockData from "../utils/mockData";
+import TableView from "../components/ui/TableView";
+import ReactMarkdown from "react-markdown";
+import { candidateAppendedJob } from "../services/api/jobs";
 
 const TABS = [
   "Checklist",
   "Dashboard",
   "Candidates",
   "Job Info",
-  "Hiring Setup",
-  "Workflow Automation",
-  "Publish Options"
+  "Job Analytics",
+  // "Workflow Automation",
+  // "Publish Options",
 ];
 
 const getStageLabel = (candidate) => {
@@ -16,10 +22,12 @@ const getStageLabel = (candidate) => {
     .trim()
     .toLowerCase();
   if (status.includes("screen")) return "Recruiter Screening";
-  if (status.includes("l1") || status.includes("interview")) return "L1 Interview";
+  if (status.includes("l1") || status.includes("interview"))
+    return "L1 Interview";
   if (status.includes("pre")) return "Preboarding";
   if (status.includes("hire") || status.includes("onboard")) return "Hired";
-  if (status.includes("archive") || status.includes("reject")) return "Archived";
+  if (status.includes("archive") || status.includes("reject"))
+    return "Archived";
   return "Sourced";
 };
 
@@ -29,14 +37,30 @@ const STAGES = [
   "L1 Interview",
   "Preboarding",
   "Hired",
-  "Archived"
+  "Archived",
+];
+
+const jobStages = [
+  "Upcomming Interviews",
+  "Time to Hire",
+  "Offer Acceptance Rate",
+  "Closed/Total Position",
+];
+
+const pipeline = [
+  { count: 5, label: "Sourced" },
+  { count: 2, label: "Screening" },
+  { count: 3, label: "Interview" },
+  { count: 0, label: "Preboarding" },
+  { count: 1, label: "Hired" },
+  { count: 0, label: "Archived" },
 ];
 
 export default function JobWorkspaceScreen({
   job,
   candidates = [],
   onAddCandidate,
-  onOpenCandidate
+  onOpenCandidate,
 }) {
   const [activeTab, setActiveTab] = useState("Candidates");
   const [query, setQuery] = useState("");
@@ -45,20 +69,60 @@ export default function JobWorkspaceScreen({
   const [salaryFilter, setSalaryFilter] = useState("");
   const [joinDaysFilter, setJoinDaysFilter] = useState("");
   const [selectedStage, setSelectedStage] = useState("All");
+  const [view, setView] = useState("table");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [filters, setFilters] = useState({});
+  const [searchText, setSearchText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [finalCandidates, setFinalCandidates] = useState([]);
+
+  useEffect(() => {
+    if (!job?.id) return;
+
+    const fetchCandidateJob = async () => {
+      try {
+        setLoading(true);
+        const result = await candidateAppendedJob(job?.id);
+        setFinalCandidates(result?.candidates || []);
+        setLoading(false);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+    fetchCandidateJob();
+  }, [job?.id]);
 
   const normalizedTitle = String(job?.title || "")
     .trim()
     .toLowerCase();
+
+  const normalizedCandidates = useMemo(() => {
+    return finalCandidates.map((c) => ({
+      id: c.candidate_id,
+      name: `${c.candidate_first_name || ""} ${c.candidate_last_name || ""}`.trim(),
+      email: c.candidate_email,
+      phone: c.candidate_mobile,
+      experience: c.candidate_experience,
+      location: c.candidate_current_location,
+      source: "API",
+      createdAt: "—",
+      status: "Sourced",
+    }));
+  }, [finalCandidates]);
+
   const jobCandidates = useMemo(() => {
-    if (!normalizedTitle) return candidates;
-    const matched = candidates.filter((c) =>
+    const data = normalizedCandidates.length
+      ? normalizedCandidates
+      : candidates;
+    if (!normalizedTitle) return data;
+
+    const matched = data.filter((c) =>
       String(c?.jobTitle || "")
-        .trim()
         .toLowerCase()
-        .includes(normalizedTitle)
+        .includes(normalizedTitle),
     );
-    return matched.length ? matched : candidates;
-  }, [candidates, normalizedTitle]);
+    return matched.length ? matched : data;
+  }, [normalizedCandidates, candidates, normalizedTitle]);
 
   const stageCounts = useMemo(() => {
     const counts = Object.fromEntries(STAGES.map((s) => [s, 0]));
@@ -69,15 +133,28 @@ export default function JobWorkspaceScreen({
     return counts;
   }, [jobCandidates]);
 
+  const jobAnalyticsPipeline = useMemo(() => {
+  return pipeline.map((item) => ({
+    ...item,
+    count: stageCounts[item.label] || 0,
+  }));
+}, [pipeline, stageCounts]);
+
   const visibleCandidates = useMemo(() => {
     return jobCandidates.filter((c) => {
       const stage = getStageLabel(c);
       const q = query.trim().toLowerCase();
       const matchesQuery =
         !q ||
-        String(c?.name || "").toLowerCase().includes(q) ||
-        String(c?.email || "").toLowerCase().includes(q) ||
-        String(c?.phone || "").toLowerCase().includes(q);
+        String(c?.name || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(c?.email || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(c?.phone || "")
+          .toLowerCase()
+          .includes(q);
       const matchesStage = selectedStage === "All" || stage === selectedStage;
       const matchesSource =
         !sourceFilter ||
@@ -115,15 +192,38 @@ export default function JobWorkspaceScreen({
     sourceFilter,
     experienceFilter,
     salaryFilter,
-    joinDaysFilter
+    joinDaysFilter,
   ]);
 
+  const filteredData = mockData.filter((item) => {
+    const matchSearch =
+      item.title.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.id.includes(searchText);
+
+    const matchStatus = !filters.status || item.status === filters.status;
+
+    const matchType = !filters.type || item.type === filters.type;
+
+    return matchSearch && matchStatus && matchType;
+  });
+
+  const handleSearch = (value) => {
+    setSearchText(value);
+  };
+
+  const handleReset = () => {
+    setFilters({});
+    setSearchText("");
+  };
+  
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xl font-bold text-slate-900">{job?.title || "Job Workspace"}</div>
+            <div className="text-xl font-bold text-slate-900">
+              {job?.title || "Job Workspace"}
+            </div>
             <div className="mt-1 text-xs text-slate-500">
               {job?.location || "—"} - {job?.experienceLevel || "—"}
             </div>
@@ -169,7 +269,9 @@ export default function JobWorkspaceScreen({
                 }`}
               >
                 <div className="text-xs">{stage}</div>
-                <div className="text-lg font-bold">{stageCounts[stage] || 0}</div>
+                <div className="text-lg font-bold">
+                  {stageCounts[stage] || 0}
+                </div>
               </button>
             ))}
           </div>
@@ -182,71 +284,284 @@ export default function JobWorkspaceScreen({
               >
                 All Candidates
               </Button>
-              <Input label="Source" value={sourceFilter} onChange={setSourceFilter} />
-              <Input label="Experience" value={experienceFilter} onChange={setExperienceFilter} />
-              <Input label="Expected Salary" value={salaryFilter} onChange={setSalaryFilter} />
+              <Input
+                label="Source"
+                value={sourceFilter}
+                onChange={setSourceFilter}
+              />
+              <Input
+                label="Experience"
+                value={experienceFilter}
+                onChange={setExperienceFilter}
+              />
+              <Input
+                label="Expected Salary"
+                value={salaryFilter}
+                onChange={setSalaryFilter}
+              />
               <Input
                 label="Available To Join (Days)"
                 value={joinDaysFilter}
                 onChange={setJoinDaysFilter}
               />
-              <Input label="Search" value={query} onChange={setQuery} placeholder="Name/email/phone" />
+              <Input
+                label="Search"
+                value={query}
+                onChange={setQuery}
+                placeholder="Name/email/phone"
+              />
             </div>
+            {loading ? (
+              <div className="p-4 text-sm text-gray-500">
+                Loading candidates...
+              </div>
+            ) : visibleCandidates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
+                <div className="text-lg font-semibold">
+                  No candidates available
+                </div>
+                <div className="text-sm mt-1">
+                  There are no candidates for this job yet.
+                </div>
 
-            <Table
-              columns={[
-                { key: "candidate", header: "Candidate" },
-                { key: "source", header: "Source" },
-                { key: "applied", header: "Applied / Added On" },
-                { key: "owner", header: "Owner" },
-                { key: "stage", header: "Stage" },
-                { key: "contact", header: "Contact" },
-                { key: "actions", header: "Actions" }
-              ]}
-              rows={visibleCandidates.map((c) => ({
-                candidate: (
-                  <button
-                    className="font-semibold text-blue-700 hover:underline"
-                    onClick={() => onOpenCandidate?.(c.id)}
-                  >
-                    {c.name}
-                  </button>
-                ),
-                source: c.source || "LinkedIn",
-                applied: c.createdAt || "—",
-                owner: c.assignedHrManagerId || c.assignedReportManagerId || "—",
-                stage: <StatusBadge status={getStageLabel(c)} />,
-                contact: (
-                  <div className="text-xs">
-                    <div>{c.phone || "—"}</div>
-                    <div className="text-slate-500">{c.email || "—"}</div>
-                  </div>
-                ),
-                actions: <span className="text-xs text-slate-500">•••</span>
-              }))}
-            />
+                <button
+                  onClick={onAddCandidate}
+                  className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-white text-sm hover:bg-blue-700"
+                >
+                  + Add Candidate
+                </button>
+              </div>
+            ) : (
+              <Table
+                columns={[
+                  { key: "candidate", header: "Candidate" },
+                  { key: "source", header: "Source" },
+                  { key: "applied", header: "Applied / Added On" },
+                  { key: "owner", header: "Owner" },
+                  { key: "stage", header: "Stage" },
+                  { key: "contact", header: "Contact" },
+                  { key: "actions", header: "Actions" },
+                ]}
+                rows={visibleCandidates.map((c) => ({
+                  candidate: (
+                    <button
+                      className="font-semibold text-blue-700 hover:underline"
+                      onClick={() => onOpenCandidate?.(c.id)}
+                    >
+                      {c.name}
+                    </button>
+                  ),
+                  source: c.source || "LinkedIn",
+                  applied: c.createdAt || "—",
+                  owner:
+                    c.assignedHrManagerId || c.assignedReportManagerId || "—",
+                  stage: <StatusBadge status={getStageLabel(c)} />,
+                  contact: (
+                    <div className="text-xs">
+                      <div>{c.phone || "—"}</div>
+                      <div className="text-slate-500">{c.email || "—"}</div>
+                    </div>
+                  ),
+                  actions: <span className="text-xs text-slate-500">•••</span>,
+                }))}
+              />
+            )}
           </div>
         </>
       ) : activeTab === "Job Info" ? (
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="mb-3 text-lg font-bold text-slate-900">Job Description</div>
+          <div className="mb-3 text-lg font-bold text-slate-900">
+            Job Description
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border bg-slate-50 p-3">
               <div className="text-xs font-semibold text-slate-500">Job ID</div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">{job?.id || "—"}</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">
+                {job?.id || "—"}
+              </div>
             </div>
             <div className="rounded-xl border bg-slate-50 p-3">
-              <div className="text-xs font-semibold text-slate-500">Job Title</div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">{job?.title || "—"}</div>
+              <div className="text-xs font-semibold text-slate-500">
+                Job Title
+              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">
+                {job?.title || "—"}
+              </div>
             </div>
           </div>
           <div className="mt-4 rounded-xl border bg-white p-4">
-            <div className="mb-2 text-xs font-semibold text-slate-500">Description</div>
+            <div className="mb-2 text-xs font-semibold text-slate-500">
+              Description
+            </div>
             <div className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-              {job?.jobDescription || "No job description available."}
+              <ReactMarkdown>
+                {job?.jobDescription || "No job description available."}
+              </ReactMarkdown>
             </div>
           </div>
         </div>
+      ) : activeTab === "Dashboard" ? (
+        <>
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="mb-3 text-lg font-bold text-slate-900">
+              Job Dashboard
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="flex justify-between items-center rounded-xl border bg-slate-50 p-3">
+                <div className="flex-col">
+                  <div className="text-xs font-semibold text-slate-500">
+                    My Open Jobs
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {job?.id || "—"}
+                  </div>
+                </div>
+                <div>12</div>
+              </div>
+              <div className="rounded-xl border bg-slate-50 p-3">
+                <div className="text-xs font-semibold text-slate-500">
+                  My Aging Jobs
+                </div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  {job?.title || "—"}
+                </div>
+              </div>
+              <div className="rounded-xl border bg-slate-50 p-3">
+                <div className="text-xs font-semibold text-slate-500">
+                  Critical Jobs
+                </div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  {job?.title || "—"}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <Toolbar
+              view={view}
+              setView={setView}
+              setDrawerOpen={setDrawerOpen}
+              onSearch={handleSearch}
+              onReset={handleReset}
+            />
+            <FilterDrawers
+              open={drawerOpen}
+              onClose={() => setDrawerOpen(false)}
+              filters={filters}
+              setFilters={setFilters}
+            />
+            <TableView data={filteredData} />
+          </div>
+        </>
+      ) : activeTab === "Job Analytics" ? (
+        <>
+          <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">
+            {jobStages.map((stage) => (
+              <button
+                key={stage}
+                type="button"
+                onClick={() => setSelectedStage(stage)}
+                className={`rounded-xl border px-3 py-2 text-left ${
+                  selectedStage === stage
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "bg-slate-50"
+                }`}
+              >
+                <div className="text-xs">{stage}</div>
+                <div className="text-lg font-bold">
+                  {stageCounts[stage] || 0}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600 shadow-sm">
+            <div className="flex justify-between item-center">
+              <span className="font-bold">Candidate Pipeline</span>
+              <span className="text-blue-600">View All Candidate</span>
+            </div>
+            <div className="flex item-center justify-between gap-100 pt-4">
+              {jobAnalyticsPipeline.map((item, index) => (
+                <div
+                  key={index}
+                  className={`flex flex-col items-center justify-center ${
+                    index !== 0 ? "pt-15" : ""
+                  }`}
+                >
+                  <div>{item.count}</div>
+                  <div>{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div class="w-full rounded-xl border bg-gray-50 p-6 text-sm text-gray-700 shadow-sm">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-bold">Pending review</span>
+                <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-600">
+                  New
+                </span>
+                <span class="text-gray-400 cursor-pointer">ⓘ</span>
+              </div>
+              <div class="flex items-center gap-1 text-blue-500 text-sm cursor-pointer">
+                ✏️
+                <span>Edit days spent in a stage</span>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <span class="text-3xl font-semibold text-blue-600">0</span>
+              <span class="ml-2 text-gray-500 text-sm">(Last 3 months)</span>
+            </div>
+            <div class="mt-6 flex items-center gap-6 text-sm text-gray-600">
+              <div class="flex items-center gap-2">
+                <span class="h-3 w-3 rounded-full bg-purple-400"></span>
+                <span>Sourced (0)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="h-3 w-3 rounded-full bg-teal-400"></span>
+                <span>Screening (0)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="h-3 w-3 rounded-full bg-yellow-400"></span>
+                <span>Interview (0)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full rounded-xl border bg-gray-50 p-6 text-sm text-gray-700 shadow-sm">
+            <div class="flex items-center justify-between">
+              <h2 class="font-bold">Hiring team</h2>
+              <a
+                href="#"
+                class="flex items-center gap-1 text-blue-500 hover:text-blue-700 text-sm"
+              >
+                <span>Manage Hiring Team</span>
+                <span>↗</span>
+              </a>
+            </div>
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <p class="text-gray-500 text-sm">Recruiters</p>
+                <p class="mt-2 text-gray-700 font-medium">{job?.contactPerson || "-"}</p>
+              </div>
+              <div>
+                <p class="text-gray-500 text-sm">Hiring managers</p>
+                <div class="mt-2 flex items-center gap-2">
+                  {/* <div class="flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-semibold">
+                    GA
+                  </div> */}
+                  <span class="text-gray-800 text-sm">{job?.hiringManagerName || "-"}</span>
+                </div>
+              </div>
+              <div class="text-left md:text-right">
+                <p class="text-gray-500 text-sm">Interview panel members</p>
+                <p class="mt-2 text-gray-700 font-medium">NA</p>
+              </div>
+            </div>
+          </div>
+        </>
       ) : (
         <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600 shadow-sm">
           {activeTab} section will be wired next.
