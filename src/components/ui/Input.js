@@ -6,7 +6,8 @@ export default function Input({
   placeholder,
   type = "text",
   disabled = false,
-  readOnly = false
+  readOnly = false,
+  actionNotice
 }) {
   return (
     <label className="block">
@@ -18,7 +19,7 @@ export default function Input({
         onChange={disabled ? undefined : (e) => onChange(e.target.value)}
         disabled={disabled}
         readOnly={readOnly}
-        className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none ring-0 focus:border-gray-900"
+        className={`w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none ring-0 ${actionNotice && value === "" ? `border-red-900`: `focus:border-gray-900`} `}
       />
     </label>
   );
