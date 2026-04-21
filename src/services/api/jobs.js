@@ -135,3 +135,10 @@ export const applyForJob = async ({
 
   return data;
 };
+
+export const candidateAppendedJob = async(id) => {
+  const { data } = await apiRequest(`/jobs/${id}/candidates`, {
+    method: "GET",
+  });
+  return data;
+}
