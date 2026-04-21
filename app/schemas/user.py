@@ -163,6 +163,30 @@ class AllJobsResponse(BaseModel):
     total_jobs: int
     jobs: list[JobResponse]
 
+# ── Candidate ↔ Job mapping schemas ──────────────────────────────────────────
+
+class CandidateJobAssignRequest(BaseModel):
+    """Body for PUT /{job_id}/assign-candidate/{candidate_id}"""
+    job_id: Optional[str] = None  # allows re-assignment or removal (None = unlink)
+
+class CandidateJobSummary(BaseModel):
+    """Lightweight candidate info returned when listing candidates for a job."""
+    candidate_id: str
+    candidate_first_name: Optional[str] = None
+    candidate_last_name: Optional[str] = None
+    candidate_email: str
+    candidate_mobile: Optional[str] = None
+    candidate_experience: Optional[str] = None
+    candidate_current_location: Optional[str] = None
+    job_id: Optional[str] = None
+
+class CandidatesByJobResponse(BaseModel):
+    job_id: str
+    job_title: str
+    total_candidates: int
+    candidates: list[CandidateJobSummary]
+
+
 class JobApproveResponse(BaseModel):
     job_id: str
     status: str

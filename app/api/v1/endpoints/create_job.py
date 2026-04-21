@@ -23,10 +23,12 @@ from app.schemas.user import (
     AllJobsResponse, DeleteResponse,
     LinkedInPostRequest, LinkedInPostResponse,
     JobApproveResponse,
+    CandidateJobAssignRequest, CandidateJobSummary, CandidatesByJobResponse,
 )
 from app.schemas.candidate import (
     EducationEntry, ExperienceEntry, JobApplicationResponse
 )
+from app.models.candidate import Candidate
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator, job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
@@ -818,3 +820,110 @@ async def apply_for_job(
         candidate_id=candidate_id,
     )
 
+@router.put(
+    "/{job_id}/assign-candidate/{candidate_id}",
+    response_model=CandidateJobSummary,
+    dependencies=[Depends(require_permission("job.edit"))],
+    summary="Assign or re-assign a candidate to a job",
+)
+def assign_candidate_to_job(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Link a candidate to the given job (or switch them to a different job).
+    The operation is idempotent — assigning the same job twice is safe.
+    To move a candidate to another job, call this endpoint with the new job_id.
+    Raises 404 if either the job or candidate does not exist.
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    candidate.job_id = job_id
+    candidate.candidateJobTitle = job.jobTitle
+    db.commit()
+    db.refresh(candidate)
+    return CandidateJobSummary(
+        candidate_id=candidate.candidateID,
+        candidate_first_name=candidate.candidateFirstName,
+        candidate_last_name=candidate.candidateLastName,
+        candidate_email=candidate.candidateEmail,
+        candidate_mobile=candidate.candidateMobile,
+        candidate_experience=candidate.candidateExperience,
+        candidate_current_location=candidate.candidateCurrentLocation,
+        job_id=candidate.job_id,
+    )
+@router.put(
+    "/unassign-candidate/{candidate_id}",
+    response_model=CandidateJobSummary,
+    dependencies=[Depends(require_permission("job.edit"))],
+    summary="Remove a candidate's job assignment",
+)
+def unassign_candidate_from_job(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Unlink a candidate from whichever job they are currently assigned to (sets job_id = NULL).
+    Raises 404 if the candidate does not exist.
+    """
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    candidate.job_id = None
+    candidate.candidateJobTitle = None
+    db.commit()
+    db.refresh(candidate)
+    return CandidateJobSummary(
+        candidate_id=candidate.candidateID,
+        candidate_first_name=candidate.candidateFirstName,
+        candidate_last_name=candidate.candidateLastName,
+        candidate_email=candidate.candidateEmail,
+        candidate_mobile=candidate.candidateMobile,
+        candidate_experience=candidate.candidateExperience,
+        candidate_current_location=candidate.candidateCurrentLocation,
+        job_id=candidate.job_id,
+    )
+@router.get(
+    "/{job_id}/candidates",
+    response_model=CandidatesByJobResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+    summary="Get all candidates assigned to a job",
+)
+def get_candidates_by_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return every candidate whose job_id matches the given job.
+    Raises 404 if the job does not exist.
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    candidates = db.query(Candidate).filter(Candidate.job_id == job_id).all()
+    return CandidatesByJobResponse(
+        job_id=job.jobID,
+        job_title=job.jobTitle,
+        total_candidates=len(candidates),
+        candidates=[
+            CandidateJobSummary(
+                candidate_id=c.candidateID,
+                candidate_first_name=c.candidateFirstName,
+                candidate_last_name=c.candidateLastName,
+                candidate_email=c.candidateEmail,
+                candidate_mobile=c.candidateMobile,
+                candidate_experience=c.candidateExperience,
+                candidate_current_location=c.candidateCurrentLocation,
+                job_id=c.job_id,
+            )
+            for c in candidates
+        ],
+    )
