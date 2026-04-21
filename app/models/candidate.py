@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -26,9 +26,12 @@ class Candidate(Base):
     candidatePassword = Column(String(200), nullable=False)
     candidateIsVerified = Column(Boolean, nullable=True)
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    
+    # Job mapping — which job this candidate applied for / was assigned to
+    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
+
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
+    job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
 
 
 class CandidateInfoForm(Base):

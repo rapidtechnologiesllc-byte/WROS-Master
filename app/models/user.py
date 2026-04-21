@@ -46,6 +46,7 @@ class Jobs(Base):
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
     recuriter = relationship("Users", foreign_keys=[recuriterID], lazy="select")
     contact_person_user = relationship("Users", foreign_keys=[contactPerson], lazy="select")
+    candidates = relationship("Candidate", foreign_keys="Candidate.job_id", lazy="select", back_populates="job")
 
 
 
