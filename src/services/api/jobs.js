@@ -1,10 +1,14 @@
 // Job management API wrappers.
-import { apiRequest, getApiBaseUrl, maybeRedirectOnUnauthorized } from "./client";
+import {
+  apiRequest,
+  getApiBaseUrl,
+  maybeRedirectOnUnauthorized,
+} from "./client";
 
 export const generateJobDescription = async (payload) => {
   const { data } = await apiRequest("/jobs/generate_job_description", {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   return data;
 };
@@ -12,14 +16,14 @@ export const generateJobDescription = async (payload) => {
 export const createJob = async (payload) => {
   const { data } = await apiRequest("/jobs/create_job", {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   return data;
 };
 
 export const getAllJobs = async () => {
   const { data } = await apiRequest("/jobs/all", {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
@@ -28,7 +32,7 @@ export const getActiveJobs = async () => {
   const { data } = await apiRequest("/jobs/active-jobs", {
     method: "GET",
     // Public listing used by both Auth and Candidate portal; avoid candidate-token 401 loops.
-    skipAuth: true
+    skipAuth: true,
   });
   return data;
 };
@@ -36,21 +40,21 @@ export const getActiveJobs = async () => {
 export const updateJob = async (jobId, payload) => {
   const { data } = await apiRequest(`/jobs/update_job/${jobId}`, {
     method: "PUT",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   return data;
 };
 
 export const deleteJob = async (jobId) => {
   const { data } = await apiRequest(`/jobs/delete_job/${jobId}`, {
-    method: "DELETE"
+    method: "DELETE",
   });
   return data;
 };
 
 export const approveJob = async (jobId) => {
   const { data } = await apiRequest(`/jobs/${jobId}/approve`, {
-    method: "POST"
+    method: "POST",
   });
   return data;
 };
@@ -58,7 +62,7 @@ export const approveJob = async (jobId) => {
 export const postJobOnLinkedIn = async (jobId) => {
   const { data } = await apiRequest("/jobs/post-on-linkedin", {
     method: "POST",
-    body: JSON.stringify({ job_id: jobId })
+    body: JSON.stringify({ job_id: jobId }),
   });
   return data;
 };
@@ -79,7 +83,7 @@ export const applyForJob = async ({
   preferredLocation,
   educationEntries = [],
   experienceEntries = [],
-  resumeFile
+  resumeFile,
 }) => {
   if (!jobId) throw new Error("jobId is required");
   if (!fullName) throw new Error("fullName is required");
@@ -114,8 +118,8 @@ export const applyForJob = async ({
     {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: formData
-    }
+      body: formData,
+    },
   );
 
   let data = null;
@@ -134,4 +138,31 @@ export const applyForJob = async ({
   }
 
   return data;
+};
+
+export const candidateAppendedJob = async (id) => {
+  const { data } = await apiRequest(`/jobs/${id}/candidates`, {
+    method: "GET",
+  });
+  return data;
+};
+
+export const assignJob = async (jobId, candidateId) => {
+  const { data, response } = await apiRequest(
+    `/jobs/${jobId}/assign-candidate/${candidateId}`,
+    {
+      method: "PUT",
+    },
+  );
+  return (data, response);
+};
+
+export const removeCandidateApi = async (candidateId) => {
+  const { data, response } = await apiRequest(
+    `/jobs/unassign-candidate/${candidateId}`,
+    {
+      method: "PUT",
+    },
+  );
+  return (data, response);
 };

@@ -277,7 +277,12 @@ export default function JobCreate({ onSave, mode = "create", initialJob = null }
             onChange={setPriority}
             options={["Low", "High"]}
           />
-          <Input label="Department" value={dept} onChange={setDept} />
+          <Select
+            label="Department"
+            value={dept}
+            onChange={setDept}
+            options={["Low", "High"]}
+          />
           <Input
             label="Company / Client *"
             value={companyClient}
