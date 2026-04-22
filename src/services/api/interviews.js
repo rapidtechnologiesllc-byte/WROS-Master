@@ -50,24 +50,10 @@ export const createInterview = async ({
   return data;
 };
 
-export const updateInterview = async ({
-  interviewId,
-  startTime,
-  endTime,
-  meetingLink,
-  outlookEventId,
-  status
-}) => {
-  // Update interview timings/status.
+export const updateInterview = async (interviewId, payload) => {
   const { data } = await apiRequest(`/interviews/${interviewId}`, {
     method: "PUT",
-    body: JSON.stringify({
-      start_time: startTime,
-      end_time: endTime,
-      meeting_link: meetingLink,
-      outlook_event_id: outlookEventId,
-      status
-    })
+    body: JSON.stringify(payload)
   });
   return data;
 };
@@ -272,3 +258,5 @@ export const getInterviewerWorkload = async (interviewerId) => {
   });
   return data;
 };
+
+

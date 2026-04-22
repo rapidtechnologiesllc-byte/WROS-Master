@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button } from "../components/ui";
 import ProfileTab from "./tabs/ProfileTab";
 import FeedbackTab from "./tabs/FeedbackTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import TasksTab from "./tabs/TasksTab";
+import ActivityTab from "./tabs/ActivityTab";
+import CandidateEditModal from "./CandidateEditModal";
+
 import { getCandidateStatus } from "../services/api/candidateStatus";
 import {
   listChecklistTemplates,
@@ -16,22 +19,72 @@ import {
   assignPanelMember,
   createInterview
 } from "../services/api/interviews";
-import CandidateEditModal from "./CandidateEditModal";
+import {
+  sendPlainEmail,
+  sendInterviewInvite
+} from "../services/api/email";
+import { getAllUsers } from "../services/api/users";
+import {
+  getOnlineInterviewEmailTemplate,
+  getFaceToFaceInterviewEmailTemplate
+} from "../utils/interviewEmailTemplates";
 
 const initialScheduleForm = {
   roundName: "",
-  interviewerId: "",
+  interviewerIds: [],
+  interviewDate: "",
   startTime: "",
   endTime: "",
-  meetingLink: "",
-  location: ""
+  durationMinutes: "60",
+  timezone: "Asia/Kolkata",
+  meetingPlatform: "Microsoft Teams",
+  location: "",
+  emailTemplate: "Online Interview",
+  emailSubject: "",
+  emailBody: "",
+  ccEmails: "",
+  extraNotes: ""
 };
+
+const durationOptions = [
+  { label: "30 mins", value: "30" },
+  { label: "45 mins", value: "45" },
+  { label: "60 mins", value: "60" },
+  { label: "90 mins", value: "90" },
+  { label: "120 mins", value: "120" }
+];
+
+const timezoneOptions = [
+  "Asia/Kolkata",
+  "UTC",
+  "America/New_York",
+  "Europe/London",
+  "Asia/Dubai",
+  "Asia/Singapore"
+];
+
+const meetingPlatformOptions = [
+  "Microsoft Teams",
+  "Google Meet",
+  "Zoom",
+  "Phone Call",
+  "In Person",
+  "Other"
+];
+
+const emailTemplateOptions = [
+  "Online Interview",
+  "Face to Face Interview",
+  "Custom"
+];
 
 export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [statusData, setStatusData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+
   const [notice, setNotice] = useState("");
+  const [noticeType, setNoticeType] = useState("success");
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [templates, setTemplates] = useState([]);
@@ -39,7 +92,6 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [selectedTemplateData, setSelectedTemplateData] = useState(null);
   const [assigning, setAssigning] = useState(false);
-
   const [isChecklistAssigned, setIsChecklistAssigned] = useState(false);
 
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
@@ -51,6 +103,13 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [scheduleErrors, setScheduleErrors] = useState({});
   const [scheduling, setScheduling] = useState(false);
 
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const [showPanelMemberDropdown, setShowPanelMemberDropdown] = useState(false);
+  const [panelSearch, setPanelSearch] = useState("");
+  const panelMemberDropdownRef = useRef(null);
+
   useEffect(() => {
     if (!candidate?.id) return;
 
@@ -59,7 +118,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
         const res = await getCandidateStatus(candidate.id);
         setStatusData(res);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch candidate status", err);
       }
     };
 
@@ -72,12 +131,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     const checkChecklist = async () => {
       try {
         const res = await getCandidateChecklists(candidate.id);
-
-        if (res && res.length > 0) {
-          setIsChecklistAssigned(true);
-        } else {
-          setIsChecklistAssigned(false);
-        }
+        setIsChecklistAssigned(Boolean(res && res.length > 0));
       } catch (err) {
         console.error("Failed to check checklist", err);
       }
@@ -123,6 +177,90 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     };
   }, [showScheduleMenu]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        panelMemberDropdownRef.current &&
+        !panelMemberDropdownRef.current.contains(event.target)
+      ) {
+        setShowPanelMemberDropdown(false);
+      }
+    };
+
+    if (showPanelMemberDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showPanelMemberDropdown]);
+
+  useEffect(() => {
+    if (!showScheduleModal) return;
+
+    const fetchUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const res = await getAllUsers();
+
+        const userList = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.users)
+            ? res.users
+            : Array.isArray(res?.items)
+              ? res.items
+              : Array.isArray(res?.data)
+                ? res.data
+                : [];
+
+        setUsers(userList);
+      } catch (err) {
+        console.error("Failed to fetch users", err);
+        showNotice("Failed to load panel members", "error");
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, [showScheduleModal]);
+
+  const interviewerOptions = useMemo(() => {
+    if (!Array.isArray(users)) return [];
+
+    return users
+      .filter((user) => user?.user_id)
+      .map((user) => ({
+        value: user.user_id,
+        label: `${user.user_name || "Unknown"} (${user.user_role || "role not set"})`
+      }));
+  }, [users]);
+
+  const selectedPanelMembers = useMemo(() => {
+    return interviewerOptions.filter((option) =>
+      scheduleForm.interviewerIds.includes(option.value)
+    );
+  }, [interviewerOptions, scheduleForm.interviewerIds]);
+
+  const filteredPanelMembers = useMemo(() => {
+    if (!panelSearch.trim()) return interviewerOptions;
+
+    return interviewerOptions.filter((member) =>
+      member.label.toLowerCase().includes(panelSearch.toLowerCase())
+    );
+  }, [panelSearch, interviewerOptions]);
+
+  const showNotice = (message, type = "success", duration = 4000) => {
+    setNotice(message);
+    setNoticeType(type);
+
+    window.clearTimeout(window.__candidateDetailsNoticeTimeout);
+    window.__candidateDetailsNoticeTimeout = window.setTimeout(() => {
+      setNotice("");
+    }, duration);
+  };
+
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
 
@@ -145,12 +283,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
         templateId: selectedTemplate
       });
 
-      setNotice("Checklist assigned successfully");
-
-      setTimeout(() => {
-        setNotice("");
-      }, 3000);
-
+      showNotice("Checklist assigned successfully");
       setActiveTab("tasks");
       setIsChecklistAssigned(true);
       setShowAssignModal(false);
@@ -158,20 +291,80 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       setSelectedTemplateData(null);
     } catch (err) {
       console.error(err);
-      setNotice("Failed to assign checklist");
-      setTimeout(() => {
-        setNotice("");
-      }, 3000);
+      showNotice(err?.message || "Failed to assign checklist", "error");
     } finally {
       setAssigning(false);
     }
   };
 
-  const handleScheduleOptionClick = (type) => {
+  const buildTemplateValues = (templateName, type) => {
+    const candidateName = candidate?.name || "Candidate";
+    const jobTitle = candidate?.jobTitle || "Interview";
+
+    if (templateName === "Face to Face Interview") {
+      return getFaceToFaceInterviewEmailTemplate({ candidateName, jobTitle });
+    }
+
+    if (templateName === "Online Interview") {
+      return getOnlineInterviewEmailTemplate({ candidateName, jobTitle });
+    }
+
+    if (type === "faceToFace") {
+      return getFaceToFaceInterviewEmailTemplate({ candidateName, jobTitle });
+    }
+
+    return getOnlineInterviewEmailTemplate({ candidateName, jobTitle });
+  };
+
+  const recomputeEndTime = (dateValue, startTimeValue, durationValue) => {
+    if (!dateValue || !startTimeValue || !durationValue) return "";
+
+    const start = new Date(`${dateValue}T${startTimeValue}`);
+    if (Number.isNaN(start.getTime())) return "";
+
+    const end = new Date(start.getTime() + Number(durationValue) * 60 * 1000);
+    const hours = String(end.getHours()).padStart(2, "0");
+    const minutes = String(end.getMinutes()).padStart(2, "0");
+
+    return `${hours}:${minutes}`;
+  };
+
+  const recomputeDuration = (dateValue, startTimeValue, endTimeValue) => {
+    if (!dateValue || !startTimeValue || !endTimeValue) return "";
+
+    const start = new Date(`${dateValue}T${startTimeValue}`);
+    const end = new Date(`${dateValue}T${endTimeValue}`);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+    if (end <= start) return "";
+
+    const diffMinutes = Math.round((end.getTime() - start.getTime()) / (60 * 1000));
+    return String(diffMinutes);
+  };
+
+  const openScheduleModal = (type) => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+
+    const defaultDate = `${year}-${month}-${day}`;
+    const defaultTemplate = type === "online" ? "Online Interview" : "Face to Face Interview";
+    const defaults = buildTemplateValues(defaultTemplate, type);
+
     setShowScheduleMenu(false);
     setScheduleType(type);
     setScheduleErrors({});
-    setScheduleForm(initialScheduleForm);
+    setPanelSearch("");
+    setShowPanelMemberDropdown(false);
+    setScheduleForm({
+      ...initialScheduleForm,
+      interviewDate: defaultDate,
+      meetingPlatform: type === "online" ? "Microsoft Teams" : "In Person",
+      emailTemplate: defaultTemplate,
+      emailSubject: defaults.subject,
+      emailBody: defaults.body
+    });
     setShowScheduleModal(true);
   };
 
@@ -180,14 +373,46 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     setShowScheduleModal(false);
     setScheduleType("");
     setScheduleErrors({});
+    setPanelSearch("");
+    setShowPanelMemberDropdown(false);
     setScheduleForm(initialScheduleForm);
   };
 
   const handleScheduleInputChange = (field, value) => {
-    setScheduleForm((prev) => ({
-      ...prev,
-      [field]: value
-    }));
+    setScheduleForm((prev) => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+
+      if (field === "emailTemplate") {
+        const templateValues = buildTemplateValues(value, scheduleType);
+        updated.emailSubject = templateValues.subject;
+        updated.emailBody = templateValues.body;
+      }
+
+      if (field === "durationMinutes") {
+        updated.endTime = recomputeEndTime(
+          updated.interviewDate,
+          updated.startTime,
+          value
+        );
+      }
+
+      if (field === "startTime" || field === "endTime" || field === "interviewDate") {
+        const calculatedDuration = recomputeDuration(
+          field === "interviewDate" ? value : updated.interviewDate,
+          field === "startTime" ? value : updated.startTime,
+          field === "endTime" ? value : updated.endTime
+        );
+
+        if (calculatedDuration) {
+          updated.durationMinutes = calculatedDuration;
+        }
+      }
+
+      return updated;
+    });
 
     if (scheduleErrors[field]) {
       setScheduleErrors((prev) => ({
@@ -197,6 +422,29 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     }
   };
 
+  const togglePanelMember = (memberId) => {
+    const currentIds = Array.isArray(scheduleForm.interviewerIds)
+      ? scheduleForm.interviewerIds
+      : [];
+
+    const updatedIds = currentIds.includes(memberId)
+      ? currentIds.filter((id) => id !== memberId)
+      : [...currentIds, memberId];
+
+    handleScheduleInputChange("interviewerIds", updatedIds);
+  };
+
+  const computedDateTime = useMemo(() => {
+    if (!scheduleForm.interviewDate || !scheduleForm.startTime || !scheduleForm.endTime) {
+      return { startDateTime: "", endDateTime: "" };
+    }
+
+    return {
+      startDateTime: `${scheduleForm.interviewDate}T${scheduleForm.startTime}`,
+      endDateTime: `${scheduleForm.interviewDate}T${scheduleForm.endTime}`
+    };
+  }, [scheduleForm.interviewDate, scheduleForm.startTime, scheduleForm.endTime]);
+
   const validateScheduleForm = () => {
     const errors = {};
 
@@ -204,8 +452,12 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       errors.roundName = "Round name is required";
     }
 
-    if (!scheduleForm.interviewerId.trim()) {
-      errors.interviewerId = "Interviewer ID is required";
+    if (!Array.isArray(scheduleForm.interviewerIds) || !scheduleForm.interviewerIds.length) {
+      errors.interviewerIds = "Please select at least one panel member";
+    }
+
+    if (!scheduleForm.interviewDate) {
+      errors.interviewDate = "Interview date is required";
     }
 
     if (!scheduleForm.startTime) {
@@ -216,34 +468,62 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       errors.endTime = "End time is required";
     }
 
-    if (
-      scheduleForm.startTime &&
-      scheduleForm.endTime &&
-      new Date(scheduleForm.endTime) <= new Date(scheduleForm.startTime)
+    if (!scheduleForm.durationMinutes) {
+      errors.durationMinutes = "Duration is required";
+    }
+
+    if (!scheduleForm.timezone) {
+      errors.timezone = "Timezone is required";
+    }
+
+    if (!computedDateTime.startDateTime || !computedDateTime.endDateTime) {
+      errors.startTime = "Please provide valid interview timing";
+    } else if (
+      new Date(computedDateTime.endDateTime) <= new Date(computedDateTime.startDateTime)
     ) {
       errors.endTime = "End time must be after start time";
     }
 
-    if (scheduleType === "online" && !scheduleForm.meetingLink.trim()) {
-      errors.meetingLink = "Meeting link is required for online interview";
+    if (scheduleType === "faceToFace" && !scheduleForm.location.trim()) {
+      errors.location = "Location is required";
     }
 
-    if (scheduleType === "faceToFace" && !scheduleForm.location.trim()) {
-      errors.location = "Location is required for face to face interview";
+    if (!scheduleForm.emailSubject.trim()) {
+      errors.emailSubject = "Email subject is required";
+    }
+
+    if (!scheduleForm.emailBody.trim()) {
+      errors.emailBody = "Email body is required";
     }
 
     setScheduleErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
+  const buildFaceToFaceEmailBody = () => {
+    return `${scheduleForm.emailBody}
+
+Location: ${scheduleForm.location}
+Date: ${scheduleForm.interviewDate}
+Start Time: ${scheduleForm.startTime}
+End Time: ${scheduleForm.endTime}
+Duration: ${scheduleForm.durationMinutes} minutes
+Timezone: ${scheduleForm.timezone}
+Meeting Platform: ${scheduleForm.meetingPlatform}`;
+  };
+
   const handleScheduleInterview = async () => {
     if (!candidate?.id) {
-      setNotice("Candidate details are missing");
-      setTimeout(() => setNotice(""), 3000);
+      showNotice("Candidate details are missing", "error");
       return;
     }
 
     if (!validateScheduleForm()) {
+      return;
+    }
+
+    if (!candidate?.email) {
+      showNotice("Candidate email is missing", "error");
       return;
     }
 
@@ -256,232 +536,259 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       });
 
       const panelId = panelRes?.id;
-
       if (!panelId) {
         throw new Error("Panel created but panel ID was not returned");
       }
 
-      await assignPanelMember({
-        panelId,
-        interviewerId: scheduleForm.interviewerId.trim()
-      });
+      await Promise.all(
+        scheduleForm.interviewerIds.map((interviewerId) =>
+          assignPanelMember({
+            panelId,
+            interviewerId
+          })
+        )
+      );
 
-      await createInterview({
+      const interviewRes = await createInterview({
         panelId,
         candidateId: candidate.id,
-        startTime: scheduleForm.startTime,
-        endTime: scheduleForm.endTime,
-        meetingLink:
-          scheduleType === "online"
-            ? scheduleForm.meetingLink.trim()
-            : null,
-        outlookEventId: null,
+        startTime: computedDateTime.startDateTime,
+        endTime: computedDateTime.endDateTime,
+        meetingLink: "",
+        outlookEventId: "",
         status: "Scheduled"
       });
 
-      setNotice(
+      const interviewId = interviewRes?.id;
+      if (!interviewId) {
+        throw new Error("Interview created but interview ID was not returned");
+      }
+
+      if (scheduleType === "online") {
+        await sendInterviewInvite({
+          interviewId,
+          extraNotes: scheduleForm.extraNotes,
+          timezone: scheduleForm.timezone,
+          createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams"
+        });
+      } else {
+        const ccEmails = scheduleForm.ccEmails
+          .split(",")
+          .map((email) => email.trim())
+          .filter(Boolean);
+
+        await sendPlainEmail({
+          toEmail: candidate.email,
+          subject: scheduleForm.emailSubject.trim(),
+          bodyContent: buildFaceToFaceEmailBody(),
+          isHtml: false,
+          ccEmails
+        });
+      }
+
+      showNotice(
         scheduleType === "online"
           ? "Online interview scheduled successfully"
-          : "Face to face interview scheduled successfully"
+          : "Face-to-face interview scheduled successfully"
       );
-
-      setTimeout(() => {
-        setNotice("");
-      }, 3000);
 
       closeScheduleModal();
       setActiveTab("activity");
     } catch (err) {
-      console.error("Failed to schedule interview", err);
-      setNotice(err?.message || "Failed to schedule interview");
-      setTimeout(() => {
-        setNotice("");
-      }, 4000);
+      console.error("Failed to complete interview scheduling flow", err);
+      showNotice(err?.message || "Failed to schedule interview", "error", 5000);
     } finally {
       setScheduling(false);
     }
   };
 
   return (
-    <div className="grid gap-4">
-      {notice && (
-        <div className="bg-green-100 text-green-700 p-3 rounded-lg text-sm font-medium">
-          {notice}
-        </div>
-      )}
-
-      <Card
-        title={
-          <div className="flex items-center gap-3">
-            <span className="font-semibold">Candidate Details</span>
-
-            {statusData?.status && (
-              <StatusBadge type="account" value={statusData.status} />
-            )}
-
-            {statusData?.pipeline_status && (
-              <StatusBadge type="pipeline" value={statusData.pipeline_status} />
-            )}
-          </div>
-        }
-        right={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={onBack}>
-              Back
-            </Button>
-
-            <div className="relative" ref={scheduleMenuRef}>
-              <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
-                Schedule
-              </Button>
-
-              {showScheduleMenu && (
-                <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                  <button
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
-                    onClick={() => handleScheduleOptionClick("online")}
-                  >
-                    Online Interview
-                  </button>
-
-                  <button
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
-                    onClick={() => handleScheduleOptionClick("faceToFace")}
-                  >
-                    Face to Face Interview
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
-
-            <Button
-              disabled={isChecklistAssigned}
-              onClick={() => setShowAssignModal(true)}
-            >
-              {isChecklistAssigned ? "Checklist Assigned" : "Assign Checklist"}
-            </Button>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <Info label="Name" value={candidate?.name} />
-          <Info label="Email" value={candidate?.email} />
-          <Info label="Phone" value={candidate?.phone} />
-          <Info label="Job Title" value={candidate?.jobTitle} />
-        </div>
-      </Card>
-
-      <div className="flex gap-2 border-b pb-2">
-        {["profile", "messages", "feedback", "documents", "tasks", "activity"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg ${
-              activeTab === tab
-                ? "bg-white border border-b-0 border-gray-300 text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-800"
+    <>
+      <div className="grid gap-5">
+        {notice && (
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+              noticeType === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-green-200 bg-green-50 text-green-700"
             }`}
           >
-            {tab.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 p-4 bg-white border rounded-xl shadow-sm">
-        {activeTab === "profile" && <ProfileTab candidateId={candidate?.id} />}
-        {activeTab === "feedback" && <FeedbackTab candidateId={candidate?.id} />}
-        {activeTab === "documents" && <DocumentsTab candidateId={candidate?.id} />}
-        {activeTab === "tasks" && <TasksTab candidateId={candidate?.id} />}
-        {activeTab === "messages" && (
-          <div className="text-gray-500">Messages Coming Soon</div>
+            {notice}
+          </div>
         )}
-        {activeTab === "activity" && (
-          <div className="text-gray-500">Activity Coming Soon</div>
-        )}
-      </div>
 
-      {editModalOpen && (
-        <CandidateEditModal
-          candidate={candidate}
-          onClose={() => setEditModalOpen(false)}
-        />
-      )}
+        <Card
+          title={
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-semibold text-base">Candidate Details</span>
 
-      {showAssignModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white w-[420px] rounded-2xl shadow-xl p-6">
-            <h2 className="text-lg font-semibold mb-2">Assign Checklist</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              Select template and preview before assigning
-            </p>
+              {statusData?.status && (
+                <StatusBadge type="account" value={statusData.status} />
+              )}
 
-            {loadingTemplates ? (
-              <div className="text-sm text-gray-500">Loading templates...</div>
-            ) : (
-              <select
-                className="w-full border rounded-lg p-2 mb-4"
-                value={selectedTemplate}
-                onChange={(e) => handleTemplateChange(e.target.value)}
-              >
-                <option value="">Select Template</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {selectedTemplateData && (
-              <div className="border rounded-lg p-3 bg-gray-50 mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-semibold">Preview</span>
-                  <span className="text-xs text-gray-500">
-                    {selectedTemplateData.items?.length || 0} items
-                  </span>
-                </div>
-
-                <ul className="text-sm text-gray-700 space-y-1 max-h-40 overflow-auto">
-                  {selectedTemplateData.items?.map((item) => (
-                    <li key={item.id}>• {item.title}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowAssignModal(false)}>
-                Cancel
+              {statusData?.pipeline_status && (
+                <StatusBadge type="pipeline" value={statusData.pipeline_status} />
+              )}
+            </div>
+          }
+          right={
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="ghost" onClick={onBack}>
+                Back
               </Button>
+
+              <div className="relative" ref={scheduleMenuRef}>
+                <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
+                  Schedule
+                </Button>
+
+                {showScheduleMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                    <button
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
+                      onClick={() => openScheduleModal("online")}
+                    >
+                      Online Interview
+                    </button>
+
+                    <button
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
+                      onClick={() => openScheduleModal("faceToFace")}
+                    >
+                      Face to Face Interview
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
 
               <Button
-                onClick={handleAssignChecklist}
-                disabled={!selectedTemplate || assigning}
+                disabled={isChecklistAssigned}
+                onClick={() => setShowAssignModal(true)}
               >
-                {assigning ? "Assigning..." : "Assign"}
+                {isChecklistAssigned ? "Checklist Assigned" : "Assign Checklist"}
               </Button>
             </div>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <Info label="Name" value={candidate?.name} />
+            <Info label="Email" value={candidate?.email} />
+            <Info label="Phone" value={candidate?.phone} />
+            <Info label="Job Title" value={candidate?.jobTitle} />
+          </div>
+        </Card>
+
+        <div className="border-b">
+          <div className="flex flex-wrap gap-2">
+            {["profile", "messages", "feedback", "documents", "tasks", "activity"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2.5 text-sm font-medium rounded-t-xl transition ${
+                  activeTab === tab
+                    ? "bg-white border border-b-0 border-gray-300 text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+                }`}
+              >
+                {tab.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
-      )}
+
+        <div className="p-5 bg-white border rounded-2xl shadow-sm">
+          {activeTab === "profile" && <ProfileTab candidateId={candidate?.id} />}
+          {activeTab === "feedback" && <FeedbackTab candidateId={candidate?.id} />}
+          {activeTab === "documents" && <DocumentsTab candidateId={candidate?.id} />}
+          {activeTab === "tasks" && <TasksTab candidateId={candidate?.id} />}
+          {activeTab === "messages" && (
+            <div className="text-gray-500">Messages Coming Soon</div>
+          )}
+         {activeTab === "activity" && (
+  <ActivityTab candidateId={candidate?.id} />
+)}
+        </div>
+
+        {editModalOpen && (
+          <CandidateEditModal
+            candidate={candidate}
+            onClose={() => setEditModalOpen(false)}
+          />
+        )}
+
+        {showAssignModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6">
+              <h2 className="text-lg font-semibold mb-2">Assign Checklist</h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Select a template and preview it before assigning.
+              </p>
+
+              {loadingTemplates ? (
+                <div className="text-sm text-gray-500">Loading templates...</div>
+              ) : (
+                <select
+                  className="w-full border rounded-xl p-2.5 mb-4"
+                  value={selectedTemplate}
+                  onChange={(e) => handleTemplateChange(e.target.value)}
+                >
+                  <option value="">Select Template</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {selectedTemplateData && (
+                <div className="border rounded-xl p-3 bg-gray-50 mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-semibold">Preview</span>
+                    <span className="text-xs text-gray-500">
+                      {selectedTemplateData.items?.length || 0} items
+                    </span>
+                  </div>
+
+                  <ul className="text-sm text-gray-700 space-y-1 max-h-40 overflow-auto">
+                    {selectedTemplateData.items?.map((item) => (
+                      <li key={item.id}>• {item.title}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setShowAssignModal(false)}>
+                  Cancel
+                </Button>
+
+                <Button
+                  onClick={handleAssignChecklist}
+                  disabled={!selectedTemplate || assigning}
+                >
+                  {assigning ? "Assigning..." : "Assign"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
-            <div className="border-b px-6 py-4 flex items-start justify-between">
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+            <div className="border-b px-8 py-6 flex items-start justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-2xl font-semibold text-gray-900">
                   {scheduleType === "online"
-                    ? "Schedule Online Interview"
-                    : "Schedule Face to Face Interview"}
+                    ? `Schedule Online Interview with ${candidate?.name || "Candidate"}`
+                    : `Schedule Face to Face Interview with ${candidate?.name || "Candidate"}`}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Create panel, assign interviewer, and schedule interview for{" "}
-                  <span className="font-medium text-gray-700">
-                    {candidate?.name || "candidate"}
-                  </span>
+                  Phase 1 setup: panel, panel members, interview timing, and email preparation.
                 </p>
               </div>
 
@@ -489,131 +796,347 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
                 type="button"
                 onClick={closeScheduleModal}
                 disabled={scheduling}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
               >
                 ×
               </button>
             </div>
 
-            <div className="px-6 py-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FormField
-                  label="Interview Type"
-                  value={
-                    scheduleType === "online"
-                      ? "Online Interview"
-                      : "Face to Face Interview"
-                  }
-                  readOnly
-                />
+            <div className="px-8 py-6 max-h-[78vh] overflow-y-auto">
+              <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1fr] gap-8">
+                <div className="space-y-8">
+                  <CardBlock
+                    title="Interview Setup"
+                    subtitle="Select panel members and define interview timing."
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <FormField
+                        label="Interview Type"
+                        value={
+                          scheduleType === "online"
+                            ? "Online Interview"
+                            : "Face to Face Interview"
+                        }
+                        readOnly
+                      />
 
-                <FormField
-                  label="Candidate ID"
-                  value={candidate?.id || ""}
-                  readOnly
-                />
+                      <FormField
+                        label="Candidate ID"
+                        value={candidate?.id || ""}
+                        readOnly
+                      />
 
-                <FormField
-                  label="Round Name"
-                  placeholder="Enter round name"
-                  value={scheduleForm.roundName}
-                  onChange={(e) =>
-                    handleScheduleInputChange("roundName", e.target.value)
-                  }
-                  error={scheduleErrors.roundName}
-                />
+                      <FormField
+                        label="Round Name"
+                        placeholder="e.g. Technical Round 1"
+                        value={scheduleForm.roundName}
+                        onChange={(e) =>
+                          handleScheduleInputChange("roundName", e.target.value)
+                        }
+                        error={scheduleErrors.roundName}
+                      />
 
-                <FormField
-                  label="Interviewer ID"
-                  placeholder="Enter interviewer ID"
-                  value={scheduleForm.interviewerId}
-                  onChange={(e) =>
-                    handleScheduleInputChange("interviewerId", e.target.value)
-                  }
-                  error={scheduleErrors.interviewerId}
-                />
+                      <div className="md:col-span-2" ref={panelMemberDropdownRef}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Panel Members
+                        </label>
 
-                <FormField
-                  label="Start Time"
-                  type="datetime-local"
-                  value={scheduleForm.startTime}
-                  onChange={(e) =>
-                    handleScheduleInputChange("startTime", e.target.value)
-                  }
-                  error={scheduleErrors.startTime}
-                />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            !loadingUsers && setShowPanelMemberDropdown((prev) => !prev)
+                          }
+                          className={`w-full min-h-[46px] rounded-xl border px-3 py-2.5 text-sm text-left transition ${
+                            scheduleErrors.interviewerIds
+                              ? "border-red-300"
+                              : "border-gray-300"
+                          } ${
+                            loadingUsers
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-white text-gray-700"
+                          }`}
+                          disabled={loadingUsers}
+                        >
+                          {selectedPanelMembers.length > 0
+                            ? `${selectedPanelMembers.length} panel member(s) selected`
+                            : loadingUsers
+                              ? "Loading panel members..."
+                              : "Select panel members"}
+                        </button>
 
-                <FormField
-                  label="End Time"
-                  type="datetime-local"
-                  value={scheduleForm.endTime}
-                  onChange={(e) =>
-                    handleScheduleInputChange("endTime", e.target.value)
-                  }
-                  error={scheduleErrors.endTime}
-                />
+                        {showPanelMemberDropdown && !loadingUsers && (
+                          <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-lg max-h-72 overflow-auto p-2">
+                            <div className="px-2 pb-2">
+                              <input
+                                type="text"
+                                placeholder="Search panel members..."
+                                value={panelSearch}
+                                onChange={(e) => setPanelSearch(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400"
+                              />
+                            </div>
 
-                {scheduleType === "online" && (
-                  <div className="md:col-span-2">
-                    <FormField
-                      label="Meeting Link"
-                      placeholder="Paste meeting link"
-                      value={scheduleForm.meetingLink}
+                            {filteredPanelMembers.length > 0 ? (
+                              filteredPanelMembers.map((option) => {
+                                const isChecked = scheduleForm.interviewerIds.includes(
+                                  option.value
+                                );
+
+                                return (
+                                  <label
+                                    key={option.value}
+                                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => togglePanelMember(option.value)}
+                                      className="rounded"
+                                    />
+                                    <span className="text-sm text-gray-700">
+                                      {option.label}
+                                    </span>
+                                  </label>
+                                );
+                              })
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                No panel members found
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedPanelMembers.length > 0 && (
+                          <div className="mt-3">
+                            <div className="text-sm font-medium text-gray-700 mb-2">
+                              Selected Panel Members
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {selectedPanelMembers.map((member) => (
+                                <div
+                                  key={member.value}
+                                  className="inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 text-sm font-medium"
+                                >
+                                  <span>{member.label}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePanelMember(member.value)}
+                                    className="text-blue-500 hover:text-blue-700"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {scheduleErrors.interviewerIds ? (
+                          <p className="text-xs text-red-500 mt-1">
+                            {scheduleErrors.interviewerIds}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <FormField
+                        label="Interview Date"
+                        type="date"
+                        value={scheduleForm.interviewDate}
+                        onChange={(e) =>
+                          handleScheduleInputChange("interviewDate", e.target.value)
+                        }
+                        error={scheduleErrors.interviewDate}
+                      />
+
+                      <SelectField
+                        label="Meeting Platform"
+                        value={scheduleForm.meetingPlatform}
+                        onChange={(e) =>
+                          handleScheduleInputChange("meetingPlatform", e.target.value)
+                        }
+                      >
+                        {meetingPlatformOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </SelectField>
+
+                      <SelectField
+                        label="Timezone"
+                        value={scheduleForm.timezone}
+                        onChange={(e) =>
+                          handleScheduleInputChange("timezone", e.target.value)
+                        }
+                        error={scheduleErrors.timezone}
+                      >
+                        {timezoneOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </SelectField>
+
+                      <SelectField
+                        label="Duration"
+                        value={scheduleForm.durationMinutes}
+                        onChange={(e) =>
+                          handleScheduleInputChange("durationMinutes", e.target.value)
+                        }
+                        error={scheduleErrors.durationMinutes}
+                      >
+                        {durationOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </SelectField>
+
+                      <FormField
+                        label="Start Time"
+                        type="time"
+                        value={scheduleForm.startTime}
+                        onChange={(e) =>
+                          handleScheduleInputChange("startTime", e.target.value)
+                        }
+                        error={scheduleErrors.startTime}
+                      />
+
+                      <FormField
+                        label="End Time"
+                        type="time"
+                        value={scheduleForm.endTime}
+                        onChange={(e) =>
+                          handleScheduleInputChange("endTime", e.target.value)
+                        }
+                        error={scheduleErrors.endTime}
+                      />
+                    </div>
+
+                    {scheduleType === "faceToFace" && (
+                      <div className="mt-5">
+                        <FormField
+                          label="Interview Location"
+                          placeholder="e.g. BlitzenX Office, 3rd Floor, Hyderabad"
+                          value={scheduleForm.location}
+                          onChange={(e) =>
+                            handleScheduleInputChange("location", e.target.value)
+                          }
+                          error={scheduleErrors.location}
+                        />
+                      </div>
+                    )}
+                  </CardBlock>
+
+                  <CardBlock
+                    title="Notes"
+                    subtitle="Optional notes for current phase."
+                  >
+                    <TextAreaField
+                      label="Additional Notes (optional)"
+                      placeholder="Add any useful note here"
+                      value={scheduleForm.extraNotes}
                       onChange={(e) =>
-                        handleScheduleInputChange("meetingLink", e.target.value)
+                        handleScheduleInputChange("extraNotes", e.target.value)
                       }
-                      error={scheduleErrors.meetingLink}
                     />
-                  </div>
-                )}
-
-                {scheduleType === "faceToFace" && (
-                  <div className="md:col-span-2">
-                    <FormField
-                      label="Location"
-                      placeholder="Enter office / venue location"
-                      value={scheduleForm.location}
-                      onChange={(e) =>
-                        handleScheduleInputChange("location", e.target.value)
-                      }
-                      error={scheduleErrors.location}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {scheduleType === "faceToFace" && (
-                <div className="mt-4 rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                  <p className="text-sm text-blue-700">
-                    Location is currently collected for UI completeness. Your
-                    existing interview create API appears to use meeting link but
-                    does not yet show a dedicated location field.
-                  </p>
+                  </CardBlock>
                 </div>
-              )}
+
+                <div className="space-y-8">
+                  <CardBlock
+                    title="Email to Candidate"
+                    subtitle="Template is editable and can evolve in later phases."
+                  >
+                    <div className="space-y-5">
+                      <SelectField
+                        label="Email Template"
+                        value={scheduleForm.emailTemplate}
+                        onChange={(e) =>
+                          handleScheduleInputChange("emailTemplate", e.target.value)
+                        }
+                      >
+                        {emailTemplateOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </SelectField>
+
+                      <FormField
+                        label="Subject"
+                        value={scheduleForm.emailSubject}
+                        onChange={(e) =>
+                          handleScheduleInputChange("emailSubject", e.target.value)
+                        }
+                        error={scheduleErrors.emailSubject}
+                      />
+
+                      <TextAreaField
+                        label="Body"
+                        value={scheduleForm.emailBody}
+                        onChange={(e) =>
+                          handleScheduleInputChange("emailBody", e.target.value)
+                        }
+                        error={scheduleErrors.emailBody}
+                        rows={10}
+                      />
+
+                      <FormField
+                        label="CC Emails (optional)"
+                        placeholder="Enter comma-separated emails"
+                        value={scheduleForm.ccEmails}
+                        onChange={(e) =>
+                          handleScheduleInputChange("ccEmails", e.target.value)
+                        }
+                      />
+
+                      {scheduleType === "online" && (
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-700">
+                          Backend will generate the final Teams invite and event details using the created interview record.
+                        </div>
+                      )}
+                    </div>
+                  </CardBlock>
+                </div>
+              </div>
             </div>
 
-            <div className="border-t px-6 py-4 flex justify-end gap-3 bg-gray-50">
+            <div className="border-t bg-white px-8 py-5 flex items-center justify-end gap-3">
               <Button variant="ghost" onClick={closeScheduleModal} disabled={scheduling}>
                 Cancel
               </Button>
 
               <Button onClick={handleScheduleInterview} disabled={scheduling}>
-                {scheduling ? "Scheduling..." : "Schedule Interview"}
+                {scheduling ? "Processing..." : "Schedule Interview"}
               </Button>
             </div>
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+function CardBlock({ title, subtitle, children }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="mb-5">
+        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        {subtitle ? <p className="text-sm text-gray-500 mt-1">{subtitle}</p> : null}
+      </div>
+      {children}
     </div>
   );
 }
 
 function Info({ label, value }) {
   return (
-    <div>
-      <span className="text-gray-500">{label}</span>
-      <div className="font-medium">{value || "-"}</div>
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+      <span className="text-xs uppercase tracking-wide text-gray-500">{label}</span>
+      <div className="font-medium text-sm text-gray-900 mt-1">{value || "-"}</div>
     </div>
   );
 }
@@ -622,14 +1145,14 @@ function StatusBadge({ type, value }) {
   let styles = "bg-gray-100 text-gray-600";
 
   if (type === "account") {
-    if (value === "Active") styles = "bg-green-100 text-green-600";
-    if (value === "Inactive") styles = "bg-red-100 text-red-600";
+    if (value === "Active") styles = "bg-green-100 text-green-700";
+    if (value === "Inactive") styles = "bg-red-100 text-red-700";
   }
 
   if (type === "pipeline") {
-    if (value === "Applied") styles = "bg-blue-100 text-blue-600";
-    if (value === "Interview") styles = "bg-purple-100 text-purple-600";
-    if (value === "Hired") styles = "bg-green-200 text-green-700";
+    if (value === "Applied") styles = "bg-blue-100 text-blue-700";
+    if (value === "Interview") styles = "bg-purple-100 text-purple-700";
+    if (value === "Hired") styles = "bg-green-200 text-green-800";
   }
 
   return (
@@ -661,15 +1184,78 @@ function FormField({
         readOnly={readOnly}
         className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition ${
           readOnly
-            ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+            ? "bg-gray-50 text-gray-700 border-gray-200 cursor-text"
             : error
               ? "border-red-300 focus:border-red-400"
               : "border-gray-300 focus:border-gray-400"
         }`}
       />
-      {error ? (
-        <p className="text-xs text-red-500 mt-1">{error}</p>
-      ) : null}
+      {error ? <p className="text-xs text-red-500 mt-1">{error}</p> : null}
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  error,
+  value,
+  onChange,
+  children,
+  disabled = false
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition bg-white ${
+          disabled
+            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+            : error
+              ? "border-red-300 focus:border-red-400"
+              : "border-gray-300 focus:border-gray-400"
+        }`}
+      >
+        {children}
+      </select>
+      {error ? <p className="text-xs text-red-500 mt-1">{error}</p> : null}
+    </div>
+  );
+}
+
+function TextAreaField({
+  label,
+  error,
+  value,
+  onChange,
+  placeholder,
+  readOnly = false,
+  rows = 6
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}
+      </label>
+      <textarea
+        rows={rows}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition resize-none ${
+          readOnly
+            ? "bg-gray-50 text-gray-700 border-gray-200 cursor-text"
+            : error
+              ? "border-red-300 focus:border-red-400"
+              : "border-gray-300 focus:border-gray-400"
+        }`}
+      />
+      {error ? <p className="text-xs text-red-500 mt-1">{error}</p> : null}
     </div>
   );
 }
