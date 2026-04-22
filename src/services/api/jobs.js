@@ -156,3 +156,13 @@ export const assignJob = async (jobId, candidateId) => {
   );
   return (data, response);
 };
+
+export const removeCandidateApi = async (candidateId) => {
+  const { data, response } = await apiRequest(
+    `/jobs/unassign-candidate/${candidateId}`,
+    {
+      method: "PUT",
+    },
+  );
+  return (data, response);
+};
