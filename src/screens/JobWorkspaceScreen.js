@@ -6,16 +6,10 @@ import mockData from "../utils/mockData";
 import TableView from "../components/ui/TableView";
 import ReactMarkdown from "react-markdown";
 import { candidateAppendedJob } from "../services/api/jobs";
+import CandidateEditModal from "./CandidateEditModal";
+import AssignJobModal from "./AssignJobModal";
 
-const TABS = [
-  "Checklist",
-  "Dashboard",
-  "Candidates",
-  "Job Info",
-  "Job Analytics",
-  // "Workflow Automation",
-  // "Publish Options",
-];
+const TABS = ["Dashboard", "Candidates", "Job Info", "Job Analytics"];
 
 const getStageLabel = (candidate) => {
   const status = String(candidate?.pipelineStatus || candidate?.status || "")
@@ -75,6 +69,7 @@ export default function JobWorkspaceScreen({
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [finalCandidates, setFinalCandidates] = useState([]);
+  const [assignModal, setAssignModal] = useState(false);
 
   useEffect(() => {
     if (!job?.id) return;
@@ -106,7 +101,8 @@ export default function JobWorkspaceScreen({
       location: c.candidate_current_location,
       source: "API",
       createdAt: "—",
-      status: "Sourced",
+      status: c.status || c.pipelineStatus || "Sourced",
+      pipelineStatus: c.pipelineStatus || c.status || "Sourced",
     }));
   }, [finalCandidates]);
 
@@ -134,11 +130,11 @@ export default function JobWorkspaceScreen({
   }, [jobCandidates]);
 
   const jobAnalyticsPipeline = useMemo(() => {
-  return pipeline.map((item) => ({
-    ...item,
-    count: stageCounts[item.label] || 0,
-  }));
-}, [pipeline, stageCounts]);
+    return pipeline.map((item) => ({
+      ...item,
+      count: stageCounts[item.label] || 0,
+    }));
+  }, [pipeline, stageCounts]);
 
   const visibleCandidates = useMemo(() => {
     return jobCandidates.filter((c) => {
@@ -215,7 +211,20 @@ export default function JobWorkspaceScreen({
     setFilters({});
     setSearchText("");
   };
-  
+
+  const handleAssignedCandidate = (candidate) => {
+    setFinalCandidates((prev) =>
+      prev.map((c) =>
+        c.candidate_id === candidate.id
+          ? {
+              ...c,
+              pipelineStatus: "Hired",
+            }
+          : c,
+      ),
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -231,6 +240,9 @@ export default function JobWorkspaceScreen({
           <div className="flex items-center gap-2">
             <StatusBadge status={job?.status || "Open"} />
             <Button onClick={onAddCandidate}>+ Add Candidate</Button>
+            <Button onClick={() => setAssignModal(true)}>
+              + Assign Candidate
+            </Button>
           </div>
         </div>
       </div>
@@ -256,6 +268,16 @@ export default function JobWorkspaceScreen({
 
       {activeTab === "Candidates" ? (
         <>
+          {assignModal && (
+            <AssignJobModal
+              candidate={visibleCandidates}
+              onClose={() => setAssignModal(false)}
+              allCandidates={candidates}
+              selectedJob={job}
+              setAssignModal={setAssignModal}
+              onAssignSuccess={handleAssignedCandidate}
+            />
+          )}
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-6">
             {STAGES.map((stage) => (
               <button
@@ -544,7 +566,9 @@ export default function JobWorkspaceScreen({
             <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <p class="text-gray-500 text-sm">Recruiters</p>
-                <p class="mt-2 text-gray-700 font-medium">{job?.contactPerson || "-"}</p>
+                <p class="mt-2 text-gray-700 font-medium">
+                  {job?.contactPerson || "-"}
+                </p>
               </div>
               <div>
                 <p class="text-gray-500 text-sm">Hiring managers</p>
@@ -552,7 +576,9 @@ export default function JobWorkspaceScreen({
                   {/* <div class="flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-semibold">
                     GA
                   </div> */}
-                  <span class="text-gray-800 text-sm">{job?.hiringManagerName || "-"}</span>
+                  <span class="text-gray-800 text-sm">
+                    {job?.hiringManagerName || "-"}
+                  </span>
                 </div>
               </div>
               <div class="text-left md:text-right">
