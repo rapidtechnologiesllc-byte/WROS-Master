@@ -9,13 +9,13 @@ export default function JobsOverview({
   onViewJob,
   onDeleteJob,
   onPostToLinkedIn,
-  onApproveJob
+  onApproveJob,
 }) {
   const canDelete = Boolean(onDeleteJob);
   const canApprove = Boolean(onApproveJob);
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;
-
+  
   return (
     <div className="grid gap-4">
       <Card
@@ -29,13 +29,17 @@ export default function JobsOverview({
       >
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-xl border bg-gray-50 px-4 py-3">
-            <div className="text-xs font-semibold text-gray-600">Submitted Jobs</div>
+            <div className="text-xs font-semibold text-gray-600">
+              Submitted Jobs
+            </div>
             <div className="mt-1 text-2xl font-extrabold tracking-tight">
               {submittedCount}
             </div>
           </div>
           <div className="rounded-xl border bg-gray-50 px-4 py-3">
-            <div className="text-xs font-semibold text-gray-600">Total Jobs</div>
+            <div className="text-xs font-semibold text-gray-600">
+              Total Jobs
+            </div>
             <div className="mt-1 text-2xl font-extrabold tracking-tight">
               {totalCount}
             </div>
@@ -53,8 +57,10 @@ export default function JobsOverview({
             { key: "hm", header: "Hiring Manager" },
             { key: "edit", header: "Edit" },
             ...(canApprove ? [{ key: "approve", header: "Approve" }] : []),
-            ...(onPostToLinkedIn ? [{ key: "linkedin", header: "LinkedIn" }] : []),
-            ...(canDelete ? [{ key: "delete", header: "Delete" }] : [])
+            ...(onPostToLinkedIn
+              ? [{ key: "linkedin", header: "LinkedIn" }]
+              : []),
+            ...(canDelete ? [{ key: "delete", header: "Delete" }] : []),
           ]}
           rows={jobs.map((j) => ({
             title: (
@@ -77,14 +83,21 @@ export default function JobsOverview({
             ...(canApprove
               ? {
                   approve:
-                    String(j.status || "").trim().toLowerCase() === "pending approval" ||
-                    String(j.status || "").trim().toLowerCase() === "pending_approval" ? (
-                      <Button variant="success" onClick={() => onApproveJob(j.id)}>
+                    String(j.status || "")
+                      .trim()
+                      .toLowerCase() === "pending approval" ||
+                    String(j.status || "")
+                      .trim()
+                      .toLowerCase() === "pending_approval" ? (
+                      <Button
+                        variant="success"
+                        onClick={() => onApproveJob(j.id)}
+                      >
                         Approve
                       </Button>
                     ) : (
                       <span className="text-xs text-gray-500">-</span>
-                    )
+                    ),
                 }
               : {}),
             ...(onPostToLinkedIn
@@ -96,14 +109,14 @@ export default function JobsOverview({
                     >
                       Post to LinkedIn
                     </Button>
-                  )
+                  ),
                 }
               : {}),
             delete: canDelete ? (
               <Button variant="danger" onClick={() => onDeleteJob(j.id)}>
                 Delete
               </Button>
-            ) : undefined
+            ) : undefined,
           }))}
         />
       </Card>
