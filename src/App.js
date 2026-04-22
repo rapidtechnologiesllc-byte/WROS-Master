@@ -53,6 +53,8 @@ import {
   updateCandidateStatus,
 } from "./services/api/candidateStatus";
 import CandidateDetailsScreen from "./screens/CandidateDetailsScreen";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Helpers to normalize API responses into UI-friendly models
 const mapCandidateFromApi = (c) => {
@@ -707,6 +709,7 @@ export default function App() {
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (
+        <>
         <JobWorkspaceScreen
           job={selectedJob}
           candidates={candidates}
@@ -716,6 +719,8 @@ export default function App() {
             safeSetScreen("candidateSearch");
           }}
         />
+        <ToastContainer position="top-right" autoClose={3000} />
+        </>
       )}
 
       {screen === "jobCreate" && (
