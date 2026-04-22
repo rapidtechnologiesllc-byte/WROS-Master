@@ -5,9 +5,10 @@ import Toolbar from "../components/ui/Toolbar";
 import mockData from "../utils/mockData";
 import TableView from "../components/ui/TableView";
 import ReactMarkdown from "react-markdown";
-import { candidateAppendedJob } from "../services/api/jobs";
+import { candidateAppendedJob, removeCandidateApi } from "../services/api/jobs";
 import CandidateEditModal from "./CandidateEditModal";
 import AssignJobModal from "./AssignJobModal";
+import { toast } from "react-toastify";
 
 const TABS = ["Dashboard", "Candidates", "Job Info", "Job Analytics"];
 
@@ -225,6 +226,23 @@ export default function JobWorkspaceScreen({
     );
   };
 
+  const removeCandidateHandler = async (candidateId) => {
+    if (!candidateId) {
+      toast.error("Invalid Candidate");
+      return;
+    }
+    try {
+      const result = await removeCandidateApi(candidateId);
+      if (result?.status === 200) {
+        toast.success("Candidate Removed");
+      } else {
+        toast.error("Failed to remove candidate");
+      }
+    } catch (err) {
+      toast.error("Error Occured");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -384,7 +402,18 @@ export default function JobWorkspaceScreen({
                       <div className="text-slate-500">{c.email || "—"}</div>
                     </div>
                   ),
-                  actions: <span className="text-xs text-slate-500">•••</span>,
+                  actions: (
+                    <span className="text-xs text-slate-500">
+                      <button
+                        onClick={() => {
+                          removeCandidateHandler(c.id);
+                        }}
+                        className="bg-red-600 text-white hover:bg-red-700 focus:ring-emerald-500 disabled:opacity-60 rounded p-2"
+                      >
+                        Remove Candidate
+                      </button>
+                    </span>
+                  ),
                 }))}
               />
             )}
