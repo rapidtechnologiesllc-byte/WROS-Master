@@ -591,6 +591,7 @@ export default function App() {
       )}
 
       {screen === "candidateCreate" && (
+        <>
         <CandidateCreate
           onBack={() => safeSetScreen("candidateSearch")}
           onSave={(c) => {
@@ -600,6 +601,8 @@ export default function App() {
             safeSetScreen("candidateSearch");
           }}
         />
+        <ToastContainer position="top-right" autoClose={3000} />
+        </>
       )}
       {screen === "candidateDetails" && (
         <CandidateDetailsScreen
@@ -815,6 +818,7 @@ export default function App() {
 
       {screen === "newsletters" && <NewsletterScreen />}
       {screen === "rbac" && <RbacSettingsScreen />}
+      <ToastContainer position="top-right" autoClose={3000} />
     </Shell>
   );
 }
