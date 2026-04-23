@@ -12,6 +12,7 @@ import {
 import { assignJob, getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
 import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function CandidateCreate({ onBack, onSave }) {
   // These fields map 1:1 to CandidateCreateRequest on the backend.
@@ -372,6 +373,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     try {
       const candidateId = await handleCreateCandidate();
       if (!candidateId) {
+        toast.error("Candidate creation failed");
         return;
       }
       const result = await assignJob(selectedJobId, candidateId);
