@@ -40,20 +40,7 @@ export default function Shell({
     const items = [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "candidateSearch", label: "Candidates", icon: Users },
-      { id: "assignments", label: "My Assignments", icon: UserCheck },
       { id: "jobs", label: "Jobs", icon: Briefcase },
-      ...(isHr || isAdmin || isSuperUser
-        ? [
-            { id: "activeJobs", label: "Active Jobs", icon: Briefcase },
-            { id: "interviewAnalytics", label: "Interview Analytics", icon: BarChart3 },
-            { id: "checklistTemplates", label: "Checklist Templates", icon: ListChecks }
-          ]
-        : []),
-      { id: "interviewSchedule", label: "Interviews", icon: Calendar },
-      { id: "offer", label: "Offer", icon: BadgeDollarSign },
-      { id: "documents", label: "Documents", icon: FileText },
-      { id: "verification", label: "Verification", icon: ClipboardCheck },
-      { id: "preOnboarding", label: "Pre-Onboarding", icon: CheckCircle2 },
       { id: "newsletters", label: "Newsletters", icon: Mail }
     ];
     if (isAdmin || isSuperUser) {
