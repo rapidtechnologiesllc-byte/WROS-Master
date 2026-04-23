@@ -107,7 +107,7 @@ const mergeCandidateStatuses = (candidates, statusRes) => {
   });
 };
 
-const mapJobFromApi = (j, users = []) => {
+export const mapJobFromApi = (j, users = []) => {
   const usersList = Array.isArray(users) ? users : [];
   const hmId = j?.hiring_manager_id || "";
   const hmUser = usersList.find(
@@ -590,15 +590,13 @@ export default function App() {
         />
       )}
 
-      {screen === "checklistTemplates" && <ChecklistTemplatesScreen />}
-
       {screen === "candidateCreate" && (
         <CandidateCreate
           onBack={() => safeSetScreen("candidateSearch")}
           onSave={(c) => {
             setCandidates((prev) => [c, ...prev]);
             setSelectedCandidateId(c.id);
-            notify("Candidate", `Created ${c.name} (${c.id})`);
+            // notify("Candidate", `Created ${c.name} (${c.id})`);
             safeSetScreen("candidateSearch");
           }}
         />
@@ -661,65 +659,20 @@ export default function App() {
         />
       )}
 
-      {screen === "activeJobs" && (
-        <ActiveJobs
-          onCreate={() => {
-            setJobCreateMode("create");
-            safeSetScreen("jobCreate");
-          }}
-          onViewJob={(jobId) => {
-            setSelectedJobId(jobId);
-            safeSetScreen("jobWorkspace");
-          }}
-          onOpenJob={(jobId) => {
-            setSelectedJobId(jobId);
-            setJobDetailsMode("edit");
-            safeSetScreen("jobDetails");
-          }}
-          onPostToLinkedIn={async (jobId) => {
-            try {
-              const res = await postJobOnLinkedIn(jobId);
-              notify("LinkedIn", res?.message || "Job posted to LinkedIn.");
-            } catch (err) {
-              notify("LinkedIn", err.message || "Failed to post to LinkedIn.");
-            }
-          }}
-          onDeleteJob={
-            isSuperUser
-              ? async (jobId) => {
-                  const ok = window.confirm(`Delete job ${jobId}?`);
-                  if (!ok) return;
-                  try {
-                    await deleteJob(jobId);
-                    await refreshJobs();
-                    notify("Job", `Deleted job ${jobId}.`);
-                  } catch (err) {
-                    notify("Job", err.message || "Failed to delete job.");
-                  }
-                }
-              : undefined
-          }
-        />
-      )}
-
-      {screen === "interviewAnalytics" && (
-        <InterviewAnalytics candidates={candidates} users={users} />
-      )}
-
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (
         <>
-        <JobWorkspaceScreen
-          job={selectedJob}
-          candidates={candidates}
-          onAddCandidate={() => safeSetScreen("candidateCreate")}
-          onOpenCandidate={(candidateId) => {
-            setSelectedCandidateId(candidateId);
-            safeSetScreen("candidateSearch");
-          }}
-        />
-        <ToastContainer position="top-right" autoClose={3000} />
+          <JobWorkspaceScreen
+            job={selectedJob}
+            candidates={candidates}
+            onAddCandidate={() => safeSetScreen("candidateCreate")}
+            onOpenCandidate={(candidateId) => {
+              setSelectedCandidateId(candidateId);
+              safeSetScreen("candidateSearch");
+            }}
+          />
+          <ToastContainer position="top-right" autoClose={3000} />
         </>
       )}
 
@@ -829,55 +782,6 @@ export default function App() {
         />
       )}
 
-      {screen === "interviewSchedule" && selectedCandidate && selectedJob && (
-        <InterviewSchedule
-          candidate={selectedCandidate}
-          job={selectedJob}
-          candidates={candidates}
-          jobs={jobs}
-          selectedCandidateId={selectedCandidateId}
-          selectedJobId={selectedJobId}
-          onChangeCandidate={setSelectedCandidateId}
-          onChangeJob={setSelectedJobId}
-          onSchedule={(i) => {
-            setInterviews((prev) => [i, ...prev]);
-            setCandidates((prev) =>
-              prev.map((c) =>
-                c.id === i.candidateId
-                  ? { ...c, status: "Interview Scheduled" }
-                  : c,
-              ),
-            );
-            notify(
-              "Interview",
-              "Interview scheduled. Candidate + recruiter notified (simulated).",
-            );
-            safeSetScreen("interviewStatus");
-          }}
-          onViewStatus={() => safeSetScreen("interviewStatus")}
-        />
-      )}
-
-      {screen === "interviewStatus" && (
-        <InterviewStatus
-          interviews={interviews}
-          candidates={candidates}
-          onMarkCompleted={async (interview) => {
-            try {
-              await updateInterview({
-                interviewId: interview.id,
-                status: "Completed",
-              });
-              await refreshInterviews();
-            } catch (err) {
-              notify("Interview", err.message || "Failed to update interview.");
-            }
-          }}
-          onRefreshInterviews={refreshInterviews}
-          onGoApproval={() => safeSetScreen("approval")}
-        />
-      )}
-
       {screen === "approval" && selectedCandidate && (
         <Approval
           candidate={selectedCandidate}
@@ -905,255 +809,6 @@ export default function App() {
             );
             notify("Rejected", "Candidate marked as No Hire.");
             safeSetScreen("dashboard");
-          }}
-        />
-      )}
-
-      {screen === "offer" && selectedCandidate && selectedJob && (
-        <OfferScreen
-          candidate={selectedCandidate}
-          job={selectedJob}
-          candidates={candidates}
-          jobs={jobs}
-          selectedCandidateId={selectedCandidateId}
-          selectedJobId={selectedJobId}
-          onChangeCandidate={setSelectedCandidateId}
-          onChangeJob={setSelectedJobId}
-          offer={offer}
-          setOffer={setOffer}
-          users={users}
-          existingOffer={offers.find(
-            (o) =>
-              o.candidate_id === selectedCandidate.id &&
-              o.job_id === selectedJob.id &&
-              o.offer_status === "Pending",
-          )}
-          onCreate={async () => {
-            setOfferError("");
-            setOfferLoading(true);
-            try {
-              const hiringManagerId =
-                offer.hiringManagerId || selectedJob.hiringManager;
-              const reportingManagerId =
-                offer.reportingManagerId ||
-                offer.hiringManagerId ||
-                selectedJob.hiringManager;
-              if (!hiringManagerId || !reportingManagerId) {
-                throw new Error(
-                  "Please select Hiring Manager and Reporting Manager.",
-                );
-              }
-              const offerFieldsError =
-                validateOfferJoiningDateAndSalaryMessage(offer);
-              if (offerFieldsError) {
-                throw new Error(offerFieldsError);
-              }
-              const { joiningDate, salaryNum } =
-                getOfferJoiningDateAndSalary(offer);
-              await createOfferLetter({
-                candidateId: selectedCandidate.id,
-                jobId: selectedJob.id,
-                hiringManagerId,
-                reportingManagerId,
-                position: offer.position || selectedJob.title,
-                salary: salaryNum,
-                joiningDate,
-              });
-              await refreshOffers();
-              setCandidates((prev) =>
-                prev.map((c) =>
-                  c.id === selectedCandidate.id
-                    ? { ...c, status: "Offer Sent" }
-                    : c,
-                ),
-              );
-              notify("Offer", "Offer letter created and sent.");
-            } catch (err) {
-              setOfferError(err.message || "Failed to create offer.");
-            } finally {
-              setOfferLoading(false);
-            }
-          }}
-          onUpdate={async () => {
-            const existing = offers.find(
-              (o) =>
-                o.candidate_id === selectedCandidate.id &&
-                o.job_id === selectedJob.id &&
-                o.offer_status === "Pending",
-            );
-            if (!existing) return;
-            setOfferError("");
-            setOfferLoading(true);
-            try {
-              const offerFieldsError =
-                validateOfferJoiningDateAndSalaryMessage(offer);
-              if (offerFieldsError) {
-                throw new Error(offerFieldsError);
-              }
-              const { joiningDate, salaryNum } =
-                getOfferJoiningDateAndSalary(offer);
-              await updateOfferLetter(existing.id, {
-                position: offer.position || selectedJob.title,
-                salary: String(salaryNum),
-                joiningDate,
-              });
-              await refreshOffers();
-              notify("Offer", "Offer updated.");
-            } catch (err) {
-              setOfferError(err.message || "Failed to update offer.");
-            } finally {
-              setOfferLoading(false);
-            }
-          }}
-          onReloadDetails={async () => {
-            const existing = offers.find(
-              (o) =>
-                o.candidate_id === selectedCandidate.id &&
-                o.job_id === selectedJob.id &&
-                o.offer_status === "Pending",
-            );
-            if (!existing) return;
-            setOfferError("");
-            setOfferLoading(true);
-            try {
-              const fresh = await getOfferById(existing.id);
-              setOffers((prev) =>
-                (prev || []).map((o) => (o.id === fresh.id ? fresh : o)),
-              );
-              notify("Offer", "Offer details reloaded from server.");
-            } catch (err) {
-              setOfferError(err.message || "Failed to reload offer.");
-            } finally {
-              setOfferLoading(false);
-            }
-          }}
-          onCancel={async () => {
-            const existing = offers.find(
-              (o) =>
-                o.candidate_id === selectedCandidate.id &&
-                o.job_id === selectedJob.id &&
-                o.offer_status === "Pending",
-            );
-            if (!existing) return;
-            if (!window.confirm("Cancel this offer?")) return;
-            setOfferError("");
-            setOfferLoading(true);
-            try {
-              await cancelOfferLetter(existing.id);
-              await refreshOffers();
-              setCandidates((prev) =>
-                prev.map((c) =>
-                  c.id === selectedCandidate.id
-                    ? { ...c, status: "Offer Cancelled" }
-                    : c,
-                ),
-              );
-              notify("Offer", "Offer cancelled.");
-              safeSetScreen("dashboard");
-            } catch (err) {
-              setOfferError(err.message || "Failed to cancel offer.");
-            } finally {
-              setOfferLoading(false);
-            }
-          }}
-          onAccept={() => {
-            setCandidates((prev) =>
-              prev.map((c) =>
-                c.id === selectedCandidate.id
-                  ? { ...c, status: "Offer Accepted" }
-                  : c,
-              ),
-            );
-            safeSetScreen("documents");
-          }}
-          onDecline={() => {
-            setCandidates((prev) =>
-              prev.map((c) =>
-                c.id === selectedCandidate.id
-                  ? { ...c, status: "Offer Declined" }
-                  : c,
-              ),
-            );
-            notify("Offer", "Offer declined. Workflow ended (No Hire).");
-            safeSetScreen("dashboard");
-          }}
-          loading={offerLoading}
-          error={offerError}
-        />
-      )}
-
-      {screen === "documents" && selectedCandidate && (
-        <Documents
-          candidate={selectedCandidate}
-          candidates={candidates}
-          selectedCandidateId={selectedCandidateId}
-          onChangeCandidate={setSelectedCandidateId}
-          onSubmit={() => {
-            notify("Documents", "Documents uploaded. Sent for verification.");
-            safeSetScreen("verification");
-          }}
-        />
-      )}
-
-      {screen === "verification" && selectedCandidate && (
-        <Verification
-          candidate={selectedCandidate}
-          candidates={candidates}
-          selectedCandidateId={selectedCandidateId}
-          onChangeCandidate={setSelectedCandidateId}
-          onApprove={async () => {
-            try {
-              await updateCandidateStatus(selectedCandidate.id, {
-                pipeline_status: "Pre-Boarding",
-              });
-              setCandidates((prev) =>
-                prev.map((c) =>
-                  c.id === selectedCandidate.id
-                    ? { ...c, pipelineStatus: "Pre-Boarding" }
-                    : c,
-                ),
-              );
-              notify(
-                "Verification",
-                "Documents verified. Pre-onboarding started.",
-              );
-              safeSetScreen("preOnboarding");
-            } catch (err) {
-              notify(
-                "Verification",
-                err.message || "Failed to update pipeline status.",
-              );
-            }
-          }}
-          onReject={() => {
-            notify("Verification", "Documents marked Pending/Rejected.");
-          }}
-        />
-      )}
-
-      {screen === "preOnboarding" && selectedCandidate && (
-        <PreOnboarding
-          candidate={selectedCandidate}
-          candidates={candidates}
-          selectedCandidateId={selectedCandidateId}
-          onChangeCandidate={setSelectedCandidateId}
-          onFinish={async () => {
-            try {
-              await updateCandidateStatus(selectedCandidate.id, {
-                pipeline_status: "Onboarded",
-              });
-              setCandidates((prev) =>
-                prev.map((c) =>
-                  c.id === selectedCandidate.id
-                    ? { ...c, pipelineStatus: "Onboarded" }
-                    : c,
-                ),
-              );
-              notify("Hire", "Hire completed. Candidate marked Onboarded.");
-              safeSetScreen("dashboard");
-            } catch (err) {
-              notify("Hire", err.message || "Failed to complete hire.");
-            }
           }}
         />
       )}
