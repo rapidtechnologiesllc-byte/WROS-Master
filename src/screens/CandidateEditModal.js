@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText } from "lucide-react";
+import { CloudCog, FileText } from "lucide-react";
 import { Button, Card, Input, Select } from "../components/ui";
 import { uploadResume } from "../services/api/documents";
 import { updateCandidateStatus } from "../services/api/candidateStatus";
-import { extractResumeText, inferFieldsFromResumeText } from "../utils/resumeAutofill";
+import {
+  extractResumeText,
+  inferFieldsFromResumeText,
+} from "../utils/resumeAutofill";
+import { assignJob, getAllJobs } from "../services/api/jobs";
+import { mapJobFromApi } from "../App";
 
 function splitFullName(full) {
   const parts = String(full || "")
@@ -11,12 +16,14 @@ function splitFullName(full) {
     .split(/\s+/)
     .filter(Boolean);
   if (!parts.length) return { firstName: "", middleName: "", lastName: "" };
-  if (parts.length === 1) return { firstName: parts[0], middleName: "", lastName: "" };
-  if (parts.length === 2) return { firstName: parts[0], middleName: "", lastName: parts[1] };
+  if (parts.length === 1)
+    return { firstName: parts[0], middleName: "", lastName: "" };
+  if (parts.length === 2)
+    return { firstName: parts[0], middleName: "", lastName: parts[1] };
   return {
     firstName: parts[0],
     middleName: parts.slice(1, -1).join(" "),
-    lastName: parts[parts.length - 1]
+    lastName: parts[parts.length - 1],
   };
 }
 
@@ -27,19 +34,24 @@ const PIPELINE_OPTIONS = [
   "Pre-Boarding",
   "Onboarded",
   "Hired",
-  "Rejected"
+  "Rejected",
 ];
 
 export default function CandidateEditModal({
   candidate,
   onClose,
   onUpdateCandidate,
-  onRefreshCandidates
+  onRefreshCandidates,
 }) {
-  const initialName = useMemo(() => splitFullName(candidate?.name || ""), [candidate]);
+  const initialName = useMemo(
+    () => splitFullName(candidate?.name || ""),
+    [candidate],
+  );
 
   const [candidateRole] = useState("Candidate");
-  const [candidateJobTitle, setCandidateJobTitle] = useState(candidate?.jobTitle || "");
+  const [candidateJobTitle, setCandidateJobTitle] = useState(
+    candidate?.jobTitle || "",
+  );
   const [firstName, setFirstName] = useState(initialName.firstName);
   const [middleName, setMiddleName] = useState(initialName.middleName);
   const [lastName, setLastName] = useState(initialName.lastName);
@@ -50,17 +62,23 @@ export default function CandidateEditModal({
   const [source, setSource] = useState(candidate?.source || "");
   const [experience, setExperience] = useState(candidate?.experience || "");
   const [skills, setSkills] = useState(
-    Array.isArray(candidate?.skills) ? candidate.skills.join(", ") : ""
+    Array.isArray(candidate?.skills) ? candidate.skills.join(", ") : "",
   );
   const [joiningDate, setJoiningDate] = useState(candidate?.joiningDate || "");
-  const [expectedSalary, setExpectedSalary] = useState(candidate?.expectedSalary || "");
-  const [currentSalary, setCurrentSalary] = useState(candidate?.currentSalary || "");
-  const [currentLocation, setCurrentLocation] = useState(candidate?.currentLocation || "");
+  const [expectedSalary, setExpectedSalary] = useState(
+    candidate?.expectedSalary || "",
+  );
+  const [currentSalary, setCurrentSalary] = useState(
+    candidate?.currentSalary || "",
+  );
+  const [currentLocation, setCurrentLocation] = useState(
+    candidate?.currentLocation || "",
+  );
   const [assignedHrManagerId, setAssignedHrManagerId] = useState(
-    candidate?.assignedHrManagerId || ""
+    candidate?.assignedHrManagerId || "",
   );
   const [assignedReportManagerId, setAssignedReportManagerId] = useState(
-    candidate?.assignedReportManagerId || ""
+    candidate?.assignedReportManagerId || "",
   );
 
   const [resumeFile, setResumeFile] = useState(null);
@@ -71,12 +89,43 @@ export default function CandidateEditModal({
   const [accountStatusEdit, setAccountStatusEdit] = useState("Active");
   const [pipelineStatusEdit, setPipelineStatusEdit] = useState("Applied");
   const [statusSaving, setStatusSaving] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
+
+  const jobOptions = jobs.map((job) => ({
+    label: job.title,
+    value: job.id,
+  }));
 
   const candidateId = candidate?.id;
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      try {
+        const refreshed = await getAllJobs();
+        if (!isMounted) return;
+        const mappedJobs = (refreshed?.jobs || []).map((j) =>
+          mapJobFromApi(j, users),
+        );
+        setJobs(mappedJobs);
+        if (!selectedJobId && mappedJobs.length) {
+          setSelectedJobId(mappedJobs[0].id);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Keep state in sync when switching the candidate inside the modal.
   useEffect(() => {
-     
     const nameParts = splitFullName(candidate?.name || "");
     setFirstName(nameParts.firstName);
     setMiddleName(nameParts.middleName);
@@ -88,7 +137,9 @@ export default function CandidateEditModal({
     setDob(candidate?.dob || "");
     setSource(candidate?.source || "");
     setExperience(candidate?.experience || "");
-    setSkills(Array.isArray(candidate?.skills) ? candidate.skills.join(", ") : "");
+    setSkills(
+      Array.isArray(candidate?.skills) ? candidate.skills.join(", ") : "",
+    );
     setJoiningDate(candidate?.joiningDate || "");
     setExpectedSalary(candidate?.expectedSalary || "");
     setCurrentSalary(candidate?.currentSalary || "");
@@ -100,9 +151,9 @@ export default function CandidateEditModal({
     setActionNotice("");
     setAccountStatusEdit(candidate?.status || "Active");
 
-setPipelineStatusEdit(
-  candidate?.pipelineStatus || candidate?.pipeline_status || "Applied"
-);
+    setPipelineStatusEdit(
+      candidate?.pipelineStatus || candidate?.pipeline_status || "Applied",
+    );
   }, [candidateId, candidate?.status, candidate?.pipelineStatus]);
 
   const handleResumeFileChange = async (event) => {
@@ -129,7 +180,7 @@ setPipelineStatusEdit(
       setActionNotice(
         filled
           ? `Resume parsed: filled ${filled} field(s). Review and correct before saving.`
-          : "Resume attached. Could not infer details — fill the form manually."
+          : "Resume attached. Could not infer details — fill the form manually.",
       );
     } catch (err) {
       setActionNotice(err.message || "Could not read resume for auto-fill.");
@@ -180,13 +231,22 @@ setPipelineStatusEdit(
         candidate_current_salary: currentSalary || null,
         candidate_current_location: currentLocation || null,
         assigned_hr_manager_id: assignedHrManagerId.trim() || null,
-        assigned_report_manager_id: assignedReportManagerId.trim() || null
+        assigned_report_manager_id: assignedReportManagerId.trim() || null,
       });
 
       if (resumeFile) {
         await uploadResume({ candidateId, file: resumeFile });
       }
 
+      if (selectedJobId) {
+        setIsAssigning(true);
+        const result = await assignJob(selectedJobId, candidateId);
+        if (result?.status === 200) {
+          toast.success("Candidate saved & job assigned ✅");
+        } else {
+          toast.error("Candidate saved but job assignment failed.");
+        }
+      }
       onClose?.();
     } catch (err) {
       setActionNotice(err.message || "Failed to update candidate.");
@@ -202,7 +262,7 @@ setPipelineStatusEdit(
     try {
       await updateCandidateStatus(candidateId, {
         status: accountStatusEdit,
-        pipeline_status: pipelineStatusEdit
+        pipeline_status: pipelineStatusEdit,
       });
       await onRefreshCandidates?.();
       setActionNotice("Account status and pipeline updated.");
@@ -244,10 +304,27 @@ setPipelineStatusEdit(
               onChange={() => {}}
               disabled
             />
-            <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
-            <Input label="First Name *" value={firstName} onChange={setFirstName} />
-            <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
-            <Input label="Last Name *" value={lastName} onChange={setLastName} />
+            <Select
+              label="Job Title"
+              value={selectedJobId}
+              onChange={(value) => setSelectedJobId(value)}
+              options={jobOptions}
+            />
+            <Input
+              label="First Name *"
+              value={firstName}
+              onChange={setFirstName}
+            />
+            <Input
+              label="Middle Name"
+              value={middleName}
+              onChange={setMiddleName}
+            />
+            <Input
+              label="Last Name *"
+              value={lastName}
+              onChange={setLastName}
+            />
             <Input label="Mobile *" value={mobile} onChange={setMobile} />
             <Select
               label="Gender"
@@ -255,10 +332,23 @@ setPipelineStatusEdit(
               onChange={setGender}
               options={["", "Female", "Male", "Other"]}
             />
-            <Input label="Date of Birth" value={dob} onChange={setDob} type="date" />
+            <Input
+              label="Date of Birth"
+              value={dob}
+              onChange={setDob}
+              type="date"
+            />
             <Input label="Source" value={source} onChange={setSource} />
-            <Input label="Experience" value={experience} onChange={setExperience} />
-            <Input label="Skills (comma separated)" value={skills} onChange={setSkills} />
+            <Input
+              label="Experience"
+              value={experience}
+              onChange={setExperience}
+            />
+            <Input
+              label="Skills (comma separated)"
+              value={skills}
+              onChange={setSkills}
+            />
             <Input
               label="Joining Date"
               value={joiningDate}
@@ -338,7 +428,11 @@ setPipelineStatusEdit(
               />
             </div>
             <div className="mt-3">
-              <Button onClick={handleSaveStatus} disabled={statusSaving} variant="secondary">
+              <Button
+                onClick={handleSaveStatus}
+                disabled={statusSaving}
+                variant="secondary"
+              >
                 {statusSaving ? "Saving…" : "Save status"}
               </Button>
             </div>
@@ -361,4 +455,3 @@ setPipelineStatusEdit(
     </div>
   );
 }
-
