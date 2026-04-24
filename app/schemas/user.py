@@ -187,6 +187,65 @@ class CandidatesByJobResponse(BaseModel):
     candidates: list[CandidateJobSummary]
 
 
+# ── Multi-Job Application schemas (many-to-many) ──────────────────────────────
+
+class JobApplicationCreate(BaseModel):
+    """Assign a candidate to a job (many-to-many)."""
+    application_status: Optional[str] = "Applied"
+
+class JobApplicationStatusUpdate(BaseModel):
+    """Update the per-application status."""
+    application_status: str
+
+class JobApplicationEntry(BaseModel):
+    """Single row in candidate_job_applications."""
+    id: int
+    candidate_id: str
+    job_id: str
+    job_title: Optional[str] = None
+    application_status: Optional[str] = None
+    applied_at: datetime
+
+class CandidateJobsResponse(BaseModel):
+    """All jobs a candidate is linked to."""
+    candidate_id: str
+    candidate_name: Optional[str] = None
+    candidate_email: Optional[str] = None
+    total_jobs: int
+    applications: List[JobApplicationEntry]
+
+class JobCandidatesMultiResponse(BaseModel):
+    """All candidates linked to a specific job (many-to-many)."""
+    job_id: str
+    job_title: str
+    total_candidates: int
+    applications: List[JobApplicationEntry]
+
+
+# ── Job Statistics schema ─────────────────────────────────────────────────────
+
+class ApplicationStatusCount(BaseModel):
+    """Count of applications for a single status value."""
+    status: str
+    count: int
+
+class JobStatisticsResponse(BaseModel):
+    """Aggregated statistics for a single job posting."""
+    job_id: str
+    job_title: str
+    job_status: str
+    total_applications: int
+    # Named convenience counts — most commonly needed at a glance
+    applied: int
+    shortlisted: int
+    interview: int
+    offered: int
+    hired: int
+    rejected: int
+    # Full per-status breakdown (covers any custom statuses too)
+    status_breakdown: List[ApplicationStatusCount]
+
+
 class JobApproveResponse(BaseModel):
     job_id: str
     status: str

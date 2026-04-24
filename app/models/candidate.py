@@ -121,3 +121,33 @@ class CandidateStatus(Base):
     createdAt = Column(DateTime(timezone=False), server_default=func.now())
     updatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
+
+
+class CandidateJobApplication(Base):
+    """
+    Many-to-many junction table between Candidate and Jobs.
+    Allows a single candidate to be assigned to / applied for multiple jobs.
+    """
+    __tablename__ = "candidate_job_applications"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(
+        String(50),
+        ForeignKey("candidates.candidateID", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    job_id = Column(
+        String(50),
+        ForeignKey("jobs.jobID", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Per-application status independent of the candidate's global status
+    application_status = Column(String(50), nullable=True, default="Applied")
+    applied_at = Column(DateTime(timezone=False), server_default=func.now())
+    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
+
+    # Relationships for easy ORM access
+    candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
+    job = relationship("Jobs", foreign_keys=[job_id], lazy="select")
