@@ -259,7 +259,7 @@ export default function JobWorkspaceScreen({
             <StatusBadge status={job?.status || "Open"} />
             <Button onClick={onAddCandidate}>+ Add Candidate</Button>
             <Button onClick={() => setAssignModal(true)}>
-              + Assign Candidate
+              + Submit Candidate
             </Button>
           </div>
         </div>
