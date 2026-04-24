@@ -1,11 +1,17 @@
 // HR create-candidate screen with optional resume upload and email.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileText, Users } from "lucide-react";
 import { createCandidate } from "../services/api/candidates";
 import { uploadResume } from "../services/api/documents";
 import { getMicrosoftSigninUrl, sendGraphMail } from "../services/api/msgraph";
 import { Button, Card, Input, Select } from "../components/ui";
-import { extractResumeText, inferFieldsFromResumeText } from "../utils/resumeAutofill";
+import {
+  extractResumeText,
+  inferFieldsFromResumeText,
+} from "../utils/resumeAutofill";
+import { assignJob, getAllJobs } from "../services/api/jobs";
+import { mapJobFromApi } from "../App";
+import { toast } from "react-toastify";
 
 export default function CandidateCreate({ onBack, onSave }) {
   // These fields map 1:1 to CandidateCreateRequest on the backend.
@@ -35,8 +41,45 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [educationRows, setEducationRows] = useState([]);
   const [experienceRows, setExperienceRows] = useState([]);
   const [errors, setErrors] = useState({});
-
+  const [users, setUsers] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
+  const [jobs, setJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  const jobOptions = jobs?.map((job) => ({
+    label: job?.title,
+    value: job?.id,
+  }));
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      try {
+        const refreshed = await getAllJobs();
+
+        if (!isMounted) return;
+
+        const mappedJobs = (refreshed?.jobs || []).map((j) =>
+          mapJobFromApi(j, users),
+        );
+
+        setJobs(mappedJobs);
+
+        if (!selectedJobId && mappedJobs?.length) {
+          setSelectedJobId(mappedJobs[0]?.id);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const clearFieldError = (field) => {
     setErrors((prev) => {
@@ -49,17 +92,22 @@ export default function CandidateCreate({ onBack, onSave }) {
 
   const inferEducationRows = (text) => {
     const normalized = String(text || "").replace(/\r/g, "\n");
-    const lines = normalized.split("\n").map((l) => l.trim()).filter(Boolean);
-    const eduStart = lines.findIndex((l) => /^(education|academic|academics)\b/i.test(l));
+    const lines = normalized
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const eduStart = lines.findIndex((l) =>
+      /^(education|academic|academics)\b/i.test(l),
+    );
     if (eduStart === -1) return [];
     const windowLines = lines.slice(eduStart + 1, eduStart + 20);
     const joined = windowLines.join(" ");
     const degreeMatch = joined.match(
-      /(b\.?\s?tech|m\.?\s?tech|b\.?\s?e|m\.?\s?e|bca|mca|bsc|msc|mba|phd|diploma|bachelor|master)/i
+      /(b\.?\s?tech|m\.?\s?tech|b\.?\s?e|m\.?\s?e|bca|mca|bsc|msc|mba|phd|diploma|bachelor|master)/i,
     );
     const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
     const instituteLine = windowLines.find((l) =>
-      /(university|college|institute|school)/i.test(l)
+      /(university|college|institute|school)/i.test(l),
     );
     if (!degreeMatch && !instituteLine) return [];
     const startYear = years[0] || "";
@@ -67,28 +115,35 @@ export default function CandidateCreate({ onBack, onSave }) {
     return [
       {
         education_institute: instituteLine || "",
-        degree: degreeMatch ? degreeMatch[0].toUpperCase().replace(/\s+/g, " ").trim() : "",
+        degree: degreeMatch
+          ? degreeMatch[0].toUpperCase().replace(/\s+/g, " ").trim()
+          : "",
         field_of_study: "",
         starting_year: startYear,
         year_of_passing: endYear,
-        percentage: ""
-      }
+        percentage: "",
+      },
     ];
   };
 
   const inferExperienceRows = (text) => {
     const normalized = String(text || "").replace(/\r/g, "\n");
-    const lines = normalized.split("\n").map((l) => l.trim()).filter(Boolean);
-    const expStart = lines.findIndex((l) => /^(experience|work experience|employment)\b/i.test(l));
+    const lines = normalized
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const expStart = lines.findIndex((l) =>
+      /^(experience|work experience|employment)\b/i.test(l),
+    );
     if (expStart === -1) return [];
     const windowLines = lines.slice(expStart + 1, expStart + 25);
     const joined = windowLines.join(" ");
     const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
     const titleLine = windowLines.find((l) =>
-      /(engineer|developer|analyst|consultant|manager|intern)/i.test(l)
+      /(engineer|developer|analyst|consultant|manager|intern)/i.test(l),
     );
     const companyLine = windowLines.find((l) =>
-      /(pvt|llp|inc|corp|technologies|solutions|systems|labs|company)/i.test(l)
+      /(pvt|llp|inc|corp|technologies|solutions|systems|labs|company)/i.test(l),
     );
     if (!titleLine && !companyLine) return [];
     const startYear = years[0] || "";
@@ -99,8 +154,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         job_title: titleLine || "",
         start_date: startYear ? `${startYear}-01-01` : "",
         end_date: endYear ? `${endYear}-12-31` : "",
-        year_of_experience: ""
-      }
+        year_of_experience: "",
+      },
     ];
   };
 
@@ -142,7 +197,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice(
         filled
           ? `Resume parsed: filled ${filled} field(s). Review and correct before saving.`
-          : "Resume attached. Could not infer details — fill the form manually."
+          : "Resume attached. Could not infer details — fill the form manually.",
       );
     } catch (err) {
       setActionNotice(err.message || "Could not read resume for auto-fill.");
@@ -173,8 +228,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         row.field_of_study,
         row.starting_year,
         row.year_of_passing,
-        row.percentage
-      ].some((v) => String(v || "").trim())
+        row.percentage,
+      ].some((v) => String(v || "").trim()),
     );
     const invalidEducation = filledEducationRows.some((row) =>
       [
@@ -183,26 +238,38 @@ export default function CandidateCreate({ onBack, onSave }) {
         row.field_of_study,
         row.starting_year,
         row.year_of_passing,
-        row.percentage
-      ].some((v) => !String(v || "").trim())
+        row.percentage,
+      ].some((v) => !String(v || "").trim()),
     );
     if (invalidEducation) {
-      setActionNotice("Please complete all education prefill fields or remove incomplete rows.");
+      setActionNotice(
+        "Please complete all education prefill fields or remove incomplete rows.",
+      );
       return;
     }
 
     const filledExperienceRows = experienceRows.filter((row) =>
-      [row.company_name, row.job_title, row.start_date, row.end_date, row.year_of_experience].some(
-        (v) => String(v || "").trim()
-      )
+      [
+        row.company_name,
+        row.job_title,
+        row.start_date,
+        row.end_date,
+        row.year_of_experience,
+      ].some((v) => String(v || "").trim()),
     );
     const invalidExperience = filledExperienceRows.some((row) =>
-      [row.company_name, row.job_title, row.start_date, row.end_date, row.year_of_experience].some(
-        (v) => !String(v || "").trim()
-      )
+      [
+        row.company_name,
+        row.job_title,
+        row.start_date,
+        row.end_date,
+        row.year_of_experience,
+      ].some((v) => !String(v || "").trim()),
     );
     if (invalidExperience) {
-      setActionNotice("Please complete all experience prefill fields or remove incomplete rows.");
+      setActionNotice(
+        "Please complete all experience prefill fields or remove incomplete rows.",
+      );
       return;
     }
 
@@ -233,27 +300,27 @@ export default function CandidateCreate({ onBack, onSave }) {
         assigned_report_manager_id: assignedReportManagerId || null,
         education_records: filledEducationRows.length
           ? filledEducationRows.map((row) => ({
-              education_institute: row.education_institute.trim(),
-              degree: row.degree.trim(),
-              field_of_study: row.field_of_study.trim(),
-              starting_year: row.starting_year.trim(),
-              year_of_passing: row.year_of_passing.trim(),
-              percentage: row.percentage.trim(),
-              submitted_at: today,
-              document_is_submitted: false
-            }))
+            education_institute: row.education_institute.trim(),
+            degree: row.degree.trim(),
+            field_of_study: row.field_of_study.trim(),
+            starting_year: row.starting_year.trim(),
+            year_of_passing: row.year_of_passing.trim(),
+            percentage: row.percentage.trim(),
+            submitted_at: today,
+            document_is_submitted: false,
+          }))
           : null,
         experience_records: filledExperienceRows.length
           ? filledExperienceRows.map((row) => ({
-              company_name: row.company_name.trim(),
-              job_title: row.job_title.trim(),
-              start_date: row.start_date,
-              end_date: row.end_date,
-              year_of_experience: row.year_of_experience.trim(),
-              submitted_at: today,
-              document_is_submitted: false
-            }))
-          : null
+            company_name: row.company_name.trim(),
+            job_title: row.job_title.trim(),
+            start_date: row.start_date,
+            end_date: row.end_date,
+            year_of_experience: row.year_of_experience.trim(),
+            submitted_at: today,
+            document_is_submitted: false,
+          }))
+          : null,
       });
 
       const candidateName = [firstName, middleName, lastName]
@@ -273,25 +340,27 @@ export default function CandidateCreate({ onBack, onSave }) {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
-        status: "New"
+        status: "New",
       });
 
       let nextNotice = `Candidate created. Password: ${data?.candidate_password || "N/A"}`;
 
       if (sendLoginEmail && data?.candidate_password) {
-        try {
-          // Uses Microsoft Graph to email credentials to the candidate.
-          await sendGraphMail({
-            to: email.trim(),
-            subject: "Your HRMS Candidate Login",
-            bodyText: `Hello ${candidateName || "Candidate"},\n\nYour HRMS account is ready.\n\nLogin email: ${email.trim()}\nTemporary password: ${data.candidate_password}\n\nPlease sign in and change your password.\n\nThanks`
-          });
-          nextNotice = `${nextNotice}. Login email sent.`;
-        } catch (mailErr) {
-          nextNotice = `${nextNotice}. Email failed: ${
-            mailErr.message || "Connect Microsoft and try again."
-          }`;
-        }
+        //NEED THIS CODE FOR IMPLEMENTING EMAIL FUNCTIONALITY.
+        //COMMENTED THIS AS THE CURRENT API IS INCORRECT
+        // try {
+        //   // Uses Microsoft Graph to email credentials to the candidate.
+        //   await sendGraphMail({
+        //     to: email.trim(),
+        //     subject: "Your HRMS Candidate Login",
+        //     bodyText: `Hello ${candidateName || "Candidate"},\n\nYour HRMS account is ready.\n\nLogin email: ${email.trim()}\nTemporary password: ${data.candidate_password}\n\nPlease sign in and change your password.\n\nThanks`
+        //   });
+        //   nextNotice = `${nextNotice}. Login email sent.`;
+        // } catch (mailErr) {
+        //   nextNotice = `${nextNotice}. Email failed: ${
+        //     mailErr.message || "Connect Microsoft and try again."
+        //   }`;
+        // }
       }
 
       if (resumeFile) {
@@ -300,21 +369,45 @@ export default function CandidateCreate({ onBack, onSave }) {
         } else {
           try {
             // HR/Admin resume upload (candidate_id is required by backend).
-            await uploadResume({ candidateId: createdCandidateId, file: resumeFile });
+            await uploadResume({
+              candidateId: createdCandidateId,
+              file: resumeFile,
+            });
             nextNotice = `${nextNotice}. Resume uploaded.`;
           } catch (uploadErr) {
-            nextNotice = `${nextNotice}. Resume upload failed: ${
-              uploadErr.message || "Unknown error"
-            }`;
+            nextNotice = `${nextNotice}. Resume upload failed: ${uploadErr.message || "Unknown error"
+              }`;
           }
         }
       }
 
       setActionNotice(nextNotice);
+      return createdCandidateId;
     } catch (err) {
       setActionNotice(err.message || "Failed to create candidate.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndAssignJob = async () => {
+    setIsAssigning(true);
+
+    try {
+      const candidateId = await handleCreateCandidate();
+      if (!candidateId) {
+        return;
+      }
+      const result = await assignJob(selectedJobId, candidateId);
+      if (result?.status === 200) {
+        toast.success("Job assigned successfully ✅");
+      }
+    } catch (err) {
+      toast.error(
+        err.message || "Candidate created but job assignment failed.",
+      );
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -335,8 +428,8 @@ export default function CandidateCreate({ onBack, onSave }) {
             Resume attachment
           </div>
           <p className="mb-3 text-xs text-gray-600">
-            Upload first — we read PDF or DOCX and suggest name, email, phone, skills, experience, and
-            location when we can detect them.
+            Upload first — we read PDF or DOCX and suggest name, email, phone,
+            skills, experience, and location when we can detect them.
           </p>
           <input
             type="file"
@@ -346,9 +439,13 @@ export default function CandidateCreate({ onBack, onSave }) {
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-blue-700"
           />
           {resumeParsing ? (
-            <div className="mt-2 text-xs font-medium text-blue-700">Reading resume…</div>
+            <div className="mt-2 text-xs font-medium text-blue-700">
+              Reading resume…
+            </div>
           ) : resumeFile ? (
-            <div className="mt-2 text-xs text-gray-600">Selected: {resumeFile.name}</div>
+            <div className="mt-2 text-xs text-gray-600">
+              Selected: {resumeFile.name}
+            </div>
           ) : null}
         </div>
 
@@ -361,7 +458,12 @@ export default function CandidateCreate({ onBack, onSave }) {
           />
 
           <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
-
+          <Select
+            label="Job Title"
+            value={selectedJobId}
+            onChange={(value) => setSelectedJobId(value)}
+            options={jobOptions}
+          />
           <div>
             <Input
               label="Email *"
@@ -479,18 +581,23 @@ export default function CandidateCreate({ onBack, onSave }) {
 
         <div className="mt-4 space-y-3">
           <div className="rounded-xl border bg-slate-50 p-3">
-            <div className="text-sm font-semibold text-slate-800">Education records</div>
+            <div className="text-sm font-semibold text-slate-800">
+              Education records
+            </div>
             <div className="mt-3 space-y-3">
               {educationRows.map((row, idx) => (
-                <div key={`edu-${idx}`} className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2">
+                <div
+                  key={`edu-${idx}`}
+                  className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2"
+                >
                   <Input
                     label="Institute"
                     value={row.education_institute}
                     onChange={(v) =>
                       setEducationRows((prev) =>
                         prev.map((r, i) =>
-                          i === idx ? { ...r, education_institute: v } : r
-                        )
+                          i === idx ? { ...r, education_institute: v } : r,
+                        ),
                       )
                     }
                   />
@@ -499,7 +606,9 @@ export default function CandidateCreate({ onBack, onSave }) {
                     value={row.degree}
                     onChange={(v) =>
                       setEducationRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, degree: v } : r))
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, degree: v } : r,
+                        ),
                       )
                     }
                   />
@@ -509,8 +618,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     onChange={(v) =>
                       setEducationRows((prev) =>
                         prev.map((r, i) =>
-                          i === idx ? { ...r, field_of_study: v } : r
-                        )
+                          i === idx ? { ...r, field_of_study: v } : r,
+                        ),
                       )
                     }
                   />
@@ -520,8 +629,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     onChange={(v) =>
                       setEducationRows((prev) =>
                         prev.map((r, i) =>
-                          i === idx ? { ...r, starting_year: v } : r
-                        )
+                          i === idx ? { ...r, starting_year: v } : r,
+                        ),
                       )
                     }
                   />
@@ -531,8 +640,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     onChange={(v) =>
                       setEducationRows((prev) =>
                         prev.map((r, i) =>
-                          i === idx ? { ...r, year_of_passing: v } : r
-                        )
+                          i === idx ? { ...r, year_of_passing: v } : r,
+                        ),
                       )
                     }
                   />
@@ -542,8 +651,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     onChange={(v) =>
                       setEducationRows((prev) =>
                         prev.map((r, i) =>
-                          i === idx ? { ...r, percentage: v } : r
-                        )
+                          i === idx ? { ...r, percentage: v } : r,
+                        ),
                       )
                     }
                   />
@@ -551,7 +660,9 @@ export default function CandidateCreate({ onBack, onSave }) {
                     <Button
                       variant="danger"
                       onClick={() =>
-                        setEducationRows((prev) => prev.filter((_, i) => i !== idx))
+                        setEducationRows((prev) =>
+                          prev.filter((_, i) => i !== idx),
+                        )
                       }
                     >
                       Remove Row
@@ -570,8 +681,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                       field_of_study: "",
                       starting_year: "",
                       year_of_passing: "",
-                      percentage: ""
-                    }
+                      percentage: "",
+                    },
                   ])
                 }
               >
@@ -581,16 +692,23 @@ export default function CandidateCreate({ onBack, onSave }) {
           </div>
 
           <div className="rounded-xl border bg-slate-50 p-3">
-            <div className="text-sm font-semibold text-slate-800">Experience records</div>
+            <div className="text-sm font-semibold text-slate-800">
+              Experience records
+            </div>
             <div className="mt-3 space-y-3">
               {experienceRows.map((row, idx) => (
-                <div className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2" key={`exp-${idx}`}>
+                <div
+                  className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2"
+                  key={`exp-${idx}`}
+                >
                   <Input
                     label="Company Name"
                     value={row.company_name}
                     onChange={(v) =>
                       setExperienceRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, company_name: v } : r))
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, company_name: v } : r,
+                        ),
                       )
                     }
                   />
@@ -599,7 +717,9 @@ export default function CandidateCreate({ onBack, onSave }) {
                     value={row.job_title}
                     onChange={(v) =>
                       setExperienceRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, job_title: v } : r))
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, job_title: v } : r,
+                        ),
                       )
                     }
                   />
@@ -609,7 +729,9 @@ export default function CandidateCreate({ onBack, onSave }) {
                     value={row.start_date}
                     onChange={(v) =>
                       setExperienceRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, start_date: v } : r))
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, start_date: v } : r,
+                        ),
                       )
                     }
                   />
@@ -619,7 +741,9 @@ export default function CandidateCreate({ onBack, onSave }) {
                     value={row.end_date}
                     onChange={(v) =>
                       setExperienceRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, end_date: v } : r))
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, end_date: v } : r,
+                        ),
                       )
                     }
                   />
@@ -629,8 +753,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     onChange={(v) =>
                       setExperienceRows((prev) =>
                         prev.map((r, i) =>
-                          i === idx ? { ...r, year_of_experience: v } : r
-                        )
+                          i === idx ? { ...r, year_of_experience: v } : r,
+                        ),
                       )
                     }
                   />
@@ -638,7 +762,9 @@ export default function CandidateCreate({ onBack, onSave }) {
                     <Button
                       variant="danger"
                       onClick={() =>
-                        setExperienceRows((prev) => prev.filter((_, i) => i !== idx))
+                        setExperienceRows((prev) =>
+                          prev.filter((_, i) => i !== idx),
+                        )
                       }
                     >
                       Remove Row
@@ -656,8 +782,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                       job_title: "",
                       start_date: "",
                       end_date: "",
-                      year_of_experience: ""
-                    }
+                      year_of_experience: "",
+                    },
                   ])
                 }
               >
@@ -691,6 +817,9 @@ export default function CandidateCreate({ onBack, onSave }) {
           </Button>
           <Button onClick={handleCreateCandidate} disabled={isSaving}>
             {isSaving ? "Saving..." : "Save"}
+          </Button>
+          <Button onClick={handleSaveAndAssignJob} disabled={isAssigning}>
+            {isAssigning ? "Assigning..." : "Save and Assign Job"}
           </Button>
         </div>
 

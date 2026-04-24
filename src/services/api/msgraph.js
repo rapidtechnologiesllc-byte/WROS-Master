@@ -1,7 +1,8 @@
 // Microsoft Graph API wrappers used by scheduling/email/SharePoint features.
 import { getApiBaseUrl, maybeRedirectOnUnauthorized } from "./client";
 
-export const getMicrosoftSigninUrl = () => `${getApiBaseUrl()}/msgraph/auth/signin`;
+export const getMicrosoftSigninUrl = () =>
+  `${getApiBaseUrl()}/msgraph/auth/signin`;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("hrms_token");
@@ -12,7 +13,7 @@ export const getGraphMe = async () => {
   // Checks if a Microsoft account is connected (Bearer JWT only; avoid credentials:include + wildcard CORS).
   const response = await fetch(`${getApiBaseUrl()}/msgraph/me`, {
     method: "GET",
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(),
   });
 
   let data = null;
@@ -26,15 +27,17 @@ export const getGraphMe = async () => {
     // 401 here usually means "Microsoft account not linked yet", not expired HR JWT.
     // Do not run session logout redirect — that made Connect Microsoft appear broken.
     if (response.status === 401) {
-      const message = data?.detail || data?.message || "Microsoft sign-in required.";
+      const message =
+        data?.detail || data?.message || "Microsoft sign-in required.";
       throw new Error(
-        typeof message === "string" ? message : "Microsoft sign-in required."
+        typeof message === "string" ? message : "Microsoft sign-in required.",
       );
     }
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
     }
-    const message = data?.detail || data?.message || "Microsoft sign-in required.";
+    const message =
+      data?.detail || data?.message || "Microsoft sign-in required.";
     throw new Error(message);
   }
 
@@ -47,7 +50,7 @@ export const scheduleUserMeeting = async ({
   endIso,
   attendees = [],
   timezone = "UTC",
-  teamsOnline = true
+  teamsOnline = true,
 }) => {
   // Schedules a meeting using the signed-in Microsoft account.
   if (!subject) {
@@ -71,8 +74,8 @@ export const scheduleUserMeeting = async ({
     `${getApiBaseUrl()}/msgraph/calendar/schedule?${params.toString()}`,
     {
       method: "POST",
-      headers: getAuthHeaders()
-    }
+      headers: getAuthHeaders(),
+    },
   );
 
   let data = null;
@@ -102,7 +105,7 @@ export const scheduleTeamsMeeting = async ({
   attendees = [],
   timezone = "UTC",
   teamsOnline = true,
-  location
+  location,
 }) => {
   // Schedules a meeting using the service account on behalf of organizerEmail.
   if (!organizerEmail) {
@@ -133,8 +136,8 @@ export const scheduleTeamsMeeting = async ({
     `${getApiBaseUrl()}/msgraph/service/calendar/schedule?${params.toString()}`,
     {
       method: "POST",
-      headers: getAuthHeaders()
-    }
+      headers: getAuthHeaders(),
+    },
   );
 
   let data = null;
@@ -148,7 +151,8 @@ export const scheduleTeamsMeeting = async ({
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
     }
-    const message = data?.detail || data?.message || "Failed to schedule Teams meeting.";
+    const message =
+      data?.detail || data?.message || "Failed to schedule Teams meeting.";
     throw new Error(message);
   }
 
@@ -159,7 +163,7 @@ export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
   // Lists meetings for the signed-in Microsoft account.
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/calendar/meetings?top=${top}&skip=${skip}`,
-    { method: "GET", headers: getAuthHeaders() }
+    { method: "GET", headers: getAuthHeaders() },
   );
 
   let data = null;
@@ -173,7 +177,8 @@ export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
     }
-    const message = data?.detail || data?.message || "Failed to fetch meetings.";
+    const message =
+      data?.detail || data?.message || "Failed to fetch meetings.";
     throw new Error(message);
   }
 
@@ -183,7 +188,7 @@ export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
 export const getServiceCalendarEvents = async ({
   userEmail,
   startTime,
-  endTime
+  endTime,
 }) => {
   // Reads a user's calendar using the service account.
   if (!userEmail) {
@@ -194,9 +199,9 @@ export const getServiceCalendarEvents = async ({
   if (endTime) params.set("end_time", endTime);
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/service/calendar/events/${encodeURIComponent(
-      userEmail
+      userEmail,
     )}?${params.toString()}`,
-    { method: "GET", headers: getAuthHeaders() }
+    { method: "GET", headers: getAuthHeaders() },
   );
 
   let data = null;
@@ -234,13 +239,12 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
   params.set("to", to);
   params.set("subject", subject);
   params.set("body_text", bodyText);
-
   const response = await fetch(
     `${getApiBaseUrl()}/msgraph/mail/send?${params.toString()}`,
     {
       method: "POST",
-      headers: getAuthHeaders()
-    }
+      headers: getAuthHeaders(),
+    },
   );
 
   let data = null;
@@ -263,10 +267,13 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
 
 export const testSharepointConnection = async () => {
   // Verifies SharePoint service account configuration.
-  const response = await fetch(`${getApiBaseUrl()}/msgraph/sharepoint/test-connection`, {
-    method: "GET",
-    headers: getAuthHeaders()
-  });
+  const response = await fetch(
+    `${getApiBaseUrl()}/msgraph/sharepoint/test-connection`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    },
+  );
 
   let data = null;
   try {
@@ -279,7 +286,8 @@ export const testSharepointConnection = async () => {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
     }
-    const message = data?.detail || data?.message || "Failed to test SharePoint connection.";
+    const message =
+      data?.detail || data?.message || "Failed to test SharePoint connection.";
     throw new Error(message);
   }
 
@@ -288,10 +296,13 @@ export const testSharepointConnection = async () => {
 
 export const listSharepointDrives = async () => {
   // Lists SharePoint drives to help choose a drive ID.
-  const response = await fetch(`${getApiBaseUrl()}/msgraph/sharepoint/list-drives`, {
-    method: "GET",
-    headers: getAuthHeaders()
-  });
+  const response = await fetch(
+    `${getApiBaseUrl()}/msgraph/sharepoint/list-drives`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    },
+  );
 
   let data = null;
   try {
@@ -304,7 +315,8 @@ export const listSharepointDrives = async () => {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
     }
-    const message = data?.detail || data?.message || "Failed to list SharePoint drives.";
+    const message =
+      data?.detail || data?.message || "Failed to list SharePoint drives.";
     throw new Error(message);
   }
 
