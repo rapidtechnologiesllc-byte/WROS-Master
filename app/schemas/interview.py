@@ -213,6 +213,46 @@ class InterviewerWorkload(BaseModel):
 
 
 # ============================================
+# My Interviews (Panel Member view)
+# ============================================
+
+class MyInterviewFeedback(BaseModel):
+    """Feedback submitted by the current panel member for a completed interview"""
+    feedback_id: int
+    technical_score: int
+    communication_score: int
+    problem_solving_score: int
+    culture_fit_score: int
+    average_score: float
+    comments: Optional[str] = None
+    recommendation: str
+    submitted_at: datetime
+
+class MyInterviewItem(BaseModel):
+    """A single interview entry as seen by the current panel member"""
+    interview_id: int
+    panel_id: int
+    round_name: str
+    candidate_id: str
+    candidate_name: str
+    candidate_email: str
+    start_time: datetime
+    end_time: datetime
+    meeting_link: Optional[str] = None
+    status: str
+    feedback_submitted: bool
+    my_feedback: Optional[MyInterviewFeedback] = None
+
+class MyInterviewsResponse(BaseModel):
+    """Response for 'Get My Interviews' endpoint"""
+    interviewer_id: str
+    interviewer_name: str
+    total_interviews: int
+    pending_feedback: int
+    interviews: List[MyInterviewItem]
+
+
+# ============================================
 # Common Response Schemas
 # ============================================
 

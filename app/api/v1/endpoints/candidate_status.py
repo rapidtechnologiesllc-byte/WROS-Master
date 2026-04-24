@@ -36,7 +36,7 @@ VALID_PIPELINE_STATUSES = {
     "Applied",
     "Screening",
     "Interview",
-    "Pre-Boarding",
+    "Pre-Onboarding",
     "Onboarded",
     "Hired",
     "Rejected",

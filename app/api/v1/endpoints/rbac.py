@@ -15,10 +15,12 @@ from app.schemas.rbac import (
     UserPermissionSummary,
     SetBusinessUnitRequest, SetBusinessUnitResponse,
     BusinessUnitCreate, BusinessUnitResponse, BusinessUnitListItem,
+    DepartmentCreate, DepartmentUpdate, DepartmentResponse, DepartmentListItem,
+    SetDepartmentRequest, SetDepartmentResponse,
 )
 from app.services.rbac_service import RBACService
 from app.core.logging import logger
-from app.models.rbac import BusinessUnit
+from app.models.rbac import BusinessUnit, Department
 from app.models.user import Users
 
 router = APIRouter(prefix="/rbac", tags=["RBAC"])
@@ -561,3 +563,232 @@ def update_business_unit(
         logger.error(f"Error updating business unit: {exc}")
         raise HTTPException(status_code=500, detail="Failed to update business unit")
 
+
+# ===========================================================================
+# Departments
+# ===========================================================================
+
+@router.post(
+    "/departments",
+    response_model=DepartmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new department",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def create_department(
+    data: DepartmentCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Create a new department.
+    Returns **409** if a department with the same name already exists.
+    """
+    if db.query(Department).filter(Department.name == data.name).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Department '{data.name}' already exists",
+        )
+    try:
+        dept = Department(name=data.name, description=data.description)
+        db.add(dept)
+        db.commit()
+        db.refresh(dept)
+        return dept
+    except Exception as exc:
+        logger.error(f"Error creating department: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to create department")
+
+
+@router.get(
+    "/departments",
+    response_model=List[DepartmentListItem],
+    summary="List all departments",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def list_departments(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Return all defined departments."""
+    try:
+        return db.query(Department).order_by(Department.name).all()
+    except Exception as exc:
+        logger.error(f"Error listing departments: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to list departments")
+
+
+@router.get(
+    "/departments/{department_id}",
+    response_model=DepartmentResponse,
+    summary="Get a single department by ID",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_department(
+    department_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Retrieve a single department by its ID. Returns **404** if not found."""
+    dept = db.query(Department).filter(Department.id == department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    return dept
+
+
+@router.put(
+    "/departments/{department_id}",
+    response_model=DepartmentResponse,
+    summary="Update a department",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def update_department(
+    department_id: int,
+    data: DepartmentUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Update the name or description of a department.
+    Returns **404** if not found. Returns **409** if the new name already exists.
+    """
+    dept = db.query(Department).filter(Department.id == department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    if data.name and data.name != dept.name:
+        if db.query(Department).filter(Department.name == data.name).first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Department '{data.name}' already exists",
+            )
+    try:
+        if data.name is not None:
+            dept.name = data.name
+        if data.description is not None:
+            dept.description = data.description
+        db.commit()
+        db.refresh(dept)
+        return dept
+    except Exception as exc:
+        logger.error(f"Error updating department: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to update department")
+
+
+@router.delete(
+    "/departments/{department_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a department",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def delete_department(
+    department_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Delete a department by its ID. Returns **404** if not found."""
+    dept = db.query(Department).filter(Department.id == department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    try:
+        db.delete(dept)
+        db.commit()
+    except Exception as exc:
+        logger.error(f"Error deleting department: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to delete department")
+
+
+@router.post(
+    "/users/set-department",
+    response_model=SetDepartmentResponse,
+    summary="Assign a department to a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def set_department_for_user(
+    data: SetDepartmentRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """
+    Assign a department to a user by their UserID.
+    Returns **404** if the user or department does not exist.
+    """
+    target_user = db.query(Users).filter(Users.UserID == data.user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    dept = db.query(Department).filter(Department.id == data.department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    try:
+        target_user.department_id = data.department_id
+        db.commit()
+        db.refresh(target_user)
+        return SetDepartmentResponse(
+            user_id=target_user.UserID,
+            department_id=target_user.department_id,
+            message="Department assigned successfully",
+        )
+    except Exception as exc:
+        logger.error(f"Error setting department for user: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to set department")
+
+
+@router.put(
+    "/users/{user_id}/department",
+    response_model=SetDepartmentResponse,
+    summary="Update a user's department",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def update_department_for_user(
+    user_id: str,
+    data: SetDepartmentRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """
+    Change the department assigned to a user.
+    Returns **404** if the user or department does not exist.
+    """
+    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    dept = db.query(Department).filter(Department.id == data.department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    try:
+        target_user.department_id = data.department_id
+        db.commit()
+        db.refresh(target_user)
+        return SetDepartmentResponse(
+            user_id=target_user.UserID,
+            department_id=target_user.department_id,
+            message="Department updated successfully",
+        )
+    except Exception as exc:
+        logger.error(f"Error updating department for user: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to update department")
+
+
+@router.get(
+    "/users/{user_id}/department",
+    response_model=DepartmentResponse,
+    summary="Get the department assigned to a user",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_user_department(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Retrieve the department assigned to the given user.
+    Returns **404** if the user does not exist or has no department assigned.
+    """
+    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not target_user.department_id:
+        raise HTTPException(status_code=404, detail="No department assigned to this user")
+    dept = db.query(Department).filter(Department.id == target_user.department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Assigned department not found")
+    return dept
