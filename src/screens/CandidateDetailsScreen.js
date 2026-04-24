@@ -783,7 +783,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             </div>
 
             <div className="px-8 py-6 max-h-[78vh] overflow-y-auto">
-              <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1fr] gap-8">
+           <div className="grid grid-cols-1 gap-8">
                 <div className="space-y-8">
                   <CardBlock
                     title="Interview Setup"
@@ -1023,62 +1023,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                   </CardBlock>
                 </div>
 
-                <div className="space-y-8">
-                  <CardBlock
-                    title="Email to Candidate"
-                    subtitle="Template is editable and can evolve in later phases."
-                  >
-                    <div className="space-y-5">
-                      <SelectField
-                        label="Email Template"
-                        value={scheduleForm.emailTemplate}
-                        onChange={(e) =>
-                          handleScheduleInputChange("emailTemplate", e.target.value)
-                        }
-                      >
-                        {emailTemplateOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </SelectField>
-
-                      <FormField
-                        label="Subject"
-                        value={scheduleForm.emailSubject}
-                        onChange={(e) =>
-                          handleScheduleInputChange("emailSubject", e.target.value)
-                        }
-                        error={scheduleErrors.emailSubject}
-                      />
-
-                      <TextAreaField
-                        label="Body"
-                        value={scheduleForm.emailBody}
-                        onChange={(e) =>
-                          handleScheduleInputChange("emailBody", e.target.value)
-                        }
-                        error={scheduleErrors.emailBody}
-                        rows={10}
-                      />
-
-                      <FormField
-                        label="CC Emails (optional)"
-                        placeholder="Enter comma-separated emails"
-                        value={scheduleForm.ccEmails}
-                        onChange={(e) =>
-                          handleScheduleInputChange("ccEmails", e.target.value)
-                        }
-                      />
-
-                      {scheduleType === "online" && (
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-700">
-                          Backend will generate the final Teams invite and event details using the created interview record.
-                        </div>
-                      )}
-                    </div>
-                  </CardBlock>
-                </div>
+             
               </div>
             </div>
 
