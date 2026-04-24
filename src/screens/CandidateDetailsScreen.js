@@ -329,18 +329,6 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     return `${hours}:${minutes}`;
   };
 
-  const recomputeDuration = (dateValue, startTimeValue, endTimeValue) => {
-    if (!dateValue || !startTimeValue || !endTimeValue) return "";
-
-    const start = new Date(`${dateValue}T${startTimeValue}`);
-    const end = new Date(`${dateValue}T${endTimeValue}`);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
-    if (end <= start) return "";
-
-    const diffMinutes = Math.round((end.getTime() - start.getTime()) / (60 * 1000));
-    return String(diffMinutes);
-  };
 
   const openScheduleModal = (type) => {
     const today = new Date();
@@ -378,49 +366,41 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     setScheduleForm(initialScheduleForm);
   };
 
-  const handleScheduleInputChange = (field, value) => {
-    setScheduleForm((prev) => {
-      const updated = {
-        ...prev,
-        [field]: value
-      };
+ const handleScheduleInputChange = (field, value) => {
+  setScheduleForm((prev) => {
+    const updated = {
+      ...prev,
+      [field]: value
+    };
 
-      if (field === "emailTemplate") {
-        const templateValues = buildTemplateValues(value, scheduleType);
-        updated.emailSubject = templateValues.subject;
-        updated.emailBody = templateValues.body;
-      }
-
-      if (field === "durationMinutes") {
-        updated.endTime = recomputeEndTime(
-          updated.interviewDate,
-          updated.startTime,
-          value
-        );
-      }
-
-      if (field === "startTime" || field === "endTime" || field === "interviewDate") {
-        const calculatedDuration = recomputeDuration(
-          field === "interviewDate" ? value : updated.interviewDate,
-          field === "startTime" ? value : updated.startTime,
-          field === "endTime" ? value : updated.endTime
-        );
-
-        if (calculatedDuration) {
-          updated.durationMinutes = calculatedDuration;
-        }
-      }
-
-      return updated;
-    });
-
-    if (scheduleErrors[field]) {
-      setScheduleErrors((prev) => ({
-        ...prev,
-        [field]: ""
-      }));
+    if (field === "emailTemplate") {
+      const templateValues = buildTemplateValues(value, scheduleType);
+      updated.emailSubject = templateValues.subject;
+      updated.emailBody = templateValues.body;
     }
-  };
+
+    if (
+      field === "interviewDate" ||
+      field === "startTime" ||
+      field === "durationMinutes"
+    ) {
+      updated.endTime = recomputeEndTime(
+        field === "interviewDate" ? value : updated.interviewDate,
+        field === "startTime" ? value : updated.startTime,
+        field === "durationMinutes" ? value : updated.durationMinutes
+      );
+    }
+
+    return updated;
+  });
+
+  if (scheduleErrors[field]) {
+    setScheduleErrors((prev) => ({
+      ...prev,
+      [field]: ""
+    }));
+  }
+};
 
   const togglePanelMember = (memberId) => {
     const currentIds = Array.isArray(scheduleForm.interviewerIds)
@@ -788,7 +768,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                     : `Schedule Face to Face Interview with ${candidate?.name || "Candidate"}`}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Phase 1 setup: panel, panel members, interview timing, and email preparation.
+                 Testing Interview
                 </p>
               </div>
 
@@ -980,19 +960,19 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                       </SelectField>
 
                       <SelectField
-                        label="Duration"
-                        value={scheduleForm.durationMinutes}
-                        onChange={(e) =>
-                          handleScheduleInputChange("durationMinutes", e.target.value)
-                        }
-                        error={scheduleErrors.durationMinutes}
-                      >
-                        {durationOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </SelectField>
+  label="Duration"
+  value={scheduleForm.durationMinutes}
+  onChange={(e) =>
+    handleScheduleInputChange("durationMinutes", e.target.value)
+  }
+  error={scheduleErrors.durationMinutes}
+>
+  {[30, 45, 60, 90, 120].map((minutes) => (
+    <option key={minutes} value={String(minutes)}>
+      {formatDurationLabel(minutes)}
+    </option>
+  ))}
+</SelectField>
 
                       <FormField
                         label="Start Time"
@@ -1005,14 +985,12 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                       />
 
                       <FormField
-                        label="End Time"
-                        type="time"
-                        value={scheduleForm.endTime}
-                        onChange={(e) =>
-                          handleScheduleInputChange("endTime", e.target.value)
-                        }
-                        error={scheduleErrors.endTime}
-                      />
+  label="End Time"
+  type="time"
+  value={scheduleForm.endTime}
+  readOnly
+  error={scheduleErrors.endTime}
+/>
                     </div>
 
                     {scheduleType === "faceToFace" && (
@@ -1226,7 +1204,6 @@ function SelectField({
     </div>
   );
 }
-
 function TextAreaField({
   label,
   error,
@@ -1258,4 +1235,16 @@ function TextAreaField({
       {error ? <p className="text-xs text-red-500 mt-1">{error}</p> : null}
     </div>
   );
+}
+
+function formatDurationLabel(value) {
+  const map = {
+    30: "30 min",
+    45: "45 min",
+    60: "1 hour",
+    90: "1.5 hour",
+    120: "2 hour"
+  };
+
+  return map[value] || `${value} min`;
 }

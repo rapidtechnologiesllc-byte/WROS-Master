@@ -34,8 +34,18 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [educationRows, setEducationRows] = useState([]);
   const [experienceRows, setExperienceRows] = useState([]);
+  const [errors, setErrors] = useState({});
 
   const today = new Date().toISOString().slice(0, 10);
+
+  const clearFieldError = (field) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   const inferEducationRows = (text) => {
     const normalized = String(text || "").replace(/\r/g, "\n");
@@ -103,11 +113,23 @@ export default function CandidateCreate({ onBack, onSave }) {
     try {
       const text = await extractResumeText(file);
       const fields = inferFieldsFromResumeText(text);
-      if (fields.email) setEmail(fields.email);
-      if (fields.firstName) setFirstName(fields.firstName);
+      if (fields.email) {
+        setEmail(fields.email);
+        clearFieldError("email");
+      }
+      if (fields.firstName) {
+        setFirstName(fields.firstName);
+        clearFieldError("firstName");
+      }
       if (fields.middleName) setMiddleName(fields.middleName);
-      if (fields.lastName) setLastName(fields.lastName);
-      if (fields.mobile) setMobile(fields.mobile);
+      if (fields.lastName) {
+        setLastName(fields.lastName);
+        clearFieldError("lastName");
+      }
+      if (fields.mobile) {
+        setMobile(fields.mobile);
+        clearFieldError("mobile");
+      }
       if (fields.skills) setSkills(fields.skills);
       if (fields.experience) setExperience(fields.experience);
       if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
@@ -130,26 +152,20 @@ export default function CandidateCreate({ onBack, onSave }) {
   };
 
   const handleCreateCandidate = async () => {
-    if (!firstName.trim()) {
-      setActionNotice("First Name is required.");
+    const newErrors = {};
+
+    if (!firstName.trim()) newErrors.firstName = "First Name is required.";
+    if (!lastName.trim()) newErrors.lastName = "Last Name is required.";
+    if (!gender.trim()) newErrors.gender = "Gender is required.";
+    if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
+    if (!email.trim()) newErrors.email = "Email is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setActionNotice("Please fill all required fields.");
       return;
     }
-    if (!lastName.trim()) {
-      setActionNotice("Last Name is required.");
-      return;
-    }
-    if (!gender.trim()) {
-      setActionNotice("Gender is required.");
-      return;
-    }
-    if (!mobile.trim()) {
-      setActionNotice("Mobile is required.");
-      return;
-    }
-    if (!email.trim()) {
-      setActionNotice("Email is required.");
-      return;
-    }
+
     const filledEducationRows = educationRows.filter((row) =>
       [
         row.education_institute,
@@ -190,8 +206,10 @@ export default function CandidateCreate({ onBack, onSave }) {
       return;
     }
 
+    setErrors({});
     setActionNotice("");
     setIsSaving(true);
+
     try {
       // Create the candidate in backend and receive generated password.
       const data = await createCandidate({
@@ -237,11 +255,14 @@ export default function CandidateCreate({ onBack, onSave }) {
             }))
           : null
       });
+
       const candidateName = [firstName, middleName, lastName]
         .filter(Boolean)
         .join(" ")
         .trim();
+
       const createdCandidateId = data?.candidate_id;
+
       onSave({
         id: createdCandidateId,
         name: candidateName || "New Candidate",
@@ -254,7 +275,9 @@ export default function CandidateCreate({ onBack, onSave }) {
           .filter(Boolean),
         status: "New"
       });
+
       let nextNotice = `Candidate created. Password: ${data?.candidate_password || "N/A"}`;
+
       if (sendLoginEmail && data?.candidate_password) {
         try {
           // Uses Microsoft Graph to email credentials to the candidate.
@@ -270,6 +293,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           }`;
         }
       }
+
       if (resumeFile) {
         if (!createdCandidateId) {
           nextNotice = `${nextNotice}. Resume skipped (missing candidate id).`;
@@ -285,6 +309,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           }
         }
       }
+
       setActionNotice(nextNotice);
     } catch (err) {
       setActionNotice(err.message || "Failed to create candidate.");
@@ -334,48 +359,117 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={setCandidateRole}
             options={["Candidate", "Employee", "Contractor"]}
           />
+
           <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
-          <Input label="Email *" value={email} onChange={setEmail} actionNotice={actionNotice} />
-          <Input label="First Name *" value={firstName} onChange={setFirstName} actionNotice={actionNotice} />
+
+          <div>
+            <Input
+              label="Email *"
+              value={email}
+              onChange={(value) => {
+                setEmail(value);
+                clearFieldError("email");
+              }}
+              actionNotice={actionNotice}
+              error={errors.email}
+            />
+            {errors.email ? <div className="mt-1 text-xs text-red-500">{errors.email}</div> : null}
+          </div>
+
+          <div>
+            <Input
+              label="First Name *"
+              value={firstName}
+              onChange={(value) => {
+                setFirstName(value);
+                clearFieldError("firstName");
+              }}
+              actionNotice={actionNotice}
+              error={errors.firstName}
+            />
+            {errors.firstName ? <div className="mt-1 text-xs text-red-500">{errors.firstName}</div> : null}
+          </div>
+
           <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
-          <Input label="Last Name *" value={lastName} onChange={setLastName} actionNotice={actionNotice}  />
-          <Input label="Mobile *" value={mobile} onChange={setMobile} actionNotice={actionNotice} />
-          <Select
-            label="Gender *"
-            value={gender}
-            onChange={setGender}
-            options={["", "Female", "Male", "Other"]}
-          />
+
+          <div>
+            <Input
+              label="Last Name *"
+              value={lastName}
+              onChange={(value) => {
+                setLastName(value);
+                clearFieldError("lastName");
+              }}
+              actionNotice={actionNotice}
+              error={errors.lastName}
+            />
+            {errors.lastName ? <div className="mt-1 text-xs text-red-500">{errors.lastName}</div> : null}
+          </div>
+
+          <div>
+            <Input
+              label="Mobile *"
+              value={mobile}
+              onChange={(value) => {
+                setMobile(value);
+                clearFieldError("mobile");
+              }}
+              actionNotice={actionNotice}
+              error={errors.mobile}
+            />
+            {errors.mobile ? <div className="mt-1 text-xs text-red-500">{errors.mobile}</div> : null}
+          </div>
+
+          <div>
+            <Select
+              label="Gender *"
+              value={gender}
+              onChange={(value) => {
+                setGender(value);
+                clearFieldError("gender");
+              }}
+              options={["", "Female", "Male", "Other"]}
+              error={errors.gender}
+            />
+            {errors.gender ? <div className="mt-1 text-xs text-red-500">{errors.gender}</div> : null}
+          </div>
+
           <Input label="Date of Birth" value={dob} onChange={setDob} type="date" />
           <Input label="Source" value={source} onChange={setSource} />
           <Input label="Experience" value={experience} onChange={setExperience} />
           <Input label="Skills (comma separated)" value={skills} onChange={setSkills} />
+
           <Input
             label="Joining Date"
             value={joiningDate}
             onChange={setJoiningDate}
             type="date"
           />
+
           <Input
             label="Expected Salary"
             value={expectedSalary}
             onChange={setExpectedSalary}
           />
+
           <Input
             label="Current Salary"
             value={currentSalary}
             onChange={setCurrentSalary}
           />
+
           <Input
             label="Current Location"
             value={currentLocation}
             onChange={setCurrentLocation}
           />
+
           <Input
             label="Assigned HR Manager ID"
             value={assignedHrManagerId}
             onChange={setAssignedHrManagerId}
           />
+
           <Input
             label="Assigned Reporting Manager ID"
             value={assignedReportManagerId}
@@ -599,6 +693,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </div>
+
         {actionNotice ? (
           <div className="mt-2 text-xs text-gray-500">{actionNotice}</div>
         ) : null}
