@@ -124,3 +124,46 @@ class SetBusinessUnitResponse(BaseModel):
     user_id: str
     business_unit_id: int
     message: str = "Business unit assigned successfully"
+
+
+# ---------------------------------------------------------------------------
+# Department Schemas
+# ---------------------------------------------------------------------------
+
+class DepartmentCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, example="Engineering")
+    description: Optional[str] = None
+
+
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+
+
+class DepartmentResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DepartmentListItem(BaseModel):
+    """Lightweight department representation for list endpoints."""
+    id: int
+    name: str
+    description: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SetDepartmentRequest(BaseModel):
+    user_id: str = Field(..., description="UserID of the user to assign the department to")
+    department_id: int = Field(..., description="ID of the department to assign to the user")
+
+
+class SetDepartmentResponse(BaseModel):
+    user_id: str
+    department_id: int
+    message: str = "Department assigned successfully"

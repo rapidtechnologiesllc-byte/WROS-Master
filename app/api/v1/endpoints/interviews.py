@@ -24,6 +24,8 @@ from app.schemas.interview import (
     InterviewFeedbackResponse, InterviewFeedbackWithDetails,
     # Statistics and history
     InterviewStatistics, CandidateInterviewHistory, InterviewerWorkload,
+    # My Interviews
+    MyInterviewItem, MyInterviewFeedback, MyInterviewsResponse,
     # Common responses
     DeleteResponse, BulkDeleteResponse
 )
@@ -1059,6 +1061,150 @@ def delete_interview_feedback(
     return DeleteResponse(
         status="Success",
         message=f"Feedback {feedback_id} deleted successfully"
+    )
+
+
+# ============================================
+# My Interviews Endpoint
+# ============================================
+
+@router.get(
+    "/my-interviews",
+    response_model=MyInterviewsResponse,
+    summary="Get my interviews",
+    description=(
+        "Returns all interviews where the authenticated user is a panel member. "
+        "For completed interviews, includes any feedback the user has already submitted for that candidate."
+    ),
+)
+def get_my_interviews(
+    status: Optional[str] = Query(None, description="Filter by interview status (Scheduled, Completed, Cancelled)"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Get all interviews where the current user is a panel member.
+
+    - Lists every interview across all panels the user has been assigned to.
+    - If the interview is **Completed**, the user's own feedback for that
+      interview is embedded in ``my_feedback`` (``None`` when not yet submitted).
+    - ``feedback_submitted`` is ``True`` when the user has already given feedback.
+    - ``pending_feedback`` in the summary counts completed interviews with no
+      feedback from the user yet.
+
+    Args:
+        status: Optional filter (Scheduled | Completed | Cancelled)
+        db: Database session
+        user: Authenticated HR/Admin user (must be a panel member)
+
+    Returns:
+        MyInterviewsResponse with aggregated interview list
+    """
+    current_user_id: str = user.UserID
+
+    # Find all panels where this user is a member
+    memberships = (
+        db.query(PanelMember)
+        .filter(PanelMember.interviewer_id == current_user_id)
+        .all()
+    )
+
+    if not memberships:
+        return MyInterviewsResponse(
+            interviewer_id=current_user_id,
+            interviewer_name=user.UserName or "N/A",
+            total_interviews=0,
+            pending_feedback=0,
+            interviews=[]
+        )
+
+    panel_ids = [m.panel_id for m in memberships]
+
+    # Fetch all interviews for those panels
+    interview_query = db.query(Interview).filter(Interview.panel_id.in_(panel_ids))
+    if status:
+        interview_query = interview_query.filter(Interview.status == status)
+
+    interviews = interview_query.order_by(Interview.start_time.desc()).all()
+
+    results = []
+    pending_feedback = 0
+
+    for interview in interviews:
+        # Panel / round information
+        panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+        round_name = panel.round_name if panel else "N/A"
+
+        # Candidate information
+        candidate = db.query(Candidate).filter(Candidate.candidateID == interview.candidate_id).first()
+        candidate_name = "N/A"
+        candidate_email = "N/A"
+        if candidate:
+            name_parts = [
+                candidate.candidateFirstName or "",
+                candidate.candidateMiddleName or "",
+                candidate.candidateLastName or ""
+            ]
+            candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
+            candidate_email = candidate.candidateEmail or "N/A"
+
+        # Check if this user has submitted feedback for this interview
+        my_feedback_record = (
+            db.query(InterviewFeedback)
+            .filter(
+                InterviewFeedback.interview_id == interview.id,
+                InterviewFeedback.interviewer_id == current_user_id
+            )
+            .first()
+        )
+
+        feedback_submitted = my_feedback_record is not None
+        my_feedback_schema = None
+
+        if interview.status == "Completed":
+            if my_feedback_record:
+                avg_score = (
+                    my_feedback_record.technical_score +
+                    my_feedback_record.communication_score +
+                    my_feedback_record.problem_solving_score +
+                    my_feedback_record.culture_fit_score
+                ) / 4.0
+                my_feedback_schema = MyInterviewFeedback(
+                    feedback_id=my_feedback_record.id,
+                    technical_score=my_feedback_record.technical_score,
+                    communication_score=my_feedback_record.communication_score,
+                    problem_solving_score=my_feedback_record.problem_solving_score,
+                    culture_fit_score=my_feedback_record.culture_fit_score,
+                    average_score=round(avg_score, 2),
+                    comments=my_feedback_record.comments,
+                    recommendation=my_feedback_record.recommendation,
+                    submitted_at=my_feedback_record.submitted_at
+                )
+            else:
+                # Completed but no feedback from this user yet
+                pending_feedback += 1
+
+        results.append(MyInterviewItem(
+            interview_id=interview.id,
+            panel_id=interview.panel_id,
+            round_name=round_name,
+            candidate_id=interview.candidate_id,
+            candidate_name=candidate_name,
+            candidate_email=candidate_email,
+            start_time=interview.start_time,
+            end_time=interview.end_time,
+            meeting_link=interview.meeting_link,
+            status=interview.status,
+            feedback_submitted=feedback_submitted,
+            my_feedback=my_feedback_schema
+        ))
+
+    return MyInterviewsResponse(
+        interviewer_id=current_user_id,
+        interviewer_name=user.UserName or "N/A",
+        total_interviews=len(results),
+        pending_feedback=pending_feedback,
+        interviews=results
     )
 
 
