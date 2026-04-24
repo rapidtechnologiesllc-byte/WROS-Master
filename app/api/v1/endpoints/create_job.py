@@ -927,3 +927,323 @@ def get_candidates_by_job(
             for c in candidates
         ],
     )
+
+
+# ==============================================================================
+# Multi-Job Assignment Endpoints  (uses candidate_job_applications junction table)
+# ==============================================================================
+
+from app.models.candidate import CandidateJobApplication
+from app.schemas.user import (
+    JobApplicationCreate, JobApplicationStatusUpdate,
+    JobApplicationEntry, CandidateJobsResponse, JobCandidatesMultiResponse,
+)
+
+
+@router.post(
+    "/{job_id}/applications/{candidate_id}",
+    response_model=JobApplicationEntry,
+    status_code=201,
+    dependencies=[Depends(require_permission("job.edit"))],
+    summary="Assign a candidate to a job (multi-job support)",
+)
+def create_job_application(
+    job_id: str,
+    candidate_id: str,
+    request: JobApplicationCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Assign a candidate to a job using the many-to-many junction table.
+    A candidate can be assigned to multiple jobs.
+
+    - Returns **409** if the candidate is already assigned to this job.
+    - Returns **404** if the job or candidate does not exist.
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+
+    # Duplicate check
+    existing = db.query(CandidateJobApplication).filter(
+        CandidateJobApplication.candidate_id == candidate_id,
+        CandidateJobApplication.job_id == job_id,
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Candidate '{candidate_id}' is already assigned to job '{job_id}'",
+        )
+
+    application = CandidateJobApplication(
+        candidate_id=candidate_id,
+        job_id=job_id,
+        application_status=request.application_status or "Applied",
+    )
+    db.add(application)
+    db.commit()
+    db.refresh(application)
+
+    return JobApplicationEntry(
+        id=application.id,
+        candidate_id=application.candidate_id,
+        job_id=application.job_id,
+        job_title=job.jobTitle,
+        application_status=application.application_status,
+        applied_at=application.applied_at,
+    )
+
+
+@router.delete(
+    "/{job_id}/applications/{candidate_id}",
+    dependencies=[Depends(require_permission("job.edit"))],
+    summary="Remove a candidate from a job (multi-job)",
+)
+def remove_job_application(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Remove the assignment between a candidate and a job (many-to-many).
+    Returns **404** if the assignment does not exist.
+    """
+    application = db.query(CandidateJobApplication).filter(
+        CandidateJobApplication.candidate_id == candidate_id,
+        CandidateJobApplication.job_id == job_id,
+    ).first()
+    if not application:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No assignment found for candidate '{candidate_id}' and job '{job_id}'",
+        )
+
+    db.delete(application)
+    db.commit()
+    return {"status": "Success", "message": f"Candidate '{candidate_id}' removed from job '{job_id}'"}
+
+
+@router.put(
+    "/{job_id}/applications/{candidate_id}/status",
+    response_model=JobApplicationEntry,
+    dependencies=[Depends(require_permission("job.edit"))],
+    summary="Update per-application status",
+)
+def update_job_application_status(
+    job_id: str,
+    candidate_id: str,
+    request: JobApplicationStatusUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Update the ``application_status`` of a specific candidate ↔ job assignment.
+    Valid values: ``Applied``, ``Shortlisted``, ``Interview``, ``Offered``, ``Rejected``, ``Hired``.
+    """
+    application = db.query(CandidateJobApplication).filter(
+        CandidateJobApplication.candidate_id == candidate_id,
+        CandidateJobApplication.job_id == job_id,
+    ).first()
+    if not application:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No assignment found for candidate '{candidate_id}' and job '{job_id}'",
+        )
+
+    application.application_status = request.application_status
+    db.commit()
+    db.refresh(application)
+
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    return JobApplicationEntry(
+        id=application.id,
+        candidate_id=application.candidate_id,
+        job_id=application.job_id,
+        job_title=job.jobTitle if job else None,
+        application_status=application.application_status,
+        applied_at=application.applied_at,
+    )
+
+
+@router.get(
+    "/{job_id}/applications",
+    response_model=JobCandidatesMultiResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+    summary="List all candidates assigned to a job (multi-job)",
+)
+def get_job_applications(
+    job_id: str,
+    application_status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return all candidates linked to this job via the many-to-many table.
+    Optionally filter by ``application_status``.
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+    query = db.query(CandidateJobApplication).filter(
+        CandidateJobApplication.job_id == job_id
+    )
+    if application_status:
+        query = query.filter(CandidateJobApplication.application_status == application_status)
+
+    applications = query.order_by(CandidateJobApplication.applied_at.desc()).all()
+
+    entries = [
+        JobApplicationEntry(
+            id=app.id,
+            candidate_id=app.candidate_id,
+            job_id=app.job_id,
+            job_title=job.jobTitle,
+            application_status=app.application_status,
+            applied_at=app.applied_at,
+        )
+        for app in applications
+    ]
+
+    return JobCandidatesMultiResponse(
+        job_id=job.jobID,
+        job_title=job.jobTitle,
+        total_candidates=len(entries),
+        applications=entries,
+    )
+
+
+@router.get(
+    "/candidate-applications/{candidate_id}",
+    response_model=CandidateJobsResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+    summary="List all jobs a candidate is assigned to (multi-job)",
+)
+def get_candidate_applications(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return every job a candidate is linked to via the many-to-many table.
+    """
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+
+    applications = (
+        db.query(CandidateJobApplication)
+        .filter(CandidateJobApplication.candidate_id == candidate_id)
+        .order_by(CandidateJobApplication.applied_at.desc())
+        .all()
+    )
+
+    entries = []
+    for app in applications:
+        job = db.query(Jobs).filter(Jobs.jobID == app.job_id).first()
+        entries.append(JobApplicationEntry(
+            id=app.id,
+            candidate_id=app.candidate_id,
+            job_id=app.job_id,
+            job_title=job.jobTitle if job else None,
+            application_status=app.application_status,
+            applied_at=app.applied_at,
+        ))
+
+    name_parts = [
+        candidate.candidateFirstName or "",
+        candidate.candidateMiddleName or "",
+        candidate.candidateLastName or "",
+    ]
+    candidate_name = " ".join(filter(None, name_parts)).strip() or None
+
+    return CandidateJobsResponse(
+        candidate_id=candidate.candidateID,
+        candidate_name=candidate_name,
+        candidate_email=candidate.candidateEmail,
+        total_jobs=len(entries),
+        applications=entries,
+    )
+
+
+# ==============================================================================
+# Job Statistics Endpoint
+# ==============================================================================
+
+from sqlalchemy import func as sql_func
+from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
+
+
+@router.get(
+    "/{job_id}/statistics",
+    response_model=JobStatisticsResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+    summary="Get statistics for a job",
+)
+def get_job_statistics(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return aggregated application statistics for a specific job.
+
+    **Includes:**
+    - `total_applications` — total candidates assigned via the multi-job table
+    - `applied`, `shortlisted`, `interview`, `offered`, `hired`, `rejected` — named counts
+    - `status_breakdown` — full list of every status with its count (covers custom statuses)
+
+    Returns **404** if the job does not exist.
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+    # Group by application_status in a single DB query
+    rows = (
+        db.query(
+            CandidateJobApplication.application_status,
+            sql_func.count(CandidateJobApplication.id).label("cnt"),
+        )
+        .filter(CandidateJobApplication.job_id == job_id)
+        .group_by(CandidateJobApplication.application_status)
+        .all()
+    )
+
+    # Build a normalised lookup {lowercase_status: count}
+    counts: dict[str, int] = {}
+    for status, cnt in rows:
+        key = (status or "").strip().lower()
+        counts[key] = cnt
+
+    total = sum(counts.values())
+
+    def _get(key: str) -> int:
+        return counts.get(key, 0)
+
+    # Full breakdown list (preserve original casing from DB)
+    breakdown = [
+        ApplicationStatusCount(status=status or "Unknown", count=cnt)
+        for status, cnt in rows
+    ]
+    breakdown.sort(key=lambda x: x.count, reverse=True)
+
+    return JobStatisticsResponse(
+        job_id=job.jobID,
+        job_title=job.jobTitle,
+        job_status=job.jobStatus,
+        total_applications=total,
+        applied=_get("applied"),
+        shortlisted=_get("shortlisted"),
+        interview=_get("interview"),
+        offered=_get("offered"),
+        hired=_get("hired"),
+        rejected=_get("rejected"),
+        status_breakdown=breakdown,
+    )
