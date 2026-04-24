@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
+import { useCallback, useEffect, useMemo, useState } from "react";import {
   getCandidateInterviewHistory,
   getFeedbackForInterview,
   submitInterviewFeedback,
-  getPanelMembers
+  getPanelMembers,
+  updateInterview
 } from "../../services/api/interviews";
-
 export default function FeedbackTab({ candidateId }) {
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
@@ -154,46 +153,54 @@ export default function FeedbackTab({ candidateId }) {
     setSubmitNotice("");
     setSubmitNoticeType("success");
   };
+const handleSubmitFeedback = async (form) => {
+  if (!selectedInterview?.id) {
+    setSubmitNotice("Interview is missing");
+    setSubmitNoticeType("error");
+    return;
+  }
 
-  const handleSubmitFeedback = async (form) => {
-    if (!selectedInterview?.id) {
-      setSubmitNotice("Interview is missing");
-      setSubmitNoticeType("error");
-      return;
-    }
+  try {
+    setSubmitting(true);
+    setSubmitNotice("");
+    setSubmitNoticeType("success");
 
-    try {
-      setSubmitting(true);
-      setSubmitNotice("");
-      setSubmitNoticeType("success");
+    await submitInterviewFeedback({
+      interviewId: selectedInterview.id,
+      interviewerId: form.interviewerId,
+      technicalScore: Number(form.technical_score),
+      communicationScore: Number(form.communication_score),
+      problemSolvingScore: Number(form.problem_solving_score),
+      cultureFitScore: Number(form.culture_fit_score),
+      comments: form.comments,
+      recommendation: form.recommendation
+    });
 
-      await submitInterviewFeedback({
-        interviewId: selectedInterview.id,
-        interviewerId: form.interviewerId,
-        technicalScore: Number(form.technical_score),
-        communicationScore: Number(form.communication_score),
-        problemSolvingScore: Number(form.problem_solving_score),
-        cultureFitScore: Number(form.culture_fit_score),
-        comments: form.comments,
-        recommendation: form.recommendation
-      });
+    
+    await updateInterview(selectedInterview.id, {
+      status: "Completed"
+    });
 
-      await fetchFeedbackData();
+    
+    await fetchFeedbackData();
 
-      setSubmitNotice("Feedback submitted successfully");
-      setSubmitNoticeType("success");
+    
+    setSubmitNotice("Feedback submitted successfully");
+    setSubmitNoticeType("success");
 
-      window.setTimeout(() => {
-        closeSubmitModal();
-      }, 700);
-    } catch (err) {
-      console.error("Failed to submit feedback", err);
-      setSubmitNotice(err?.message || "Failed to submit feedback");
-      setSubmitNoticeType("error");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    
+    setTimeout(() => {
+      closeSubmitModal();
+    }, 1000); 
+
+  } catch (err) {
+    console.error("Failed to submit feedback", err);
+    setSubmitNotice(err?.message || "Failed to submit feedback");
+    setSubmitNoticeType("error");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (loading) {
     return (
@@ -463,7 +470,7 @@ function SubmitFeedbackModal({
     problem_solving_score: 5,
     culture_fit_score: 5,
     comments: "",
-    recommendation: "Hire"
+    recommendation: ""
   });
 
   const [errors, setErrors] = useState({});
@@ -583,17 +590,19 @@ function SubmitFeedbackModal({
                 </option>
               ))}
             </SelectField>
-
-            <SelectField
-              label="Recommendation"
-              value={form.recommendation}
-              onChange={(e) => handleChange("recommendation", e.target.value)}
-              error={errors.recommendation}
-            >
-              <option value="Hire">Hire</option>
-              <option value="Reject">Reject</option>
-              <option value="Hold">Hold</option>
-            </SelectField>
+<SelectField
+  label="Recommendation"
+  value={form.recommendation}
+  onChange={(e) => handleChange("recommendation", e.target.value)}
+  error={errors.recommendation}
+>
+  <option value="">Select recommendation</option>
+  <option value="No Hire">No Hire</option>
+  <option value="Not sure">Not sure</option>
+  <option value="Average">Average</option>
+  <option value="Hire">Hire</option>
+  <option value="Must Hire">Must Hire</option>
+</SelectField>
 
             <FormField
               label="Technical Score"
