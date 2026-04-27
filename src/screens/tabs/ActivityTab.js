@@ -23,11 +23,12 @@ export default function ActivityTab({ candidateId }) {
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [selectedInterviewIdForEdit, setSelectedInterviewIdForEdit] = useState(null);
   const [rescheduleForm, setRescheduleForm] = useState({
-    interviewDate: "",
-    startTime: "",
-    endTime: "",
-    status: "Scheduled"
-  });
+  interviewDate: "",
+  startTime: "",
+  endTime: "",
+  durationMinutes: "60",
+  status: "Scheduled"
+});
   const [rescheduleErrors, setRescheduleErrors] = useState({});
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleNotice, setRescheduleNotice] = useState("");
@@ -172,6 +173,23 @@ export default function ActivityTab({ candidateId }) {
       isMounted = false;
     };
   }, [selectedInterviewId]);
+  useEffect(() => {
+  if (!showRescheduleModal) return;
+  if (!rescheduleForm.startTime || !rescheduleForm.durationMinutes) return;
+
+  const calculatedEndTime = addMinutesToTime(
+    rescheduleForm.startTime,
+    Number(rescheduleForm.durationMinutes)
+  );
+
+  setRescheduleForm((prev) => {
+    if (prev.endTime === calculatedEndTime) return prev;
+    return {
+      ...prev,
+      endTime: calculatedEndTime
+    };
+  });
+}, [showRescheduleModal, rescheduleForm.startTime, rescheduleForm.durationMinutes]);
 
   const groupedData = useMemo(() => {
     const upcoming = [];
@@ -210,12 +228,13 @@ export default function ActivityTab({ candidateId }) {
     setRescheduleErrors({});
     setRescheduleNotice("");
     setRescheduleNoticeType("success");
-    setRescheduleForm({
-      interviewDate: start ? formatDateInput(start) : "",
-      startTime: start ? formatTimeInput(start) : "",
-      endTime: end ? formatTimeInput(end) : "",
-      status: interview?.status || "Scheduled"
-    });
+   setRescheduleForm({
+  interviewDate: start ? formatDateInput(start) : "",
+  startTime: start ? formatTimeInput(start) : "",
+  endTime: end ? formatTimeInput(end) : "",
+  durationMinutes: getDurationMinutes(interview?.start_time, interview?.end_time),
+  status: interview?.status || "Scheduled"
+});
     setShowRescheduleModal(true);
   };
 
@@ -225,30 +244,46 @@ export default function ActivityTab({ candidateId }) {
     setShowRescheduleModal(false);
     setSelectedInterview(null);
     setSelectedInterviewIdForEdit(null);
-    setRescheduleForm({
-      interviewDate: "",
-      startTime: "",
-      endTime: "",
-      status: "Scheduled"
-    });
+   setRescheduleForm({
+  interviewDate: "",
+  startTime: "",
+  endTime: "",
+  durationMinutes: "60",
+  status: "Scheduled"
+});
     setRescheduleErrors({});
     setRescheduleNotice("");
     setRescheduleNoticeType("success");
   };
 
   const handleRescheduleInputChange = (field, value) => {
-    setRescheduleForm((prev) => ({
+  setRescheduleForm((prev) => {
+    const updated = {
       ...prev,
       [field]: value
-    }));
+    };
 
-    if (rescheduleErrors[field]) {
-      setRescheduleErrors((prev) => ({
-        ...prev,
-        [field]: ""
-      }));
+    if (
+      field === "interviewDate" ||
+      field === "startTime" ||
+      field === "durationMinutes"
+    ) {
+      updated.endTime = addMinutesToTime(
+        field === "startTime" ? value : updated.startTime,
+        Number(field === "durationMinutes" ? value : updated.durationMinutes)
+      );
     }
-  };
+
+    return updated;
+  });
+
+  if (rescheduleErrors[field]) {
+    setRescheduleErrors((prev) => ({
+      ...prev,
+      [field]: ""
+    }));
+  }
+};
 
   const validateRescheduleForm = () => {
     const errors = {};
@@ -604,11 +639,20 @@ function InterviewCard({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-800">Time:</span>
-              <span>
-                {startLabel} - {endLabel}
-              </span>
-            </div>
+  <span className="font-medium text-gray-800">Time:</span>
+  <span>
+    {startLabel} - {endLabel}
+  </span>
+</div>
+
+<div className="flex items-center gap-2">
+  <span className="font-medium text-gray-800">Duration:</span>
+  <span>
+    {calculateDuration(interview?.start_time, interview?.end_time)}
+  </span>
+</div>
+
+
 
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-800">Mode:</span>
@@ -888,35 +932,47 @@ function RescheduleModal({
             <ReadOnlyField label="Round Name" value={interview?.panel_round_name || "-"} />
 
             <FormField
-              label="Interview Date"
-              type="date"
-              value={form.interviewDate}
-              onChange={(e) => onChange("interviewDate", e.target.value)}
-              error={errors.interviewDate}
-            />
+  label="Interview Date"
+  type="date"
+  value={form.interviewDate}
+  onChange={(e) => onChange("interviewDate", e.target.value)}
+  error={errors.interviewDate}
+/>
 
-            <FormField
-              label="Status"
-              value={form.status}
-              onChange={(e) => onChange("status", e.target.value)}
-              error={errors.status}
-            />
+<FormField
+  label="Status"
+  value={form.status}
+  onChange={(e) => onChange("status", e.target.value)}
+  error={errors.status}
+/>
 
-            <FormField
-              label="Start Time"
-              type="time"
-              value={form.startTime}
-              onChange={(e) => onChange("startTime", e.target.value)}
-              error={errors.startTime}
-            />
+<SelectField
+  label="Duration"
+  value={form.durationMinutes}
+  onChange={(e) => onChange("durationMinutes", e.target.value)}
+>
+  {[30, 45, 60, 90, 120].map((minutes) => (
+    <option key={minutes} value={String(minutes)}>
+      {formatDurationLabel(minutes)}
+    </option>
+  ))}
+</SelectField>
 
-            <FormField
-              label="End Time"
-              type="time"
-              value={form.endTime}
-              onChange={(e) => onChange("endTime", e.target.value)}
-              error={errors.endTime}
-            />
+<FormField
+  label="Start Time"
+  type="time"
+  value={form.startTime}
+  onChange={(e) => onChange("startTime", e.target.value)}
+  error={errors.startTime}
+/>
+
+<FormField
+  label="End Time"
+  type="time"
+  value={form.endTime}
+  readOnly
+  error={errors.endTime}
+/>
           </div>
         </div>
 
@@ -1066,6 +1122,27 @@ function FormField({ label, error, type = "text", value, onChange }) {
     </div>
   );
 }
+function SelectField({ label, error, value, onChange, children }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={onChange}
+        className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition bg-white ${
+          error
+            ? "border-red-300 focus:border-red-400"
+            : "border-gray-300 focus:border-gray-400"
+        }`}
+      >
+        {children}
+      </select>
+      {error ? <p className="mt-1 text-xs text-red-500">{error}</p> : null}
+    </div>
+  );
+}
 
 function ReadOnlyField({ label, value }) {
   return (
@@ -1191,4 +1268,56 @@ function formatTimeInput(date) {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
+}
+function addMinutesToTime(timeValue, minutesToAdd) {
+  if (!timeValue || !Number.isFinite(Number(minutesToAdd))) return "";
+
+  const [hours, minutes] = String(timeValue).split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return "";
+
+  const totalMinutes = hours * 60 + minutes + Number(minutesToAdd);
+  const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+
+  const nextHours = Math.floor(normalizedMinutes / 60);
+  const nextMinutes = normalizedMinutes % 60;
+
+  return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
+}
+
+function getDurationMinutes(startValue, endValue) {
+  const start = safeDate(startValue);
+  const end = safeDate(endValue);
+
+  if (!start || !end) return "60";
+
+  const diff = Math.round((end.getTime() - start.getTime()) / 60000);
+  return String(diff > 0 ? diff : 60);
+}
+
+function formatDurationLabel(value) {
+  const map = {
+    30: "30 min",
+    45: "45 min",
+    60: "1 hour",
+    90: "1.5 hour",
+    120: "2 hour"
+  };
+
+  return map[value] || `${value} min`;
+}
+function calculateDuration(start, end) {
+  if (!start || !end) return "-";
+
+  const s = new Date(start);
+  const e = new Date(end);
+
+  const diff = Math.round((e - s) / 60000);
+
+  if (diff === 30) return "30 min";
+  if (diff === 45) return "45 min";
+  if (diff === 60) return "1 hour";
+  if (diff === 90) return "1.5 hour";
+  if (diff === 120) return "2 hour";
+
+  return `${diff} min`;
 }

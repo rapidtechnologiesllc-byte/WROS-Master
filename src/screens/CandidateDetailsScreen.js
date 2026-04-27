@@ -392,28 +392,16 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
         updated.emailBody = templateValues.body;
       }
 
-      if (field === "durationMinutes") {
-        updated.endTime = recomputeEndTime(
-          updated.interviewDate,
-          updated.startTime,
-          value,
-        );
-      }
-
       if (
+        field === "interviewDate" ||
         field === "startTime" ||
-        field === "endTime" ||
-        field === "interviewDate"
+        field === "durationMinutes"
       ) {
-        const calculatedDuration = recomputeDuration(
+        updated.endTime = recomputeEndTime(
           field === "interviewDate" ? value : updated.interviewDate,
           field === "startTime" ? value : updated.startTime,
-          field === "endTime" ? value : updated.endTime,
+          field === "durationMinutes" ? value : updated.durationMinutes,
         );
-
-        if (calculatedDuration) {
-          updated.durationMinutes = calculatedDuration;
-        }
       }
 
       return updated;
@@ -769,10 +757,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                     ? `Schedule Online Interview with ${candidate?.name || "Candidate"}`
                     : `Schedule Face to Face Interview with ${candidate?.name || "Candidate"}`}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Phase 1 setup: panel, panel members, interview timing, and
-                  email preparation.
-                </p>
+                <p className="text-sm text-gray-500 mt-1">Testing Interview</p>
               </div>
 
               <button
@@ -786,7 +771,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             </div>
 
             <div className="px-8 py-6 max-h-[78vh] overflow-y-auto">
-              <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1fr] gap-8">
+              <div className="grid grid-cols-1 gap-8">
                 <div className="space-y-8">
                   <CardBlock
                     title="Interview Setup"
@@ -988,9 +973,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         }
                         error={scheduleErrors.durationMinutes}
                       >
-                        {durationOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
+                        {[30, 45, 60, 90, 120].map((minutes) => (
+                          <option key={minutes} value={String(minutes)}>
+                            {formatDurationLabel(minutes)}
                           </option>
                         ))}
                       </SelectField>
@@ -1009,9 +994,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         label="End Time"
                         type="time"
                         value={scheduleForm.endTime}
-                        onChange={(e) =>
-                          handleScheduleInputChange("endTime", e.target.value)
-                        }
+                        readOnly
                         error={scheduleErrors.endTime}
                       />
                     </div>
@@ -1046,70 +1029,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         handleScheduleInputChange("extraNotes", e.target.value)
                       }
                     />
-                  </CardBlock>
-                </div>
-
-                <div className="space-y-8">
-                  <CardBlock
-                    title="Email to Candidate"
-                    subtitle="Template is editable and can evolve in later phases."
-                  >
-                    <div className="space-y-5">
-                      <SelectField
-                        label="Email Template"
-                        value={scheduleForm.emailTemplate}
-                        onChange={(e) =>
-                          handleScheduleInputChange(
-                            "emailTemplate",
-                            e.target.value,
-                          )
-                        }
-                      >
-                        {emailTemplateOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </SelectField>
-
-                      <FormField
-                        label="Subject"
-                        value={scheduleForm.emailSubject}
-                        onChange={(e) =>
-                          handleScheduleInputChange(
-                            "emailSubject",
-                            e.target.value,
-                          )
-                        }
-                        error={scheduleErrors.emailSubject}
-                      />
-
-                      <TextAreaField
-                        label="Body"
-                        value={scheduleForm.emailBody}
-                        onChange={(e) =>
-                          handleScheduleInputChange("emailBody", e.target.value)
-                        }
-                        error={scheduleErrors.emailBody}
-                        rows={10}
-                      />
-
-                      <FormField
-                        label="CC Emails (optional)"
-                        placeholder="Enter comma-separated emails"
-                        value={scheduleForm.ccEmails}
-                        onChange={(e) =>
-                          handleScheduleInputChange("ccEmails", e.target.value)
-                        }
-                      />
-
-                      {scheduleType === "online" && (
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-700">
-                          Backend will generate the final Teams invite and event
-                          details using the created interview record.
-                        </div>
-                      )}
-                    </div>
                   </CardBlock>
                 </div>
               </div>
@@ -1247,7 +1166,6 @@ function SelectField({
     </div>
   );
 }
-
 function TextAreaField({
   label,
   error,
@@ -1279,4 +1197,16 @@ function TextAreaField({
       {error ? <p className="text-xs text-red-500 mt-1">{error}</p> : null}
     </div>
   );
+}
+
+function formatDurationLabel(value) {
+  const map = {
+    30: "30 min",
+    45: "45 min",
+    60: "1 hour",
+    90: "1.5 hour",
+    120: "2 hour",
+  };
+
+  return map[value] || `${value} min`;
 }
