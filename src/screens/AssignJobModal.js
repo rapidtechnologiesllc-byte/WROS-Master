@@ -22,8 +22,10 @@ const AssignJobModal = ({
     }
 
     try {
-      const result = await assignJob(selectedJob.id, candidateId);
-      if (result?.status === 200) {
+      const result = await assignJob(selectedJob.id, candidateId, {
+        application_status: "Applied",
+      });
+      if (result?.status === 201) {
         toast.success("Job assigned successfully ✅");
         const selectedCandidate = allCandidates.find(
           (c) => c.id === candidateId,

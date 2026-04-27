@@ -528,6 +528,11 @@ export default function App() {
     }
   };
 
+  const fetchCandidateById = async (id) => {
+    const res = await getCandidateById(id);
+    return mapCandidateFromApi(res || {});
+  };
+
   return (
     <Shell
       role={role}
@@ -592,16 +597,17 @@ export default function App() {
 
       {screen === "candidateCreate" && (
         <>
-        <CandidateCreate
-          onBack={() => safeSetScreen("candidateSearch")}
-          onSave={(c) => {
-            setCandidates((prev) => [c, ...prev]);
-            setSelectedCandidateId(c.id);
-            // notify("Candidate", `Created ${c.name} (${c.id})`);
-            safeSetScreen("candidateSearch");
-          }}
-        />
-        <ToastContainer position="top-right" autoClose={3000} />
+          <CandidateCreate
+            onBack={() => safeSetScreen("candidateSearch")}
+            onSave={async (c) => {
+              const fullCandidate = await fetchCandidateById(c.id);
+              setCandidates((prev) => [fullCandidate, ...prev]);
+              setSelectedCandidateId(fullCandidate.id);
+              setSelectedCandidateData(fullCandidate);
+              safeSetScreen("candidateDetails");
+            }}
+          />
+          <ToastContainer position="top-right" autoClose={3000} />
         </>
       )}
       {screen === "candidateDetails" && (

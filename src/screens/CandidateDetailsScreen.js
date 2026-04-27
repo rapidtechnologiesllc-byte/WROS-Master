@@ -12,22 +12,20 @@ import {
   listChecklistTemplates,
   assignChecklistToCandidate,
   getChecklistTemplate,
-  getCandidateChecklists
+  getCandidateChecklists,
 } from "../services/api/checklists";
 import {
   createInterviewPanel,
   assignPanelMember,
-  createInterview
+  createInterview,
 } from "../services/api/interviews";
-import {
-  sendPlainEmail,
-  sendInterviewInvite
-} from "../services/api/email";
+import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
 import { getAllUsers } from "../services/api/users";
 import {
   getOnlineInterviewEmailTemplate,
-  getFaceToFaceInterviewEmailTemplate
+  getFaceToFaceInterviewEmailTemplate,
 } from "../utils/interviewEmailTemplates";
+import CandidateAssignJobModal from "./CandidateAssignJobModal";
 
 const initialScheduleForm = {
   roundName: "",
@@ -43,7 +41,7 @@ const initialScheduleForm = {
   emailSubject: "",
   emailBody: "",
   ccEmails: "",
-  extraNotes: ""
+  extraNotes: "",
 };
 
 const durationOptions = [
@@ -51,7 +49,7 @@ const durationOptions = [
   { label: "45 mins", value: "45" },
   { label: "60 mins", value: "60" },
   { label: "90 mins", value: "90" },
-  { label: "120 mins", value: "120" }
+  { label: "120 mins", value: "120" },
 ];
 
 const timezoneOptions = [
@@ -60,7 +58,7 @@ const timezoneOptions = [
   "America/New_York",
   "Europe/London",
   "Asia/Dubai",
-  "Asia/Singapore"
+  "Asia/Singapore",
 ];
 
 const meetingPlatformOptions = [
@@ -69,13 +67,13 @@ const meetingPlatformOptions = [
   "Zoom",
   "Phone Call",
   "In Person",
-  "Other"
+  "Other",
 ];
 
 const emailTemplateOptions = [
   "Online Interview",
   "Face to Face Interview",
-  "Custom"
+  "Custom",
 ];
 
 export default function CandidateDetailsScreen({ candidate, onBack }) {
@@ -233,13 +231,13 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       .filter((user) => user?.user_id)
       .map((user) => ({
         value: user.user_id,
-        label: `${user.user_name || "Unknown"} (${user.user_role || "role not set"})`
+        label: `${user.user_name || "Unknown"} (${user.user_role || "role not set"})`,
       }));
   }, [users]);
 
   const selectedPanelMembers = useMemo(() => {
     return interviewerOptions.filter((option) =>
-      scheduleForm.interviewerIds.includes(option.value)
+      scheduleForm.interviewerIds.includes(option.value),
     );
   }, [interviewerOptions, scheduleForm.interviewerIds]);
 
@@ -247,7 +245,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     if (!panelSearch.trim()) return interviewerOptions;
 
     return interviewerOptions.filter((member) =>
-      member.label.toLowerCase().includes(panelSearch.toLowerCase())
+      member.label.toLowerCase().includes(panelSearch.toLowerCase()),
     );
   }, [panelSearch, interviewerOptions]);
 
@@ -280,7 +278,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
 
       await assignChecklistToCandidate({
         candidateId: candidate.id,
-        templateId: selectedTemplate
+        templateId: selectedTemplate,
       });
 
       showNotice("Checklist assigned successfully");
@@ -338,7 +336,9 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
     if (end <= start) return "";
 
-    const diffMinutes = Math.round((end.getTime() - start.getTime()) / (60 * 1000));
+    const diffMinutes = Math.round(
+      (end.getTime() - start.getTime()) / (60 * 1000),
+    );
     return String(diffMinutes);
   };
 
@@ -349,7 +349,8 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     const day = String(today.getDate()).padStart(2, "0");
 
     const defaultDate = `${year}-${month}-${day}`;
-    const defaultTemplate = type === "online" ? "Online Interview" : "Face to Face Interview";
+    const defaultTemplate =
+      type === "online" ? "Online Interview" : "Face to Face Interview";
     const defaults = buildTemplateValues(defaultTemplate, type);
 
     setShowScheduleMenu(false);
@@ -363,7 +364,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       meetingPlatform: type === "online" ? "Microsoft Teams" : "In Person",
       emailTemplate: defaultTemplate,
       emailSubject: defaults.subject,
-      emailBody: defaults.body
+      emailBody: defaults.body,
     });
     setShowScheduleModal(true);
   };
@@ -382,7 +383,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     setScheduleForm((prev) => {
       const updated = {
         ...prev,
-        [field]: value
+        [field]: value,
       };
 
       if (field === "emailTemplate") {
@@ -395,15 +396,19 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
         updated.endTime = recomputeEndTime(
           updated.interviewDate,
           updated.startTime,
-          value
+          value,
         );
       }
 
-      if (field === "startTime" || field === "endTime" || field === "interviewDate") {
+      if (
+        field === "startTime" ||
+        field === "endTime" ||
+        field === "interviewDate"
+      ) {
         const calculatedDuration = recomputeDuration(
           field === "interviewDate" ? value : updated.interviewDate,
           field === "startTime" ? value : updated.startTime,
-          field === "endTime" ? value : updated.endTime
+          field === "endTime" ? value : updated.endTime,
         );
 
         if (calculatedDuration) {
@@ -417,7 +422,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     if (scheduleErrors[field]) {
       setScheduleErrors((prev) => ({
         ...prev,
-        [field]: ""
+        [field]: "",
       }));
     }
   };
@@ -435,15 +440,23 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   };
 
   const computedDateTime = useMemo(() => {
-    if (!scheduleForm.interviewDate || !scheduleForm.startTime || !scheduleForm.endTime) {
+    if (
+      !scheduleForm.interviewDate ||
+      !scheduleForm.startTime ||
+      !scheduleForm.endTime
+    ) {
       return { startDateTime: "", endDateTime: "" };
     }
 
     return {
       startDateTime: `${scheduleForm.interviewDate}T${scheduleForm.startTime}`,
-      endDateTime: `${scheduleForm.interviewDate}T${scheduleForm.endTime}`
+      endDateTime: `${scheduleForm.interviewDate}T${scheduleForm.endTime}`,
     };
-  }, [scheduleForm.interviewDate, scheduleForm.startTime, scheduleForm.endTime]);
+  }, [
+    scheduleForm.interviewDate,
+    scheduleForm.startTime,
+    scheduleForm.endTime,
+  ]);
 
   const validateScheduleForm = () => {
     const errors = {};
@@ -452,7 +465,10 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       errors.roundName = "Round name is required";
     }
 
-    if (!Array.isArray(scheduleForm.interviewerIds) || !scheduleForm.interviewerIds.length) {
+    if (
+      !Array.isArray(scheduleForm.interviewerIds) ||
+      !scheduleForm.interviewerIds.length
+    ) {
       errors.interviewerIds = "Please select at least one panel member";
     }
 
@@ -479,7 +495,8 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     if (!computedDateTime.startDateTime || !computedDateTime.endDateTime) {
       errors.startTime = "Please provide valid interview timing";
     } else if (
-      new Date(computedDateTime.endDateTime) <= new Date(computedDateTime.startDateTime)
+      new Date(computedDateTime.endDateTime) <=
+      new Date(computedDateTime.startDateTime)
     ) {
       errors.endTime = "End time must be after start time";
     }
@@ -532,7 +549,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
       const panelRes = await createInterviewPanel({
         candidateId: candidate.id,
-        roundName: scheduleForm.roundName.trim()
+        roundName: scheduleForm.roundName.trim(),
       });
 
       const panelId = panelRes?.id;
@@ -544,9 +561,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         scheduleForm.interviewerIds.map((interviewerId) =>
           assignPanelMember({
             panelId,
-            interviewerId
-          })
-        )
+            interviewerId,
+          }),
+        ),
       );
 
       const interviewRes = await createInterview({
@@ -556,7 +573,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         endTime: computedDateTime.endDateTime,
         meetingLink: "",
         outlookEventId: "",
-        status: "Scheduled"
+        status: "Scheduled",
       });
 
       const interviewId = interviewRes?.id;
@@ -569,7 +586,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
           interviewId,
           extraNotes: scheduleForm.extraNotes,
           timezone: scheduleForm.timezone,
-          createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams"
+          createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
         });
       } else {
         const ccEmails = scheduleForm.ccEmails
@@ -582,14 +599,14 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
           subject: scheduleForm.emailSubject.trim(),
           bodyContent: buildFaceToFaceEmailBody(),
           isHtml: false,
-          ccEmails
+          ccEmails,
         });
       }
 
       showNotice(
         scheduleType === "online"
           ? "Online interview scheduled successfully"
-          : "Face-to-face interview scheduled successfully"
+          : "Face-to-face interview scheduled successfully",
       );
 
       closeScheduleModal();
@@ -627,7 +644,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
               )}
 
               {statusData?.pipeline_status && (
-                <StatusBadge type="pipeline" value={statusData.pipeline_status} />
+                <StatusBadge
+                  type="pipeline"
+                  value={statusData.pipeline_status}
+                />
               )}
             </div>
           }
@@ -667,7 +687,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                 disabled={isChecklistAssigned}
                 onClick={() => setShowAssignModal(true)}
               >
-                {isChecklistAssigned ? "Checklist Assigned" : "Assign Checklist"}
+                Submit Job
               </Button>
             </div>
           }
@@ -682,7 +702,14 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
         <div className="border-b">
           <div className="flex flex-wrap gap-2">
-            {["profile", "messages", "feedback", "documents", "tasks", "activity"].map((tab) => (
+            {[
+              "profile",
+              "messages",
+              "feedback",
+              "documents",
+              "tasks",
+              "activity",
+            ].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -699,16 +726,22 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          {activeTab === "profile" && <ProfileTab candidateId={candidate?.id} />}
-          {activeTab === "feedback" && <FeedbackTab candidateId={candidate?.id} />}
-          {activeTab === "documents" && <DocumentsTab candidateId={candidate?.id} />}
+          {activeTab === "profile" && (
+            <ProfileTab candidateId={candidate?.id} />
+          )}
+          {activeTab === "feedback" && (
+            <FeedbackTab candidateId={candidate?.id} />
+          )}
+          {activeTab === "documents" && (
+            <DocumentsTab candidateId={candidate?.id} />
+          )}
           {activeTab === "tasks" && <TasksTab candidateId={candidate?.id} />}
           {activeTab === "messages" && (
             <div className="text-gray-500">Messages Coming Soon</div>
           )}
-         {activeTab === "activity" && (
-  <ActivityTab candidateId={candidate?.id} />
-)}
+          {activeTab === "activity" && (
+            <ActivityTab candidateId={candidate?.id} />
+          )}
         </div>
 
         {editModalOpen && (
@@ -719,61 +752,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         )}
 
         {showAssignModal && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6">
-              <h2 className="text-lg font-semibold mb-2">Assign Checklist</h2>
-              <p className="text-xs text-gray-500 mb-4">
-                Select a template and preview it before assigning.
-              </p>
-
-              {loadingTemplates ? (
-                <div className="text-sm text-gray-500">Loading templates...</div>
-              ) : (
-                <select
-                  className="w-full border rounded-xl p-2.5 mb-4"
-                  value={selectedTemplate}
-                  onChange={(e) => handleTemplateChange(e.target.value)}
-                >
-                  <option value="">Select Template</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {selectedTemplateData && (
-                <div className="border rounded-xl p-3 bg-gray-50 mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-semibold">Preview</span>
-                    <span className="text-xs text-gray-500">
-                      {selectedTemplateData.items?.length || 0} items
-                    </span>
-                  </div>
-
-                  <ul className="text-sm text-gray-700 space-y-1 max-h-40 overflow-auto">
-                    {selectedTemplateData.items?.map((item) => (
-                      <li key={item.id}>• {item.title}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setShowAssignModal(false)}>
-                  Cancel
-                </Button>
-
-                <Button
-                  onClick={handleAssignChecklist}
-                  disabled={!selectedTemplate || assigning}
-                >
-                  {assigning ? "Assigning..." : "Assign"}
-                </Button>
-              </div>
-            </div>
-          </div>
+          <CandidateAssignJobModal
+            onClose={() => setShowAssignModal(false)}
+            candidateDetails={candidate}
+          />
         )}
       </div>
 
@@ -788,7 +770,8 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                     : `Schedule Face to Face Interview with ${candidate?.name || "Candidate"}`}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Phase 1 setup: panel, panel members, interview timing, and email preparation.
+                  Phase 1 setup: panel, panel members, interview timing, and
+                  email preparation.
                 </p>
               </div>
 
@@ -836,7 +819,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         error={scheduleErrors.roundName}
                       />
 
-                      <div className="md:col-span-2" ref={panelMemberDropdownRef}>
+                      <div
+                        className="md:col-span-2"
+                        ref={panelMemberDropdownRef}
+                      >
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           Panel Members
                         </label>
@@ -844,7 +830,8 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         <button
                           type="button"
                           onClick={() =>
-                            !loadingUsers && setShowPanelMemberDropdown((prev) => !prev)
+                            !loadingUsers &&
+                            setShowPanelMemberDropdown((prev) => !prev)
                           }
                           className={`w-full min-h-[46px] rounded-xl border px-3 py-2.5 text-sm text-left transition ${
                             scheduleErrors.interviewerIds
@@ -878,9 +865,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
                             {filteredPanelMembers.length > 0 ? (
                               filteredPanelMembers.map((option) => {
-                                const isChecked = scheduleForm.interviewerIds.includes(
-                                  option.value
-                                );
+                                const isChecked =
+                                  scheduleForm.interviewerIds.includes(
+                                    option.value,
+                                  );
 
                                 return (
                                   <label
@@ -890,7 +878,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                                     <input
                                       type="checkbox"
                                       checked={isChecked}
-                                      onChange={() => togglePanelMember(option.value)}
+                                      onChange={() =>
+                                        togglePanelMember(option.value)
+                                      }
                                       className="rounded"
                                     />
                                     <span className="text-sm text-gray-700">
@@ -922,7 +912,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                                   <span>{member.label}</span>
                                   <button
                                     type="button"
-                                    onClick={() => togglePanelMember(member.value)}
+                                    onClick={() =>
+                                      togglePanelMember(member.value)
+                                    }
                                     className="text-blue-500 hover:text-blue-700"
                                   >
                                     ×
@@ -945,7 +937,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         type="date"
                         value={scheduleForm.interviewDate}
                         onChange={(e) =>
-                          handleScheduleInputChange("interviewDate", e.target.value)
+                          handleScheduleInputChange(
+                            "interviewDate",
+                            e.target.value,
+                          )
                         }
                         error={scheduleErrors.interviewDate}
                       />
@@ -954,7 +949,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         label="Meeting Platform"
                         value={scheduleForm.meetingPlatform}
                         onChange={(e) =>
-                          handleScheduleInputChange("meetingPlatform", e.target.value)
+                          handleScheduleInputChange(
+                            "meetingPlatform",
+                            e.target.value,
+                          )
                         }
                       >
                         {meetingPlatformOptions.map((option) => (
@@ -983,7 +981,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         label="Duration"
                         value={scheduleForm.durationMinutes}
                         onChange={(e) =>
-                          handleScheduleInputChange("durationMinutes", e.target.value)
+                          handleScheduleInputChange(
+                            "durationMinutes",
+                            e.target.value,
+                          )
                         }
                         error={scheduleErrors.durationMinutes}
                       >
@@ -1022,7 +1023,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                           placeholder="e.g. BlitzenX Office, 3rd Floor, Hyderabad"
                           value={scheduleForm.location}
                           onChange={(e) =>
-                            handleScheduleInputChange("location", e.target.value)
+                            handleScheduleInputChange(
+                              "location",
+                              e.target.value,
+                            )
                           }
                           error={scheduleErrors.location}
                         />
@@ -1055,7 +1059,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         label="Email Template"
                         value={scheduleForm.emailTemplate}
                         onChange={(e) =>
-                          handleScheduleInputChange("emailTemplate", e.target.value)
+                          handleScheduleInputChange(
+                            "emailTemplate",
+                            e.target.value,
+                          )
                         }
                       >
                         {emailTemplateOptions.map((option) => (
@@ -1069,7 +1076,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         label="Subject"
                         value={scheduleForm.emailSubject}
                         onChange={(e) =>
-                          handleScheduleInputChange("emailSubject", e.target.value)
+                          handleScheduleInputChange(
+                            "emailSubject",
+                            e.target.value,
+                          )
                         }
                         error={scheduleErrors.emailSubject}
                       />
@@ -1095,7 +1105,8 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
                       {scheduleType === "online" && (
                         <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-700">
-                          Backend will generate the final Teams invite and event details using the created interview record.
+                          Backend will generate the final Teams invite and event
+                          details using the created interview record.
                         </div>
                       )}
                     </div>
@@ -1105,7 +1116,11 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             </div>
 
             <div className="border-t bg-white px-8 py-5 flex items-center justify-end gap-3">
-              <Button variant="ghost" onClick={closeScheduleModal} disabled={scheduling}>
+              <Button
+                variant="ghost"
+                onClick={closeScheduleModal}
+                disabled={scheduling}
+              >
                 Cancel
               </Button>
 
@@ -1125,7 +1140,9 @@ function CardBlock({ title, subtitle, children }) {
     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="mb-5">
         <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {subtitle ? <p className="text-sm text-gray-500 mt-1">{subtitle}</p> : null}
+        {subtitle ? (
+          <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+        ) : null}
       </div>
       {children}
     </div>
@@ -1135,8 +1152,12 @@ function CardBlock({ title, subtitle, children }) {
 function Info({ label, value }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-      <span className="text-xs uppercase tracking-wide text-gray-500">{label}</span>
-      <div className="font-medium text-sm text-gray-900 mt-1">{value || "-"}</div>
+      <span className="text-xs uppercase tracking-wide text-gray-500">
+        {label}
+      </span>
+      <div className="font-medium text-sm text-gray-900 mt-1">
+        {value || "-"}
+      </div>
     </div>
   );
 }
@@ -1169,7 +1190,7 @@ function FormField({
   type = "text",
   value,
   onChange,
-  placeholder
+  placeholder,
 }) {
   return (
     <div>
@@ -1201,7 +1222,7 @@ function SelectField({
   value,
   onChange,
   children,
-  disabled = false
+  disabled = false,
 }) {
   return (
     <div>
@@ -1234,7 +1255,7 @@ function TextAreaField({
   onChange,
   placeholder,
   readOnly = false,
-  rows = 6
+  rows = 6,
 }) {
   return (
     <div>
