@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";import {
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
   getCandidateInterviewHistory,
   getFeedbackForInterview,
   submitInterviewFeedback,
   getPanelMembers,
-  updateInterview
+  updateInterview,
+  getMyInterviews
 } from "../../services/api/interviews";
+
 export default function FeedbackTab({ candidateId }) {
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
   const [panelMembersMap, setPanelMembersMap] = useState({});
+  const [myPanelInterviewIds, setMyPanelInterviewIds] = useState(new Set());
+
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,11 +32,36 @@ export default function FeedbackTab({ candidateId }) {
       setError("");
       setFeedbackMap({});
       setPanelMembersMap({});
+      setMyPanelInterviewIds(new Set());
 
-      const result = await getCandidateInterviewHistory(candidateId);
+      const [result, myInterviewsResult] = await Promise.all([
+        getCandidateInterviewHistory(candidateId),
+        getMyInterviews()
+      ]);
+
       setHistoryData(result || null);
 
-      const interviews = Array.isArray(result?.interviews) ? result.interviews : [];
+      const interviews = Array.isArray(result?.interviews)
+        ? result.interviews
+        : [];
+
+      const myInterviews = Array.isArray(myInterviewsResult)
+        ? myInterviewsResult
+        : Array.isArray(myInterviewsResult?.interviews)
+          ? myInterviewsResult.interviews
+          : Array.isArray(myInterviewsResult?.data)
+            ? myInterviewsResult.data
+            : [];
+
+      const allowedInterviewIds = new Set(
+        myInterviews
+          .filter((item) => String(item?.candidate_id) === String(candidateId))
+          .map((item) => item?.interview_id || item?.id)
+          .filter(Boolean)
+      );
+
+      setMyPanelInterviewIds(allowedInterviewIds);
+
       if (!interviews.length) return;
 
       setFeedbackLoading(true);
@@ -113,7 +143,9 @@ export default function FeedbackTab({ candidateId }) {
     fetchFeedbackData();
   }, [fetchFeedbackData]);
 
-  const interviews = Array.isArray(historyData?.interviews) ? historyData.interviews : [];
+  const interviews = Array.isArray(historyData?.interviews)
+    ? historyData.interviews
+    : [];
 
   const feedbackSummary = useMemo(() => {
     const totalInterviews = interviews.length;
@@ -153,54 +185,72 @@ export default function FeedbackTab({ candidateId }) {
     setSubmitNotice("");
     setSubmitNoticeType("success");
   };
-const handleSubmitFeedback = async (form) => {
-  if (!selectedInterview?.id) {
-    setSubmitNotice("Interview is missing");
-    setSubmitNoticeType("error");
-    return;
-  }
 
-  try {
-    setSubmitting(true);
-    setSubmitNotice("");
-    setSubmitNoticeType("success");
+  const handleSubmitFeedback = async (form) => {
+    if (!selectedInterview?.id) {
+      setSubmitNotice("Interview is missing");
+      setSubmitNoticeType("error");
+      return;
+    }
 
-    await submitInterviewFeedback({
-      interviewId: selectedInterview.id,
-      interviewerId: form.interviewerId,
-      technicalScore: Number(form.technical_score),
-      communicationScore: Number(form.communication_score),
-      problemSolvingScore: Number(form.problem_solving_score),
-      cultureFitScore: Number(form.culture_fit_score),
-      comments: form.comments,
-      recommendation: form.recommendation
-    });
+    if (!myPanelInterviewIds.has(selectedInterview.id)) {
+      setSubmitNotice("You are not assigned as a panel member for this interview");
+      setSubmitNoticeType("error");
+      return;
+    }
 
-    
-    await updateInterview(selectedInterview.id, {
-      status: "Completed"
-    });
+    try {
+      setSubmitting(true);
+      setSubmitNotice("");
+      setSubmitNoticeType("success");
 
-    
-    await fetchFeedbackData();
+      await submitInterviewFeedback({
+        interviewId: selectedInterview.id,
+        interviewerId: form.interviewerId,
+        technicalScore: Number(form.technical_score),
+        communicationScore: Number(form.communication_score),
+        problemSolvingScore: Number(form.problem_solving_score),
+        cultureFitScore: Number(form.culture_fit_score),
+        comments: form.comments,
+        recommendation: form.recommendation
+      });
+const panelMembers = panelMembersMap[selectedInterview.panel_id] || [];
 
-    
-    setSubmitNotice("Feedback submitted successfully");
-    setSubmitNoticeType("success");
+const latestFeedbackRes = await getFeedbackForInterview(selectedInterview.id);
 
-    
-    setTimeout(() => {
-      closeSubmitModal();
-    }, 1000); 
+const latestFeedbackList = Array.isArray(latestFeedbackRes)
+  ? latestFeedbackRes
+  : Array.isArray(latestFeedbackRes?.feedback)
+    ? latestFeedbackRes.feedback
+    : Array.isArray(latestFeedbackRes?.data)
+      ? latestFeedbackRes.data
+      : [];
 
-  } catch (err) {
-    console.error("Failed to submit feedback", err);
-    setSubmitNotice(err?.message || "Failed to submit feedback");
-    setSubmitNoticeType("error");
-  } finally {
-    setSubmitting(false);
-  }
-};
+const allPanelFeedbackSubmitted =
+  panelMembers.length > 0 && latestFeedbackList.length >= panelMembers.length;
+
+if (allPanelFeedbackSubmitted) {
+  await updateInterview(selectedInterview.id, {
+    status: "Completed"
+  });
+}
+
+      await fetchFeedbackData();
+
+      setSubmitNotice("Feedback submitted successfully");
+      setSubmitNoticeType("success");
+
+      setTimeout(() => {
+        closeSubmitModal();
+      }, 1000);
+    } catch (err) {
+      console.error("Failed to submit feedback", err);
+      setSubmitNotice(err?.message || "Failed to submit feedback");
+      setSubmitNoticeType("error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -262,13 +312,15 @@ const handleSubmitFeedback = async (form) => {
                 const feedbackList = feedbackMap[interview.id] || [];
 
                 return (
-                  <InterviewFeedbackCard
-                    key={interview.id}
-                    interview={interview}
-                    feedbackList={feedbackList}
-                    feedbackLoading={feedbackLoading}
-                    onSubmitClick={() => openSubmitModal(interview)}
-                  />
+                 <InterviewFeedbackCard
+  key={interview.id}
+  interview={interview}
+  feedbackList={feedbackList}
+  feedbackLoading={feedbackLoading}
+  panelMembers={panelMembersMap[interview.panel_id] || []}
+  canSubmitForLoggedInPanel={myPanelInterviewIds.has(Number(interview.id))}
+  onSubmitClick={() => openSubmitModal(interview)}
+/>
                 );
               })}
             </div>
@@ -301,11 +353,12 @@ function SectionCard({ title, children }) {
     </section>
   );
 }
-
 function InterviewFeedbackCard({
   interview,
   feedbackList,
   feedbackLoading,
+  panelMembers = [],
+  canSubmitForLoggedInPanel,
   onSubmitClick
 }) {
   const status = interview?.status || "Unknown";
@@ -316,7 +369,22 @@ function InterviewFeedbackCard({
       ? interview.feedback_count
       : feedbackList.length;
 
-  const canSubmitFeedback = feedbackList.length === 0;
+  const submittedInterviewerIds = new Set(
+  feedbackList
+    .map((feedback) => feedback?.interviewer_id)
+    .filter(Boolean)
+);
+
+const feedbackProgress = {
+  submitted: submittedInterviewerIds.size,
+  total: panelMembers.length
+};
+
+const currentUserFeedbackSubmitted =
+  interview?.feedback_submitted === true || interview?.my_feedback;
+
+const canSubmitFeedback =
+  canSubmitForLoggedInPanel && !currentUserFeedbackSubmitted;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
@@ -331,10 +399,12 @@ function InterviewFeedbackCard({
 
           <div className="text-sm text-gray-600">{startTime}</div>
 
-          <div className="text-sm text-gray-600">
-            Feedback Count:{" "}
-            <span className="font-medium text-gray-800">{feedbackCount}</span>
-          </div>
+         <div className="text-sm text-gray-600">
+  Feedback Progress:{" "}
+  <span className="font-medium text-gray-800">
+    {feedbackProgress.submitted} / {feedbackProgress.total || 0} submitted
+  </span>
+</div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -353,6 +423,39 @@ function InterviewFeedbackCard({
           )}
         </div>
       </div>
+      {panelMembers.length > 0 && (
+  <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3">
+    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      Panel Feedback Status
+    </div>
+
+    <div className="grid gap-2 md:grid-cols-2">
+      {panelMembers.map((member) => {
+        const interviewerId = member?.interviewer_id;
+        const hasSubmitted = submittedInterviewerIds.has(interviewerId);
+
+        return (
+          <div
+            key={interviewerId || member?.id}
+            className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
+              hasSubmitted
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-yellow-200 bg-yellow-50 text-yellow-700"
+            }`}
+          >
+            <span className="font-medium">
+              {member?.interviewer_name || member?.interviewer_email || "Panel Member"}
+            </span>
+
+            <span className="text-xs font-semibold">
+              {hasSubmitted ? "Submitted" : "Pending"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
 
       <div className="mt-4">
         {feedbackLoading ? (
@@ -590,19 +693,20 @@ function SubmitFeedbackModal({
                 </option>
               ))}
             </SelectField>
-<SelectField
-  label="Recommendation"
-  value={form.recommendation}
-  onChange={(e) => handleChange("recommendation", e.target.value)}
-  error={errors.recommendation}
->
-  <option value="">Select recommendation</option>
-  <option value="No Hire">No Hire</option>
-  <option value="Not sure">Not sure</option>
-  <option value="Average">Average</option>
-  <option value="Hire">Hire</option>
-  <option value="Must Hire">Must Hire</option>
-</SelectField>
+
+            <SelectField
+              label="Recommendation"
+              value={form.recommendation}
+              onChange={(e) => handleChange("recommendation", e.target.value)}
+              error={errors.recommendation}
+            >
+              <option value="">Select recommendation</option>
+              <option value="No Hire">No Hire</option>
+              <option value="Not sure">Not sure</option>
+              <option value="Average">Average</option>
+              <option value="Hire">Hire</option>
+              <option value="Must Hire">Must Hire</option>
+            </SelectField>
 
             <FormField
               label="Technical Score"

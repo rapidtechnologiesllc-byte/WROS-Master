@@ -7,6 +7,7 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import CandidateEditModal from "./CandidateEditModal";
 
+
 import { getCandidateStatus } from "../services/api/candidateStatus";
 import {
   listChecklistTemplates,
@@ -28,6 +29,7 @@ import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate
 } from "../utils/interviewEmailTemplates";
+import { Mail, MessageCircle, MoreHorizontal } from "lucide-react";
 
 const initialScheduleForm = {
   roundName: "",
@@ -109,6 +111,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [showPanelMemberDropdown, setShowPanelMemberDropdown] = useState(false);
   const [panelSearch, setPanelSearch] = useState("");
   const panelMemberDropdownRef = useRef(null);
+  const noticeTimerRef = useRef(null);
 
   useEffect(() => {
     if (!candidate?.id) return;
@@ -250,16 +253,26 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       member.label.toLowerCase().includes(panelSearch.toLowerCase())
     );
   }, [panelSearch, interviewerOptions]);
-
-  const showNotice = (message, type = "success", duration = 4000) => {
-    setNotice(message);
-    setNoticeType(type);
-
-    window.clearTimeout(window.__candidateDetailsNoticeTimeout);
-    window.__candidateDetailsNoticeTimeout = window.setTimeout(() => {
-      setNotice("");
-    }, duration);
+  useEffect(() => {
+  return () => {
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+    }
   };
+}, []);
+
+  const showNotice = (message, type = "success", duration = 5000) => {
+  setNotice(message);
+  setNoticeType(type);
+
+  if (noticeTimerRef.current) {
+    clearTimeout(noticeTimerRef.current);
+  }
+
+  noticeTimerRef.current = setTimeout(() => {
+    setNotice("");
+  }, duration);
+};
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
@@ -402,17 +415,27 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   }
 };
 
-  const togglePanelMember = (memberId) => {
-    const currentIds = Array.isArray(scheduleForm.interviewerIds)
-      ? scheduleForm.interviewerIds
-      : [];
+ const togglePanelMember = (memberId) => {
+  const currentIds = Array.isArray(scheduleForm.interviewerIds)
+    ? scheduleForm.interviewerIds
+    : [];
 
-    const updatedIds = currentIds.includes(memberId)
-      ? currentIds.filter((id) => id !== memberId)
-      : [...currentIds, memberId];
+  const isAlreadySelected = currentIds.includes(memberId);
 
-    handleScheduleInputChange("interviewerIds", updatedIds);
-  };
+  if (!isAlreadySelected && currentIds.length >= 4) {
+    setScheduleErrors((prev) => ({
+      ...prev,
+      interviewerIds: "Maximum 4 panel members allowed"
+    }));
+    return;
+  }
+
+  const updatedIds = isAlreadySelected
+    ? currentIds.filter((id) => id !== memberId)
+    : [...currentIds, memberId];
+
+  handleScheduleInputChange("interviewerIds", updatedIds);
+};
 
   const computedDateTime = useMemo(() => {
     if (!scheduleForm.interviewDate || !scheduleForm.startTime || !scheduleForm.endTime) {
@@ -435,6 +458,9 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     if (!Array.isArray(scheduleForm.interviewerIds) || !scheduleForm.interviewerIds.length) {
       errors.interviewerIds = "Please select at least one panel member";
     }
+    if (Array.isArray(scheduleForm.interviewerIds) && scheduleForm.interviewerIds.length > 4) {
+  errors.interviewerIds = "Maximum 4 panel members allowed";
+}
 
     if (!scheduleForm.interviewDate) {
       errors.interviewDate = "Interview date is required";
@@ -581,6 +607,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       setScheduling(false);
     }
   };
+  const fullName =
+  candidate?.name ||
+  `${candidate?.first_name || ""} ${candidate?.last_name || ""}`.trim() ||
+  "Candidate";
 
   return (
     <>
@@ -597,68 +627,185 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
           </div>
         )}
 
-        <Card
-          title={
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-semibold text-base">Candidate Details</span>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+  <div className="px-6 py-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+    
+    {/* LEFT SECTION */}
+    <div className="flex items-start gap-4 min-w-0">
+      
+      {/* Avatar */}
+      <div className="w-14 h-14 rounded-full bg-orange-500 text-white flex items-center justify-center text-lg font-semibold shrink-0">
+        {(fullName || "C")
+          .split(" ")
+          .map((w) => w[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()}
+      </div>
 
-              {statusData?.status && (
-                <StatusBadge type="account" value={statusData.status} />
-              )}
+      {/* Candidate Info */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-3 flex-wrap">
+        <h2 className="text-lg font-semibold text-gray-900 truncate">
+  {fullName}
+</h2>
 
-              {statusData?.pipeline_status && (
-                <StatusBadge type="pipeline" value={statusData.pipeline_status} />
-              )}
-            </div>
-          }
-          right={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="ghost" onClick={onBack}>
-                Back
-              </Button>
+          {statusData?.status && (
+            <StatusBadge type="account" value={statusData.status} />
+          )}
 
-              <div className="relative" ref={scheduleMenuRef}>
-                <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
-                  Schedule
-                </Button>
+          {statusData?.pipeline_status && (
+            <StatusBadge type="pipeline" value={statusData.pipeline_status} />
+          )}
+        </div>
 
-                {showScheduleMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                    <button
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
-                      onClick={() => openScheduleModal("online")}
-                    >
-                      Online Interview
-                    </button>
+       <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-gray-500">
 
-                    <button
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
-                      onClick={() => openScheduleModal("faceToFace")}
-                    >
-                      Face to Face Interview
-                    </button>
-                  </div>
-                )}
-              </div>
+  {/* Email */}
+  {candidate?.email ? (
+    <a
+      href={`mailto:${candidate.email}`}
+      className="truncate text-blue-600 hover:underline"
+    >
+      {candidate.email}
+    </a>
+  ) : (
+    <span>-</span>
+  )}
 
-              <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
+  {/* Phone */}
+  {candidate?.phone ? (
+    <a
+      href={`tel:${candidate.phone}`}
+      className="hover:underline"
+    >
+      {candidate.phone}
+    </a>
+  ) : (
+    <span>-</span>
+  )}
 
-              <Button
-                disabled={isChecklistAssigned}
-                onClick={() => setShowAssignModal(true)}
-              >
-                {isChecklistAssigned ? "Checklist Assigned" : "Assign Checklist"}
-              </Button>
-            </div>
-          }
+  {/* Job Title */}
+  <span className="truncate">
+    {candidate?.jobTitle || "-"}
+  </span>
+
+</div>
+      </div>
+    </div>
+
+    {/* RIGHT ACTIONS */}
+    <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
+
+  {/* Back */}
+  <Button variant="ghost" onClick={onBack}>
+    Back
+  </Button>
+
+  {/* Schedule */}
+  <div className="relative" ref={scheduleMenuRef}>
+    <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
+      Schedule
+    </Button>
+
+    {showScheduleMenu && (
+      <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+        <button
+          className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
+          onClick={() => openScheduleModal("online")}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <Info label="Name" value={candidate?.name} />
-            <Info label="Email" value={candidate?.email} />
-            <Info label="Phone" value={candidate?.phone} />
-            <Info label="Job Title" value={candidate?.jobTitle} />
-          </div>
-        </Card>
+          Online Interview
+        </button>
+
+        <button
+          className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
+          onClick={() => openScheduleModal("faceToFace")}
+        >
+          Face to Face Interview
+        </button>
+      </div>
+    )}
+  </div>
+
+ {/* Email Icon */}
+<button
+  type="button"
+  className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
+  title="Send Email"
+  onClick={() => {
+    const email = candidate?.email?.trim();
+
+    if (!email) {
+     showNotice("Candidate email is not available", "error");
+      return;
+    }
+
+    const subject = encodeURIComponent("Regarding your application");
+    const body = encodeURIComponent(`Hi ${fullName},\n\n`);
+    const to = encodeURIComponent(email);
+
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+    const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
+
+    const openedWindow = window.open(
+      gmailUrl,
+      "_blank",
+      "noopener,noreferrer"
+    );
+
+    if (!openedWindow) {
+      window.location.href = mailtoUrl;
+    }
+  }}
+>
+  <Mail className="w-5 h-5 text-gray-600" />
+</button>
+
+{/* WhatsApp Icon */}
+<button
+  type="button"
+  className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+  title={`Message ${candidate?.name || "candidate"} on WhatsApp`}
+  disabled={!candidate?.phone}
+  onClick={() => {
+    if (!candidate?.phone) return;
+
+    const cleanedPhone = candidate.phone.replace(/\D/g, "");
+
+    if (!cleanedPhone) {
+      showNotice("Invalid phone number", "error");
+      return;
+    }
+
+    window.open(`https://wa.me/${cleanedPhone}`, "_blank");
+  }}
+>
+  <MessageCircle className="w-5 h-5 text-green-600" />
+</button>
+
+  {/* More */}
+  <button
+className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
+    onClick={() => console.log("More clicked")}
+  >
+    <MoreHorizontal className="w-5 h-5 text-gray-600" />
+  </button>
+
+  {/* Existing actions */}
+  <Button onClick={() => setEditModalOpen(true)}>
+    Edit
+  </Button>
+
+  <Button
+    disabled={isChecklistAssigned}
+    onClick={() => setShowAssignModal(true)}
+  >
+    {isChecklistAssigned ? "Checklist Assigned" : "Assign Checklist"}
+  </Button>
+
+</div>
+  </div>
+</div>
 
         <div className="border-b">
           <div className="flex flex-wrap gap-2">
