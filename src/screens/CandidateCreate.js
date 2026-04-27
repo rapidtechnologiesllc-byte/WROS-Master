@@ -41,6 +41,7 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [educationRows, setEducationRows] = useState([]);
   const [experienceRows, setExperienceRows] = useState([]);
+  const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
   const [jobs, setJobs] = useState([]);
@@ -77,6 +78,15 @@ export default function CandidateCreate({ onBack, onSave }) {
       isMounted = false;
     };
   }, []);
+
+  const clearFieldError = (field) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   const inferEducationRows = (text) => {
     const normalized = String(text || "").replace(/\r/g, "\n");
@@ -185,11 +195,23 @@ export default function CandidateCreate({ onBack, onSave }) {
     try {
       const text = await extractResumeText(file);
       const fields = inferFieldsFromResumeText(text);
-      if (fields.email) setEmail(fields.email);
-      if (fields.firstName) setFirstName(fields.firstName);
+      if (fields.email) {
+        setEmail(fields.email);
+        clearFieldError("email");
+      }
+      if (fields.firstName) {
+        setFirstName(fields.firstName);
+        clearFieldError("firstName");
+      }
       if (fields.middleName) setMiddleName(fields.middleName);
-      if (fields.lastName) setLastName(fields.lastName);
-      if (fields.mobile) setMobile(fields.mobile);
+      if (fields.lastName) {
+        setLastName(fields.lastName);
+        clearFieldError("lastName");
+      }
+      if (fields.mobile) {
+        setMobile(fields.mobile);
+        clearFieldError("mobile");
+      }
       if (fields.skills) setSkills(fields.skills);
       if (fields.experience) setExperience(fields.experience);
       if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
@@ -213,24 +235,17 @@ export default function CandidateCreate({ onBack, onSave }) {
   };
 
   const handleCreateCandidate = async () => {
-    if (!firstName.trim()) {
-      setActionNotice("First Name is required.");
-      return;
-    }
-    if (!lastName.trim()) {
-      setActionNotice("Last Name is required.");
-      return;
-    }
-    if (!gender.trim()) {
-      setActionNotice("Gender is required.");
-      return;
-    }
-    if (!mobile.trim()) {
-      setActionNotice("Mobile is required.");
-      return;
-    }
-    if (!email.trim()) {
-      setActionNotice("Email is required.");
+    const newErrors = {};
+
+    if (!firstName.trim()) newErrors.firstName = "First Name is required.";
+    if (!lastName.trim()) newErrors.lastName = "Last Name is required.";
+    if (!gender.trim()) newErrors.gender = "Gender is required.";
+    if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
+    if (!email.trim()) newErrors.email = "Email is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setActionNotice("Please fill all required fields.");
       return;
     }
     if (!selectedJobId.trim()) {
@@ -289,8 +304,10 @@ export default function CandidateCreate({ onBack, onSave }) {
       return;
     }
 
+    setErrors({});
     setActionNotice("");
     setIsSaving(true);
+
     try {
       // Create the candidate in backend and receive generated password.
       const data = await createCandidate({
@@ -314,32 +331,34 @@ export default function CandidateCreate({ onBack, onSave }) {
         assigned_report_manager_id: assignedReportManagerId || null,
         education_records: filledEducationRows.length
           ? filledEducationRows.map((row) => ({
-              education_institute: row.education_institute.trim(),
-              degree: row.degree.trim(),
-              field_of_study: row.field_of_study.trim(),
-              starting_year: row.starting_year.trim(),
-              year_of_passing: row.year_of_passing.trim(),
-              percentage: row.percentage.trim(),
-              submitted_at: today,
-              document_is_submitted: false,
-            }))
+            education_institute: row.education_institute.trim(),
+            degree: row.degree.trim(),
+            field_of_study: row.field_of_study.trim(),
+            starting_year: row.starting_year.trim(),
+            year_of_passing: row.year_of_passing.trim(),
+            percentage: row.percentage.trim(),
+            submitted_at: today,
+            document_is_submitted: false,
+          }))
           : null,
         experience_records: filledExperienceRows.length
           ? filledExperienceRows.map((row) => ({
-              company_name: row.company_name.trim(),
-              job_title: row.job_title.trim(),
-              start_date: row.start_date,
-              end_date: row.end_date,
-              year_of_experience: row.year_of_experience.trim(),
-              submitted_at: today,
-              document_is_submitted: false,
-            }))
+            company_name: row.company_name.trim(),
+            job_title: row.job_title.trim(),
+            start_date: row.start_date,
+            end_date: row.end_date,
+            year_of_experience: row.year_of_experience.trim(),
+            submitted_at: today,
+            document_is_submitted: false,
+          }))
           : null,
       });
+
       const candidateName = [firstName, middleName, lastName]
         .filter(Boolean)
         .join(" ")
         .trim();
+
       const createdCandidateId = data?.candidate_id;
       return {
         id: createdCandidateId,
@@ -354,6 +373,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         status: "New",
       };
       let nextNotice = `Candidate created. Password: ${data?.candidate_password || "N/A"}`;
+
       if (sendLoginEmail && data?.candidate_password) {
         //NEED THIS CODE FOR IMPLEMENTING EMAIL FUNCTIONALITY.
         //COMMENTED THIS AS THE CURRENT API IS INCORRECT
@@ -371,6 +391,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         //   }`;
         // }
       }
+
       if (resumeFile) {
         if (!createdCandidateId) {
           nextNotice = `${nextNotice}. Resume skipped (missing candidate id).`;
@@ -383,12 +404,12 @@ export default function CandidateCreate({ onBack, onSave }) {
             });
             nextNotice = `${nextNotice}. Resume uploaded.`;
           } catch (uploadErr) {
-            nextNotice = `${nextNotice}. Resume upload failed: ${
-              uploadErr.message || "Unknown error"
-            }`;
+            nextNotice = `${nextNotice}. Resume upload failed: ${uploadErr.message || "Unknown error"
+              }`;
           }
         }
       }
+
       setActionNotice(nextNotice);
       return createdCandidateId;
     } catch (err) {
@@ -487,84 +508,114 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={(value) => setSelectedJobId(value)}
             options={jobOptions}
           />
-          <Input
-            label="Email *"
-            value={email}
-            onChange={setEmail}
-            actionNotice={actionNotice}
-          />
-          <Input
-            label="First Name *"
-            value={firstName}
-            onChange={setFirstName}
-            actionNotice={actionNotice}
-          />
-          <Input
-            label="Middle Name"
-            value={middleName}
-            onChange={setMiddleName}
-          />
-          <Input
-            label="Last Name *"
-            value={lastName}
-            onChange={setLastName}
-            actionNotice={actionNotice}
-          />
-          <Input
-            label="Mobile *"
-            value={mobile}
-            onChange={setMobile}
-            actionNotice={actionNotice}
-          />
-          <Select
-            label="Gender *"
-            value={gender}
-            onChange={setGender}
-            options={["", "Female", "Male", "Other"]}
-          />
-          <Input
-            label="Date of Birth"
-            value={dob}
-            onChange={setDob}
-            type="date"
-          />
+          <div>
+            <Input
+              label="Email *"
+              value={email}
+              onChange={(value) => {
+                setEmail(value);
+                clearFieldError("email");
+              }}
+              actionNotice={actionNotice}
+              error={errors.email}
+            />
+            {errors.email ? <div className="mt-1 text-xs text-red-500">{errors.email}</div> : null}
+          </div>
+
+          <div>
+            <Input
+              label="First Name *"
+              value={firstName}
+              onChange={(value) => {
+                setFirstName(value);
+                clearFieldError("firstName");
+              }}
+              actionNotice={actionNotice}
+              error={errors.firstName}
+            />
+            {errors.firstName ? <div className="mt-1 text-xs text-red-500">{errors.firstName}</div> : null}
+          </div>
+
+          <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
+
+          <div>
+            <Input
+              label="Last Name *"
+              value={lastName}
+              onChange={(value) => {
+                setLastName(value);
+                clearFieldError("lastName");
+              }}
+              actionNotice={actionNotice}
+              error={errors.lastName}
+            />
+            {errors.lastName ? <div className="mt-1 text-xs text-red-500">{errors.lastName}</div> : null}
+          </div>
+
+          <div>
+            <Input
+              label="Mobile *"
+              value={mobile}
+              onChange={(value) => {
+                setMobile(value);
+                clearFieldError("mobile");
+              }}
+              actionNotice={actionNotice}
+              error={errors.mobile}
+            />
+            {errors.mobile ? <div className="mt-1 text-xs text-red-500">{errors.mobile}</div> : null}
+          </div>
+
+          <div>
+            <Select
+              label="Gender *"
+              value={gender}
+              onChange={(value) => {
+                setGender(value);
+                clearFieldError("gender");
+              }}
+              options={["", "Female", "Male", "Other"]}
+              error={errors.gender}
+            />
+            {errors.gender ? <div className="mt-1 text-xs text-red-500">{errors.gender}</div> : null}
+          </div>
+
+          <Input label="Date of Birth" value={dob} onChange={setDob} type="date" />
           <Input label="Source" value={source} onChange={setSource} />
-          <Input
-            label="Experience"
-            value={experience}
-            onChange={setExperience}
-          />
-          <Input
-            label="Skills (comma separated)"
-            value={skills}
-            onChange={setSkills}
-          />
+          <Input label="Experience" value={experience} onChange={setExperience} />
+          <Input label="Skills (comma separated)" value={skills} onChange={setSkills} />
+
           <Input
             label="Joining Date"
             value={joiningDate}
             onChange={setJoiningDate}
             type="date"
           />
+
           <Input
             label="Expected Salary"
             value={expectedSalary}
             onChange={setExpectedSalary}
           />
+
           <Input
             label="Current Salary"
             value={currentSalary}
             onChange={setCurrentSalary}
           />
+
           <Input
             label="Current Location"
             value={currentLocation}
             onChange={setCurrentLocation}
           />
+
           <Input
             label="Assigned HR Manager ID"
             value={assignedHrManagerId}
             onChange={setAssignedHrManagerId}
           />
+
           <Input
             label="Assigned Reporting Manager ID"
             value={assignedReportManagerId}
@@ -815,6 +866,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             {isAssigning ? "Assigning..." : "Save and Submit Job"}
           </Button>
         </div>
+
         {actionNotice ? (
           <div className="mt-2 text-xs text-gray-500">{actionNotice}</div>
         ) : null}
