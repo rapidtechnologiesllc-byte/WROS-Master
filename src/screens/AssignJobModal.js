@@ -22,8 +22,10 @@ const AssignJobModal = ({
     }
 
     try {
-      const result = await assignJob(selectedJob.id, candidateId);
-      if (result?.status === 200) {
+      const result = await assignJob(selectedJob.id, candidateId, {
+        application_status: "Applied",
+      });
+      if (result?.status === 201) {
         toast.success("Job assigned successfully ✅");
         const selectedCandidate = allCandidates.find(
           (c) => c.id === candidateId,
@@ -49,53 +51,56 @@ const AssignJobModal = ({
         <div className="w-full max-w-4xl max-h-[80vh] flex flex-col">
           <Card
             title="Assign Candidate"
+            bodyClassName="px-2 py-4"
             right={
               <Button variant="ghost" onClick={onClose}>
                 Close
               </Button>
             }
           >
-            <div className="max-h-[65vh] overflow-y-auto">
-              <Table
-                columns={[
-                  { key: "candidate", header: "Candidate" },
-                  { key: "source", header: "Source" },
-                  { key: "applied", header: "Applied / Added On" },
-                  { key: "owner", header: "Owner" },
-                  { key: "stage", header: "Stage" },
-                  { key: "contact", header: "Contact" },
-                  { key: "actions", header: "Actions" },
-                ]}
-                rows={allCandidates.map((c) => ({
-                  candidate: (
-                    <button className="font-semibold text-blue-700 hover:underline">
-                      {c.name}
-                    </button>
-                  ),
-                  source: c.source || "LinkedIn",
-                  applied: c.createdAt || "—",
-                  owner:
-                    c.assignedHrManagerId || c.assignedReportManagerId || "—",
-                  contact: (
-                    <div className="text-xs">
-                      <div>{c.phone || "—"}</div>
-                      <div className="text-slate-500">{c.email || "—"}</div>
-                    </div>
-                  ),
-                  actions: (
-                    <span className="text-xs text-slate-500">
-                      <button
-                        onClick={() => {
-                          assignJobHandler(c?.id);
-                        }}
-                        className="bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 disabled:opacity-60 rounded p-2"
-                      >
-                        Assign Job
+            <div>
+              <div className="max-h-[65vh] overflow-y-auto">
+                <Table
+                  columns={[
+                    { key: "candidate", header: "Candidate" },
+                    { key: "source", header: "Source" },
+                    { key: "applied", header: "Applied / Added On" },
+                    { key: "owner", header: "Owner" },
+                    { key: "stage", header: "Stage" },
+                    { key: "contact", header: "Contact" },
+                    { key: "actions", header: "Actions" },
+                  ]}
+                  rows={allCandidates.map((c) => ({
+                    candidate: (
+                      <button className="font-semibold text-blue-700 hover:underline">
+                        {c.name}
                       </button>
-                    </span>
-                  ),
-                }))}
-              />
+                    ),
+                    source: c.source || "LinkedIn",
+                    applied: c.createdAt || "—",
+                    owner:
+                      c.assignedHrManagerId || c.assignedReportManagerId || "—",
+                    contact: (
+                      <div className="text-xs">
+                        <div>{c.phone || "—"}</div>
+                        <div className="text-slate-500">{c.email || "—"}</div>
+                      </div>
+                    ),
+                    actions: (
+                      <span className="text-xs text-slate-500">
+                        <button
+                          onClick={() => {
+                            assignJobHandler(c?.id);
+                          }}
+                          className="bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 disabled:opacity-60 rounded p-2"
+                        >
+                          Assign Job
+                        </button>
+                      </span>
+                    ),
+                  }))}
+                />
+              </div>
             </div>
           </Card>
         </div>

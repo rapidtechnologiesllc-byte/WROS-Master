@@ -47,7 +47,7 @@ export default function CandidateEditModal({
     () => splitFullName(candidate?.name || ""),
     [candidate],
   );
-
+  const candidateId = candidate?.id;
   const [candidateRole] = useState("Candidate");
   const [candidateJobTitle, setCandidateJobTitle] = useState(
     candidate?.jobTitle || "",
@@ -90,39 +90,6 @@ export default function CandidateEditModal({
   const [pipelineStatusEdit, setPipelineStatusEdit] = useState("Applied");
   const [statusSaving, setStatusSaving] = useState(false);
   const [users, setUsers] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
-
-  const jobOptions = jobs.map((job) => ({
-    label: job.title,
-    value: job.id,
-  }));
-
-  const candidateId = candidate?.id;
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchData = async () => {
-      try {
-        const refreshed = await getAllJobs();
-        if (!isMounted) return;
-        const mappedJobs = (refreshed?.jobs || []).map((j) =>
-          mapJobFromApi(j, users),
-        );
-        setJobs(mappedJobs);
-        if (!selectedJobId && mappedJobs.length) {
-          setSelectedJobId(mappedJobs[0].id);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Keep state in sync when switching the candidate inside the modal.
   useEffect(() => {
@@ -303,12 +270,6 @@ export default function CandidateEditModal({
               value={email}
               onChange={() => {}}
               disabled
-            />
-            <Select
-              label="Job Title"
-              value={selectedJobId}
-              onChange={(value) => setSelectedJobId(value)}
-              options={jobOptions}
             />
             <Input
               label="First Name *"
