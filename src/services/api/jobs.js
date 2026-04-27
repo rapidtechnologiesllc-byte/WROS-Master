@@ -141,27 +141,39 @@ export const applyForJob = async ({
 };
 
 export const candidateAppendedJob = async (id) => {
-  const { data } = await apiRequest(`/jobs/${id}/candidates`, {
+  const { data } = await apiRequest(`/jobs/${id}/applications`, {
     method: "GET",
   });
   return data;
 };
 
-export const assignJob = async (jobId, candidateId) => {
+export const assignJob = async (jobId, candidateId, payload) => {
   const { data, response } = await apiRequest(
-    `/jobs/${jobId}/assign-candidate/${candidateId}`,
+    `/jobs/${jobId}/applications/${candidateId}`,
     {
-      method: "PUT",
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
   return (data, response);
 };
 
-export const removeCandidateApi = async (candidateId) => {
+export const removeCandidateApi = async (job_id, candidateId) => {
   const { data, response } = await apiRequest(
-    `/jobs/unassign-candidate/${candidateId}`,
+    `/jobs/${job_id}/applications/${candidateId}`,
     {
-      method: "PUT",
+      method: "DELETE",
+    },
+  );
+  return (data, response);
+};
+
+export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
+  const { data, response } = await apiRequest(
+    `/jobs/${job_id}/applications/${candidate_id}`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
   return (data, response);

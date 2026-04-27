@@ -12,6 +12,7 @@ import {
 import { assignJob, getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
 import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function CandidateCreate({ onBack, onSave }) {
   // These fields map 1:1 to CandidateCreateRequest on the backend.
@@ -44,31 +45,28 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [users, setUsers] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
   const [jobs, setJobs] = useState([]);
-  const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
+  const [selectedJobId, setSelectedJobId] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
+  const [jobName, setJobName] = useState("");
 
-  const jobOptions = jobs?.map((job) => ({
-    label: job?.title,
-    value: job?.id,
-  }));
+  const jobOptions = [
+    { label: "Please select job", value: "", disabled: true },
+    ...(jobs?.map((job) => ({
+      label: job?.title,
+      value: job?.id,
+    })) || []),
+  ];
 
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
       try {
         const refreshed = await getAllJobs();
-
         if (!isMounted) return;
-
         const mappedJobs = (refreshed?.jobs || []).map((j) =>
           mapJobFromApi(j, users),
         );
-
         setJobs(mappedJobs);
-
-        if (!selectedJobId && mappedJobs?.length) {
-          setSelectedJobId(mappedJobs[0]?.id);
-        }
       } catch (err) {
         console.error(err);
       }
@@ -126,12 +124,14 @@ export default function CandidateCreate({ onBack, onSave }) {
     ];
   };
 
-  const inferExperienceRows = (text) => {
+  const inferExperienceRows = (text, nameLine = "", jobTitle = "") => {
     const normalized = String(text || "").replace(/\r/g, "\n");
     const lines = normalized
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
+    const cleanName = (nameLine || "").toLowerCase().replace(/\s+/g, "");
+    const cleanJob = (jobTitle || "").toLowerCase();
     const expStart = lines.findIndex((l) =>
       /^(experience|work experience|employment)\b/i.test(l),
     );
@@ -139,12 +139,39 @@ export default function CandidateCreate({ onBack, onSave }) {
     const windowLines = lines.slice(expStart + 1, expStart + 25);
     const joined = windowLines.join(" ");
     const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
-    const titleLine = windowLines.find((l) =>
-      /(engineer|developer|analyst|consultant|manager|intern)/i.test(l),
-    );
-    const companyLine = windowLines.find((l) =>
-      /(pvt|llp|inc|corp|technologies|solutions|systems|labs|company)/i.test(l),
-    );
+
+    let titleLine = "";
+    let companyLine = "";
+    for (let rawLine of windowLines) {
+      if (!rawLine) continue;
+      const line = rawLine.split(/[\|\-–]/)[0].trim();
+      const lower = line.toLowerCase();
+      const normalizedLine = lower.replace(/\s+/g, "");
+      if (cleanName && normalizedLine.includes(cleanName)) continue;
+      if (cleanJob && lower.includes(cleanJob)) continue;
+      if (/email|phone|mobile|linkedin|github|address/i.test(lower)) continue;
+      if (line.length < 3 || line.length > 80) continue;
+      if (!/[a-zA-Z]/.test(line)) continue;
+      if (
+        !titleLine &&
+        /(engineer|developer|analyst|consultant|manager|intern|designer|lead|architect)/i.test(
+          line,
+        )
+      ) {
+        titleLine = line;
+        continue;
+      }
+      if (
+        !companyLine &&
+        /(pvt|llp|ltd|inc|corp|technologies|solutions|systems|labs|company|services)/i.test(
+          line,
+        )
+      ) {
+        companyLine = line;
+        continue;
+      }
+    }
+
     if (!titleLine && !companyLine) return [];
     const startYear = years[0] || "";
     const endYear = years.length > 1 ? years[1] : "";
@@ -188,10 +215,11 @@ export default function CandidateCreate({ onBack, onSave }) {
       if (fields.skills) setSkills(fields.skills);
       if (fields.experience) setExperience(fields.experience);
       if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
+      if (fields?.jobTitle) setJobName(fields?.jobTitle);
       // Best-effort defaults for structured sections from resume text.
       const inferredEducation = inferEducationRows(text);
       if (inferredEducation.length) setEducationRows(inferredEducation);
-      const inferredExperience = inferExperienceRows(text);
+      const inferredExperience = inferExperienceRows(text, fields._nameLine);
       if (inferredExperience.length) setExperienceRows(inferredExperience);
       const filled = Object.keys(fields).filter((k) => fields[k]).length;
       setActionNotice(
@@ -220,7 +248,10 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice("Please fill all required fields.");
       return;
     }
-
+    if (!selectedJobId.trim()) {
+      setActionNotice("Job ID is required.");
+      return;
+    }
     const filledEducationRows = educationRows.filter((row) =>
       [
         row.education_institute,
@@ -329,8 +360,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         .trim();
 
       const createdCandidateId = data?.candidate_id;
-
-      onSave({
+      return {
         id: createdCandidateId,
         name: candidateName || "New Candidate",
         email,
@@ -341,8 +371,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           .map((s) => s.trim())
           .filter(Boolean),
         status: "New",
-      });
-
+      };
       let nextNotice = `Candidate created. Password: ${data?.candidate_password || "N/A"}`;
 
       if (sendLoginEmail && data?.candidate_password) {
@@ -395,12 +424,16 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     try {
       const candidateId = await handleCreateCandidate();
-      if (!candidateId) {
+      if (!candidateId?.id) {
+        toast.error("Candidate creation failed");
         return;
       }
-      const result = await assignJob(selectedJobId, candidateId);
-      if (result?.status === 200) {
+      const result = await assignJob(selectedJobId, candidateId?.id, {
+        application_status: "Applied",
+      });
+      if (result?.status === 201) {
         toast.success("Job assigned successfully ✅");
+        onSave(candidateId);
       }
     } catch (err) {
       toast.error(
@@ -408,6 +441,13 @@ export default function CandidateCreate({ onBack, onSave }) {
       );
     } finally {
       setIsAssigning(false);
+    }
+  };
+
+  const handleSaveOnly = async () => {
+    const candidate = await handleCreateCandidate();
+    if (candidate) {
+      onSave(candidate);
     }
   };
 
@@ -456,10 +496,14 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={setCandidateRole}
             options={["Candidate", "Employee", "Contractor"]}
           />
-
-          <Input label="Job Title" value={candidateJobTitle} onChange={setCandidateJobTitle} />
-          <Select
+          <Input
             label="Job Title"
+            value={jobName}
+            onChange={setJobName}
+            actionNotice={actionNotice}
+          />
+          <Select
+            label="Select Job *"
             value={selectedJobId}
             onChange={(value) => setSelectedJobId(value)}
             options={jobOptions}
@@ -815,11 +859,11 @@ export default function CandidateCreate({ onBack, onSave }) {
           <Button variant="secondary" onClick={onBack}>
             Cancel
           </Button>
-          <Button onClick={handleCreateCandidate} disabled={isSaving}>
+          <Button onClick={handleSaveOnly} disabled={isSaving}>
             {isSaving ? "Saving..." : "Save"}
           </Button>
           <Button onClick={handleSaveAndAssignJob} disabled={isAssigning}>
-            {isAssigning ? "Assigning..." : "Save and Assign Job"}
+            {isAssigning ? "Assigning..." : "Save and Submit Job"}
           </Button>
         </div>
 
