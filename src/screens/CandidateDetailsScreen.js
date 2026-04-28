@@ -261,7 +261,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   };
 }, []);
 
-  const showNotice = (message, type = "success", duration = 5000) => {
+  const showNotice = (message, type = "success", duration = 3000) => {
   setNotice(message);
   setNoticeType(type);
 
@@ -416,10 +416,9 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
 };
 
  const togglePanelMember = (memberId) => {
-  const currentIds = Array.isArray(scheduleForm.interviewerIds)
-    ? scheduleForm.interviewerIds
-    : [];
-
+  const currentIds = Array.isArray(scheduleForm?.interviewerIds)
+  ? scheduleForm?.interviewerIds
+  : [];
   const isAlreadySelected = currentIds.includes(memberId);
 
   if (!isAlreadySelected && currentIds.length >= 4) {
@@ -458,7 +457,11 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     if (!Array.isArray(scheduleForm.interviewerIds) || !scheduleForm.interviewerIds.length) {
       errors.interviewerIds = "Please select at least one panel member";
     }
-    if (Array.isArray(scheduleForm.interviewerIds) && scheduleForm.interviewerIds.length > 4) {
+   const isMoreThanFourMembers =
+  Array.isArray(scheduleForm?.interviewerIds) &&
+  scheduleForm?.interviewerIds.length > 4;
+
+if (isMoreThanFourMembers) {
   errors.interviewerIds = "Maximum 4 panel members allowed";
 }
 
@@ -630,10 +633,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
   <div className="px-6 py-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
     
-    {/* LEFT SECTION */}
+
     <div className="flex items-start gap-4 min-w-0">
       
-      {/* Avatar */}
+
       <div className="w-14 h-14 rounded-full bg-orange-500 text-white flex items-center justify-center text-lg font-semibold shrink-0">
         {(fullName || "C")
           .split(" ")
@@ -643,7 +646,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
           .toUpperCase()}
       </div>
 
-      {/* Candidate Info */}
       <div className="min-w-0">
         <div className="flex items-center gap-3 flex-wrap">
         <h2 className="text-lg font-semibold text-gray-900 truncate">
@@ -654,14 +656,14 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             <StatusBadge type="account" value={statusData.status} />
           )}
 
-          {statusData?.pipeline_status && (
-            <StatusBadge type="pipeline" value={statusData.pipeline_status} />
-          )}
+         {statusData?.pipeline_status ? (
+  <StatusBadge type="pipeline" value={statusData?.pipeline_status} />
+) : null}
         </div>
 
        <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-gray-500">
 
-  {/* Email */}
+
   {candidate?.email ? (
     <a
       href={`mailto:${candidate.email}`}
@@ -673,7 +675,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
     <span>-</span>
   )}
 
-  {/* Phone */}
+
   {candidate?.phone ? (
     <a
       href={`tel:${candidate.phone}`}
@@ -685,7 +687,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
     <span>-</span>
   )}
 
-  {/* Job Title */}
+
   <span className="truncate">
     {candidate?.jobTitle || "-"}
   </span>
@@ -694,15 +696,14 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       </div>
     </div>
 
-    {/* RIGHT ACTIONS */}
+
     <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
 
-  {/* Back */}
+
   <Button variant="ghost" onClick={onBack}>
     Back
   </Button>
 
-  {/* Schedule */}
   <div className="relative" ref={scheduleMenuRef}>
     <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
       Schedule
@@ -727,7 +728,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
     )}
   </div>
 
- {/* Email Icon */}
+
 <button
   type="button"
   className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
@@ -761,7 +762,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
   <Mail className="w-5 h-5 text-gray-600" />
 </button>
 
-{/* WhatsApp Icon */}
+
 <button
   type="button"
   className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -783,7 +784,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
   <MessageCircle className="w-5 h-5 text-green-600" />
 </button>
 
-  {/* More */}
+
   <button
 className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
     onClick={() => console.log("More clicked")}
@@ -791,7 +792,6 @@ className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
     <MoreHorizontal className="w-5 h-5 text-gray-600" />
   </button>
 
-  {/* Existing actions */}
   <Button onClick={() => setEditModalOpen(true)}>
     Edit
   </Button>
