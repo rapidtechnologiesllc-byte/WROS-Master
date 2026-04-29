@@ -1,5 +1,11 @@
 // Card layout wrapper with optional header actions.
-export default function Card({ title, icon, right, children }) {
+export default function Card({
+  title,
+  icon,
+  right,
+  children,
+  bodyClassName = "px-5 py-4",
+}) {
   return (
     <div className="rounded-2xl border bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
@@ -9,7 +15,7 @@ export default function Card({ title, icon, right, children }) {
         </div>
         {right}
       </div>
-      <div className="px-5 py-4">{children}</div>
+      <div className={bodyClassName}>{children}</div>
     </div>
   );
 }
