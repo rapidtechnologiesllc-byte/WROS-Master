@@ -1,23 +1,98 @@
-import { useCallback, useEffect, useMemo, useState } from "react";import {
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
   getCandidateInterviewHistory,
   getFeedbackForInterview,
   submitInterviewFeedback,
   getPanelMembers,
-  updateInterview
+  updateInterview,
+  getMyInterviews
 } from "../../services/api/interviews";
+const SKIP_REASON_PREFIX = "[NOT_ATTENDED]";
+
+const recommendationOptions = [
+  { value: "", label: "Select recommendation" },
+  { value: "No Hire", label: "No Hire" },
+  { value: "Not sure", label: "Not sure" },
+  { value: "Average", label: "Average" },
+  { value: "Hire", label: "Hire" },
+  { value: "Must Hire", label: "Must Hire" }
+];
+
+const normalizeFeedbackList = (res) => {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.feedback)) return res.feedback;
+  if (Array.isArray(res?.data)) return res.data;
+  return [];
+};
+
+const normalizeMyInterviews = (res) => {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.interviews)) return res.interviews;
+  if (Array.isArray(res?.data)) return res.data;
+  return [];
+};
+
+const isSkippedFeedback = (feedback) => {
+  const comments = String(feedback?.comments || "").trim().toLowerCase();
+  return comments.startsWith(SKIP_REASON_PREFIX.toLowerCase());
+};
+
+const getInterviewId = (interview) => {
+  return Number(interview?.id ?? interview?.interview_id);
+};
+
+const getFeedbackBreakdown = (feedbackList = []) => {
+  const submittedInterviewerIds = new Set();
+  const skippedInterviewerIds = new Set();
+  const feedbackByInterviewerId = new Map();
+
+  feedbackList.forEach((feedback) => {
+    const interviewerId = feedback?.interviewer_id;
+    if (!interviewerId) return;
+
+    feedbackByInterviewerId.set(interviewerId, feedback);
+
+    if (isSkippedFeedback(feedback)) {
+      skippedInterviewerIds.add(interviewerId);
+    } else {
+      submittedInterviewerIds.add(interviewerId);
+    }
+  });
+
+  const doneInterviewerIds = new Set([
+    ...submittedInterviewerIds,
+    ...skippedInterviewerIds
+  ]);
+
+  return {
+    submittedInterviewerIds,
+    skippedInterviewerIds,
+    doneInterviewerIds,
+    feedbackByInterviewerId
+  };
+};
+
 export default function FeedbackTab({ candidateId }) {
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
   const [panelMembersMap, setPanelMembersMap] = useState({});
+  const [myPanelInterviewMap, setMyPanelInterviewMap] = useState(new Map());
+  const [loggedInInterviewerId, setLoggedInInterviewerId] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showSkipModal, setShowSkipModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitNotice, setSubmitNotice] = useState("");
   const [submitNoticeType, setSubmitNoticeType] = useState("success");
+
+  const [skipReason, setSkipReason] = useState("");
+  const [skipError, setSkipError] = useState("");
 
   const fetchFeedbackData = useCallback(async () => {
     if (!candidateId) return;
@@ -27,46 +102,73 @@ export default function FeedbackTab({ candidateId }) {
       setError("");
       setFeedbackMap({});
       setPanelMembersMap({});
+      setMyPanelInterviewMap(new Map());
+      setLoggedInInterviewerId("");
 
-      const result = await getCandidateInterviewHistory(candidateId);
-      setHistoryData(result || null);
+      const [candidateHistoryResult, myInterviewsResult] = await Promise.all([
+        getCandidateInterviewHistory(candidateId),
+        getMyInterviews()
+      ]);
 
-      const interviews = Array.isArray(result?.interviews) ? result.interviews : [];
-      if (!interviews.length) return;
+      setHistoryData(candidateHistoryResult || null);
+
+      const candidateInterviews = Array.isArray(candidateHistoryResult?.interviews)
+        ? candidateHistoryResult.interviews
+        : [];
+
+      const myInterviews = normalizeMyInterviews(myInterviewsResult);
+      const currentLoggedInInterviewerId = myInterviewsResult?.interviewer_id || "";
+
+      setLoggedInInterviewerId(currentLoggedInInterviewerId);
+
+      const nextMyPanelInterviewMap = new Map();
+
+      myInterviews
+        .filter((item) => String(item?.candidate_id) === String(candidateId))
+        .forEach((item) => {
+          const interviewId = Number(item?.interview_id ?? item?.id);
+          if (interviewId) {
+            nextMyPanelInterviewMap.set(interviewId, item);
+          }
+        });
+
+      setMyPanelInterviewMap(nextMyPanelInterviewMap);
+
+      if (!candidateInterviews.length) return;
 
       setFeedbackLoading(true);
 
       const uniquePanelIds = [
-        ...new Set(interviews.map((interview) => interview?.panel_id).filter(Boolean))
+        ...new Set(
+          candidateInterviews
+            .map((interview) => interview?.panel_id)
+            .filter(Boolean)
+        )
       ];
 
       const [feedbackResults, panelResults] = await Promise.all([
         Promise.all(
-          interviews.map(async (interview) => {
-            try {
-              const res = await getFeedbackForInterview(interview.id);
+          candidateInterviews.map(async (interview) => {
+            const interviewId = getInterviewId(interview);
 
-              const list = Array.isArray(res)
-                ? res
-                : Array.isArray(res?.feedback)
-                  ? res.feedback
-                  : Array.isArray(res?.data)
-                    ? res.data
-                    : [];
+            try {
+              const res = await getFeedbackForInterview(interviewId);
 
               return {
-                interviewId: interview.id,
-                feedback: list
+                interviewId,
+                feedback: normalizeFeedbackList(res)
               };
             } catch (err) {
-              console.error(`Failed to fetch feedback for interview ${interview.id}`, err);
+              console.error(`Failed to fetch feedback for interview ${interviewId}`, err);
+
               return {
-                interviewId: interview.id,
+                interviewId,
                 feedback: []
               };
             }
           })
         ),
+
         Promise.all(
           uniquePanelIds.map(async (panelId) => {
             try {
@@ -80,10 +182,17 @@ export default function FeedbackTab({ candidateId }) {
                     ? res.panel_members
                     : [];
 
-              return { panelId, members };
+              return {
+                panelId,
+                members
+              };
             } catch (err) {
               console.error(`Failed to fetch panel members for panel ${panelId}`, err);
-              return { panelId, members: [] };
+
+              return {
+                panelId,
+                members: []
+              };
             }
           })
         )
@@ -113,20 +222,33 @@ export default function FeedbackTab({ candidateId }) {
     fetchFeedbackData();
   }, [fetchFeedbackData]);
 
-  const interviews = Array.isArray(historyData?.interviews) ? historyData.interviews : [];
+  const interviews = Array.isArray(historyData?.interviews)
+    ? historyData.interviews
+    : [];
 
   const feedbackSummary = useMemo(() => {
     const totalInterviews = interviews.length;
-    const completedInterviews = Number(historyData?.completed_interviews || 0);
+    const completedInterviews = interviews.filter((interview) => {
+      const interviewId = getInterviewId(interview);
+      const feedbackList = feedbackMap[interviewId] || [];
+      const panelMembers = panelMembersMap[interview?.panel_id] || [];
+      const { doneInterviewerIds } = getFeedbackBreakdown(feedbackList);
+
+      return panelMembers.length > 0 && doneInterviewerIds.size >= panelMembers.length;
+    }).length;
 
     let interviewsWithFeedback = 0;
     let totalFeedbackEntries = 0;
+    let skippedEntries = 0;
 
     interviews.forEach((interview) => {
-      const list = feedbackMap[interview.id] || [];
+      const interviewId = getInterviewId(interview);
+      const list = feedbackMap[interviewId] || [];
+
       if (list.length > 0) {
         interviewsWithFeedback += 1;
         totalFeedbackEntries += list.length;
+        skippedEntries += list.filter(isSkippedFeedback).length;
       }
     });
 
@@ -135,9 +257,10 @@ export default function FeedbackTab({ candidateId }) {
       completedInterviews,
       interviewsWithFeedback,
       interviewsWithoutFeedback: Math.max(totalInterviews - interviewsWithFeedback, 0),
-      totalFeedbackEntries
+      totalFeedbackEntries,
+      skippedEntries
     };
-  }, [historyData, interviews, feedbackMap]);
+  }, [interviews, feedbackMap, panelMembersMap]);
 
   const openSubmitModal = (interview) => {
     setSelectedInterview(interview);
@@ -148,59 +271,144 @@ export default function FeedbackTab({ candidateId }) {
 
   const closeSubmitModal = () => {
     if (submitting) return;
+
     setShowSubmitModal(false);
     setSelectedInterview(null);
     setSubmitNotice("");
     setSubmitNoticeType("success");
   };
-const handleSubmitFeedback = async (form) => {
-  if (!selectedInterview?.id) {
-    setSubmitNotice("Interview is missing");
-    setSubmitNoticeType("error");
-    return;
-  }
 
-  try {
-    setSubmitting(true);
-    setSubmitNotice("");
-    setSubmitNoticeType("success");
+  const openSkipModal = (interview) => {
+    setSelectedInterview(interview);
+    setSkipReason("");
+    setSkipError("");
+    setShowSkipModal(true);
+  };
 
-    await submitInterviewFeedback({
-      interviewId: selectedInterview.id,
-      interviewerId: form.interviewerId,
-      technicalScore: Number(form.technical_score),
-      communicationScore: Number(form.communication_score),
-      problemSolvingScore: Number(form.problem_solving_score),
-      cultureFitScore: Number(form.culture_fit_score),
-      comments: form.comments,
-      recommendation: form.recommendation
-    });
+  const closeSkipModal = () => {
+    if (submitting) return;
 
-    
-    await updateInterview(selectedInterview.id, {
-      status: "Completed"
-    });
+    setShowSkipModal(false);
+    setSelectedInterview(null);
+    setSkipReason("");
+    setSkipError("");
+  };
 
-    
-    await fetchFeedbackData();
+  const completeInterviewIfAllPanelDone = async (interview) => {
+    const interviewId = getInterviewId(interview);
+    const panelMembers = panelMembersMap[interview?.panel_id] || [];
 
-    
-    setSubmitNotice("Feedback submitted successfully");
-    setSubmitNoticeType("success");
+    if (!interviewId || !panelMembers.length) return;
 
-    
-    setTimeout(() => {
-      closeSubmitModal();
-    }, 1000); 
+    const latestFeedbackRes = await getFeedbackForInterview(interviewId);
+    const latestFeedbackList = normalizeFeedbackList(latestFeedbackRes);
+    const { doneInterviewerIds } = getFeedbackBreakdown(latestFeedbackList);
 
-  } catch (err) {
-    console.error("Failed to submit feedback", err);
-    setSubmitNotice(err?.message || "Failed to submit feedback");
-    setSubmitNoticeType("error");
-  } finally {
-    setSubmitting(false);
-  }
-};
+    const allPanelActionsDone = doneInterviewerIds.size >= panelMembers.length;
+
+    if (allPanelActionsDone) {
+      await updateInterview(interviewId, {
+        status: "Completed"
+      });
+    }
+  };
+
+  const handleSubmitFeedback = async (form) => {
+    const interviewId = getInterviewId(selectedInterview);
+
+    if (!interviewId) {
+      setSubmitNotice("Interview is missing");
+      setSubmitNoticeType("error");
+      return;
+    }
+
+    if (!myPanelInterviewMap.has(interviewId)) {
+      setSubmitNotice("You are not assigned as a panel member for this interview");
+      setSubmitNoticeType("error");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setSubmitNotice("");
+      setSubmitNoticeType("success");
+
+      await submitInterviewFeedback({
+        interviewId,
+        interviewerId: form.interviewerId,
+        technicalScore: Number(form.technical_score),
+        communicationScore: Number(form.communication_score),
+        problemSolvingScore: Number(form.problem_solving_score),
+        cultureFitScore: Number(form.culture_fit_score),
+        comments: form.comments.trim(),
+        recommendation: form.recommendation
+      });
+
+      await completeInterviewIfAllPanelDone(selectedInterview);
+      await fetchFeedbackData();
+
+      setSubmitNotice("Feedback submitted successfully");
+      setSubmitNoticeType("success");
+
+      window.setTimeout(() => {
+        closeSubmitModal();
+      }, 1000);
+    } catch (err) {
+      console.error("Failed to submit feedback", err);
+      setSubmitNotice(err?.message || "Failed to submit feedback");
+      setSubmitNoticeType("error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSkipFeedback = async () => {
+    const interviewId = getInterviewId(selectedInterview);
+
+    if (!interviewId) {
+      setSkipError("Interview is missing");
+      return;
+    }
+
+    if (!myPanelInterviewMap.has(interviewId)) {
+      setSkipError("You are not assigned as a panel member for this interview");
+      return;
+    }
+
+    if (!loggedInInterviewerId) {
+      setSkipError("Logged-in interviewer details are missing");
+      return;
+    }
+
+    if (!skipReason.trim()) {
+      setSkipError("Reason is required");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setSkipError("");
+await submitInterviewFeedback({
+  interviewId,
+  interviewerId: loggedInInterviewerId,
+  technicalScore: 0,
+  communicationScore: 0,
+  problemSolvingScore: 0,
+  cultureFitScore: 0,
+  comments: `${SKIP_REASON_PREFIX} ${skipReason.trim()}`,
+  recommendation: "Not sure"
+});
+
+      await completeInterviewIfAllPanelDone(selectedInterview);
+      await fetchFeedbackData();
+      closeSkipModal();
+    } catch (err) {
+      console.error("Failed to skip feedback", err);
+      setSkipError(err?.message || "Failed to mark as not attended");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -259,15 +467,21 @@ const handleSubmitFeedback = async (form) => {
           ) : (
             <div className="space-y-4">
               {interviews.map((interview) => {
-                const feedbackList = feedbackMap[interview.id] || [];
+                const interviewId = getInterviewId(interview);
+                const feedbackList = feedbackMap[interviewId] || [];
+                const myPanelInterview = myPanelInterviewMap.get(interviewId);
 
                 return (
                   <InterviewFeedbackCard
-                    key={interview.id}
+                    key={interviewId}
                     interview={interview}
                     feedbackList={feedbackList}
                     feedbackLoading={feedbackLoading}
+                    panelMembers={panelMembersMap[interview.panel_id] || []}
+                    myPanelInterview={myPanelInterview}
+                    loggedInInterviewerId={loggedInInterviewerId}
                     onSubmitClick={() => openSubmitModal(interview)}
+                    onSkipClick={() => openSkipModal(interview)}
                   />
                 );
               })}
@@ -280,11 +494,26 @@ const handleSubmitFeedback = async (form) => {
         <SubmitFeedbackModal
           interview={selectedInterview}
           panelMembers={panelMembersMap[selectedInterview?.panel_id] || []}
+          loggedInInterviewerId={loggedInInterviewerId}
           loading={submitting}
           notice={submitNotice}
           noticeType={submitNoticeType}
           onClose={closeSubmitModal}
           onSubmit={handleSubmitFeedback}
+        />
+      )}
+
+      {showSkipModal && (
+        <SkipFeedbackModal
+          reason={skipReason}
+          error={skipError}
+          loading={submitting}
+          onReasonChange={(value) => {
+            setSkipReason(value);
+            setSkipError("");
+          }}
+          onClose={closeSkipModal}
+          onSubmit={handleSkipFeedback}
         />
       )}
     </>
@@ -306,17 +535,43 @@ function InterviewFeedbackCard({
   interview,
   feedbackList,
   feedbackLoading,
-  onSubmitClick
+  panelMembers = [],
+  myPanelInterview,
+  loggedInInterviewerId,
+  onSubmitClick,
+  onSkipClick
 }) {
-  const status = interview?.status || "Unknown";
-  const roundName = interview?.panel_round_name || "Interview Round";
+  const interviewId = getInterviewId(interview);
+  const roundName = interview?.panel_round_name || interview?.round_name || "Interview Round";
   const startTime = interview?.start_time ? formatDateTime(interview.start_time) : "-";
-  const feedbackCount =
-    typeof interview?.feedback_count === "number"
-      ? interview.feedback_count
-      : feedbackList.length;
 
-  const canSubmitFeedback = feedbackList.length === 0;
+  const {
+    submittedInterviewerIds,
+    skippedInterviewerIds,
+    doneInterviewerIds,
+    feedbackByInterviewerId
+  } = getFeedbackBreakdown(feedbackList);
+
+  const feedbackProgress = {
+    done: doneInterviewerIds.size,
+    submitted: submittedInterviewerIds.size,
+    skipped: skippedInterviewerIds.size,
+    total: panelMembers.length
+  };
+
+  const derivedStatus =
+    feedbackProgress.total > 0 && feedbackProgress.done >= feedbackProgress.total
+      ? "Completed"
+      : feedbackProgress.done > 0
+        ? "Pending"
+        : interview?.status || "Scheduled";
+
+  const currentUserAlreadyDone =
+    Boolean(myPanelInterview?.feedback_submitted) ||
+    Boolean(myPanelInterview?.my_feedback) ||
+    Boolean(loggedInInterviewerId && doneInterviewerIds.has(loggedInInterviewerId));
+
+  const canTakeAction = Boolean(myPanelInterview) && !currentUserAlreadyDone;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
@@ -326,33 +581,102 @@ function InterviewFeedbackCard({
             <div className="text-base font-semibold text-gray-900">
               {roundName}
             </div>
-            <StatusBadge status={status} />
+
+            <StatusBadge status={derivedStatus} />
           </div>
 
           <div className="text-sm text-gray-600">{startTime}</div>
 
           <div className="text-sm text-gray-600">
-            Feedback Count:{" "}
-            <span className="font-medium text-gray-800">{feedbackCount}</span>
+            Feedback Progress:{" "}
+            <span className="font-medium text-gray-800">
+              {feedbackProgress.done} / {feedbackProgress.total || 0} done
+            </span>
+
+            <span className="ml-2 text-xs text-gray-500">
+              ({feedbackProgress.submitted} submitted, {feedbackProgress.skipped} not attended)
+            </span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm text-gray-500">
-            Interview ID: {interview?.id ?? "-"}
+            Interview ID: {interviewId || "-"}
           </div>
 
-          {canSubmitFeedback && (
-            <button
-              type="button"
-              onClick={onSubmitClick}
-              className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
-            >
-              Submit Feedback
-            </button>
+          {canTakeAction && (
+            <>
+              <button
+                type="button"
+                onClick={onSubmitClick}
+                className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+              >
+                Submit Feedback
+              </button>
+
+              <button
+                type="button"
+                onClick={onSkipClick}
+                className="inline-flex items-center rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 transition hover:bg-orange-100"
+              >
+                Skip Feedback
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {panelMembers.length > 0 && (
+        <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Panel Feedback Status
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-2">
+            {panelMembers.map((member) => {
+              const interviewerId = member?.interviewer_id;
+              const panelFeedback = feedbackByInterviewerId.get(interviewerId);
+              const hasSubmitted = submittedInterviewerIds.has(interviewerId);
+              const hasSkipped = skippedInterviewerIds.has(interviewerId);
+
+              const statusLabel = hasSkipped
+                ? "Not Attended"
+                : hasSubmitted
+                  ? "Submitted"
+                  : "Pending";
+
+              const statusStyles = hasSkipped
+                ? "border-orange-200 bg-orange-50 text-orange-700"
+                : hasSubmitted
+                  ? "border-green-200 bg-green-50 text-green-700"
+                  : "border-yellow-200 bg-yellow-50 text-yellow-700";
+
+              return (
+                <div
+                  key={`member-${interviewerId || member?.id}`}
+                  className={`rounded-lg border px-3 py-2 text-sm ${statusStyles}`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium">
+                      {member?.interviewer_name || member?.interviewer_email || "Panel Member"}
+                    </span>
+
+                    <span className="text-xs font-semibold">
+                      {statusLabel}
+                    </span>
+                  </div>
+
+                  {hasSkipped && panelFeedback?.comments && (
+                    <div className="mt-1 text-xs opacity-80">
+                      Reason: {panelFeedback.comments}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4">
         {feedbackLoading ? (
@@ -365,7 +689,7 @@ function InterviewFeedbackCard({
           <div className="space-y-3">
             {feedbackList.map((feedback, index) => (
               <FeedbackEntryCard
-                key={feedback?.id || `${interview.id}-${index}`}
+                key={feedback?.id || `${interviewId}-${index}`}
                 feedback={feedback}
               />
             ))}
@@ -377,6 +701,8 @@ function InterviewFeedbackCard({
 }
 
 function FeedbackEntryCard({ feedback }) {
+  const skipped = isSkippedFeedback(feedback);
+
   const headerItems = [
     {
       label: "Feedback ID",
@@ -393,6 +719,10 @@ function FeedbackEntryCard({ feedback }) {
         "-"
     },
     {
+      label: "Status",
+      value: skipped ? "Not Attended" : "Submitted"
+    },
+    {
       label: "Recommendation",
       value:
         feedback?.recommendation ||
@@ -402,33 +732,51 @@ function FeedbackEntryCard({ feedback }) {
     }
   ];
 
+  const hiddenKeys = [
+    "id",
+    "interview_id",
+    "interviewer_name",
+    "reviewer_name",
+    "user_name",
+    "submitted_by",
+    "interviewer_id",
+    "recommendation",
+    "decision",
+    "result"
+  ];
+
+  if (skipped) {
+    hiddenKeys.push(
+      "technical_score",
+      "communication_score",
+      "problem_solving_score",
+      "culture_fit_score"
+    );
+  }
+
   const detailEntries = Object.entries(feedback || {}).filter(
     ([key, value]) =>
-      ![
-        "id",
-        "interview_id",
-        "interviewer_name",
-        "reviewer_name",
-        "user_name",
-        "submitted_by",
-        "interviewer_id",
-        "recommendation",
-        "decision",
-        "result"
-      ].includes(key) &&
+      !hiddenKeys.includes(key) &&
       value !== null &&
       value !== undefined &&
       value !== ""
   );
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-3">
+    <div
+      className={`rounded-xl border p-4 shadow-sm ${
+        skipped
+          ? "border-orange-200 bg-orange-50"
+          : "border-gray-200 bg-white"
+      }`}
+    >
+      <div className="grid gap-3 md:grid-cols-4">
         {headerItems.map((item) => (
           <div key={item.label}>
             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
               {item.label}
             </div>
+
             <div className="text-sm text-gray-800 break-words">
               {String(item.value ?? "-")}
             </div>
@@ -441,8 +789,9 @@ function FeedbackEntryCard({ feedback }) {
           {detailEntries.map(([key, value]) => (
             <div key={key}>
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                {formatLabel(key)}
+                {skipped && key === "comments" ? "Reason" : formatLabel(key)}
               </div>
+
               <div className="text-sm text-gray-800 break-words">
                 {String(value)}
               </div>
@@ -457,6 +806,7 @@ function FeedbackEntryCard({ feedback }) {
 function SubmitFeedbackModal({
   interview,
   panelMembers,
+  loggedInInterviewerId,
   loading,
   notice,
   noticeType,
@@ -464,7 +814,7 @@ function SubmitFeedbackModal({
   onSubmit
 }) {
   const [form, setForm] = useState({
-    interviewerId: "",
+    interviewerId: loggedInInterviewerId || "",
     technical_score: 5,
     communication_score: 5,
     problem_solving_score: 5,
@@ -476,13 +826,21 @@ function SubmitFeedbackModal({
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
+    if (loggedInInterviewerId) {
+      setForm((prev) => ({
+        ...prev,
+        interviewerId: loggedInInterviewerId
+      }));
+      return;
+    }
+
     if (panelMembers.length === 1) {
       setForm((prev) => ({
         ...prev,
         interviewerId: panelMembers[0].interviewer_id || ""
       }));
     }
-  }, [panelMembers]);
+  }, [loggedInInterviewerId, panelMembers]);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({
@@ -505,8 +863,14 @@ function SubmitFeedbackModal({
       nextErrors.interviewerId = "Interviewer is required";
     }
 
-    ["technical_score", "communication_score", "problem_solving_score", "culture_fit_score"].forEach((field) => {
+    [
+      "technical_score",
+      "communication_score",
+      "problem_solving_score",
+      "culture_fit_score"
+    ].forEach((field) => {
       const value = Number(form[field]);
+
       if (Number.isNaN(value) || value < 1 || value > 10) {
         nextErrors[field] = "Score must be between 1 and 10";
       }
@@ -566,12 +930,12 @@ function SubmitFeedbackModal({
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <ReadOnlyField
               label="Interview ID"
-              value={interview?.id || "-"}
+              value={getInterviewId(interview) || "-"}
             />
 
             <ReadOnlyField
               label="Round Name"
-              value={interview?.panel_round_name || "-"}
+              value={interview?.panel_round_name || interview?.round_name || "-"}
             />
 
             <SelectField
@@ -579,30 +943,31 @@ function SubmitFeedbackModal({
               value={form.interviewerId}
               onChange={(e) => handleChange("interviewerId", e.target.value)}
               error={errors.interviewerId}
+              disabled={Boolean(loggedInInterviewerId)}
             >
               <option value="">Select interviewer</option>
               {panelMembers.map((member) => (
                 <option
-                  key={member?.interviewer_id || member?.id}
+                  key={`member-${member?.interviewer_id || member?.id}`}
                   value={member?.interviewer_id || ""}
                 >
                   {member?.interviewer_name || member?.interviewer_email || "Interviewer"}
                 </option>
               ))}
             </SelectField>
-<SelectField
-  label="Recommendation"
-  value={form.recommendation}
-  onChange={(e) => handleChange("recommendation", e.target.value)}
-  error={errors.recommendation}
->
-  <option value="">Select recommendation</option>
-  <option value="No Hire">No Hire</option>
-  <option value="Not sure">Not sure</option>
-  <option value="Average">Average</option>
-  <option value="Hire">Hire</option>
-  <option value="Must Hire">Must Hire</option>
-</SelectField>
+
+            <SelectField
+              label="Recommendation"
+              value={form.recommendation}
+              onChange={(e) => handleChange("recommendation", e.target.value)}
+              error={errors.recommendation}
+            >
+              {recommendationOptions.map((opt) => (
+                <option key={`recommendation-${opt.value || "default"}`} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </SelectField>
 
             <FormField
               label="Technical Score"
@@ -679,12 +1044,91 @@ function SubmitFeedbackModal({
   );
 }
 
+function SkipFeedbackModal({
+  reason,
+  error,
+  loading,
+  onReasonChange,
+  onClose,
+  onSubmit
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+      <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+        <div className="border-b px-6 py-5 flex items-start justify-between">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Skip Feedback
+            </h3>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Use this only if you did not attend the interview.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="px-6 py-6 space-y-4">
+          {error && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Reason <span className="text-red-500">*</span>
+            </label>
+
+            <textarea
+              rows={5}
+              value={reason}
+              onChange={(e) => onReasonChange(e.target.value)}
+              placeholder="Example: I could not attend due to another scheduled meeting."
+              className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none transition resize-none focus:border-gray-400"
+            />
+          </div>
+        </div>
+
+        <div className="border-t bg-white px-6 py-4 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={loading}
+            className="inline-flex items-center rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700 transition hover:bg-orange-100 disabled:opacity-60"
+          >
+            {loading ? "Saving..." : "Mark as Not Attended"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Stat({ label, value }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-center">
       <div className="text-2xl font-semibold text-gray-900">
         {value ?? 0}
       </div>
+
       <div className="mt-1 text-xs text-gray-500">{label}</div>
     </div>
   );
@@ -697,6 +1141,8 @@ function StatusBadge({ status }) {
 
   if (normalized.includes("completed")) {
     styles = "bg-green-50 text-green-700 border-green-200";
+  } else if (normalized.includes("pending")) {
+    styles = "bg-orange-50 text-orange-700 border-orange-200";
   } else if (normalized.includes("cancel")) {
     styles = "bg-red-50 text-red-700 border-red-200";
   } else if (normalized.includes("scheduled")) {
@@ -748,6 +1194,7 @@ function ReadOnlyField({ label, value }) {
       <label className="block text-sm font-medium text-gray-700 mb-1.5">
         {label}
       </label>
+
       <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
         {value}
       </div>
@@ -770,6 +1217,7 @@ function FormField({
       <label className="block text-sm font-medium text-gray-700 mb-1.5">
         {label}
       </label>
+
       <input
         type={type}
         value={value}
@@ -783,28 +1231,41 @@ function FormField({
             : "border-gray-300 focus:border-gray-400"
         }`}
       />
+
       {error ? <p className="mt-1 text-xs text-red-500">{error}</p> : null}
     </div>
   );
 }
 
-function SelectField({ label, error, value, onChange, children }) {
+function SelectField({
+  label,
+  error,
+  value,
+  onChange,
+  children,
+  disabled = false
+}) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1.5">
         {label}
       </label>
+
       <select
         value={value}
         onChange={onChange}
+        disabled={disabled}
         className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition bg-white ${
-          error
-            ? "border-red-300 focus:border-red-400"
-            : "border-gray-300 focus:border-gray-400"
+          disabled
+            ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+            : error
+              ? "border-red-300 focus:border-red-400"
+              : "border-gray-300 focus:border-gray-400"
         }`}
       >
         {children}
       </select>
+
       {error ? <p className="mt-1 text-xs text-red-500">{error}</p> : null}
     </div>
   );
@@ -823,6 +1284,7 @@ function TextAreaField({
       <label className="block text-sm font-medium text-gray-700 mb-1.5">
         {label}
       </label>
+
       <textarea
         rows={rows}
         value={value}
@@ -834,6 +1296,7 @@ function TextAreaField({
             : "border-gray-300 focus:border-gray-400"
         }`}
       />
+
       {error ? <p className="mt-1 text-xs text-red-500">{error}</p> : null}
     </div>
   );

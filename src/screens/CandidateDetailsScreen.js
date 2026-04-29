@@ -7,6 +7,7 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import CandidateEditModal from "./CandidateEditModal";
 
+
 import { getCandidateStatus } from "../services/api/candidateStatus";
 import {
   listChecklistTemplates,
@@ -25,6 +26,7 @@ import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate,
 } from "../utils/interviewEmailTemplates";
+import { Mail, MessageCircle, MoreHorizontal } from "lucide-react";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
 
 const initialScheduleForm = {
@@ -107,6 +109,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   const [showPanelMemberDropdown, setShowPanelMemberDropdown] = useState(false);
   const [panelSearch, setPanelSearch] = useState("");
   const panelMemberDropdownRef = useRef(null);
+  const noticeTimerRef = useRef(null);
 
   useEffect(() => {
     if (!candidate?.id) return;
@@ -248,16 +251,26 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       member.label.toLowerCase().includes(panelSearch.toLowerCase()),
     );
   }, [panelSearch, interviewerOptions]);
-
-  const showNotice = (message, type = "success", duration = 4000) => {
-    setNotice(message);
-    setNoticeType(type);
-
-    window.clearTimeout(window.__candidateDetailsNoticeTimeout);
-    window.__candidateDetailsNoticeTimeout = window.setTimeout(() => {
-      setNotice("");
-    }, duration);
+  useEffect(() => {
+  return () => {
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+    }
   };
+}, []);
+
+  const showNotice = (message, type = "success", duration = 3000) => {
+  setNotice(message);
+  setNoticeType(type);
+
+  if (noticeTimerRef.current) {
+    clearTimeout(noticeTimerRef.current);
+  }
+
+  noticeTimerRef.current = setTimeout(() => {
+    setNotice("");
+  }, duration);
+};
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
@@ -415,17 +428,26 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     }
   };
 
-  const togglePanelMember = (memberId) => {
-    const currentIds = Array.isArray(scheduleForm?.interviewerIds)
-      ? scheduleForm?.interviewerIds
-      : [];
+ const togglePanelMember = (memberId) => {
+  const currentIds = Array.isArray(scheduleForm?.interviewerIds)
+  ? scheduleForm?.interviewerIds
+  : [];
+  const isAlreadySelected = currentIds.includes(memberId);
 
-    const updatedIds = currentIds.includes(memberId)
-      ? currentIds.filter((id) => id !== memberId)
-      : [...currentIds, memberId];
+  if (!isAlreadySelected && currentIds.length >= 4) {
+    setScheduleErrors((prev) => ({
+      ...prev,
+      interviewerIds: "Maximum 4 panel members allowed"
+    }));
+    return;
+  }
 
-    handleScheduleInputChange("interviewerIds", updatedIds);
-  };
+  const updatedIds = isAlreadySelected
+    ? currentIds.filter((id) => id !== memberId)
+    : [...currentIds, memberId];
+
+  handleScheduleInputChange("interviewerIds", updatedIds);
+};
 
   const computedDateTime = useMemo(() => {
     if (
@@ -459,6 +481,13 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
     ) {
       errors.interviewerIds = "Please select at least one panel member";
     }
+   const isMoreThanFourMembers =
+  Array.isArray(scheduleForm?.interviewerIds) &&
+  scheduleForm?.interviewerIds.length > 4;
+
+if (isMoreThanFourMembers) {
+  errors.interviewerIds = "Maximum 4 panel members allowed";
+}
 
     if (!scheduleForm.interviewDate) {
       errors.interviewDate = "Interview date is required";
@@ -606,454 +635,545 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       setScheduling(false);
     }
   };
+  const fullName =
+  candidate?.name ||
+  `${candidate?.first_name || ""} ${candidate?.last_name || ""}`.trim() ||
+  "Candidate";
+return (
+  <>
+    <div className="grid gap-5">
+      {notice && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+            noticeType === "error"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-green-200 bg-green-50 text-green-700"
+          }`}
+        >
+          {notice}
+        </div>
+      )}
 
-  return (
-    <>
-      <div className="grid gap-5">
-        {notice && (
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm font-medium ${
-              noticeType === "error"
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-green-200 bg-green-50 text-green-700"
-            }`}
-          >
-            {notice}
-          </div>
-        )}
-
-        <Card
-          title={
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-semibold text-base">Candidate Details</span>
-
-              {statusData?.status && (
-                <StatusBadge type="account" value={statusData.status} />
-              )}
-
-              {statusData?.pipeline_status && (
-                <StatusBadge
-                  type="pipeline"
-                  value={statusData.pipeline_status}
-                />
-              )}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <div className="px-6 py-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-full bg-orange-500 text-white flex items-center justify-center text-lg font-semibold shrink-0">
+              {(fullName || "C")
+                .split(" ")
+                .map((w) => w[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
             </div>
-          }
-          right={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="ghost" onClick={onBack}>
-                Back
-              </Button>
 
-              <div className="relative" ref={scheduleMenuRef}>
-                <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
-                  Schedule
-                </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-lg font-semibold text-gray-900 truncate">
+                  {fullName}
+                </h2>
 
-                {showScheduleMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                    <button
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
-                      onClick={() => openScheduleModal("online")}
-                    >
-                      Online Interview
-                    </button>
+                {statusData?.status && (
+                  <StatusBadge type="account" value={statusData.status} />
+                )}
 
-                    <button
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition"
-                      onClick={() => openScheduleModal("faceToFace")}
-                    >
-                      Face to Face Interview
-                    </button>
-                  </div>
+                {statusData?.pipeline_status && (
+                  <StatusBadge
+                    type="pipeline"
+                    value={statusData.pipeline_status}
+                  />
                 )}
               </div>
 
-              <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
+              <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-gray-500">
+                {candidate?.email ? (
+                  <a
+                    href={`mailto:${candidate.email}`}
+                    className="truncate text-blue-600 hover:underline"
+                  >
+                    {candidate.email}
+                  </a>
+                ) : (
+                  <span>-</span>
+                )}
 
-              <Button
-                disabled={isChecklistAssigned}
-                onClick={() => setShowAssignModal(true)}
-              >
-                Submit Job
-              </Button>
+                {candidate?.phone ? (
+                  <a href={`tel:${candidate.phone}`} className="hover:underline">
+                    {candidate.phone}
+                  </a>
+                ) : (
+                  <span>-</span>
+                )}
+
+                <span className="truncate">{candidate?.jobTitle || "-"}</span>
+              </div>
             </div>
-          }
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <Info label="Name" value={candidate?.name} />
-            <Info label="Email" value={candidate?.email} />
-            <Info label="Phone" value={candidate?.phone} />
-            <Info label="Job Title" value={candidate?.jobTitle} />
           </div>
-        </Card>
 
-        <div className="border-b">
-          <div className="flex flex-wrap gap-2">
-            {[
-              "profile",
-              "messages",
-              "feedback",
-              "documents",
-              "tasks",
-              "activity",
-            ].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2.5 text-sm font-medium rounded-t-xl transition ${
-                  activeTab === tab
-                    ? "bg-white border border-b-0 border-gray-300 text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-                }`}
-              >
-                {tab.toUpperCase()}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
+            <Button variant="ghost" onClick={onBack}>
+              Back
+            </Button>
+
+            <div className="relative" ref={scheduleMenuRef}>
+              <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
+                Schedule
+              </Button>
+
+              {showScheduleMenu && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
+                    onClick={() => openScheduleModal("online")}
+                  >
+                    Online Interview
+                  </button>
+
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
+                    onClick={() => openScheduleModal("faceToFace")}
+                  >
+                    Face to Face Interview
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
+              title="Send Email"
+              onClick={() => {
+                const email = candidate?.email?.trim();
+
+                if (!email) {
+                  showNotice("Candidate email is not available", "error");
+                  return;
+                }
+
+                const subject = encodeURIComponent("Regarding your application");
+                const body = encodeURIComponent(`Hi ${fullName},\n\n`);
+                const to = encodeURIComponent(email);
+
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+                const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
+
+                const openedWindow = window.open(
+                  gmailUrl,
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+
+                if (!openedWindow) {
+                  window.location.href = mailtoUrl;
+                }
+              }}
+            >
+              <Mail className="w-5 h-5 text-gray-600" />
+            </button>
+
+            <button
+              type="button"
+              className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title={`Message ${candidate?.name || "candidate"} on WhatsApp`}
+              disabled={!candidate?.phone}
+              onClick={() => {
+                if (!candidate?.phone) return;
+
+                const cleanedPhone = candidate.phone.replace(/\D/g, "");
+
+                if (!cleanedPhone) {
+                  showNotice("Invalid phone number", "error");
+                  return;
+                }
+
+                window.open(`https://wa.me/${cleanedPhone}`, "_blank");
+              }}
+            >
+              <MessageCircle className="w-5 h-5 text-green-600" />
+            </button>
+
+            <button
+              type="button"
+              className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
+              onClick={() => console.log("More clicked")}
+            >
+              <MoreHorizontal className="w-5 h-5 text-gray-600" />
+            </button>
+
+            <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
+
+            <Button
+              disabled={isChecklistAssigned}
+              onClick={() => setShowAssignModal(true)}
+            >
+              {isChecklistAssigned ? "Checklist Assigned" : "Assign Checklist"}
+            </Button>
           </div>
         </div>
-
-        <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          {activeTab === "profile" && (
-            <ProfileTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "feedback" && (
-            <FeedbackTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "documents" && (
-            <DocumentsTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "tasks" && <TasksTab candidateId={candidate?.id} />}
-          {activeTab === "messages" && (
-            <div className="text-gray-500">Messages Coming Soon</div>
-          )}
-          {activeTab === "activity" && (
-            <ActivityTab candidateId={candidate?.id} />
-          )}
-        </div>
-
-        {editModalOpen && (
-          <CandidateEditModal
-            candidate={candidate}
-            onClose={() => setEditModalOpen(false)}
-          />
-        )}
-
-        {showAssignModal && (
-          <CandidateAssignJobModal
-            onClose={() => setShowAssignModal(false)}
-            candidateDetails={candidate}
-          />
-        )}
       </div>
 
-      {showScheduleModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
-          <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
-            <div className="border-b px-8 py-6 flex items-start justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
-                  {scheduleType === "online"
-                    ? `Schedule Online Interview with ${candidate?.name || "Candidate"}`
-                    : `Schedule Face to Face Interview with ${candidate?.name || "Candidate"}`}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">Testing Interview</p>
-              </div>
+      <div className="border-b">
+        <div className="flex flex-wrap gap-2">
+          {[
+            "profile",
+            "messages",
+            "feedback",
+            "documents",
+            "tasks",
+            "activity",
+          ].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 text-sm font-medium rounded-t-xl transition ${
+                activeTab === tab
+                  ? "bg-white border border-b-0 border-gray-300 text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+              }`}
+            >
+              {tab.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
 
-              <button
-                type="button"
-                onClick={closeScheduleModal}
-                disabled={scheduling}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-              >
-                ×
-              </button>
+      <div className="p-5 bg-white border rounded-2xl shadow-sm">
+        {activeTab === "profile" && <ProfileTab candidateId={candidate?.id} />}
+        {activeTab === "feedback" && <FeedbackTab candidateId={candidate?.id} />}
+        {activeTab === "documents" && (
+          <DocumentsTab candidateId={candidate?.id} />
+        )}
+        {activeTab === "tasks" && <TasksTab candidateId={candidate?.id} />}
+        {activeTab === "messages" && (
+          <div className="text-gray-500">Messages Coming Soon</div>
+        )}
+        {activeTab === "activity" && <ActivityTab candidateId={candidate?.id} />}
+      </div>
+
+      {editModalOpen && (
+        <CandidateEditModal
+          candidate={candidate}
+          onClose={() => setEditModalOpen(false)}
+        />
+      )}
+
+      {showAssignModal && (
+        <CandidateAssignJobModal
+          onClose={() => setShowAssignModal(false)}
+          candidateDetails={candidate}
+        />
+      )}
+    </div>
+
+    {showScheduleModal && (
+      <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+        <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+          <div className="border-b px-8 py-6 flex items-start justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">
+                {scheduleType === "online"
+                  ? `Schedule Online Interview with ${
+                      candidate?.name || "Candidate"
+                    }`
+                  : `Schedule Face to Face Interview with ${
+                      candidate?.name || "Candidate"
+                    }`}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">Testing Interview</p>
             </div>
 
-            <div className="px-8 py-6 max-h-[78vh] overflow-y-auto">
-              <div className="grid grid-cols-1 gap-8">
-                <div className="space-y-8">
-                  <CardBlock
-                    title="Interview Setup"
-                    subtitle="Select panel members and define interview timing."
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <FormField
-                        label="Interview Type"
-                        value={
-                          scheduleType === "online"
-                            ? "Online Interview"
-                            : "Face to Face Interview"
+            <button
+              type="button"
+              onClick={closeScheduleModal}
+              disabled={scheduling}
+              className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="px-8 py-6 max-h-[78vh] overflow-y-auto">
+            <div className="grid grid-cols-1 gap-8">
+              <div className="space-y-8">
+                <CardBlock
+                  title="Interview Setup"
+                  subtitle="Select panel members and define interview timing."
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <FormField
+                      label="Interview Type"
+                      value={
+                        scheduleType === "online"
+                          ? "Online Interview"
+                          : "Face to Face Interview"
+                      }
+                      readOnly
+                    />
+
+                    <FormField
+                      label="Candidate ID"
+                      value={candidate?.id || ""}
+                      readOnly
+                    />
+
+                    <FormField
+                      label="Round Name"
+                      placeholder="e.g. Technical Round 1"
+                      value={scheduleForm.roundName}
+                      onChange={(e) =>
+                        handleScheduleInputChange("roundName", e.target.value)
+                      }
+                      error={scheduleErrors.roundName}
+                    />
+
+                    <div className="md:col-span-2" ref={panelMemberDropdownRef}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Panel Members
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          !loadingUsers &&
+                          setShowPanelMemberDropdown((prev) => !prev)
                         }
-                        readOnly
-                      />
-
-                      <FormField
-                        label="Candidate ID"
-                        value={candidate?.id || ""}
-                        readOnly
-                      />
-
-                      <FormField
-                        label="Round Name"
-                        placeholder="e.g. Technical Round 1"
-                        value={scheduleForm.roundName}
-                        onChange={(e) =>
-                          handleScheduleInputChange("roundName", e.target.value)
-                        }
-                        error={scheduleErrors.roundName}
-                      />
-
-                      <div
-                        className="md:col-span-2"
-                        ref={panelMemberDropdownRef}
+                        className={`w-full min-h-[46px] rounded-xl border px-3 py-2.5 text-sm text-left transition ${
+                          scheduleErrors.interviewerIds
+                            ? "border-red-300"
+                            : "border-gray-300"
+                        } ${
+                          loadingUsers
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-white text-gray-700"
+                        }`}
+                        disabled={loadingUsers}
                       >
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Panel Members
-                        </label>
+                        {selectedPanelMembers.length > 0
+                          ? `${selectedPanelMembers.length} panel member(s) selected`
+                          : loadingUsers
+                            ? "Loading panel members..."
+                            : "Select panel members"}
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            !loadingUsers &&
-                            setShowPanelMemberDropdown((prev) => !prev)
-                          }
-                          className={`w-full min-h-[46px] rounded-xl border px-3 py-2.5 text-sm text-left transition ${
-                            scheduleErrors.interviewerIds
-                              ? "border-red-300"
-                              : "border-gray-300"
-                          } ${
-                            loadingUsers
-                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                              : "bg-white text-gray-700"
-                          }`}
-                          disabled={loadingUsers}
-                        >
-                          {selectedPanelMembers.length > 0
-                            ? `${selectedPanelMembers.length} panel member(s) selected`
-                            : loadingUsers
-                              ? "Loading panel members..."
-                              : "Select panel members"}
-                        </button>
+                      {showPanelMemberDropdown && !loadingUsers && (
+                        <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-lg max-h-72 overflow-auto p-2">
+                          <div className="px-2 pb-2">
+                            <input
+                              type="text"
+                              placeholder="Search panel members..."
+                              value={panelSearch}
+                              onChange={(e) => setPanelSearch(e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400"
+                            />
+                          </div>
 
-                        {showPanelMemberDropdown && !loadingUsers && (
-                          <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-lg max-h-72 overflow-auto p-2">
-                            <div className="px-2 pb-2">
-                              <input
-                                type="text"
-                                placeholder="Search panel members..."
-                                value={panelSearch}
-                                onChange={(e) => setPanelSearch(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400"
-                              />
-                            </div>
-
-                            {filteredPanelMembers.length > 0 ? (
-                              filteredPanelMembers.map((option) => {
-                                const isChecked =
-                                  scheduleForm.interviewerIds.includes(
-                                    option.value,
-                                  );
-
-                                return (
-                                  <label
-                                    key={option.value}
-                                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() =>
-                                        togglePanelMember(option.value)
-                                      }
-                                      className="rounded"
-                                    />
-                                    <span className="text-sm text-gray-700">
-                                      {option.label}
-                                    </span>
-                                  </label>
+                          {filteredPanelMembers.length > 0 ? (
+                            filteredPanelMembers.map((option) => {
+                              const isChecked =
+                                scheduleForm.interviewerIds.includes(
+                                  option.value
                                 );
-                              })
-                            ) : (
-                              <div className="px-3 py-2 text-sm text-gray-500">
-                                No panel members found
-                              </div>
-                            )}
-                          </div>
-                        )}
 
-                        {selectedPanelMembers.length > 0 && (
-                          <div className="mt-3">
-                            <div className="text-sm font-medium text-gray-700 mb-2">
-                              Selected Panel Members
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
-                              {selectedPanelMembers.map((member) => (
-                                <div
-                                  key={member.value}
-                                  className="inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 text-sm font-medium"
+                              return (
+                                <label
+                                  key={option.value}
+                                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
                                 >
-                                  <span>{member.label}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      togglePanelMember(member.value)
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() =>
+                                      togglePanelMember(option.value)
                                     }
-                                    className="text-blue-500 hover:text-blue-700"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              ))}
+                                    className="rounded"
+                                  />
+                                  <span className="text-sm text-gray-700">
+                                    {option.label}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No panel members found
                             </div>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedPanelMembers.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-sm font-medium text-gray-700 mb-2">
+                            Selected Panel Members
                           </div>
-                        )}
 
-                        {scheduleErrors.interviewerIds ? (
-                          <p className="text-xs text-red-500 mt-1">
-                            {scheduleErrors.interviewerIds}
-                          </p>
-                        ) : null}
-                      </div>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedPanelMembers.map((member) => (
+                              <div
+                                key={member.value}
+                                className="inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 text-sm font-medium"
+                              >
+                                <span>{member.label}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    togglePanelMember(member.value)
+                                  }
+                                  className="text-blue-500 hover:text-blue-700"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                      <FormField
-                        label="Interview Date"
-                        type="date"
-                        value={scheduleForm.interviewDate}
-                        onChange={(e) =>
-                          handleScheduleInputChange(
-                            "interviewDate",
-                            e.target.value,
-                          )
-                        }
-                        error={scheduleErrors.interviewDate}
-                      />
-
-                      <SelectField
-                        label="Meeting Platform"
-                        value={scheduleForm.meetingPlatform}
-                        onChange={(e) =>
-                          handleScheduleInputChange(
-                            "meetingPlatform",
-                            e.target.value,
-                          )
-                        }
-                      >
-                        {meetingPlatformOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </SelectField>
-
-                      <SelectField
-                        label="Timezone"
-                        value={scheduleForm.timezone}
-                        onChange={(e) =>
-                          handleScheduleInputChange("timezone", e.target.value)
-                        }
-                        error={scheduleErrors.timezone}
-                      >
-                        {timezoneOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </SelectField>
-
-                      <SelectField
-                        label="Duration"
-                        value={scheduleForm.durationMinutes}
-                        onChange={(e) =>
-                          handleScheduleInputChange(
-                            "durationMinutes",
-                            e.target.value,
-                          )
-                        }
-                        error={scheduleErrors.durationMinutes}
-                      >
-                        {[30, 45, 60, 90, 120].map((minutes) => (
-                          <option key={minutes} value={String(minutes)}>
-                            {formatDurationLabel(minutes)}
-                          </option>
-                        ))}
-                      </SelectField>
-
-                      <FormField
-                        label="Start Time"
-                        type="time"
-                        value={scheduleForm.startTime}
-                        onChange={(e) =>
-                          handleScheduleInputChange("startTime", e.target.value)
-                        }
-                        error={scheduleErrors.startTime}
-                      />
-
-                      <FormField
-                        label="End Time"
-                        type="time"
-                        value={scheduleForm.endTime}
-                        readOnly
-                        error={scheduleErrors.endTime}
-                      />
+                      {scheduleErrors.interviewerIds ? (
+                        <p className="text-xs text-red-500 mt-1">
+                          {scheduleErrors.interviewerIds}
+                        </p>
+                      ) : null}
                     </div>
 
-                    {scheduleType === "faceToFace" && (
-                      <div className="mt-5">
-                        <FormField
-                          label="Interview Location"
-                          placeholder="e.g. BlitzenX Office, 3rd Floor, Hyderabad"
-                          value={scheduleForm.location}
-                          onChange={(e) =>
-                            handleScheduleInputChange(
-                              "location",
-                              e.target.value,
-                            )
-                          }
-                          error={scheduleErrors.location}
-                        />
-                      </div>
-                    )}
-                  </CardBlock>
-
-                  <CardBlock
-                    title="Notes"
-                    subtitle="Optional notes for current phase."
-                  >
-                    <TextAreaField
-                      label="Additional Notes (optional)"
-                      placeholder="Add any useful note here"
-                      value={scheduleForm.extraNotes}
+                    <FormField
+                      label="Interview Date"
+                      type="date"
+                      value={scheduleForm.interviewDate}
                       onChange={(e) =>
-                        handleScheduleInputChange("extraNotes", e.target.value)
+                        handleScheduleInputChange(
+                          "interviewDate",
+                          e.target.value
+                        )
                       }
+                      error={scheduleErrors.interviewDate}
                     />
-                  </CardBlock>
-                </div>
+
+                    <SelectField
+                      label="Meeting Platform"
+                      value={scheduleForm.meetingPlatform}
+                      onChange={(e) =>
+                        handleScheduleInputChange(
+                          "meetingPlatform",
+                          e.target.value
+                        )
+                      }
+                    >
+                      {meetingPlatformOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </SelectField>
+
+                    <SelectField
+                      label="Timezone"
+                      value={scheduleForm.timezone}
+                      onChange={(e) =>
+                        handleScheduleInputChange("timezone", e.target.value)
+                      }
+                      error={scheduleErrors.timezone}
+                    >
+                      {timezoneOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </SelectField>
+
+                    <SelectField
+                      label="Duration"
+                      value={scheduleForm.durationMinutes}
+                      onChange={(e) =>
+                        handleScheduleInputChange(
+                          "durationMinutes",
+                          e.target.value
+                        )
+                      }
+                      error={scheduleErrors.durationMinutes}
+                    >
+                      {[30, 45, 60, 90, 120].map((minutes) => (
+                        <option key={minutes} value={String(minutes)}>
+                          {formatDurationLabel(minutes)}
+                        </option>
+                      ))}
+                    </SelectField>
+
+                    <FormField
+                      label="Start Time"
+                      type="time"
+                      value={scheduleForm.startTime}
+                      onChange={(e) =>
+                        handleScheduleInputChange("startTime", e.target.value)
+                      }
+                      error={scheduleErrors.startTime}
+                    />
+
+                    <FormField
+                      label="End Time"
+                      type="time"
+                      value={scheduleForm.endTime}
+                      readOnly
+                      error={scheduleErrors.endTime}
+                    />
+                  </div>
+
+                  {scheduleType === "faceToFace" && (
+                    <div className="mt-5">
+                      <FormField
+                        label="Interview Location"
+                        placeholder="e.g. BlitzenX Office, 3rd Floor, Hyderabad"
+                        value={scheduleForm.location}
+                        onChange={(e) =>
+                          handleScheduleInputChange(
+                            "location",
+                            e.target.value
+                          )
+                        }
+                        error={scheduleErrors.location}
+                      />
+                    </div>
+                  )}
+                </CardBlock>
+
+                <CardBlock
+                  title="Notes"
+                  subtitle="Optional notes for current phase."
+                >
+                  <TextAreaField
+                    label="Additional Notes (optional)"
+                    placeholder="Add any useful note here"
+                    value={scheduleForm.extraNotes}
+                    onChange={(e) =>
+                      handleScheduleInputChange("extraNotes", e.target.value)
+                    }
+                  />
+                </CardBlock>
               </div>
             </div>
+          </div>
 
-            <div className="border-t bg-white px-8 py-5 flex items-center justify-end gap-3">
-              <Button
-                variant="ghost"
-                onClick={closeScheduleModal}
-                disabled={scheduling}
-              >
-                Cancel
-              </Button>
+          <div className="border-t bg-white px-8 py-5 flex items-center justify-end gap-3">
+            <Button
+              variant="ghost"
+              onClick={closeScheduleModal}
+              disabled={scheduling}
+            >
+              Cancel
+            </Button>
 
-              <Button onClick={handleScheduleInterview} disabled={scheduling}>
-                {scheduling ? "Processing..." : "Schedule Interview"}
-              </Button>
-            </div>
+            <Button onClick={handleScheduleInterview} disabled={scheduling}>
+              {scheduling ? "Processing..." : "Schedule Interview"}
+            </Button>
           </div>
         </div>
-      )}
-    </>
-  );
+      </div>
+    )}
+  </>
+);
 }
-
 function CardBlock({ title, subtitle, children }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
