@@ -178,3 +178,13 @@ export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
   );
   return (data, response);
 };
+
+export const jobsFilter = async (parameters) => {
+  const { data } = await apiRequest(
+    `/jobs/filter${parameters ? `?${parameters}` : ""}`,
+    {
+      method: "GET",
+    },
+  );
+  return data;
+};
