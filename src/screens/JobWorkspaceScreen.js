@@ -12,7 +12,7 @@ import { toast } from "react-toastify";
 import { getCandidateById } from "../services/api/candidates";
 import { UserMinus } from "lucide-react";
 
-const TABS = ["Dashboard", "Candidates", "Job Info", "Job Analytics"];
+const TABS = ["Candidates", "Job Info", "Job Analytics"];
 
 const getStageLabel = (candidate) => {
   const status = String(candidate?.pipelineStatus || candidate?.status || "")
@@ -488,59 +488,6 @@ export default function JobWorkspaceScreen({
             </div>
           </div>
         </div>
-      ) : activeTab === "Dashboard" ? (
-        <>
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="mb-3 text-lg font-bold text-slate-900">
-              Job Dashboard
-            </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="flex justify-between items-center rounded-xl border bg-slate-50 p-3">
-                <div className="flex-col">
-                  <div className="text-xs font-semibold text-slate-500">
-                    My Open Jobs
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">
-                    {job?.id || "—"}
-                  </div>
-                </div>
-                <div>12</div>
-              </div>
-              <div className="rounded-xl border bg-slate-50 p-3">
-                <div className="text-xs font-semibold text-slate-500">
-                  My Aging Jobs
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {job?.title || "—"}
-                </div>
-              </div>
-              <div className="rounded-xl border bg-slate-50 p-3">
-                <div className="text-xs font-semibold text-slate-500">
-                  Critical Jobs
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {job?.title || "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <Toolbar
-              view={view}
-              setView={setView}
-              setDrawerOpen={setDrawerOpen}
-              onSearch={handleSearch}
-              onReset={handleReset}
-            />
-            <FilterDrawers
-              open={drawerOpen}
-              onClose={() => setDrawerOpen(false)}
-              filters={filters}
-              setFilters={setFilters}
-            />
-            <TableView job={job} />
-          </div>
-        </>
       ) : activeTab === "Job Analytics" ? (
         <>
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">

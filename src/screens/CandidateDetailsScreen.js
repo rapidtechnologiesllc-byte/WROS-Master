@@ -277,7 +277,7 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
       setAssigning(true);
 
       await assignChecklistToCandidate({
-        candidateId: candidate.id,
+        candidateId: candidate?.id,
         templateId: selectedTemplate,
       });
 
@@ -416,8 +416,8 @@ export default function CandidateDetailsScreen({ candidate, onBack }) {
   };
 
   const togglePanelMember = (memberId) => {
-    const currentIds = Array.isArray(scheduleForm.interviewerIds)
-      ? scheduleForm.interviewerIds
+    const currentIds = Array.isArray(scheduleForm?.interviewerIds)
+      ? scheduleForm?.interviewerIds
       : [];
 
     const updatedIds = currentIds.includes(memberId)
