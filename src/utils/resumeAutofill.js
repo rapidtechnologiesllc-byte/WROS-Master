@@ -5,7 +5,7 @@ const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
 const PHONE_RES = [
   /\+\d{1,3}[\s.-]?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,9}/,
   /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/,
-  /\d{3}[\s.-]\d{3}[\s.-]\d{4}/
+  /\d{3}[\s.-]\d{3}[\s.-]\d{4}/,
 ];
 
 function normalizePhone(raw) {
@@ -43,71 +43,49 @@ function splitFullName(full) {
   return {
     firstName: parts[0],
     middleName: parts.slice(1, -1).join(" "),
-    lastName: parts[parts.length - 1]
+    lastName: parts[parts.length - 1],
   };
 }
 
 function guessNameLine(lines, emailInText) {
-  const beforeEmail = emailInText
-    ? lines.slice(
-        0,
-        Math.max(
-          0,
-          lines.findIndex((l) => EMAIL_RE.test(l)) === -1
-            ? 6
-            : lines.findIndex((l) => EMAIL_RE.test(l))
-        )
-      )
-    : lines.slice(0, 8);
+  const limit = emailInText
+    ? lines.findIndex((l) => EMAIL_RE.test(l)) || 8
+    : 8;
+  const candidates = lines.slice(0, limit > 0 ? limit : 8);
+  let bestLine = "";
+  let bestScore = 0;
 
-  const skip = /^(resume|cv|curriculum|phone|email|mobile|linkedin|github|http|summary|objective|education|experience|skills|work)\b/i;
-
-  for (const line of beforeEmail) {
-    if (line.length < 3 || line.length > 60) continue;
-    if (skip.test(line)) continue;
-    if (EMAIL_RE.test(line) || /^\+?\d[\d\s().-]{8,}$/.test(line)) continue;
-    if (/^[^A-Za-z]+$/.test(line)) continue;
-    const words = line.split(/\s+/).filter(Boolean);
-    if (words.length < 2 || words.length > 5) continue;
-    if (words.every((w) => /^[A-Z.]+$/.test(w) && w.length <= 2)) continue;
-    if (/^[A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)+(?:\s+[A-Za-z][a-z]+)*$/.test(line))
-      return line;
-    if (/^[A-Z][A-Z\s.'-]+$/.test(line) && words.length >= 2 && words.length <= 4)
-      return line
-        .toLowerCase()
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+  for (let line of candidates) {
+    if (!line) continue;
+    const cleaned = line.split(/[\|\-–,]/)[0].trim();
+    let score = 0;
+    if (cleaned.length < 3 || cleaned.length > 50) continue;
+    if (EMAIL_RE.test(cleaned)) continue;
+    if (/^\+?\d[\d\s().-]+$/.test(cleaned)) continue;
+    if (/^(resume|cv|email|phone|mobile|linkedin|github)/i.test(cleaned)) continue;
+    const words = cleaned.split(/\s+/);
+    if (words.length >= 2 && words.length <= 4) score += 3;
+    if (/\d/.test(cleaned)) score -= 2;
+    if (/^[A-Z][a-z]+(\s+[A-Z][a-z]+)+$/.test(cleaned)) score += 5;
+    if (/^[A-Z\s]+$/.test(cleaned)) score += 4;
+    if (/^[A-Za-z][A-Za-z.'-]+(\s+[A-Za-z][A-Za-z.'-]+)+$/.test(cleaned)) score += 4;
+    if (words.length > 5) score -= 3;
+    if (score > bestScore) {
+      bestScore = score;
+      bestLine = cleaned;
+    }
   }
 
-  // Fallback: pick the first "reasonable" line near the top that looks like a name.
-  const fallbackCandidates = beforeEmail.filter((line) => {
-    if (skip.test(line)) return false;
-    if (EMAIL_RE.test(line)) return false;
-    if (/\d/.test(line)) return false;
-    const words = line.split(/\s+/).filter(Boolean);
-    if (words.length < 2 || words.length > 5) return false;
-    const alphaWords = words.filter((w) => /[A-Za-z]/.test(w));
-    if (alphaWords.length < 2) return false;
-    if (alphaWords.some((w) => w.length > 22)) return false;
-    return true;
-  });
+  if (!bestLine) return "";
 
-  if (!fallbackCandidates.length) return "";
-
-  const candidate = fallbackCandidates[0].replace(/[,:;]+$/g, "").trim();
-  // If it's fully lowercase/mixed, title-case it.
-  if (!/[A-Z]{2,}/.test(candidate) && candidate === candidate.toLowerCase()) {
-    return candidate
-      .split(/\s+/)
-      .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-      .join(" ");
-  }
-
-  return candidate;
+  return bestLine
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function extractSkillsBlob(text) {
   const m = text.match(
-    /(?:^|\n)\s*(?:technical\s+)?skills\s*:?\s*([\s\S]+?)(?=\n\s*(?:experience|work\s+history|education|employment|projects|certifications)\b|\n{2,}|$)/i
+    /(?:^|\n)\s*(?:technical\s+)?skills\s*:?\s*([\s\S]+?)(?=\n\s*(?:experience|work\s+history|education|employment|projects|certifications)\b|\n{2,}|$)/i,
   );
   if (m) {
     return m[1]
@@ -147,7 +125,7 @@ function extractSkillsBlob(text) {
     "REST API",
     "GraphQL",
     "Spring Boot",
-    "Microservices"
+    "Microservices",
   ];
 
   const found = [];
@@ -161,29 +139,59 @@ function extractSkillsBlob(text) {
 function guessExperience(text) {
   const normalized = text.replace(/\s+/g, " ");
   const yearsLabel = normalized.match(
-    /(?:total\s+)?(?:overall\s+)?(?:professional\s+)?(?:work\s+)?(?:experience|exp\.?)\s*:?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/i
+    /(?:total\s+)?(?:overall\s+)?(?:professional\s+)?(?:work\s+)?(?:experience|exp\.?)\s*:?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/i,
   );
   if (yearsLabel) return `${yearsLabel[1]} years`;
 
   const yearsInline = normalized.match(
-    /(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?\.?)\s+(?:of\s+)?(?:experience|exp\.?|in\s+development)/i
+    /(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?\.?)\s+(?:of\s+)?(?:experience|exp\.?|in\s+development)/i,
   );
   if (yearsInline) return `${yearsInline[1]} years`;
 
-  const range = text.match(
-    /(\d{4})\s*[-–]\s*(?:present|\d{4})/i
-  );
+  const range = text.match(/(\d{4})\s*[-–]\s*(?:present|\d{4})/i);
   if (range) return `Since ${range[1]}`;
+  return "";
+}
+
+function guessJobTitle(lines, nameLine) {
+  if (!nameLine) return "";
+
+  const index = lines.findIndex((l) => l.includes(nameLine));
+  if (index === -1) return "";
+
+  // 1. Same line case (John Doe | Software Engineer)
+  const sameLine = lines[index];
+  const parts = sameLine.split(/[\|\-–]/);
+  if (parts.length > 1) {
+    const title = parts[1].trim();
+    if (title.length < 50) return title;
+  }
+
+  // 2. Next lines
+  for (let i = index + 1; i <= index + 3; i++) {
+    const line = lines[i];
+    if (!line) continue;
+
+    if (
+      line.length < 50 &&
+      !EMAIL_RE.test(line) &&
+      !/\d/.test(line) &&
+      !/^(skills|education|experience|projects|summary)/i.test(line)
+    ) {
+      return line.trim();
+    }
+  }
+
   return "";
 }
 
 function guessLocation(text) {
   const labeled = text.match(
-    /(?:^|\n)\s*(?:location|address|based\s+in)\s*:?\s*([^\n]+)/i
+    /(?:^|\n)\s*(?:location|address|based\s+in)\s*:?\s*([^\n]+)/i,
   );
   if (labeled) return labeled[1].trim().slice(0, 120);
   const cityState = text.match(
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),\s*([A-Z]{2})\b/
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),\s*([A-Z]{2})\b/,
   );
   if (cityState) return `${cityState[1]}, ${cityState[2]}`;
   return "";
@@ -210,6 +218,9 @@ export function inferFieldsFromResumeText(raw) {
 
   const nameLine = guessNameLine(lines, !!emailMatch);
   if (nameLine) Object.assign(out, splitFullName(nameLine));
+  out._nameLine = nameLine;
+  const jobTitle = guessJobTitle(lines, nameLine);
+  if (jobTitle) out.jobTitle = jobTitle;
 
   const skills = extractSkillsBlob(text);
   if (skills) out.skills = skills.replace(/^[, ]+|[, ]+$/g, "");
@@ -254,14 +265,14 @@ export async function extractResumeText(file) {
     const mammothMod = await import("mammoth");
     const mammoth = mammothMod.default || mammothMod;
     const result = await mammoth.extractRawText({
-      arrayBuffer: await file.arrayBuffer()
+      arrayBuffer: await file.arrayBuffer(),
     });
     return (result && result.value) || "";
   }
 
   if (name.endsWith(".doc") && type !== "application/pdf") {
     throw new Error(
-      "Auto-fill supports PDF and DOCX. Save as DOCX or PDF, or fill the form manually."
+      "Auto-fill supports PDF and DOCX. Save as DOCX or PDF, or fill the form manually.",
     );
   }
 

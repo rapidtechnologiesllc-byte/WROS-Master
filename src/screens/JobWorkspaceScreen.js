@@ -9,6 +9,8 @@ import { candidateAppendedJob, removeCandidateApi } from "../services/api/jobs";
 import CandidateEditModal from "./CandidateEditModal";
 import AssignJobModal from "./AssignJobModal";
 import { toast } from "react-toastify";
+import { getCandidateById } from "../services/api/candidates";
+import { UserMinus } from "lucide-react";
 
 const TABS = ["Dashboard", "Candidates", "Job Info", "Job Analytics"];
 
@@ -79,7 +81,27 @@ export default function JobWorkspaceScreen({
       try {
         setLoading(true);
         const result = await candidateAppendedJob(job?.id);
-        setFinalCandidates(result?.candidates || []);
+        const applications = result?.applications || [];
+        const enrichedCandidates = await Promise.all(
+          applications.map(async (app) => {
+            try {
+              const candidateDetails = await getCandidateById(
+                app?.candidate_id,
+              );
+              return {
+                ...app,
+                candidate: candidateDetails,
+              };
+            } catch (err) {
+              console.log(`Error fetching candidate ${app?.candidate_id}`, err);
+              return {
+                ...app,
+                candidate: null,
+              };
+            }
+          }),
+        );
+        setFinalCandidates(enrichedCandidates);
         setLoading(false);
       } catch (err) {
         console.log(err);
@@ -95,9 +117,9 @@ export default function JobWorkspaceScreen({
   const normalizedCandidates = useMemo(() => {
     return finalCandidates.map((c) => ({
       id: c.candidate_id,
-      name: `${c.candidate_first_name || ""} ${c.candidate_last_name || ""}`.trim(),
-      email: c.candidate_email,
-      phone: c.candidate_mobile,
+      name: `${c?.candidate?.candidate_name || ""} ${c.candidate_last_name || ""}`.trim(),
+      email: c?.candidate?.candidate_email,
+      phone: c?.candidate?.candidate_mobile,
       experience: c.candidate_experience,
       location: c.candidate_current_location,
       source: "API",
@@ -108,18 +130,14 @@ export default function JobWorkspaceScreen({
   }, [finalCandidates]);
 
   const jobCandidates = useMemo(() => {
-    const data = normalizedCandidates.length
-      ? normalizedCandidates
-      : candidates;
-    if (!normalizedTitle) return data;
-
-    const matched = data.filter((c) =>
+    if (!normalizedTitle) return normalizedCandidates;
+    const matched = normalizedCandidates.filter((c) =>
       String(c?.jobTitle || "")
         .toLowerCase()
         .includes(normalizedTitle),
     );
-    return matched.length ? matched : data;
-  }, [normalizedCandidates, candidates, normalizedTitle]);
+    return matched.length ? matched : normalizedCandidates;
+  }, [normalizedCandidates, normalizedTitle]);
 
   const stageCounts = useMemo(() => {
     const counts = Object.fromEntries(STAGES.map((s) => [s, 0]));
@@ -214,16 +232,33 @@ export default function JobWorkspaceScreen({
   };
 
   const handleAssignedCandidate = (candidate) => {
-    setFinalCandidates((prev) =>
-      prev.map((c) =>
-        c.candidate_id === candidate.id
-          ? {
-              ...c,
-              pipelineStatus: "Hired",
-            }
-          : c,
-      ),
-    );
+    setFinalCandidates((prev) => {
+      const exists = prev.some((c) => c.candidate_id === candidate.id);
+      if (exists) {
+        return prev.map((c) =>
+          c.candidate_id === candidate.id
+            ? {
+                ...c,
+                status: "Assigned",
+                pipelineStatus: "Assigned",
+              }
+            : c,
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          candidate_id: candidate.id,
+          candidate_first_name: candidate.name?.split(" ")[0],
+          candidate_last_name: candidate.name?.split(" ")[1] || "",
+          candidate_email: candidate.email,
+          candidate_mobile: candidate.phone,
+          status: "Assigned",
+          pipelineStatus: "Assigned",
+        },
+      ];
+    });
   };
 
   const removeCandidateHandler = async (candidateId) => {
@@ -232,9 +267,12 @@ export default function JobWorkspaceScreen({
       return;
     }
     try {
-      const result = await removeCandidateApi(candidateId);
+      const result = await removeCandidateApi(job?.id, candidateId);
       if (result?.status === 200) {
         toast.success("Candidate Removed");
+        setFinalCandidates((prev) =>
+          prev.filter((c) => c.candidate_id !== candidateId),
+        );
       } else {
         toast.error("Failed to remove candidate");
       }
@@ -405,12 +443,11 @@ export default function JobWorkspaceScreen({
                   actions: (
                     <span className="text-xs text-slate-500">
                       <button
-                        onClick={() => {
-                          removeCandidateHandler(c.id);
-                        }}
-                        className="bg-red-600 text-white hover:bg-red-700 focus:ring-emerald-500 disabled:opacity-60 rounded p-2"
+                        onClick={() => removeCandidateHandler(c?.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition"
                       >
-                        Remove Candidate
+                        <UserMinus size={14} />
+                        Remove
                       </button>
                     </span>
                   ),
@@ -501,7 +538,7 @@ export default function JobWorkspaceScreen({
               filters={filters}
               setFilters={setFilters}
             />
-            <TableView data={filteredData} />
+            <TableView job={job} />
           </div>
         </>
       ) : activeTab === "Job Analytics" ? (
