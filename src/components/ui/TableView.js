@@ -101,29 +101,12 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
       dataIndex: "hiringManagerName",
       render: (val) => <Tag>{val}</Tag>,
     },
-    { title: "Open", dataIndex: "openPositions" },
     { title: "Experience Level", dataIndex: "experienceLevel" },
     {
       title: "Status",
       dataIndex: "status",
       render: (val) => (
         <Tag color={val === "Open" ? "green" : "default"}>{val}</Tag>
-      ),
-    },
-
-    {
-      title: "",
-      render: () => (
-        <Dropdown
-          menu={{
-            items: [
-              { key: "1", label: "Edit" },
-              { key: "2", label: "Delete" },
-            ],
-          }}
-        >
-          <MoreOutlined style={{ cursor: "pointer" }} />
-        </Dropdown>
       ),
     },
   ];

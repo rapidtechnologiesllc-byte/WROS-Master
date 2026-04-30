@@ -2,7 +2,8 @@
 import cx from "../../utils/cx";
 import { pill } from "../../utils/pill";
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status, value }) {
+  const finalStatus = status || value;
   const map = {
     New: "border-gray-200 bg-gray-50 text-gray-800",
     Applied: "border-blue-200 bg-blue-50 text-blue-800",
@@ -32,7 +33,7 @@ export default function StatusBadge({ status }) {
     Declined: "border-red-200 bg-red-50 text-red-800",
     Screening: "border-blue-200 bg-blue-50 text-blue-800",
     Interview: "border-purple-200 bg-purple-50 text-purple-800",
-    "Pre-Boarding": "border-amber-200 bg-amber-50 text-amber-900",
+    "Pre-Onboarding": "border-amber-200 bg-amber-50 text-amber-900",
     Onboarded: "border-green-200 bg-green-50 text-green-900",
     Hired: "border-green-200 bg-green-50 text-green-900",
     Active: "border-green-200 bg-green-50 text-green-800",
@@ -40,7 +41,7 @@ export default function StatusBadge({ status }) {
   };
 
   let key = status;
-  const raw = String(status || "");
+  const raw = String(finalStatus || "");
   const lower = raw.toLowerCase();
 
   if (lower.includes("offer cancelled")) key = "Offer Cancelled";
@@ -50,5 +51,5 @@ export default function StatusBadge({ status }) {
   else if (lower.includes("verified")) key = "Verified";
   else if (lower.includes("pending")) key = "Pending";
 
-  return <span className={cx(pill, map[key] || map.Draft)}>{status}</span>;
+  return <span className={cx(pill, map[key] || map.Draft)}>{finalStatus}</span>;
 }
