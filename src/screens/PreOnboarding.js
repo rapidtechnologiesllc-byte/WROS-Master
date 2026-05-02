@@ -11,11 +11,19 @@ const PreOnboardingPage = ({ candidates }) => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [preboardingStatus, setPreboardingStatus] = useState({});
   const [preBoardingCandidates, setPreBoardingCandidates] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const getAllCandidatesApi = async () => {
-      const candidateList = await getAllCandidates();
-      setPreBoardingCandidates(candidateList?.candidates)
+      setLoading(true);
+      try {
+        const candidateList = await getAllCandidates();
+        setPreBoardingCandidates(candidateList?.candidates);
+      } catch (err) {
+        console.log(err);
+      } finally {
+        setLoading(false);
+      }
     };
     getAllCandidatesApi();
   }, []);
@@ -41,7 +49,8 @@ const PreOnboardingPage = ({ candidates }) => {
     {
       title: "Action",
       render: (_, record) => {
-        const isAssigned = preboardingStatus[record.candidate_id] === "assigned";
+        const isAssigned =
+          preboardingStatus[record.candidate_id] === "assigned";
         return (
           <button
             className="px-4 py-1.5 text-sm font-medium text-blue-600 
@@ -67,7 +76,7 @@ const PreOnboardingPage = ({ candidates }) => {
     <>
       <div className="grid gap-4">
         <Card title="All Jobs" icon={<Briefcase className="h-4 w-4" />}>
-          <PreonboardingTable columns={columns} data={formattedCandidates} />
+          <PreonboardingTable columns={columns} data={formattedCandidates} loading={loading}/>
           <PreboardingDrawer
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}

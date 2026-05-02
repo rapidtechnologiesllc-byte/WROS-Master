@@ -1,6 +1,6 @@
 import { Table } from "antd";
 
-const PreonboardingTable = ({columns,data}) => {
+const PreonboardingTable = ({columns,data, loading}) => {
   return (
     <>
       <div style={wrapper}>
@@ -9,6 +9,7 @@ const PreonboardingTable = ({columns,data}) => {
         dataSource={data}
         pagination={false}
         rowKey="id"
+        loading={loading}
       />
       </div>
     </>

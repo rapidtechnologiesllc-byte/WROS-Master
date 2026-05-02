@@ -71,6 +71,13 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
   };
 
   useEffect(() => {
+    if (items && items.length > 0) {
+      const allKeys = items.map((item) => item.key);
+      setSelectedRowKeys(allKeys);
+    }
+  }, [items]);
+
+  useEffect(() => {
     const listTemplates = async () => {
       try {
         const res = await getChecklistTemplate(5);
@@ -201,7 +208,10 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
           to complete tasks
         </Text>
         <br />
-        <Link>Go to candidate portal setup</Link>
+        <Text type="secondary">
+          Note: Please dont select any task if job position is for interns.
+        </Text>
+        <br />
       </div>
       <Row justify="space-between" align="middle">
         <Title level={5}>Assign tasks</Title>
