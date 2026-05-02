@@ -79,7 +79,11 @@ const emailTemplateOptions = [
   "Custom",
 ];
 
-export default function CandidateDetailsScreen({ candidate, onBack }) {
+export default function CandidateDetailsScreen({
+  candidate,
+  onBack,
+  onUpdateCandidate,
+}) {
   const [activeTab, setActiveTab] = useState("profile");
   const [statusData, setStatusData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -682,7 +686,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
                   {preonboardingModal && (
                     <PreonboardingModal
-                    fullName={fullName}
+                      fullName={fullName}
                       candidate={candidate}
                       onClose={() => setPreonboardingModal(false)}
                     />
@@ -881,6 +885,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
           <CandidateEditModal
             candidate={candidate}
             onClose={() => setEditModalOpen(false)}
+            onUpdateCandidate={onUpdateCandidate}
           />
         )}
 

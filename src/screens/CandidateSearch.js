@@ -235,7 +235,7 @@ export default function CandidateSearch({
         </div>
       </Card>
 
-      {false && editingCandidate ? (
+      {editingCandidate ? (
         <CandidateEditModal
           candidate={editingCandidate}
           onClose={() => {

@@ -615,6 +615,15 @@ export default function App() {
         <CandidateDetailsScreen
           candidate={selectedCandidateData}
           onBack={() => safeSetScreen("candidateSearch")}
+          onUpdateCandidate={async (candidateId, payload) => {
+            try {
+              await updateCandidate(candidateId, payload);
+              await refreshCandidates();
+              notify("Candidate", "Candidate updated.");
+            } catch (err) {
+              notify("Candidate", err.message || "Failed to update candidate.");
+            }
+          }}
         />
       )}
 
