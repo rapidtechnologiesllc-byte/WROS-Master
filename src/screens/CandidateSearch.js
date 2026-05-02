@@ -1,8 +1,20 @@
 // Candidate search/listing and selection screen.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Users } from "lucide-react";
-import { Button, Card, Input, Select, StatusBadge, Table } from "../components/ui";
+import {
+  Button,
+  Card,
+  Input,
+  Select,
+  StatusBadge,
+  Table,
+} from "../components/ui";
 import CandidateEditModal from "./CandidateEditModal";
+import {
+  getCandidateStatus,
+  updateCandidateStatus,
+} from "../services/api/candidates";
+import { toast } from "react-toastify";
 
 export default function CandidateSearch({
   candidates,
@@ -18,33 +30,71 @@ export default function CandidateSearch({
   onDeleteCandidate,
   onFetchCandidateById,
   setScreen,
-setSelectedCandidate,
-  onRefreshCandidates
+  setSelectedCandidate,
+  onRefreshCandidates,
 }) {
   const [query, setQuery] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editCandidateId, setEditCandidateId] = useState("");
-  const [overrideEditingCandidate, setOverrideEditingCandidate] = useState(null);
+  const [overrideEditingCandidate, setOverrideEditingCandidate] =
+    useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [candidateList, setCandidateList] = useState(candidates);
+
+  useEffect(() => {
+    setCandidateList(candidates);
+  }, [candidates]);
 
   const editingCandidate = useMemo(() => {
     if (
       overrideEditingCandidate &&
-      String(overrideEditingCandidate.id || "") === String(editCandidateId || "")
+      String(overrideEditingCandidate.id || "") ===
+        String(editCandidateId || "")
     ) {
       return overrideEditingCandidate;
     }
-    return candidates.find((c) => c.id === editCandidateId) || null;
-  }, [candidates, editCandidateId, overrideEditingCandidate]);
+    return candidateList.find((c) => c.id === editCandidateId) || null;
+  }, [candidateList, editCandidateId, overrideEditingCandidate]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter(
+    if (!q) return candidateList;
+    return candidateList.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q)
+        c.phone.toLowerCase().includes(q),
     );
-  }, [candidates, query]);
+  }, [candidateList, query]);
+
+  const handleCandidateStatus = async (candidateId) => {
+    try {
+      const result = await updateCandidateStatus(candidateId, {
+        status: "Active",
+        pipeline_status: "Pre-Onboarding",
+      });
+      if (result?.status === "success") {
+        toast.success(
+          `Candidate ${result?.data?.candidate_name} moved to Pre-Onboarding`,
+        );
+        const candidateStatus = await getCandidateStatus(candidateId);
+        setCandidateList((prev) =>
+          prev.map((c) =>
+            c.id === candidateId
+              ? {
+                  ...c,
+                  status: candidateStatus?.status,
+                  pipelineStatus: candidateStatus?.pipeline_status,
+                }
+              : c,
+          ),
+        );
+      }
+    } catch (err) {
+      toast.error(err);
+      console.log(err);
+    }
+  };
 
   return (
     <div className="grid gap-4">
@@ -107,29 +157,29 @@ setSelectedCandidate,
             { key: "pipeline", header: "Pipeline" },
             { key: "account", header: "Account" },
             { key: "status", header: "Verified" },
+            { key: "actions", header: "" },
           ]}
           rows={filtered.map((c) => ({
             name: (
               <button
                 className="font-semibold hover:underline"
-               
                 onClick={async () => {
-  setSelectedCandidateId(c.id);
+                  setSelectedCandidateId(c.id);
 
-  let finalCandidate = c;
+                  let finalCandidate = c;
 
-  if (onFetchCandidateById) {
-    try {
-      const fresh = await onFetchCandidateById(c.id);
-      if (fresh) {
-        finalCandidate = fresh;
-      }
-    } catch (err) {}
-  }
+                  if (onFetchCandidateById) {
+                    try {
+                      const fresh = await onFetchCandidateById(c.id);
+                      if (fresh) {
+                        finalCandidate = fresh;
+                      }
+                    } catch (err) {}
+                  }
 
-  setSelectedCandidate(finalCandidate);
-  setScreen("candidateDetails");
-}}
+                  setSelectedCandidate(finalCandidate);
+                  setScreen("candidateDetails");
+                }}
               >
                 {c.name}
               </button>
@@ -152,6 +202,31 @@ setSelectedCandidate,
               <span className="text-xs text-gray-400">—</span>
             ),
             status: <StatusBadge status={c.status} />,
+            actions: (
+              <div className="relative">
+                <button
+                  className="px-2 py-1 text-gray-600 hover:text-black"
+                  onClick={() =>
+                    setOpenMenuId(openMenuId === c.id ? null : c.id)
+                  }
+                >
+                  ⋮
+                </button>
+                {openMenuId === c.id && (
+                  <div className="absolute right-0 mt-2 w-40 bg-white border rounded shadow-md z-10">
+                    <button
+                      className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                      onClick={() => {
+                        handleCandidateStatus(c?.id);
+                        setOpenMenuId(null);
+                      }}
+                    >
+                      Pre Onboarding
+                    </button>
+                  </div>
+                )}
+              </div>
+            ),
           }))}
         />
 
@@ -160,19 +235,18 @@ setSelectedCandidate,
         </div>
       </Card>
 
-     
-      {false && editingCandidate ? (
-  <CandidateEditModal
-    candidate={editingCandidate}
-    onClose={() => {
-      setEditModalOpen(false);
-      setEditCandidateId("");
-      setOverrideEditingCandidate(null);
-    }}
-    onUpdateCandidate={onUpdateCandidate}
-    onRefreshCandidates={onRefreshCandidates}
-  />
-) : null}
+      {editingCandidate ? (
+        <CandidateEditModal
+          candidate={editingCandidate}
+          onClose={() => {
+            setEditModalOpen(false);
+            setEditCandidateId("");
+            setOverrideEditingCandidate(null);
+          }}
+          onUpdateCandidate={onUpdateCandidate}
+          onRefreshCandidates={onRefreshCandidates}
+        />
+      ) : null}
     </div>
   );
 }

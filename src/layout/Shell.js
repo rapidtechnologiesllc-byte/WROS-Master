@@ -13,20 +13,18 @@ import {
   Mail,
   Shield,
   UserCheck,
-  Users
+  Users,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
 
-export default function Shell({
-  role,
-  screen,
-  setScreen,
-  onLogout,
-  children
-}) {
-  const normalizedRole = String(role || "").trim().toUpperCase();
-  const isSuperUser = ["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(normalizedRole);
+export default function Shell({ role, screen, setScreen, onLogout, children }) {
+  const normalizedRole = String(role || "")
+    .trim()
+    .toUpperCase();
+  const isSuperUser = ["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(
+    normalizedRole,
+  );
   const isAdmin = normalizedRole === "ADMIN";
   const isHr = normalizedRole === "HR";
   const roleLabel = isSuperUser
@@ -41,7 +39,9 @@ export default function Shell({
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "candidateSearch", label: "Candidates", icon: Users },
       { id: "jobs", label: "Jobs", icon: Briefcase },
-      { id: "newsletters", label: "Newsletters", icon: Mail }
+      { id: "pre-onboarding", label: "Pre-Onboarding", icon: Briefcase },
+      // { id: "checklistTemplates", label: "Checklist Templates", icon: ListChecks },
+      { id: "newsletters", label: "Newsletters", icon: Mail },
     ];
     if (isAdmin || isSuperUser) {
       items.push({ id: "rbac", label: "RBAC Settings", icon: Shield });
@@ -62,7 +62,6 @@ export default function Shell({
               </div>
             </div>
 
-            
             <nav className="space-y-1">
               {nav.map((n) => {
                 const Icon = n.icon;
@@ -73,7 +72,7 @@ export default function Shell({
                     onClick={() => setScreen(n.id)}
                     className={cx(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
-                      active ? "bg-gray-900 text-white" : "hover:bg-gray-100"
+                      active ? "bg-gray-900 text-white" : "hover:bg-gray-100",
                     )}
                   >
                     <Icon className="h-4 w-4" />
