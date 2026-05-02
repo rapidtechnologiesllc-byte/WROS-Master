@@ -21,7 +21,8 @@ import JobWorkspaceScreen from "./screens/JobWorkspaceScreen";
 import MatchingJobs from "./screens/MatchingJobs";
 import NewsletterScreen from "./screens/NewsletterScreen";
 import OfferScreen from "./screens/OfferScreen";
-import PreOnboarding from "./screens/PreOnboarding";
+import PreOnboarding from "./screens/PreOnboardingOld";
+import PreOnboardingPage from "./screens/PreOnboarding"
 import ChecklistTemplatesScreen from "./screens/ChecklistTemplatesScreen";
 import RbacSettingsScreen from "./screens/RbacSettingsScreen";
 import Verification from "./screens/Verification";
@@ -614,6 +615,15 @@ export default function App() {
         <CandidateDetailsScreen
           candidate={selectedCandidateData}
           onBack={() => safeSetScreen("candidateSearch")}
+          onUpdateCandidate={async (candidateId, payload) => {
+            try {
+              await updateCandidate(candidateId, payload);
+              await refreshCandidates();
+              notify("Candidate", "Candidate updated.");
+            } catch (err) {
+              notify("Candidate", err.message || "Failed to update candidate.");
+            }
+          }}
         />
       )}
 
@@ -668,6 +678,8 @@ export default function App() {
         />
       )}
 
+      {screen === "pre-onboarding" && <PreOnboardingPage candidates={candidates} />}
+      {/* {screen === "checklistTemplates" && <ChecklistTemplatesScreen />} */}
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (

@@ -64,14 +64,14 @@ export const deleteChecklistTemplateItem = async (templateId, itemId) => {
 };
 
 export const assignChecklistToCandidate = async ({ candidateId, templateId }) => {
-  const { data } = await apiRequest("/checklist/hr/assign", {
+  const { data,response } = await apiRequest("/checklist/hr/assign", {
     method: "POST",
     body: JSON.stringify({
       candidate_id: candidateId,
       template_id: Number(templateId)
     })
   });
-  return data;
+  return {data,response};
 };
 
 export const getCandidateChecklists = async (candidateId) => {
