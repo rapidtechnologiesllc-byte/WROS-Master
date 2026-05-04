@@ -21,7 +21,7 @@ const getStageLabel = (candidate) => {
   if (status.includes("screen")) return "Recruiter Screening";
   if (status.includes("l1") || status.includes("interview"))
     return "L1 Interview";
-  if (status.includes("pre")) return "Preboarding";
+  if (status.includes("pre")) return "Pre-Onboarding";
   if (status.includes("hire") || status.includes("onboard")) return "Hired";
   if (status.includes("archive") || status.includes("reject"))
     return "Archived";
@@ -32,7 +32,7 @@ const STAGES = [
   "Sourced",
   "Recruiter Screening",
   "L1 Interview",
-  "Preboarding",
+  "Pre-Onboarding",
   "Hired",
   "Archived",
 ];
@@ -48,7 +48,7 @@ const pipeline = [
   { count: 5, label: "Sourced" },
   { count: 2, label: "Screening" },
   { count: 3, label: "Interview" },
-  { count: 0, label: "Preboarding" },
+  { count: 0, label: "Pre-Onboarding" },
   { count: 1, label: "Hired" },
   { count: 0, label: "Archived" },
 ];
@@ -114,6 +114,15 @@ export default function JobWorkspaceScreen({
     .trim()
     .toLowerCase();
 
+  const formatDate = (date) => {
+    if (!date) return "—";
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
   const normalizedCandidates = useMemo(() => {
     return finalCandidates.map((c) => ({
       id: c.candidate_id,
@@ -124,8 +133,9 @@ export default function JobWorkspaceScreen({
       location: c.candidate_current_location,
       source: "API",
       createdAt: "—",
-      status: c.status || c.pipelineStatus || "Sourced",
-      pipelineStatus: c.pipelineStatus || c.status || "Sourced",
+      status: c.status || c?.candidate?.pipline_status || "Sourced",
+      pipelineStatus: c?.candidate?.pipline_status || c.status || "Sourced",
+      createdAt: formatDate(c.applied_at),
     }));
   }, [finalCandidates]);
 
@@ -415,7 +425,6 @@ export default function JobWorkspaceScreen({
                   { key: "candidate", header: "Candidate" },
                   { key: "source", header: "Source" },
                   { key: "applied", header: "Applied / Added On" },
-                  { key: "owner", header: "Owner" },
                   { key: "stage", header: "Stage" },
                   { key: "contact", header: "Contact" },
                   { key: "actions", header: "Actions" },
@@ -431,8 +440,6 @@ export default function JobWorkspaceScreen({
                   ),
                   source: c.source || "LinkedIn",
                   applied: c.createdAt || "—",
-                  owner:
-                    c.assignedHrManagerId || c.assignedReportManagerId || "—",
                   stage: <StatusBadge status={getStageLabel(c)} />,
                   contact: (
                     <div className="text-xs">
@@ -513,7 +520,6 @@ export default function JobWorkspaceScreen({
           <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600 shadow-sm">
             <div className="flex justify-between item-center">
               <span className="font-bold">Candidate Pipeline</span>
-              <span className="text-blue-600">View All Candidate</span>
             </div>
             <div className="flex item-center justify-between gap-100 pt-4">
               {jobAnalyticsPipeline.map((item, index) => (
@@ -539,10 +545,7 @@ export default function JobWorkspaceScreen({
                 </span>
                 <span class="text-gray-400 cursor-pointer">ⓘ</span>
               </div>
-              <div class="flex items-center gap-1 text-blue-500 text-sm cursor-pointer">
-                ✏️
-                <span>Edit days spent in a stage</span>
-              </div>
+              <div class="flex items-center gap-1 text-blue-500 text-sm cursor-pointer"></div>
             </div>
 
             <div class="mt-4">
@@ -568,13 +571,6 @@ export default function JobWorkspaceScreen({
           <div class="w-full rounded-xl border bg-gray-50 p-6 text-sm text-gray-700 shadow-sm">
             <div class="flex items-center justify-between">
               <h2 class="font-bold">Hiring team</h2>
-              <a
-                href="#"
-                class="flex items-center gap-1 text-blue-500 hover:text-blue-700 text-sm"
-              >
-                <span>Manage Hiring Team</span>
-                <span>↗</span>
-              </a>
             </div>
             <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
