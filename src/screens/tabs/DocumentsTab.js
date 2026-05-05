@@ -31,7 +31,7 @@ export default function DocumentsTab({ candidateId }) {
   const noticeTimerRef = useRef(null);
 
   const selectedDoc = useMemo(() => {
-    return documents.find((doc) => doc.id === selectedDocId) || documents[0] || null;
+   return documents?.find((doc) => doc?.id === selectedDocId) || documents?.[0] || null;
   }, [documents, selectedDocId]);
 
   const showNotice = useCallback((message, type = "success") => {
@@ -62,14 +62,11 @@ export default function DocumentsTab({ candidateId }) {
 
     try {
       setLoading(true);
-
       const data = await getCandidateDocuments(candidateId);
       const rows = Array.isArray(data?.documents) ? data.documents : [];
-
       setDocuments(rows);
-
       if (rows.length && !selectedDocId) {
-        setSelectedDocId(rows[0].id);
+      setSelectedDocId(rows[0]?.id);
       }
     } catch (err) {
       setDocuments([]);
@@ -219,14 +216,14 @@ export default function DocumentsTab({ candidateId }) {
 
               <div className="max-h-[72vh] space-y-2 overflow-y-auto p-3">
                 {documents.map((doc) => {
-                  const isSelected = selectedDoc?.id === doc.id;
-                  const isVerified = Boolean(doc.is_verified);
-                  const showRejectReason = !isVerified && Boolean(doc.notes);
-                  const isPreviewLoading = previewLoadingId === doc.id;
+                  const isSelected = selectedDoc?.id === doc?.id;
+const isVerified = Boolean(doc?.is_verified);
+const showRejectReason = isVerified && Boolean(doc?.notes);
+const isPreviewLoading = previewLoadingId === doc?.id;
 
                   return (
                     <button
-                      key={doc.id}
+                 key={String(doc?.id)}
                       type="button"
                       onClick={() => handleSelectDocument(doc)}
                       className={`w-full rounded-xl border p-3 text-left transition ${
@@ -242,7 +239,7 @@ export default function DocumentsTab({ candidateId }) {
                               isSelected ? "text-white" : "text-gray-900"
                             }`}
                           >
-                            {getDocumentLabel(doc.document_type)}
+                            {getDocumentLabel(doc?.document_type)}
                           </div>
 
                           <div
@@ -250,7 +247,7 @@ export default function DocumentsTab({ candidateId }) {
                               isSelected ? "text-gray-300" : "text-gray-500"
                             }`}
                           >
-                            {doc.original_filename || "Uploaded document"}
+                            {doc?.original_filename || "Uploaded document"}
                           </div>
 
                           <div
@@ -258,7 +255,7 @@ export default function DocumentsTab({ candidateId }) {
                               isSelected ? "text-gray-300" : "text-gray-400"
                             }`}
                           >
-                            Uploaded: {formatDate(doc.uploaded_at)}
+                            Uploaded: {formatDate(doc?.uploaded_at)}
                           </div>
                         </div>
 
@@ -281,7 +278,7 @@ export default function DocumentsTab({ candidateId }) {
                               : "border border-red-100 bg-red-50 text-red-700"
                           }`}
                         >
-                          <span className="font-semibold">Reason:</span> {doc.notes}
+                          <span className="font-semibold">Reason:</span> {doc?.notes}
                         </div>
                       ) : null}
                     </button>
@@ -334,8 +331,8 @@ function DocumentDetailsPanel({
   onVerify,
   onReject
 }) {
-  const isVerified = Boolean(doc.is_verified);
-  const isRejected = !isVerified && Boolean(doc.notes);
+  const isVerified = Boolean(doc?.is_verified);
+  const isRejected = !isVerified && Boolean(doc?.notes);
 
   return (
     <div className="flex min-h-[72vh] flex-col">
@@ -386,10 +383,10 @@ function DocumentDetailsPanel({
       </div>
 
       <div className="grid gap-4 border-b p-5 md:grid-cols-2 xl:grid-cols-4">
-        <Info label="File Name" value={doc.original_filename || "-"} />
-        <Info label="Document Type" value={getDocumentLabel(doc.document_type)} />
-        <Info label="Uploaded At" value={formatDate(doc.uploaded_at)} />
-        <Info label="File Size" value={formatFileSize(doc.file_size)} />
+        <Info label="File Name" value={doc?.original_filename || "-"} />
+        <Info label="Document Type" value={getDocumentLabel(doc?.document_type)} />
+        <Info label="Uploaded At" value={formatDate(doc?.uploaded_at)} />
+        <Info label="File Size" value={formatFileSize(doc?.file_size)} />
       </div>
 
       {isRejected ? (
