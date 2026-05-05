@@ -41,7 +41,6 @@ export default function Shell({ role, screen, setScreen, onLogout, children }) {
       { id: "jobs", label: "Jobs", icon: Briefcase },
       { id: "pre-onboarding", label: "Pre-Onboarding", icon: Briefcase },
       // { id: "checklistTemplates", label: "Checklist Templates", icon: ListChecks },
-      { id: "newsletters", label: "Newsletters", icon: Mail },
     ];
     if (isAdmin || isSuperUser) {
       items.push({ id: "rbac", label: "RBAC Settings", icon: Shield });

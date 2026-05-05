@@ -109,6 +109,8 @@ export default function CandidateDetailsScreen({
   const [showPanelMemberDropdown, setShowPanelMemberDropdown] = useState(false);
   const [panelSearch, setPanelSearch] = useState("");
   const [preonboardingModal, setPreonboardingModal] = useState(false);
+  const [radioStatus, setRadioStatus] = useState("");
+  const [updatedStatus, setUpdatedStatus] = useState(null);
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
 
@@ -125,7 +127,7 @@ export default function CandidateDetailsScreen({
     };
 
     fetchStatus();
-  }, [candidate?.id]);
+  }, [candidate?.id, updatedStatus]);
 
   useEffect(() => {
     if (!candidate?.id) return;
@@ -725,9 +727,9 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
 };
 
   const handlePreonboardingModal = (status, comment) => {
-    if (status === "Preboarding") {
+    setRadioStatus(status);
+    if (status !== "") {
       setPreonboardingModal(true);
-      console.log("clicked");
     }
   };
 
@@ -773,6 +775,10 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
                       fullName={fullName}
                       candidate={candidate}
                       onClose={() => setPreonboardingModal(false)}
+                      status={radioStatus}
+                      onSuccess={(data) => {
+                        setUpdatedStatus(data);
+                      }}
                     />
                   )}
 
