@@ -3,9 +3,10 @@ import StatusBadge from "./StatusBadge";
 
 const STATUS_OPTIONS = [
   "Sourced",
+  "Applied",
   "Recruiter Screening",
   "L1 Interview",
-  "Preboarding",
+  "Pre-Onboarding",
 ];
 
 export default function StatusDropdown({ statusData, onChange }) {
@@ -63,18 +64,20 @@ export default function StatusDropdown({ statusData, onChange }) {
               <span style={{ marginLeft: "8px" }}>{status}</span>
             </label>
           ))}
-          <textarea
-            placeholder="Write comment (optional)"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            style={{
-              width: "100%",
-              marginTop: "10px",
-              padding: "8px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
-          />
+          {selected !== "Preboarding" ? (
+            <textarea
+              placeholder="Write comment (optional)"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "10px",
+                padding: "8px",
+                borderRadius: "4px",
+                border: "1px solid #ccc",
+              }}
+            />
+          ) : null}
           <button
             onClick={handleMove}
             style={{

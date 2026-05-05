@@ -612,6 +612,7 @@ export default function App() {
         </>
       )}
       {screen === "candidateDetails" && (
+        <>
         <CandidateDetailsScreen
           candidate={selectedCandidateData}
           onBack={() => safeSetScreen("candidateSearch")}
@@ -625,6 +626,8 @@ export default function App() {
             }
           }}
         />
+        <ToastContainer position="top-right" autoClose={3000} />
+        </>
       )}
 
       {screen === "jobs" && (

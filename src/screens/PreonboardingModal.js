@@ -1,17 +1,40 @@
 import { react, useState } from "react";
 import { Button, Card, Select, TextArea } from "../components/ui";
+import { toast } from "react-toastify";
+import { updateCandidateStatus } from "../services/api/candidates";
 
-const PreonboardingModal = ({ fullName, candidate, onClose }) => {
-  const Locations = ["Hyderabad", "Chennai", "Texas"];
+const PreonboardingModal = ({
+  fullName,
+  candidate,
+  onClose,
+  status,
+  onSuccess,
+}) => {
+  const Locations = ["Hyderabad", "Chennai", "Texas", "Remote"];
   const Department = ["PRISM", "Sales", "HR"];
   const [selectLocation, setSelectLocation] = useState();
   const [selectDepartment, setSelectDepartment] = useState();
   const [note, setNote] = useState("");
-  const [isSaving,setIsSaving] = useState(false)
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveOnly = () => {
-    //integrate save API here!!
-  }
+  const handleSaveOnly = async () => {
+    try {
+      const updateStatus = await updateCandidateStatus(candidate?.id, {
+        status: "Active",
+        pipeline_status: status,
+      });
+      if (updateStatus?.status === "success") {
+        toast.success(
+          `Candidate ${updateStatus?.data?.candidate_name} moved to ${status}`,
+        );
+        onSuccess?.(status);
+      }
+    } catch (err) {
+      toast.error("Error", err.message);
+    } finally {
+      onClose();
+    }
+  };
 
   return (
     <>
@@ -69,9 +92,7 @@ const PreonboardingModal = ({ fullName, candidate, onClose }) => {
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2">
-              <Button variant="secondary">
-                Cancel
-              </Button>
+              <Button variant="secondary">Cancel</Button>
               <Button onClick={handleSaveOnly} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save"}
               </Button>

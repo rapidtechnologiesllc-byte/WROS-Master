@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Table, Tag, Dropdown } from "antd";
 import { MoreOutlined } from "@ant-design/icons";
 import Toolbar from "./Toolbar";
@@ -12,6 +12,13 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
   const [searchText, setSearchText] = useState("");
   const [appliedFilters, setAppliedFilters] = useState({});
   const [tableData, setTableData] = useState(job || []);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = searchText?.trim()?.toLowerCase();
+    if (!q) return job;
+    return job?.filter((c) => c?.title?.toLowerCase()?.includes(q));
+  }, [job, searchText]);
 
   const handleReset = () => {
     setFilters({});
@@ -48,15 +55,15 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
 
         const result = await jobsFilter(query);
         const formattedJobs = result?.jobs?.map((item) => ({
-          id: item.job_id,
-          title: item.job_title,
-          companyType: item.company_type,
-          dept: item.department_id || "-",
-          location: item.job_location,
-          hiringManagerName: item.hiring_manager_id || "-",
-          openPositions: item.no_of_positions,
-          experienceLevel: item.job_experience,
-          status: item.job_status,
+          id: item?.job_id,
+          title: item?.job_title,
+          companyType: item?.company_type,
+          dept: item?.department_id || "-",
+          location: item?.job_location,
+          hiringManagerName: item?.hiring_manager_id || "-",
+          openPositions: item?.no_of_positions,
+          experienceLevel: item?.job_experience,
+          status: item?.job_status,
         }));
 
         setTableData(formattedJobs || []);
@@ -132,7 +139,7 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
       />
       <Table
         columns={columns}
-        dataSource={tableData}
+        dataSource={filtered ? filtered : tableData}
         pagination={false}
         rowKey="id"
       />
