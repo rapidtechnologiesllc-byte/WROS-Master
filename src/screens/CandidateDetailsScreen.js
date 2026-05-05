@@ -659,7 +659,6 @@ const resumeLink = await getCandidateResumeLink();
         !doc?.is_deleted &&
         doc?.sharepoint_url
     );
-
     return resumeDoc?.sharepoint_url || "";
   } catch (err) {
     console.error("Failed to fetch candidate resume link", err);
@@ -673,7 +672,6 @@ const getSelectedPanelEmails = () => {
       const matchedUser = users?.find(
         (user) => String(user?.user_id) === String(member?.value)
       );
-
       return matchedUser?.user_email || "";
     })
     .map((email) => email.trim())
@@ -689,7 +687,7 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
     );
     return;
   }
-  const interviewTime = `${scheduleForm.interviewDate} ${scheduleForm.startTime} - ${scheduleForm.endTime}`;
+ const interviewTime = `${scheduleForm?.interviewDate || "-"} ${scheduleForm?.startTime || "-"} - ${scheduleForm?.endTime || "-"}`;
   const resumeSection = resumeLink
     ? `<p><strong>Resume:</strong> <a href="${resumeLink}" target="_blank" rel="noreferrer">View Resume</a></p>`
     : `<p><strong>Resume:</strong> Not uploaded / not available</p>`;
