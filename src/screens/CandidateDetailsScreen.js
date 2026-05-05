@@ -20,6 +20,7 @@ import {
   createInterview,
 } from "../services/api/interviews";
 import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
+import { getCandidateDocuments } from "../services/api/documents";
 import { getAllUsers } from "../services/api/users";
 import {
   getOnlineInterviewEmailTemplate,
@@ -597,15 +598,17 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
-
+const resumeLink = await getCandidateResumeLink();
       if (scheduleType === "online") {
-        await sendInterviewInvite({
-          interviewId,
-          extraNotes: scheduleForm.extraNotes,
-          timezone: scheduleForm.timezone,
-          createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
-        });
-      } else {
+  await sendInterviewInvite({
+    interviewId,
+    extraNotes: scheduleForm.extraNotes,
+    timezone: scheduleForm.timezone,
+    createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
+  });
+
+  await sendPanelInterviewBriefEmail({ resumeLink });
+}  else {
         const ccEmails = scheduleForm.ccEmails
           .split(",")
           .map((email) => email.trim())
@@ -618,6 +621,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
           isHtml: false,
           ccEmails,
         });
+          await sendPanelInterviewBriefEmail({ resumeLink });
       }
 
       showNotice(
@@ -639,6 +643,86 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
     candidate?.name ||
     `${candidate?.first_name || ""} ${candidate?.last_name || ""}`.trim() ||
     "Candidate";
+    const getCandidateResumeLink = async () => {
+  if (!candidate?.id) return "";
+
+  try {
+    const docsRes = await getCandidateDocuments(candidate.id);
+
+    const documents = Array.isArray(docsRes?.documents)
+      ? docsRes?.documents
+      : [];
+
+    const resumeDoc = documents.find(
+      (doc) =>
+        String(doc?.document_type ?? "").toLowerCase() === "resume" &&
+        !doc?.is_deleted &&
+        doc?.sharepoint_url
+    );
+    return resumeDoc?.sharepoint_url || "";
+  } catch (err) {
+    console.error("Failed to fetch candidate resume link", err);
+    return "";
+  }
+};
+
+const getSelectedPanelEmails = () => {
+  return selectedPanelMembers
+    .map((member) => {
+      const matchedUser = users?.find(
+        (user) => String(user?.user_id) === String(member?.value)
+      );
+      return matchedUser?.user_email || "";
+    })
+    .map((email) => email.trim())
+    .filter(Boolean);
+};
+const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
+  const panelEmails = getSelectedPanelEmails();
+  if (!panelEmails.length) {
+    showNotice(
+      "Panel email was skipped because panel member emails are missing.",
+      "error",
+      5000
+    );
+    return;
+  }
+ const interviewTime = `${scheduleForm?.interviewDate || "-"} ${scheduleForm?.startTime || "-"} - ${scheduleForm?.endTime || "-"}`;
+  const resumeSection = resumeLink
+    ? `<p><strong>Resume:</strong> <a href="${resumeLink}" target="_blank" rel="noreferrer">View Resume</a></p>`
+    : `<p><strong>Resume:</strong> Not uploaded / not available</p>`;
+
+  const bodyContent = `
+    <p>Hi Team,</p>
+    <p>Please find the candidate details for the upcoming interview.</p>
+
+    <p>
+      <strong>Candidate Name:</strong> ${fullName}<br/>
+      <strong>Candidate Email:</strong> ${candidate?.email || "-"}<br/>
+      <strong>Candidate Phone:</strong> ${candidate?.phone || "-"}<br/>
+      <strong>Role:</strong> ${candidate?.jobTitle || "-"}<br/>
+      <strong>Round:</strong> ${scheduleForm.roundName || "-"}<br/>
+      <strong>Interview Time:</strong> ${interviewTime}<br/>
+      <strong>Timezone:</strong> ${scheduleForm.timezone || "-"}
+    </p>
+
+    ${
+      scheduleForm.extraNotes?.trim()
+        ? `<p><strong>Recruiter Notes:</strong><br/>${scheduleForm.extraNotes.trim()}</p>`
+        : ""
+    }
+    ${resumeSection}
+    <p>Please review the candidate details before the interview and submit feedback after completion.</p>
+    <p>Thanks,<br/>HR Team</p>
+  `;
+  await sendPlainEmail({
+    toEmail: panelEmails[0],
+    subject: `Interview Brief - ${fullName} - ${scheduleForm.roundName}`,
+    bodyContent,
+    isHtml: true,
+    ccEmails: panelEmails.slice(1),
+  });
+};
 
   const handlePreonboardingModal = (status, comment) => {
     if (status === "Preboarding") {
