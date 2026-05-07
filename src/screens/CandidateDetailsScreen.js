@@ -5,6 +5,7 @@ import FeedbackTab from "./tabs/FeedbackTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
+import HistoryTab from "./tabs/HistoryTab";
 import CandidateEditModal from "./CandidateEditModal";
 
 import { getCandidateStatus } from "../services/api/candidateStatus";
@@ -116,15 +117,23 @@ export default function CandidateDetailsScreen({
   const noticeTimerRef = useRef(null);
 
   const candidateTabs = limitedMode
-  ? ["feedback"]
-  : ["profile", "messages", "feedback", "documents", "tasks", "activity"];
+    ? ["feedback"]
+    : [
+        "profile",
+        "messages",
+        "feedback",
+        "documents",
+        "tasks",
+        "interview",
+        "history",
+      ];
 
-const canShowFullActions = !limitedMode;
-useEffect(() => {
-  if (limitedMode) {
-    setActiveTab("feedback");
-  }
-}, [limitedMode]);
+  const canShowFullActions = !limitedMode;
+  useEffect(() => {
+    if (limitedMode) {
+      setActiveTab("feedback");
+    }
+  }, [limitedMode]);
 
   useEffect(() => {
     if (!candidate?.id) return;
@@ -275,10 +284,10 @@ useEffect(() => {
     };
   }, []);
   useEffect(() => {
-  if (limitedMode) {
-    setActiveTab("feedback");
-  }
-}, [limitedMode]);
+    if (limitedMode) {
+      setActiveTab("feedback");
+    }
+  }, [limitedMode]);
 
   const showNotice = (message, type = "success", duration = 3000) => {
     setNotice(message);
@@ -618,17 +627,17 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
-const resumeLink = await getCandidateResumeLink();
+      const resumeLink = await getCandidateResumeLink();
       if (scheduleType === "online") {
-  await sendInterviewInvite({
-    interviewId,
-    extraNotes: scheduleForm.extraNotes,
-    timezone: scheduleForm.timezone,
-    createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
-  });
+        await sendInterviewInvite({
+          interviewId,
+          extraNotes: scheduleForm.extraNotes,
+          timezone: scheduleForm.timezone,
+          createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
+        });
 
-  await sendPanelInterviewBriefEmail({ resumeLink });
-}  else {
+        await sendPanelInterviewBriefEmail({ resumeLink });
+      } else {
         const ccEmails = scheduleForm.ccEmails
           .split(",")
           .map((email) => email.trim())
@@ -641,7 +650,7 @@ const resumeLink = await getCandidateResumeLink();
           isHtml: false,
           ccEmails,
         });
-          await sendPanelInterviewBriefEmail({ resumeLink });
+        await sendPanelInterviewBriefEmail({ resumeLink });
       }
 
       showNotice(
@@ -663,56 +672,56 @@ const resumeLink = await getCandidateResumeLink();
     candidate?.name ||
     `${candidate?.first_name || ""} ${candidate?.last_name || ""}`.trim() ||
     "Candidate";
-    const getCandidateResumeLink = async () => {
-  if (!candidate?.id) return "";
+  const getCandidateResumeLink = async () => {
+    if (!candidate?.id) return "";
 
-  try {
-    const docsRes = await getCandidateDocuments(candidate.id);
+    try {
+      const docsRes = await getCandidateDocuments(candidate.id);
 
-    const documents = Array.isArray(docsRes?.documents)
-      ? docsRes?.documents
-      : [];
+      const documents = Array.isArray(docsRes?.documents)
+        ? docsRes?.documents
+        : [];
 
-    const resumeDoc = documents.find(
-      (doc) =>
-        String(doc?.document_type ?? "").toLowerCase() === "resume" &&
-        !doc?.is_deleted &&
-        doc?.sharepoint_url
-    );
-    return resumeDoc?.sharepoint_url || "";
-  } catch (err) {
-    console.error("Failed to fetch candidate resume link", err);
-    return "";
-  }
-};
-
-const getSelectedPanelEmails = () => {
-  return selectedPanelMembers
-    .map((member) => {
-      const matchedUser = users?.find(
-        (user) => String(user?.user_id) === String(member?.value)
+      const resumeDoc = documents.find(
+        (doc) =>
+          String(doc?.document_type ?? "").toLowerCase() === "resume" &&
+          !doc?.is_deleted &&
+          doc?.sharepoint_url,
       );
-      return matchedUser?.user_email || "";
-    })
-    .map((email) => email.trim())
-    .filter(Boolean);
-};
-const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
-  const panelEmails = getSelectedPanelEmails();
-  if (!panelEmails.length) {
-    showNotice(
-      "Panel email was skipped because panel member emails are missing.",
-      "error",
-      5000
-    );
-    return;
-  }
- const interviewTime = `${scheduleForm?.interviewDate || "-"} ${scheduleForm?.startTime || "-"} - ${scheduleForm?.endTime || "-"}`;
-  const resumeSection = resumeLink
-    ? `<p><strong>Resume:</strong> <a href="${resumeLink}" target="_blank" rel="noreferrer">View Resume</a></p>`
-    : `<p><strong>Resume:</strong> Not uploaded / not available</p>`;
+      return resumeDoc?.sharepoint_url || "";
+    } catch (err) {
+      console.error("Failed to fetch candidate resume link", err);
+      return "";
+    }
+  };
 
-  const bodyContent = `
+  const getSelectedPanelEmails = () => {
+    return selectedPanelMembers
+      .map((member) => {
+        const matchedUser = users?.find(
+          (user) => String(user?.user_id) === String(member?.value),
+        );
+        return matchedUser?.user_email || "";
+      })
+      .map((email) => email.trim())
+      .filter(Boolean);
+  };
+  const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
+    const panelEmails = getSelectedPanelEmails();
+    if (!panelEmails.length) {
+      showNotice(
+        "Panel email was skipped because panel member emails are missing.",
+        "error",
+        5000,
+      );
+      return;
+    }
+    const interviewTime = `${scheduleForm?.interviewDate || "-"} ${scheduleForm?.startTime || "-"} - ${scheduleForm?.endTime || "-"}`;
+    const resumeSection = resumeLink
+      ? `<p><strong>Resume:</strong> <a href="${resumeLink}" target="_blank" rel="noreferrer">View Resume</a></p>`
+      : `<p><strong>Resume:</strong> Not uploaded / not available</p>`;
+
+    const bodyContent = `
     <p>Hi Team,</p>
     <p>Please find the candidate details for the upcoming interview.</p>
 
@@ -735,14 +744,14 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
     <p>Please review the candidate details before the interview and submit feedback after completion.</p>
     <p>Thanks,<br/>HR Team</p>
   `;
-  await sendPlainEmail({
-    toEmail: panelEmails[0],
-    subject: `Interview Brief - ${fullName} - ${scheduleForm.roundName}`,
-    bodyContent,
-    isHtml: true,
-    ccEmails: panelEmails.slice(1),
-  });
-};
+    await sendPlainEmail({
+      toEmail: panelEmails[0],
+      subject: `Interview Brief - ${fullName} - ${scheduleForm.roundName}`,
+      bodyContent,
+      isHtml: true,
+      ccEmails: panelEmails.slice(1),
+    });
+  };
 
   const handlePreonboardingModal = (status, comment) => {
     setRadioStatus(status);
@@ -842,108 +851,111 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
-{canShowFullActions && (
-  <>
-              <div className="relative" ref={scheduleMenuRef}>
-                <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
-                  Schedule
-                </Button>
 
-                {showScheduleMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                      onClick={() => openScheduleModal("online")}
+              {canShowFullActions && (
+                <>
+                  <div className="relative" ref={scheduleMenuRef}>
+                    <Button
+                      onClick={() => setShowScheduleMenu((prev) => !prev)}
                     >
-                      Online Interview
-                    </button>
+                      Schedule
+                    </Button>
 
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                      onClick={() => openScheduleModal("faceToFace")}
-                    >
-                      Face to Face Interview
-                    </button>
+                    {showScheduleMenu && (
+                      <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                        <button
+                          type="button"
+                          className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
+                          onClick={() => openScheduleModal("online")}
+                        >
+                          Online Interview
+                        </button>
+
+                        <button
+                          type="button"
+                          className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
+                          onClick={() => openScheduleModal("faceToFace")}
+                        >
+                          Face to Face Interview
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <button
-                type="button"
-                className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
-                title="Send Email"
-                onClick={() => {
-                  const email = candidate?.email?.trim();
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
+                    title="Send Email"
+                    onClick={() => {
+                      const email = candidate?.email?.trim();
 
-                  if (!email) {
-                    showNotice("Candidate email is not available", "error");
-                    return;
-                  }
+                      if (!email) {
+                        showNotice("Candidate email is not available", "error");
+                        return;
+                      }
 
-                  const subject = encodeURIComponent(
-                    "Regarding your application",
-                  );
-                  const body = encodeURIComponent(`Hi ${fullName},\n\n`);
-                  const to = encodeURIComponent(email);
+                      const subject = encodeURIComponent(
+                        "Regarding your application",
+                      );
+                      const body = encodeURIComponent(`Hi ${fullName},\n\n`);
+                      const to = encodeURIComponent(email);
 
-                  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
-                  const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
+                      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+                      const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
 
-                  const openedWindow = window.open(
-                    gmailUrl,
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
+                      const openedWindow = window.open(
+                        gmailUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
 
-                  if (!openedWindow) {
-                    window.location.href = mailtoUrl;
-                  }
-                }}
-              >
-                <Mail className="w-5 h-5 text-gray-600" />
-              </button>
+                      if (!openedWindow) {
+                        window.location.href = mailtoUrl;
+                      }
+                    }}
+                  >
+                    <Mail className="w-5 h-5 text-gray-600" />
+                  </button>
 
-              <button
-                type="button"
-                className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                title={`Message ${candidate?.name || "candidate"} on WhatsApp`}
-                disabled={!candidate?.phone}
-                onClick={() => {
-                  if (!candidate?.phone) return;
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`Message ${candidate?.name || "candidate"} on WhatsApp`}
+                    disabled={!candidate?.phone}
+                    onClick={() => {
+                      if (!candidate?.phone) return;
 
-                  const cleanedPhone = candidate.phone.replace(/\D/g, "");
+                      const cleanedPhone = candidate.phone.replace(/\D/g, "");
 
-                  if (!cleanedPhone) {
-                    showNotice("Invalid phone number", "error");
-                    return;
-                  }
+                      if (!cleanedPhone) {
+                        showNotice("Invalid phone number", "error");
+                        return;
+                      }
 
-                  window.open(`https://wa.me/${cleanedPhone}`, "_blank");
-                }}
-              >
-                <MessageCircle className="w-5 h-5 text-green-600" />
-              </button>
+                      window.open(`https://wa.me/${cleanedPhone}`, "_blank");
+                    }}
+                  >
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                  </button>
 
-              <button
-                type="button"
-                className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
-                onClick={() => console.log("More clicked")}
-              >
-                <MoreHorizontal className="w-5 h-5 text-gray-600" />
-              </button>
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
+                    onClick={() => console.log("More clicked")}
+                  >
+                    <MoreHorizontal className="w-5 h-5 text-gray-600" />
+                  </button>
 
-              <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
+                  <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
 
-              <Button
-                disabled={isChecklistAssigned}
-                onClick={() => setShowAssignModal(true)}
-              >
-                Submit Job
-              </Button>
+                  <Button
+                    disabled={isChecklistAssigned}
+                    onClick={() => setShowAssignModal(true)}
+                  >
+                    Submit Job
+                  </Button>
                 </>
-)}
+              )}
             </div>
           </div>
         </div>
@@ -957,7 +969,8 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
               "documents",
               "tasks",
               "activity",
-            ].map((tab) => ( */}{candidateTabs.map((tab) => (
+            ].map((tab) => ( */}
+            {candidateTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -989,29 +1002,33 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
           )}
           {activeTab === "activity" && (
             <ActivityTab candidateId={candidate?.id} />
-          )} */}{activeTab === "profile" && !limitedMode && (
-  <ProfileTab candidateId={candidate?.id} />
-)}
+          )} */}
+          {activeTab === "profile" && !limitedMode && (
+            <ProfileTab candidateId={candidate?.id} />
+          )}
 
-{activeTab === "feedback" && (
-  <FeedbackTab candidateId={candidate?.id} />
-)}
+          {activeTab === "feedback" && (
+            <FeedbackTab candidateId={candidate?.id} />
+          )}
 
-{activeTab === "documents" && !limitedMode && (
-  <DocumentsTab candidateId={candidate?.id} />
-)}
+          {activeTab === "documents" && !limitedMode && (
+            <DocumentsTab candidateId={candidate?.id} />
+          )}
 
-{activeTab === "tasks" && !limitedMode && (
-  <TasksTab candidateId={candidate?.id} />
-)}
+          {activeTab === "tasks" && !limitedMode && (
+            <TasksTab candidateId={candidate?.id} />
+          )}
 
-{activeTab === "messages" && !limitedMode && (
-  <div className="text-gray-500">Messages Coming Soon</div>
-)}
+          {activeTab === "messages" && !limitedMode && (
+            <div className="text-gray-500">Messages Coming Soon</div>
+          )}
 
-{activeTab === "activity" && !limitedMode && (
-  <ActivityTab candidateId={candidate?.id} />
-)}
+          {activeTab === "interview" && !limitedMode && (
+            <ActivityTab candidateId={candidate?.id} />
+          )}
+          {activeTab === "history" && !limitedMode && (
+            <HistoryTab candidateId={candidate?.id} />
+          )}
         </div>
 
         {editModalOpen && (
