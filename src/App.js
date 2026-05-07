@@ -26,6 +26,7 @@ import PreOnboardingPage from "./screens/PreOnboarding"
 import ChecklistTemplatesScreen from "./screens/ChecklistTemplatesScreen";
 import RbacSettingsScreen from "./screens/RbacSettingsScreen";
 import Verification from "./screens/Verification";
+import MyWorkspace from "./screens/MyWorkspace";
 import { getAllInterviews, updateInterview } from "./services/api/interviews";
 import {
   getAllCandidates,
@@ -48,6 +49,11 @@ import {
   updateOfferLetter,
   cancelOfferLetter,
 } from "./services/api/offerLetters";
+import {
+  canAccessFullHrms,
+  canAccessMyWorkspace,
+  isCandidateUser,
+} from "./utils/permissions";
 import { getAllUsers } from "./services/api/users";
 import {
   getAllCandidateStatuses,
@@ -242,9 +248,23 @@ export default function App() {
   };
 
   // Candidate users bypass the HR shell and land on their portal.
-  if (storedUserType === "candidate" || normalizedRole === "CANDIDATE") {
-    return <CandidateSelfService onLogout={handleLogout} />;
-  }
+  if (
+  isCandidateUser({
+    role: storedRole,
+    userType: storedUserType,
+  })
+) {
+  return <CandidateSelfService onLogout={handleLogout} />;
+}
+
+if (
+  canAccessMyWorkspace({
+    role: storedRole,
+    userType: storedUserType,
+  })
+) {
+  return <MyWorkspace onLogout={handleLogout} />;
+}
 
   const [role, setRole] = useState(normalizedRole);
   const [screen, setScreen] = useState("dashboard");

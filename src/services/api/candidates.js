@@ -108,3 +108,10 @@ export const getCandidateStatus = async (candidateId) => {
   });
   return data;
 };
+export const getAssignedCandidates = async () => {
+  const { data } = await apiRequest("/hr/assignments/candidates", {
+    method: "GET",
+  });
+
+  return data;
+};
