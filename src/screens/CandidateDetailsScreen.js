@@ -84,6 +84,7 @@ export default function CandidateDetailsScreen({
   candidate,
   onBack,
   onUpdateCandidate,
+  limitedMode = false,
 }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [statusData, setStatusData] = useState(null);
@@ -113,6 +114,17 @@ export default function CandidateDetailsScreen({
   const [updatedStatus, setUpdatedStatus] = useState(null);
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
+
+  const candidateTabs = limitedMode
+  ? ["feedback"]
+  : ["profile", "messages", "feedback", "documents", "tasks", "activity"];
+
+const canShowFullActions = !limitedMode;
+useEffect(() => {
+  if (limitedMode) {
+    setActiveTab("feedback");
+  }
+}, [limitedMode]);
 
   useEffect(() => {
     if (!candidate?.id) return;
@@ -254,6 +266,7 @@ export default function CandidateDetailsScreen({
       member.label.toLowerCase().includes(panelSearch.toLowerCase()),
     );
   }, [panelSearch, interviewerOptions]);
+
   useEffect(() => {
     return () => {
       if (noticeTimerRef.current) {
@@ -261,6 +274,11 @@ export default function CandidateDetailsScreen({
       }
     };
   }, []);
+  useEffect(() => {
+  if (limitedMode) {
+    setActiveTab("feedback");
+  }
+}, [limitedMode]);
 
   const showNotice = (message, type = "success", duration = 3000) => {
     setNotice(message);
@@ -824,7 +842,8 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
-
+{canShowFullActions && (
+  <>
               <div className="relative" ref={scheduleMenuRef}>
                 <Button onClick={() => setShowScheduleMenu((prev) => !prev)}>
                   Schedule
@@ -923,20 +942,22 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
               >
                 Submit Job
               </Button>
+                </>
+)}
             </div>
           </div>
         </div>
 
         <div className="border-b">
           <div className="flex flex-wrap gap-2">
-            {[
+            {/* {[
               "profile",
               "messages",
               "feedback",
               "documents",
               "tasks",
               "activity",
-            ].map((tab) => (
+            ].map((tab) => ( */}{candidateTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -953,7 +974,7 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          {activeTab === "profile" && (
+          {/* {activeTab === "profile" && (
             <ProfileTab candidateId={candidate?.id} />
           )}
           {activeTab === "feedback" && (
@@ -968,7 +989,29 @@ const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
           )}
           {activeTab === "activity" && (
             <ActivityTab candidateId={candidate?.id} />
-          )}
+          )} */}{activeTab === "profile" && !limitedMode && (
+  <ProfileTab candidateId={candidate?.id} />
+)}
+
+{activeTab === "feedback" && (
+  <FeedbackTab candidateId={candidate?.id} />
+)}
+
+{activeTab === "documents" && !limitedMode && (
+  <DocumentsTab candidateId={candidate?.id} />
+)}
+
+{activeTab === "tasks" && !limitedMode && (
+  <TasksTab candidateId={candidate?.id} />
+)}
+
+{activeTab === "messages" && !limitedMode && (
+  <div className="text-gray-500">Messages Coming Soon</div>
+)}
+
+{activeTab === "activity" && !limitedMode && (
+  <ActivityTab candidateId={candidate?.id} />
+)}
         </div>
 
         {editModalOpen && (
