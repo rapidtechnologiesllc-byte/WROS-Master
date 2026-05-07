@@ -258,11 +258,20 @@ export const getInterviewerWorkload = async (interviewerId) => {
   });
   return data;
 };
+
 export const getMyInterviews = async (status = "") => {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
   const { data } = await apiRequest(`/interviews/my-interviews${query}`, {
     method: "GET"
   });
+  return data;
+};
+
+export const getAssignedInterviews = async () => {
+  const { data } = await apiRequest("/hr/interviews/assigned", {
+    method: "GET",
+  });
+
   return data;
 };
 
