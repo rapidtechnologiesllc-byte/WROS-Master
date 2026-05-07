@@ -43,15 +43,17 @@ const getCandidateId = (item) =>
   item?.candidate_id || item?.candidateId || item?.id || "";
 
 const buildCandidateForDetails = (workspaceItem) => ({
-  id: workspaceItem.candidateId,
-  name: workspaceItem.candidateName,
-  email: workspaceItem.candidateEmail,
-  phone: workspaceItem.candidateMobile,
-  jobTitle: workspaceItem.assignmentType || workspaceItem.roundName || "",
+  id: workspaceItem?.candidateId,
+  name: workspaceItem?.candidateName,
+  email: workspaceItem?.candidateEmail,
+  phone: workspaceItem?.candidateMobile,
+  jobTitle: workspaceItem?.assignmentType || workspaceItem?.roundName || "",
 });
 
 const getStatusStyles = (status) => {
-  const normalized = String(status || "").trim().toLowerCase();
+  const normalized = String(status || "")
+    .trim()
+    .toLowerCase();
 
   if (normalized.includes("complete")) {
     return "border-green-200 bg-green-50 text-green-700";
@@ -96,8 +98,7 @@ export default function MyWorkspace({ onLogout }) {
     } catch (err) {
       console.error("Failed to load workspace data", err);
       setError(
-        err?.message ||
-          "Unable to load your assignments. Please try again.",
+        err?.message || "Unable to load your assignments. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -126,9 +127,7 @@ export default function MyWorkspace({ onLogout }) {
         key: `interview-${interview?.interview_id || interview?.id || candidateId}`,
         candidateId,
         candidateName:
-          interview?.candidate_name ||
-          candidate?.candidate_name ||
-          "Candidate",
+          interview?.candidate_name || candidate?.candidate_name || "Candidate",
         candidateEmail: candidate?.candidate_email || "",
         candidateMobile: candidate?.candidate_mobile || "",
         assignmentType: candidate?.assignment_type || "",
@@ -277,7 +276,9 @@ export default function MyWorkspace({ onLogout }) {
                       <th className="px-5 py-3 font-semibold">Candidate</th>
                       <th className="px-5 py-3 font-semibold">Contact</th>
                       <th className="px-5 py-3 font-semibold">Round</th>
-                      <th className="px-5 py-3 font-semibold">Interview Time</th>
+                      <th className="px-5 py-3 font-semibold">
+                        Interview Time
+                      </th>
                       <th className="px-5 py-3 font-semibold">Status</th>
                       <th className="px-5 py-3 text-right font-semibold">
                         Action
@@ -286,14 +287,17 @@ export default function MyWorkspace({ onLogout }) {
                   </thead>
 
                   <tbody className="divide-y divide-gray-100">
-                    {workspaceItems.map((item) => (
-                      <tr key={item.key} className="hover:bg-gray-50/70">
+                    {workspaceItems?.map((item) => (
+                      <tr
+                        key={String(item?.key)}
+                        className="hover:bg-gray-50/70"
+                      >
                         <td className="px-5 py-4">
                           <div className="font-semibold text-gray-900">
-                            {item.candidateName}
+                            {item?.candidateName}
                           </div>
                           <div className="mt-1 text-xs text-gray-500">
-                            {item.candidateId}
+                            {item?.candidateId}
                           </div>
                         </td>
 
@@ -359,8 +363,14 @@ export default function MyWorkspace({ onLogout }) {
                     </div>
 
                     <div className="mt-4 space-y-2 text-sm text-gray-600">
-                      <InfoRow label="Email" value={item.candidateEmail || "-"} />
-                      <InfoRow label="Phone" value={item.candidateMobile || "-"} />
+                      <InfoRow
+                        label="Email"
+                        value={item.candidateEmail || "-"}
+                      />
+                      <InfoRow
+                        label="Phone"
+                        value={item.candidateMobile || "-"}
+                      />
                       <InfoRow label="Round" value={item.roundName} />
                       <InfoRow
                         label="Time"
@@ -474,8 +484,8 @@ function EmptyState() {
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-        You don’t have any assigned candidates or interviews at the moment.
-        When you are added as a panel member, your interviews will appear here.
+        You don’t have any assigned candidates or interviews at the moment. When
+        you are added as a panel member, your interviews will appear here.
       </p>
     </div>
   );
