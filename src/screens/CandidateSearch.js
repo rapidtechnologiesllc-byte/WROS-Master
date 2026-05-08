@@ -97,58 +97,62 @@ export default function CandidateSearch({
   };
 
   return (
-    <div className="grid gap-4">
-      <Card
-        title="Search Existing Candidate"
-        icon={<Search className="h-4 w-4" />}
-        right={
-          <Button onClick={onCreateCandidate}>
-            <Plus className="h-4 w-4" /> Add New
-          </Button>
-        }
-      >
-        <div className="grid gap-3 md:grid-cols-3">
-          <Input
-            label="Search (phone / email / name)"
-            value={query}
-            onChange={setQuery}
-            placeholder="+1 555... or name@..."
-          />
-          <label className="block">
-            <div className="mb-1 text-xs font-semibold text-gray-700">
-              Selected Candidate
+    <div className="grid gap-6">
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="w-full lg:w-[50%]">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Search Existing Candidate
+              </label>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by candidate name, email, or phone number"
+                  className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition-all focus:border-gray-400"
+                />
+              </div>
             </div>
-            <select
-              value={selectedCandidateId}
-              onChange={(e) => setSelectedCandidateId(e.target.value)}
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
-            >
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Select
-            label="Selected Job"
-            value={selectedJobId}
-            onChange={setSelectedJobId}
-            options={jobs.map((j) => j.id)}
-          />
-        </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={onMatchingJobs}
+                className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
+              >
+                Show Matching Jobs
+              </Button>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={onMatchingJobs}>
-            Show matching jobs
-          </Button>
-          <Button variant="secondary" onClick={onInterviewSchedule}>
-            Interview request / scheduling
-          </Button>
+              <Button
+                onClick={onCreateCandidate}
+                className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <Plus className="h-4 w-4" /> Add Candidate
+              </Button>
+            </div>
+          </div>
         </div>
-      </Card>
+      </div>
 
-      <Card title="Candidates" icon={<Users className="h-4 w-4" />}>
+      <Card
+        title={`Candidates (${filtered.length})`}
+        icon={<Users className="h-4 w-4 text-gray-700" />}
+        className="shadow-sm"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Candidate Directory
+            </h3>
+            <p className="text-xs text-gray-500">
+              View and manage recruitment candidates
+            </p>
+          </div>
+        </div>
         <Table
           columns={[
             { key: "name", header: "Name" },
@@ -162,7 +166,7 @@ export default function CandidateSearch({
           rows={filtered.map((c) => ({
             name: (
               <button
-                className="font-semibold hover:underline"
+                className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
                 onClick={async () => {
                   setSelectedCandidateId(c.id);
 
@@ -185,7 +189,7 @@ export default function CandidateSearch({
               </button>
             ),
             contact: (
-              <div className="text-xs text-gray-700">
+              <div className="space-y-1 text-xs text-gray-700">
                 <div>{c.email}</div>
                 <div>{c.phone}</div>
               </div>
@@ -213,9 +217,9 @@ export default function CandidateSearch({
                   ⋮
                 </button>
                 {openMenuId === c.id && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white border rounded shadow-md z-10">
+                  <div className="absolute right-0 z-10 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
                     <button
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
                       onClick={() => {
                         handleCandidateStatus(c?.id);
                         setOpenMenuId(null);
@@ -229,10 +233,6 @@ export default function CandidateSearch({
             ),
           }))}
         />
-
-        <div className="mt-3 text-xs text-gray-600">
-          Duplicate check (phone/email) + merge popup can be added here.
-        </div>
       </Card>
 
       {editingCandidate ? (
