@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import { Collapse } from "antd";
 
 const StepperDiv = styled.div`
   margin-top: 10px;
@@ -95,6 +96,7 @@ const Wrapper = styled.div`
   border-radius: 8px;
   padding: 24px;
   width: 100%;
+  margin-top: 24px;
 `;
 
 const Header = styled.div`
@@ -173,6 +175,74 @@ const Value = styled.div`
   min-width: 0;
 `;
 
+const StyledCollapse = styled(Collapse)`
+  background: transparent;
+  .ant-collapse-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px !important;
+    margin-bottom: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .ant-collapse-header {
+    padding: 18px 20px !important;
+    align-items: center !important;
+  }
+  .ant-collapse-expand-icon {
+    color: #6b7280;
+    font-size: 12px;
+  }
+  .ant-collapse-content-box {
+    padding: 16px 20px !important;
+    border-top: 1px solid #f1f5f9;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+`;
+
+const HeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
+const FileText = styled.span`
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const DateText = styled.span`
+  font-size: 14px;
+  color: #374151;
+  white-space: nowrap;
+`;
+
+const Content = styled.div`
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.6;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 8px;
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+`;
+
 export {
   StepperDiv,
   Span,
@@ -198,4 +268,10 @@ export {
   Value,
   Wrapper,
   CandidateRole,
+  StyledCollapse,
+  Collapse,
+  Content,
+  DateText,
+  FileText,
+  HeaderRow,
 };
