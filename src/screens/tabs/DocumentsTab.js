@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getCandidateDocuments,
   verifyDocument,
-  viewDocument
+  viewDocument,
 } from "../../services/api/documents";
 
 const DOCUMENT_LABELS = {
@@ -12,7 +12,7 @@ const DOCUMENT_LABELS = {
   experience: "Experience Letter",
   salary_slip: "Salary Slip",
   bank_statement: "Bank Statement",
-  resume: "Resume"
+  resume: "Resume",
 };
 
 export default function DocumentsTab({ candidateId }) {
@@ -31,7 +31,11 @@ export default function DocumentsTab({ candidateId }) {
   const noticeTimerRef = useRef(null);
 
   const selectedDoc = useMemo(() => {
-   return documents?.find((doc) => doc?.id === selectedDocId) || documents?.[0] || null;
+    return (
+      documents?.find((doc) => doc?.id === selectedDocId) ||
+      documents?.[0] ||
+      null
+    );
   }, [documents, selectedDocId]);
 
   const showNotice = useCallback((message, type = "success") => {
@@ -66,7 +70,7 @@ export default function DocumentsTab({ candidateId }) {
       const rows = Array.isArray(data?.documents) ? data.documents : [];
       setDocuments(rows);
       if (rows.length && !selectedDocId) {
-      setSelectedDocId(rows[0]?.id);
+        setSelectedDocId(rows[0]?.id);
       }
     } catch (err) {
       setDocuments([]);
@@ -128,7 +132,10 @@ export default function DocumentsTab({ candidateId }) {
       await fetchDocuments();
 
       closeRejectModal();
-      showNotice(`${getDocumentLabel(doc.document_type)} verified successfully.`, "success");
+      showNotice(
+        `${getDocumentLabel(doc.document_type)} verified successfully.`,
+        "success",
+      );
     } catch (err) {
       showNotice(err.message || "Failed to verify document.", "error");
     } finally {
@@ -161,13 +168,16 @@ export default function DocumentsTab({ candidateId }) {
         candidateId,
         rejectDoc.document_type,
         false,
-        trimmedReason
+        trimmedReason,
       );
 
       await fetchDocuments();
       closeRejectModal();
 
-     showNotice(`${getDocumentLabel(rejectDoc.document_type)} rejected successfully.`, "error");
+      showNotice(
+        `${getDocumentLabel(rejectDoc.document_type)} rejected successfully.`,
+        "error",
+      );
     } catch (err) {
       showNotice(err.message || "Failed to reject document.", "error");
     } finally {
@@ -217,13 +227,13 @@ export default function DocumentsTab({ candidateId }) {
               <div className="max-h-[72vh] space-y-2 overflow-y-auto p-3">
                 {documents.map((doc) => {
                   const isSelected = selectedDoc?.id === doc?.id;
-const isVerified = Boolean(doc?.is_verified);
-const showRejectReason = isVerified && Boolean(doc?.notes);
-const isPreviewLoading = previewLoadingId === doc?.id;
+                  const isVerified = Boolean(doc?.is_verified);
+                  const showRejectReason = isVerified && Boolean(doc?.notes);
+                  const isPreviewLoading = previewLoadingId === doc?.id;
 
                   return (
                     <button
-                 key={String(doc?.id)}
+                      key={String(doc?.id)}
                       type="button"
                       onClick={() => handleSelectDocument(doc)}
                       className={`w-full rounded-xl border p-3 text-left transition ${
@@ -260,12 +270,20 @@ const isPreviewLoading = previewLoadingId === doc?.id;
                         </div>
 
                         <StatusBadge
-                          status={isVerified ? "verified" : showRejectReason ? "rejected" : "pending"}
+                          status={
+                            isVerified
+                              ? "verified"
+                              : showRejectReason
+                                ? "rejected"
+                                : "pending"
+                          }
                         />
                       </div>
 
                       {isPreviewLoading ? (
-                        <div className={`mt-2 text-xs ${isSelected ? "text-gray-300" : "text-blue-600"}`}>
+                        <div
+                          className={`mt-2 text-xs ${isSelected ? "text-gray-300" : "text-blue-600"}`}
+                        >
                           Opening preview...
                         </div>
                       ) : null}
@@ -278,7 +296,8 @@ const isPreviewLoading = previewLoadingId === doc?.id;
                               : "border border-red-100 bg-red-50 text-red-700"
                           }`}
                         >
-                          <span className="font-semibold">Reason:</span> {doc?.notes}
+                          <span className="font-semibold">Reason:</span>{" "}
+                          {doc?.notes}
                         </div>
                       ) : null}
                     </button>
@@ -329,7 +348,7 @@ function DocumentDetailsPanel({
   isActionLoading,
   onPreview,
   onVerify,
-  onReject
+  onReject,
 }) {
   const isVerified = Boolean(doc?.is_verified);
   const isRejected = !isVerified && Boolean(doc?.notes);
@@ -343,7 +362,11 @@ function DocumentDetailsPanel({
               <h3 className="text-lg font-semibold text-gray-900">
                 {getDocumentLabel(doc.document_type)}
               </h3>
-              <StatusBadge status={isVerified ? "verified" : isRejected ? "rejected" : "pending"} />
+              <StatusBadge
+                status={
+                  isVerified ? "verified" : isRejected ? "rejected" : "pending"
+                }
+              />
             </div>
 
             <p className="mt-1 text-sm text-gray-500">
@@ -384,7 +407,10 @@ function DocumentDetailsPanel({
 
       <div className="grid gap-4 border-b p-5 md:grid-cols-2 xl:grid-cols-4">
         <Info label="File Name" value={doc?.original_filename || "-"} />
-        <Info label="Document Type" value={getDocumentLabel(doc?.document_type)} />
+        <Info
+          label="Document Type"
+          value={getDocumentLabel(doc?.document_type)}
+        />
         <Info label="Uploaded At" value={formatDate(doc?.uploaded_at)} />
         <Info label="File Size" value={formatFileSize(doc?.file_size)} />
       </div>
@@ -408,7 +434,8 @@ function DocumentDetailsPanel({
               Preview not opened yet
             </div>
             <p className="mt-1 max-w-sm text-sm text-gray-400">
-              Click Open Preview to view the document here while verifying the details.
+              Click Open Preview to view the document here while verifying the
+              details.
             </p>
           </div>
         )}
@@ -423,7 +450,7 @@ function RejectReasonModal({
   isLoading,
   onChangeReason,
   onCancel,
-  onSubmit
+  onSubmit,
 }) {
   return (
     <div
@@ -531,7 +558,9 @@ function StatusBadge({ status }) {
   }
 
   return (
-    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${styles}`}>
+    <span
+      className={`rounded-full border px-3 py-1 text-xs font-semibold ${styles}`}
+    >
       {formatDocumentType(normalizedStatus) || "Unknown"}
     </span>
   );
@@ -546,7 +575,7 @@ function formatDate(date) {
   return parsedDate.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
-    year: "numeric"
+    year: "numeric",
   });
 }
 
