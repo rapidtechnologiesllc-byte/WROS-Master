@@ -12,8 +12,8 @@ export const createRole = async (payload) => {
     method: "POST",
     body: JSON.stringify({
       name: payload.name,
-      description: payload.description || null
-    })
+      description: payload.description || null,
+    }),
   });
   return data;
 };
@@ -26,7 +26,7 @@ export const getRoleById = async (roleId) => {
 export const assignPermissionToRole = async (roleId, permissionId) => {
   const { data } = await apiRequest(`/rbac/roles/${roleId}/permissions`, {
     method: "POST",
-    body: JSON.stringify({ permission_id: permissionId })
+    body: JSON.stringify({ permission_id: permissionId }),
   });
   return data;
 };
@@ -34,7 +34,7 @@ export const assignPermissionToRole = async (roleId, permissionId) => {
 export const removePermissionFromRole = async (roleId, permissionId) => {
   const { data } = await apiRequest(
     `/rbac/roles/${roleId}/permissions/${permissionId}`,
-    { method: "DELETE" }
+    { method: "DELETE" },
   );
   return data;
 };
@@ -50,8 +50,8 @@ export const createPermission = async (payload) => {
     method: "POST",
     body: JSON.stringify({
       name: payload.name,
-      description: payload.description || null
-    })
+      description: payload.description || null,
+    }),
   });
   return data;
 };
@@ -67,9 +67,21 @@ export const createBusinessUnit = async (payload) => {
     method: "POST",
     body: JSON.stringify({
       name: payload.name,
-      description: payload.description || null
-    })
+      description: payload.description || null,
+    }),
   });
+  return data;
+};
+// Departments
+export const createDepartment = async (payload) => {
+  const { data } = await apiRequest("/rbac/departments", {
+    method: "POST",
+    body: JSON.stringify({
+      name: payload.name.trim(),
+      description: payload.description?.trim() || null,
+    }),
+  });
+
   return data;
 };
 
@@ -77,7 +89,7 @@ export const createBusinessUnit = async (payload) => {
 export const assignRoleToUser = async (userId, roleId) => {
   const { data } = await apiRequest(`/rbac/users/${userId}/assign-role`, {
     method: "POST",
-    body: JSON.stringify({ role_id: roleId })
+    body: JSON.stringify({ role_id: roleId }),
   });
   return data;
 };
@@ -87,15 +99,15 @@ export const setBusinessUnitForUser = async (userId, businessUnitId) => {
     method: "POST",
     body: JSON.stringify({
       user_id: userId,
-      business_unit_id: businessUnitId
-    })
+      business_unit_id: businessUnitId,
+    }),
   });
   return data;
 };
 
 export const getUserPermissionSummary = async (userId) => {
   const { data } = await apiRequest(`/rbac/users/${userId}/permissions`, {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
@@ -109,19 +121,23 @@ export const updateRole = async (roleId, payload) => {
     method: "PUT",
     body: JSON.stringify({
       name: payload.name,
-      description: payload.description || null
-    })
+      description: payload.description || null,
+    }),
   });
   return data;
 };
 
 export const deleteRole = async (roleId) => {
-  const { data } = await apiRequest(`/rbac/roles/${roleId}`, { method: "DELETE" });
+  const { data } = await apiRequest(`/rbac/roles/${roleId}`, {
+    method: "DELETE",
+  });
   return data;
 };
 
 export const deletePermission = async (permissionId) => {
-  const { data } = await apiRequest(`/rbac/permissions/${permissionId}`, { method: "DELETE" });
+  const { data } = await apiRequest(`/rbac/permissions/${permissionId}`, {
+    method: "DELETE",
+  });
   return data;
 };
 
@@ -130,29 +146,37 @@ export const updateBusinessUnit = async (businessUnitId, payload) => {
     method: "PUT",
     body: JSON.stringify({
       name: payload.name,
-      description: payload.description || null
-    })
+      description: payload.description || null,
+    }),
   });
   return data;
 };
 
 export const deleteBusinessUnit = async (businessUnitId) => {
-  const { data } = await apiRequest(`/rbac/business-units/${businessUnitId}`, { method: "DELETE" });
+  const { data } = await apiRequest(`/rbac/business-units/${businessUnitId}`, {
+    method: "DELETE",
+  });
   return data;
 };
 
 export const getUserRole = async (userId) => {
-  const { data } = await apiRequest(`/rbac/users/${userId}/role`, { method: "GET" });
+  const { data } = await apiRequest(`/rbac/users/${userId}/role`, {
+    method: "GET",
+  });
   return data;
 };
 
 export const revokeUserRole = async (userId) => {
-  const { data } = await apiRequest(`/rbac/users/${userId}/role`, { method: "DELETE" });
+  const { data } = await apiRequest(`/rbac/users/${userId}/role`, {
+    method: "DELETE",
+  });
   return data;
 };
 
 export const getUserBusinessUnit = async (userId) => {
-  const { data } = await apiRequest(`/rbac/users/${userId}/business-unit`, { method: "GET" });
+  const { data } = await apiRequest(`/rbac/users/${userId}/business-unit`, {
+    method: "GET",
+  });
   return data;
 };
 
@@ -161,8 +185,8 @@ export const updateUserBusinessUnit = async (userId, businessUnitId) => {
     method: "PUT",
     body: JSON.stringify({
       user_id: userId,
-      business_unit_id: businessUnitId
-    })
+      business_unit_id: businessUnitId,
+    }),
   });
   return data;
 };

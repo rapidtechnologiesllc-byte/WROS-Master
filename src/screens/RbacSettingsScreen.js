@@ -8,6 +8,7 @@ import {
   assignRoleToUser,
   createBusinessUnit,
   createPermission,
+  createDepartment,
   createRole,
   deleteBusinessUnit,
   deletePermission,
@@ -23,7 +24,7 @@ import {
   setBusinessUnitForUser,
   revokeUserRole,
   updateBusinessUnit,
-  updateRole
+  updateRole,
 } from "../services/api/rbac";
 
 export default function RbacSettingsScreen() {
@@ -53,11 +54,15 @@ export default function RbacSettingsScreen() {
   const [newRole, setNewRole] = useState({ name: "", description: "" });
   const [newPermission, setNewPermission] = useState({
     name: "",
-    description: ""
+    description: "",
   });
   const [newBu, setNewBu] = useState({ name: "", description: "" });
   const [editRole, setEditRole] = useState({ name: "", description: "" });
   const [editBu, setEditBu] = useState({ name: "", description: "" });
+  const [newDepartment, setNewDepartment] = useState({
+    name: "",
+    description: "",
+  });
 
   const roleOptions = useMemo(() => {
     const rows = roles.map((r) => {
@@ -70,7 +75,7 @@ export default function RbacSettingsScreen() {
   }, [roles]);
   const permissionOptions = useMemo(
     () => ["", ...permissions.map((p) => String(p.id))],
-    [permissions]
+    [permissions],
   );
   const userOptions = useMemo(() => {
     const rows = users.map((u) => {
@@ -87,11 +92,14 @@ export default function RbacSettingsScreen() {
   }, [users]);
   const buOptions = useMemo(
     () => ["", ...businessUnits.map((b) => String(b.id))],
-    [businessUnits]
+    [businessUnits],
   );
 
   useEffect(() => {
-    if (selectedRoleId && !roles.some((r) => String(r.id) === String(selectedRoleId))) {
+    if (
+      selectedRoleId &&
+      !roles.some((r) => String(r.id) === String(selectedRoleId))
+    ) {
       setSelectedRoleId("");
       setRoleDetail(null);
     }
@@ -107,7 +115,10 @@ export default function RbacSettingsScreen() {
   }, [permissions, selectedPermissionId]);
 
   useEffect(() => {
-    if (selectedUserId && !users.some((u) => String(u.user_id) === String(selectedUserId))) {
+    if (
+      selectedUserId &&
+      !users.some((u) => String(u.user_id) === String(selectedUserId))
+    ) {
       setSelectedUserId("");
     }
   }, [users, selectedUserId]);
@@ -138,7 +149,7 @@ export default function RbacSettingsScreen() {
         listRoles(),
         listPermissions(),
         listBusinessUnits(),
-        getAllUsers()
+        getAllUsers(),
       ]);
       setRoles(Array.isArray(rolesRes) ? rolesRes : []);
       setPermissions(Array.isArray(permsRes) ? permsRes : []);
@@ -172,12 +183,22 @@ export default function RbacSettingsScreen() {
   useEffect(() => {
     refreshRoleDetail(selectedRoleId);
   }, [selectedRoleId]);
+  useEffect(() => {
+    if (!notice && !error) return;
+
+    const timer = setTimeout(() => {
+      setNotice("");
+      setError("");
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [notice, error]);
 
   useEffect(() => {
     if (!roleDetail) return;
     setEditRole({
       name: roleDetail.name || "",
-      description: roleDetail.description || ""
+      description: roleDetail.description || "",
     });
   }, [roleDetail]);
 
@@ -327,6 +348,70 @@ export default function RbacSettingsScreen() {
           </div>
 
           <div className="rounded-xl border bg-gray-50 p-4">
+            <div className="mb-2 text-sm font-semibold">Create Department</div>
+
+            <Input
+              label="Department name"
+              value={newDepartment.name}
+              onChange={(v) =>
+                setNewDepartment((d) => ({
+                  ...d,
+                  name: v,
+                }))
+              }
+            />
+
+            <Input
+              label="Description"
+              value={newDepartment.description}
+              onChange={(v) =>
+                setNewDepartment((d) => ({
+                  ...d,
+                  description: v,
+                }))
+              }
+            />
+
+            <div className="mt-2">
+              <Button
+                onClick={async () => {
+                  const departmentName = newDepartment.name.trim();
+
+                  if (!departmentName) {
+                    setError("Department name is required.");
+                    return;
+                  }
+
+                  setBusy(true);
+                  setError("");
+                  setNotice("");
+
+                  try {
+                    await createDepartment({
+                      name: departmentName,
+                      description: newDepartment.description,
+                    });
+
+                    setNewDepartment({
+                      name: "",
+                      description: "",
+                    });
+
+                    setNotice("Department created successfully.");
+                  } catch (err) {
+                    setError(err.message || "Failed to create department.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy || !newDepartment.name.trim()}
+              >
+                Create Department
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-gray-50 p-4">
             <div className="mb-2 text-sm font-semibold">Assign User Role</div>
             <Select
               label="User"
@@ -344,11 +429,19 @@ export default function RbacSettingsScreen() {
               <Button
                 onClick={async () => {
                   if (!selectedUserId || !selectedUserRoleId) return;
-                  if (!users.some((u) => String(u.user_id) === String(selectedUserId))) {
+                  if (
+                    !users.some(
+                      (u) => String(u.user_id) === String(selectedUserId),
+                    )
+                  ) {
                     setError("Selected user is not in backend list.");
                     return;
                   }
-                  if (!roles.some((r) => String(r.id) === String(selectedUserRoleId))) {
+                  if (
+                    !roles.some(
+                      (r) => String(r.id) === String(selectedUserRoleId),
+                    )
+                  ) {
                     setError("Selected role is not in backend list.");
                     return;
                   }
@@ -356,7 +449,10 @@ export default function RbacSettingsScreen() {
                   setError("");
                   setNotice("");
                   try {
-                    await assignRoleToUser(String(selectedUserId), Number(selectedUserRoleId));
+                    await assignRoleToUser(
+                      String(selectedUserId),
+                      Number(selectedUserRoleId),
+                    );
                     setNotice("Role assigned to user.");
                   } catch (err) {
                     setError(err.message || "Failed to assign role.");
@@ -391,11 +487,19 @@ export default function RbacSettingsScreen() {
               <Button
                 onClick={async () => {
                   if (!selectedUserId || !selectedBuId) return;
-                  if (!users.some((u) => String(u.user_id) === String(selectedUserId))) {
+                  if (
+                    !users.some(
+                      (u) => String(u.user_id) === String(selectedUserId),
+                    )
+                  ) {
                     setError("Selected user is not in backend list.");
                     return;
                   }
-                  if (!businessUnits.some((b) => String(b.id) === String(selectedBuId))) {
+                  if (
+                    !businessUnits.some(
+                      (b) => String(b.id) === String(selectedBuId),
+                    )
+                  ) {
                     setError("Selected business unit is not in backend list.");
                     return;
                   }
@@ -403,7 +507,10 @@ export default function RbacSettingsScreen() {
                   setError("");
                   setNotice("");
                   try {
-                    await setBusinessUnitForUser(String(selectedUserId), Number(selectedBuId));
+                    await setBusinessUnitForUser(
+                      String(selectedUserId),
+                      Number(selectedBuId),
+                    );
                     setNotice("Business unit assigned.");
                   } catch (err) {
                     setError(err.message || "Failed to assign business unit.");
@@ -438,11 +545,17 @@ export default function RbacSettingsScreen() {
               <Button
                 onClick={async () => {
                   if (!selectedRoleId || !selectedPermissionId) return;
-                  if (!roles.some((r) => String(r.id) === String(selectedRoleId))) {
+                  if (
+                    !roles.some((r) => String(r.id) === String(selectedRoleId))
+                  ) {
                     setError("Selected role is not in backend list.");
                     return;
                   }
-                  if (!permissions.some((p) => String(p.id) === String(selectedPermissionId))) {
+                  if (
+                    !permissions.some(
+                      (p) => String(p.id) === String(selectedPermissionId),
+                    )
+                  ) {
                     setError("Selected permission is not in backend list.");
                     return;
                   }
@@ -452,7 +565,7 @@ export default function RbacSettingsScreen() {
                   try {
                     await assignPermissionToRole(
                       Number(selectedRoleId),
-                      Number(selectedPermissionId)
+                      Number(selectedPermissionId),
                     );
                     await refreshRoleDetail(selectedRoleId);
                     setNotice("Permission assigned to role.");
@@ -474,7 +587,9 @@ export default function RbacSettingsScreen() {
       <Card title="Maintenance Actions">
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">Role Update / Delete</div>
+            <div className="mb-2 text-sm font-semibold">
+              Role Update / Delete
+            </div>
             <Select
               label="Role"
               value={selectedRoleId}
@@ -543,7 +658,9 @@ export default function RbacSettingsScreen() {
           </div>
 
           <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">Permission / Business Unit / User</div>
+            <div className="mb-2 text-sm font-semibold">
+              Permission / Business Unit / User
+            </div>
             <Select
               label="Permission (for delete)"
               value={selectedPermissionId}
@@ -606,7 +723,9 @@ export default function RbacSettingsScreen() {
                       await loadAll();
                       setNotice("Business unit updated.");
                     } catch (err) {
-                      setError(err.message || "Failed to update business unit.");
+                      setError(
+                        err.message || "Failed to update business unit.",
+                      );
                     } finally {
                       setBusy(false);
                     }
@@ -630,7 +749,9 @@ export default function RbacSettingsScreen() {
                       setEditBu({ name: "", description: "" });
                       setNotice("Business unit deleted.");
                     } catch (err) {
-                      setError(err.message || "Failed to delete business unit.");
+                      setError(
+                        err.message || "Failed to delete business unit.",
+                      );
                     } finally {
                       setBusy(false);
                     }
@@ -702,7 +823,8 @@ export default function RbacSettingsScreen() {
                   setError("");
                   setUserDetailNotice("");
                   try {
-                    const summary = await getUserPermissionSummary(selectedUserId);
+                    const summary =
+                      await getUserPermissionSummary(selectedUserId);
                     setUserPermissionSummary(summary || null);
                     setUserDetailNotice("Permission summary loaded.");
                   } catch (err) {
@@ -757,8 +879,14 @@ export default function RbacSettingsScreen() {
                   } catch (err) {
                     setUserBusinessUnitDetail(null);
                     const message = String(err.message || "");
-                    if (message.toLowerCase().includes("no business unit assigned")) {
-                      setUserDetailNotice("No business unit assigned to this user.");
+                    if (
+                      message
+                        .toLowerCase()
+                        .includes("no business unit assigned")
+                    ) {
+                      setUserDetailNotice(
+                        "No business unit assigned to this user.",
+                      );
                     } else {
                       setError(message || "Failed to load user business unit.");
                     }
@@ -778,13 +906,18 @@ export default function RbacSettingsScreen() {
                   setNotice("");
                   setUserDetailNotice("");
                   try {
-                    await updateUserBusinessUnit(selectedUserId, Number(userBuUpdateId));
+                    await updateUserBusinessUnit(
+                      selectedUserId,
+                      Number(userBuUpdateId),
+                    );
                     const bu = await getUserBusinessUnit(selectedUserId);
                     setUserBusinessUnitDetail(bu || null);
                     await loadAll();
                     setNotice("User business unit updated.");
                   } catch (err) {
-                    setError(err.message || "Failed to update user business unit.");
+                    setError(
+                      err.message || "Failed to update user business unit.",
+                    );
                   } finally {
                     setBusy(false);
                   }
@@ -795,7 +928,9 @@ export default function RbacSettingsScreen() {
               </Button>
             </div>
             {userDetailNotice ? (
-              <div className="mt-2 text-xs text-gray-600">{userDetailNotice}</div>
+              <div className="mt-2 text-xs text-gray-600">
+                {userDetailNotice}
+              </div>
             ) : null}
           </div>
 
@@ -804,7 +939,9 @@ export default function RbacSettingsScreen() {
             <div className="space-y-2 text-xs text-gray-700">
               <div>
                 <span className="font-semibold">Role:</span>{" "}
-                {userRoleDetail ? `${userRoleDetail.name} (${userRoleDetail.id})` : "-"}
+                {userRoleDetail
+                  ? `${userRoleDetail.name} (${userRoleDetail.id})`
+                  : "-"}
               </div>
               <div>
                 <span className="font-semibold">Business Unit:</span>{" "}
@@ -838,9 +975,14 @@ export default function RbacSettingsScreen() {
               {roleDetail.attributes?.length ? (
                 <div className="space-y-1">
                   {roleDetail.attributes.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between text-sm">
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between text-sm"
+                    >
                       <span>{a.attribute_name}</span>
-                      <StatusBadge status={a.attribute_value ? "true" : "false"} />
+                      <StatusBadge
+                        status={a.attribute_value ? "true" : "false"}
+                      />
                     </div>
                   ))}
                 </div>
@@ -854,7 +996,10 @@ export default function RbacSettingsScreen() {
               {roleDetail.permissions?.length ? (
                 <div className="space-y-1">
                   {roleDetail.permissions.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
                       <span>{p.name}</span>
                       <Button
                         variant="secondary"
@@ -865,12 +1010,14 @@ export default function RbacSettingsScreen() {
                           try {
                             await removePermissionFromRole(
                               Number(selectedRoleId),
-                              Number(p.id)
+                              Number(p.id),
                             );
                             await refreshRoleDetail(selectedRoleId);
                             setNotice("Permission removed.");
                           } catch (err) {
-                            setError(err.message || "Failed to remove permission.");
+                            setError(
+                              err.message || "Failed to remove permission.",
+                            );
                           } finally {
                             setBusy(false);
                           }
@@ -883,12 +1030,16 @@ export default function RbacSettingsScreen() {
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-gray-500">No permissions assigned.</div>
+                <div className="text-sm text-gray-500">
+                  No permissions assigned.
+                </div>
               )}
             </div>
           </div>
         ) : (
-          <div className="text-sm text-gray-600">Unable to load role details.</div>
+          <div className="text-sm text-gray-600">
+            Unable to load role details.
+          </div>
         )}
       </Card>
     </div>

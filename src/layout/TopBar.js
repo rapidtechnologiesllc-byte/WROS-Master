@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Plus, Search, Bell, Settings, Eye, EyeOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bell, Settings, Eye, EyeOff } from "lucide-react";
 import { Button } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
 
@@ -12,10 +12,25 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const dropdownRef = useRef(null);
 
   const toggleProfile = () => setIsOpen(!isOpen);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!isOpen) return;
 
-  
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
   const handleViewProfile = async () => {
     try {
       const data = await getHrMe();
@@ -26,7 +41,6 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
     }
   };
 
- 
   const handleChangePassword = () => {
     setPasswordError("");
     setPasswordSuccess("");
@@ -36,8 +50,8 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
   const crumbs = useMemo(() => {
     const map = {
       dashboard: ["Dashboard"],
-      candidateSearch: ["Candidates", "Search"],
-      candidateCreate: ["Candidates", "Create"]
+      candidateSearch: ["Candidate Dashboard"],
+      candidateCreate: ["Candidates", "Create"],
     };
     return map[screen] || ["Dashboard"];
   }, [screen]);
@@ -46,33 +60,18 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
     <>
       <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
         <div className="flex justify-between items-center">
-
-      
           <div>
             <div className="text-base font-bold">
               {crumbs[crumbs.length - 1]}
             </div>
-            <div className="text-xs text-gray-500">
-              {crumbs.join(" / ")}
-            </div>
+            <div className="text-xs text-gray-500">{crumbs.join(" / ")}</div>
           </div>
 
-         
           <div className="flex items-center gap-3">
-
-            <Button onClick={() => setScreen("candidateSearch")}>
-              <Search className="h-4 w-4" /> Search
-            </Button>
-
-            <Button onClick={() => setScreen("candidateCreate")}>
-              <Plus className="h-4 w-4" /> Add
-            </Button>
-
             <Bell className="h-5 w-5 text-gray-500" />
             <Settings className="h-5 w-5 text-gray-500" />
 
-          
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <div
                 onClick={toggleProfile}
                 className="flex items-center gap-2 cursor-pointer"
@@ -83,7 +82,6 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
                 <span>{localStorage.getItem("hrms_user_name")}</span>
               </div>
 
-            
               {isOpen && (
                 <div className="absolute right-0 top-10 bg-white border rounded-lg shadow-md w-48">
                   <p
@@ -115,12 +113,10 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
                 </div>
               )}
             </div>
-
           </div>
         </div>
       </div>
 
-      
       {showProfileModal && (
         <div
           onClick={() => setShowProfileModal(false)}
@@ -159,7 +155,6 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
         </div>
       )}
 
-     
       {showPasswordModal && (
         <div
           onClick={() => setShowPasswordModal(false)}
@@ -171,7 +166,6 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
           >
             <h2 className="text-xl font-semibold mb-5">Change Password</h2>
 
-            
             <input
               id="current"
               type="text"
@@ -179,7 +173,6 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
               className="w-full border border-gray-200 px-3 py-2 rounded-lg mb-3"
             />
 
-            
             <div className="relative mb-3">
               <input
                 id="new"
@@ -200,21 +193,14 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
               </span>
             </div>
 
-         
             {passwordError && (
-              <p className="text-red-500 text-sm mb-2">
-                {passwordError}
-              </p>
+              <p className="text-red-500 text-sm mb-2">{passwordError}</p>
             )}
 
-           
             {passwordSuccess && (
-              <p className="text-green-600 text-sm mb-2">
-                {passwordSuccess}
-              </p>
+              <p className="text-green-600 text-sm mb-2">{passwordSuccess}</p>
             )}
 
-       
             <div className="flex gap-2">
               <button
                 onClick={() => setShowPasswordModal(false)}
@@ -236,7 +222,7 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
                   try {
                     await changeHrMePassword({
                       current_password: current,
-                      new_password: newPass
+                      new_password: newPass,
                     });
 
                     setPasswordError("");
@@ -246,10 +232,9 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
                       setShowPasswordModal(false);
                       setPasswordSuccess("");
                     }, 1500);
-
                   } catch (error) {
                     setPasswordError(
-                      error.message || "Current password is incorrect"
+                      error.message || "Current password is incorrect",
                     );
                     setPasswordSuccess("");
                   }
@@ -259,7 +244,6 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
                 Update
               </button>
             </div>
-
           </div>
         </div>
       )}
