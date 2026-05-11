@@ -228,7 +228,7 @@ export default function DocumentsTab({ candidateId }) {
                 {documents.map((doc) => {
                   const isSelected = selectedDoc?.id === doc?.id;
                   const isVerified = Boolean(doc?.is_verified);
-                  const showRejectReason = isVerified && Boolean(doc?.notes);
+                  const showRejectReason = !isVerified && Boolean(doc?.notes);
                   const isPreviewLoading = previewLoadingId === doc?.id;
 
                   return (
