@@ -80,6 +80,10 @@ const emailTemplateOptions = [
   "Face to Face Interview",
   "Custom",
 ];
+const roundNameOptions = [
+  { label: "L1 Interview", value: "L1 Interview" },
+  { label: "L2 Interview", value: "L2 Interview" },
+];
 
 export default function CandidateDetailsScreen({
   candidate,
@@ -136,8 +140,7 @@ export default function CandidateDetailsScreen({
   }, [limitedMode]);
 
   useEffect(() => {
-    if (!candidate?.id) return;
-
+    if (limitedMode || !candidate?.id) return;
     const fetchStatus = async () => {
       try {
         const res = await getCandidateStatus(candidate.id);
@@ -148,10 +151,10 @@ export default function CandidateDetailsScreen({
     };
 
     fetchStatus();
-  }, [candidate?.id, updatedStatus]);
+  }, [candidate?.id, updatedStatus, limitedMode]);
 
   useEffect(() => {
-    if (!candidate?.id) return;
+    if (limitedMode || !candidate?.id) return;
 
     const checkChecklist = async () => {
       try {
@@ -163,7 +166,7 @@ export default function CandidateDetailsScreen({
     };
 
     checkChecklist();
-  }, [candidate?.id]);
+  }, [candidate?.id, limitedMode]);
 
   useEffect(() => {
     if (!showAssignModal) return;
@@ -987,32 +990,24 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          {/* {activeTab === "profile" && (
-            <ProfileTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "feedback" && (
-            <FeedbackTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "documents" && (
-            <DocumentsTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "tasks" && <TasksTab candidateId={candidate?.id} />}
-          {activeTab === "messages" && (
-            <div className="text-gray-500">Messages Coming Soon</div>
-          )}
-          {activeTab === "activity" && (
-            <ActivityTab candidateId={candidate?.id} />
-          )} */}
           {activeTab === "profile" && !limitedMode && (
             <ProfileTab candidateId={candidate?.id} />
           )}
 
           {activeTab === "feedback" && (
-            <FeedbackTab candidateId={candidate?.id} />
+            <FeedbackTab
+              candidateId={candidate?.id}
+              limitedMode={limitedMode}
+              limitedInterview={candidate?.limitedInterview || null}
+            />
           )}
 
           {activeTab === "documents" && !limitedMode && (
-            <DocumentsTab candidateId={candidate?.id} />
+            <DocumentsTab
+              candidateId={candidate?.id}
+              candidateEmail={candidate?.email || candidate?.candidate_email}
+              candidateName={candidate?.name || candidate?.candidate_name}
+            />
           )}
 
           {activeTab === "tasks" && !limitedMode && (
@@ -1098,15 +1093,22 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         readOnly
                       />
 
-                      <FormField
+                      <SelectField
                         label="Round Name"
-                        placeholder="e.g. Technical Round 1"
-                        value={scheduleForm.roundName}
+                        value={scheduleForm.roundName || ""}
                         onChange={(e) =>
                           handleScheduleInputChange("roundName", e.target.value)
                         }
                         error={scheduleErrors.roundName}
-                      />
+                      >
+                        <option value="">Select Round Name</option>
+
+                        {roundNameOptions?.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </SelectField>
 
                       <div
                         className="md:col-span-2"

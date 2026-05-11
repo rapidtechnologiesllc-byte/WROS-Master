@@ -8,16 +8,11 @@ import {
   Users,
 } from "lucide-react";
 import CandidateDetailsScreen from "./CandidateDetailsScreen";
-import { getAssignedCandidates } from "../services/api/candidates";
-import { getAssignedInterviews } from "../services/api/interviews";
+import { getMyInterviews } from "../services/api/interviews";
 
-const normalizeList = (res, keys = []) => {
+const normalizeInterviewList = (res) => {
   if (Array.isArray(res)) return res;
-
-  for (const key of keys) {
-    if (Array.isArray(res?.[key])) return res[key];
-  }
-
+  if (Array.isArray(res?.interviews)) return res.interviews;
   if (Array.isArray(res?.data)) return res.data;
   if (Array.isArray(res?.items)) return res.items;
 
@@ -39,15 +34,29 @@ const formatDateTime = (value) => {
   });
 };
 
-const getCandidateId = (item) =>
-  item?.candidate_id || item?.candidateId || item?.id || "";
-
 const buildCandidateForDetails = (workspaceItem) => ({
-  id: workspaceItem?.candidateId,
-  name: workspaceItem?.candidateName,
-  email: workspaceItem?.candidateEmail,
-  phone: workspaceItem?.candidateMobile,
-  jobTitle: workspaceItem?.assignmentType || workspaceItem?.roundName || "",
+  id: workspaceItem?.candidateId || "",
+  name: workspaceItem?.candidateName || "Candidate",
+  email: workspaceItem?.candidateEmail || "",
+  phone: workspaceItem?.candidateMobile || "",
+  jobTitle: workspaceItem?.roundName || "",
+  limitedInterview: {
+    interview_id: workspaceItem?.interviewId || "",
+    panel_id: workspaceItem?.panelId || "",
+    round_name: workspaceItem?.roundName || "",
+    candidate_id: workspaceItem?.candidateId || "",
+    candidate_name: workspaceItem?.candidateName || "Candidate",
+    candidate_email: workspaceItem?.candidateEmail || "",
+    candidate_mobile: workspaceItem?.candidateMobile || "",
+    start_time: workspaceItem?.startTime || "",
+    end_time: workspaceItem?.endTime || "",
+    meeting_link: workspaceItem?.meetingLink || "",
+    status: workspaceItem?.interviewStatus || "",
+    feedback_submitted: Boolean(workspaceItem?.feedbackSubmitted),
+    my_feedback: workspaceItem?.myFeedback || null,
+    interviewer_id: workspaceItem?.interviewerId || "",
+    interviewer_name: workspaceItem?.interviewerName || "",
+  },
 });
 
 const getStatusStyles = (status) => {
@@ -67,12 +76,29 @@ const getStatusStyles = (status) => {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
+  if (normalized.includes("submitted")) {
+    return "border-green-200 bg-green-50 text-green-700";
+  }
+
+  if (normalized.includes("pending")) {
+    return "border-orange-200 bg-orange-50 text-orange-700";
+  }
+
   return "border-gray-200 bg-gray-50 text-gray-700";
 };
 
+const getFeedbackStatus = (item) => {
+  if (item?.feedbackSubmitted) return "Feedback Submitted";
+  return "Feedback Pending";
+};
+
 export default function MyWorkspace({ onLogout }) {
-  const [assignedCandidates, setAssignedCandidates] = useState([]);
-  const [assignedInterviews, setAssignedInterviews] = useState([]);
+  const [myInterviews, setMyInterviews] = useState([]);
+  const [workspaceSummary, setWorkspaceSummary] = useState({
+    interviewerName: "",
+    totalInterviews: 0,
+    pendingFeedback: 0,
+  });
   const [selectedCandidate, setSelectedCandidate] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -83,22 +109,31 @@ export default function MyWorkspace({ onLogout }) {
       setLoading(true);
       setError("");
 
-      const [candidateRes, interviewRes] = await Promise.all([
-        getAssignedCandidates(),
-        getAssignedInterviews(),
-      ]);
+      const response = await getMyInterviews();
+      const interviews = normalizeInterviewList(response);
 
-      setAssignedCandidates(
-        normalizeList(candidateRes, ["candidates", "assignments"]),
+      setMyInterviews(
+        interviews.map((interview) => ({
+          ...interview,
+          interviewer_id: response?.interviewer_id || "",
+          interviewer_name: response?.interviewer_name || "",
+        })),
       );
+      const pendingFeedbackCount = interviews.filter(
+        (item) => !item?.feedback_submitted,
+      ).length;
 
-      setAssignedInterviews(
-        normalizeList(interviewRes, ["interviews", "assigned_interviews"]),
-      );
+      setWorkspaceSummary({
+        interviewerName: response?.interviewer_name || "",
+        totalInterviews: Number(
+          response?.total_interviews ?? interviews.length,
+        ),
+        pendingFeedback: pendingFeedbackCount,
+      });
     } catch (err) {
       console.error("Failed to load workspace data", err);
       setError(
-        err?.message || "Unable to load your assignments. Please try again.",
+        err?.message || "Unable to load your interviews. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -110,72 +145,25 @@ export default function MyWorkspace({ onLogout }) {
   }, [loadWorkspaceData]);
 
   const workspaceItems = useMemo(() => {
-    const candidateById = new Map();
-
-    assignedCandidates.forEach((candidate) => {
-      const candidateId = getCandidateId(candidate);
-      if (!candidateId) return;
-
-      candidateById.set(String(candidateId), candidate);
-    });
-
-    const interviewItems = assignedInterviews.map((interview) => {
-      const candidateId = getCandidateId(interview);
-      const candidate = candidateById.get(String(candidateId)) || {};
-
-      return {
-        key: `interview-${interview?.interview_id || interview?.id || candidateId}`,
-        candidateId,
-        candidateName:
-          interview?.candidate_name || candidate?.candidate_name || "Candidate",
-        candidateEmail: candidate?.candidate_email || "",
-        candidateMobile: candidate?.candidate_mobile || "",
-        assignmentType: candidate?.assignment_type || "",
-        assignedAt: candidate?.assigned_at || "",
-        interviewId: interview?.interview_id || interview?.id || "",
-        panelId: interview?.panel_id || "",
-        roundName: interview?.round_name || interview?.panel_round_name || "-",
-        startTime: interview?.start_time || "",
-        endTime: interview?.end_time || "",
-        meetingLink: interview?.meeting_link || "",
-        status: interview?.status || "Scheduled",
-        hasInterview: true,
-      };
-    });
-
-    const interviewCandidateIds = new Set(
-      interviewItems.map((item) => String(item.candidateId)),
-    );
-
-    const candidateOnlyItems = assignedCandidates
-      .filter((candidate) => {
-        const candidateId = getCandidateId(candidate);
-        return candidateId && !interviewCandidateIds.has(String(candidateId));
-      })
-      .map((candidate) => {
-        const candidateId = getCandidateId(candidate);
-
-        return {
-          key: `candidate-${candidateId}`,
-          candidateId,
-          candidateName: candidate?.candidate_name || "Candidate",
-          candidateEmail: candidate?.candidate_email || "",
-          candidateMobile: candidate?.candidate_mobile || "",
-          assignmentType: candidate?.assignment_type || "",
-          assignedAt: candidate?.assigned_at || "",
-          interviewId: "",
-          panelId: "",
-          roundName: "-",
-          startTime: "",
-          endTime: "",
-          meetingLink: "",
-          status: "No interview assigned",
-          hasInterview: false,
-        };
-      });
-
-    return [...interviewItems, ...candidateOnlyItems];
-  }, [assignedCandidates, assignedInterviews]);
+    return myInterviews.map((interview) => ({
+      key: `interview-${interview?.interview_id || interview?.id}`,
+      candidateId: interview?.candidate_id || "",
+      candidateName: interview?.candidate_name || "Candidate",
+      candidateEmail: interview?.candidate_email || "",
+      candidateMobile: interview?.candidate_mobile || "",
+      interviewId: interview?.interview_id || interview?.id || "",
+      interviewerId: interview?.interviewer_id || "",
+      interviewerName: interview?.interviewer_name || "",
+      panelId: interview?.panel_id || "",
+      roundName: interview?.round_name || "-",
+      startTime: interview?.start_time || "",
+      endTime: interview?.end_time || "",
+      meetingLink: interview?.meeting_link || "",
+      interviewStatus: interview?.status || "Scheduled",
+      feedbackSubmitted: Boolean(interview?.feedback_submitted),
+      myFeedback: interview?.my_feedback || null,
+    }));
+  }, [myInterviews]);
 
   if (selectedCandidate) {
     return (
@@ -200,25 +188,23 @@ export default function MyWorkspace({ onLogout }) {
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 HRMS
               </div>
+
               <h1 className="mt-1 text-xl font-bold text-gray-900">
                 My Workspace
               </h1>
+
               <p className="mt-1 text-sm text-gray-500">
-                View your assigned candidates and submit interview feedback.
+                View your assigned interviews and submit interview feedback.
               </p>
+
+              {workspaceSummary.interviewerName ? (
+                <p className="mt-2 text-sm font-medium text-gray-700">
+                  Welcome, {workspaceSummary.interviewerName}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={loadWorkspaceData}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </button>
-
               {onLogout && (
                 <button
                   type="button"
@@ -236,28 +222,33 @@ export default function MyWorkspace({ onLogout }) {
         <section className="grid gap-4 md:grid-cols-3">
           <SummaryCard
             icon={Users}
-            label="Assigned Candidates"
-            value={assignedCandidates.length}
+            label="Assigned Interviews"
+            value={workspaceSummary.totalInterviews}
           />
+
           <SummaryCard
             icon={Calendar}
-            label="Assigned Interviews"
-            value={assignedInterviews.length}
+            label="Pending Feedback"
+            value={workspaceSummary.pendingFeedback}
           />
+
           <SummaryCard
             icon={UserCheck}
-            label="Pending Actions"
-            value={workspaceItems.filter((item) => item.hasInterview).length}
+            label="Submitted Feedback"
+            value={
+              workspaceItems.filter((item) => item.feedbackSubmitted).length
+            }
           />
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-200 px-5 py-4">
             <h2 className="text-base font-semibold text-gray-900">
-              My Candidates
+              My Interviews
             </h2>
+
             <p className="mt-1 text-sm text-gray-500">
-              Only candidates and interviews assigned to you are shown here.
+              Only interviews assigned to you are shown here.
             </p>
           </div>
 
@@ -274,12 +265,12 @@ export default function MyWorkspace({ onLogout }) {
                   <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Candidate</th>
-                      <th className="px-5 py-3 font-semibold">Contact</th>
                       <th className="px-5 py-3 font-semibold">Round</th>
                       <th className="px-5 py-3 font-semibold">
                         Interview Time
                       </th>
-                      <th className="px-5 py-3 font-semibold">Status</th>
+                      <th className="px-5 py-3 font-semibold">Interview</th>
+                      <th className="px-5 py-3 font-semibold">Feedback</th>
                       <th className="px-5 py-3 text-right font-semibold">
                         Action
                       </th>
@@ -296,45 +287,40 @@ export default function MyWorkspace({ onLogout }) {
                           <div className="font-semibold text-gray-900">
                             {item?.candidateName}
                           </div>
-                          <div className="mt-1 text-xs text-gray-500">
-                            {item?.candidateId}
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4 text-gray-600">
-                          <div>{item.candidateEmail || "-"}</div>
-                          <div className="mt-1 text-xs">
-                            {item.candidateMobile || "-"}
-                          </div>
                         </td>
 
                         <td className="px-5 py-4 text-gray-700">
-                          {item.roundName}
+                          {item?.roundName || "-"}
                         </td>
 
                         <td className="px-5 py-4 text-gray-600">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-gray-400" />
-                            {formatDateTime(item.startTime)}
+                            {formatDateTime(item?.startTime)}
                           </div>
                         </td>
 
                         <td className="px-5 py-4">
-                          <StatusBadge status={item.status} />
+                          <StatusBadge status={item?.interviewStatus} />
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <StatusBadge status={getFeedbackStatus(item)} />
                         </td>
 
                         <td className="px-5 py-4 text-right">
                           <button
                             type="button"
-                            disabled={!item.hasInterview}
                             onClick={() =>
                               setSelectedCandidate(
                                 buildCandidateForDetails(item),
                               )
                             }
-                            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+                            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
                           >
-                            {item.hasInterview ? "Open Feedback" : "No Action"}
+                            {item?.feedbackSubmitted
+                              ? "View Feedback"
+                              : "Open Feedback"}
                           </button>
                         </td>
                       </tr>
@@ -344,49 +330,50 @@ export default function MyWorkspace({ onLogout }) {
               </div>
 
               <div className="grid gap-3 p-4 md:hidden">
-                {workspaceItems.map((item) => (
+                {workspaceItems?.map((item) => (
                   <div
-                    key={item.key}
+                    key={String(item?.key)}
                     className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="font-semibold text-gray-900">
-                          {item.candidateName}
+                          {item?.candidateName}
                         </h3>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {item.candidateId}
-                        </p>
                       </div>
 
-                      <StatusBadge status={item.status} />
+                      <StatusBadge status={getFeedbackStatus(item)} />
                     </div>
 
                     <div className="mt-4 space-y-2 text-sm text-gray-600">
                       <InfoRow
                         label="Email"
-                        value={item.candidateEmail || "-"}
+                        value={item?.candidateEmail || "-"}
                       />
+
+                      <InfoRow label="Round" value={item?.roundName || "-"} />
+
                       <InfoRow
-                        label="Phone"
-                        value={item.candidateMobile || "-"}
+                        label="Interview"
+                        value={item?.interviewStatus || "-"}
                       />
-                      <InfoRow label="Round" value={item.roundName} />
+
                       <InfoRow
                         label="Time"
-                        value={formatDateTime(item.startTime)}
+                        value={formatDateTime(item?.startTime)}
                       />
                     </div>
 
                     <button
                       type="button"
-                      disabled={!item.hasInterview}
                       onClick={() =>
                         setSelectedCandidate(buildCandidateForDetails(item))
                       }
-                      className="mt-4 w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+                      className="mt-4 w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
                     >
-                      {item.hasInterview ? "Open Feedback" : "No Action"}
+                      {item?.feedbackSubmitted
+                        ? "View Feedback"
+                        : "Open Feedback"}
                     </button>
                   </div>
                 ))}
@@ -405,6 +392,7 @@ function SummaryCard({ icon: Icon, label, value }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium text-gray-500">{label}</div>
+
           <div className="mt-2 text-2xl font-bold text-gray-900">
             {value ?? 0}
           </div>
@@ -480,12 +468,12 @@ function EmptyState() {
       </div>
 
       <h3 className="mt-4 text-base font-semibold text-gray-900">
-        No pending assignments
+        No assigned interviews
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-        You don’t have any assigned candidates or interviews at the moment. When
-        you are added as a panel member, your interviews will appear here.
+        You don’t have any assigned interviews at the moment. When you are added
+        as a panel member, your interviews will appear here.
       </p>
     </div>
   );
