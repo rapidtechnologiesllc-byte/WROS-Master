@@ -4,6 +4,7 @@ import {
   verifyDocument,
   viewDocument,
 } from "../../services/api/documents";
+import { sendPlainEmail } from "../../services/api/email";
 
 const DOCUMENT_LABELS = {
   pan: "PAN Card",
@@ -15,7 +16,11 @@ const DOCUMENT_LABELS = {
   resume: "Resume",
 };
 
-export default function DocumentsTab({ candidateId }) {
+export default function DocumentsTab({
+  candidateId,
+  candidateEmail,
+  candidateName,
+}) {
   const [documents, setDocuments] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -118,6 +123,65 @@ export default function DocumentsTab({ candidateId }) {
       setPreviewLoadingId(null);
     }
   };
+  const notifyCandidateDocumentStatus = async ({
+    documentType,
+    status,
+    reason = "",
+  }) => {
+    if (!candidateEmail) {
+      return {
+        success: false,
+        message: "Candidate email is missing.",
+      };
+    }
+
+    const documentLabel = getDocumentLabel(documentType);
+    const displayName = candidateName || "Candidate";
+
+    const subject =
+      status === "approved"
+        ? `${documentLabel} Approved`
+        : `${documentLabel} Rejected`;
+
+    const bodyContent =
+      status === "approved"
+        ? `Hi ${displayName},
+
+Your ${documentLabel} has been approved successfully.
+
+Regards,
+HR Team`
+        : `Hi ${displayName},
+
+Your ${documentLabel} has been rejected.
+
+Reason: ${reason}
+
+Please upload the correct document again.
+
+Regards,
+HR Team`;
+
+    try {
+      await sendPlainEmail({
+        toEmail: candidateEmail,
+        subject,
+        bodyContent,
+        isHtml: false,
+        ccEmails: [],
+      });
+
+      return {
+        success: true,
+        message: "Notification email sent.",
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.message || "Email notification failed.",
+      };
+    }
+  };
 
   const handleVerifyDocument = async (doc) => {
     if (!doc?.document_type) {
@@ -127,14 +191,22 @@ export default function DocumentsTab({ candidateId }) {
 
     try {
       setActionLoadingId(doc.id);
-
       await verifyDocument(candidateId, doc.document_type, true);
+
+      const emailResult = await notifyCandidateDocumentStatus({
+        documentType: doc.document_type,
+        status: "approved",
+      });
+
       await fetchDocuments();
 
       closeRejectModal();
+
       showNotice(
-        `${getDocumentLabel(doc.document_type)} verified successfully.`,
-        "success",
+        emailResult.success
+          ? `${getDocumentLabel(doc.document_type)} approved and notification sent.`
+          : `${getDocumentLabel(doc.document_type)} approved, but ${emailResult.message}`,
+        emailResult.success ? "success" : "error",
       );
     } catch (err) {
       showNotice(err.message || "Failed to verify document.", "error");
@@ -163,7 +235,6 @@ export default function DocumentsTab({ candidateId }) {
 
     try {
       setActionLoadingId(rejectDoc.id);
-
       await verifyDocument(
         candidateId,
         rejectDoc.document_type,
@@ -171,12 +242,20 @@ export default function DocumentsTab({ candidateId }) {
         trimmedReason,
       );
 
+      const emailResult = await notifyCandidateDocumentStatus({
+        documentType: rejectDoc.document_type,
+        status: "rejected",
+        reason: trimmedReason,
+      });
+
       await fetchDocuments();
       closeRejectModal();
 
       showNotice(
-        `${getDocumentLabel(rejectDoc.document_type)} rejected successfully.`,
-        "error",
+        emailResult.success
+          ? `${getDocumentLabel(rejectDoc.document_type)} rejected and notification sent successfully.`
+          : `${getDocumentLabel(rejectDoc.document_type)} rejected, but email notification failed.`,
+        emailResult.success ? "success" : "error",
       );
     } catch (err) {
       showNotice(err.message || "Failed to reject document.", "error");

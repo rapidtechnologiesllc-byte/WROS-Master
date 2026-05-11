@@ -5,7 +5,7 @@ import {
   submitInterviewFeedback,
   getPanelMembers,
   updateInterview,
-  getMyInterviews
+  getMyInterviews,
 } from "../../services/api/interviews";
 const SKIP_REASON_PREFIX = "[NOT_ATTENDED]";
 
@@ -15,7 +15,7 @@ const recommendationOptions = [
   { value: "Not sure", label: "Not sure" },
   { value: "Average", label: "Average" },
   { value: "Hire", label: "Hire" },
-  { value: "Must Hire", label: "Must Hire" }
+  { value: "Must Hire", label: "Must Hire" },
 ];
 
 const normalizeFeedbackList = (res) => {
@@ -33,14 +33,35 @@ const normalizeMyInterviews = (res) => {
 };
 
 const isSkippedFeedback = (feedback) => {
-  const comments = String(feedback?.comments || "").trim().toLowerCase();
+  const comments = String(feedback?.comments || "")
+    .trim()
+    .toLowerCase();
   return comments.startsWith(SKIP_REASON_PREFIX.toLowerCase());
 };
 
 const getInterviewId = (interview) => {
   return Number(interview?.id ?? interview?.interview_id);
 };
+const buildFeedbackFromLimitedInterview = (interview) => {
+  const feedback = interview?.my_feedback;
 
+  if (!feedback) return null;
+
+  return {
+    id: feedback?.feedback_id || feedback?.id,
+    interview_id: getInterviewId(interview),
+    interviewer_id: interview?.interviewer_id || "",
+    interviewer_name: interview?.interviewer_name || "You",
+    technical_score: feedback?.technical_score,
+    communication_score: feedback?.communication_score,
+    problem_solving_score: feedback?.problem_solving_score,
+    culture_fit_score: feedback?.culture_fit_score,
+    average_score: feedback?.average_score,
+    comments: feedback?.comments,
+    recommendation: feedback?.recommendation,
+    submitted_at: feedback?.submitted_at,
+  };
+};
 const getFeedbackBreakdown = (feedbackList = []) => {
   const submittedInterviewerIds = new Set();
   const skippedInterviewerIds = new Set();
@@ -61,18 +82,22 @@ const getFeedbackBreakdown = (feedbackList = []) => {
 
   const doneInterviewerIds = new Set([
     ...submittedInterviewerIds,
-    ...skippedInterviewerIds
+    ...skippedInterviewerIds,
   ]);
 
   return {
     submittedInterviewerIds,
     skippedInterviewerIds,
     doneInterviewerIds,
-    feedbackByInterviewerId
+    feedbackByInterviewerId,
   };
 };
 
-export default function FeedbackTab({ candidateId }) {
+export default function FeedbackTab({
+  candidateId,
+  limitedMode = false,
+  limitedInterview = null,
+}) {
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
   const [panelMembersMap, setPanelMembersMap] = useState({});
@@ -104,20 +129,64 @@ export default function FeedbackTab({ candidateId }) {
       setPanelMembersMap({});
       setMyPanelInterviewMap(new Map());
       setLoggedInInterviewerId("");
+      if (limitedMode && limitedInterview) {
+        const interviewId = getInterviewId(limitedInterview);
+        const interviewerId = limitedInterview?.interviewer_id || "";
+        const feedback = buildFeedbackFromLimitedInterview(limitedInterview);
+
+        setLoggedInInterviewerId(interviewerId);
+
+        setHistoryData({
+          interviews: [limitedInterview],
+        });
+
+        setMyPanelInterviewMap(
+          new Map([
+            [
+              interviewId,
+              {
+                ...limitedInterview,
+                feedback_submitted: Boolean(
+                  limitedInterview?.feedback_submitted,
+                ),
+                my_feedback: limitedInterview?.my_feedback || null,
+              },
+            ],
+          ]),
+        );
+
+        setFeedbackMap({
+          [interviewId]: feedback ? [feedback] : [],
+        });
+
+        setPanelMembersMap({
+          [limitedInterview?.panel_id]: [
+            {
+              interviewer_id: interviewerId,
+              interviewer_name: limitedInterview?.interviewer_name || "You",
+            },
+          ],
+        });
+
+        return;
+      }
 
       const [candidateHistoryResult, myInterviewsResult] = await Promise.all([
         getCandidateInterviewHistory(candidateId),
-        getMyInterviews()
+        getMyInterviews(),
       ]);
 
       setHistoryData(candidateHistoryResult || null);
 
-      const candidateInterviews = Array.isArray(candidateHistoryResult?.interviews)
+      const candidateInterviews = Array.isArray(
+        candidateHistoryResult?.interviews,
+      )
         ? candidateHistoryResult.interviews
         : [];
 
       const myInterviews = normalizeMyInterviews(myInterviewsResult);
-      const currentLoggedInInterviewerId = myInterviewsResult?.interviewer_id || "";
+      const currentLoggedInInterviewerId =
+        myInterviewsResult?.interviewer_id || "";
 
       setLoggedInInterviewerId(currentLoggedInInterviewerId);
 
@@ -142,8 +211,8 @@ export default function FeedbackTab({ candidateId }) {
         ...new Set(
           candidateInterviews
             .map((interview) => interview?.panel_id)
-            .filter(Boolean)
-        )
+            .filter(Boolean),
+        ),
       ];
 
       const [feedbackResults, panelResults] = await Promise.all([
@@ -156,17 +225,20 @@ export default function FeedbackTab({ candidateId }) {
 
               return {
                 interviewId,
-                feedback: normalizeFeedbackList(res)
+                feedback: normalizeFeedbackList(res),
               };
             } catch (err) {
-              console.error(`Failed to fetch feedback for interview ${interviewId}`, err);
+              console.error(
+                `Failed to fetch feedback for interview ${interviewId}`,
+                err,
+              );
 
               return {
                 interviewId,
-                feedback: []
+                feedback: [],
               };
             }
-          })
+          }),
         ),
 
         Promise.all(
@@ -184,18 +256,21 @@ export default function FeedbackTab({ candidateId }) {
 
               return {
                 panelId,
-                members
+                members,
               };
             } catch (err) {
-              console.error(`Failed to fetch panel members for panel ${panelId}`, err);
+              console.error(
+                `Failed to fetch panel members for panel ${panelId}`,
+                err,
+              );
 
               return {
                 panelId,
-                members: []
+                members: [],
               };
             }
-          })
-        )
+          }),
+        ),
       ]);
 
       const nextFeedbackMap = {};
@@ -216,7 +291,7 @@ export default function FeedbackTab({ candidateId }) {
       setLoading(false);
       setFeedbackLoading(false);
     }
-  }, [candidateId]);
+  }, [candidateId, limitedMode, limitedInterview]);
 
   useEffect(() => {
     fetchFeedbackData();
@@ -234,7 +309,10 @@ export default function FeedbackTab({ candidateId }) {
       const panelMembers = panelMembersMap[interview?.panel_id] || [];
       const { doneInterviewerIds } = getFeedbackBreakdown(feedbackList);
 
-      return panelMembers.length > 0 && doneInterviewerIds.size >= panelMembers.length;
+      return (
+        panelMembers.length > 0 &&
+        doneInterviewerIds.size >= panelMembers.length
+      );
     }).length;
 
     let interviewsWithFeedback = 0;
@@ -256,9 +334,12 @@ export default function FeedbackTab({ candidateId }) {
       totalInterviews,
       completedInterviews,
       interviewsWithFeedback,
-      interviewsWithoutFeedback: Math.max(totalInterviews - interviewsWithFeedback, 0),
+      interviewsWithoutFeedback: Math.max(
+        totalInterviews - interviewsWithFeedback,
+        0,
+      ),
       totalFeedbackEntries,
-      skippedEntries
+      skippedEntries,
     };
   }, [interviews, feedbackMap, panelMembersMap]);
 
@@ -308,7 +389,7 @@ export default function FeedbackTab({ candidateId }) {
 
     if (allPanelActionsDone) {
       await updateInterview(interviewId, {
-        status: "Completed"
+        status: "Completed",
       });
     }
   };
@@ -323,7 +404,9 @@ export default function FeedbackTab({ candidateId }) {
     }
 
     if (!myPanelInterviewMap.has(interviewId)) {
-      setSubmitNotice("You are not assigned as a panel member for this interview");
+      setSubmitNotice(
+        "You are not assigned as a panel member for this interview",
+      );
       setSubmitNoticeType("error");
       return;
     }
@@ -341,7 +424,7 @@ export default function FeedbackTab({ candidateId }) {
         problemSolvingScore: Number(form.problem_solving_score),
         cultureFitScore: Number(form.culture_fit_score),
         comments: form.comments.trim(),
-        recommendation: form.recommendation
+        recommendation: form.recommendation,
       });
 
       await completeInterviewIfAllPanelDone(selectedInterview);
@@ -388,16 +471,16 @@ export default function FeedbackTab({ candidateId }) {
     try {
       setSubmitting(true);
       setSkipError("");
-await submitInterviewFeedback({
-  interviewId,
-  interviewerId: loggedInInterviewerId,
-  technicalScore: 0,
-  communicationScore: 0,
-  problemSolvingScore: 0,
-  cultureFitScore: 0,
-  comments: `${SKIP_REASON_PREFIX} ${skipReason.trim()}`,
-  recommendation: "Not sure"
-});
+      await submitInterviewFeedback({
+        interviewId,
+        interviewerId: loggedInInterviewerId,
+        technicalScore: 0,
+        communicationScore: 0,
+        problemSolvingScore: 0,
+        cultureFitScore: 0,
+        comments: `${SKIP_REASON_PREFIX} ${skipReason.trim()}`,
+        recommendation: "Not sure",
+      });
 
       await completeInterviewIfAllPanelDone(selectedInterview);
       await fetchFeedbackData();
@@ -450,11 +533,26 @@ await submitInterviewFeedback({
       <div className="space-y-6">
         <SectionCard title="Feedback Summary">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-            <Stat label="Total Interviews" value={feedbackSummary.totalInterviews} />
-            <Stat label="Completed" value={feedbackSummary.completedInterviews} />
-            <Stat label="With Feedback" value={feedbackSummary.interviewsWithFeedback} />
-            <Stat label="Without Feedback" value={feedbackSummary.interviewsWithoutFeedback} />
-            <Stat label="Feedback Entries" value={feedbackSummary.totalFeedbackEntries} />
+            <Stat
+              label="Total Interviews"
+              value={feedbackSummary.totalInterviews}
+            />
+            <Stat
+              label="Completed"
+              value={feedbackSummary.completedInterviews}
+            />
+            <Stat
+              label="With Feedback"
+              value={feedbackSummary.interviewsWithFeedback}
+            />
+            <Stat
+              label="Without Feedback"
+              value={feedbackSummary.interviewsWithoutFeedback}
+            />
+            <Stat
+              label="Feedback Entries"
+              value={feedbackSummary.totalFeedbackEntries}
+            />
           </div>
         </SectionCard>
 
@@ -475,6 +573,7 @@ await submitInterviewFeedback({
                   <InterviewFeedbackCard
                     key={interviewId}
                     interview={interview}
+                    limitedMode={limitedMode}
                     feedbackList={feedbackList}
                     feedbackLoading={feedbackLoading}
                     panelMembers={panelMembersMap[interview.panel_id] || []}
@@ -493,6 +592,7 @@ await submitInterviewFeedback({
       {showSubmitModal && (
         <SubmitFeedbackModal
           interview={selectedInterview}
+          limitedMode={limitedMode}
           panelMembers={panelMembersMap[selectedInterview?.panel_id] || []}
           loggedInInterviewerId={loggedInInterviewerId}
           loading={submitting}
@@ -534,33 +634,38 @@ function SectionCard({ title, children }) {
 function InterviewFeedbackCard({
   interview,
   feedbackList,
+  limitedMode = false,
   feedbackLoading,
   panelMembers = [],
   myPanelInterview,
   loggedInInterviewerId,
   onSubmitClick,
-  onSkipClick
+  onSkipClick,
 }) {
   const interviewId = getInterviewId(interview);
-  const roundName = interview?.panel_round_name || interview?.round_name || "Interview Round";
-  const startTime = interview?.start_time ? formatDateTime(interview.start_time) : "-";
+  const roundName =
+    interview?.panel_round_name || interview?.round_name || "Interview Round";
+  const startTime = interview?.start_time
+    ? formatDateTime(interview.start_time)
+    : "-";
 
   const {
     submittedInterviewerIds,
     skippedInterviewerIds,
     doneInterviewerIds,
-    feedbackByInterviewerId
+    feedbackByInterviewerId,
   } = getFeedbackBreakdown(feedbackList);
 
   const feedbackProgress = {
     done: doneInterviewerIds.size,
     submitted: submittedInterviewerIds.size,
     skipped: skippedInterviewerIds.size,
-    total: panelMembers.length
+    total: panelMembers.length,
   };
 
   const derivedStatus =
-    feedbackProgress.total > 0 && feedbackProgress.done >= feedbackProgress.total
+    feedbackProgress.total > 0 &&
+    feedbackProgress.done >= feedbackProgress.total
       ? "Completed"
       : feedbackProgress.done > 0
         ? "Pending"
@@ -569,7 +674,9 @@ function InterviewFeedbackCard({
   const currentUserAlreadyDone =
     Boolean(myPanelInterview?.feedback_submitted) ||
     Boolean(myPanelInterview?.my_feedback) ||
-    Boolean(loggedInInterviewerId && doneInterviewerIds.has(loggedInInterviewerId));
+    Boolean(
+      loggedInInterviewerId && doneInterviewerIds.has(loggedInInterviewerId),
+    );
 
   const canTakeAction = Boolean(myPanelInterview) && !currentUserAlreadyDone;
 
@@ -592,18 +699,19 @@ function InterviewFeedbackCard({
             <span className="font-medium text-gray-800">
               {feedbackProgress.done} / {feedbackProgress.total || 0} done
             </span>
-
             <span className="ml-2 text-xs text-gray-500">
-              ({feedbackProgress.submitted} submitted, {feedbackProgress.skipped} not attended)
+              ({feedbackProgress.submitted} submitted,{" "}
+              {feedbackProgress.skipped} not attended)
             </span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-sm text-gray-500">
-            Interview ID: {interviewId || "-"}
-          </div>
-
+          {!limitedMode && (
+            <div className="text-sm text-gray-500">
+              Interview ID: {interviewId || "-"}
+            </div>
+          )}
           {canTakeAction && (
             <>
               <button
@@ -658,12 +766,12 @@ function InterviewFeedbackCard({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium">
-                      {member?.interviewer_name || member?.interviewer_email || "Panel Member"}
+                      {member?.interviewer_name ||
+                        member?.interviewer_email ||
+                        "Panel Member"}
                     </span>
 
-                    <span className="text-xs font-semibold">
-                      {statusLabel}
-                    </span>
+                    <span className="text-xs font-semibold">{statusLabel}</span>
                   </div>
 
                   {hasSkipped && panelFeedback?.comments && (
@@ -706,7 +814,7 @@ function FeedbackEntryCard({ feedback }) {
   const headerItems = [
     {
       label: "Feedback ID",
-      value: feedback?.id
+      value: feedback?.id,
     },
     {
       label: "Interviewer",
@@ -716,11 +824,11 @@ function FeedbackEntryCard({ feedback }) {
         feedback?.user_name ||
         feedback?.submitted_by ||
         feedback?.interviewer_id ||
-        "-"
+        "-",
     },
     {
       label: "Status",
-      value: skipped ? "Not Attended" : "Submitted"
+      value: skipped ? "Not Attended" : "Submitted",
     },
     {
       label: "Recommendation",
@@ -728,8 +836,8 @@ function FeedbackEntryCard({ feedback }) {
         feedback?.recommendation ||
         feedback?.decision ||
         feedback?.result ||
-        "-"
-    }
+        "-",
+    },
   ];
 
   const hiddenKeys = [
@@ -742,7 +850,7 @@ function FeedbackEntryCard({ feedback }) {
     "interviewer_id",
     "recommendation",
     "decision",
-    "result"
+    "result",
   ];
 
   if (skipped) {
@@ -750,7 +858,7 @@ function FeedbackEntryCard({ feedback }) {
       "technical_score",
       "communication_score",
       "problem_solving_score",
-      "culture_fit_score"
+      "culture_fit_score",
     );
   }
 
@@ -759,15 +867,13 @@ function FeedbackEntryCard({ feedback }) {
       !hiddenKeys.includes(key) &&
       value !== null &&
       value !== undefined &&
-      value !== ""
+      value !== "",
   );
 
   return (
     <div
       className={`rounded-xl border p-4 shadow-sm ${
-        skipped
-          ? "border-orange-200 bg-orange-50"
-          : "border-gray-200 bg-white"
+        skipped ? "border-orange-200 bg-orange-50" : "border-gray-200 bg-white"
       }`}
     >
       <div className="grid gap-3 md:grid-cols-4">
@@ -805,13 +911,14 @@ function FeedbackEntryCard({ feedback }) {
 
 function SubmitFeedbackModal({
   interview,
+  limitedMode = false,
   panelMembers,
   loggedInInterviewerId,
   loading,
   notice,
   noticeType,
   onClose,
-  onSubmit
+  onSubmit,
 }) {
   const [form, setForm] = useState({
     interviewerId: loggedInInterviewerId || "",
@@ -820,7 +927,7 @@ function SubmitFeedbackModal({
     problem_solving_score: 5,
     culture_fit_score: 5,
     comments: "",
-    recommendation: ""
+    recommendation: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -829,7 +936,7 @@ function SubmitFeedbackModal({
     if (loggedInInterviewerId) {
       setForm((prev) => ({
         ...prev,
-        interviewerId: loggedInInterviewerId
+        interviewerId: loggedInInterviewerId,
       }));
       return;
     }
@@ -837,7 +944,7 @@ function SubmitFeedbackModal({
     if (panelMembers.length === 1) {
       setForm((prev) => ({
         ...prev,
-        interviewerId: panelMembers[0].interviewer_id || ""
+        interviewerId: panelMembers[0].interviewer_id || "",
       }));
     }
   }, [loggedInInterviewerId, panelMembers]);
@@ -845,13 +952,13 @@ function SubmitFeedbackModal({
   const handleChange = (field, value) => {
     setForm((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
 
     if (errors[field]) {
       setErrors((prev) => ({
         ...prev,
-        [field]: ""
+        [field]: "",
       }));
     }
   };
@@ -867,7 +974,7 @@ function SubmitFeedbackModal({
       "technical_score",
       "communication_score",
       "problem_solving_score",
-      "culture_fit_score"
+      "culture_fit_score",
     ].forEach((field) => {
       const value = Number(form[field]);
 
@@ -898,9 +1005,12 @@ function SubmitFeedbackModal({
       <div className="w-full max-w-2xl rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
         <div className="border-b px-6 py-5 flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-semibold text-gray-900">Submit Feedback</h3>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Submit Feedback
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
-              Add interview feedback for {interview?.panel_round_name || "this interview"}.
+              Add interview feedback for{" "}
+              {interview?.panel_round_name || "this interview"}.
             </p>
           </div>
 
@@ -928,14 +1038,17 @@ function SubmitFeedbackModal({
           )}
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <ReadOnlyField
-              label="Interview ID"
-              value={getInterviewId(interview) || "-"}
-            />
-
+            {!limitedMode && (
+              <ReadOnlyField
+                label="Interview ID"
+                value={getInterviewId(interview) || "-"}
+              />
+            )}
             <ReadOnlyField
               label="Round Name"
-              value={interview?.panel_round_name || interview?.round_name || "-"}
+              value={
+                interview?.panel_round_name || interview?.round_name || "-"
+              }
             />
 
             <SelectField
@@ -951,7 +1064,9 @@ function SubmitFeedbackModal({
                   key={`member-${member?.interviewer_id || member?.id}`}
                   value={member?.interviewer_id || ""}
                 >
-                  {member?.interviewer_name || member?.interviewer_email || "Interviewer"}
+                  {member?.interviewer_name ||
+                    member?.interviewer_email ||
+                    "Interviewer"}
                 </option>
               ))}
             </SelectField>
@@ -963,7 +1078,10 @@ function SubmitFeedbackModal({
               error={errors.recommendation}
             >
               {recommendationOptions.map((opt) => (
-                <option key={`recommendation-${opt.value || "default"}`} value={opt.value}>
+                <option
+                  key={`recommendation-${opt.value || "default"}`}
+                  value={opt.value}
+                >
                   {opt.label}
                 </option>
               ))}
@@ -983,7 +1101,9 @@ function SubmitFeedbackModal({
               label="Communication Score"
               type="number"
               value={form.communication_score}
-              onChange={(e) => handleChange("communication_score", e.target.value)}
+              onChange={(e) =>
+                handleChange("communication_score", e.target.value)
+              }
               error={errors.communication_score}
               min="1"
               max="10"
@@ -993,7 +1113,9 @@ function SubmitFeedbackModal({
               label="Problem Solving Score"
               type="number"
               value={form.problem_solving_score}
-              onChange={(e) => handleChange("problem_solving_score", e.target.value)}
+              onChange={(e) =>
+                handleChange("problem_solving_score", e.target.value)
+              }
               error={errors.problem_solving_score}
               min="1"
               max="10"
@@ -1003,7 +1125,9 @@ function SubmitFeedbackModal({
               label="Culture Fit Score"
               type="number"
               value={form.culture_fit_score}
-              onChange={(e) => handleChange("culture_fit_score", e.target.value)}
+              onChange={(e) =>
+                handleChange("culture_fit_score", e.target.value)
+              }
               error={errors.culture_fit_score}
               min="1"
               max="10"
@@ -1050,7 +1174,7 @@ function SkipFeedbackModal({
   loading,
   onReasonChange,
   onClose,
-  onSubmit
+  onSubmit,
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
@@ -1125,9 +1249,7 @@ function SkipFeedbackModal({
 function Stat({ label, value }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-center">
-      <div className="text-2xl font-semibold text-gray-900">
-        {value ?? 0}
-      </div>
+      <div className="text-2xl font-semibold text-gray-900">{value ?? 0}</div>
 
       <div className="mt-1 text-xs text-gray-500">{label}</div>
     </div>
@@ -1150,7 +1272,9 @@ function StatusBadge({ status }) {
   }
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${styles}`}>
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${styles}`}
+    >
       {status}
     </span>
   );
@@ -1210,7 +1334,7 @@ function FormField({
   onChange,
   placeholder,
   min,
-  max
+  max,
 }) {
   return (
     <div>
@@ -1243,7 +1367,7 @@ function SelectField({
   value,
   onChange,
   children,
-  disabled = false
+  disabled = false,
 }) {
   return (
     <div>
@@ -1277,7 +1401,7 @@ function TextAreaField({
   value,
   onChange,
   placeholder,
-  rows = 4
+  rows = 4,
 }) {
   return (
     <div>
@@ -1311,7 +1435,7 @@ function formatDateTime(value) {
     month: "short",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 }
 
