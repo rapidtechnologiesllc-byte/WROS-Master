@@ -8,7 +8,7 @@ export const sendPlainEmail = async ({
   subject,
   bodyContent,
   isHtml = false,
-  ccEmails = []
+  ccEmails = [],
 }) => {
   const normalizedCcEmails = Array.isArray(ccEmails)
     ? ccEmails.map((email) => String(email).trim()).filter(Boolean)
@@ -21,8 +21,8 @@ export const sendPlainEmail = async ({
       subject,
       body_content: bodyContent,
       is_html: isHtml,
-      cc_emails: normalizedCcEmails
-    })
+      cc_emails: normalizedCcEmails,
+    }),
   });
 
   return data;
@@ -36,7 +36,7 @@ export const sendInterviewInvite = async ({
   interviewId,
   extraNotes,
   timezone = "Asia/Kolkata",
-  createTeamsEvent = true
+  createTeamsEvent = true,
 }) => {
   const query = new URLSearchParams();
 
@@ -53,8 +53,8 @@ export const sendInterviewInvite = async ({
   const { data } = await apiRequest(
     `/email/interview/invite/${interviewId}?${query.toString()}`,
     {
-      method: "POST"
-    }
+      method: "POST",
+    },
   );
 
   return data;

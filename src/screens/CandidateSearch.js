@@ -101,14 +101,9 @@ export default function CandidateSearch({
       <div className="space-y-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="w-full lg:w-[50%]">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Search Existing Candidate
-              </label>
-
+            <div className="w-full lg:w-[30%]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-
                 <input
                   type="text"
                   value={query}
