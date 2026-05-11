@@ -1,4 +1,4 @@
-import { react, useState } from "react";
+import { react, useEffect, useState } from "react";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { toast } from "react-toastify";
 import { updateCandidateStatus } from "../services/api/candidates";
@@ -10,6 +10,7 @@ import {
   Checkbox,
   Table,
   Avatar,
+  Collapse,
 } from "antd";
 import {
   AvatarWrapper,
@@ -18,9 +19,12 @@ import {
   CandidateWrapper,
   CheckBoxesDiv,
   Container,
+  Content,
+  DateText,
   DetailItem,
   DetailsGrid,
   Header,
+  HeaderRow,
   IconDiv,
   Label,
   Name,
@@ -31,14 +35,19 @@ import {
   SectionTitle,
   Span,
   StepperDiv,
+  StyledCollapse,
   Title,
   UserInfo,
   Value,
   Wrapper,
 } from "../styles/Pre-onboardingModal";
-import { EyeIcon } from "lucide-react";
+import { EyeIcon, FileText } from "lucide-react";
 import SalaryModal from "./SalaryModal";
 import BonusModal from "./BonusModal";
+import { DownOutlined } from "@ant-design/icons";
+import { getAllJobs } from "../services/api/jobs";
+import { mapJobFromApi } from "../App";
+import { listBusinessUnits } from "../services/api/rbac";
 
 const PreonboardingModal = ({
   fullName,
@@ -59,11 +68,82 @@ const PreonboardingModal = ({
   const [checkedList, setCheckedList] = useState([]);
   const [salaryTable, setSalaryTable] = useState(false);
   const [bonus, setBonus] = useState(false);
-  const content = "This is a content.";
+  const [jobs, setJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [users, setUsers] = useState([]);
+  const [worker, setWorkers] = useState("");
+  const [businessUnit, setBusinessUnit] = useState([]);
+  const [buValue, setBuValue] = useState("");
+  const { Panel } = Collapse;
+
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
     { label: "Eligible for LWF", value: "lwf" },
+  ];
+  const WorkerTypesArray = ["Employee", "Contract", "Interns"];
+  const offers = [
+    {
+      id: 1,
+      file: "Vaibhav Shirur.pdf.pdf",
+      date: "17 Apr 2026",
+      content: "Offer letter details or preview content here",
+    },
+    {
+      id: 2,
+      file: "Vaibhav Shirur.pdf.pdf",
+      date: "19 Feb 2026",
+      content: "Another offer letter details here",
+    },
+  ];
+
+  useEffect(() => {
+    const fetchBusinessUnit = async () => {
+      try {
+        const result = await listBusinessUnits();
+        setBusinessUnit(result);
+        console.log(result, "result result result");
+      } catch (err) {
+        toast.error(err);
+      }
+    };
+    fetchBusinessUnit();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      try {
+        const refreshed = await getAllJobs();
+        if (!isMounted) return;
+        const mappedJobs = (refreshed?.jobs || []).map((j) =>
+          mapJobFromApi(j, users),
+        );
+        setJobs(mappedJobs);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const jobOptions = [
+    { label: "Please select job", value: "", disabled: true },
+    ...(jobs?.map((job) => ({
+      label: job?.title,
+      value: job?.id,
+    })) || []),
+  ];
+
+  const buOptions = [
+    { label: "Please select Business Unit", value: "", disabled: true },
+    ...(businessUnit?.map((bu) => ({
+      label: bu?.name,
+      value: bu?.id,
+    })) || []),
   ];
 
   const onChange = (value) => {
@@ -193,7 +273,7 @@ const PreonboardingModal = ({
                 label="Legal Entity"
                 value={selectLocation}
                 onChange={setSelectLocation}
-                options={[]}
+                options={["BlitzenX Solutions"]}
               />
               <Select
                 label="Reporting Manager"
@@ -206,15 +286,15 @@ const PreonboardingModal = ({
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
               <Select
                 label="Job Title"
-                value={selectLocation}
-                onChange={setSelectLocation}
-                options={[]}
+                value={selectedJobId}
+                onChange={(value) => setSelectedJobId(value)}
+                options={jobOptions}
               />
               <Select
                 label="Worker Type"
-                value={selectDepartment}
-                onChange={setSelectDepartment}
-                options={[]}
+                value={worker}
+                onChange={(value) => setWorkers(value)}
+                options={WorkerTypesArray}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
@@ -234,9 +314,9 @@ const PreonboardingModal = ({
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
               <Select
                 label="Select BU (optional)"
-                value={selectLocation}
-                onChange={setSelectLocation}
-                options={[]}
+                value={buValue}
+                onChange={(value) => setBuValue(value)}
+                options={buOptions}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
@@ -361,66 +441,98 @@ const PreonboardingModal = ({
         );
       case 4:
         return (
-          <Wrapper>
-            <Header>
-              <AvatarWrapper>
-                <Avatar size={48} style={{ backgroundColor: "#f59e0b" }}>
-                  VS
-                </Avatar>
+          <>
+            <Wrapper>
+              <Header>
+                <AvatarWrapper>
+                  <Avatar size={48} style={{ backgroundColor: "#f59e0b" }}>
+                    VS
+                  </Avatar>
 
-                <UserInfo>
-                  <Name>Vaibhav Shirur</Name>
-                  <CandidateRole>Applied for Guidewire Developer</CandidateRole>
-                </UserInfo>
-              </AvatarWrapper>
-            </Header>
+                  <UserInfo>
+                    <Name>Vaibhav Shirur</Name>
+                    <CandidateRole>
+                      Applied for Guidewire Developer
+                    </CandidateRole>
+                  </UserInfo>
+                </AvatarWrapper>
+              </Header>
 
-            <Divider style={{ margin: "20px 0" }} />
+              <Divider style={{ margin: "20px 0" }} />
 
-            <SectionTitle>Basic Details</SectionTitle>
+              <SectionTitle>Basic Details</SectionTitle>
 
-            <DetailsGrid>
-              <DetailItem>
-                <Label>Email ID</Label>
-                <Value>shirurvaibhav@gmail.com</Value>
-              </DetailItem>
+              <DetailsGrid>
+                <DetailItem>
+                  <Label>Email ID</Label>
+                  <Value title={"shirurvaibhav@gmail.com"}>
+                    shirurvaibhav@gmail.com
+                  </Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Phone number</Label>
-                <Value>+91-9902215623</Value>
-              </DetailItem>
+                <DetailItem>
+                  <Label>Phone number</Label>
+                  <Value>+91-9902215623</Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Recruiter</Label>
-                <Value>Onboarding Team</Value>
-              </DetailItem>
+                <DetailItem>
+                  <Label>Recruiter</Label>
+                  <Value>Onboarding Team</Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Department</Label>
-                <Value>PRISM — Product Integration & Systems Management</Value>
-              </DetailItem>
+                <DetailItem>
+                  <Label>Department</Label>
+                  <Value>
+                    PRISM — Product Integration & Systems Management
+                  </Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Location</Label>
-                <Value>Remote</Value>
-              </DetailItem>
+                <DetailItem>
+                  <Label>Location</Label>
+                  <Value>Remote</Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Offer template</Label>
-                <Value>Default Offer Letter</Value>
-              </DetailItem>
+                <DetailItem>
+                  <Label>Offer template</Label>
+                  <Value>Default Offer Letter</Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Joining date</Label>
-                <Value>15 Jun 2026</Value>
-              </DetailItem>
+                <DetailItem>
+                  <Label>Joining date</Label>
+                  <Value>15 Jun 2026</Value>
+                </DetailItem>
 
-              <DetailItem>
-                <Label>Valid upto</Label>
-                <Value>09 May 2026</Value>
-              </DetailItem>
-            </DetailsGrid>
-          </Wrapper>
+                <DetailItem>
+                  <Label>Valid upto</Label>
+                  <Value>09 May 2026</Value>
+                </DetailItem>
+              </DetailsGrid>
+            </Wrapper>
+            <Wrapper>
+              <Title>Previous Offer Letter</Title>
+              <StyledCollapse
+                accordion
+                bordered={false}
+                expandIcon={({ isActive }) => (
+                  <DownOutlined rotate={isActive ? 180 : 0} />
+                )}
+              >
+                {offers.map((offer) => (
+                  <Panel
+                    key={offer.id}
+                    header={
+                      <HeaderRow>
+                        <FileText title={offer.file}>{offer.file}</FileText>
+                        <DateText>On {offer.date}</DateText>
+                      </HeaderRow>
+                    }
+                  >
+                    <Content>{offer.content}</Content>
+                  </Panel>
+                ))}
+              </StyledCollapse>
+            </Wrapper>
+          </>
         );
       default:
         return null;
