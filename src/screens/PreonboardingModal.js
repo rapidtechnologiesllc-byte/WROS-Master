@@ -74,8 +74,8 @@ const PreonboardingModal = ({
   const [worker, setWorkers] = useState("");
   const [businessUnit, setBusinessUnit] = useState([]);
   const [buValue, setBuValue] = useState("");
+  const [salaryText, setSalaryText] = useState("");
   const { Panel } = Collapse;
-
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
@@ -102,7 +102,6 @@ const PreonboardingModal = ({
       try {
         const result = await listBusinessUnits();
         setBusinessUnit(result);
-        console.log(result, "result result result");
       } catch (err) {
         toast.error(err);
       }
@@ -210,9 +209,7 @@ const PreonboardingModal = ({
       key: "candidate",
       render: (_, record) => (
         <CandidateWrapper>
-          <Avatar style={{ backgroundColor: "#f39c12" }}>
-            {record.initials}
-          </Avatar>
+          <Avatar style={{ backgroundColor: "#f39c12" }}>{record.name}</Avatar>
           <div>
             <Name>{record.name}</Name>
             <Role>{record.role}</Role>
@@ -225,7 +222,12 @@ const PreonboardingModal = ({
       dataIndex: "salary",
       key: "salary",
       render: (text) => (
-        <div
+        <input
+          type="text"
+          value={salaryText}
+          onChange={(e) => {
+            setSalaryText(e.target.value);
+          }}
           style={{
             border: "1px solid #d9d9d9",
             padding: "6px 10px",
@@ -233,9 +235,7 @@ const PreonboardingModal = ({
             background: "#fafafa",
             width: "fit-content",
           }}
-        >
-          {text}
-        </div>
+        />
       ),
     },
   ];
@@ -244,8 +244,8 @@ const PreonboardingModal = ({
     {
       key: "1",
       initials: "GS",
-      name: "Gnanagiri Shanmugam",
-      role: "Director",
+      name: `${candidate?.name}`,
+      role: `${candidate?.jobTitle}`,
       salary: "(INR Thirty Lakhs Only)",
     },
   ];
@@ -323,10 +323,45 @@ const PreonboardingModal = ({
               <Span>Offer details</Span>
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Form.Item label="Joining Date" name="date">
+              <Form.Item
+                label="Joining Date"
+                name="joiningDate"
+                rules={[
+                  {
+                    required: true,
+                    message: "Please select joining date",
+                  },
+                ]}
+              >
                 <DatePicker onChange={onDateChange} />
               </Form.Item>
-              <Form.Item label="Offer Valid Upto" name="date">
+              <Form.Item
+                label="Offer Valid Upto"
+                name="offerValidUpto"
+                dependencies={["joiningDate"]}
+                rules={[
+                  {
+                    required: true,
+                    message: "Please select offer valid upto date",
+                  },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      const joiningDate = getFieldValue("joiningDate");
+                      if (!value || !joiningDate) {
+                        return Promise.resolve();
+                      }
+                      if (value.isBefore(joiningDate, "day")) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(
+                        new Error(
+                          "Offer Valid Upto must be before Joining Date",
+                        ),
+                      );
+                    },
+                  }),
+                ]}
+              >
                 <DatePicker onChange={onDateChange} />
               </Form.Item>
             </div>
@@ -410,7 +445,7 @@ const PreonboardingModal = ({
             <ScrollContainer>
               <Section>
                 <Title>Fill in the form data</Title>
-                <Table columns={columns} dataSource={data} />
+                <Table columns={columns} dataSource={data} pagination={false} />
               </Section>
               <Section>
                 <Title>Template preview</Title>
@@ -450,9 +485,9 @@ const PreonboardingModal = ({
                   </Avatar>
 
                   <UserInfo>
-                    <Name>Vaibhav Shirur</Name>
+                    <Name>{candidate?.name}</Name>
                     <CandidateRole>
-                      Applied for Guidewire Developer
+                      Applied for {candidate?.jobTitle}
                     </CandidateRole>
                   </UserInfo>
                 </AvatarWrapper>
@@ -466,13 +501,13 @@ const PreonboardingModal = ({
                 <DetailItem>
                   <Label>Email ID</Label>
                   <Value title={"shirurvaibhav@gmail.com"}>
-                    shirurvaibhav@gmail.com
+                    {candidate?.email}
                   </Value>
                 </DetailItem>
 
                 <DetailItem>
                   <Label>Phone number</Label>
-                  <Value>+91-9902215623</Value>
+                  <Value>{candidate?.phone}</Value>
                 </DetailItem>
 
                 <DetailItem>
@@ -517,17 +552,17 @@ const PreonboardingModal = ({
                   <DownOutlined rotate={isActive ? 180 : 0} />
                 )}
               >
-                {offers.map((offer) => (
+                {offers?.map((offer) => (
                   <Panel
-                    key={offer.id}
+                    key={offer?.id}
                     header={
                       <HeaderRow>
-                        <FileText title={offer.file}>{offer.file}</FileText>
-                        <DateText>On {offer.date}</DateText>
+                        <FileText title={offer?.file}>{offer?.file}</FileText>
+                        <DateText>On {offer?.date}</DateText>
                       </HeaderRow>
                     }
                   >
-                    <Content>{offer.content}</Content>
+                    <Content>{offer?.content}</Content>
                   </Panel>
                 ))}
               </StyledCollapse>
@@ -557,9 +592,11 @@ const PreonboardingModal = ({
             }
           >
             <div>
-              <span className="px-4">Preonboarding will be initiated for</span>
-              <span style={{ fontSize: "16px", fontWeight: "bold" }}>
-                {fullName}
+              <span className="px-4">
+                Preonboarding and Offer Process will be initiated for{" "}
+                <span style={{ fontSize: "16px", fontWeight: "bold" }}>
+                  {fullName}
+                </span>
               </span>
             </div>
 
