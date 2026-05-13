@@ -15,6 +15,7 @@ from app.api.v1.endpoints.checklists import router as checklists_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 from app.api.v1.endpoints.ats import router as ats_router
 from app.api.v1.endpoints.email import router as email_router
+from app.api.v1.endpoints.candidate_history import router as candidate_history_router
 
 router = fastapi.APIRouter()
 
@@ -32,4 +33,5 @@ router.include_router(router=newsletter_router)
 router.include_router(router=checklists_router)
 router.include_router(router=candidate_status_router)
 router.include_router(router=ats_router)
-router.include_router(router=email_router)
+router.include_router(router=email_router)
+router.include_router(router=candidate_history_router)

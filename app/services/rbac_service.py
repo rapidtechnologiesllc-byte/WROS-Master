@@ -189,7 +189,7 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
         "interview.manage","interview.view","newsletter.view",
     ],
     "Employee": [
-        "job.view","newsletter.view",
+        "job.view","newsletter.view","candidate.view","interview.view","interview.feedback",
     ],
     "Consultant": [
         "job.view","newsletter.view",

@@ -29,6 +29,7 @@ python-jose[cryptography]>=3.3.0,<4.0.0  # JOSE implementation for JWT
 # ----------------------------------------------------------------------------
 msal>=1.24.0,<2.0.0              # Microsoft Authentication Library
 requests>=2.31.0,<3.0.0          # HTTP library for API calls
+python-docx>=1.1.0,<2.0.0        # Read/write .docx files (offer letter generation)
 
 # Data Validation & Serialization
 # ----------------------------------------------------------------------------

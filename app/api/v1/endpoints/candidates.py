@@ -214,6 +214,8 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
         candidate_role=candidate.candidateRole,
         candidate_is_verified=candidate.candidateIsVerified,
         candidate_created_at=candidate.candidateCreatedAt,
+        candidate_current_salary=candidate.candidateCurrentSalary,
+        candidate_expected_salary=candidate.candidateExpectedSalary,
         personal_info=personal_info,
         education=education,
         experience=experience,

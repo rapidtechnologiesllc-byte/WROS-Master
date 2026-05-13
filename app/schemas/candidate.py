@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
 from datetime import datetime, date
@@ -97,6 +98,8 @@ class CandidateCompleteResponse(BaseModel):
     candidate_job_title: str | None = None
     candidate_is_verified: bool | None = None
     candidate_created_at: datetime | None = None
+    candidate_current_salary: str | None = None
+    candidate_expected_salary: str | None = None
     personal_info: CandidateInfoResponse | None = None
     education: list[CandidateEducationResponse] = []
     experience: list[CandidateExperienceResponse] = []
