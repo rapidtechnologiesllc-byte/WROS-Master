@@ -337,6 +337,9 @@ export default function App() {
   const [jobDetailsMode, setJobDetailsMode] = useState("view");
   const [jobCreateMode, setJobCreateMode] = useState("create");
   const [selectedCandidateData, setSelectedCandidateData] = useState(null);
+  const [candidateDetailsDefaultTab, setCandidateDetailsDefaultTab] =
+    useState("profile");
+  const [autoOpenSchedule, setAutoOpenSchedule] = useState(false);
 
   const selectedCandidate = useMemo(
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
@@ -634,46 +637,57 @@ export default function App() {
       {screen === "assignments" && <AssignmentsScreen />}
 
       {screen === "candidateSearch" && (
-        <CandidateSearch
-          candidates={candidates}
-          jobs={jobs}
-          selectedCandidateId={selectedCandidateId}
-          setSelectedCandidateId={setSelectedCandidateId}
-          selectedJobId={selectedJobId}
-          setSelectedJobId={setSelectedJobId}
-          onCreateCandidate={() => safeSetScreen("candidateCreate")}
-          onMatchingJobs={() => safeSetScreen("matchingJobs")}
-          onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
-          onUpdateCandidate={async (candidateId, payload) => {
-            try {
-              await updateCandidate(candidateId, payload);
-              await refreshCandidates();
-              notify("Candidate", "Candidate updated.");
-            } catch (err) {
-              notify("Candidate", err.message || "Failed to update candidate.");
-            }
-          }}
-          onDeleteCandidate={async (candidateId) => {
-            if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
-            try {
-              await deleteCandidate(candidateId);
-              await refreshCandidates();
-              setSelectedCandidateId(
-                candidates.find((c) => c.id !== candidateId)?.id || "",
-              );
-              notify("Candidate", "Candidate deleted.");
-            } catch (err) {
-              notify("Candidate", err.message || "Failed to delete candidate.");
-            }
-          }}
-          onFetchCandidateById={async (candidateId) => {
-            const res = await getCandidateById(candidateId);
-            return mapCandidateFromApi(res || {});
-          }}
-          onRefreshCandidates={refreshCandidates}
-          setScreen={safeSetScreen}
-          setSelectedCandidate={setSelectedCandidateData}
-        />
+        <>
+          <CandidateSearch
+            candidates={candidates}
+            jobs={jobs}
+            setAutoOpenSchedule={setAutoOpenSchedule}
+            setCandidateDetailsDefaultTab={setCandidateDetailsDefaultTab}
+            selectedCandidateId={selectedCandidateId}
+            setSelectedCandidateId={setSelectedCandidateId}
+            selectedJobId={selectedJobId}
+            setSelectedJobId={setSelectedJobId}
+            onCreateCandidate={() => safeSetScreen("candidateCreate")}
+            onMatchingJobs={() => safeSetScreen("matchingJobs")}
+            onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
+            onUpdateCandidate={async (candidateId, payload) => {
+              try {
+                await updateCandidate(candidateId, payload);
+                await refreshCandidates();
+                notify("Candidate", "Candidate updated.");
+              } catch (err) {
+                notify(
+                  "Candidate",
+                  err.message || "Failed to update candidate.",
+                );
+              }
+            }}
+            onDeleteCandidate={async (candidateId) => {
+              if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
+              try {
+                await deleteCandidate(candidateId);
+                await refreshCandidates();
+                setSelectedCandidateId(
+                  candidates.find((c) => c.id !== candidateId)?.id || "",
+                );
+                notify("Candidate", "Candidate deleted.");
+              } catch (err) {
+                notify(
+                  "Candidate",
+                  err.message || "Failed to delete candidate.",
+                );
+              }
+            }}
+            onFetchCandidateById={async (candidateId) => {
+              const res = await getCandidateById(candidateId);
+              return mapCandidateFromApi(res || {});
+            }}
+            onRefreshCandidates={refreshCandidates}
+            setScreen={safeSetScreen}
+            setSelectedCandidate={setSelectedCandidateData}
+          />
+          <ToastContainer position="top-right" autoClose={3000} />
+        </>
       )}
 
       {screen === "candidateCreate" && (
@@ -695,6 +709,10 @@ export default function App() {
         <>
           <CandidateDetailsScreen
             candidate={selectedCandidateData}
+            defaultTab={candidateDetailsDefaultTab}
+            autoOpenSchedule={
+              screen === "candidateDetails" ? autoOpenSchedule : false
+            }
             onBack={() => safeSetScreen("candidateSearch")}
             onUpdateCandidate={async (candidateId, payload) => {
               try {
