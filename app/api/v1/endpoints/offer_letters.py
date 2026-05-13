@@ -543,10 +543,76 @@ def generate_offer_letter_document(
 # SALARY STRUCTURE DOCUMENT
 # ============================================
 
+class SalaryComponentDetail(_BM):
+    """A single salary component with monthly and annual amounts."""
+    component: str
+    remark: str
+    per_month: float
+    per_annum: float
+
+
 class SalaryStructureRequest(_BM):
+    """Request body for salary-structure endpoints."""
     employee_name: str
     annual_ctc: float
 
+
+class SalaryStructureDetailResponse(_BM):
+    """Full salary breakdown returned alongside the downloadable .docx."""
+
+    # ── Identity ──────────────────────────────────────────────────────────────
+    employee_name: str
+    annual_ctc: float
+
+    # ── Earnings (per month & per annum) ─────────────────────────────────────
+    basic_pm: float
+    basic_pa: float
+    hra_pm: float
+    hra_pa: float
+    medical_pm: float
+    medical_pa: float
+    transport_pm: float
+    transport_pa: float
+    deployment_pm: float
+    deployment_pa: float
+    fixed_allowance_pm: float
+    fixed_allowance_pa: float
+
+    # ── Totals ────────────────────────────────────────────────────────────────
+    gross_pm: float
+    gross_pa: float
+
+    # ── Deductions ────────────────────────────────────────────────────────────
+    epf_employee_pm: float
+    epf_employee_pa: float
+    epf_employer_pm: float
+    epf_employer_pa: float
+    esic_employee_pm: float
+    esic_employee_pa: float
+
+    total_deductions_pm: float
+    total_deductions_pa: float
+
+    # ── Net ───────────────────────────────────────────────────────────────────
+    net_pm: float
+    net_pa: float
+
+    # ── Other Benefits ────────────────────────────────────────────────────────
+    esic_employer_pm: float
+    esic_employer_pa: float
+
+    # ── Document ──────────────────────────────────────────────────────────────
+    filename: str
+    docx_base64: str  # base64-encoded .docx bytes — decode on frontend to download
+
+
+class SalaryStructureWithDetailsResponse(_BM):
+    status: str = "success"
+    message: str
+    salary_structure: SalaryStructureDetailResponse
+
+
+# ── existing file-download endpoint (unchanged) ───────────────────────────────
 
 @router.post(
     "/salary-structure",
@@ -593,6 +659,112 @@ def generate_salary_structure(
             "Content-Length": str(len(docx_bytes)),
         },
     )
+
+
+# ── NEW: JSON response with salary breakdown + base64-encoded .docx ───────────
+
+@router.post(
+    "/salary-structure/details",
+    response_model=SalaryStructureWithDetailsResponse,
+    dependencies=[Depends(require_permission("offer.manage"))],
+    summary="Generate salary-structure details + downloadable .docx in a single response",
+)
+def generate_salary_structure_with_details(
+    request: SalaryStructureRequest,
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Generate the salary-structure Word document **and** return the full
+    salary breakdown as structured JSON in a single API call.
+
+    The `.docx` file is included in the response as a **base64-encoded string**
+    under `salary_structure.docx_base64`.  Decode it on the frontend to offer
+    the user a download without a second request.
+
+    **Salary components (auto-calculated from annual CTC):**
+    | Component | Rule |
+    |---|---|
+    | Basic | 50% of CTC |
+    | HRA | 40% of Basic |
+    | Medical | Fixed ₹15,000 p.a. |
+    | Transport | Fixed ₹19,200 p.a. |
+    | Deployment / Performance | Remaining after above 4, capped ₹60,000 |
+    | Fixed Allowance | Remainder after all above |
+    | EPF Employee & Employer | 12% of EPF base, capped ₹21,600 each |
+    | ESIC Employee | 0.75% of ESIC base (only if monthly base ≤ ₹21,000) |
+
+    **Required permission:** `offer.manage`
+    """
+    import base64
+
+    # ── 1. Calculate salary breakdown ─────────────────────────────────────────
+    try:
+        sal = calculate_salary(
+            employee_name=request.employee_name,
+            annual_ctc=request.annual_ctc,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Salary calculation failed: {exc}")
+
+    # ── 2. Generate .docx document ────────────────────────────────────────────
+    try:
+        docx_bytes = generate_salary_structure_docx(
+            employee_name=request.employee_name,
+            annual_ctc=request.annual_ctc,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to generate salary structure document: {exc}")
+
+    filename = get_salary_filename(request.employee_name)
+    docx_b64 = base64.b64encode(docx_bytes).decode("utf-8")
+
+    # ── 3. Build structured response ──────────────────────────────────────────
+    detail = SalaryStructureDetailResponse(
+        # Identity
+        employee_name=sal.employee_name,
+        annual_ctc=sal.annual_ctc,
+        # Earnings
+        basic_pm=round(sal.basic_pm, 2),
+        basic_pa=round(sal.basic_pa, 2),
+        hra_pm=round(sal.hra_pm, 2),
+        hra_pa=round(sal.hra_pa, 2),
+        medical_pm=round(sal.medical_pm, 2),
+        medical_pa=round(sal.medical_pa, 2),
+        transport_pm=round(sal.transport_pm, 2),
+        transport_pa=round(sal.transport_pa, 2),
+        deployment_pm=round(sal.deployment_pm, 2),
+        deployment_pa=round(sal.deployment_pa, 2),
+        fixed_allowance_pm=round(sal.fixed_allowance_pm, 2),
+        fixed_allowance_pa=round(sal.fixed_allowance_pa, 2),
+        # Totals
+        gross_pm=round(sal.gross_pm, 2),
+        gross_pa=round(sal.gross_pa, 2),
+        # Deductions
+        epf_employee_pm=round(sal.epf_employee_pm, 2),
+        epf_employee_pa=round(sal.epf_employee_pa, 2),
+        epf_employer_pm=round(sal.epf_employer_pm, 2),
+        epf_employer_pa=round(sal.epf_employer_pa, 2),
+        esic_employee_pm=round(sal.esic_employee_pm, 2),
+        esic_employee_pa=round(sal.esic_employee_pa, 2),
+        total_deductions_pm=round(sal.total_deductions_pm, 2),
+        total_deductions_pa=round(sal.total_deductions_pa, 2),
+        # Net
+        net_pm=round(sal.net_pm, 2),
+        net_pa=round(sal.net_pa, 2),
+        # Other Benefits
+        esic_employer_pm=round(sal.esic_employer_pm, 2),
+        esic_employer_pa=round(sal.esic_employer_pa, 2),
+        # Document
+        filename=filename,
+        docx_base64=docx_b64,
+    )
+
+    return SalaryStructureWithDetailsResponse(
+        status="success",
+        message=f"Salary structure generated for '{request.employee_name}' (CTC: ₹{request.annual_ctc:,.2f})",
+        salary_structure=detail,
+    )
+
 
 
 @router.get(

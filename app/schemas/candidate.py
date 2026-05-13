@@ -88,8 +88,10 @@ class CandidateInfoResponse(BaseModel):
     nationality: str | None = None
     current_address: str | None = None
     permanent_address: str | None = None
+    submitted_at: date | None = None
 
 class CandidateCompleteResponse(BaseModel):
+    # ── Core identity ────────────────────────────────────────────────────────
     candidate_id: str
     candidate_name: str
     candidate_email: str
@@ -98,8 +100,19 @@ class CandidateCompleteResponse(BaseModel):
     candidate_job_title: str | None = None
     candidate_is_verified: bool | None = None
     candidate_created_at: datetime | None = None
+    # ── Professional details ─────────────────────────────────────────────────
+    candidate_gender: str | None = None
+    candidate_date_of_birth: date | None = None
+    candidate_source: str | None = None
+    candidate_experience: str | None = None
+    candidate_skills: str | None = None
+    candidate_joining_date: date | None = None
+    candidate_current_location: str | None = None
     candidate_current_salary: str | None = None
     candidate_expected_salary: str | None = None
+    # ── Job assignment ───────────────────────────────────────────────────────
+    job_id: str | None = None
+    # ── Related records ──────────────────────────────────────────────────────
     personal_info: CandidateInfoResponse | None = None
     education: list[CandidateEducationResponse] = []
     experience: list[CandidateExperienceResponse] = []
