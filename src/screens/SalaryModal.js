@@ -97,10 +97,10 @@ const SalaryModal = ({ onClose }) => {
         role="dialog"
         aria-modal="true"
       >
-        <div className="w-full max-w-4xl max-h-[80vh] flex flex-col">
+        <div className="w-full max-w-4xl max-h-[75vh] flex flex-col">
           <Card
             title="Salary Structure"
-            bodyClassName="px-2 py-4"
+            bodyClassName="px-2 py-4 flex flex-col overflow-hidden max-h-[75vh]"
             right={
               <Button variant="ghost" onClick={onClose}>
                 Close
