@@ -90,8 +90,10 @@ export default function CandidateDetailsScreen({
   onBack,
   onUpdateCandidate,
   limitedMode = false,
+  defaultTab = "profile",
+  autoOpenSchedule = false,
 }) {
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState(defaultTab || "profile");
   const [statusData, setStatusData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -133,11 +135,21 @@ export default function CandidateDetailsScreen({
       ];
 
   const canShowFullActions = !limitedMode;
+
   useEffect(() => {
     if (limitedMode) {
       setActiveTab("feedback");
+      return;
     }
-  }, [limitedMode]);
+
+    setActiveTab(defaultTab || "profile");
+  }, [defaultTab, limitedMode]);
+
+  useEffect(() => {
+    if (autoOpenSchedule) {
+      openScheduleModal("online");
+    }
+  }, [autoOpenSchedule]);
 
   useEffect(() => {
     if (limitedMode || !candidate?.id) return;
