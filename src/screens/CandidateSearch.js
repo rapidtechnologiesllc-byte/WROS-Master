@@ -212,6 +212,7 @@ export default function CandidateSearch({
 
                   setSelectedCandidate(finalCandidate);
                   setCandidateDetailsDefaultTab?.("profile");
+                  setAutoOpenSchedule?.(false);
                   setScreen("candidateDetails");
                 }}
               >
