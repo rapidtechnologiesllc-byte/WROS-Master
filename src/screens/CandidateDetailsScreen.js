@@ -146,9 +146,8 @@ export default function CandidateDetailsScreen({
   }, [defaultTab, limitedMode]);
 
   useEffect(() => {
-    if (autoOpenSchedule) {
-      openScheduleModal("online");
-    }
+    if (!autoOpenSchedule) return;
+    openScheduleModal("online");
   }, [autoOpenSchedule]);
 
   useEffect(() => {

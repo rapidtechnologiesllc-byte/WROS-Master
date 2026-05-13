@@ -650,7 +650,9 @@ export default function App() {
           <CandidateDetailsScreen
             candidate={selectedCandidateData}
             defaultTab={candidateDetailsDefaultTab}
-            autoOpenSchedule={autoOpenSchedule}
+            autoOpenSchedule={
+              screen === "candidateDetails" ? autoOpenSchedule : false
+            }
             onBack={() => safeSetScreen("candidateSearch")}
             onUpdateCandidate={async (candidateId, payload) => {
               try {
