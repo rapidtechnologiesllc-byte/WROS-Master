@@ -60,15 +60,47 @@ export default function CandidateSearch({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return candidateList;
-    return candidateList.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q),
-    );
-  }, [candidateList, query]);
 
+    if (!q) return candidateList;
+
+    const getSearchableText = (candidate) =>
+      [candidate?.name, candidate?.email, candidate?.phone, candidate?.jobTitle]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+    const matchesKeyword = (candidate, keyword) => {
+      const cleanKeyword = keyword.trim().toLowerCase();
+      if (!cleanKeyword) return true;
+
+      return getSearchableText(candidate).includes(cleanKeyword);
+    };
+
+    return candidateList.filter((candidate) => {
+      if (q.includes(" and ")) {
+        return q
+          .split(" and ")
+          .every((keyword) => matchesKeyword(candidate, keyword));
+      }
+
+      if (q.includes(" or ")) {
+        return q
+          .split(" or ")
+          .some((keyword) => matchesKeyword(candidate, keyword));
+      }
+
+      if (q.includes(" not ")) {
+        const [includeKeyword, excludeKeyword] = q.split(" not ");
+
+        return (
+          matchesKeyword(candidate, includeKeyword) &&
+          !matchesKeyword(candidate, excludeKeyword)
+        );
+      }
+
+      return matchesKeyword(candidate, q);
+    });
+  }, [candidateList, query]);
   const handleCandidateStatus = async (candidateId) => {
     try {
       const result = await updateCandidateStatus(candidateId, {
@@ -110,7 +142,7 @@ export default function CandidateSearch({
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by candidate name, email, or phone number"
+                  placeholder="Search by candidate name, email, job title or phone number"
                   className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition-all focus:border-gray-400"
                 />
               </div>
