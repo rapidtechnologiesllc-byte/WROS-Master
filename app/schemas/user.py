@@ -351,6 +351,7 @@ class OfferLetterCreateRequest(BaseModel):
     position: str
     salary: str
     joining_date: date
+    offer_expire_date: date
 
 class OfferLetterUpdateRequest(BaseModel):
     job_id: Optional[str] = None
@@ -359,6 +360,7 @@ class OfferLetterUpdateRequest(BaseModel):
     position: Optional[str] = None
     salary: Optional[str] = None
     joining_date: Optional[date] = None
+    offer_expire_date: Optional[date] = None
 
 class OfferLetterResponse(BaseModel):
     id: int
@@ -371,6 +373,7 @@ class OfferLetterResponse(BaseModel):
     position: str
     salary: str
     joining_date: date
+    offer_expire_date: date
     offer_status: str
     candidate_response: str | None = None
     responded_at: datetime | None = None

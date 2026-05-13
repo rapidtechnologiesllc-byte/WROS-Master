@@ -156,12 +156,46 @@ def update_candidate_status(
 def get_all_candidate_statuses(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
+    status: Optional[str] = None,
+    pipeline_status: Optional[str] = None,
 ):
     """
     Returns account status and pipeline status for every candidate.
     Useful for pipeline dashboards and bulk status views.
+
+    **Optional filters (query params):**
+    - `status` — filter by account status (`Active` | `Inactive`)
+    - `pipeline_status` — filter by pipeline stage
+      (`Applied` | `Screening` | `Interview` | `Pre-Onboarding` | `Onboarded` | `Hired` | `Rejected`)
+
+    Both filters are independent and can be combined.
     """
-    candidates = db.query(Candidate).all()
+    # Validate filter values when provided
+    if status is not None and status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{status}'. Allowed: {sorted(VALID_STATUSES)}",
+        )
+    if pipeline_status is not None and pipeline_status not in VALID_PIPELINE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid pipeline_status '{pipeline_status}'. Allowed: {sorted(VALID_PIPELINE_STATUSES)}",
+        )
+
+    # Build query — join CandidateStatus only when a filter is active
+    query = db.query(Candidate)
+
+    if status is not None or pipeline_status is not None:
+        query = query.join(
+            CandidateStatus,
+            CandidateStatus.candidateID == Candidate.candidateID,
+        )
+        if status is not None:
+            query = query.filter(CandidateStatus.status == status)
+        if pipeline_status is not None:
+            query = query.filter(CandidateStatus.piplineStatus == pipeline_status)
+
+    candidates = query.all()
 
     results = []
     for candidate in candidates:

@@ -217,6 +217,8 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate_job_title=candidate.candidateJobTitle,
             candidate_is_verified=candidate.candidateIsVerified,
             candidate_created_at=candidate.candidateCreatedAt,
+            candidate_current_salary=candidate.candidateCurrentSalary,
+            candidate_expected_salary=candidate.candidateExpectedSalary,
             personal_info=CandidateInfoResponse(
                 position=personal_info.position if personal_info else None,
                 department=personal_info.department if personal_info else None,
@@ -342,6 +344,8 @@ def get_candidate_by_id(
         candidate_job_title=candidate.candidateJobTitle,
         candidate_is_verified=candidate.candidateIsVerified,
         candidate_created_at=candidate.candidateCreatedAt,
+        candidate_current_salary=candidate.candidateCurrentSalary,
+        candidate_expected_salary=candidate.candidateExpectedSalary,
         personal_info=CandidateInfoResponse(
             position=personal_info.position if personal_info else None,
             department=personal_info.department if personal_info else None,

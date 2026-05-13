@@ -34,6 +34,7 @@ from app.models.checklist import (
     CandidateChecklistItem,
 )
 from app.models.ats import ATSScore
+from app.models.candidate_history import CandidateHistory
 
 __all__ = [
     # Base
@@ -75,5 +76,7 @@ __all__ = [
     "CandidateChecklistItem",
     # ATS
     "ATSScore",
+    # Candidate History
+    "CandidateHistory",
 ]
 
