@@ -331,26 +331,26 @@ export default function CandidateCreate({ onBack, onSave }) {
         assigned_report_manager_id: assignedReportManagerId || null,
         education_records: filledEducationRows.length
           ? filledEducationRows.map((row) => ({
-            education_institute: row.education_institute.trim(),
-            degree: row.degree.trim(),
-            field_of_study: row.field_of_study.trim(),
-            starting_year: row.starting_year.trim(),
-            year_of_passing: row.year_of_passing.trim(),
-            percentage: row.percentage.trim(),
-            submitted_at: today,
-            document_is_submitted: false,
-          }))
+              education_institute: row.education_institute.trim(),
+              degree: row.degree.trim(),
+              field_of_study: row.field_of_study.trim(),
+              starting_year: row.starting_year.trim(),
+              year_of_passing: row.year_of_passing.trim(),
+              percentage: row.percentage.trim(),
+              submitted_at: today,
+              document_is_submitted: false,
+            }))
           : null,
         experience_records: filledExperienceRows.length
           ? filledExperienceRows.map((row) => ({
-            company_name: row.company_name.trim(),
-            job_title: row.job_title.trim(),
-            start_date: row.start_date,
-            end_date: row.end_date,
-            year_of_experience: row.year_of_experience.trim(),
-            submitted_at: today,
-            document_is_submitted: false,
-          }))
+              company_name: row.company_name.trim(),
+              job_title: row.job_title.trim(),
+              start_date: row.start_date,
+              end_date: row.end_date,
+              year_of_experience: row.year_of_experience.trim(),
+              submitted_at: today,
+              document_is_submitted: false,
+            }))
           : null,
       });
 
@@ -404,8 +404,9 @@ export default function CandidateCreate({ onBack, onSave }) {
             });
             nextNotice = `${nextNotice}. Resume uploaded.`;
           } catch (uploadErr) {
-            nextNotice = `${nextNotice}. Resume upload failed: ${uploadErr.message || "Unknown error"
-              }`;
+            nextNotice = `${nextNotice}. Resume upload failed: ${
+              uploadErr.message || "Unknown error"
+            }`;
           }
         }
       }
@@ -519,7 +520,9 @@ export default function CandidateCreate({ onBack, onSave }) {
               actionNotice={actionNotice}
               error={errors.email}
             />
-            {errors.email ? <div className="mt-1 text-xs text-red-500">{errors.email}</div> : null}
+            {errors.email ? (
+              <div className="mt-1 text-xs text-red-500">{errors.email}</div>
+            ) : null}
           </div>
 
           <div>
@@ -533,10 +536,18 @@ export default function CandidateCreate({ onBack, onSave }) {
               actionNotice={actionNotice}
               error={errors.firstName}
             />
-            {errors.firstName ? <div className="mt-1 text-xs text-red-500">{errors.firstName}</div> : null}
+            {errors.firstName ? (
+              <div className="mt-1 text-xs text-red-500">
+                {errors.firstName}
+              </div>
+            ) : null}
           </div>
 
-          <Input label="Middle Name" value={middleName} onChange={setMiddleName} />
+          <Input
+            label="Middle Name"
+            value={middleName}
+            onChange={setMiddleName}
+          />
 
           <div>
             <Input
@@ -549,7 +560,9 @@ export default function CandidateCreate({ onBack, onSave }) {
               actionNotice={actionNotice}
               error={errors.lastName}
             />
-            {errors.lastName ? <div className="mt-1 text-xs text-red-500">{errors.lastName}</div> : null}
+            {errors.lastName ? (
+              <div className="mt-1 text-xs text-red-500">{errors.lastName}</div>
+            ) : null}
           </div>
 
           <div>
@@ -563,7 +576,9 @@ export default function CandidateCreate({ onBack, onSave }) {
               actionNotice={actionNotice}
               error={errors.mobile}
             />
-            {errors.mobile ? <div className="mt-1 text-xs text-red-500">{errors.mobile}</div> : null}
+            {errors.mobile ? (
+              <div className="mt-1 text-xs text-red-500">{errors.mobile}</div>
+            ) : null}
           </div>
 
           <div>
@@ -577,13 +592,28 @@ export default function CandidateCreate({ onBack, onSave }) {
               options={["", "Female", "Male", "Other"]}
               error={errors.gender}
             />
-            {errors.gender ? <div className="mt-1 text-xs text-red-500">{errors.gender}</div> : null}
+            {errors.gender ? (
+              <div className="mt-1 text-xs text-red-500">{errors.gender}</div>
+            ) : null}
           </div>
 
-          <Input label="Date of Birth" value={dob} onChange={setDob} type="date" />
+          <Input
+            label="Date of Birth"
+            value={dob}
+            onChange={setDob}
+            type="date"
+          />
           <Input label="Source" value={source} onChange={setSource} />
-          <Input label="Experience" value={experience} onChange={setExperience} />
-          <Input label="Skills (comma separated)" value={skills} onChange={setSkills} />
+          <Input
+            label="Experience"
+            value={experience}
+            onChange={setExperience}
+          />
+          <Input
+            label="Skills (comma separated)"
+            value={skills}
+            onChange={setSkills}
+          />
 
           <Input
             label="Joining Date"
