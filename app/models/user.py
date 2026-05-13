@@ -93,8 +93,10 @@ class Interview(Base):
     end_time = Column(DateTime)
     meeting_link = Column(Text)
     outlook_event_id = Column(Text)
-
+ 
     status = Column(String(50))  # Scheduled, Completed, Cancelled
+
+    feedback_status = Column(String(50), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
 
 class InterviewFeedback(Base):
     __tablename__ = "interview_feedback"

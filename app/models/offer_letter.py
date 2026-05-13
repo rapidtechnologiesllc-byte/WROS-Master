@@ -16,6 +16,7 @@ class OfferLetter(Base):
     position = Column(String(200), nullable=False)
     salary = Column(String(50), nullable=False)
     joining_date = Column(Date, nullable=False)
+    offer_expire_date = Column(Date, nullable=False)
     
     offer_status = Column(String(20), nullable=False, default="Pending")  # Pending, Accepted, Rejected, Cancelled
     candidate_response = Column(Text, nullable=True)

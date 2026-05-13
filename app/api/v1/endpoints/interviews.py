@@ -709,7 +709,8 @@ def get_interview(
         meeting_link=interview.meeting_link,
         outlook_event_id=interview.outlook_event_id,
         status=interview.status,
-        feedback_count=feedback_count
+        feedback_count=feedback_count,
+        feedback_status=interview.feedback_status,
     )
 
 
@@ -785,7 +786,8 @@ def get_all_interviews(
             meeting_link=interview.meeting_link,
             outlook_event_id=interview.outlook_event_id,
             status=interview.status,
-            feedback_count=feedback_count
+            feedback_count=feedback_count,
+            feedback_status=interview.feedback_status,
         ))
     
     return results
