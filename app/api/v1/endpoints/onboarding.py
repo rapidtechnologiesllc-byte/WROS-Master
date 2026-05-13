@@ -217,8 +217,16 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate_job_title=candidate.candidateJobTitle,
             candidate_is_verified=candidate.candidateIsVerified,
             candidate_created_at=candidate.candidateCreatedAt,
+            candidate_gender=candidate.candidateGender,
+            candidate_date_of_birth=candidate.candidateDateOfBirth,
+            candidate_source=candidate.candidateSource,
+            candidate_experience=candidate.candidateExperience,
+            candidate_skills=candidate.candidateSkills,
+            candidate_joining_date=candidate.candidateJoiningDate,
+            candidate_current_location=candidate.candidateCurrentLocation,
             candidate_current_salary=candidate.candidateCurrentSalary,
             candidate_expected_salary=candidate.candidateExpectedSalary,
+            job_id=candidate.job_id,
             personal_info=CandidateInfoResponse(
                 position=personal_info.position if personal_info else None,
                 department=personal_info.department if personal_info else None,
@@ -227,7 +235,8 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
                 marital_status=personal_info.marital_status if personal_info else None,
                 nationality=personal_info.nationality if personal_info else None,
                 current_address=personal_info.current_address if personal_info else None,
-                permanent_address=personal_info.permanent_address if personal_info else None
+                permanent_address=personal_info.permanent_address if personal_info else None,
+                submitted_at=personal_info.submittedAt if personal_info else None,
             ) if personal_info else None,
             education=[
                 CandidateEducationResponse(
@@ -344,8 +353,16 @@ def get_candidate_by_id(
         candidate_job_title=candidate.candidateJobTitle,
         candidate_is_verified=candidate.candidateIsVerified,
         candidate_created_at=candidate.candidateCreatedAt,
+        candidate_gender=candidate.candidateGender,
+        candidate_date_of_birth=candidate.candidateDateOfBirth,
+        candidate_source=candidate.candidateSource,
+        candidate_experience=candidate.candidateExperience,
+        candidate_skills=candidate.candidateSkills,
+        candidate_joining_date=candidate.candidateJoiningDate,
+        candidate_current_location=candidate.candidateCurrentLocation,
         candidate_current_salary=candidate.candidateCurrentSalary,
         candidate_expected_salary=candidate.candidateExpectedSalary,
+        job_id=candidate.job_id,
         personal_info=CandidateInfoResponse(
             position=personal_info.position if personal_info else None,
             department=personal_info.department if personal_info else None,
@@ -355,6 +372,7 @@ def get_candidate_by_id(
             nationality=personal_info.nationality if personal_info else None,
             current_address=personal_info.current_address if personal_info else None,
             permanent_address=personal_info.permanent_address if personal_info else None,
+            submitted_at=personal_info.submittedAt if personal_info else None,
         ) if personal_info else None,
         education=[
             CandidateEducationResponse(
