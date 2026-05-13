@@ -3,7 +3,7 @@ import cx from "../../utils/cx";
 
 export default function Table({ columns, rows }) {
   return (
-    <div className="overflow-hidden rounded-2xl border">
+    <div className="overflow-visible rounded-2xl border">
       <table className="w-full text-left text-sm">
         <thead className="bg-gray-50">
           <tr>
@@ -12,7 +12,7 @@ export default function Table({ columns, rows }) {
                 key={c.key}
                 className={cx(
                   "px-4 py-3 text-xs font-semibold text-gray-700",
-                  c.className
+                  c.className,
                 )}
               >
                 {c.header}
