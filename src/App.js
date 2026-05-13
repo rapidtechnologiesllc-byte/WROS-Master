@@ -22,7 +22,7 @@ import MatchingJobs from "./screens/MatchingJobs";
 import NewsletterScreen from "./screens/NewsletterScreen";
 import OfferScreen from "./screens/OfferScreen";
 import PreOnboarding from "./screens/PreOnboardingOld";
-import PreOnboardingPage from "./screens/PreOnboarding"
+import PreOnboardingPage from "./screens/PreOnboarding";
 import ChecklistTemplatesScreen from "./screens/ChecklistTemplatesScreen";
 import RbacSettingsScreen from "./screens/RbacSettingsScreen";
 import Verification from "./screens/Verification";
@@ -249,22 +249,22 @@ export default function App() {
 
   // Candidate users bypass the HR shell and land on their portal.
   if (
-  isCandidateUser({
-    role: storedRole,
-    userType: storedUserType,
-  })
-) {
-  return <CandidateSelfService onLogout={handleLogout} />;
-}
+    isCandidateUser({
+      role: storedRole,
+      userType: storedUserType,
+    })
+  ) {
+    return <CandidateSelfService onLogout={handleLogout} />;
+  }
 
-if (
-  canAccessMyWorkspace({
-    role: storedRole,
-    userType: storedUserType,
-  })
-) {
-  return <MyWorkspace onLogout={handleLogout} />;
-}
+  if (
+    canAccessMyWorkspace({
+      role: storedRole,
+      userType: storedUserType,
+    })
+  ) {
+    return <MyWorkspace onLogout={handleLogout} />;
+  }
 
   const [role, setRole] = useState(normalizedRole);
   const [screen, setScreen] = useState("dashboard");
@@ -346,6 +346,9 @@ if (
   const [jobDetailsMode, setJobDetailsMode] = useState("view");
   const [jobCreateMode, setJobCreateMode] = useState("create");
   const [selectedCandidateData, setSelectedCandidateData] = useState(null);
+  const [candidateDetailsDefaultTab, setCandidateDetailsDefaultTab] =
+    useState("profile");
+  const [autoOpenSchedule, setAutoOpenSchedule] = useState(false);
 
   const selectedCandidate = useMemo(
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
@@ -574,46 +577,57 @@ if (
       {screen === "assignments" && <AssignmentsScreen />}
 
       {screen === "candidateSearch" && (
-        <CandidateSearch
-          candidates={candidates}
-          jobs={jobs}
-          selectedCandidateId={selectedCandidateId}
-          setSelectedCandidateId={setSelectedCandidateId}
-          selectedJobId={selectedJobId}
-          setSelectedJobId={setSelectedJobId}
-          onCreateCandidate={() => safeSetScreen("candidateCreate")}
-          onMatchingJobs={() => safeSetScreen("matchingJobs")}
-          onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
-          onUpdateCandidate={async (candidateId, payload) => {
-            try {
-              await updateCandidate(candidateId, payload);
-              await refreshCandidates();
-              notify("Candidate", "Candidate updated.");
-            } catch (err) {
-              notify("Candidate", err.message || "Failed to update candidate.");
-            }
-          }}
-          onDeleteCandidate={async (candidateId) => {
-            if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
-            try {
-              await deleteCandidate(candidateId);
-              await refreshCandidates();
-              setSelectedCandidateId(
-                candidates.find((c) => c.id !== candidateId)?.id || "",
-              );
-              notify("Candidate", "Candidate deleted.");
-            } catch (err) {
-              notify("Candidate", err.message || "Failed to delete candidate.");
-            }
-          }}
-          onFetchCandidateById={async (candidateId) => {
-            const res = await getCandidateById(candidateId);
-            return mapCandidateFromApi(res || {});
-          }}
-          onRefreshCandidates={refreshCandidates}
-          setScreen={safeSetScreen}
-          setSelectedCandidate={setSelectedCandidateData}
-        />
+        <>
+          <CandidateSearch
+            candidates={candidates}
+            jobs={jobs}
+            setAutoOpenSchedule={setAutoOpenSchedule}
+            setCandidateDetailsDefaultTab={setCandidateDetailsDefaultTab}
+            selectedCandidateId={selectedCandidateId}
+            setSelectedCandidateId={setSelectedCandidateId}
+            selectedJobId={selectedJobId}
+            setSelectedJobId={setSelectedJobId}
+            onCreateCandidate={() => safeSetScreen("candidateCreate")}
+            onMatchingJobs={() => safeSetScreen("matchingJobs")}
+            onInterviewSchedule={() => safeSetScreen("interviewSchedule")}
+            onUpdateCandidate={async (candidateId, payload) => {
+              try {
+                await updateCandidate(candidateId, payload);
+                await refreshCandidates();
+                notify("Candidate", "Candidate updated.");
+              } catch (err) {
+                notify(
+                  "Candidate",
+                  err.message || "Failed to update candidate.",
+                );
+              }
+            }}
+            onDeleteCandidate={async (candidateId) => {
+              if (!window.confirm(`Delete candidate ${candidateId}?`)) return;
+              try {
+                await deleteCandidate(candidateId);
+                await refreshCandidates();
+                setSelectedCandidateId(
+                  candidates.find((c) => c.id !== candidateId)?.id || "",
+                );
+                notify("Candidate", "Candidate deleted.");
+              } catch (err) {
+                notify(
+                  "Candidate",
+                  err.message || "Failed to delete candidate.",
+                );
+              }
+            }}
+            onFetchCandidateById={async (candidateId) => {
+              const res = await getCandidateById(candidateId);
+              return mapCandidateFromApi(res || {});
+            }}
+            onRefreshCandidates={refreshCandidates}
+            setScreen={safeSetScreen}
+            setSelectedCandidate={setSelectedCandidateData}
+          />
+          <ToastContainer position="top-right" autoClose={3000} />
+        </>
       )}
 
       {screen === "candidateCreate" && (
@@ -633,20 +647,27 @@ if (
       )}
       {screen === "candidateDetails" && (
         <>
-        <CandidateDetailsScreen
-          candidate={selectedCandidateData}
-          onBack={() => safeSetScreen("candidateSearch")}
-          onUpdateCandidate={async (candidateId, payload) => {
-            try {
-              await updateCandidate(candidateId, payload);
-              await refreshCandidates();
-              notify("Candidate", "Candidate updated.");
-            } catch (err) {
-              notify("Candidate", err.message || "Failed to update candidate.");
+          <CandidateDetailsScreen
+            candidate={selectedCandidateData}
+            defaultTab={candidateDetailsDefaultTab}
+            autoOpenSchedule={
+              screen === "candidateDetails" ? autoOpenSchedule : false
             }
-          }}
-        />
-        <ToastContainer position="top-right" autoClose={3000} />
+            onBack={() => safeSetScreen("candidateSearch")}
+            onUpdateCandidate={async (candidateId, payload) => {
+              try {
+                await updateCandidate(candidateId, payload);
+                await refreshCandidates();
+                notify("Candidate", "Candidate updated.");
+              } catch (err) {
+                notify(
+                  "Candidate",
+                  err.message || "Failed to update candidate.",
+                );
+              }
+            }}
+          />
+          <ToastContainer position="top-right" autoClose={3000} />
         </>
       )}
 
@@ -701,7 +722,9 @@ if (
         />
       )}
 
-      {screen === "pre-onboarding" && <PreOnboardingPage candidates={candidates} />}
+      {screen === "pre-onboarding" && (
+        <PreOnboardingPage candidates={candidates} />
+      )}
       {/* {screen === "checklistTemplates" && <ChecklistTemplatesScreen />} */}
       {screen === "hrUsers" && <HrUserManagement />}
 

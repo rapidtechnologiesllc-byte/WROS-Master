@@ -31,6 +31,8 @@ export default function CandidateSearch({
   onFetchCandidateById,
   setScreen,
   setSelectedCandidate,
+  setCandidateDetailsDefaultTab,
+  setAutoOpenSchedule,
   onRefreshCandidates,
 }) {
   const [query, setQuery] = useState("");
@@ -209,6 +211,8 @@ export default function CandidateSearch({
                   }
 
                   setSelectedCandidate(finalCandidate);
+                  setCandidateDetailsDefaultTab?.("profile");
+                  setAutoOpenSchedule?.(false);
                   setScreen("candidateDetails");
                 }}
               >
@@ -244,7 +248,111 @@ export default function CandidateSearch({
                   ⋮
                 </button>
                 {openMenuId === c.id && (
-                  <div className="absolute right-0 z-10 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                  <div className="absolute right-0 z-10 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                    <button
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                      onClick={() => {
+                        setSelectedCandidateId(c?.id);
+                        setSelectedCandidate(c);
+                        setCandidateDetailsDefaultTab?.("profile");
+                        setAutoOpenSchedule?.(true);
+                        setScreen("candidateDetails");
+                        setOpenMenuId(null);
+                      }}
+                    >
+                      Schedule Interview
+                    </button>
+                    <button
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                      onClick={() => {
+                        const email = c?.email?.trim();
+
+                        if (!email) {
+                          return;
+                        }
+
+                        const subject = encodeURIComponent(
+                          "Regarding your application",
+                        );
+
+                        const body = encodeURIComponent(
+                          `Hi ${c?.name || "Candidate"},\n\n`,
+                        );
+
+                        const to = encodeURIComponent(email);
+
+                        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+
+                        const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
+
+                        const openedWindow = window.open(
+                          gmailUrl,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+
+                        if (!openedWindow) {
+                          window.location.href = mailtoUrl;
+                        }
+
+                        setOpenMenuId(null);
+                      }}
+                    >
+                      Send Email
+                    </button>
+                    <button
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!c?.phone}
+                      onClick={() => {
+                        if (!c?.phone) return;
+
+                        const cleanedPhone = c.phone.replace(/\D/g, "");
+
+                        if (!cleanedPhone) {
+                          return;
+                        }
+
+                        window.open(`https://wa.me/${cleanedPhone}`, "_blank");
+                        setOpenMenuId(null);
+                      }}
+                    >
+                      Message on WhatsApp
+                    </button>
+                    <button
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                      onClick={async () => {
+                        setSelectedCandidateId(c.id);
+
+                        let finalCandidate = c;
+
+                        if (onFetchCandidateById) {
+                          try {
+                            const fresh = await onFetchCandidateById(c.id);
+
+                            if (fresh) {
+                              finalCandidate = fresh;
+                            }
+                          } catch (err) {}
+                        }
+
+                        setSelectedCandidate(finalCandidate);
+                        setCandidateDetailsDefaultTab?.("feedback");
+                        setScreen("candidateDetails");
+                        setOpenMenuId(null);
+                      }}
+                    >
+                      Add Feedback
+                    </button>
+                    <button
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                      onClick={() => {
+                        console.log("Archive candidate:", c?.id);
+
+                        setOpenMenuId(null);
+                      }}
+                    >
+                      Archive
+                    </button>
                     <button
                       className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
                       onClick={() => {
