@@ -27,7 +27,7 @@ import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate,
 } from "../utils/interviewEmailTemplates";
-import { Mail, MessageCircle, MoreHorizontal } from "lucide-react";
+import { Mail, MessageCircle } from "lucide-react";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import StatusDropdown from "../components/ui/StatusDropdown";
 import PreonboardingModal from "./PreonboardingModal";
@@ -941,14 +941,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </button>
 
-                  <button
-                    type="button"
-                    className="p-2 rounded-xl border hover:bg-gray-100 cursor-pointer"
-                    onClick={() => console.log("More clicked")}
-                  >
-                    <MoreHorizontal className="w-5 h-5 text-gray-600" />
-                  </button>
-
                   <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
 
                   <Button
@@ -991,7 +983,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
           {activeTab === "profile" && !limitedMode && (
-            <ProfileTab candidateId={candidate?.id} />
+            <ProfileTab candidateId={candidate?.id} candidate={candidate} />
           )}
 
           {activeTab === "feedback" && (
