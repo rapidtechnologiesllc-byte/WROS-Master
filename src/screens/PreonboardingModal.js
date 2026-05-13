@@ -173,7 +173,7 @@ const PreonboardingModal = ({
   // };
 
   const next = () => {
-    if (current < 5) {
+    if (current < 1) {
       setCurrent(current + 1);
     } else {
       handleGenerateOffer();
@@ -365,11 +365,6 @@ const PreonboardingModal = ({
                 <DatePicker onChange={onDateChange} />
               </Form.Item>
             </div>
-          </>
-        );
-      case 1:
-        return (
-          <>
             {salaryTable ? (
               <SalaryModal onClose={() => setSalaryTable(false)} />
             ) : null}
@@ -439,13 +434,19 @@ const PreonboardingModal = ({
             </div>
           </>
         );
-      case 2:
+      case 1:
         return (
           <Container>
             <ScrollContainer>
               <Section>
-                <Title>Fill in the form data</Title>
-                <Table columns={columns} dataSource={data} pagination={false} />
+                <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
+                  <Select
+                    label="Select a contact person for this offer"
+                    options={[]}
+                    onChange={() => {}}
+                  />
+                  <div>Varun</div>
+                </div>
               </Section>
               <Section>
                 <Title>Template preview</Title>
@@ -458,15 +459,7 @@ const PreonboardingModal = ({
         return (
           <Container>
             <ScrollContainer>
-              <Section>
-                <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-                  <Select
-                    label="Select a contact person for this offer"
-                    options={[]}
-                    onChange={() => {}}
-                  />
-                </div>
-              </Section>
+              
               <Section>
                 <Title>Template preview</Title>
                 <PreviewBox>Document Preview Placeholder</PreviewBox>
@@ -581,10 +574,10 @@ const PreonboardingModal = ({
         role="dialog"
         aria-modal="true"
       >
-        <div className="w-full max-w-4xl max-h-[80vh] flex flex-col">
+        <div className="w-full max-w-4xl max-h-[75vh] flex flex-col">
           <Card
             title="Initia Pre-Onboarding Process"
-            bodyClassName="px-2 py-4"
+            bodyClassName="px-2 py-4 flex flex-col overflow-hidden max-h-[75vh]"
             right={
               <Button variant="ghost" onClick={onClose}>
                 Close
@@ -606,14 +599,16 @@ const PreonboardingModal = ({
                 onChange={onChange}
                 items={[
                   { title: "Job Details" },
-                  { title: "Compensation" },
-                  { title: "Offer Details" },
-                  { title: "Preview & Send" },
-                  { title: "Finalize" },
+                  { title: "Preview & Approve" },
                 ]}
               />
             </StepperDiv>
-            <div style={{ marginTop: 24 }}>{renderStepContent()}</div>
+            <div
+              className="mt-6 flex-1 overflow-y-auto pr-2"
+              style={{ marginTop: 24 }}
+            >
+              {renderStepContent()}
+            </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <Button
                 variant="secondary"
@@ -625,7 +620,7 @@ const PreonboardingModal = ({
               <Button onClick={next} disabled={isSaving}>
                 {isSaving
                   ? "Saving..."
-                  : current === 4
+                  : current === 1
                     ? "Generate Offer"
                     : "Continue"}
               </Button>
