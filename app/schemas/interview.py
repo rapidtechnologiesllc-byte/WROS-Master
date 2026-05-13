@@ -74,6 +74,7 @@ class InterviewUpdate(BaseModel):
     meeting_link: Optional[str] = None
     outlook_event_id: Optional[str] = None
     status: Optional[str] = None
+    feedback_status: Optional[str] = None # pending, completed, cancelled
 
 class InterviewResponse(BaseModel):
     """Schema for interview response"""
@@ -85,6 +86,7 @@ class InterviewResponse(BaseModel):
     meeting_link: Optional[str] = None
     outlook_event_id: Optional[str] = None
     status: str
+    feedback_status: Optional[str] = None # pending, completed, cancelled
 
 class InterviewDetailedResponse(BaseModel):
     """Schema for detailed interview response with related data"""
@@ -100,6 +102,7 @@ class InterviewDetailedResponse(BaseModel):
     outlook_event_id: Optional[str] = None
     status: str
     feedback_count: int
+    feedback_status: Optional[str] = None # pending, completed, cancelled
 
 
 # ============================================
