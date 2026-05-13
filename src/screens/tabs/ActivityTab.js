@@ -4,7 +4,7 @@ import {
   getPanelMembers,
   getInterviewById,
   updateInterview,
-  deleteInterview
+  deleteInterview,
 } from "../../services/api/interviews";
 
 export default function ActivityTab({ candidateId }) {
@@ -15,27 +15,30 @@ export default function ActivityTab({ candidateId }) {
   const [panelMembersMap, setPanelMembersMap] = useState({});
 
   const [selectedInterviewId, setSelectedInterviewId] = useState(null);
-  const [selectedInterviewDetails, setSelectedInterviewDetails] = useState(null);
+  const [selectedInterviewDetails, setSelectedInterviewDetails] =
+    useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
-  const [selectedInterviewIdForEdit, setSelectedInterviewIdForEdit] = useState(null);
+  const [selectedInterviewIdForEdit, setSelectedInterviewIdForEdit] =
+    useState(null);
   const [rescheduleForm, setRescheduleForm] = useState({
-  interviewDate: "",
-  startTime: "",
-  endTime: "",
-  durationMinutes: "60",
-  status: "Scheduled"
-});
+    interviewDate: "",
+    startTime: "",
+    endTime: "",
+    durationMinutes: "60",
+    status: "Scheduled",
+  });
   const [rescheduleErrors, setRescheduleErrors] = useState({});
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleNotice, setRescheduleNotice] = useState("");
   const [rescheduleNoticeType, setRescheduleNoticeType] = useState("success");
 
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedInterviewForCancel, setSelectedInterviewForCancel] = useState(null);
+  const [selectedInterviewForCancel, setSelectedInterviewForCancel] =
+    useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelNotice, setCancelNotice] = useState("");
   const [cancelNoticeType, setCancelNoticeType] = useState("success");
@@ -69,16 +72,20 @@ export default function ActivityTab({ candidateId }) {
           ? {
               total_interviews: sorted.length,
               scheduled_interviews: sorted.filter(
-                (item) => String(item?.status || "").toLowerCase() === "scheduled"
+                (item) =>
+                  String(item?.status || "").toLowerCase() === "scheduled",
               ).length,
               completed_interviews: sorted.filter(
-                (item) => String(item?.status || "").toLowerCase() === "completed"
+                (item) =>
+                  String(item?.status || "").toLowerCase() === "completed",
               ).length,
-              cancelled_interviews: sorted.filter(
-                (item) => String(item?.status || "").toLowerCase().includes("cancel")
-              ).length
+              cancelled_interviews: sorted.filter((item) =>
+                String(item?.status || "")
+                  .toLowerCase()
+                  .includes("cancel"),
+              ).length,
             }
-          : res
+          : res,
       );
 
       setInterviews(sorted);
@@ -102,7 +109,7 @@ export default function ActivityTab({ candidateId }) {
     const fetchPanelMembersForInterviews = async () => {
       try {
         const uniquePanelIds = [
-          ...new Set(interviews.map((item) => item?.panel_id).filter(Boolean))
+          ...new Set(interviews.map((item) => item?.panel_id).filter(Boolean)),
         ];
 
         const results = await Promise.all(
@@ -118,7 +125,7 @@ export default function ActivityTab({ candidateId }) {
                   : [];
 
             return { panelId, members };
-          })
+          }),
         );
 
         if (!isMounted) return;
@@ -174,22 +181,26 @@ export default function ActivityTab({ candidateId }) {
     };
   }, [selectedInterviewId]);
   useEffect(() => {
-  if (!showRescheduleModal) return;
-  if (!rescheduleForm.startTime || !rescheduleForm.durationMinutes) return;
+    if (!showRescheduleModal) return;
+    if (!rescheduleForm.startTime || !rescheduleForm.durationMinutes) return;
 
-  const calculatedEndTime = addMinutesToTime(
+    const calculatedEndTime = addMinutesToTime(
+      rescheduleForm.startTime,
+      Number(rescheduleForm.durationMinutes),
+    );
+
+    setRescheduleForm((prev) => {
+      if (prev.endTime === calculatedEndTime) return prev;
+      return {
+        ...prev,
+        endTime: calculatedEndTime,
+      };
+    });
+  }, [
+    showRescheduleModal,
     rescheduleForm.startTime,
-    Number(rescheduleForm.durationMinutes)
-  );
-
-  setRescheduleForm((prev) => {
-    if (prev.endTime === calculatedEndTime) return prev;
-    return {
-      ...prev,
-      endTime: calculatedEndTime
-    };
-  });
-}, [showRescheduleModal, rescheduleForm.startTime, rescheduleForm.durationMinutes]);
+    rescheduleForm.durationMinutes,
+  ]);
 
   const groupedData = useMemo(() => {
     const upcoming = [];
@@ -228,13 +239,16 @@ export default function ActivityTab({ candidateId }) {
     setRescheduleErrors({});
     setRescheduleNotice("");
     setRescheduleNoticeType("success");
-   setRescheduleForm({
-  interviewDate: start ? formatDateInput(start) : "",
-  startTime: start ? formatTimeInput(start) : "",
-  endTime: end ? formatTimeInput(end) : "",
-  durationMinutes: getDurationMinutes(interview?.start_time, interview?.end_time),
-  status: interview?.status || "Scheduled"
-});
+    setRescheduleForm({
+      interviewDate: start ? formatDateInput(start) : "",
+      startTime: start ? formatTimeInput(start) : "",
+      endTime: end ? formatTimeInput(end) : "",
+      durationMinutes: getDurationMinutes(
+        interview?.start_time,
+        interview?.end_time,
+      ),
+      status: interview?.status || "Scheduled",
+    });
     setShowRescheduleModal(true);
   };
 
@@ -244,46 +258,46 @@ export default function ActivityTab({ candidateId }) {
     setShowRescheduleModal(false);
     setSelectedInterview(null);
     setSelectedInterviewIdForEdit(null);
-   setRescheduleForm({
-  interviewDate: "",
-  startTime: "",
-  endTime: "",
-  durationMinutes: "60",
-  status: "Scheduled"
-});
+    setRescheduleForm({
+      interviewDate: "",
+      startTime: "",
+      endTime: "",
+      durationMinutes: "60",
+      status: "Scheduled",
+    });
     setRescheduleErrors({});
     setRescheduleNotice("");
     setRescheduleNoticeType("success");
   };
 
   const handleRescheduleInputChange = (field, value) => {
-  setRescheduleForm((prev) => {
-    const updated = {
-      ...prev,
-      [field]: value
-    };
+    setRescheduleForm((prev) => {
+      const updated = {
+        ...prev,
+        [field]: value,
+      };
 
-    if (
-      field === "interviewDate" ||
-      field === "startTime" ||
-      field === "durationMinutes"
-    ) {
-      updated.endTime = addMinutesToTime(
-        field === "startTime" ? value : updated.startTime,
-        Number(field === "durationMinutes" ? value : updated.durationMinutes)
-      );
+      if (
+        field === "interviewDate" ||
+        field === "startTime" ||
+        field === "durationMinutes"
+      ) {
+        updated.endTime = addMinutesToTime(
+          field === "startTime" ? value : updated.startTime,
+          Number(field === "durationMinutes" ? value : updated.durationMinutes),
+        );
+      }
+
+      return updated;
+    });
+
+    if (rescheduleErrors[field]) {
+      setRescheduleErrors((prev) => ({
+        ...prev,
+        [field]: "",
+      }));
     }
-
-    return updated;
-  });
-
-  if (rescheduleErrors[field]) {
-    setRescheduleErrors((prev) => ({
-      ...prev,
-      [field]: ""
-    }));
-  }
-};
+  };
 
   const validateRescheduleForm = () => {
     const errors = {};
@@ -306,11 +320,11 @@ export default function ActivityTab({ candidateId }) {
 
     const start = buildLocalDateTime(
       rescheduleForm.interviewDate,
-      rescheduleForm.startTime
+      rescheduleForm.startTime,
     );
     const end = buildLocalDateTime(
       rescheduleForm.interviewDate,
-      rescheduleForm.endTime
+      rescheduleForm.endTime,
     );
 
     if (!start) {
@@ -351,11 +365,11 @@ export default function ActivityTab({ candidateId }) {
 
       const updatedStart = buildLocalDateTime(
         rescheduleForm.interviewDate,
-        rescheduleForm.startTime
+        rescheduleForm.startTime,
       );
       const updatedEnd = buildLocalDateTime(
         rescheduleForm.interviewDate,
-        rescheduleForm.endTime
+        rescheduleForm.endTime,
       );
 
       const payload = {
@@ -365,11 +379,8 @@ export default function ActivityTab({ candidateId }) {
         end_time: updatedEnd,
         meeting_link: selectedInterview.meeting_link || "",
         outlook_event_id: selectedInterview.outlook_event_id || "",
-        status: rescheduleForm.status
+        status: rescheduleForm.status,
       };
-
-      console.log("Updating interview:", selectedInterviewIdForEdit, payload);
-
       await updateInterview(selectedInterviewIdForEdit, payload);
       await fetchInterviewHistory();
 
@@ -485,7 +496,10 @@ export default function ActivityTab({ candidateId }) {
 
         {!!groupedData.upcoming.length && (
           <div className="space-y-4">
-            <SubHeader title="Upcoming Interviews" count={groupedData.upcoming.length} />
+            <SubHeader
+              title="Upcoming Interviews"
+              count={groupedData.upcoming.length}
+            />
             <div className="grid gap-4">
               {groupedData.upcoming.map((interview) => (
                 <InterviewCard
@@ -503,7 +517,10 @@ export default function ActivityTab({ candidateId }) {
 
         {!!groupedData.past.length && (
           <div className="space-y-4">
-            <SubHeader title="Past Interviews" count={groupedData.past.length} />
+            <SubHeader
+              title="Past Interviews"
+              count={groupedData.past.length}
+            />
             <div className="grid gap-4">
               {groupedData.past.map((interview) => (
                 <InterviewCard
@@ -530,7 +547,8 @@ export default function ActivityTab({ candidateId }) {
           panelMembers={
             panelMembersMap[selectedInterviewDetails?.panel_id] ||
             panelMembersMap[
-              interviews.find((item) => item.id === selectedInterviewId)?.panel_id
+              interviews.find((item) => item.id === selectedInterviewId)
+                ?.panel_id
             ] ||
             []
           }
@@ -590,7 +608,7 @@ function SummaryCards({ summary }) {
     { label: "Total Interviews", value: summary?.total_interviews ?? 0 },
     { label: "Scheduled", value: summary?.scheduled_interviews ?? 0 },
     { label: "Completed", value: summary?.completed_interviews ?? 0 },
-    { label: "Cancelled", value: summary?.cancelled_interviews ?? 0 }
+    { label: "Cancelled", value: summary?.cancelled_interviews ?? 0 },
   ];
 
   return (
@@ -601,7 +619,9 @@ function SummaryCards({ summary }) {
           className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
         >
           <div className="text-sm font-medium text-gray-500">{card.label}</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{card.value}</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {card.value}
+          </div>
         </div>
       ))}
     </div>
@@ -613,7 +633,7 @@ function InterviewCard({
   panelMembers,
   onViewDetails,
   onReschedule,
-  onCancel
+  onCancel,
 }) {
   const dateLabel = formatDate(interview?.start_time);
   const startLabel = formatTime(interview?.start_time);
@@ -628,7 +648,9 @@ function InterviewCard({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-base font-semibold text-gray-900">{roundName}</h4>
+            <h4 className="text-base font-semibold text-gray-900">
+              {roundName}
+            </h4>
             <StatusBadge value={status} />
           </div>
 
@@ -639,20 +661,18 @@ function InterviewCard({
             </div>
 
             <div className="flex items-center gap-2">
-  <span className="font-medium text-gray-800">Time:</span>
-  <span>
-    {startLabel} - {endLabel}
-  </span>
-</div>
+              <span className="font-medium text-gray-800">Time:</span>
+              <span>
+                {startLabel} - {endLabel}
+              </span>
+            </div>
 
-<div className="flex items-center gap-2">
-  <span className="font-medium text-gray-800">Duration:</span>
-  <span>
-    {calculateDuration(interview?.start_time, interview?.end_time)}
-  </span>
-</div>
-
-
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-gray-800">Duration:</span>
+              <span>
+                {calculateDuration(interview?.start_time, interview?.end_time)}
+              </span>
+            </div>
 
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-800">Mode:</span>
@@ -761,7 +781,14 @@ function PanelMembers({ members }) {
   );
 }
 
-function InterviewDetailsModal({ open, onClose, loading, error, interview, panelMembers }) {
+function InterviewDetailsModal({
+  open,
+  onClose,
+  loading,
+  error,
+  interview,
+  panelMembers,
+}) {
   if (!open) return null;
 
   return (
@@ -769,7 +796,9 @@ function InterviewDetailsModal({ open, onClose, loading, error, interview, panel
       <div className="w-full max-w-3xl rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
         <div className="border-b px-6 py-5 flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-semibold text-gray-900">Interview Details</h3>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Interview Details
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
               View complete interview information for this candidate.
             </p>
@@ -811,19 +840,35 @@ function InterviewDetailsModal({ open, onClose, loading, error, interview, panel
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   <DetailRow label="Interview ID" value={interview?.id} />
                   <DetailRow label="Panel ID" value={interview?.panel_id} />
-                  <DetailRow label="Candidate Name" value={interview?.candidate_name} />
-                  <DetailRow label="Candidate Email" value={interview?.candidate_email} />
-                  <DetailRow label="Date" value={formatDate(interview?.start_time)} />
+                  <DetailRow
+                    label="Candidate Name"
+                    value={interview?.candidate_name}
+                  />
+                  <DetailRow
+                    label="Candidate Email"
+                    value={interview?.candidate_email}
+                  />
+                  <DetailRow
+                    label="Date"
+                    value={formatDate(interview?.start_time)}
+                  />
                   <DetailRow
                     label="Time"
                     value={`${formatTime(interview?.start_time)} - ${formatTime(
-                      interview?.end_time
+                      interview?.end_time,
                     )}`}
                   />
-                  <DetailRow label="Feedback Count" value={interview?.feedback_count ?? 0} />
+                  <DetailRow
+                    label="Feedback Count"
+                    value={interview?.feedback_count ?? 0}
+                  />
                   <DetailRow
                     label="Mode"
-                    value={interview?.meeting_link ? "Online Interview" : "Offline / TBD"}
+                    value={
+                      interview?.meeting_link
+                        ? "Online Interview"
+                        : "Offline / TBD"
+                    }
                   />
                 </div>
               </div>
@@ -890,16 +935,19 @@ function RescheduleModal({
   loading,
   onChange,
   onClose,
-  onSubmit
+  onSubmit,
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
       <div className="w-full max-w-2xl rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
         <div className="border-b px-6 py-5 flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-semibold text-gray-900">Reschedule Interview</h3>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Reschedule Interview
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
-              Update interview timing for {interview?.panel_round_name || "this interview"}.
+              Update interview timing for{" "}
+              {interview?.panel_round_name || "this interview"}.
             </p>
           </div>
 
@@ -929,50 +977,53 @@ function RescheduleModal({
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <ReadOnlyField label="Interview ID" value={interview?.id || "-"} />
 
-            <ReadOnlyField label="Round Name" value={interview?.panel_round_name || "-"} />
+            <ReadOnlyField
+              label="Round Name"
+              value={interview?.panel_round_name || "-"}
+            />
 
             <FormField
-  label="Interview Date"
-  type="date"
-  value={form.interviewDate}
-  onChange={(e) => onChange("interviewDate", e.target.value)}
-  error={errors.interviewDate}
-/>
+              label="Interview Date"
+              type="date"
+              value={form.interviewDate}
+              onChange={(e) => onChange("interviewDate", e.target.value)}
+              error={errors.interviewDate}
+            />
 
-<FormField
-  label="Status"
-  value={form.status}
-  onChange={(e) => onChange("status", e.target.value)}
-  error={errors.status}
-/>
+            <FormField
+              label="Status"
+              value={form.status}
+              onChange={(e) => onChange("status", e.target.value)}
+              error={errors.status}
+            />
 
-<SelectField
-  label="Duration"
-  value={form.durationMinutes}
-  onChange={(e) => onChange("durationMinutes", e.target.value)}
->
-  {[30, 45, 60, 90, 120].map((minutes) => (
-    <option key={minutes} value={String(minutes)}>
-      {formatDurationLabel(minutes)}
-    </option>
-  ))}
-</SelectField>
+            <SelectField
+              label="Duration"
+              value={form.durationMinutes}
+              onChange={(e) => onChange("durationMinutes", e.target.value)}
+            >
+              {[30, 45, 60, 90, 120].map((minutes) => (
+                <option key={minutes} value={String(minutes)}>
+                  {formatDurationLabel(minutes)}
+                </option>
+              ))}
+            </SelectField>
 
-<FormField
-  label="Start Time"
-  type="time"
-  value={form.startTime}
-  onChange={(e) => onChange("startTime", e.target.value)}
-  error={errors.startTime}
-/>
+            <FormField
+              label="Start Time"
+              type="time"
+              value={form.startTime}
+              onChange={(e) => onChange("startTime", e.target.value)}
+              error={errors.startTime}
+            />
 
-<FormField
-  label="End Time"
-  type="time"
-  value={form.endTime}
-  readOnly
-  error={errors.endTime}
-/>
+            <FormField
+              label="End Time"
+              type="time"
+              value={form.endTime}
+              readOnly
+              error={errors.endTime}
+            />
           </div>
         </div>
 
@@ -1006,14 +1057,16 @@ function CancelInterviewModal({
   noticeType,
   loading,
   onClose,
-  onConfirm
+  onConfirm,
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
       <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
         <div className="border-b px-6 py-5 flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-semibold text-gray-900">Cancel Interview</h3>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Cancel Interview
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
               This will remove the interview from the current interview flow.
             </p>
@@ -1060,7 +1113,7 @@ function CancelInterviewModal({
               <DetailRow
                 label="Time"
                 value={`${formatTime(interview?.start_time)} - ${formatTime(
-                  interview?.end_time
+                  interview?.end_time,
                 )}`}
               />
             </div>
@@ -1173,7 +1226,9 @@ function StatusBadge({ value }) {
   }
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${styles}`}>
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${styles}`}
+    >
       {value}
     </span>
   );
@@ -1185,7 +1240,9 @@ function EmptyState() {
       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-sm">
         📅
       </div>
-      <h3 className="text-sm font-semibold text-gray-900">No interview activity yet</h3>
+      <h3 className="text-sm font-semibold text-gray-900">
+        No interview activity yet
+      </h3>
       <p className="mt-1 text-sm text-gray-500">
         Once an interview is scheduled for this candidate, it will appear here.
       </p>
@@ -1242,7 +1299,7 @@ function formatDate(value) {
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
-    year: "numeric"
+    year: "numeric",
   });
 }
 
@@ -1253,7 +1310,7 @@ function formatTime(value) {
 
   return date.toLocaleTimeString("en-IN", {
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 }
 
@@ -1300,7 +1357,7 @@ function formatDurationLabel(value) {
     45: "45 min",
     60: "1 hour",
     90: "1.5 hour",
-    120: "2 hour"
+    120: "2 hour",
   };
 
   return map[value] || `${value} min`;
