@@ -27,27 +27,24 @@ export default function Shell({ role, screen, setScreen, onLogout, children }) {
   );
   const isAdmin = normalizedRole === "ADMIN";
   const isHr = normalizedRole === "HR";
-  const roleLabel = isSuperUser
-    ? "Super User"
-    : isAdmin
-      ? "Admin"
-      : isHr
-        ? "HR"
-        : role || "—";
+  const isHR_Manager = normalizedRole === "HR MANAGER";
   const nav = useMemo(() => {
+    if (isHR_Manager) {
+      return [{ id: "candidateSearch", label: "Candidates", icon: Users }];
+    }
+
     const items = [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "candidateSearch", label: "Candidates", icon: Users },
       { id: "jobs", label: "Jobs", icon: Briefcase },
       { id: "pre-onboarding", label: "Pre-Onboarding", icon: Briefcase },
-      // { id: "checklistTemplates", label: "Checklist Templates", icon: ListChecks },
     ];
     if (isAdmin || isSuperUser) {
       items.push({ id: "rbac", label: "RBAC Settings", icon: Shield });
       items.push({ id: "hrUsers", label: "HR Users", icon: Users });
     }
     return items;
-  }, [isAdmin, isHr, isSuperUser]);
+  }, [isAdmin, isSuperUser, isHR_Manager]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
