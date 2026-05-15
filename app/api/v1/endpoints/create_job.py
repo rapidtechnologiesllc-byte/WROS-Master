@@ -848,6 +848,25 @@ def assign_candidate_to_job(
     candidate.candidateJobTitle = job.jobTitle
     db.commit()
     db.refresh(candidate)
+
+    # ── Pool ownership transition ─────────────────────────────────────────────
+    # If the job has a BU, candidate moves to BU Owned; otherwise stays Org Pool
+    if job.business_unit_id:
+        from app.services.candidate_pool_service import set_bu_owned
+        bu = db.query(__import__('app.models.rbac', fromlist=['BusinessUnit']).BusinessUnit).filter_by(id=job.business_unit_id).first()
+        bu_name = bu.name if bu else f"BU #{job.business_unit_id}"
+        performed_by = getattr(user, 'UserID', None)
+        set_bu_owned(
+            candidate_id=candidate_id,
+            bu_id=job.business_unit_id,
+            bu_name=bu_name,
+            reason=f"Assigned to job '{job_id}' ({job.jobTitle})",
+            db=db,
+            performed_by_id=performed_by,
+        )
+        db.commit()
+    # If no BU on job — candidate stays in Org Pool (no change needed)
+
     return CandidateJobSummary(
         candidate_id=candidate.candidateID,
         candidate_first_name=candidate.candidateFirstName,
@@ -880,6 +899,18 @@ def unassign_candidate_from_job(
     candidate.candidateJobTitle = None
     db.commit()
     db.refresh(candidate)
+
+    # ── Pool ownership transition: unassigned → Org Pool ─────────────────────
+    from app.services.candidate_pool_service import set_org_pool
+    performed_by = getattr(user, 'UserID', None)
+    set_org_pool(
+        candidate_id=candidate_id,
+        reason="Unassigned from job — returned to Org Pool",
+        db=db,
+        performed_by_id=performed_by,
+    )
+    db.commit()
+
     return CandidateJobSummary(
         candidate_id=candidate.candidateID,
         candidate_first_name=candidate.candidateFirstName,
