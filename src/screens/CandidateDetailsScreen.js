@@ -674,7 +674,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       );
 
       closeScheduleModal();
-      setActiveTab("activity");
+      setActiveTab("interview");
     } catch (err) {
       console.error("Failed to complete interview scheduling flow", err);
       showNotice(err?.message || "Failed to schedule interview", "error", 5000);
