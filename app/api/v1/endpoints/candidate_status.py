@@ -140,6 +140,18 @@ def update_candidate_status(
     db.commit()
     db.refresh(cs)
 
+    # ── Pool ownership transition: Rejected → Org Pool ────────────────────────
+    if request.pipeline_status == "Rejected":
+        from app.services.candidate_pool_service import set_org_pool
+        set_org_pool(
+            candidate_id=candidate_id,
+            reason="BU rejected candidate at interview stage \u2014 returned to Org Pool",
+            db=db,
+            performed_by_id=getattr(user, "UserID", None),
+            performed_by_name=getattr(user, "UserName", None),
+        )
+        db.commit()
+
     return StatusActionResponse(
         status="success",
         message=f"Candidate '{candidate_id}' updated: {', '.join(changed_fields)}.",

@@ -416,6 +416,192 @@ def get_candidate_by_id(
     )
 
 
+@router.get(
+    "/hr/my-bu/candidates",
+    response_model=AllCandidatesResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Get all candidates owned by the calling user's Business Unit",
+)
+def get_candidates_by_my_bu(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+    include_org_pool: bool = Query(
+        default=False,
+        description="If true, also include Org Pool candidates (not BU-owned) in the result",
+    ),
+    pipeline_status: Optional[str] = Query(
+        default=None,
+        description="Filter by pipeline status (e.g. 'Applied', 'Interview', 'Offered')",
+    ),
+):
+    """
+    Returns all candidates that are currently **owned by the calling user's
+    Business Unit** (pool_status = 'BU Owned').
+
+    - The BU is determined automatically from the logged-in user's
+      `business_unit_id` — no parameter needed.
+    - Use `include_org_pool=true` to also fetch unassigned Org Pool candidates
+      (useful for BU managers who want to pick new candidates).
+    - Optionally filter by `pipeline_status`.
+
+    **Requires:** `candidate.view` permission.
+    """
+    from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
+
+    # ── Resolve the calling user's BU ─────────────────────────────────────────
+    calling_user = db.query(Users).filter(Users.UserID == user.UserID).first()
+    bu_id = calling_user.business_unit_id if calling_user else None
+
+    if not bu_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Your account is not assigned to any Business Unit. "
+                "Ask an Admin to set your BU before using this endpoint."
+            ),
+        )
+
+    # ── Find candidate IDs that belong to this BU ─────────────────────────────
+    ownership_query = db.query(CandidateOwnership).filter(
+        CandidateOwnership.owned_by_bu_id == bu_id,
+        CandidateOwnership.pool_status == POOL_BU,
+    )
+    bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
+
+    # ── Optionally include Org Pool candidates ────────────────────────────────
+    if include_org_pool:
+        owned_ids = {row.candidateID for row in db.query(CandidateOwnership).all()}
+        all_candidate_ids = db.query(Candidate.candidateID).all()
+        org_pool_ids = {row.candidateID for row in all_candidate_ids} - owned_ids
+        # also include candidates whose ownership row says "Org Pool"
+        org_pool_rows = db.query(CandidateOwnership).filter(
+            CandidateOwnership.pool_status == POOL_ORG
+        ).all()
+        org_pool_ids.update(row.candidateID for row in org_pool_rows)
+        bu_candidate_ids.update(org_pool_ids)
+
+    if not bu_candidate_ids:
+        return AllCandidatesResponse(total_candidates=0, candidates=[])
+
+    # ── Fetch candidate rows ──────────────────────────────────────────────────
+    candidate_query = db.query(Candidate).filter(
+        Candidate.candidateID.in_(bu_candidate_ids)
+    )
+
+    # Optional pipeline_status filter (via CandidateStatus join)
+    if pipeline_status:
+        candidate_query = candidate_query.join(
+            CandidateStatus,
+            CandidateStatus.candidateID == Candidate.candidateID,
+            isouter=True,
+        ).filter(CandidateStatus.piplineStatus == pipeline_status)
+
+    candidates = candidate_query.all()
+
+    # ── Build full response (reusing exact same pattern as get_all_candidates) ─
+    candidates_data = []
+    for candidate in candidates:
+        name_parts = [
+            candidate.candidateFirstName or "",
+            candidate.candidateMiddleName or "",
+            candidate.candidateLastName or "",
+        ]
+        candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
+
+        personal_info = db.query(CandidateInfoForm).filter(
+            CandidateInfoForm.candidateID == candidate.candidateID
+        ).first()
+        education_records = db.query(CandidateEducationForm).filter(
+            CandidateEducationForm.candidateID == candidate.candidateID
+        ).all()
+        experience_records = db.query(CandidateExperienceForm).filter(
+            CandidateExperienceForm.candidateID == candidate.candidateID
+        ).all()
+        aadhar_form = db.query(CandidateAadharForm).filter(
+            CandidateAadharForm.candidateID == candidate.candidateID
+        ).first()
+        pan_form = db.query(CandidatePanForm).filter(
+            CandidatePanForm.candidateID == candidate.candidateID
+        ).first()
+        candidate_status = db.query(CandidateStatus).filter(
+            CandidateStatus.candidateID == candidate.candidateID
+        ).first()
+
+        candidates_data.append(CandidateCompleteResponse(
+            candidate_id=candidate.candidateID,
+            candidate_name=candidate_name,
+            candidate_email=candidate.candidateEmail,
+            candidate_mobile=candidate.candidateMobile,
+            candidate_role=candidate.candidateRole,
+            candidate_job_title=candidate.candidateJobTitle,
+            candidate_is_verified=candidate.candidateIsVerified,
+            candidate_created_at=candidate.candidateCreatedAt,
+            candidate_gender=candidate.candidateGender,
+            candidate_date_of_birth=candidate.candidateDateOfBirth,
+            candidate_source=candidate.candidateSource,
+            candidate_experience=candidate.candidateExperience,
+            candidate_skills=candidate.candidateSkills,
+            candidate_joining_date=candidate.candidateJoiningDate,
+            candidate_current_location=candidate.candidateCurrentLocation,
+            candidate_current_salary=candidate.candidateCurrentSalary,
+            candidate_expected_salary=candidate.candidateExpectedSalary,
+            job_id=candidate.job_id,
+            personal_info=CandidateInfoResponse(
+                position=personal_info.position if personal_info else None,
+                department=personal_info.department if personal_info else None,
+                dob=personal_info.dob if personal_info else None,
+                gender=personal_info.gender if personal_info else None,
+                marital_status=personal_info.marital_status if personal_info else None,
+                nationality=personal_info.nationality if personal_info else None,
+                current_address=personal_info.current_address if personal_info else None,
+                permanent_address=personal_info.permanent_address if personal_info else None,
+                submitted_at=personal_info.submittedAt if personal_info else None,
+            ) if personal_info else None,
+            education=[
+                CandidateEducationResponse(
+                    education_institute=edu.education_institute,
+                    degree=edu.degree,
+                    field_of_study=edu.field_of_study,
+                    starting_year=edu.starting_year,
+                    year_of_passing=edu.year_of_passing,
+                    percentage=edu.percentage,
+                    document_is_submitted=edu.document_is_submitted,
+                ) for edu in education_records
+            ],
+            experience=[
+                CandidateExperienceResponse(
+                    company_name=exp.company_name,
+                    job_title=exp.job_title,
+                    start_date=exp.start_date,
+                    end_date=exp.end_date,
+                    year_of_experience=exp.year_of_experience,
+                    document_is_submitted=exp.document_is_submitted,
+                ) for exp in experience_records
+            ],
+            aadhar=CandidateAadharResponse(
+                aadhar=aadhar_form.aadhar if aadhar_form else None,
+                name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
+                enrollment_number=aadhar_form.enrollment_number if aadhar_form else None,
+                aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
+                is_verified=aadhar_form.is_verified if aadhar_form else None,
+            ) if aadhar_form else None,
+            pan=CandidatePanResponse(
+                pan=pan_form.pan if pan_form else None,
+                name_in_pan=pan_form.name_in_pan if pan_form else None,
+                father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
+                pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
+                is_verified=pan_form.is_verified if pan_form else None,
+            ) if pan_form else None,
+            status=candidate_status.status if candidate_status else None,
+            pipline_status=candidate_status.piplineStatus if candidate_status else None,
+        ))
+
+    return AllCandidatesResponse(
+        total_candidates=len(candidates_data),
+        candidates=candidates_data,
+    )
+
+
 @router.put(
     "/hr/update_candidate/{candidate_id}",
     response_model=CandidateCreateResponse,

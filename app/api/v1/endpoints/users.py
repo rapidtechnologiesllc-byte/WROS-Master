@@ -113,6 +113,86 @@ def get_all_users(
     )
 
 
+@router.get(
+    "/users/search",
+    response_model=AllUsersResponse,
+    summary="Search / filter users by name, permission role, or user role",
+)
+def search_users(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+    name: Optional[str] = Query(
+        default=None,
+        description="Partial, case-insensitive search on user name or email",
+    ),
+    permission_role: Optional[str] = Query(
+        default=None,
+        description="Exact RBAC role name to filter by (e.g. 'HR Manager', 'Admin')",
+    ),
+    user_role: Optional[str] = Query(
+        default=None,
+        description="Legacy UserRole field filter (e.g. 'HR', 'Admin', 'Recruiter')",
+    ),
+    skip: int = Query(default=0, ge=0, description="Records to skip"),
+    limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1–200)"),
+):
+    """
+    Search users with any combination of filters.  All filters are optional —
+    omit all of them to get a paginated list of every user.
+
+    **Filters:**
+    - `name` — partial, case-insensitive match on `UserName` **or** `UserEmail`
+    - `permission_role` — exact match on the RBAC `Role.name`
+      (e.g. `'HR Manager'`, `'Recruiter'`, `'Admin'`)
+    - `user_role` — exact match on the legacy `UserRole` column
+      (e.g. `'HR'`, `'Admin'`)
+
+    **Pagination:** use `skip` / `limit`.
+    """
+    from sqlalchemy import or_, func as sql_func
+
+    query = db.query(Users)
+
+    # ── name filter — partial match on UserName OR UserEmail ─────────────────
+    if name:
+        pattern = f"%{name.lower()}%"
+        query = query.filter(
+            or_(
+                sql_func.lower(Users.UserName).like(pattern),
+                sql_func.lower(Users.UserEmail).like(pattern),
+            )
+        )
+
+    # ── legacy role filter ────────────────────────────────────────────────────
+    if user_role:
+        query = query.filter(Users.UserRole == user_role)
+
+    # ── RBAC permission role filter — join through Role ───────────────────────
+    if permission_role:
+        query = query.join(Role, Role.id == Users.role_id).filter(
+            Role.name == permission_role
+        )
+
+    total = query.count()
+    matched_users = query.offset(skip).limit(limit).all()
+
+    users_data = []
+    for u in matched_users:
+        role = db.query(Role).filter(Role.id == u.role_id).first()
+        users_data.append(UserResponse(
+            user_id=u.UserID,
+            user_name=u.UserName or "",
+            user_email=u.UserEmail,
+            user_role=u.UserRole,
+            created_at=u.CreatedAt,
+            permission_role=role.name if role else None,
+        ))
+
+    return AllUsersResponse(
+        total_users=total,
+        users=users_data,
+    )
+
 
 @router.post(
     "/assignments/create",

@@ -139,6 +139,21 @@ def respond_to_offer(
     db.commit()
     db.refresh(offer)
 
+    # ── Pool ownership transition: candidate rejects offer → Org Pool ───────────
+    if request.action.lower() == "reject":
+        from app.services.candidate_pool_service import set_org_pool
+        set_org_pool(
+            candidate_id=offer.candidate_id,
+            reason=f"Candidate rejected offer #{offer.id} — returned to Org Pool",
+            db=db,
+            performed_by_id=candidate.candidateID,
+            performed_by_name=(
+                f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
+                or candidate.candidateEmail
+            ),
+        )
+        db.commit()
+
     return OfferAcceptanceResponse(
         status="Success",
         message=f"Offer {offer.offer_status.lower()} successfully",
@@ -235,6 +250,29 @@ def create_offer_letter(
     db.add(new_offer)
     db.commit()
     db.refresh(new_offer)
+
+    # ── Pool ownership transition: offer released → BU Owned (90-day clock) ────
+    # Determine BU from the linked job; if no job/BU, skip.
+    try:
+        linked_job = None
+        if new_offer.job_id:
+            linked_job = db.query(Jobs).filter(Jobs.jobID == new_offer.job_id).first()
+        if linked_job and linked_job.business_unit_id:
+            from app.services.candidate_pool_service import set_bu_owned_with_expiry
+            from app.models.rbac import BusinessUnit
+            bu = db.query(BusinessUnit).filter(BusinessUnit.id == linked_job.business_unit_id).first()
+            bu_name = bu.name if bu else f"BU #{linked_job.business_unit_id}"
+            set_bu_owned_with_expiry(
+                candidate_id=request.candidate_id,
+                bu_id=linked_job.business_unit_id,
+                bu_name=bu_name,
+                reason=f"Offer #{new_offer.id} released by HR — 90-day BU ownership started",
+                db=db,
+                performed_by_id=user.UserID,
+            )
+            db.commit()
+    except Exception:
+        pass  # Pool transition failure must never block offer creation
 
     return OfferLetterResponse(
         id=new_offer.id,
