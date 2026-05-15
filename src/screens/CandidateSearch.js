@@ -15,6 +15,7 @@ import {
   updateCandidateStatus,
 } from "../services/api/candidates";
 import { toast } from "react-toastify";
+import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 
 export default function CandidateSearch({
   candidates,
@@ -42,6 +43,7 @@ export default function CandidateSearch({
     useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [candidateList, setCandidateList] = useState(candidates);
+  const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
 
   useEffect(() => {
     setCandidateList(candidates);
@@ -62,45 +64,38 @@ export default function CandidateSearch({
     const q = query.trim().toLowerCase();
 
     if (!q) return candidateList;
-
     const getSearchableText = (candidate) =>
       [candidate?.name, candidate?.email, candidate?.phone, candidate?.jobTitle]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-
     const matchesKeyword = (candidate, keyword) => {
       const cleanKeyword = keyword.trim().toLowerCase();
       if (!cleanKeyword) return true;
-
       return getSearchableText(candidate).includes(cleanKeyword);
     };
-
     return candidateList.filter((candidate) => {
       if (q.includes(" and ")) {
         return q
           .split(" and ")
           .every((keyword) => matchesKeyword(candidate, keyword));
       }
-
       if (q.includes(" or ")) {
         return q
           .split(" or ")
           .some((keyword) => matchesKeyword(candidate, keyword));
       }
-
       if (q.includes(" not ")) {
         const [includeKeyword, excludeKeyword] = q.split(" not ");
-
         return (
           matchesKeyword(candidate, includeKeyword) &&
           !matchesKeyword(candidate, excludeKeyword)
         );
       }
-
       return matchesKeyword(candidate, q);
     });
   }, [candidateList, query]);
+
   const handleCandidateStatus = async (candidateId) => {
     try {
       const result = await updateCandidateStatus(candidateId, {
@@ -130,6 +125,29 @@ export default function CandidateSearch({
     }
   };
 
+  const handleActiveStatus = async (status, candidateId) => {
+    try {
+      const result = await updateCandidateStatus(candidateId, {
+        status: status,
+      });
+      if (result?.status === "success") {
+        toast.success(`Candidate ${result?.data?.candidate_name} is Archvied`);
+        const candidateStatus = await getCandidateStatus(candidateId);
+        setCandidateList((prev) =>
+          prev.map((c) =>
+            c.id === candidateId
+              ? {
+                  ...c,
+                  status: candidateStatus?.status,
+                  pipelineStatus: candidateStatus?.pipeline_status,
+                }
+              : c,
+          ),
+        );
+      }
+    } catch (err) {}
+  };
+
   return (
     <div className="grid gap-6">
       <div className="space-y-6">
@@ -155,7 +173,6 @@ export default function CandidateSearch({
               >
                 Show Matching Jobs
               </Button>
-
               <Button
                 onClick={onCreateCandidate}
                 className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
@@ -198,9 +215,7 @@ export default function CandidateSearch({
                 className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
                 onClick={async () => {
                   setSelectedCandidateId(c.id);
-
                   let finalCandidate = c;
-
                   if (onFetchCandidateById) {
                     try {
                       const fresh = await onFetchCandidateById(c.id);
@@ -209,7 +224,6 @@ export default function CandidateSearch({
                       }
                     } catch (err) {}
                   }
-
                   setSelectedCandidate(finalCandidate);
                   setCandidateDetailsDefaultTab?.("profile");
                   setAutoOpenSchedule?.(false);
@@ -270,31 +284,23 @@ export default function CandidateSearch({
                         if (!email) {
                           return;
                         }
-
                         const subject = encodeURIComponent(
                           "Regarding your application",
                         );
-
                         const body = encodeURIComponent(
                           `Hi ${c?.name || "Candidate"},\n\n`,
                         );
-
                         const to = encodeURIComponent(email);
-
                         const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
-
                         const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
-
                         const openedWindow = window.open(
                           gmailUrl,
                           "_blank",
                           "noopener,noreferrer",
                         );
-
                         if (!openedWindow) {
                           window.location.href = mailtoUrl;
                         }
-
                         setOpenMenuId(null);
                       }}
                     >
@@ -305,13 +311,10 @@ export default function CandidateSearch({
                       disabled={!c?.phone}
                       onClick={() => {
                         if (!c?.phone) return;
-
                         const cleanedPhone = c.phone.replace(/\D/g, "");
-
                         if (!cleanedPhone) {
                           return;
                         }
-
                         window.open(`https://wa.me/${cleanedPhone}`, "_blank");
                         setOpenMenuId(null);
                       }}
@@ -322,19 +325,15 @@ export default function CandidateSearch({
                       className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
                       onClick={async () => {
                         setSelectedCandidateId(c.id);
-
                         let finalCandidate = c;
-
                         if (onFetchCandidateById) {
                           try {
                             const fresh = await onFetchCandidateById(c.id);
-
                             if (fresh) {
                               finalCandidate = fresh;
                             }
                           } catch (err) {}
                         }
-
                         setSelectedCandidate(finalCandidate);
                         setCandidateDetailsDefaultTab?.("feedback");
                         setScreen("candidateDetails");
@@ -346,9 +345,7 @@ export default function CandidateSearch({
                     <button
                       className="block w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
                       onClick={() => {
-                        console.log("Archive candidate:", c?.id);
-
-                        setOpenMenuId(null);
+                        handleActiveStatus("Inactive", c?.id);
                       }}
                     >
                       Archive
@@ -362,6 +359,32 @@ export default function CandidateSearch({
                     >
                       Pre Onboarding
                     </button>
+                    <button
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                      onClick={() => {
+                        setOpenMoveDrawer(true);
+                      }}
+                    >
+                      Move Stage
+                    </button>
+                    <MoveStageDrawer
+                      open={openMoveDrawer}
+                      onClose={() => setOpenMoveDrawer(false)}
+                      onSubmit={(stage) => {
+                        setCandidateList((prev) =>
+                          prev.map((c) =>
+                            c.id === stage?.candidate_id
+                              ? {
+                                  ...c,
+                                  status: stage?.status,
+                                  pipelineStatus: stage?.pipeline_status,
+                                }
+                              : c,
+                          ),
+                        );
+                      }}
+                      data={c}
+                    />
                   </div>
                 )}
               </div>
