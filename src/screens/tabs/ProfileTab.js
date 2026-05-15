@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { getCandidateById } from "../../services/api/candidates";
-
+import {
+  getCandidateDocuments,
+  viewDocument,
+} from "../../services/api/documents";
 export default function ProfileTab({ candidateId, candidate }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [resumePreviewUrl, setResumePreviewUrl] = useState("");
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState("");
 
   useEffect(() => {
     if (!candidateId) return;
@@ -36,6 +43,64 @@ export default function ProfileTab({ candidateId, candidate }) {
 
     return () => {
       isMounted = false;
+    };
+  }, [candidateId]);
+  useEffect(() => {
+    if (!candidateId) return;
+
+    let isMounted = true;
+    let objectUrl = "";
+
+    const fetchCandidateResume = async () => {
+      try {
+        setDocumentsLoading(true);
+        setDocumentsError("");
+        setResumePreviewUrl("");
+
+        const result = await getCandidateDocuments(candidateId);
+
+        const candidateDocuments = Array.isArray(result?.documents)
+          ? result.documents
+          : [];
+
+        if (!isMounted) return;
+
+        setDocuments(candidateDocuments);
+
+        const resumeDocument = candidateDocuments.find(
+          (doc) =>
+            String(doc?.document_type || "").toLowerCase() === "resume" &&
+            !doc?.is_deleted &&
+            doc?.id,
+        );
+
+        if (!resumeDocument?.id) return;
+
+        const { blob } = await viewDocument(resumeDocument.id);
+
+        if (!isMounted) return;
+
+        objectUrl = URL.createObjectURL(blob);
+        setResumePreviewUrl(objectUrl);
+      } catch (err) {
+        if (isMounted) {
+          setDocumentsError(err?.message || "Failed to load resume preview");
+        }
+      } finally {
+        if (isMounted) {
+          setDocumentsLoading(false);
+        }
+      }
+    };
+
+    fetchCandidateResume();
+
+    return () => {
+      isMounted = false;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [candidateId]);
 
@@ -172,6 +237,12 @@ export default function ProfileTab({ candidateId, candidate }) {
           </div>
         </div>
       </section>
+      <ResumePreview
+        documents={documents}
+        previewUrl={resumePreviewUrl}
+        loading={documentsLoading}
+        error={documentsError}
+      />
 
       <section className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
         <SectionTitle title="Basic Information" />
@@ -289,6 +360,66 @@ export default function ProfileTab({ candidateId, candidate }) {
         </div>
       </section>
     </div>
+  );
+}
+function ResumePreview({ documents, previewUrl, loading, error }) {
+  const resumeDocument = useMemo(() => {
+    if (!Array.isArray(documents)) return null;
+
+    return documents.find(
+      (doc) =>
+        String(doc?.document_type || "").toLowerCase() === "resume" &&
+        !doc?.is_deleted,
+    );
+  }, [documents]);
+
+  const fileName = resumeDocument?.original_filename || "Candidate Resume.pdf";
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            Resume
+          </h3>
+          <p className="mt-1 text-xs font-medium text-gray-500 break-all">
+            {resumeDocument ? fileName : "Candidate resume preview"}
+          </p>
+        </div>
+
+        {previewUrl && (
+          <a
+            href={previewUrl}
+            download={fileName}
+            className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
+          >
+            Download Resume
+          </a>
+        )}
+      </div>
+
+      <div className="h-[760px] bg-gray-50">
+        {loading ? (
+          <div className="flex h-full items-center justify-center text-sm font-medium text-gray-500">
+            Loading resume preview...
+          </div>
+        ) : error ? (
+          <div className="flex h-full items-center justify-center px-4 text-center text-sm font-medium text-red-500">
+            {error}
+          </div>
+        ) : previewUrl ? (
+          <iframe
+            src={previewUrl}
+            title="Candidate Resume Preview"
+            className="h-full w-full border-0"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm font-medium text-gray-400">
+            Resume not available
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
