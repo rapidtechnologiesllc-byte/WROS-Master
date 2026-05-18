@@ -19,7 +19,9 @@ export const isCandidateRole = (role) =>
 
 export const isCandidateUser = ({ role, userType }) =>
   isCandidateRole(role) ||
-  String(userType || "").trim().toLowerCase() === "candidate";
+  String(userType || "")
+    .trim()
+    .toLowerCase() === "candidate";
 
 export const canAccessFullHrms = ({ role }) => {
   return isSuperUserRole(role);
