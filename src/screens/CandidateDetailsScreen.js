@@ -741,8 +741,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
     <p>
       <strong>Candidate Name:</strong> ${fullName}<br/>
-      <strong>Candidate Email:</strong> ${candidate?.email || "-"}<br/>
-      <strong>Candidate Phone:</strong> ${candidate?.phone || "-"}<br/>
       <strong>Role:</strong> ${candidate?.jobTitle || "-"}<br/>
       <strong>Round:</strong> ${scheduleForm.roundName || "-"}<br/>
       <strong>Interview Time:</strong> ${interviewTime}<br/>

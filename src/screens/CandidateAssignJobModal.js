@@ -26,10 +26,13 @@ const INITIAL_FORM_STATE = {
   primarySales: "",
   positionType: "",
   quotedBillRate: "",
+  quotedBillRateType: "$/Hour",
   agreedBillRate: "",
+  agreedBillRateType: "$/Hour",
   agreedPayRate: "",
+  agreedPayRateType: "$/Hour",
   agreedOn: getTodayDate(),
-  corpToCorp: false,
+  corpToCorp: "",
   selectedCv: "",
   internalNotes: "",
   notifyCandidate: false,
@@ -64,7 +67,16 @@ const POSITION_TYPE_OPTIONS = [
   "Corp To Corp",
   "W2",
 ];
-
+const RATE_TYPE_OPTIONS = [
+  { label: "$/Hour", value: "$/Hour" },
+  { label: "$/Day", value: "$/Day" },
+  { label: "$/Year", value: "$/Year" },
+  { label: "$/Monthly", value: "$/Monthly" },
+  { label: "INR/Hour", value: "INR/Hour" },
+  { label: "INR/Day", value: "INR/Day" },
+  { label: "INR/Year", value: "INR/Year" },
+  { label: "INR/Monthly", value: "INR/Monthly" },
+];
 const CV_OPTIONS = ["Default Resume", "Updated Resume", "Client Resume"];
 const getSubmitJobErrorMessage = (error) => {
   const statusCode = error?.response?.status;
@@ -153,6 +165,18 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
       [field]: value,
     }));
   };
+  const buildUdfPayload = () => ({
+    govt_id_type: udfData?.govtIdType || null,
+    govt_id_number: udfData?.govtIdNumber?.trim() || null,
+    date_of_birth: udfData?.dateOfBirth || null,
+    previous_organization: udfData?.previousOrganization?.trim() || null,
+    total_experience: udfData?.totalExperience?.trim() || null,
+    relevant_experience: udfData?.relevantExperience?.trim() || null,
+    educational_qualification: udfData?.educationalQualification || null,
+    college_or_university: udfData?.collegeOrUniversity?.trim() || null,
+    review_for_submission: udfData?.reviewForSubmission || null,
+    notice_period: udfData?.noticePeriod?.trim() || null,
+  });
   const buildSubmitActivityPayload = () => {
     return {
       candidate_id: candidateDetails?.id,
@@ -181,7 +205,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
       notify_primary_sales: formData?.notifyPrimarySales,
     };
   };
-
+  const isEmptyValue = (value) => !String(value ?? "").trim();
   const validateForm = () => {
     if (!candidateDetails?.id) {
       toast.error("Candidate details are missing");
@@ -207,15 +231,16 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
       toast.error("Please select time zone");
       return false;
     }
+    if (isEmptyValue(formData?.agreedPayRate)) {
+      toast.error("Please enter agreed pay rate");
+      return false;
+    }
 
     return true;
   };
 
   const handleSaveJob = async () => {
     if (!validateForm()) return;
-
-    const payload = buildSubmitActivityPayload();
-
     try {
       setIsAssigning(true);
       const submitJobPayload = {
@@ -228,14 +253,19 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
         primary_sales: formData?.primarySales || null,
         position_type: formData?.positionType || null,
         quoted_bill_rate: formData?.quotedBillRate || null,
+        quoted_bill_rate_type: formData?.quotedBillRateType || null,
         agreed_bill_rate: formData?.agreedBillRate || null,
+        agreed_bill_rate_type: formData?.agreedBillRateType || null,
         agreed_pay_rate: formData?.agreedPayRate || null,
+        agreed_pay_rate_type: formData?.agreedPayRateType || null,
         agreed_on: formData?.agreedOn || null,
-        corp_to_corp: Boolean(formData?.corpToCorp),
+        corp_to_corp:
+          formData?.corpToCorp === "" ? null : Boolean(formData?.corpToCorp),
         selected_cv_id: formData?.selectedCv || null,
         internal_notes: formData?.internalNotes?.trim() || null,
         notify_candidate: Boolean(formData?.notifyCandidate),
         notify_primary_sales: Boolean(formData?.notifyPrimarySales),
+        udf_details: buildUdfPayload(),
       };
 
       const result = await assignMultipleJobs(
@@ -261,11 +291,11 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 xl:items-center"
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-7xl">
+      <div className="my-4 w-full max-w-7xl xl:my-0">
         <Card
           title="Submit Job"
           icon={<FileText className="h-4 w-4" />}
@@ -276,7 +306,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
             </Button>
           }
         >
-          <div className="max-h-[82vh] overflow-y-auto">
+          <div className="overflow-visible">
             <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -297,24 +327,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
                       : ""}
                   </p>
                 </div>
-                {/* 
-                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm">
-                  <p className="text-xs font-medium uppercase text-gray-500">
-                    Selected Job
-                  </p>
-                  <p className="mt-1 font-semibold text-gray-900">
-                    {selectedJob?.title ||
-                      selectedJob?.job_title ||
-                      "No job selected"}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {selectedJob?.company ||
-                      selectedJob?.companyName ||
-                      selectedJob?.clientName ||
-                      selectedJob?.location ||
-                      "-"}
-                  </p>
-                </div> */}
+
                 <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-start">
                   <button
                     type="button"
@@ -348,7 +361,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 p-6 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-3">
               <SectionCard title="Basic Info">
                 <FormSelect
                   label="Selected Job"
@@ -430,24 +443,42 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
                   disabled={isAssigning}
                 />
 
-                <FormInput
+                <RateField
                   label="Quoted Bill Rate"
                   value={formData?.quotedBillRate}
-                  onChange={(value) => updateFormField("quotedBillRate", value)}
+                  rateType={formData?.quotedBillRateType}
+                  onValueChange={(value) =>
+                    updateFormField("quotedBillRate", value)
+                  }
+                  onRateTypeChange={(value) =>
+                    updateFormField("quotedBillRateType", value)
+                  }
                   disabled={isAssigning}
                 />
 
-                <FormInput
+                <RateField
                   label="Agreed Bill Rate"
                   value={formData?.agreedBillRate}
-                  onChange={(value) => updateFormField("agreedBillRate", value)}
+                  rateType={formData?.agreedBillRateType}
+                  onValueChange={(value) =>
+                    updateFormField("agreedBillRate", value)
+                  }
+                  onRateTypeChange={(value) =>
+                    updateFormField("agreedBillRateType", value)
+                  }
                   disabled={isAssigning}
                 />
-
-                <FormInput
+                <RateField
                   label="Agreed Pay Rate"
+                  required
                   value={formData?.agreedPayRate}
-                  onChange={(value) => updateFormField("agreedPayRate", value)}
+                  rateType={formData?.agreedPayRateType}
+                  onValueChange={(value) =>
+                    updateFormField("agreedPayRate", value)
+                  }
+                  onRateTypeChange={(value) =>
+                    updateFormField("agreedPayRateType", value)
+                  }
                   disabled={isAssigning}
                 />
 
@@ -460,11 +491,27 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
                 />
 
                 <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                  <CheckboxField
+                  <FormSelect
                     label="Corp To Corp"
-                    checked={formData?.corpToCorp}
-                    onChange={(value) => updateFormField("corpToCorp", value)}
+                    value={
+                      formData?.corpToCorp === true
+                        ? "yes"
+                        : formData?.corpToCorp === false
+                          ? "no"
+                          : ""
+                    }
+                    onChange={(value) =>
+                      updateFormField(
+                        "corpToCorp",
+                        value === "yes" ? true : value === "no" ? false : "",
+                      )
+                    }
+                    options={[
+                      { label: "Yes", value: "yes" },
+                      { label: "No", value: "no" },
+                    ]}
                     disabled={isAssigning}
+                    placeholder="Select"
                   />
                 </div>
               </SectionCard>
@@ -539,15 +586,56 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
 function SectionCard({ title, children }) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-5 text-sm font-semibold uppercase tracking-wide text-gray-700">
+    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
         {title}
       </h3>
       {children}
     </section>
   );
 }
+function RateField({
+  label,
+  value,
+  rateType,
+  onValueChange,
+  onRateTypeChange,
+  required = false,
+  disabled = false,
+}) {
+  return (
+    <div className="mb-4">
+      <label className="mb-1.5 block text-sm font-medium text-gray-700">
+        {label} {required ? <span className="text-red-500">*</span> : null}
+      </label>
 
+      <div className="flex overflow-hidden rounded-xl border border-gray-300 bg-white transition focus-within:border-gray-400">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={value ?? ""}
+          disabled={disabled}
+          onChange={(event) => onValueChange?.(event?.target?.value)}
+          className="min-w-0 flex-1 border-0 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+        />
+
+        <select
+          value={rateType || "$/Hour"}
+          disabled={disabled}
+          onChange={(event) => onRateTypeChange?.(event?.target?.value)}
+          className="w-36 border-l border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+        >
+          {RATE_TYPE_OPTIONS?.map((option) => (
+            <option key={option?.value} value={option?.value}>
+              {option?.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
 function FormInput({
   label,
   value,
@@ -606,7 +694,7 @@ function FormSelect({
   );
 }
 
-function FormTextarea({ label, value, onChange, rows = 8, disabled = false }) {
+function FormTextarea({ label, value, onChange, rows = 5, disabled = false }) {
   return (
     <div className="mb-4">
       <label className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -667,7 +755,7 @@ function UdfModal({ udfData, onChange, onClose }) {
         <div className="overflow-y-auto p-6">
           <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-3">
             <UdfSelect
-              label="Type of Govt ID used for adding Name (PAN/Aadhar etc)"
+              label="Type of Govt ID used for adding Name"
               value={udfData?.govtIdType}
               onChange={(value) => onChange?.("govtIdType", value)}
               options={[
@@ -699,13 +787,13 @@ function UdfModal({ udfData, onChange, onClose }) {
             />
 
             <UdfInput
-              label="Total experience e.g 10Y5M"
+              label="Total experience e.g 10Y 5M"
               value={udfData?.totalExperience}
               onChange={(value) => onChange?.("totalExperience", value)}
             />
 
             <UdfInput
-              label="Relevant experience e.g 10Y5M"
+              label="Relevant experience e.g 10Y 5M"
               value={udfData?.relevantExperience}
               onChange={(value) => onChange?.("relevantExperience", value)}
             />
@@ -774,7 +862,7 @@ function UdfModal({ udfData, onChange, onClose }) {
 function UdfInput({ label, value, onChange, type = "text" }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-semibold text-red-600">
+      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-red-600">
         {label}
       </label>
 
@@ -791,7 +879,7 @@ function UdfInput({ label, value, onChange, type = "text" }) {
 function UdfSelect({ label, value, onChange, options = [] }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-semibold text-red-600">
+      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-red-600">
         {label}
       </label>
 
