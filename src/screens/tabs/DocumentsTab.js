@@ -5,6 +5,7 @@ import {
   viewDocument,
 } from "../../services/api/documents";
 import { sendPlainEmail } from "../../services/api/email";
+import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
 
 const DOCUMENT_LABELS = {
   pan: "PAN Card",
@@ -32,7 +33,8 @@ export default function DocumentsTab({
 
   const [rejectDoc, setRejectDoc] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
-
+  const [candidateFullDetails, setCandidateFullDetails] = useState(null);
+  const [candidateDetailsLoading, setCandidateDetailsLoading] = useState(false);
   const noticeTimerRef = useRef(null);
 
   const selectedDoc = useMemo(() => {
@@ -85,15 +87,32 @@ export default function DocumentsTab({
       setLoading(false);
     }
   }, [candidateId, selectedDocId, showNotice]);
+  const fetchCandidateFullDetails = useCallback(async () => {
+    if (!candidateId) return;
+
+    try {
+      setCandidateDetailsLoading(true);
+      const data = await getHrCandidateFullDetails(candidateId);
+      setCandidateFullDetails(data || null);
+    } catch (err) {
+      setCandidateFullDetails(null);
+      showNotice(
+        err?.message || "Failed to load candidate submitted details.",
+        "error",
+      );
+    } finally {
+      setCandidateDetailsLoading(false);
+    }
+  }, [candidateId, showNotice]);
 
   useEffect(() => {
     fetchDocuments();
+    fetchCandidateFullDetails();
 
     return () => {
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     };
-  }, [fetchDocuments]);
-
+  }, [fetchDocuments, fetchCandidateFullDetails]);
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -389,9 +408,11 @@ HR Team`;
               {selectedDoc ? (
                 <DocumentDetailsPanel
                   doc={selectedDoc}
+                  candidateFullDetails={candidateFullDetails}
+                  isCandidateDetailsLoading={candidateDetailsLoading}
                   previewUrl={previewUrl}
-                  isPreviewLoading={previewLoadingId === selectedDoc.id}
-                  isActionLoading={actionLoadingId === selectedDoc.id}
+                  isPreviewLoading={previewLoadingId === selectedDoc?.id}
+                  isActionLoading={actionLoadingId === selectedDoc?.id}
                   onPreview={() => handleSelectDocument(selectedDoc)}
                   onVerify={() => handleVerifyDocument(selectedDoc)}
                   onReject={() => openRejectModal(selectedDoc)}
@@ -422,6 +443,8 @@ HR Team`;
 
 function DocumentDetailsPanel({
   doc,
+  candidateFullDetails,
+  isCandidateDetailsLoading,
   previewUrl,
   isPreviewLoading,
   isActionLoading,
@@ -431,6 +454,10 @@ function DocumentDetailsPanel({
 }) {
   const isVerified = Boolean(doc?.is_verified);
   const isRejected = !isVerified && Boolean(doc?.notes);
+  const submittedDetails = getSubmittedDetailsByDocumentType(
+    doc?.document_type,
+    candidateFullDetails,
+  );
 
   return (
     <div className="flex min-h-[72vh] flex-col">
@@ -483,22 +510,44 @@ function DocumentDetailsPanel({
           </div>
         </div>
       </div>
+      <div className="border-b p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+          <div className="rounded-2xl border border-gray-100 bg-white">
+            <div className="border-b px-4 py-3">
+              <h4 className="text-sm font-semibold text-gray-900">
+                File Details
+              </h4>
+              <p className="mt-1 text-xs text-gray-500">
+                Uploaded document information.
+              </p>
+            </div>
 
-      <div className="grid gap-4 border-b p-5 md:grid-cols-2 xl:grid-cols-4">
-        <Info label="File Name" value={doc?.original_filename || "-"} />
-        <Info
-          label="Document Type"
-          value={getDocumentLabel(doc?.document_type)}
-        />
-        <Info label="Uploaded At" value={formatDate(doc?.uploaded_at)} />
-        <Info label="File Size" value={formatFileSize(doc?.file_size)} />
-      </div>
+            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <Info label="File Name" value={doc?.original_filename || "-"} />
+              <Info
+                label="Document Type"
+                value={getDocumentLabel(doc?.document_type)}
+              />
+              <Info label="Uploaded At" value={formatDate(doc?.uploaded_at)} />
+              <Info label="File Size" value={formatFileSize(doc?.file_size)} />
+            </div>
+          </div>
 
-      {isRejected ? (
-        <div className="mx-5 mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span className="font-semibold">Rejection reason:</span> {doc.notes}
+          <CandidateSubmittedDetails
+            title={submittedDetails?.title}
+            description={submittedDetails?.description}
+            fields={submittedDetails?.fields}
+            isLoading={isCandidateDetailsLoading}
+          />
         </div>
-      ) : null}
+
+        {isRejected ? (
+          <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span className="font-semibold">Rejection reason:</span>{" "}
+            {doc?.notes}
+          </div>
+        ) : null}
+      </div>
 
       <div className="flex-1 p-5">
         {previewUrl ? (
@@ -599,6 +648,244 @@ function RejectReasonModal({
       </div>
     </div>
   );
+}
+function CandidateSubmittedDetails({ title, description, fields, isLoading }) {
+  const visibleFields = Array.isArray(fields)
+    ? fields.filter(
+        (field) =>
+          field?.value !== undefined &&
+          field?.value !== null &&
+          field?.value !== "",
+      )
+    : [];
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+        <div className="text-sm font-semibold text-gray-700">
+          Loading candidate submitted details...
+        </div>
+      </div>
+    );
+  }
+
+  if (!visibleFields.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
+        <div className="text-sm font-semibold text-gray-700">
+          No submitted details available
+        </div>
+        <p className="mt-1 text-xs text-gray-400">
+          Candidate-filled details are not available for this document type.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white">
+      <div className="border-b px-4 py-3">
+        <h4 className="text-sm font-semibold text-gray-900">
+          {title || "Candidate Submitted Details"}
+        </h4>
+        {description ? (
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
+        {visibleFields.map((field) => (
+          <Info
+            key={`${field?.label}-${field?.value}`}
+            label={field?.label}
+            value={field?.value}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
+  const normalizedType = String(documentType || "").toLowerCase();
+
+  if (normalizedType.includes("aadhar")) {
+    const aadhar = candidateFullDetails?.aadhar;
+
+    return {
+      title: "Aadhar Details",
+      description:
+        "Details submitted by the candidate for Aadhar verification.",
+      fields: [
+        {
+          label: "Aadhar Number",
+          value: aadhar?.aadhar,
+        },
+        {
+          label: "Name in Aadhar",
+          value: aadhar?.name_in_aadhar,
+        },
+        {
+          label: "Enrollment Number",
+          value: aadhar?.enrollment_number,
+        },
+        {
+          label: "Submitted",
+          value: formatBooleanStatus(aadhar?.aadhar_is_submitted),
+        },
+      ],
+    };
+  }
+
+  if (normalizedType.includes("pan")) {
+    const pan = candidateFullDetails?.pan;
+
+    return {
+      title: "PAN Details",
+      description: "Details submitted by the candidate for PAN verification.",
+      fields: [
+        {
+          label: "PAN Number",
+          value: pan?.pan,
+        },
+        {
+          label: "Name in PAN",
+          value: pan?.name_in_pan,
+        },
+        {
+          label: "Father Name in PAN",
+          value: pan?.father_name_in_pan,
+        },
+        {
+          label: "Submitted",
+          value: formatBooleanStatus(pan?.pan_is_submitted),
+        },
+      ],
+    };
+  }
+
+  if (normalizedType.includes("education")) {
+    const educationRecords = Array.isArray(candidateFullDetails?.education)
+      ? candidateFullDetails.education
+      : [];
+
+    return {
+      title: "Education Details",
+      description: "Education details submitted by the candidate.",
+      fields: educationRecords.flatMap((item, index) => [
+        {
+          label: `Institute ${index + 1}`,
+          value: item?.education_institute,
+        },
+        {
+          label: `Degree ${index + 1}`,
+          value: item?.degree,
+        },
+        {
+          label: `Field of Study ${index + 1}`,
+          value: item?.field_of_study,
+        },
+        {
+          label: `Starting Year ${index + 1}`,
+          value: item?.starting_year,
+        },
+        {
+          label: `Year of Passing ${index + 1}`,
+          value: item?.year_of_passing,
+        },
+        {
+          label: `Percentage ${index + 1}`,
+          value: item?.percentage,
+        },
+        {
+          label: `Document Submitted ${index + 1}`,
+          value: formatBooleanStatus(item?.document_is_submitted),
+        },
+      ]),
+    };
+  }
+
+  if (normalizedType.includes("experience")) {
+    const experienceRecords = Array.isArray(candidateFullDetails?.experience)
+      ? candidateFullDetails.experience
+      : [];
+
+    return {
+      title: "Experience Details",
+      description: "Experience details submitted by the candidate.",
+      fields: experienceRecords.flatMap((item, index) => [
+        {
+          label: `Company ${index + 1}`,
+          value: item?.company_name,
+        },
+        {
+          label: `Job Title ${index + 1}`,
+          value: item?.job_title,
+        },
+        {
+          label: `Start Date ${index + 1}`,
+          value: formatDate(item?.start_date),
+        },
+        {
+          label: `End Date ${index + 1}`,
+          value: formatDate(item?.end_date),
+        },
+        {
+          label: `Experience ${index + 1}`,
+          value: item?.year_of_experience,
+        },
+        {
+          label: `Document Submitted ${index + 1}`,
+          value: formatBooleanStatus(item?.document_is_submitted),
+        },
+      ]),
+    };
+  }
+
+  if (normalizedType.includes("resume")) {
+    return {
+      title: "Candidate Profile Details",
+      description: "Basic profile details submitted by the candidate.",
+      fields: [
+        {
+          label: "Candidate Name",
+          value: candidateFullDetails?.candidate_name,
+        },
+        {
+          label: "Email",
+          value: candidateFullDetails?.candidate_email,
+        },
+        {
+          label: "Mobile",
+          value: candidateFullDetails?.candidate_mobile,
+        },
+        {
+          label: "Job Title",
+          value: candidateFullDetails?.candidate_job_title,
+        },
+        {
+          label: "Experience",
+          value: candidateFullDetails?.candidate_experience,
+        },
+        {
+          label: "Skills",
+          value: candidateFullDetails?.candidate_skills,
+        },
+      ],
+    };
+  }
+
+  return {
+    title: "Candidate Submitted Details",
+    description: "No mapped candidate details found for this document type.",
+    fields: [],
+  };
+}
+
+function formatBooleanStatus(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "-";
 }
 
 function Info({ label, value }) {
