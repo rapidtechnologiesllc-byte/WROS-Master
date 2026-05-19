@@ -30,7 +30,14 @@ export default function Shell({ role, screen, setScreen, onLogout, children }) {
   const isHR_Manager = normalizedRole === "HR MANAGER";
   const nav = useMemo(() => {
     if (isHR_Manager) {
-      return [{ id: "candidateSearch", label: "Candidates", icon: Users }];
+      return [
+        { id: "candidateSearch", label: "Candidates", icon: Users },
+        {
+          id: "checklistTemplates",
+          label: "Checklist Templates",
+          icon: ListChecks,
+        },
+      ];
     }
 
     const items = [

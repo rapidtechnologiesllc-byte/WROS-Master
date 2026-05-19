@@ -479,7 +479,8 @@ export default function App() {
     const canUseHrScreens =
       normalizedCurrentRole === "HR" ||
       normalizedCurrentRole === "ADMIN" ||
-      normalizedCurrentRole === "SUPER_USER";
+      normalizedCurrentRole === "SUPER_USER" ||
+      normalizedCurrentRole === "HR MANAGER";
     const canUseAdminScreens =
       normalizedCurrentRole === "ADMIN" ||
       normalizedCurrentRole === "SUPER_USER";
@@ -609,9 +610,12 @@ export default function App() {
               setScreen={safeSetScreen}
               setSelectedCandidate={setSelectedCandidateData}
             />
+          ) : screen === "checklistTemplates" ? (
+            <ChecklistTemplatesScreen />
           ) : (
             <MyWorkspace onLogout={handleLogout} />
           )}
+          <ToastContainer position="top-right" autoClose={3000} />
         </Shell>
       </>
     );
@@ -785,7 +789,6 @@ export default function App() {
       {screen === "pre-onboarding" && (
         <PreOnboardingPage candidates={candidates} />
       )}
-      {/* {screen === "checklistTemplates" && <ChecklistTemplatesScreen />} */}
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (
