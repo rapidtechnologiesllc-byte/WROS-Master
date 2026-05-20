@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,10 +8,16 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models import (
-    Users, Candidate, Interview, InterviewPanel, 
-    InterviewFeedback, PanelMember
+    Users, Candidate, Interview, InterviewPanel,
+    InterviewFeedback, PanelMember,
+    CandidateStatus, CandidateAssignment, Jobs,
+    CandidateHistory,
+    ChecklistTemplate, CandidateChecklist, CandidateChecklistItem, ChecklistTemplateItem,
 )
 from app.utils.uniq_id_generator import panel_id_generator
+from app.services.email_service import EmailService
+from app.core.scheduler import scheduler
+from app.core.logging import logger
 from app.schemas.interview import (
     # Panel schemas
     InterviewPanelCreate, InterviewPanelResponse, InterviewPanelWithDetails,
@@ -31,6 +37,252 @@ from app.schemas.interview import (
 )
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
+
+
+# ============================================
+# Internal Helpers
+# ============================================
+
+def _candidate_display_name(candidate: Candidate) -> str:
+    """Return a display-friendly full name for a candidate."""
+    parts = [
+        candidate.candidateFirstName or "",
+        candidate.candidateMiddleName or "",
+        candidate.candidateLastName or "",
+    ]
+    return " ".join(filter(None, parts)).strip() or "N/A"
+
+
+def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
+    """
+    After a feedback submission, check whether the candidate qualifies for
+    automatic submission to the hiring manager for approval.
+
+    Conditions (ALL must be true):
+      1. Candidate's current pipeline status is still 'Interview'.
+      2. The candidate has >= 2 completed interviews.
+      3. Every piece of feedback across ALL those completed interviews has
+         recommendation in {"Hire", "Must Hire"}.
+
+    If all conditions pass, the pipeline status is moved to 'Approval' and
+    the hiring manager receives an email notification.
+    """
+    HIRE_RECOMMENDATIONS = {"Hire", "Must Hire"}
+
+    candidate_id = interview.candidate_id
+
+    # --- Condition 1: must be in 'Interview' stage ---
+    cs = (
+        db.query(CandidateStatus)
+        .filter(CandidateStatus.candidateID == candidate_id)
+        .first()
+    )
+    if not cs or cs.piplineStatus != "Interview":
+        return
+
+    # --- Condition 2: >= 2 completed interviews ---
+    completed_interviews = (
+        db.query(Interview)
+        .filter(
+            Interview.candidate_id == candidate_id,
+            Interview.status == "Completed",
+        )
+        .all()
+    )
+    if len(completed_interviews) < 2:
+        return
+
+    # --- Condition 3: every feedback on every completed interview is Hire/Must Hire ---
+    for iv in completed_interviews:
+        feedbacks = (
+            db.query(InterviewFeedback)
+            .filter(InterviewFeedback.interview_id == iv.id)
+            .all()
+        )
+        if not feedbacks:
+            # An interview with NO feedback cannot count as a confirmed hire
+            return
+        for fb in feedbacks:
+            if fb.recommendation not in HIRE_RECOMMENDATIONS:
+                return
+
+    # --- All conditions met → auto-promote to 'Approval' ---
+    old_status = cs.piplineStatus
+    cs.piplineStatus = "Approval"
+
+    # Log history
+    db.add(CandidateHistory(
+        candidateID=candidate_id,
+        event_type="Custom",
+        note=(
+            f"Candidate auto-submitted for Hiring Manager approval after "
+            f"{len(completed_interviews)} completed interviews — all feedback 'Hire'/'Must Hire'."
+        ),
+        performed_by_id="system",
+        performed_by_name="Auto-Hire Engine",
+        event_at=datetime.utcnow(),
+    ))
+    db.commit()
+
+    logger.info(
+        f"[AutoHire] Candidate '{candidate_id}' promoted "
+        f"'{old_status}' → 'Approval' after {len(completed_interviews)} completed interviews."
+    )
+
+    # --- Notify the hiring manager ---
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.candidateID == candidate_id)
+        .first()
+    )
+    candidate_name = _candidate_display_name(candidate) if candidate else candidate_id
+
+    hiring_manager_email: str | None = None
+    hiring_manager_name: str = "Hiring Manager"
+
+    # Try assignment table first
+    assignment = (
+        db.query(CandidateAssignment)
+        .filter(CandidateAssignment.candidate_id == candidate_id)
+        .first()
+    )
+    if assignment and assignment.hiring_manager_id:
+        hm = db.query(Users).filter(Users.UserID == assignment.hiring_manager_id).first()
+        if hm:
+            hiring_manager_email = hm.UserEmail
+            hiring_manager_name = hm.UserName or "Hiring Manager"
+
+    # Fallback: look up via the job
+    if not hiring_manager_email and candidate and candidate.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
+        if job and job.hiringManagerID:
+            hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
+            if hm:
+                hiring_manager_email = hm.UserEmail
+                hiring_manager_name = hm.UserName or "Hiring Manager"
+
+    if hiring_manager_email:
+        try:
+            EmailService.send_notification(
+                to_email=hiring_manager_email,
+                heading="Action Required: Candidate Ready for Your Approval",
+                message=(
+                    f"Dear {hiring_manager_name},<br><br>"
+                    f"Candidate <strong>{candidate_name}</strong> has successfully completed "
+                    f"{len(completed_interviews)} interview round(s), with all interviewers "
+                    f"recommending <strong>Hire</strong> or <strong>Must Hire</strong>.<br><br>"
+                    f"Please log in to the HRMS portal to review and approve or reject this candidate.<br><br>"
+                    f"Candidate ID: <strong>{candidate_id}</strong>"
+                ),
+            )
+            logger.info(f"[AutoHire] Approval-request email sent to hiring manager: {hiring_manager_email}")
+        except Exception as exc:
+            logger.warning(f"[AutoHire] Could not send hiring manager email: {exc}")
+    else:
+        logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
+
+
+def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
+    """
+    Register (or replace) a one-shot APScheduler job that fires 1 hour before
+    the interview to send reminder emails to the candidate and all panel members.
+
+    Safe to call on both create and update — replaces any existing job for the
+    same interview ID so the reminder always matches the current start_time.
+    """
+    reminder_time = interview.start_time - timedelta(hours=1)
+    now = datetime.utcnow()
+
+    if reminder_time <= now:
+        logger.info(
+            f"[InterviewReminder] Interview {interview.id} start_time is < 1 h away "
+            f"or in the past — skipping reminder scheduling."
+        )
+        return
+
+    interview_id = interview.id
+
+    async def _send_reminder():
+        """Async job executed by APScheduler."""
+        from app.core.database import SessionLocal
+        _db = SessionLocal()
+        try:
+            iv = _db.query(Interview).filter(Interview.id == interview_id).first()
+            if not iv:
+                logger.warning(f"[InterviewReminder] Interview {interview_id} not found at reminder time.")
+                return
+
+            # Candidate details
+            cand = _db.query(Candidate).filter(Candidate.candidateID == iv.candidate_id).first()
+            panel = _db.query(InterviewPanel).filter(InterviewPanel.id == iv.panel_id).first()
+            round_name = panel.round_name if panel else "Interview"
+            start_str = iv.start_time.strftime("%d %b %Y, %I:%M %p") if iv.start_time else "N/A"
+            end_str = iv.end_time.strftime("%d %b %Y, %I:%M %p") if iv.end_time else "N/A"
+
+            # Email to candidate
+            if cand and cand.candidateEmail:
+                cand_name = _candidate_display_name(cand)
+                try:
+                    EmailService.send_notification(
+                        to_email=cand.candidateEmail,
+                        heading=f"Reminder: Your Interview is in 1 Hour — {round_name}",
+                        message=(
+                            f"Dear <strong>{cand_name}</strong>,<br><br>"
+                            f"This is a reminder that your <strong>{round_name}</strong> interview "
+                            f"is scheduled to begin in <strong>1 hour</strong>.<br><br>"
+                            f"📅 <strong>Start:</strong> {start_str}<br>"
+                            f"🕐 <strong>End:</strong> {end_str}<br>"
+                            + (f"🔗 <strong>Meeting Link:</strong> <a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>" if iv.meeting_link else "")
+                            + "<br>Please ensure you are ready and join on time. Best of luck!"
+                        ),
+                    )
+                    logger.info(f"[InterviewReminder] Reminder sent to candidate {cand.candidateEmail}")
+                except Exception as exc:
+                    logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
+
+            # Emails to panel members
+            if panel:
+                members = _db.query(PanelMember).filter(PanelMember.panel_id == panel.id).all()
+                for member in members:
+                    interviewer = _db.query(Users).filter(Users.UserID == member.interviewer_id).first()
+                    if interviewer and interviewer.UserEmail:
+                        cand_name = _candidate_display_name(cand) if cand else iv.candidate_id
+                        try:
+                            EmailService.send_notification(
+                                to_email=interviewer.UserEmail,
+                                heading=f"Reminder: Interview in 1 Hour — {round_name}",
+                                message=(
+                                    f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
+                                    f"This is a reminder that the <strong>{round_name}</strong> interview "
+                                    f"for candidate <strong>{cand_name}</strong> begins in "
+                                    f"<strong>1 hour</strong>.<br><br>"
+                                    f"📅 <strong>Start:</strong> {start_str}<br>"
+                                    f"🕐 <strong>End:</strong> {end_str}<br>"
+                                    + (f"🔗 <strong>Meeting Link:</strong> <a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>" if iv.meeting_link else "")
+                                ),
+                            )
+                            logger.info(f"[InterviewReminder] Reminder sent to panel member {interviewer.UserEmail}")
+                        except Exception as exc:
+                            logger.warning(f"[InterviewReminder] Could not email panel member {interviewer.UserID}: {exc}")
+        except Exception as exc:
+            logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
+        finally:
+            _db.close()
+
+    try:
+        job_id = f"interview_reminder_{interview_id}"
+        scheduler.add_job(
+            _send_reminder,
+            trigger="date",
+            run_date=reminder_time,
+            id=job_id,
+            replace_existing=True,  # If start_time was updated, replace old job
+        )
+        logger.info(
+            f"[InterviewReminder] Scheduled reminder for interview {interview_id} at {reminder_time.isoformat()} UTC"
+        )
+    except Exception as exc:
+        logger.warning(f"[InterviewReminder] Could not schedule reminder for interview {interview_id}: {exc}")
 
 
 # ============================================
@@ -488,6 +740,9 @@ def create_interview(
     db.commit()
     db.refresh(interview)
     
+    # Schedule 1-hour reminder
+    _schedule_interview_reminder(interview, db)
+    
     return InterviewResponse(
         id=interview.id,
         panel_id=interview.panel_id,
@@ -848,6 +1103,9 @@ def update_interview(
     db.commit()
     db.refresh(interview)
     
+    # Reschedule reminder if start_time changed
+    _schedule_interview_reminder(interview, db)
+    
     return InterviewResponse(
         id=interview.id,
         panel_id=interview.panel_id,
@@ -973,6 +1231,12 @@ def submit_interview_feedback(
     db.commit()
     db.refresh(feedback)
     
+    # Auto-hire check: promote to Approval if all interviews are Hire/Must Hire
+    try:
+        _check_and_auto_submit_for_hire(interview, db)
+    except Exception as exc:
+        logger.warning(f"[AutoHire] check failed non-critically: {exc}")
+        
     return InterviewFeedbackResponse(
         id=feedback.id,
         interview_id=feedback.interview_id,

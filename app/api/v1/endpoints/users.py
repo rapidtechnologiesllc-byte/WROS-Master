@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -174,7 +174,7 @@ def search_users(
         )
 
     total = query.count()
-    matched_users = query.offset(skip).limit(limit).all()
+    matched_users = query.order_by(Users.UserID).offset(skip).limit(limit).all()
 
     users_data = []
     for u in matched_users:

@@ -105,7 +105,7 @@ def list_candidate_pool(
 
     # Base candidate query
     candidate_query = db.query(Candidate)
-    all_candidates = candidate_query.offset(skip).limit(limit).all()
+    all_candidates = candidate_query.order_by(Candidate.candidateID).offset(skip).limit(limit).all()
 
     results = []
     for c in all_candidates:
