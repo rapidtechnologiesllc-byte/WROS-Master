@@ -310,3 +310,6 @@ class StatusActionResponse(BaseModel):
     message: str
     data: CandidateStatusResponse
 
+class ManagerApprovalRequest(BaseModel):
+    action: str = Field(description="Action to take: 'Approve' or 'Reject'")
+    comments: Optional[str] = None
