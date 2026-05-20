@@ -17,7 +17,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 export default function CandidateCreate({ onBack, onSave }) {
   // These fields map 1:1 to CandidateCreateRequest on the backend.
-  const [candidateRole, setCandidateRole] = useState("Candidate");
+  const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -49,6 +49,7 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
+  const [employeeType, setEmployeeType] = useState("");
 
   const jobOptions = [
     { label: "Please select job", value: "", disabled: true },
@@ -126,13 +127,17 @@ export default function CandidateCreate({ onBack, onSave }) {
   };
 
   const inferExperienceRows = (text, nameLine = "", jobTitle = "") => {
+    console.log("inside the inferExperienceRows function");
     const normalized = String(text || "").replace(/\r/g, "\n");
     const lines = normalized
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
+      console.log(lines,"lines");
     const cleanName = (nameLine || "").toLowerCase().replace(/\s+/g, "");
+    console.log(cleanName,"cleanName")
     const cleanJob = (jobTitle || "").toLowerCase();
+    console.log(cleanJob,"cleanJob")
     const expStart = lines.findIndex((l) =>
       /^(experience|work experience|employment)\b/i.test(l),
     );
@@ -221,6 +226,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       const inferredEducation = inferEducationRows(text);
       if (inferredEducation.length) setEducationRows(inferredEducation);
       const inferredExperience = inferExperienceRows(text, fields._nameLine);
+      console.log("inferredExperience }}}}}}}}}}}",inferredExperience)
       if (inferredExperience.length) setExperienceRows(inferredExperience);
       const filled = Object.keys(fields).filter((k) => fields[k]).length;
       setActionNotice(
@@ -243,6 +249,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     if (!email.trim()) newErrors.email = "Email is required.";
+    if (!dob.trim()) newErrors.dob = "Date of Birth is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -515,19 +522,29 @@ HRMS Team`,
             label="Role"
             value={candidateRole}
             onChange={setCandidateRole}
-            options={["Candidate", "Employee", "Contractor"]}
+            options={[
+              { label: "Please select your option", value: "", disabled: true },
+              { label: "Candidate", value: "Candidate" },
+              { label: "Employee", value: "Employee" },
+              { label: "Contractor", value: "Contractor" },
+            ]}
+          />
+          <Select
+            label="Employee Type"
+            value={employeeType}
+            onChange={setEmployeeType}
+            options={[
+              { label: "Please select your option", value: "", disabled: true },
+              { label: "Full time employee", value: "Full time employee" },
+              { label: "Intern", value: "Intern" },
+              { label: "Guidewire Employee", value: "Guidewire Employee" },
+            ]}
           />
           <Input
             label="Job Title"
             value={jobName}
             onChange={setJobName}
             actionNotice={actionNotice}
-          />
-          <Select
-            label="Select Job *"
-            value={selectedJobId}
-            onChange={(value) => setSelectedJobId(value)}
-            options={jobOptions}
           />
           <div>
             <Input
@@ -616,32 +633,28 @@ HRMS Team`,
               <div className="mt-1 text-xs text-red-500">{errors.gender}</div>
             ) : null}
           </div>
-
-          <Input
-            label="Date of Birth"
-            value={dob}
-            onChange={setDob}
-            type="date"
-          />
+          <div>
+            <Input
+              label="Date of Birth *"
+              value={dob}
+              onChange={(value) => {
+                setDob(value);
+                clearFieldError("dob");
+              }}
+              actionNotice={actionNotice}
+              error={errors.mobile}
+              type="date"
+            />
+            {errors.dob ? (
+              <div className="mt-1 text-xs text-red-500">{errors.dob}</div>
+            ) : null}
+          </div>
           <Input label="Source" value={source} onChange={setSource} />
-          <Input
-            label="Experience"
-            value={experience}
-            onChange={setExperience}
-          />
           <Input
             label="Skills (comma separated)"
             value={skills}
             onChange={setSkills}
           />
-
-          <Input
-            label="Joining Date"
-            value={joiningDate}
-            onChange={setJoiningDate}
-            type="date"
-          />
-
           <Input
             label="Expected Salary"
             value={expectedSalary}
@@ -658,18 +671,6 @@ HRMS Team`,
             label="Current Location"
             value={currentLocation}
             onChange={setCurrentLocation}
-          />
-
-          <Input
-            label="Assigned HR Manager ID"
-            value={assignedHrManagerId}
-            onChange={setAssignedHrManagerId}
-          />
-
-          <Input
-            label="Assigned Reporting Manager ID"
-            value={assignedReportManagerId}
-            onChange={setAssignedReportManagerId}
           />
         </div>
 
@@ -889,19 +890,7 @@ HRMS Team`,
 
         <div className="mt-4">
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={sendLoginEmail}
-              onChange={(event) => setSendLoginEmail(event.target.checked)}
-            />
-            Send login email to candidate (requires Microsoft connection).
-            <button
-              type="button"
-              className="ml-2 text-xs font-semibold text-blue-600 hover:text-blue-700"
-              onClick={() => window.open(getMicrosoftSigninUrl(), "_blank")}
-            >
-              Connect Microsoft
-            </button>
+            Send login email to candidate.
           </label>
         </div>
 
@@ -910,10 +899,7 @@ HRMS Team`,
             Cancel
           </Button>
           <Button onClick={handleSaveOnly} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-          <Button onClick={handleSaveAndAssignJob} disabled={isAssigning}>
-            {isAssigning ? "Assigning..." : "Save and Submit Job"}
+            {isSaving ? "Adding..." : "Add Candidate"}
           </Button>
         </div>
 
