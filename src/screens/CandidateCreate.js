@@ -366,21 +366,14 @@ export default function CandidateCreate({ onBack, onSave }) {
       const createdCandidateId = data?.candidate_id;
       const candidateEmail = email?.trim();
       const candidatePassword = data?.candidate_password;
-<<<<<<< HEAD
       const candidatePortalUrl = "https://hrms.blitzenx.com/";
-=======
->>>>>>> main
 
       const createdCandidate = {
         id: createdCandidateId,
         name: candidateName || "New Candidate",
         email: candidateEmail,
         phone: mobile,
-<<<<<<< HEAD
-        jobTitle: candidateJobTitle || "",
-=======
         jobTitle: candidateJobTitle || jobName || "",
->>>>>>> main
         skills: String(skills || "")
           .split(",")
           .map((skill) => skill.trim())
