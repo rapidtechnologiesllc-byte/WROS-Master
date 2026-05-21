@@ -381,6 +381,10 @@ class OfferLetterResponse(BaseModel):
     created_by: str
     cancelled_at: datetime | None = None
     cancelled_by: str | None = None
+    # Document links (populated after offer letter is generated)
+    sharepoint_url: str | None = None
+    download_url: str | None = None
+    sharepoint_path: str | None = None
 
 class OfferAcceptanceRequest(BaseModel):
     offer_id: int
