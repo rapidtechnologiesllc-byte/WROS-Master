@@ -7,8 +7,11 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import HistoryTab from "./tabs/HistoryTab";
 import CandidateEditModal from "./CandidateEditModal";
-
 import { getCandidateStatus } from "../services/api/candidateStatus";
+import {
+  createCandidateHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../services/api/candidateHistory";
 import {
   listChecklistTemplates,
   assignChecklistToCandidate,
@@ -641,6 +644,12 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
+      await createCandidateHistoryEvent(candidate?.id, {
+        event_type: HISTORY_EVENT_TYPES.INTERVIEW_SCHEDULED,
+        note: `${scheduleForm?.roundName?.trim?.() || "Interview"} scheduled for ${scheduleForm?.interviewDate || "-"} from ${scheduleForm?.startTime || "-"} to ${scheduleForm?.endTime || "-"} (${scheduleType || "online"}).`,
+        interview_id: interviewId,
+        event_at: computedDateTime?.startDateTime,
+      });
       const resumeLink = await getCandidateResumeLink();
       if (scheduleType === "online") {
         await sendInterviewInvite({
@@ -1023,7 +1032,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             <ActivityTab candidateId={candidate?.id} />
           )}
           {activeTab === "history" && !limitedMode && (
-            <HistoryTab candidateId={candidate?.id} />
+            <HistoryTab
+              candidateId={candidate?.id || candidate?.candidate_id}
+            />
           )}
         </div>
 
