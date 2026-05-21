@@ -3,8 +3,13 @@ import { useEffect, useState } from "react";
 import { FileText, Users } from "lucide-react";
 import { createCandidate } from "../services/api/candidates";
 import { uploadResume } from "../services/api/documents";
-import { getMicrosoftSigninUrl, sendGraphMail } from "../services/api/msgraph";
+import { getMicrosoftSigninUrl } from "../services/api/msgraph";
+import { sendPlainEmail } from "../services/api/email";
 import { Button, Card, Input, Select } from "../components/ui";
+import {
+  createCandidateHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../services/api/candidateHistory";
 import {
   extractResumeText,
   inferFieldsFromResumeText,
@@ -360,13 +365,17 @@ export default function CandidateCreate({ onBack, onSave }) {
         .trim();
 
       const createdCandidateId = data?.candidate_id;
-      return {
+      const candidateEmail = email?.trim();
+      const candidatePassword = data?.candidate_password;
+      const candidatePortalUrl = "https://hrms.blitzenx.com/";
+
+      const createdCandidate = {
         id: createdCandidateId,
         name: candidateName || "New Candidate",
         email,
         phone: mobile,
         jobTitle: candidateJobTitle || "",
-        skills: skills
+        skills: String(skills || "")
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
@@ -410,9 +419,35 @@ export default function CandidateCreate({ onBack, onSave }) {
           }
         }
       }
+      if (sendLoginEmail && candidateEmail && candidatePassword) {
+        try {
+          await sendPlainEmail({
+            toEmail: candidateEmail,
+            subject: "Your HRMS Candidate Login Credentials",
+            bodyContent: `Hello ${firstName || "Candidate"},
+
+Your HRMS account has been created successfully.
+
+Portal Link: ${candidatePortalUrl}
+Login Email: ${candidateEmail}
+Temporary Password: ${candidatePassword}
+
+Please access the HRMS portal using the link above and change your password after first login.
+
+Thanks,
+HRMS Team`,
+            isHtml: false,
+          });
+
+          // setActionNotice("Candidate created & email sent.");
+        } catch (err) {
+          console.error("Email failed:", err);
+          setActionNotice("Candidate created but email failed.");
+        }
+      }
 
       setActionNotice(nextNotice);
-      return createdCandidateId;
+      return createdCandidate;
     } catch (err) {
       setActionNotice(err.message || "Failed to create candidate.");
     } finally {
@@ -446,9 +481,20 @@ export default function CandidateCreate({ onBack, onSave }) {
   };
 
   const handleSaveOnly = async () => {
-    const candidate = await handleCreateCandidate();
-    if (candidate) {
+    try {
+      const candidate = await handleCreateCandidate();
+
+      if (!candidate?.id) {
+        return;
+      }
+
+      await createCandidateHistoryEvent(candidate.id, {
+        event_type: HISTORY_EVENT_TYPES.APPLIED,
+      });
+
       onSave(candidate);
+    } catch (error) {
+      console.error("Failed to create candidate history event:", error);
     }
   };
 
