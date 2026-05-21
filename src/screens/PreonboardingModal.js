@@ -1,4 +1,4 @@
-import { react, useEffect, useState } from "react";
+import { react, useEffect, useRef, useState, useLayoutEffect } from "react";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { toast } from "react-toastify";
 import { updateCandidateStatus } from "../services/api/candidates";
@@ -48,6 +48,16 @@ import { DownOutlined } from "@ant-design/icons";
 import { getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
 import { listBusinessUnits } from "../services/api/rbac";
+import {
+  createOfferLetter,
+  generateOfferDoc,
+  offerLetterById,
+} from "../services/api/offerLetters";
+import { renderAsync } from "docx-preview";
+import { viewDocument } from "../services/api/documents";
+import DocxViewer from "../components/ui/DocxViewer";
+import { sendMailAttachments } from "../services/api/email";
+import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 
 const PreonboardingModal = ({
   fullName,
@@ -65,7 +75,7 @@ const PreonboardingModal = ({
   const [current, setCurrent] = useState(0);
   const [email, setEmail] = useState(candidate?.email);
   const [number, setNumber] = useState(candidate?.phone);
-  const [checkedList, setCheckedList] = useState([]);
+  const [checkedList, setCheckedList] = useState(["pf"]);
   const [salaryTable, setSalaryTable] = useState(false);
   const [bonus, setBonus] = useState(false);
   const [jobs, setJobs] = useState([]);
@@ -75,13 +85,28 @@ const PreonboardingModal = ({
   const [businessUnit, setBusinessUnit] = useState([]);
   const [buValue, setBuValue] = useState("");
   const [salaryText, setSalaryText] = useState("");
+  const [joiningDate, setJoiningDate] = useState("");
+  const [structureType, setStructureType] = useState("");
+  const [offerValidDate, setOfferValidDate] = useState("");
+  const [docUrl, setDocUrl] = useState("");
+  const [loadingDoc, setLoadingDoc] = useState(false);
+  const [offerDocData, setOfferDocData] = useState(null);
+  const [docBlob, setDocBlob] = useState(null);
+  const previewRef = useRef(null);
+  const isRendering = useRef(false);
   const { Panel } = Collapse;
+  const [form] = Form.useForm();
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
     { label: "Eligible for LWF", value: "lwf" },
   ];
   const WorkerTypesArray = ["Employee", "Contract", "Interns"];
+  const structureTypeArray = [
+    "Full time Employee Salary Structure",
+    "Intern Salary Structure",
+    "Non Guidewire Salary Structure",
+  ];
   const offers = [
     {
       id: 1,
@@ -145,12 +170,24 @@ const PreonboardingModal = ({
     })) || []),
   ];
 
+  const onJoiningDateChange = (date, dateString) => {
+    setJoiningDate(dateString);
+    if (date) {
+      const validDate = date.add(7, "day");
+      setOfferValidDate(validDate.format("YYYY-MM-DD"));
+      form.setFieldsValue({
+        joiningDate: date,
+        offerValidUpto: validDate,
+      });
+    }
+  };
+
   const onChange = (value) => {
     setCurrent(value);
   };
 
   const onDateChange = (date, dateString) => {
-    console.log(date, dateString);
+    setJoiningDate(dateString);
   };
   //REQUIRE THIS FOR IMPLEMENTING OFFER FLOW
   // const handleSaveOnly = async () => {
@@ -250,6 +287,54 @@ const PreonboardingModal = ({
     },
   ];
 
+  const offerLetterHandler = async () => {
+    try {
+      const payload = {
+        candidateId: candidate?.id,
+        jobId: selectedJobId,
+        hiringManagerId: "adae1bd3-4118-46ea-a20e-604cd90fe982",
+        reportingManagerId: "USER-e4521331-313d-4c1c-a299-f55f41ff2187",
+        position: "Guidewire Developer",
+        salary: salaryText,
+        joiningDate: joiningDate,
+        offer_expire_date: offerValidDate,
+      };
+      const result = await createOfferLetter(payload);
+      if (result) {
+        const generateOfferLetter = await generateOfferDoc(result?.id);
+        if (generateOfferLetter?.status === "success") {
+          const createOfferId = await offerLetterById(result?.id);
+          const response = await fetch(createOfferId?.download_url);
+          if (!response.ok) {
+            throw new Error("Failed to fetch DOCX");
+          }
+          const blob = await response.blob();
+          setDocBlob(blob);
+          toast.success(generateOfferLetter?.message);
+          next();
+        }
+      }
+    } catch (err) {
+      toast.error(err);
+    }
+  };
+
+  const disablePastDates = (current) => {
+    if (!current) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return current.toDate() < today;
+  };
+
+  // const sendEmailOffer = async () => {
+  //   console.log("function trigger");
+  //   const emailResult = sendMailAttachments({
+  //     email,
+  //     subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
+  //     bodyContent: OfferConfirmationEmail(fullName,candidate?.jobTitle,"BlitzenX",selectedJobId,worker,)
+  //   });
+  // };
+
   const renderStepContent = () => {
     switch (current) {
       case 0:
@@ -322,49 +407,43 @@ const PreonboardingModal = ({
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
               <Span>Offer details</Span>
             </div>
-            <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Form.Item
-                label="Joining Date"
-                name="joiningDate"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select joining date",
-                  },
-                ]}
-              >
-                <DatePicker onChange={onDateChange} />
-              </Form.Item>
-              <Form.Item
-                label="Offer Valid Upto"
-                name="offerValidUpto"
-                dependencies={["joiningDate"]}
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select offer valid upto date",
-                  },
-                  ({ getFieldValue }) => ({
-                    validator(_, value) {
-                      const joiningDate = getFieldValue("joiningDate");
-                      if (!value || !joiningDate) {
-                        return Promise.resolve();
-                      }
-                      if (value.isBefore(joiningDate, "day")) {
-                        return Promise.resolve();
-                      }
-                      return Promise.reject(
-                        new Error(
-                          "Offer Valid Upto must be before Joining Date",
-                        ),
-                      );
+            <Form form={form}>
+              <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
+                <Form.Item
+                  label="Joining Date"
+                  name="joiningDate"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Please select joining date",
                     },
-                  }),
-                ]}
-              >
-                <DatePicker onChange={onDateChange} />
-              </Form.Item>
-            </div>
+                  ]}
+                >
+                  <DatePicker
+                    format="YYYY-MM-DD"
+                    onChange={onJoiningDateChange}
+                    disabledDate={disablePastDates}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Offer Valid Upto"
+                  name="offerValidUpto"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Offer valid upto date is required",
+                    },
+                  ]}
+                >
+                  <DatePicker
+                    onChange={onDateChange}
+                    format="YYYY-MM-DD"
+                    inputReadOnly
+                    open={false}
+                  />
+                </Form.Item>
+              </div>
+            </Form>
             {salaryTable ? (
               <SalaryModal onClose={() => setSalaryTable(false)} />
             ) : null}
@@ -374,7 +453,11 @@ const PreonboardingModal = ({
             </div>
             <div className="px-4 mt-4">
               <CheckBoxesDiv>
-                <Checkbox.Group options={options} onChange={checkboxHandler} />
+                <Checkbox.Group
+                  options={options}
+                  onChange={checkboxHandler}
+                  value={checkedList}
+                />
               </CheckBoxesDiv>
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
@@ -382,27 +465,26 @@ const PreonboardingModal = ({
                 label="Pay Group"
                 value={selectLocation}
                 onChange={setSelectLocation}
-                options={[]}
+                options={["BlitzenX Solution Private Limited"]}
               />
               <Select
                 label="Remuneration Type"
                 value={selectDepartment}
                 onChange={setSelectDepartment}
-                options={[]}
+                options={["Annual"]}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Select
-                label="Salary (Annual Basis)"
-                value={selectLocation}
-                onChange={setSelectLocation}
-                options={[]}
+              <Input
+                label="Salary (Annual Basis in INR)"
+                value={salaryText}
+                onChange={setSalaryText}
               />
               <Select
                 label="Select structure type"
-                value={selectDepartment}
-                onChange={setSelectDepartment}
-                options={[]}
+                value={structureType}
+                onChange={(value) => setStructureType(value)}
+                options={structureTypeArray}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
@@ -450,117 +532,23 @@ const PreonboardingModal = ({
               </Section>
               <Section>
                 <Title>Template preview</Title>
-                <PreviewBox>Document Preview Placeholder</PreviewBox>
+                <PreviewBox
+                  style={{
+                    height: "700px",
+                    overflow: "auto",
+                    background: "#f5f5f5",
+                    padding: "20px",
+                  }}
+                >
+                  {docBlob ? (
+                    <DocxViewer blob={docBlob} />
+                  ) : (
+                    <div>No document available</div>
+                  )}
+                </PreviewBox>
               </Section>
             </ScrollContainer>
           </Container>
-        );
-      case 3:
-        return (
-          <Container>
-            <ScrollContainer>
-              
-              <Section>
-                <Title>Template preview</Title>
-                <PreviewBox>Document Preview Placeholder</PreviewBox>
-              </Section>
-            </ScrollContainer>
-          </Container>
-        );
-      case 4:
-        return (
-          <>
-            <Wrapper>
-              <Header>
-                <AvatarWrapper>
-                  <Avatar size={48} style={{ backgroundColor: "#f59e0b" }}>
-                    VS
-                  </Avatar>
-
-                  <UserInfo>
-                    <Name>{candidate?.name}</Name>
-                    <CandidateRole>
-                      Applied for {candidate?.jobTitle}
-                    </CandidateRole>
-                  </UserInfo>
-                </AvatarWrapper>
-              </Header>
-
-              <Divider style={{ margin: "20px 0" }} />
-
-              <SectionTitle>Basic Details</SectionTitle>
-
-              <DetailsGrid>
-                <DetailItem>
-                  <Label>Email ID</Label>
-                  <Value title={"shirurvaibhav@gmail.com"}>
-                    {candidate?.email}
-                  </Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Phone number</Label>
-                  <Value>{candidate?.phone}</Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Recruiter</Label>
-                  <Value>Onboarding Team</Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Department</Label>
-                  <Value>
-                    PRISM — Product Integration & Systems Management
-                  </Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Location</Label>
-                  <Value>Remote</Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Offer template</Label>
-                  <Value>Default Offer Letter</Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Joining date</Label>
-                  <Value>15 Jun 2026</Value>
-                </DetailItem>
-
-                <DetailItem>
-                  <Label>Valid upto</Label>
-                  <Value>09 May 2026</Value>
-                </DetailItem>
-              </DetailsGrid>
-            </Wrapper>
-            <Wrapper>
-              <Title>Previous Offer Letter</Title>
-              <StyledCollapse
-                accordion
-                bordered={false}
-                expandIcon={({ isActive }) => (
-                  <DownOutlined rotate={isActive ? 180 : 0} />
-                )}
-              >
-                {offers?.map((offer) => (
-                  <Panel
-                    key={offer?.id}
-                    header={
-                      <HeaderRow>
-                        <FileText title={offer?.file}>{offer?.file}</FileText>
-                        <DateText>On {offer?.date}</DateText>
-                      </HeaderRow>
-                    }
-                  >
-                    <Content>{offer?.content}</Content>
-                  </Panel>
-                ))}
-              </StyledCollapse>
-            </Wrapper>
-          </>
         );
       default:
         return null;
@@ -617,7 +605,10 @@ const PreonboardingModal = ({
               >
                 Back
               </Button>
-              <Button onClick={next} disabled={isSaving}>
+              <Button
+                onClick={current === 1 ? sendEmailOffer : offerLetterHandler}
+                disabled={isSaving}
+              >
                 {isSaving
                   ? "Saving..."
                   : current === 1
