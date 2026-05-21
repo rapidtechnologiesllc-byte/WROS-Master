@@ -29,6 +29,8 @@ from app.schemas.candidate import (
     EducationEntry, ExperienceEntry, JobApplicationResponse
 )
 from app.models.candidate import Candidate
+from app.models.user import Users
+
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator, job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
@@ -292,18 +294,31 @@ def get_my_jobs(
     the user matches more than one column.
     """
     from sqlalchemy import or_
+    from app.models.rbac import Role
 
     my_id = user.UserID
+    
+    # Check if user is a BU Head
+    is_bu_head = False
+    if user.role_id:
+        role = db.query(Role).filter(Role.id == user.role_id).first()
+        if role and role.name == "BU Head":
+            is_bu_head = True
+
+    # Build the OR conditions
+    filters = [
+        Jobs.recuriterID == my_id,
+        Jobs.hiringManagerID == my_id,
+        Jobs.contactPerson == my_id,
+    ]
+    
+    # If the user is a BU Head, they should see all jobs belonging to their Business Unit
+    if is_bu_head and user.business_unit_id:
+        filters.append(Jobs.business_unit_id == user.business_unit_id)
 
     jobs = (
         db.query(Jobs)
-        .filter(
-            or_(
-                Jobs.recuriterID == my_id,
-                Jobs.hiringManagerID == my_id,
-                Jobs.contactPerson == my_id,
-            )
-        )
+        .filter(or_(*filters))
         .all()
     )
 
@@ -356,13 +371,53 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
     Returns:
         JobCreateResponse with job_id and message indicating publish or pending state
     """
+    # Sanitize default swagger inputs
+    if request.contact_person in ("string", ""):
+        request.contact_person = None
+    if request.hiring_manager_id in ("string", ""):
+        request.hiring_manager_id = None
+    if request.recuriter_id in ("string", ""):
+        request.recuriter_id = None
+
+    # Validate that provided user IDs actually exist
+    for user_id, field_name in [
+        (request.contact_person, "contact_person"),
+        (request.hiring_manager_id, "hiring_manager_id"),
+        (request.recuriter_id, "recuriter_id")
+    ]:
+        if user_id:
+            existing_user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not existing_user:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"User '{user_id}' provided for {field_name} does not exist in the system."
+                )
+
     # Determine job status based on the creator's role
     if _can_auto_approve_job(user):
         job_status = "active"
         response_message = "Job published successfully"
     else:
         job_status = "pending_approval"
-        response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+        
+        # Check if we can assign approval to the Business Unit Head
+        if request.business_unit:
+            from app.models.rbac import Role
+            bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
+            if bu_head_role:
+                bu_head = db.query(Users).filter(
+                    Users.role_id == bu_head_role.id,
+                    Users.business_unit_id == request.business_unit
+                ).first()
+                if bu_head:
+                    approver_name = bu_head.UserName or bu_head.UserEmail
+                    response_message = f"Job submitted for approval. Awaiting approval from BU Head: {approver_name}"
+                else:
+                    response_message = "Job submitted for approval. A Super User must approve it before it goes live (No BU Head found for this unit)."
+            else:
+                response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+        else:
+            response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
 
     # Generate unique job ID
     job_id = job_id_generator()
@@ -848,6 +903,25 @@ def assign_candidate_to_job(
     candidate.candidateJobTitle = job.jobTitle
     db.commit()
     db.refresh(candidate)
+
+    # ── Pool ownership transition ─────────────────────────────────────────────
+    # If the job has a BU, candidate moves to BU Owned; otherwise stays Org Pool
+    if job.business_unit_id:
+        from app.services.candidate_pool_service import set_bu_owned
+        bu = db.query(__import__('app.models.rbac', fromlist=['BusinessUnit']).BusinessUnit).filter_by(id=job.business_unit_id).first()
+        bu_name = bu.name if bu else f"BU #{job.business_unit_id}"
+        performed_by = getattr(user, 'UserID', None)
+        set_bu_owned(
+            candidate_id=candidate_id,
+            bu_id=job.business_unit_id,
+            bu_name=bu_name,
+            reason=f"Assigned to job '{job_id}' ({job.jobTitle})",
+            db=db,
+            performed_by_id=performed_by,
+        )
+        db.commit()
+    # If no BU on job — candidate stays in Org Pool (no change needed)
+
     return CandidateJobSummary(
         candidate_id=candidate.candidateID,
         candidate_first_name=candidate.candidateFirstName,
@@ -880,6 +954,18 @@ def unassign_candidate_from_job(
     candidate.candidateJobTitle = None
     db.commit()
     db.refresh(candidate)
+
+    # ── Pool ownership transition: unassigned → Org Pool ─────────────────────
+    from app.services.candidate_pool_service import set_org_pool
+    performed_by = getattr(user, 'UserID', None)
+    set_org_pool(
+        candidate_id=candidate_id,
+        reason="Unassigned from job — returned to Org Pool",
+        db=db,
+        performed_by_id=performed_by,
+    )
+    db.commit()
+
     return CandidateJobSummary(
         candidate_id=candidate.candidateID,
         candidate_first_name=candidate.candidateFirstName,
@@ -1246,4 +1332,4 @@ def get_job_statistics(
         hired=_get("hired"),
         rejected=_get("rejected"),
         status_breakdown=breakdown,
-    )
+    )
