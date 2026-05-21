@@ -27,6 +27,11 @@ class OfferLetter(Base):
     
     cancelled_at = Column(DateTime(timezone=False), nullable=True)
     cancelled_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+
+    # Populated after the offer letter document is generated
+    sharepoint_url = Column(Text, nullable=True)
+    download_url   = Column(Text, nullable=True)
+    sharepoint_path = Column(Text, nullable=True)
     
     # Relationships
     candidate = relationship("Candidate", foreign_keys=[candidate_id])

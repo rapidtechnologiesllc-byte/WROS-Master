@@ -33,7 +33,9 @@ from app.schemas.interview import (
     # My Interviews
     MyInterviewItem, MyInterviewFeedback, MyInterviewsResponse,
     # Common responses
-    DeleteResponse, BulkDeleteResponse
+    DeleteResponse, BulkDeleteResponse,
+    # Hiring Manager review
+    HMFeedbackDetail, HMInterviewRound, HMCandidateReviewItem, HMCandidateReviewListResponse,
 )
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
@@ -283,6 +285,198 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
         )
     except Exception as exc:
         logger.warning(f"[InterviewReminder] Could not schedule reminder for interview {interview_id}: {exc}")
+
+
+# ============================================
+# Hiring Manager Review Endpoint
+# ============================================
+
+@router.get(
+    "/hiring-manager/review",
+    response_model=HMCandidateReviewListResponse,
+    dependencies=[Depends(require_permission("interview.manage"))],
+    summary="Hiring Manager: list candidates with ≥2 completed interviews (ready for approval/rejection)",
+)
+def get_hm_candidate_review(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Returns the list of candidates who have completed **at least 2 interviews**
+    for jobs where the authenticated user is the **Hiring Manager**.
+
+    For each candidate every completed interview round is included together
+    with the full feedback from each panel member (scores, comments, recommendation).
+
+    Use the ``approval_endpoint`` field in each candidate entry to approve or
+    reject them via ``POST /status/{candidate_id}/hiring-manager-approval``.
+    """
+    hm_id: str = user.UserID
+    hm_name: str = getattr(user, "UserName", None) or "Hiring Manager"
+
+    # ── Step 1: collect all job IDs managed by this hiring manager ──────────
+    managed_jobs = (
+        db.query(Jobs)
+        .filter(Jobs.hiringManagerID == hm_id)
+        .all()
+    )
+    managed_job_ids = {j.jobID for j in managed_jobs}
+
+    # Also include jobs where the HM is set via CandidateAssignment
+    hm_assignments = (
+        db.query(CandidateAssignment)
+        .filter(CandidateAssignment.hiring_manager_id == hm_id)
+        .all()
+    )
+    hm_assigned_candidate_ids = {a.candidate_id for a in hm_assignments}
+
+    # ── Step 2: find candidates linked to those jobs OR assigned to this HM ─
+    candidate_pool: list[Candidate] = []
+    seen_ids: set[str] = set()
+
+    if managed_job_ids:
+        job_candidates = (
+            db.query(Candidate)
+            .filter(Candidate.job_id.in_(managed_job_ids))
+            .all()
+        )
+        for c in job_candidates:
+            if c.candidateID not in seen_ids:
+                candidate_pool.append(c)
+                seen_ids.add(c.candidateID)
+
+    if hm_assigned_candidate_ids:
+        assigned_candidates = (
+            db.query(Candidate)
+            .filter(Candidate.candidateID.in_(hm_assigned_candidate_ids))
+            .all()
+        )
+        for c in assigned_candidates:
+            if c.candidateID not in seen_ids:
+                candidate_pool.append(c)
+                seen_ids.add(c.candidateID)
+
+    # ── Step 3: keep only those with >= 2 completed interviews ───────────────
+    results: list[HMCandidateReviewItem] = []
+
+    for candidate in candidate_pool:
+        completed_ivs = (
+            db.query(Interview)
+            .filter(
+                Interview.candidate_id == candidate.candidateID,
+                Interview.status == "Completed",
+            )
+            .order_by(Interview.start_time)
+            .all()
+        )
+        if len(completed_ivs) < 2:
+            continue
+
+        # ── Pipeline status ──────────────────────────────────────────────────
+        cs = (
+            db.query(CandidateStatus)
+            .filter(CandidateStatus.candidateID == candidate.candidateID)
+            .first()
+        )
+        pipeline_status = cs.piplineStatus if cs else "Unknown"
+
+        # ── Build interview round details ────────────────────────────────────
+        hm_rounds: list[HMInterviewRound] = []
+        for iv in completed_ivs:
+            panel = db.query(InterviewPanel).filter(InterviewPanel.id == iv.panel_id).first()
+            round_name = panel.round_name if panel else "Interview"
+
+            # Collect all feedback for this interview
+            raw_feedbacks = (
+                db.query(InterviewFeedback)
+                .filter(InterviewFeedback.interview_id == iv.id)
+                .all()
+            )
+
+            hm_feedbacks: list[HMFeedbackDetail] = []
+            recommendations_seen: set[str] = set()
+            for fb in raw_feedbacks:
+                interviewer = (
+                    db.query(Users)
+                    .filter(Users.UserID == fb.interviewer_id)
+                    .first()
+                )
+                avg = (
+                    fb.technical_score
+                    + fb.communication_score
+                    + fb.problem_solving_score
+                    + fb.culture_fit_score
+                ) / 4.0
+                hm_feedbacks.append(
+                    HMFeedbackDetail(
+                        feedback_id=fb.id,
+                        interviewer_id=fb.interviewer_id,
+                        interviewer_name=(
+                            (interviewer.UserName or interviewer.UserEmail)
+                            if interviewer else fb.interviewer_id
+                        ),
+                        technical_score=fb.technical_score,
+                        communication_score=fb.communication_score,
+                        problem_solving_score=fb.problem_solving_score,
+                        culture_fit_score=fb.culture_fit_score,
+                        average_score=round(avg, 2),
+                        comments=fb.comments,
+                        recommendation=fb.recommendation,
+                        submitted_at=fb.submitted_at,
+                    )
+                )
+                recommendations_seen.add(fb.recommendation)
+
+            # Derive an overall recommendation label for the round
+            if not recommendations_seen:
+                overall_rec = "No Feedback"
+            elif recommendations_seen <= {"Hire", "Must Hire"}:
+                overall_rec = "Must Hire" if "Must Hire" in recommendations_seen else "Hire"
+            else:
+                overall_rec = "Mixed"
+
+            hm_rounds.append(
+                HMInterviewRound(
+                    interview_id=iv.id,
+                    round_name=round_name,
+                    start_time=iv.start_time,
+                    end_time=iv.end_time,
+                    status=iv.status,
+                    panel_id=iv.panel_id,
+                    feedbacks=hm_feedbacks,
+                    overall_recommendation=overall_rec,
+                )
+            )
+
+        # ── Job title lookup ─────────────────────────────────────────────────
+        job_title: str | None = None
+        if candidate.job_id:
+            job_obj = next((j for j in managed_jobs if j.jobID == candidate.job_id), None)
+            if job_obj:
+                job_title = job_obj.jobTitle
+
+        results.append(
+            HMCandidateReviewItem(
+                candidate_id=candidate.candidateID,
+                candidate_name=_candidate_display_name(candidate),
+                candidate_email=candidate.candidateEmail,
+                candidate_mobile=candidate.candidateMobile,
+                candidate_experience=candidate.candidateExperience,
+                job_id=candidate.job_id,
+                job_title=job_title,
+                pipeline_status=pipeline_status,
+                completed_interview_count=len(completed_ivs),
+                approval_endpoint=f"/status/{candidate.candidateID}/hiring-manager-approval",
+                interviews=hm_rounds,
+            )
+        )
+
+    return HMCandidateReviewListResponse(
+        hiring_manager_id=hm_id,
+        hiring_manager_name=hm_name,
+        total_candidates=len(results),
+        candidates=results,
+    )
 
 
 # ============================================
