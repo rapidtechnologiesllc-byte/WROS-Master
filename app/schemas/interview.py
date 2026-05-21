@@ -269,3 +269,57 @@ class BulkDeleteResponse(BaseModel):
     status: str = "Success"
     message: str
     deleted_count: int
+
+
+# ============================================
+# Hiring Manager Candidate Review
+# ============================================
+
+class HMFeedbackDetail(BaseModel):
+    """Single interviewer's feedback on one interview round."""
+    feedback_id: int
+    interviewer_id: str
+    interviewer_name: str
+    technical_score: int
+    communication_score: int
+    problem_solving_score: int
+    culture_fit_score: int
+    average_score: float
+    comments: Optional[str] = None
+    recommendation: str
+    submitted_at: datetime
+
+
+class HMInterviewRound(BaseModel):
+    """One completed interview round with all its feedback entries."""
+    interview_id: int
+    round_name: str
+    start_time: datetime
+    end_time: datetime
+    status: str
+    panel_id: int
+    feedbacks: List[HMFeedbackDetail]
+    overall_recommendation: str  # "Hire" | "Must Hire" | "Mixed" | "No Feedback"
+
+
+class HMCandidateReviewItem(BaseModel):
+    """Full interview summary for one candidate — used by Hiring Manager review list."""
+    candidate_id: str
+    candidate_name: str
+    candidate_email: str
+    candidate_mobile: Optional[str] = None
+    candidate_experience: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    pipeline_status: str
+    completed_interview_count: int
+    approval_endpoint: str   # convenience: the POST path to approve/reject
+    interviews: List[HMInterviewRound]
+
+
+class HMCandidateReviewListResponse(BaseModel):
+    """Response for the Hiring Manager candidate review list endpoint."""
+    hiring_manager_id: str
+    hiring_manager_name: str
+    total_candidates: int
+    candidates: List[HMCandidateReviewItem]

@@ -17,7 +17,7 @@ from app.models.candidate import (
     CandidatePanForm,
     CandidateStatus,
 )
-from app.models.user import Users, Interview, CandidateAssignment, InterviewPanel, PanelMember, InterviewFeedback
+from app.models.user import Users, Jobs, Interview, CandidateAssignment, InterviewPanel, PanelMember, InterviewFeedback
 from app.models.document import CandidateDocument
 from app.models.checklist import CandidateChecklist, CandidateChecklistItem
 
@@ -765,7 +765,110 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         message=f"Candidate with ID {candidate_id} and all associated records deleted successfully"
     )
 
+# ============================================
+# Candidate Contacts Endpoint
+# ============================================
+
+def _user_info(user: Users | None) -> dict | None:
+    """Return a compact user info dict, or None if user not found."""
+    if not user:
+        return None
+    return {
+        "user_id":    user.UserID,
+        "name":       user.UserName,
+        "email":      user.UserEmail,
+        "role":       user.UserRole,
+    }
 
 
+@router.get(
+    "/hr/candidate/{candidate_id}/contacts",
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Get assigned managers and job contact person for a candidate",
+)
+def get_candidate_contacts(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Returns the full contact details for everyone connected to a candidate:
 
+    **From CandidateAssignment (direct assignment):**
+    - `assigned_hiring_manager` — the HR user directly assigned to manage this candidate
+    - `assigned_reporting_manager` — the reporting manager directly assigned to the candidate
+
+    **From the candidate's linked Job (via `candidate.job_id`):**
+    - `job_contact_person` — the contact person recorded on the job posting
+    - `job_hiring_manager` — the hiring manager recorded on the job posting
+    - `job_recruiter` — the recruiter recorded on the job posting
+
+    All fields are `null` when the corresponding record does not exist.
+    """
+    # 1. Verify candidate exists
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
+
+    # 2. Direct assignment (CandidateAssignment table)
+    assignment = (
+        db.query(CandidateAssignment)
+        .filter(CandidateAssignment.candidate_id == candidate_id)
+        .first()
+    )
+
+    assigned_hiring_manager   = None
+    assigned_reporting_manager = None
+
+    if assignment:
+        if assignment.hiring_manager_id:
+            hm = db.query(Users).filter(Users.UserID == assignment.hiring_manager_id).first()
+            assigned_hiring_manager = _user_info(hm)
+        if assignment.reporting_manager_id:
+            rm = db.query(Users).filter(Users.UserID == assignment.reporting_manager_id).first()
+            assigned_reporting_manager = _user_info(rm)
+
+    # 3. Job-based contacts (Jobs table)
+    job_info           = None
+    job_contact_person = None
+    job_hiring_manager = None
+    job_recruiter      = None
+
+    if candidate.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
+        if job:
+            job_info = {
+                "job_id":    job.jobID,
+                "job_title": job.jobTitle,
+                "job_status": job.jobStatus,
+            }
+            if job.contactPerson:
+                cp = db.query(Users).filter(Users.UserID == job.contactPerson).first()
+                job_contact_person = _user_info(cp)
+            if job.hiringManagerID:
+                hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
+                job_hiring_manager = _user_info(hm)
+            if job.recuriterID:
+                rec = db.query(Users).filter(Users.UserID == job.recuriterID).first()
+                job_recruiter = _user_info(rec)
+
+    return {
+        "candidate_id":   candidate_id,
+        "candidate_name": " ".join(
+            p for p in [
+                candidate.candidateFirstName,
+                candidate.candidateMiddleName,
+                candidate.candidateLastName,
+            ] if p
+        ).strip() or None,
+        "candidate_email": candidate.candidateEmail,
+        "job": job_info,
+        # Directly assigned managers
+        "assigned_hiring_manager":    assigned_hiring_manager,
+        "assigned_reporting_manager": assigned_reporting_manager,
+        # Job-level contacts
+        "job_contact_person": job_contact_person,
+        "job_hiring_manager": job_hiring_manager,
+        "job_recruiter":      job_recruiter,
+    }
 

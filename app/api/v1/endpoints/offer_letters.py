@@ -462,6 +462,20 @@ def get_offer_by_id(
 
     candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
 
+    # ── Resolve document links ────────────────────────────────────────────────
+    # Use stored URLs first; fall back to a live SharePoint lookup if the
+    # document was generated before these columns were added.
+    sp_url      = offer.sharepoint_url
+    dl_url      = offer.download_url
+    sp_path     = offer.sharepoint_path
+
+    if not dl_url and sp_path:
+        # Attempt a live download-link refresh (non-fatal)
+        try:
+            dl_url = get_file_download_link(sp_path) or sp_url
+        except Exception:
+            dl_url = sp_url
+
     return OfferLetterResponse(
         id=offer.id,
         candidate_id=offer.candidate_id,
@@ -481,6 +495,9 @@ def get_offer_by_id(
         created_by=offer.created_by,
         cancelled_at=offer.cancelled_at,
         cancelled_by=offer.cancelled_by,
+        sharepoint_url=sp_url,
+        download_url=dl_url,
+        sharepoint_path=sp_path,
     )
 
 
@@ -563,6 +580,12 @@ def generate_offer_letter_document(
 
     download_link = get_file_download_link(dest_path) or web_url
     candidate_name = f"{first_name} {last_name}".strip() or offer.candidate_id
+
+    # ── Persist URLs back to the DB so GET /{offer_id} returns them ──────────
+    offer.sharepoint_url  = web_url
+    offer.download_url    = download_link
+    offer.sharepoint_path = dest_path
+    db.commit()
 
     return {
         "status":          "success",
