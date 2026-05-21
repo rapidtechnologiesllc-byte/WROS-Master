@@ -1,6 +1,11 @@
 // Candidate portal for personal info, education, experience, and documents.
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from "react";
 import { ListChecks } from "lucide-react";
+=======
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Eye, EyeOff, ListChecks } from "lucide-react";
+>>>>>>> main
 import {
   Button,
   Card,
@@ -107,10 +112,13 @@ export default function CandidateSelfService({ onLogout }) {
   const [noticeType, setNoticeType] = useState("error");
   const [profile, setProfile] = useState(null);
   const [onboardingStatus, setOnboardingStatus] = useState(null);
+<<<<<<< HEAD
   const [passwordForm, setPasswordForm] = useState({
     new_password: "",
     confirm_password: "",
   });
+=======
+>>>>>>> main
   const [myOffers, setMyOffers] = useState([]);
   const [myDocuments, setMyDocuments] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
@@ -118,6 +126,19 @@ export default function CandidateSelfService({ onLogout }) {
   const [jobResumeFile, setJobResumeFile] = useState(null);
   const [myChecklistsPayload, setMyChecklistsPayload] = useState(null);
   const [checklistCompletingId, setChecklistCompletingId] = useState(null);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
+  const profileMenuRef = useRef(null);
+
+  const [candidatePasswordForm, setCandidatePasswordForm] = useState({
+    new_password: "",
+    confirm_password: "",
+  });
 
   const storedCandidateName = localStorage.getItem("hrms_user_name") || "";
   const storedCandidateEmail = localStorage.getItem("hrms_user_email") || "";
@@ -337,6 +358,24 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: today(),
     is_verified: false,
   });
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!isProfileMenuOpen) return;
+
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(event.target)
+      ) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -375,8 +414,13 @@ export default function CandidateSelfService({ onLogout }) {
           setProfile(myInfoResult.value);
           setPersonal((prev) => ({
             ...prev,
+<<<<<<< HEAD
             ...myInfoResult.value,
             dob: myInfoResult.value.dob || prev.dob,
+=======
+            ...personalResult.value,
+            dob: personalResult.value.dob || prev.dob,
+>>>>>>> main
             submitted_at: today(),
           }));
         }
@@ -504,7 +548,7 @@ export default function CandidateSelfService({ onLogout }) {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
           <div>
             <div className="text-xs font-semibold text-slate-500">
               Candidate Portal
@@ -515,11 +559,266 @@ export default function CandidateSelfService({ onLogout }) {
             ) : null}
           </div>
 
-          <Button variant="secondary" onClick={onLogout}>
-            Logout
-          </Button>
-        </div>
+          <div className="relative" ref={profileMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+                {candidateName?.[0]?.toUpperCase() || "C"}
+              </span>
 
+              <span className="hidden max-w-[160px] truncate sm:inline">
+                {candidateName || "Candidate"}
+              </span>
+
+              <ChevronDown className="h-4 w-4 text-slate-500" />
+            </button>
+
+            {isProfileMenuOpen ? (
+              <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileModal(true);
+                    setIsProfileMenuOpen(false);
+                  }}
+                  className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  View Profile
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCandidatePasswordForm({
+                      new_password: "",
+                      confirm_password: "",
+                    });
+                    setShowNewPassword(false);
+                    setShowConfirmPassword(false);
+                    setShowPasswordModal(true);
+                    setIsProfileMenuOpen(false);
+                  }}
+                  className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  Change Password
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="block w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        {showProfileModal ? (
+          <div
+            onClick={() => setShowProfileModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            >
+              <h2 className="mb-5 text-xl font-semibold text-slate-900">
+                Candidate Profile
+              </h2>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">Name</span>
+                  <span className="text-right font-medium text-slate-900">
+                    {profile?.candidate_name || candidateName || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">Email</span>
+                  <span className="text-right font-medium text-slate-900">
+                    {profile?.candidate_email || candidateEmail || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">Mobile</span>
+                  <span className="text-right font-medium text-slate-900">
+                    {profile?.candidate_mobile || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">Status</span>
+                  <span className="text-right font-medium text-slate-900">
+                    {profile?.pipeline_status ||
+                      profile?.pipline_status ||
+                      profile?.status ||
+                      "-"}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                className="mt-6 w-full rounded-xl bg-slate-900 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {showPasswordModal ? (
+          <div
+            onClick={() => setShowPasswordModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            >
+              <h2 className="mb-5 text-xl font-semibold text-slate-900">
+                Change Password
+              </h2>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="New Password"
+                    value={candidatePasswordForm.new_password}
+                    onChange={(e) =>
+                      setCandidatePasswordForm((prev) => ({
+                        ...prev,
+                        new_password: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm outline-none transition focus:border-slate-400"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((prev) => !prev)}
+                    className="absolute right-3 top-2.5 text-slate-500"
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm Password"
+                    value={candidatePasswordForm.confirm_password}
+                    onChange={(e) =>
+                      setCandidatePasswordForm((prev) => ({
+                        ...prev,
+                        confirm_password: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm outline-none transition focus:border-slate-400"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute right-3 top-2.5 text-slate-500"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="w-1/2 rounded-xl border border-slate-300 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  disabled={passwordSubmitting}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const newPassword =
+                      candidatePasswordForm?.new_password?.trim();
+                    const confirmPassword =
+                      candidatePasswordForm?.confirm_password?.trim();
+
+                    if (!newPassword || !confirmPassword) {
+                      showNotice(
+                        "Please fill all password fields.",
+                        "error",
+                        false,
+                      );
+                      return;
+                    }
+
+                    if (newPassword !== confirmPassword) {
+                      showNotice(
+                        "New password and confirm password do not match.",
+                        "error",
+                        false,
+                      );
+                      return;
+                    }
+
+                    try {
+                      setPasswordSubmitting(true);
+                      clearNotice();
+
+                      await changeCandidatePassword({
+                        new_password: newPassword,
+                        confirm_password: confirmPassword,
+                      });
+
+                      showNotice(
+                        "Password updated successfully.",
+                        "success",
+                        false,
+                      );
+
+                      setCandidatePasswordForm({
+                        new_password: "",
+                        confirm_password: "",
+                      });
+
+                      setShowPasswordModal(false);
+                    } catch (err) {
+                      showNotice(
+                        err?.message || "Failed to update password.",
+                        "error",
+                        false,
+                      );
+                    } finally {
+                      setPasswordSubmitting(false);
+                    }
+                  }}
+                  className="w-1/2 rounded-xl bg-slate-900 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={passwordSubmitting}
+                >
+                  {passwordSubmitting ? "Updating..." : "Update"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {notice ? (
           <div
             className={`rounded-lg border px-3 py-2 text-sm ${
@@ -1485,6 +1784,7 @@ export default function CandidateSelfService({ onLogout }) {
             ))}
           </div>
         </Card>
+<<<<<<< HEAD
 
         <Card title="Change Password">
           <div className="grid gap-3 md:grid-cols-2">
@@ -1528,6 +1828,8 @@ export default function CandidateSelfService({ onLogout }) {
             </Button>
           </div>
         </Card>
+=======
+>>>>>>> main
       </div>
     </div>
   );

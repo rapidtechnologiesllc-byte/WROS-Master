@@ -358,7 +358,6 @@ export default function CandidateCreate({ onBack, onSave }) {
             }))
           : null,
       });
-
       const candidateName = [firstName, middleName, lastName]
         .filter(Boolean)
         .join(" ")
@@ -367,55 +366,79 @@ export default function CandidateCreate({ onBack, onSave }) {
       const createdCandidateId = data?.candidate_id;
       const candidateEmail = email?.trim();
       const candidatePassword = data?.candidate_password;
+<<<<<<< HEAD
       const candidatePortalUrl = "https://hrms.blitzenx.com/";
+=======
+>>>>>>> main
 
       const createdCandidate = {
         id: createdCandidateId,
         name: candidateName || "New Candidate",
-        email,
+        email: candidateEmail,
         phone: mobile,
+<<<<<<< HEAD
         jobTitle: candidateJobTitle || "",
+=======
+        jobTitle: candidateJobTitle || jobName || "",
+>>>>>>> main
         skills: String(skills || "")
           .split(",")
-          .map((s) => s.trim())
+          .map((skill) => skill.trim())
           .filter(Boolean),
         status: "New",
       };
-      let nextNotice = `Candidate created. Password: ${data?.candidate_password || "N/A"}`;
 
-      if (sendLoginEmail && data?.candidate_password) {
-        //NEED THIS CODE FOR IMPLEMENTING EMAIL FUNCTIONALITY.
-        //COMMENTED THIS AS THE CURRENT API IS INCORRECT
-        // try {
-        //   // Uses Microsoft Graph to email credentials to the candidate.
-        //   await sendGraphMail({
-        //     to: email.trim(),
-        //     subject: "Your HRMS Candidate Login",
-        //     bodyText: `Hello ${candidateName || "Candidate"},\n\nYour HRMS account is ready.\n\nLogin email: ${email.trim()}\nTemporary password: ${data.candidate_password}\n\nPlease sign in and change your password.\n\nThanks`
-        //   });
-        //   nextNotice = `${nextNotice}. Login email sent.`;
-        // } catch (mailErr) {
-        //   nextNotice = `${nextNotice}. Email failed: ${
-        //     mailErr.message || "Connect Microsoft and try again."
-        //   }`;
-        // }
+      let nextNotice = "Candidate created successfully.";
+
+      if (sendLoginEmail && candidateEmail && candidatePassword) {
+        try {
+          const candidatePortalUrl = "https://hrms.blitzenx.com/";
+          await sendPlainEmail({
+            toEmail: candidateEmail,
+            bodyContent: `Hello ${candidateName || "Candidate"},
+
+Your HRMS candidate account has been created successfully.
+
+Portal Link: ${candidatePortalUrl}
+Login Email: ${candidateEmail}
+Temporary Password: ${candidatePassword}
+
+Please access the HRMS portal using the link above and update your password after your first login.
+
+Thanks,
+HRMS Team`,
+            isHtml: false,
+          });
+
+          nextNotice = `${nextNotice} Login email sent.`;
+        } catch (mailErr) {
+          console.error("Candidate login email failed:", mailErr);
+
+          nextNotice = `${nextNotice} Login email failed: ${
+            mailErr?.message || "Unable to send email."
+          }`;
+        }
+      } else if (sendLoginEmail && !candidatePassword) {
+        nextNotice = `${nextNotice} Login email skipped because password was not returned by backend.`;
       }
 
       if (resumeFile) {
         if (!createdCandidateId) {
-          nextNotice = `${nextNotice}. Resume skipped (missing candidate id).`;
+          nextNotice = `${nextNotice} Resume skipped because candidate id is missing.`;
         } else {
           try {
-            // HR/Admin resume upload (candidate_id is required by backend).
             await uploadResume({
               candidateId: createdCandidateId,
               file: resumeFile,
             });
-            nextNotice = `${nextNotice}. Resume uploaded.`;
+
+            nextNotice = `${nextNotice} Resume uploaded.`;
           } catch (uploadErr) {
-            nextNotice = `${nextNotice}. Resume upload failed: ${
-              uploadErr.message || "Unknown error"
-            }`;
+            console.error("Resume upload failed:", uploadErr);
+
+            nextNotice = `${nextNotice} Resume upload failed: ${
+              uploadErr?.message || "Unknown error"
+            }.`;
           }
         }
       }
