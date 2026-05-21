@@ -121,6 +121,7 @@ export default function CandidateDetailsScreen({
   const [updatedStatus, setUpdatedStatus] = useState(null);
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
+  const currentRole = localStorage.getItem("hrms_role");
 
   const candidateTabs = limitedMode
     ? ["feedback"]
@@ -765,11 +766,8 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
     });
   };
 
-  const handlePreonboardingModal = (status, comment) => {
-    setRadioStatus(status);
-    if (status !== "") {
-      setPreonboardingModal(true);
-    }
+  const openOfferModal = () => {
+    setPreonboardingModal(true);
   };
 
   return (
@@ -824,9 +822,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                   {statusData?.pipeline_status && (
                     <StatusDropdown
                       statusData={statusData}
-                      onChange={({ status, comment }) => {
-                        handlePreonboardingModal(status, comment);
-                      }}
                     />
                   )}
                 </div>
@@ -863,6 +858,16 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
+
+              {currentRole === "HR MANAGER" || "HR" ? (
+                <Button
+                  variant="secondary"
+                  onClick={openOfferModal}
+                  className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
+                >
+                  Create Offer
+                </Button>
+              ) : null}
 
               {canShowFullActions && (
                 <>
