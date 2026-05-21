@@ -19,7 +19,6 @@ import {
   getCandidateMyInfo,
   getCandidateOnboardingStatus,
   getCandidatePan,
-  getCandidatePersonalInfo,
   listCandidateEducation,
   listCandidateExperience,
   submitCandidateAadharForm,
@@ -108,10 +107,14 @@ export default function CandidateSelfService({ onLogout }) {
   const [noticeType, setNoticeType] = useState("error");
   const [profile, setProfile] = useState(null);
   const [onboardingStatus, setOnboardingStatus] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({
+    new_password: "",
+    confirm_password: "",
+  });
   const [myOffers, setMyOffers] = useState([]);
   const [myDocuments, setMyDocuments] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingType, setUploadingType] = useState(null);
   const [jobResumeFile, setJobResumeFile] = useState(null);
   const [myChecklistsPayload, setMyChecklistsPayload] = useState(null);
   const [checklistCompletingId, setChecklistCompletingId] = useState(null);
@@ -277,7 +280,7 @@ export default function CandidateSelfService({ onLogout }) {
     if (!file) return;
 
     try {
-      setUploading(true);
+      setUploadingType(label);
       clearNotice();
 
       await uploadFn(file);
@@ -287,7 +290,7 @@ export default function CandidateSelfService({ onLogout }) {
     } catch (err) {
       showNotice(`❌ ${err.message || `Failed to upload ${label}.`}`, "error");
     } finally {
-      setUploading(false);
+      setUploadingType(null);
     }
   };
 
@@ -375,7 +378,6 @@ export default function CandidateSelfService({ onLogout }) {
       try {
         const [
           myInfoResult,
-          personalResult,
           educationResult,
           experienceResult,
           aadharResult,
@@ -387,7 +389,6 @@ export default function CandidateSelfService({ onLogout }) {
           checklistsResult,
         ] = await Promise.allSettled([
           getCandidateMyInfo(),
-          getCandidatePersonalInfo(),
           listCandidateEducation(),
           listCandidateExperience(),
           getCandidateAadhar(),
@@ -403,11 +404,10 @@ export default function CandidateSelfService({ onLogout }) {
 
         if (myInfoResult.status === "fulfilled") {
           setProfile(myInfoResult.value);
-        }
-
-        if (personalResult.status === "fulfilled" && personalResult.value) {
           setPersonal((prev) => ({
             ...prev,
+            ...myInfoResult.value,
+            dob: myInfoResult.value.dob || prev.dob,
             ...personalResult.value,
             dob: personalResult.value.dob || prev.dob,
             submitted_at: today(),
@@ -472,7 +472,6 @@ export default function CandidateSelfService({ onLogout }) {
 
         const errors = [
           myInfoResult,
-          personalResult,
           educationResult,
           experienceResult,
           aadharResult,
@@ -1769,9 +1768,52 @@ export default function CandidateSelfService({ onLogout }) {
                 key={key}
                 label={label}
                 onUpload={(file) => handleUpload(upload, label, file)}
-                disabled={loading || uploading}
+                disabled={loading || uploadingType === label}
               />
             ))}
+          </div>
+        </Card>
+
+        <Card title="Change Password">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              label="New Password"
+              type="password"
+              value={passwordForm.new_password}
+              onChange={(v) =>
+                setPasswordForm((p) => ({ ...p, new_password: v }))
+              }
+            />
+            <Input
+              label="Confirm Password"
+              type="password"
+              value={passwordForm.confirm_password}
+              onChange={(v) =>
+                setPasswordForm((p) => ({ ...p, confirm_password: v }))
+              }
+            />
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <Button
+              onClick={async () => {
+                clearNotice();
+                setLoading(true);
+
+                try {
+                  await changeCandidatePassword(passwordForm);
+                  showNotice("Password updated.", "success");
+                  setPasswordForm({ new_password: "", confirm_password: "" });
+                } catch (err) {
+                  showNotice(err.message || "Failed to update password.");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              Update Password
+            </Button>
           </div>
         </Card>
       </div>

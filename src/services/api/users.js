@@ -3,21 +3,21 @@ import { apiRequest } from "./client";
 
 export const getAllUsers = async () => {
   const { data } = await apiRequest("/hr/users/all", {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
 
 export const getAssignedCandidates = async () => {
   const { data } = await apiRequest("/hr/assignments/candidates", {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
 
 export const getAssignedInterviews = async () => {
   const { data } = await apiRequest("/hr/interviews/assigned", {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
@@ -35,8 +35,8 @@ export const createHrUser = async (payload) => {
       user_name: payload.user_name,
       user_email: payload.user_email,
       user_password: payload.user_password,
-      user_role: payload.user_role
-    })
+      user_role: payload.user_role,
+    }),
   });
   return data;
 };
@@ -48,7 +48,9 @@ export const updateHrUser = async (userId, { user_name, user_role } = {}) => {
   if (user_name != null) params.set("user_name", user_name);
   if (user_role != null) params.set("user_role", user_role);
   const qs = params.toString();
-  const path = qs ? `/hr/users/${encodeURIComponent(userId)}?${qs}` : `/hr/users/${encodeURIComponent(userId)}`;
+  const path = qs
+    ? `/hr/users/${encodeURIComponent(userId)}?${qs}`
+    : `/hr/users/${encodeURIComponent(userId)}`;
 
   const { data } = await apiRequest(path, { method: "PUT" });
   return data;
@@ -56,18 +58,21 @@ export const updateHrUser = async (userId, { user_name, user_role } = {}) => {
 
 export const deleteHrUser = async (userId) => {
   const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}`, {
-    method: "DELETE"
+    method: "DELETE",
   });
   return data;
 };
 
-export const changeHrMePassword = async ({ current_password, new_password }) => {
+export const changeHrMePassword = async ({
+  current_password,
+  new_password,
+}) => {
   const { data } = await apiRequest("/hr/users/me/change-password", {
     method: "PUT",
     body: JSON.stringify({
       current_password,
-      new_password
-    })
+      new_password,
+    }),
   });
   return data;
 };
