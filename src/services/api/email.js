@@ -59,3 +59,12 @@ export const sendInterviewInvite = async ({
 
   return data;
 };
+
+export const sendEmail = async (payload) => {
+  const { data } = await apiRequest("/email/send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return data;
+};
