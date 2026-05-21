@@ -35,6 +35,7 @@ from app.models.checklist import (
 )
 from app.models.ats import ATSScore
 from app.models.candidate_history import CandidateHistory
+from app.models.candidate_ownership import CandidateOwnership
 
 __all__ = [
     # Base
@@ -78,5 +79,7 @@ __all__ = [
     "ATSScore",
     # Candidate History
     "CandidateHistory",
+    # Candidate Pool Ownership
+    "CandidateOwnership",
 ]
 
