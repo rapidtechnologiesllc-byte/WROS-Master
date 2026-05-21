@@ -169,7 +169,7 @@ export default function CandidateSearch({
     },
     {
       title: "Account",
-      dataIndex: "Account",
+      dataIndex: "account",
     },
     {
       title: "Status",
@@ -222,9 +222,8 @@ export default function CandidateSearch({
           >
             <AntTable
               columns={columns}
-              // dataSource={items}
+              dataSource={filtered}
               pagination={false}
-              // rowSelection={rowSelection}
               bordered
             />
           </Card>
