@@ -1,11 +1,6 @@
 // Candidate portal for personal info, education, experience, and documents.
-<<<<<<< HEAD
-import { useEffect, useMemo, useState } from "react";
-import { ListChecks } from "lucide-react";
-=======
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Eye, EyeOff, ListChecks } from "lucide-react";
->>>>>>> main
 import {
   Button,
   Card,
@@ -112,13 +107,10 @@ export default function CandidateSelfService({ onLogout }) {
   const [noticeType, setNoticeType] = useState("error");
   const [profile, setProfile] = useState(null);
   const [onboardingStatus, setOnboardingStatus] = useState(null);
-<<<<<<< HEAD
   const [passwordForm, setPasswordForm] = useState({
     new_password: "",
     confirm_password: "",
   });
-=======
->>>>>>> main
   const [myOffers, setMyOffers] = useState([]);
   const [myDocuments, setMyDocuments] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
@@ -414,13 +406,10 @@ export default function CandidateSelfService({ onLogout }) {
           setProfile(myInfoResult.value);
           setPersonal((prev) => ({
             ...prev,
-<<<<<<< HEAD
             ...myInfoResult.value,
             dob: myInfoResult.value.dob || prev.dob,
-=======
             ...personalResult.value,
             dob: personalResult.value.dob || prev.dob,
->>>>>>> main
             submitted_at: today(),
           }));
         }
@@ -1784,7 +1773,6 @@ export default function CandidateSelfService({ onLogout }) {
             ))}
           </div>
         </Card>
-<<<<<<< HEAD
 
         <Card title="Change Password">
           <div className="grid gap-3 md:grid-cols-2">
@@ -1828,8 +1816,6 @@ export default function CandidateSelfService({ onLogout }) {
             </Button>
           </div>
         </Card>
-=======
->>>>>>> main
       </div>
     </div>
   );
