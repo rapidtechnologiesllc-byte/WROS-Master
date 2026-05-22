@@ -429,7 +429,6 @@ export default function App() {
           getAllUsers(),
           getAllCandidateStatuses().catch(() => null),
         ]);
-
         if (!isMounted) return;
 
         setOffers(offersRes?.offers || []);
@@ -548,7 +547,6 @@ export default function App() {
     const res = await getCandidateById(id);
     return mapCandidateFromApi(res || {});
   };
-
   if (
     canAccessMyWorkspace({
       role: storedRole,
@@ -609,6 +607,27 @@ export default function App() {
               onRefreshCandidates={refreshCandidates}
               setScreen={safeSetScreen}
               setSelectedCandidate={setSelectedCandidateData}
+            />
+          ) : screen === "candidateDetails" ? (
+            <CandidateDetailsScreen
+              candidate={selectedCandidateData}
+              defaultTab={candidateDetailsDefaultTab}
+              autoOpenSchedule={
+                screen === "candidateDetails" ? autoOpenSchedule : false
+              }
+              onBack={() => safeSetScreen("candidateSearch")}
+              onUpdateCandidate={async (candidateId, payload) => {
+                try {
+                  await updateCandidate(candidateId, payload);
+                  await refreshCandidates();
+                  notify("Candidate", "Candidate updated.");
+                } catch (err) {
+                  notify(
+                    "Candidate",
+                    err.message || "Failed to update candidate.",
+                  );
+                }
+              }}
             />
           ) : screen === "checklistTemplates" ? (
             <ChecklistTemplatesScreen />
@@ -786,9 +805,9 @@ export default function App() {
         />
       )}
 
-      {screen === "pre-onboarding" && (
+      {/* {screen === "pre-onboarding" && (
         <PreOnboardingPage candidates={candidates} />
-      )}
+      )} */}
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (

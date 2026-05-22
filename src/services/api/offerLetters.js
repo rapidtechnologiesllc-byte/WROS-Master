@@ -13,8 +13,9 @@ export const createOfferLetter = async (payload) => {
       reporting_manager_id: payload.reportingManagerId,
       position: payload.position,
       salary: String(payload.salary),
-      joining_date: payload.joiningDate
-    })
+      joining_date: payload.joiningDate,
+      offer_expire_date: payload.offer_expire_date,
+    }),
   });
   return data;
 };
@@ -31,7 +32,7 @@ export const getAllOffers = async (filters = {}) => {
 
 export const getOfferById = async (offerId) => {
   const { data } = await apiRequest(`/offer-letter/${offerId}`, {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
@@ -39,15 +40,17 @@ export const getOfferById = async (offerId) => {
 export const updateOfferLetter = async (offerId, payload) => {
   const body = {};
   if (payload.jobId != null) body.job_id = payload.jobId;
-  if (payload.hiringManagerId != null) body.hiring_manager_id = payload.hiringManagerId;
-  if (payload.reportingManagerId != null) body.reporting_manager_id = payload.reportingManagerId;
+  if (payload.hiringManagerId != null)
+    body.hiring_manager_id = payload.hiringManagerId;
+  if (payload.reportingManagerId != null)
+    body.reporting_manager_id = payload.reportingManagerId;
   if (payload.position != null) body.position = payload.position;
   if (payload.salary != null) body.salary = String(payload.salary);
   if (payload.joiningDate != null) body.joining_date = payload.joiningDate;
 
   const { data } = await apiRequest(`/offer-letter/update/${offerId}`, {
     method: "PUT",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
   return data;
 };
@@ -55,7 +58,7 @@ export const updateOfferLetter = async (offerId, payload) => {
 export const cancelOfferLetter = async (offerId, reason) => {
   const { data } = await apiRequest(`/offer-letter/cancel/${offerId}`, {
     method: "POST",
-    body: JSON.stringify({ reason: reason || null })
+    body: JSON.stringify({ reason: reason || null }),
   });
   return data;
 };
@@ -64,7 +67,7 @@ export const cancelOfferLetter = async (offerId, reason) => {
 
 export const getMyOffers = async () => {
   const { data } = await apiRequest("/offer-letter/my-offers", {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
@@ -75,8 +78,22 @@ export const respondToOffer = async (payload) => {
     body: JSON.stringify({
       offer_id: payload.offerId,
       action: payload.action,
-      response_message: payload.responseMessage || null
-    })
+      response_message: payload.responseMessage || null,
+    }),
   });
   return data;
 };
+
+export const generateOfferDoc = async (offerId) => {
+  const { data } = await apiRequest(`/offer-letter/generate/${offerId}`, {
+    method: "POST",
+  });
+  return data;
+};
+
+export const offerLetterById = async (offerId) => {
+  const { data } = await apiRequest(`/offer-letter/${offerId}`, {
+    method: "GET",
+  });
+  return data;
+}
