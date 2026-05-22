@@ -7,6 +7,10 @@ import { getMicrosoftSigninUrl } from "../services/api/msgraph";
 import { sendPlainEmail } from "../services/api/email";
 import { Button, Card, Input, Select } from "../components/ui";
 import {
+  createCandidateHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../services/api/candidateHistory";
+import {
   extractResumeText,
   inferFieldsFromResumeText,
 } from "../utils/resumeAutofill";
@@ -369,6 +373,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       const createdCandidateId = data?.candidate_id;
       const candidateEmail = email?.trim();
       const candidatePassword = data?.candidate_password;
+      const candidatePortalUrl = "https://hrms.blitzenx.com/";
 
       const createdCandidate = {
         id: createdCandidateId,
@@ -437,6 +442,32 @@ HRMS Team`,
           }
         }
       }
+      if (sendLoginEmail && candidateEmail && candidatePassword) {
+        try {
+          await sendPlainEmail({
+            toEmail: candidateEmail,
+            subject: "Your HRMS Candidate Login Credentials",
+            bodyContent: `Hello ${firstName || "Candidate"},
+
+Your HRMS account has been created successfully.
+
+Portal Link: ${candidatePortalUrl}
+Login Email: ${candidateEmail}
+Temporary Password: ${candidatePassword}
+
+Please access the HRMS portal using the link above and change your password after first login.
+
+Thanks,
+HRMS Team`,
+            isHtml: false,
+          });
+
+          // setActionNotice("Candidate created & email sent.");
+        } catch (err) {
+          console.error("Email failed:", err);
+          setActionNotice("Candidate created but email failed.");
+        }
+      }
 
       setActionNotice(nextNotice);
       return createdCandidate;
@@ -473,9 +504,20 @@ HRMS Team`,
   };
 
   const handleSaveOnly = async () => {
-    const candidate = await handleCreateCandidate();
-    if (candidate) {
+    try {
+      const candidate = await handleCreateCandidate();
+
+      if (!candidate?.id) {
+        return;
+      }
+
+      await createCandidateHistoryEvent(candidate.id, {
+        event_type: HISTORY_EVENT_TYPES.APPLIED,
+      });
+
       onSave(candidate);
+    } catch (error) {
+      console.error("Failed to create candidate history event:", error);
     }
   };
 

@@ -11,12 +11,18 @@ import {
 } from "../components/ui";
 import CandidateEditModal from "./CandidateEditModal";
 import {
+  getAllCandidates,
   getCandidateStatus,
   updateCandidateStatus,
 } from "../services/api/candidates";
 import { toast } from "react-toastify";
 import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 import { Table as AntTable } from "antd";
+import {
+  AcceptButton,
+  ButtonDiv,
+  RejectButton,
+} from "../styles/CandidateSearchStyles";
 
 export default function CandidateSearch({
   candidates,
@@ -45,7 +51,23 @@ export default function CandidateSearch({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [candidateList, setCandidateList] = useState(candidates);
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
+  const [preonboardingModal, setPreonboardingModal] = useState(false);
   const currentRole = localStorage.getItem("hrms_role");
+
+  useEffect(() => {
+    let currentRole = localStorage.getItem("hrms_role");
+    if (currentRole === "HR MANAGER") {
+      const data = async () => {
+        try {
+          const canData = await getAllCandidates();
+          setCandidateList(canData?.candidates);
+        } catch (err) {
+          console.log(err);
+        }
+      };
+      data();
+    }
+  }, []);
 
   useEffect(() => {
     setCandidateList(candidates);
@@ -153,27 +175,61 @@ export default function CandidateSearch({
   const columns = [
     {
       title: "Name",
-      dataIndex: "name",
+      dataIndex: "candidate_name",
+      render: (_, record) => {
+        return (
+          <button
+            className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
+            onClick={async () => {
+              setSelectedCandidateId(record?.candidate_id);
+              let finalCandidate = record;
+              if (onFetchCandidateById) {
+                try {
+                  const fresh = await onFetchCandidateById(
+                    record?.candidate_id,
+                  );
+                  if (fresh) {
+                    finalCandidate = fresh;
+                  }
+                } catch (err) {}
+              }
+              setSelectedCandidate(finalCandidate);
+              setCandidateDetailsDefaultTab?.("profile");
+              setAutoOpenSchedule?.(false);
+              setScreen("candidateDetails");
+            }}
+          >
+            {record?.candidate_name}
+          </button>
+        );
+      },
     },
     {
       title: "Contact",
-      dataIndex: "contact",
+      dataIndex: "candidate_email",
     },
     {
       title: "Job Title",
-      dataIndex: "jobTitle",
+      dataIndex: "candidate_job_title",
     },
     {
       title: "Pipeline",
-      dataIndex: "pipeline",
-    },
-    {
-      title: "Account",
-      dataIndex: "Account",
+      dataIndex: "pipline_status",
     },
     {
       title: "Status",
       dataIndex: "status",
+    },
+    {
+      title: "Action",
+      key: "action",
+      render: (_, record) => (
+        <ButtonDiv>
+          <AcceptButton onClick={() => console.log("")}>Accept</AcceptButton>
+
+          <RejectButton onClick={() => console.log("")}>Reject</RejectButton>
+        </ButtonDiv>
+      ),
     },
   ];
 
@@ -222,9 +278,8 @@ export default function CandidateSearch({
           >
             <AntTable
               columns={columns}
-              // dataSource={items}
+              dataSource={filtered}
               pagination={false}
-              // rowSelection={rowSelection}
               bordered
             />
           </Card>

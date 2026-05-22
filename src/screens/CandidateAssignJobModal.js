@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { Button, Card } from "../components/ui";
 import { assignMultipleJobs, getAllJobs } from "../services/api/jobs";
+import {
+  createCandidateHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../services/api/candidateHistory";
 import { mapJobFromApi } from "../App";
 import { toast } from "react-toastify";
 
@@ -274,6 +278,20 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
         submitJobPayload,
       );
       if (result?.status === 201) {
+        const historyNote = `Candidate submitted to ${
+          selectedJob?.title || selectedJob?.job_title || "selected job"
+        }.`;
+        const appliedDateTime =
+          formData?.submittalDate && formData?.submittalTime
+            ? `${formData.submittalDate}T${formData.submittalTime}:00`
+            : new Date().toISOString();
+
+        await createCandidateHistoryEvent(candidateDetails?.id, {
+          event_type: HISTORY_EVENT_TYPES.APPLIED,
+          note: historyNote,
+          job_id: selectedJob?.id || selectedJob?.job_id || selectedJobId,
+          event_at: appliedDateTime,
+        });
         toast.success("Job submitted successfully ✅");
         onClose?.();
         return;
