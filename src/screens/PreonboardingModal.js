@@ -326,14 +326,14 @@ const PreonboardingModal = ({
     return current.toDate() < today;
   };
 
-  // const sendEmailOffer = async () => {
-  //   console.log("function trigger");
-  //   const emailResult = sendMailAttachments({
-  //     email,
-  //     subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
-  //     bodyContent: OfferConfirmationEmail(fullName,candidate?.jobTitle,"BlitzenX",selectedJobId,worker,)
-  //   });
-  // };
+  const sendEmailOffer = async () => {
+    console.log("function trigger");
+    //  const emailResult = sendMailAttachments({
+    //    email,
+    //    subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
+    //    bodyContent: OfferConfirmationEmail(fullName,candidate?.jobTitle,"BlitzenX",selectedJobId,worker,)
+    //  });
+  };
 
   const renderStepContent = () => {
     switch (current) {
@@ -527,7 +527,7 @@ const PreonboardingModal = ({
                     options={[]}
                     onChange={() => {}}
                   />
-                  <div>Varun</div>
+                  <div></div>
                 </div>
               </Section>
               <Section>
