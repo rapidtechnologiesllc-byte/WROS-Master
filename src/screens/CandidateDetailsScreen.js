@@ -7,8 +7,11 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import HistoryTab from "./tabs/HistoryTab";
 import CandidateEditModal from "./CandidateEditModal";
-
 import { getCandidateStatus } from "../services/api/candidateStatus";
+import {
+  createCandidateHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../services/api/candidateHistory";
 import {
   listChecklistTemplates,
   assignChecklistToCandidate,
@@ -121,6 +124,7 @@ export default function CandidateDetailsScreen({
   const [updatedStatus, setUpdatedStatus] = useState(null);
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
+  const currentRole = localStorage.getItem("hrms_role");
 
   const candidateTabs = limitedMode
     ? ["feedback"]
@@ -641,6 +645,12 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
+      await createCandidateHistoryEvent(candidate?.id, {
+        event_type: HISTORY_EVENT_TYPES.INTERVIEW_SCHEDULED,
+        note: `${scheduleForm?.roundName?.trim?.() || "Interview"} scheduled for ${scheduleForm?.interviewDate || "-"} from ${scheduleForm?.startTime || "-"} to ${scheduleForm?.endTime || "-"} (${scheduleType || "online"}).`,
+        interview_id: interviewId,
+        event_at: computedDateTime?.startDateTime,
+      });
       const resumeLink = await getCandidateResumeLink();
       if (scheduleType === "online") {
         await sendInterviewInvite({
@@ -765,11 +775,8 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
     });
   };
 
-  const handlePreonboardingModal = (status, comment) => {
-    setRadioStatus(status);
-    if (status !== "") {
-      setPreonboardingModal(true);
-    }
+  const openOfferModal = () => {
+    setPreonboardingModal(true);
   };
 
   return (
@@ -824,9 +831,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                   {statusData?.pipeline_status && (
                     <StatusDropdown
                       statusData={statusData}
-                      onChange={({ status, comment }) => {
-                        handlePreonboardingModal(status, comment);
-                      }}
                     />
                   )}
                 </div>
@@ -863,6 +867,16 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
+
+              {currentRole === "HR MANAGER" || "HR" ? (
+                <Button
+                  variant="secondary"
+                  onClick={openOfferModal}
+                  className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
+                >
+                  Create Offer
+                </Button>
+              ) : null}
 
               {canShowFullActions && (
                 <>
@@ -1023,7 +1037,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             <ActivityTab candidateId={candidate?.id} />
           )}
           {activeTab === "history" && !limitedMode && (
-            <HistoryTab candidateId={candidate?.id} />
+            <HistoryTab
+              candidateId={candidate?.id || candidate?.candidate_id}
+            />
           )}
         </div>
 

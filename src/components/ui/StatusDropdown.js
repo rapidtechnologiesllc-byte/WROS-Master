@@ -24,7 +24,7 @@ export default function StatusDropdown({ statusData, onChange }) {
   return (
     <div style={{ position: "relative", display: "inline-block" }}>
       {statusData?.pipeline_status && (
-        <div onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}>
+        <div>
           <StatusBadge type="pipeline" value={statusData.pipeline_status} />
         </div>
       )}

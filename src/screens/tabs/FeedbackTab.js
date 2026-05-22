@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  createCandidateHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../../services/api/candidateHistory";
+import {
   getCandidateInterviewHistory,
   getFeedbackForInterview,
   submitInterviewFeedback,
@@ -68,9 +72,12 @@ const getFeedbackBreakdown = (feedbackList = []) => {
   const feedbackByInterviewerId = new Map();
 
   feedbackList.forEach((feedback) => {
-    const interviewerId = feedback?.interviewer_id;
-    if (!interviewerId) return;
+    const interviewerId =
+      feedback?.interviewer_id ||
+      feedback?.interviewer_email ||
+      feedback?.interviewer_name;
 
+    if (!interviewerId) return;
     feedbackByInterviewerId.set(interviewerId, feedback);
 
     if (isSkippedFeedback(feedback)) {
@@ -375,9 +382,20 @@ export default function FeedbackTab({
     setSkipError("");
   };
 
-  const completeInterviewIfAllPanelDone = async (interview) => {
+  const completeInterviewIfAllPanelDone = async (
+    interview,
+    feedbackForm = {},
+  ) => {
     const interviewId = getInterviewId(interview);
-    const panelMembers = panelMembersMap[interview?.panel_id] || [];
+    const panelMembersRes = await getPanelMembers(interview?.panel_id);
+
+    const panelMembers = Array.isArray(panelMembersRes)
+      ? panelMembersRes
+      : Array.isArray(panelMembersRes?.members)
+        ? panelMembersRes.members
+        : Array.isArray(panelMembersRes?.panel_members)
+          ? panelMembersRes.panel_members
+          : [];
 
     if (!interviewId || !panelMembers.length) return;
 
@@ -386,11 +404,54 @@ export default function FeedbackTab({
     const { doneInterviewerIds } = getFeedbackBreakdown(latestFeedbackList);
 
     const allPanelActionsDone = doneInterviewerIds.size >= panelMembers.length;
+    console.log("DONE IDS SIZE", doneInterviewerIds.size);
+    console.log("PANEL MEMBERS LENGTH", panelMembers.length);
+    console.log("ALL DONE?", allPanelActionsDone);
+    console.log("DONE IDS", [...doneInterviewerIds]);
+    console.log("PANEL MEMBERS", panelMembers);
 
     if (allPanelActionsDone) {
       await updateInterview(interviewId, {
         status: "Completed",
       });
+
+      const feedbackSummary = latestFeedbackList
+        .map((feedback, index) => {
+          return `${index + 1}. ${
+            feedback?.interviewer_name ||
+            feedback?.reviewer_name ||
+            feedback?.interviewer_id ||
+            "Interviewer"
+          }
+
+Recommendation: ${feedback?.recommendation || "N/A"}
+
+Comments:
+${feedback?.comments?.trim?.() || "No feedback comments provided."}`;
+        })
+        .join("\n\n");
+
+      const historyNote = `
+Round: ${interview?.panel_round_name || interview?.round_name || "Interview"}
+
+Panel Feedback:
+
+${feedbackSummary}
+`.trim();
+      try {
+        console.log("REACHED HISTORY CREATION");
+        const historyResponse = await createCandidateHistoryEvent(candidateId, {
+          event_type: HISTORY_EVENT_TYPES.INTERVIEW_COMPLETED,
+          note: historyNote,
+          interview_id: interviewId,
+          event_at:
+            interview?.end_time ||
+            interview?.start_time ||
+            new Date().toISOString(),
+        });
+      } catch (historyError) {
+        console.error("HISTORY CREATION FAILED", historyError);
+      }
     }
   };
 
@@ -427,9 +488,8 @@ export default function FeedbackTab({
         recommendation: form.recommendation,
       });
 
-      await completeInterviewIfAllPanelDone(selectedInterview);
       await fetchFeedbackData();
-
+      await completeInterviewIfAllPanelDone(selectedInterview, form);
       setSubmitNotice("Feedback submitted successfully");
       setSubmitNoticeType("success");
 
@@ -482,8 +542,8 @@ export default function FeedbackTab({
         recommendation: "Not sure",
       });
 
-      await completeInterviewIfAllPanelDone(selectedInterview);
       await fetchFeedbackData();
+      await completeInterviewIfAllPanelDone(selectedInterview);
       closeSkipModal();
     } catch (err) {
       console.error("Failed to skip feedback", err);
@@ -928,23 +988,32 @@ function SubmitFeedbackModal({
     culture_fit_score: 5,
     comments: "",
     recommendation: "",
+    interviewerName: "",
   });
 
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (loggedInInterviewerId) {
+      const selectedMember = panelMembers.find(
+        (member) =>
+          String(member?.interviewer_id) === String(loggedInInterviewerId),
+      );
+
       setForm((prev) => ({
         ...prev,
         interviewerId: loggedInInterviewerId,
+        interviewerName: selectedMember?.interviewer_name || "Interviewer",
       }));
+
       return;
     }
 
     if (panelMembers.length === 1) {
       setForm((prev) => ({
         ...prev,
-        interviewerId: panelMembers[0].interviewer_id || "",
+        interviewerId: panelMembers[0]?.interviewer_id || "",
+        interviewerName: panelMembers[0]?.interviewer_name || "Interviewer",
       }));
     }
   }, [loggedInInterviewerId, panelMembers]);
@@ -1054,7 +1123,18 @@ function SubmitFeedbackModal({
             <SelectField
               label="Interviewer"
               value={form.interviewerId}
-              onChange={(e) => handleChange("interviewerId", e.target.value)}
+              onChange={(e) => {
+                const selectedMember = panelMembers.find(
+                  (member) =>
+                    String(member?.interviewer_id) === String(e.target.value),
+                );
+                setForm((prev) => ({
+                  ...prev,
+                  interviewerId: e.target.value,
+                  interviewerName:
+                    selectedMember?.interviewer_name || "Interviewer",
+                }));
+              }}
               error={errors.interviewerId}
               disabled={Boolean(loggedInInterviewerId)}
             >

@@ -59,3 +59,22 @@ export const sendInterviewInvite = async ({
 
   return data;
 };
+
+export const sendMailAttachments = async ({
+  toEmail,
+  subject,
+  bodyContent,
+  files = [],
+}) => {
+  const { data } = await apiRequest("/email/send-with-attachments", {
+    method: "POST",
+    body: JSON.stringify({
+      to_email: toEmail,
+      subject,
+      body_content: bodyContent,
+      files: files,
+    }),
+  });
+
+  return data;
+};

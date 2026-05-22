@@ -429,7 +429,6 @@ export default function App() {
           getAllUsers(),
           getAllCandidateStatuses().catch(() => null),
         ]);
-
         if (!isMounted) return;
 
         setOffers(offersRes?.offers || []);
@@ -479,7 +478,8 @@ export default function App() {
     const canUseHrScreens =
       normalizedCurrentRole === "HR" ||
       normalizedCurrentRole === "ADMIN" ||
-      normalizedCurrentRole === "SUPER_USER";
+      normalizedCurrentRole === "SUPER_USER" ||
+      normalizedCurrentRole === "HR MANAGER";
     const canUseAdminScreens =
       normalizedCurrentRole === "ADMIN" ||
       normalizedCurrentRole === "SUPER_USER";
@@ -547,7 +547,6 @@ export default function App() {
     const res = await getCandidateById(id);
     return mapCandidateFromApi(res || {});
   };
-
   if (
     canAccessMyWorkspace({
       role: storedRole,
@@ -609,9 +608,33 @@ export default function App() {
               setScreen={safeSetScreen}
               setSelectedCandidate={setSelectedCandidateData}
             />
+          ) : screen === "candidateDetails" ? (
+            <CandidateDetailsScreen
+              candidate={selectedCandidateData}
+              defaultTab={candidateDetailsDefaultTab}
+              autoOpenSchedule={
+                screen === "candidateDetails" ? autoOpenSchedule : false
+              }
+              onBack={() => safeSetScreen("candidateSearch")}
+              onUpdateCandidate={async (candidateId, payload) => {
+                try {
+                  await updateCandidate(candidateId, payload);
+                  await refreshCandidates();
+                  notify("Candidate", "Candidate updated.");
+                } catch (err) {
+                  notify(
+                    "Candidate",
+                    err.message || "Failed to update candidate.",
+                  );
+                }
+              }}
+            />
+          ) : screen === "checklistTemplates" ? (
+            <ChecklistTemplatesScreen />
           ) : (
             <MyWorkspace onLogout={handleLogout} />
           )}
+          <ToastContainer position="top-right" autoClose={3000} />
         </Shell>
       </>
     );
@@ -782,10 +805,9 @@ export default function App() {
         />
       )}
 
-      {screen === "pre-onboarding" && (
+      {/* {screen === "pre-onboarding" && (
         <PreOnboardingPage candidates={candidates} />
-      )}
-      {/* {screen === "checklistTemplates" && <ChecklistTemplatesScreen />} */}
+      )} */}
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (
