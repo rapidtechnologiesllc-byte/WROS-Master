@@ -408,8 +408,6 @@ export default function CandidateSelfService({ onLogout }) {
             ...prev,
             ...myInfoResult.value,
             dob: myInfoResult.value.dob || prev.dob,
-            ...personalResult.value,
-            dob: personalResult.value.dob || prev.dob,
             submitted_at: today(),
           }));
         }
