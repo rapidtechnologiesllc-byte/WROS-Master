@@ -36,6 +36,7 @@ from app.models.checklist import (
 from app.models.ats import ATSScore
 from app.models.candidate_history import CandidateHistory
 from app.models.candidate_ownership import CandidateOwnership
+from app.models.internal_note import InternalNote
 
 __all__ = [
     # Base
@@ -81,5 +82,7 @@ __all__ = [
     "CandidateHistory",
     # Candidate Pool Ownership
     "CandidateOwnership",
+    # Internal HR Notes
+    "InternalNote",
 ]
 
