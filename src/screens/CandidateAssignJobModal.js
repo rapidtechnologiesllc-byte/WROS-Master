@@ -113,7 +113,9 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => ({
-      label: job?.title || job?.job_title || "Untitled Job",
+      label: `${job?.id || job?.job_id} - ${
+        job?.title || job?.job_title || "Untitled Job"
+      }`,
       value: job?.id || job?.job_id,
     }));
   }, [jobs]);
