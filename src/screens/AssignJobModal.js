@@ -50,7 +50,7 @@ const AssignJobModal = ({
       >
         <div className="w-full max-w-4xl max-h-[80vh] flex flex-col">
           <Card
-            title="Assign Candidate"
+            title="Submit Candidate"
             bodyClassName="px-2 py-4"
             right={
               <Button variant="ghost" onClick={onClose}>
@@ -94,7 +94,7 @@ const AssignJobModal = ({
                           }}
                           className="bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 disabled:opacity-60 rounded p-2"
                         >
-                          Assign Job
+                          Submit Candidate
                         </button>
                       </span>
                     ),

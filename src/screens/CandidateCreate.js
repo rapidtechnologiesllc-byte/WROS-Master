@@ -49,41 +49,10 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
-  const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
   const [employeeType, setEmployeeType] = useState("");
-
-  const jobOptions = [
-    { label: "Please select job", value: "", disabled: true },
-    ...(jobs?.map((job) => ({
-      label: job?.title,
-      value: job?.id,
-    })) || []),
-  ];
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchData = async () => {
-      try {
-        const refreshed = await getAllJobs();
-        if (!isMounted) return;
-        const mappedJobs = (refreshed?.jobs || []).map((j) =>
-          mapJobFromApi(j, users),
-        );
-        setJobs(mappedJobs);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const clearFieldError = (field) => {
     setErrors((prev) => {
@@ -131,17 +100,13 @@ export default function CandidateCreate({ onBack, onSave }) {
   };
 
   const inferExperienceRows = (text, nameLine = "", jobTitle = "") => {
-    console.log("inside the inferExperienceRows function");
     const normalized = String(text || "").replace(/\r/g, "\n");
     const lines = normalized
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
-      console.log(lines,"lines");
     const cleanName = (nameLine || "").toLowerCase().replace(/\s+/g, "");
-    console.log(cleanName,"cleanName")
     const cleanJob = (jobTitle || "").toLowerCase();
-    console.log(cleanJob,"cleanJob")
     const expStart = lines.findIndex((l) =>
       /^(experience|work experience|employment)\b/i.test(l),
     );
@@ -230,7 +195,6 @@ export default function CandidateCreate({ onBack, onSave }) {
       const inferredEducation = inferEducationRows(text);
       if (inferredEducation.length) setEducationRows(inferredEducation);
       const inferredExperience = inferExperienceRows(text, fields._nameLine);
-      console.log("inferredExperience }}}}}}}}}}}",inferredExperience)
       if (inferredExperience.length) setExperienceRows(inferredExperience);
       const filled = Object.keys(fields).filter((k) => fields[k]).length;
       setActionNotice(
@@ -258,10 +222,6 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setActionNotice("Please fill all required fields.");
-      return;
-    }
-    if (!selectedJobId.trim()) {
-      setActionNotice("Job ID is required.");
       return;
     }
     const filledEducationRows = educationRows.filter((row) =>
