@@ -8,6 +8,12 @@ import {
 } from "../services/api/candidateHistory";
 import { mapJobFromApi } from "../App";
 import { toast } from "react-toastify";
+import { Select } from "antd";
+import {
+  Label,
+  SelectWrapper,
+  StyledSelect,
+} from "../styles/CandidateAssignJobModalStyles";
 
 const getTodayDate = () => {
   const today = new Date();
@@ -113,7 +119,9 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => ({
-      label: job?.title || job?.job_title || "Untitled Job",
+      label: `${job?.id || job?.job_id} - ${
+        job?.title || job?.job_title || "Untitled Job"
+      }`,
       value: job?.id || job?.job_id,
     }));
   }, [jobs]);
@@ -381,15 +389,15 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
             <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-3">
               <SectionCard title="Basic Info">
-                <FormSelect
-                  label="Selected Job"
-                  required
-                  value={selectedJobId}
-                  onChange={setSelectedJobId}
-                  options={jobOptions}
-                  disabled={isLoadingJobs || isAssigning}
-                  placeholder={isLoadingJobs ? "Loading jobs..." : "Select job"}
-                />
+                <SelectWrapper>
+                  <Label>Selected Job</Label>
+                  <StyledSelect
+                    showSearch={{ optionFilterProp: "label" }}
+                    placeholder="Select a Job"
+                    onChange={setSelectedJobId}
+                    options={jobOptions}
+                  />
+                </SelectWrapper>
 
                 <FormInput
                   label="Submit To"

@@ -980,14 +980,6 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
         <div className="border-b">
           <div className="flex flex-wrap gap-2">
-            {/* {[
-              "profile",
-              "messages",
-              "feedback",
-              "documents",
-              "tasks",
-              "activity",
-            ].map((tab) => ( */}
             {candidateTabs.map((tab) => (
               <button
                 key={tab}
