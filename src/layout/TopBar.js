@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Settings, Eye, EyeOff } from "lucide-react";
+import { Bell, Settings, Eye, EyeOff, Search } from "lucide-react";
 import { Button } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
 
-export default function TopBar({ role, screen, setScreen, onLogout }) {
+export default function TopBar({
+  role,
+  screen,
+  setScreen,
+  onLogout,
+  candidates = [],
+  jobs = [],
+  setSelectedCandidateData,
+  setSelectedJobId,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -12,7 +21,10 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const dropdownRef = useRef(null);
+  const searchRef = useRef(null);
 
   const toggleProfile = () => setIsOpen(!isOpen);
   useEffect(() => {
@@ -30,6 +42,23 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
+  useEffect(() => {
+    const handleSearchOutsideClick = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleSearchOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleSearchOutsideClick);
+    };
+  }, []);
+  useEffect(() => {
+    setSearchTerm("");
+    setShowSearchResults(false);
+  }, [screen]);
 
   const handleViewProfile = async () => {
     try {
@@ -51,67 +80,192 @@ export default function TopBar({ role, screen, setScreen, onLogout }) {
     const map = {
       dashboard: ["Dashboard"],
       candidateSearch: ["Candidate Dashboard"],
-      candidateCreate: ["Candidates", "Create"],
+      jobs: ["Jobs"],
+      rbac: ["RBAC Settings"],
+      hrUsers: ["List of Users"],
     };
     return map[screen] || ["Dashboard"];
   }, [screen]);
+  const filteredCandidates = candidates
+    .filter((candidate) => {
+      const query = searchTerm.trim().toLowerCase();
+
+      return (
+        candidate.name?.toLowerCase().includes(query) ||
+        candidate.email?.toLowerCase().includes(query) ||
+        candidate.phone?.toLowerCase().includes(query)
+      );
+    })
+    .slice(0, 5);
+
+  const filteredJobs = jobs
+    .filter((job) => {
+      const query = searchTerm.trim().toLowerCase();
+
+      return (
+        job.title?.toLowerCase().includes(query) ||
+        job.location?.toLowerCase().includes(query) ||
+        job.skills?.some((skill) => skill.toLowerCase().includes(query))
+      );
+    })
+    .slice(0, 5);
 
   return (
     <>
       <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
         <div className="flex justify-between items-center">
-          <div>
-            <div className="text-base font-bold">
-              {crumbs[crumbs.length - 1]}
-            </div>
-            <div className="text-xs text-gray-500">{crumbs.join(" / ")}</div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Bell className="h-5 w-5 text-gray-500" />
-            <Settings className="h-5 w-5 text-gray-500" />
-
-            <div className="relative" ref={dropdownRef}>
-              <div
-                onClick={toggleProfile}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
-                  {localStorage.getItem("hrms_user_name")?.[0] || "U"}
-                </div>
-                <span>{localStorage.getItem("hrms_user_name")}</span>
+          <div className="flex w-full items-center">
+            <div className="min-w-fit">
+              <div className="text-base font-bold">
+                {crumbs[crumbs.length - 1]}
               </div>
+            </div>
 
-              {isOpen && (
-                <div className="absolute right-0 top-10 bg-white border rounded-lg shadow-md w-48">
-                  <p
-                    onClick={() => {
-                      handleViewProfile();
-                      setIsOpen(false);
-                    }}
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
-                  >
-                    View Profile
-                  </p>
+            <div ref={searchRef} className="relative ml-6 flex-1 max-w-2xl">
+              <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setShowSearchResults(true);
+                }}
+                onFocus={() => setShowSearchResults(true)}
+                placeholder="Search candidates or jobs..."
+                className="
+        w-full
+        rounded-xl
+        border
+        border-gray-200
+        bg-gray-50
+        pl-10 pr-4
+        py-2.5
+        text-sm
+        outline-none
+        transition-all
+        duration-200
+       focus:border-black focus:ring-2 focus:ring-gray-200
+        focus:bg-white
+      "
+              />
 
-                  <p
-                    onClick={() => {
-                      handleChangePassword();
-                      setIsOpen(false);
-                    }}
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
-                  >
-                    Change Password
-                  </p>
+              {showSearchResults && searchTerm && (
+                <div className="absolute top-14 z-50 max-h-96 w-full overflow-y-auto rounded-2xl border bg-white shadow-xl">
+                  {filteredCandidates.length > 0 && (
+                    <div className="border-b p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500">
+                        CANDIDATES
+                      </div>
 
-                  <p
-                    onClick={onLogout}
-                    className="p-2 text-red-500 hover:bg-gray-100 cursor-pointer"
-                  >
-                    Logout
-                  </p>
+                      {filteredCandidates.map((candidate) => (
+                        <button
+                          key={candidate.id}
+                          onClick={() => {
+                            setSelectedCandidateData(candidate);
+                            setScreen("candidateDetails");
+                            setShowSearchResults(false);
+                            setSearchTerm("");
+                          }}
+                          className="flex w-full flex-col rounded-xl px-3 py-2 text-left hover:bg-gray-50"
+                        >
+                          <span className="text-sm font-medium">
+                            {candidate.name}
+                          </span>
+
+                          <span className="text-xs text-gray-500">
+                            {candidate.email}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {filteredJobs.length > 0 && (
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500">
+                        JOBS
+                      </div>
+
+                      {filteredJobs.map((job) => (
+                        <button
+                          key={job.id}
+                          onClick={() => {
+                            setSelectedJobId(job.id);
+                            setScreen("jobWorkspace");
+                            setShowSearchResults(false);
+                            setSearchTerm("");
+                          }}
+                          className="flex w-full flex-col rounded-xl px-3 py-2 text-left hover:bg-gray-50"
+                        >
+                          <span className="text-sm font-medium">
+                            {job.title}
+                          </span>
+
+                          <span className="text-xs text-gray-500">
+                            {job.location}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {filteredCandidates.length === 0 &&
+                    filteredJobs.length === 0 && (
+                      <div className="px-4 py-6 text-center text-sm text-gray-500">
+                        No matching candidates or jobs found
+                      </div>
+                    )}
                 </div>
               )}
+            </div>
+
+            <div className="ml-auto flex items-center gap-3">
+              <Bell className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
+
+              <Settings className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
+
+              <div className="relative" ref={dropdownRef}>
+                <div
+                  onClick={toggleProfile}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
+                    {localStorage.getItem("hrms_user_name")?.[0] || "U"}
+                  </div>
+
+                  <span>{localStorage.getItem("hrms_user_name")}</span>
+                </div>
+
+                {isOpen && (
+                  <div className="absolute right-0 top-10 bg-white border rounded-lg shadow-md w-48">
+                    <p
+                      onClick={() => {
+                        handleViewProfile();
+                        setIsOpen(false);
+                      }}
+                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                    >
+                      View Profile
+                    </p>
+
+                    <p
+                      onClick={() => {
+                        handleChangePassword();
+                        setIsOpen(false);
+                      }}
+                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                    >
+                      Change Password
+                    </p>
+
+                    <p
+                      onClick={onLogout}
+                      className="p-2 text-red-500 hover:bg-gray-100 cursor-pointer"
+                    >
+                      Logout
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
