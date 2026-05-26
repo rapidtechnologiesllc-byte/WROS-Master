@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, Maximize2, Minus, Plus } from "lucide-react";
 import {
   getCandidateDocuments,
   verifyDocument,
@@ -126,6 +127,7 @@ export default function DocumentsTab({
     }
 
     setSelectedDocId(doc.id);
+    clearPreviewUrl();
 
     try {
       setPreviewLoadingId(doc.id);
@@ -209,8 +211,8 @@ HR Team`;
     }
 
     try {
-      setActionLoadingId(doc.id);
-      await verifyDocument(candidateId, doc.document_type, true);
+      setActionLoadingId(doc?.id);
+      await verifyDocument(candidateId, doc?.document_type, true);
 
       const emailResult = await notifyCandidateDocumentStatus({
         documentType: doc.document_type,
@@ -223,8 +225,8 @@ HR Team`;
 
       showNotice(
         emailResult.success
-          ? `${getDocumentLabel(doc.document_type)} approved and notification sent.`
-          : `${getDocumentLabel(doc.document_type)} approved, but ${emailResult.message}`,
+          ? `${getDocumentLabel(doc?.document_type)} approved and notification sent.`
+          : `${getDocumentLabel(doc?.document_type)} approved, but ${emailResult.message}`,
         emailResult.success ? "success" : "error",
       );
     } catch (err) {
@@ -452,8 +454,40 @@ function DocumentDetailsPanel({
   onVerify,
   onReject,
 }) {
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const viewerRef = useRef(null);
   const isVerified = Boolean(doc?.is_verified);
+  const isImageFile = /\.(jpg|jpeg|png|webp)$/i.test(
+    doc?.original_filename || "",
+  );
   const isRejected = !isVerified && Boolean(doc?.notes);
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 10, 200));
+  };
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(prev - 10, 50));
+  };
+  const handleFullscreen = async () => {
+    try {
+      if (document?.fullscreenElement) {
+        await document?.exitFullscreen?.();
+        return;
+      }
+      await viewerRef?.current?.requestFullscreen();
+    } catch (error) {
+      console.error("Fullscreen failed:", error);
+    }
+  };
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
   const submittedDetails = getSubmittedDetailsByDocumentType(
     doc?.document_type,
     candidateFullDetails,
@@ -466,7 +500,7 @@ function DocumentDetailsPanel({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-semibold text-gray-900">
-                {getDocumentLabel(doc.document_type)}
+                {getDocumentLabel(doc?.document_type)}
               </h3>
               <StatusBadge
                 status={
@@ -551,11 +585,84 @@ function DocumentDetailsPanel({
 
       <div className="flex-1 p-5">
         {previewUrl ? (
-          <iframe
-            src={previewUrl}
-            title={getDocumentLabel(doc.document_type)}
-            className="h-[58vh] w-full rounded-2xl border bg-white"
-          />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-2xl border bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border transition hover:bg-gray-50"
+                >
+                  <Minus size={16} />
+                </button>
+
+                <div className="min-w-[70px] text-center text-sm font-semibold text-gray-700">
+                  {zoomLevel}%
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border transition hover:bg-gray-50"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewUrl}
+                  download={doc?.original_filename || "document"}
+                  className="flex h-9 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition hover:bg-gray-50"
+                >
+                  <Download size={16} />
+                  Download
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleFullscreen}
+                  className="flex h-9 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition hover:bg-gray-50"
+                >
+                  <Maximize2 size={16} />
+                  Fullscreen
+                </button>
+              </div>
+            </div>
+
+            <div
+              ref={viewerRef}
+              className={`relative rounded-2xl border bg-gray-100 ${
+                isImageFile
+                  ? "flex h-[58vh] items-center justify-center overflow-auto p-6"
+                  : "overflow-hidden"
+              }`}
+            >
+              <div className="flex min-h-full min-w-full items-center justify-center p-6">
+                {isImageFile ? (
+                  <img
+                    src={previewUrl}
+                    alt={getDocumentLabel(doc?.document_type)}
+                    draggable={false}
+                    className="max-h-full max-w-full object-contain rounded-xl shadow-lg transition-transform duration-200"
+                    style={{
+                      transform: `scale(${zoomLevel / 100})`,
+                      transformOrigin: "center center",
+                    }}
+                  />
+                ) : (
+                  <iframe
+                    src={previewUrl}
+                    title={getDocumentLabel(doc?.document_type)}
+                    className="h-[70vh] w-full border-0 bg-white"
+                    style={{
+                      display: "block",
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex h-[58vh] flex-col items-center justify-center rounded-2xl border border-dashed bg-gray-50 text-center">
             <div className="text-sm font-semibold text-gray-700">
@@ -607,7 +714,7 @@ function RejectReasonModal({
           <p className="text-sm text-gray-600">
             You are about to reject{" "}
             <span className="font-semibold text-gray-900">
-              {getDocumentLabel(doc.document_type)}
+              {getDocumentLabel(doc?.document_type)}
             </span>
             . Please provide a reason.
           </p>
