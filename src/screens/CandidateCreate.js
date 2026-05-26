@@ -63,40 +63,86 @@ export default function CandidateCreate({ onBack, onSave }) {
     });
   };
 
-  const inferEducationRows = (text) => {
-    const normalized = String(text || "").replace(/\r/g, "\n");
-    const lines = normalized
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const eduStart = lines.findIndex((l) =>
-      /^(education|academic|academics)\b/i.test(l),
+  const inferEducationRows = (resumeText) => {
+    if (!resumeText) return [];
+
+    const text = resumeText
+      .replace(/\r/g, "\n")
+      .replace(/[•|]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const educationRegex = /(education|academic|academics|qualification)/i;
+    const educationMatch = text.match(educationRegex);
+    if (!educationMatch) return [];
+    let educationSection = text.slice(educationMatch.index);
+    const nextSectionRegex =
+      /(experience|work experience|projects|skills|certifications|summary|profile)/i;
+
+    const nextSectionMatch = educationSection.match(nextSectionRegex);
+
+    if (nextSectionMatch && nextSectionMatch.index > 50) {
+      educationSection = educationSection.slice(0, nextSectionMatch.index);
+    }
+    const degreeRegex =
+      /\b(B\.?\s?TECH|M\.?\s?TECH|B\.?\s?E|M\.?\s?E|BCA|MCA|BBA|MBA|BSC|MSC|SSC|HSC|10TH|12TH|PHD|DIPLOMA|BACHELOR OF TECHNOLOGY|MASTER OF TECHNOLOGY|BACHELOR OF COMPUTER APPLICATION|MASTER OF COMPUTER APPLICATION)\b/gi;
+
+    const degreeMatches = [...educationSection.matchAll(degreeRegex)];
+
+    if (!degreeMatches.length) return [];
+
+    const results = [];
+
+    for (let i = 0; i < degreeMatches.length; i++) {
+      const currentMatch = degreeMatches[i];
+      const start = currentMatch.index;
+      const end =
+        i + 1 < degreeMatches.length
+          ? degreeMatches[i + 1].index
+          : educationSection.length;
+      const block = educationSection.slice(start, end).trim();
+
+      if (!block) continue;
+      const degree = currentMatch[0].replace(/\s+/g, " ").toUpperCase();
+      let institute = "";
+      const instituteRegex =
+        /([A-Z][A-Za-z0-9,&().\- ]+(College|University|Institute|School)[A-Za-z0-9,&().\- ]*)/i;
+      const instituteMatch = block.match(instituteRegex);
+      if (instituteMatch) {
+        institute = instituteMatch[0].trim();
+      }
+      const yearMatches = block.match(/\b(19|20)\d{2}\b/g) || [];
+      let percentage = "";
+      const percentageRegex = /(\d+(\.\d+)?)\s*(%|CGPA|GPA|\/10)/i;
+      const percentageMatch = block.match(percentageRegex);
+      if (percentageMatch) {
+        percentage = percentageMatch[1];
+      }
+      let field_of_study = "";
+      const fieldRegex = /in\s([A-Za-z&\s]+)/i;
+      const fieldMatch = block.match(fieldRegex);
+      if (fieldMatch) {
+        field_of_study = fieldMatch[1].trim().replace(/\s+/g, " ");
+      }
+      results.push({
+        degree,
+        education_institute: institute,
+        starting_year: yearMatches[0] || "",
+        year_of_passing: yearMatches[1] || "",
+        field_of_study,
+        percentage,
+      });
+    }
+
+    const uniqueResults = results.filter(
+      (item, index, self) =>
+        index ===
+        self.findIndex(
+          (t) =>
+            t.degree === item.degree && t.starting_year === item.starting_year,
+        ),
     );
-    if (eduStart === -1) return [];
-    const windowLines = lines.slice(eduStart + 1, eduStart + 20);
-    const joined = windowLines.join(" ");
-    const degreeMatch = joined.match(
-      /(b\.?\s?tech|m\.?\s?tech|b\.?\s?e|m\.?\s?e|bca|mca|bsc|msc|mba|phd|diploma|bachelor|master)/i,
-    );
-    const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
-    const instituteLine = windowLines.find((l) =>
-      /(university|college|institute|school)/i.test(l),
-    );
-    if (!degreeMatch && !instituteLine) return [];
-    const startYear = years[0] || "";
-    const endYear = years.length > 1 ? years[1] : "";
-    return [
-      {
-        education_institute: instituteLine || "",
-        degree: degreeMatch
-          ? degreeMatch[0].toUpperCase().replace(/\s+/g, " ").trim()
-          : "",
-        field_of_study: "",
-        starting_year: startYear,
-        year_of_passing: endYear,
-        percentage: "",
-      },
-    ];
+
+    return uniqueResults;
   };
 
   const inferExperienceRows = (text, nameLine = "", jobTitle = "") => {
