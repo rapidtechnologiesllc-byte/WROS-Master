@@ -405,6 +405,13 @@ export default function App() {
         mapped = mergeCandidateStatuses(mapped, statusRes);
       }
       setCandidates(mapped);
+      setSelectedCandidateData((prev) => {
+        if (!prev?.id) return prev;
+        const updatedCandidate = mapped.find(
+          (candidate) => candidate.id === prev.id,
+        );
+        return updatedCandidate || prev;
+      });
     } catch (err) {
       notify("Candidates", err.message || "Failed to refresh candidates.");
     }
@@ -616,6 +623,8 @@ export default function App() {
                 screen === "candidateDetails" ? autoOpenSchedule : false
               }
               onBack={() => safeSetScreen("candidateSearch")}
+              onRefreshCandidates={refreshCandidates}
+              setSelectedCandidate={setSelectedCandidateData}
               onUpdateCandidate={async (candidateId, payload) => {
                 try {
                   await updateCandidate(candidateId, payload);
@@ -741,6 +750,8 @@ export default function App() {
               screen === "candidateDetails" ? autoOpenSchedule : false
             }
             onBack={() => safeSetScreen("candidateSearch")}
+            onRefreshCandidates={refreshCandidates}
+            setSelectedCandidate={setSelectedCandidateData}
             onUpdateCandidate={async (candidateId, payload) => {
               try {
                 await updateCandidate(candidateId, payload);
@@ -834,7 +845,13 @@ export default function App() {
           mode={jobCreateMode}
           initialJob={jobCreateMode === "view" ? selectedJob : null}
           onSave={(j) => {
-            setJobs((prev) => [j, ...prev]);
+            setJobs((prev) => [
+              {
+                ...j,
+                hiringManagerName: j?.hiringManager || "-",
+              },
+              ...prev,
+            ]);
             setSelectedJobId(j.id);
             notify("Job", `Created job ${j.title} (${j.id})`);
             safeSetScreen("jobDetails");
