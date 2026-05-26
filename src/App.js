@@ -646,6 +646,10 @@ export default function App() {
       screen={screen}
       setScreen={safeSetScreen}
       onLogout={handleLogout}
+      candidates={candidates}
+      jobs={jobs}
+      setSelectedCandidateData={setSelectedCandidateData}
+      setSelectedJobId={setSelectedJobId}
     >
       {screen === "dashboard" && (
         <Dashboard

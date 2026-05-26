@@ -404,11 +404,6 @@ export default function FeedbackTab({
     const { doneInterviewerIds } = getFeedbackBreakdown(latestFeedbackList);
 
     const allPanelActionsDone = doneInterviewerIds.size >= panelMembers.length;
-    console.log("DONE IDS SIZE", doneInterviewerIds.size);
-    console.log("PANEL MEMBERS LENGTH", panelMembers.length);
-    console.log("ALL DONE?", allPanelActionsDone);
-    console.log("DONE IDS", [...doneInterviewerIds]);
-    console.log("PANEL MEMBERS", panelMembers);
 
     if (allPanelActionsDone) {
       await updateInterview(interviewId, {
@@ -439,7 +434,6 @@ Panel Feedback:
 ${feedbackSummary}
 `.trim();
       try {
-        console.log("REACHED HISTORY CREATION");
         const historyResponse = await createCandidateHistoryEvent(candidateId, {
           event_type: HISTORY_EVENT_TYPES.INTERVIEW_COMPLETED,
           note: historyNote,
