@@ -936,12 +936,6 @@ HRMS Team`,
           </div>
         </div>
 
-        <div className="mt-4">
-          <label className="flex items-center gap-2 text-sm">
-            Send login email to candidate.
-          </label>
-        </div>
-
         <div className="mt-4 flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onBack}>
             Cancel

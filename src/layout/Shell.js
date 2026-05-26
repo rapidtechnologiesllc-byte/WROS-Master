@@ -18,7 +18,17 @@ import {
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
 
-export default function Shell({ role, screen, setScreen, onLogout, children }) {
+export default function Shell({
+  role,
+  screen,
+  setScreen,
+  onLogout,
+  children,
+  candidates = [],
+  jobs = [],
+  setSelectedCandidateData,
+  setSelectedJobId,
+}) {
   const normalizedRole = String(role || "")
     .trim()
     .toUpperCase();
@@ -92,6 +102,10 @@ export default function Shell({ role, screen, setScreen, onLogout, children }) {
             screen={screen}
             setScreen={setScreen}
             onLogout={onLogout}
+            candidates={candidates}
+            jobs={jobs}
+            setSelectedCandidateData={setSelectedCandidateData}
+            setSelectedJobId={setSelectedJobId}
           />
           <div className="mt-4">{children}</div>
         </main>
