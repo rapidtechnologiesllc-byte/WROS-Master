@@ -43,6 +43,7 @@ export default function CandidateSearch({
   setAutoOpenSchedule,
   onRefreshCandidates,
 }) {
+  console.log(candidates, "aaa");
   const [query, setQuery] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editCandidateId, setEditCandidateId] = useState("");
@@ -70,7 +71,7 @@ export default function CandidateSearch({
   }, []);
 
   useEffect(() => {
-    setCandidateList(candidates);
+    setCandidateList([...candidates]);
   }, [candidates]);
 
   const editingCandidate = useMemo(() => {
@@ -136,7 +137,7 @@ export default function CandidateSearch({
             c.id === candidateId
               ? {
                   ...c,
-                  status: candidateStatus?.status,
+                  accountStatus: candidateStatus?.status,
                   pipelineStatus: candidateStatus?.pipeline_status,
                 }
               : c,
@@ -162,7 +163,7 @@ export default function CandidateSearch({
             c.id === candidateId
               ? {
                   ...c,
-                  status: candidateStatus?.status,
+                  accountStatus: candidateStatus?.status,
                   pipelineStatus: candidateStatus?.pipeline_status,
                 }
               : c,

@@ -263,8 +263,6 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     if (!email.trim()) newErrors.email = "Email is required.";
-    if (!dob.trim()) newErrors.dob = "Date of Birth is required.";
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setActionNotice("Please fill all required fields.");
@@ -683,14 +681,14 @@ HRMS Team`,
           </div>
           <div>
             <Input
-              label="Date of Birth *"
+              label="Date of Birth"
               value={dob}
               onChange={(value) => {
                 setDob(value);
                 clearFieldError("dob");
               }}
               actionNotice={actionNotice}
-              error={errors.mobile}
+              error={errors.dob}
               type="date"
             />
             {errors.dob ? (
