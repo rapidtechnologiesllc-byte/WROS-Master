@@ -487,6 +487,7 @@ export default function App() {
       normalizedCurrentRole === "ADMIN" ||
       normalizedCurrentRole === "SUPER_USER" ||
       normalizedCurrentRole === "HR MANAGER";
+    normalizedCurrentRole === "HIRING MANAGER";
     const canUseAdminScreens =
       normalizedCurrentRole === "ADMIN" ||
       normalizedCurrentRole === "SUPER_USER";
@@ -500,9 +501,7 @@ export default function App() {
       return;
     }
     if (
-      (next === "activeJobs" ||
-        next === "interviewAnalytics" ||
-        next === "checklistTemplates") &&
+      (next === "activeJobs" || next === "interviewAnalytics") &&
       !canUseHrScreens
     ) {
       notify("Access", "This screen requires HR or Admin role.");
@@ -833,8 +832,14 @@ export default function App() {
             onAddCandidate={() => safeSetScreen("candidateCreate")}
             onOpenCandidate={(candidateId) => {
               setSelectedCandidateId(candidateId);
-              safeSetScreen("candidateSearch");
+              safeSetScreen("candidateDetails");
             }}
+            onFetchCandidateById={async (candidateId) => {
+              const res = await getCandidateById(candidateId);
+              return mapCandidateFromApi(res || {});
+            }}
+            setSelectedCandidate={setSelectedCandidateData}
+            setScreen={safeSetScreen}
           />
           <ToastContainer position="top-right" autoClose={3000} />
         </>
