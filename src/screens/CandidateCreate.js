@@ -145,67 +145,179 @@ export default function CandidateCreate({ onBack, onSave }) {
     return uniqueResults;
   };
 
-  const inferExperienceRows = (text, nameLine = "", jobTitle = "") => {
-    const normalized = String(text || "").replace(/\r/g, "\n");
-    const lines = normalized
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const cleanName = (nameLine || "").toLowerCase().replace(/\s+/g, "");
-    const cleanJob = (jobTitle || "").toLowerCase();
-    const expStart = lines.findIndex((l) =>
-      /^(experience|work experience|employment)\b/i.test(l),
-    );
-    if (expStart === -1) return [];
-    const windowLines = lines.slice(expStart + 1, expStart + 25);
-    const joined = windowLines.join(" ");
-    const years = joined.match(/\b(19|20)\d{2}\b/g) || [];
+  const inferExperienceRows = (resumeText) => {
+    if (!resumeText) return [];
 
-    let titleLine = "";
-    let companyLine = "";
-    for (let rawLine of windowLines) {
-      if (!rawLine) continue;
-      const line = rawLine.split(/[\|\-–]/)[0].trim();
-      const lower = line.toLowerCase();
-      const normalizedLine = lower.replace(/\s+/g, "");
-      if (cleanName && normalizedLine.includes(cleanName)) continue;
-      if (cleanJob && lower.includes(cleanJob)) continue;
-      if (/email|phone|mobile|linkedin|github|address/i.test(lower)) continue;
-      if (line.length < 3 || line.length > 80) continue;
-      if (!/[a-zA-Z]/.test(line)) continue;
-      if (
-        !titleLine &&
-        /(engineer|developer|analyst|consultant|manager|intern|designer|lead|architect)/i.test(
-          line,
-        )
-      ) {
-        titleLine = line;
-        continue;
-      }
-      if (
-        !companyLine &&
-        /(pvt|llp|ltd|inc|corp|technologies|solutions|systems|labs|company|services)/i.test(
-          line,
-        )
-      ) {
-        companyLine = line;
-        continue;
-      }
+    const text = String(resumeText)
+      .replace(/\r/g, "\n")
+      .replace(/[•▪◦·]/g, " ")
+      .replace(/\t/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const expRegex =
+      /(experience|work experience|professional experience|employment|career history)/i;
+    const expMatch = text.match(expRegex);
+
+    if (!expMatch) return [];
+    let experienceSection = text.slice(expMatch.index);
+    const stopRegex =
+      /(education|projects|skills|technical skills|certifications|achievements|summary)/i;
+    const stopMatch = experienceSection.match(stopRegex);
+
+    if (stopMatch && stopMatch.index > 100) {
+      experienceSection = experienceSection.slice(0, stopMatch.index);
+    }
+    const dateRangeRegex =
+      /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s?\d{4}|\d{1,2}\/\d{4})\s*[-–to]+\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s?\d{4}|\d{1,2}\/\d{4}|Present|Current)/gi;
+
+    const matches = [...experienceSection.matchAll(dateRangeRegex)];
+
+    if (!matches.length) return [];
+
+    const blocks = [];
+    for (let i = 0; i < matches.length; i++) {
+      const current = matches[i];
+
+      const start = Math.max(0, current.index - 150);
+
+      const end =
+        i + 1 < matches.length ? matches[i + 1].index : current.index + 300;
+
+      const block = experienceSection.slice(start, end);
+
+      blocks.push({
+        block,
+        dates: current[0],
+      });
     }
 
-    if (!titleLine && !companyLine) return [];
-    const startYear = years[0] || "";
-    const endYear = years.length > 1 ? years[1] : "";
-    return [
-      {
-        company_name: companyLine || "",
-        job_title: titleLine || "",
-        start_date: startYear ? `${startYear}-01-01` : "",
-        end_date: endYear ? `${endYear}-12-31` : "",
-        year_of_experience: "",
-      },
+    const titleKeywords = [
+      "engineer",
+      "developer",
+      "intern",
+      "analyst",
+      "consultant",
+      "manager",
+      "designer",
+      "architect",
+      "scientist",
+      "lead",
+      "trainee",
+      "specialist",
+      "associate",
+      "executive",
     ];
+
+    const results = [];
+
+    for (const item of blocks) {
+      const block = item.block;
+
+      const dates =
+        item.dates.match(
+          /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s?\d{4}\b|\b\d{1,2}\/\d{4}\b/gi,
+        ) || [];
+
+      const start_date = normalizeDate(dates[0]);
+
+      const end_date = normalizeDate(dates[1]);
+
+      let company_name = "";
+      const beforeDate = block.split(item.dates)[0].trim();
+
+      const possibleLines = beforeDate
+        .split(/[-–|]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (possibleLines.length) {
+        company_name = possibleLines[possibleLines.length - 1];
+      }
+      company_name = company_name.replace(/\s+/g, " ").trim();
+      let job_title = "";
+
+      const sentences = block.split(/[.!]/);
+
+      for (const sentence of sentences) {
+        const lower = sentence.toLowerCase();
+
+        if (titleKeywords.some((k) => lower.includes(k))) {
+          job_title = sentence
+            .replace(company_name, "")
+            .replace(item.dates, "")
+            .trim();
+
+          break;
+        }
+      }
+
+      let score = 0;
+
+      if (company_name) score++;
+      if (job_title) score++;
+      if (start_date) score++;
+
+      if (score < 2) continue;
+
+      results.push({
+        company_name,
+        job_title,
+        start_date,
+        end_date,
+      });
+    }
+
+    return results.filter(
+      (item, index, self) =>
+        index ===
+        self.findIndex(
+          (t) =>
+            t.company_name === item.company_name &&
+            t.start_date === item.start_date,
+        ),
+    );
   };
+
+  function normalizeDate(dateStr) {
+    if (!dateStr) return "";
+
+    const months = {
+      jan: "01",
+      feb: "02",
+      mar: "03",
+      apr: "04",
+      may: "05",
+      jun: "06",
+      jul: "07",
+      aug: "08",
+      sep: "09",
+      oct: "10",
+      nov: "11",
+      dec: "12",
+    };
+
+    dateStr = dateStr.trim();
+    if (/^\d{1,2}\/\d{4}$/.test(dateStr)) {
+      const [month, year] = dateStr.split("/");
+
+      return `${year}-${month.padStart(2, "0")}-01`;
+    }
+    const parts = dateStr.split(/\s+/);
+
+    if (parts.length >= 2) {
+      const month = months[parts[0].slice(0, 3).toLowerCase()] || "01";
+
+      const year = parts.find((p) => /\d{4}/.test(p)) || "0000";
+
+      return `${year}-${month}-01`;
+    }
+
+    if (/^\d{4}$/.test(dateStr)) {
+      return `${dateStr}-01-01`;
+    }
+
+    return "";
+  }
 
   const handleResumeFileChange = async (event) => {
     const file = event.target.files?.[0] || null;
@@ -237,7 +349,6 @@ export default function CandidateCreate({ onBack, onSave }) {
       if (fields.experience) setExperience(fields.experience);
       if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
       if (fields?.jobTitle) setJobName(fields?.jobTitle);
-      // Best-effort defaults for structured sections from resume text.
       const inferredEducation = inferEducationRows(text);
       if (inferredEducation.length) setEducationRows(inferredEducation);
       const inferredExperience = inferExperienceRows(text, fields._nameLine);
@@ -263,7 +374,6 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     if (!email.trim()) newErrors.email = "Email is required.";
-    if (!dob.trim()) newErrors.dob = "Date of Birth is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -655,9 +765,15 @@ HRMS Team`,
               label="Mobile *"
               value={mobile}
               onChange={(value) => {
-                setMobile(value);
+                let cleanedValue = value.replace(/\D/g, "");
+                if (cleanedValue.startsWith("91") && cleanedValue.length > 10) {
+                  cleanedValue = cleanedValue.slice(2);
+                }
+                cleanedValue = cleanedValue.slice(0, 10);
+                setMobile(cleanedValue);
                 clearFieldError("mobile");
               }}
+              type="tel"
               actionNotice={actionNotice}
               error={errors.mobile}
             />
@@ -683,19 +799,14 @@ HRMS Team`,
           </div>
           <div>
             <Input
-              label="Date of Birth *"
+              label="Date of Birth"
               value={dob}
               onChange={(value) => {
                 setDob(value);
                 clearFieldError("dob");
               }}
-              actionNotice={actionNotice}
-              error={errors.mobile}
               type="date"
             />
-            {errors.dob ? (
-              <div className="mt-1 text-xs text-red-500">{errors.dob}</div>
-            ) : null}
           </div>
           <Input label="Source" value={source} onChange={setSource} />
           <Input
@@ -719,6 +830,15 @@ HRMS Team`,
             label="Current Location"
             value={currentLocation}
             onChange={setCurrentLocation}
+          />
+
+          <Input
+            label="Availability Date"
+            value={joiningDate}
+            onChange={(value) => {
+              setJoiningDate(value);
+            }}
+            type="date"
           />
         </div>
 
