@@ -7,7 +7,10 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import HistoryTab from "./tabs/HistoryTab";
 import CandidateEditModal from "./CandidateEditModal";
-import { getCandidateStatus } from "../services/api/candidateStatus";
+import {
+  getCandidateStatus,
+  updateCandidateStatus,
+} from "../services/api/candidateStatus";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -92,6 +95,8 @@ export default function CandidateDetailsScreen({
   candidate,
   onBack,
   onUpdateCandidate,
+  onRefreshCandidates,
+  setSelectedCandidate,
   limitedMode = false,
   defaultTab = "profile",
   autoOpenSchedule = false,
@@ -645,10 +650,13 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
+      const performedBy =
+        localStorage?.getItem?.("hrms_user_name") || "HR User";
       await createCandidateHistoryEvent(candidate?.id, {
         event_type: HISTORY_EVENT_TYPES.INTERVIEW_SCHEDULED,
         note: `${scheduleForm?.roundName?.trim?.() || "Interview"} scheduled for ${scheduleForm?.interviewDate || "-"} from ${scheduleForm?.startTime || "-"} to ${scheduleForm?.endTime || "-"} (${scheduleType || "online"}).`,
         interview_id: interviewId,
+        performed_by_name: performedBy,
         event_at: computedDateTime?.startDateTime,
       });
       const resumeLink = await getCandidateResumeLink();
@@ -778,6 +786,33 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
   const openOfferModal = () => {
     setPreonboardingModal(true);
   };
+  const handleArchiveToggle = async () => {
+    try {
+      const currentStatus = candidate?.accountStatus || statusData?.status;
+      const nextStatus = currentStatus === "Inactive" ? "Active" : "Inactive";
+      const response = await updateCandidateStatus(candidate?.id, {
+        status: nextStatus,
+      });
+      if (response?.status === "success") {
+        setStatusData((prev) => ({
+          ...prev,
+          status: nextStatus,
+        }));
+        candidate.accountStatus = nextStatus;
+        await onRefreshCandidates?.();
+        setUpdatedStatus(Date.now());
+        showNotice(
+          nextStatus === "Inactive"
+            ? "Candidate archived successfully"
+            : "Candidate unarchived successfully",
+          "success",
+        );
+      }
+    } catch (error) {
+      console.error("Failed to update candidate status", error);
+      showNotice("Failed to update candidate status", "error");
+    }
+  };
 
   return (
     <>
@@ -829,9 +864,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                   )}
 
                   {statusData?.pipeline_status && (
-                    <StatusDropdown
-                      statusData={statusData}
-                    />
+                    <StatusDropdown statusData={statusData} />
                   )}
                 </div>
 
@@ -880,6 +913,21 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
               {canShowFullActions && (
                 <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleArchiveToggle}
+                    className={`h-[46px] transition-all duration-200 ${
+                      (candidate?.accountStatus || statusData?.status) ===
+                      "Inactive"
+                        ? "border-green-100 bg-green-50 text-green-700 hover:border-green-200 hover:bg-green-100"
+                        : "border-red-100 bg-red-50 text-red-700 hover:border-red-200 hover:bg-red-100"
+                    }`}
+                  >
+                    {(candidate?.accountStatus || statusData?.status) ===
+                    "Inactive"
+                      ? "Unarchive"
+                      : "Archive"}
+                  </Button>
                   <div className="relative" ref={scheduleMenuRef}>
                     <Button
                       onClick={() => setShowScheduleMenu((prev) => !prev)}

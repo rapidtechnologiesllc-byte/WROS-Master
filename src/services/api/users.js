@@ -76,3 +76,25 @@ export const changeHrMePassword = async ({
   });
   return data;
 };
+export const searchUsers = async ({
+  permission_role,
+  skip = 0,
+  limit = 50,
+} = {}) => {
+  const params = new URLSearchParams();
+
+  if (permission_role?.trim()) {
+    params.set("permission_role", permission_role.trim());
+  }
+
+  params.set("skip", String(skip));
+  params.set("limit", String(limit));
+
+  const query = params.toString();
+
+  const { data } = await apiRequest(`/hr/users/search?${query}`, {
+    method: "GET",
+  });
+
+  return data;
+};

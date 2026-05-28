@@ -286,6 +286,8 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
         submitJobPayload,
       );
       if (result?.status === 201) {
+        const performedBy =
+          localStorage?.getItem?.("hrms_user_name") || "HR User";
         const historyNote = `Candidate submitted to ${
           selectedJob?.title || selectedJob?.job_title || "selected job"
         }.`;
@@ -293,11 +295,11 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
           formData?.submittalDate && formData?.submittalTime
             ? `${formData.submittalDate}T${formData.submittalTime}:00`
             : new Date().toISOString();
-
         await createCandidateHistoryEvent(candidateDetails?.id, {
           event_type: HISTORY_EVENT_TYPES.APPLIED,
           note: historyNote,
           job_id: selectedJob?.id || selectedJob?.job_id || selectedJobId,
+          performed_by_name: performedBy,
           event_at: appliedDateTime,
         });
         toast.success("Job submitted successfully ✅");
@@ -888,7 +890,7 @@ function UdfModal({ udfData, onChange, onClose }) {
 function UdfInput({ label, value, onChange, type = "text" }) {
   return (
     <div>
-      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-red-600">
+      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-gray-700">
         {label}
       </label>
 
@@ -905,7 +907,7 @@ function UdfInput({ label, value, onChange, type = "text" }) {
 function UdfSelect({ label, value, onChange, options = [] }) {
   return (
     <div>
-      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-red-600">
+      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-gray-700">
         {label}
       </label>
 
