@@ -374,7 +374,6 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     if (!email.trim()) newErrors.email = "Email is required.";
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setActionNotice("Please fill all required fields.");
@@ -702,7 +701,6 @@ HRMS Team`,
             label="Job Title"
             value={jobName}
             onChange={setJobName}
-            actionNotice={actionNotice}
           />
           <div>
             <Input
