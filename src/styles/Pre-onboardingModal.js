@@ -272,6 +272,19 @@ const FormStepContainer = styled.div`
   background: #fff;
 `;
 
+const ContactPersonDiv = styled.div`
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const NameDiv = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+`;
+
 export {
   StepperDiv,
   Span,
@@ -305,4 +318,6 @@ export {
   PreviewTopBar,
   DocumentPaper,
   FormStepContainer,
+  ContactPersonDiv,
+  NameDiv,
 };

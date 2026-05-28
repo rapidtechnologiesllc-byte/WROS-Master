@@ -18,6 +18,7 @@ import {
   CandidateRole,
   CandidateWrapper,
   CheckBoxesDiv,
+  ContactPersonDiv,
   Content,
   DateText,
   DetailItem,
@@ -31,13 +32,13 @@ import {
   IconDiv,
   Label,
   Name,
+  NameDiv,
   PreviewLayout,
   PreviewTopBar,
   Role,
   SectionTitle,
   Span,
   StepperDiv,
-  StyledCollapse,
   Title,
   UserInfo,
   Value,
@@ -98,6 +99,8 @@ const PreonboardingModal = ({
   const isRendering = useRef(false);
   const { Panel } = Collapse;
   const [form] = Form.useForm();
+  const localName = localStorage.getItem("hrms_user_name");
+  const localEmail = localStorage.getItem("hrms_user_email");
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
@@ -191,25 +194,6 @@ const PreonboardingModal = ({
   const onDateChange = (date, dateString) => {
     setJoiningDate(dateString);
   };
-  //REQUIRE THIS FOR IMPLEMENTING OFFER FLOW
-  // const handleSaveOnly = async () => {
-  //   try {
-  //     const updateStatus = await updateCandidateStatus(candidate?.id, {
-  //       status: "Active",
-  //       pipeline_status: status,
-  //     });
-  //     if (updateStatus?.status === "success") {
-  //       toast.success(
-  //         `Candidate ${updateStatus?.data?.candidate_name} moved to ${status}`,
-  //       );
-  //       onSuccess?.(status);
-  //     }
-  //   } catch (err) {
-  //     toast.error("Error", err.message);
-  //   } finally {
-  //     onClose();
-  //   }
-  // };
 
   const next = () => {
     if (current < 1) {
@@ -291,6 +275,15 @@ const PreonboardingModal = ({
 
   const offerLetterHandler = async () => {
     try {
+      if (!joiningDate) {
+        toast.error("Enter Joining Date");
+        return;
+      }
+      if (!salaryText) {
+        toast.error("Enter Salary");
+        return;
+      }
+      setIsSaving(true);
       const payload = {
         candidateId: candidate?.id,
         jobId: selectedJobId,
@@ -318,6 +311,8 @@ const PreonboardingModal = ({
       }
     } catch (err) {
       toast.error(err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -335,6 +330,19 @@ const PreonboardingModal = ({
     //    subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
     //    bodyContent: OfferConfirmationEmail(fullName,candidate?.jobTitle,"BlitzenX",selectedJobId,worker,)
     //  });
+  };
+
+  const getInitials = (name = "") => {
+    const parts = name.trim().split(/\s+/);
+
+    if (parts.length === 1) {
+      return parts[0][0]?.toUpperCase();
+    }
+
+    const first = parts[0][0];
+    const last = parts[parts.length - 1][0];
+
+    return (first + last).toUpperCase();
   };
 
   const renderStepContent = () => {
@@ -523,11 +531,14 @@ const PreonboardingModal = ({
           <PreviewLayout>
             <PreviewTopBar>
               <div className="grid gap-4 md:grid-cols-2 w-full">
-                <Select
-                  label="Select a contact person for this offer"
-                  options={[]}
-                  onChange={() => {}}
-                />
+                <span>Contact person for this Offer</span>
+                <ContactPersonDiv>
+                  <Avatar size={48}>{getInitials(localName)}</Avatar>
+                  <NameDiv>
+                    <span>{localName}</span>
+                    <span>{localEmail}</span>
+                  </NameDiv>
+                </ContactPersonDiv>
               </div>
             </PreviewTopBar>
             <DocumentViewer>
@@ -571,7 +582,6 @@ const PreonboardingModal = ({
           <div className="mt-6">
             <Steps
               current={current}
-              onChange={onChange}
               items={[{ title: "Job Details" }, { title: "Preview & Approve" }]}
             />
           </div>
