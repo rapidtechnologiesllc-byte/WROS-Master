@@ -18,20 +18,22 @@ import {
   CandidateRole,
   CandidateWrapper,
   CheckBoxesDiv,
-  Container,
   Content,
   DateText,
   DetailItem,
   DetailsGrid,
+  DocumentPaper,
+  DocumentViewer,
+  EmptyState,
+  FormStepContainer,
   Header,
   HeaderRow,
   IconDiv,
   Label,
   Name,
-  PreviewBox,
+  PreviewLayout,
+  PreviewTopBar,
   Role,
-  ScrollContainer,
-  Section,
   SectionTitle,
   Span,
   StepperDiv,
@@ -339,7 +341,7 @@ const PreonboardingModal = ({
     switch (current) {
       case 0:
         return (
-          <>
+          <FormStepContainer>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
               <Input label="Personal Email" value={email} onChange={setEmail} />
               <Input
@@ -514,41 +516,30 @@ const PreonboardingModal = ({
                 <div>Add</div>
               </BonusButtonDiv>
             </div>
-          </>
+          </FormStepContainer>
         );
       case 1:
         return (
-          <Container>
-            <ScrollContainer>
-              <Section>
-                <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-                  <Select
-                    label="Select a contact person for this offer"
-                    options={[]}
-                    onChange={() => {}}
-                  />
-                  <div></div>
-                </div>
-              </Section>
-              <Section>
-                <Title>Template preview</Title>
-                <PreviewBox
-                  style={{
-                    height: "700px",
-                    overflow: "auto",
-                    background: "#f5f5f5",
-                    padding: "20px",
-                  }}
-                >
-                  {docBlob ? (
-                    <DocxViewer blob={docBlob} />
-                  ) : (
-                    <div>No document available</div>
-                  )}
-                </PreviewBox>
-              </Section>
-            </ScrollContainer>
-          </Container>
+          <PreviewLayout>
+            <PreviewTopBar>
+              <div className="grid gap-4 md:grid-cols-2 w-full">
+                <Select
+                  label="Select a contact person for this offer"
+                  options={[]}
+                  onChange={() => {}}
+                />
+              </div>
+            </PreviewTopBar>
+            <DocumentViewer>
+              {docBlob ? (
+                <DocumentPaper>
+                  <DocxViewer blob={docBlob} />
+                </DocumentPaper>
+              ) : (
+                <EmptyState>No document available</EmptyState>
+              )}
+            </DocumentViewer>
+          </PreviewLayout>
         );
       default:
         return null;
@@ -556,70 +547,55 @@ const PreonboardingModal = ({
   };
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-50 flex justify-center bg-black/40 p-4 overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="w-full max-w-4xl max-h-[75vh] flex flex-col">
-          <Card
-            title="Initia Pre-Onboarding Process"
-            bodyClassName="px-2 py-4 flex flex-col overflow-hidden max-h-[75vh]"
-            right={
-              <Button variant="ghost" onClick={onClose}>
-                Close
-              </Button>
-            }
-          >
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-6xl h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="shrink-0 border-b bg-white px-6 py-4">
+          <div className="flex items-start justify-between">
             <div>
-              <span className="px-4">
-                Preonboarding and Offer Process will be initiated for{" "}
-                <span style={{ fontSize: "16px", fontWeight: "bold" }}>
-                  {fullName}
-                </span>
-              </span>
+              <h2 className="text-lg font-semibold">
+                Initial Pre-Onboarding Process
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Preboarding and Offer Process will be initiated for{" "}
+                <span className="font-semibold text-black">{fullName}</span>
+              </p>
             </div>
-
-            <StepperDiv>
-              <Steps
-                current={current}
-                onChange={onChange}
-                items={[
-                  { title: "Job Details" },
-                  { title: "Preview & Approve" },
-                ]}
-              />
-            </StepperDiv>
-            <div
-              className="mt-6 flex-1 overflow-y-auto pr-2"
-              style={{ marginTop: 24 }}
-            >
-              {renderStepContent()}
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={prev}
-                disabled={current === 0}
-              >
-                Back
-              </Button>
-              <Button
-                onClick={current === 1 ? sendEmailOffer : offerLetterHandler}
-                disabled={isSaving}
-              >
-                {isSaving
-                  ? "Saving..."
-                  : current === 1
-                    ? "Generate Offer"
-                    : "Continue"}
-              </Button>
-            </div>
-          </Card>
+            <Button variant="ghost" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+          <div className="mt-6">
+            <Steps
+              current={current}
+              onChange={onChange}
+              items={[{ title: "Job Details" }, { title: "Preview & Approve" }]}
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {renderStepContent()}
+        </div>
+        <div className="shrink-0 border-t bg-white px-6 py-4 flex justify-end gap-3">
+          <Button variant="secondary" onClick={prev} disabled={current === 0}>
+            Back
+          </Button>
+          <Button
+            onClick={current === 1 ? sendEmailOffer : offerLetterHandler}
+            disabled={isSaving}
+          >
+            {isSaving
+              ? "Saving..."
+              : current === 1
+                ? "Generate Offer"
+                : "Continue"}
+          </Button>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
