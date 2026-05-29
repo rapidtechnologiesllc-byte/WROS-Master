@@ -43,7 +43,6 @@ export default function CandidateSearch({
   setAutoOpenSchedule,
   onRefreshCandidates,
 }) {
-  console.log(candidates, "aaa");
   const [query, setQuery] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editCandidateId, setEditCandidateId] = useState("");

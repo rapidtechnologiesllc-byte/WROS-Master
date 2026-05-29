@@ -36,7 +36,6 @@ import {
   uploadSalarySlip,
   uploadBankStatement,
   getMyDocuments,
-  viewDocument,
 } from "../services/api/documents";
 import { getActiveJobs, applyForJob } from "../services/api/jobs";
 import {
@@ -200,18 +199,6 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
-
-  const handleViewDocument = async (documentId) => {
-    try {
-      const { blob } = await viewDocument(documentId);
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
-    } catch (err) {
-      showNotice(err.message || "Failed to view document.");
-    }
-  };
-
   const handleApplyForJob = async (jobId) => {
     if (!jobId) return;
 
@@ -391,8 +378,8 @@ export default function CandidateSelfService({ onLogout }) {
           getCandidateMyInfo(),
           listCandidateEducation(),
           listCandidateExperience(),
-          getCandidateAadhar(),
-          getCandidatePan(),
+          // getCandidateAadhar(),
+          // getCandidatePan(),
           getCandidateOnboardingStatus(),
           getMyOffers(),
           getMyDocuments(),
@@ -1013,144 +1000,6 @@ export default function CandidateSelfService({ onLogout }) {
           </Card>
         ) : null}
 
-        {onboardingStatus ? (
-          <Card title="Onboarding Status">
-            <div className="grid gap-3 md:grid-cols-1">
-              <div>
-                <div className="text-xs text-slate-500">Overall completion</div>
-                <div className="text-lg font-semibold">
-                  {Number(onboardingStatus.overall_completion || 0).toFixed(0)}%
-                </div>
-              </div>
-            </div>
-
-            {onboardingStatus.forms_status ? (
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {Object.entries(onboardingStatus.forms_status).map(
-                  ([key, value]) => (
-                    <div
-                      key={key}
-                      className="rounded-lg border bg-slate-50 px-3 py-2 text-xs"
-                    >
-                      <div className="font-semibold">
-                        {String(key).replace(/_/g, " ")}
-                      </div>
-                      <div>Completed: {value?.completed ? "Yes" : "No"}</div>
-                      {"verified" in (value || {}) ? (
-                        <div>Verified: {value?.verified ? "Yes" : "No"}</div>
-                      ) : null}
-                      {"count" in (value || {}) ? (
-                        <div>Count: {value?.count ?? 0}</div>
-                      ) : null}
-                    </div>
-                  ),
-                )}
-              </div>
-            ) : null}
-          </Card>
-        ) : null}
-
-        <Card title="Jobs & Apply">
-          <div className="space-y-3">
-            {activeJobs?.length ? (
-              activeJobs.slice(0, 10).map((j) => (
-                <div key={j.job_id} className="rounded-lg border bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">{j.job_title}</div>
-                      <div className="text-xs text-slate-600">
-                        {j.job_location || "—"} • {j.company_name || "—"}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <StatusBadge
-                          status={normalizeJobStatus(j.job_status)}
-                        />
-                        <span className="text-xs text-slate-500">
-                          {j.job_id}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={() => handleApplyForJob(j.job_id)}
-                      disabled={!profile?.candidate_mobile}
-                    >
-                      Apply
-                    </Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-slate-600">
-                No active jobs right now.
-              </div>
-            )}
-
-            <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
-              <div className="mb-2 font-semibold text-slate-700">
-                Optional: Resume for application
-              </div>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={(e) => setJobResumeFile(e.target.files?.[0] || null)}
-              />
-              <div className="mt-1">
-                {jobResumeFile
-                  ? `Selected: ${jobResumeFile.name}`
-                  : "No resume selected."}
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-500">
-              Jobs list is sourced from the public “active/public” jobs
-              endpoint.
-            </div>
-          </div>
-        </Card>
-
-        <Card title="My Documents">
-          <div className="space-y-2">
-            {myDocuments?.documents?.length ? (
-              myDocuments.documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3"
-                >
-                  <div>
-                    <div className="text-sm font-semibold">
-                      {DOC_LABELS[doc.document_type] || doc.document_type}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {doc.original_filename} •{" "}
-                      {doc.uploaded_at
-                        ? new Date(doc.uploaded_at).toLocaleDateString()
-                        : "-"}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <StatusBadge
-                      status={doc.is_verified ? "Verified" : "Pending"}
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleViewDocument(doc.id)}
-                      disabled={!doc.id}
-                    >
-                      View
-                    </Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-slate-600">
-                No documents uploaded yet.
-              </div>
-            )}
-          </div>
-        </Card>
-
         <Card title="Personal Information">
           <div className="grid gap-3 md:grid-cols-2">
             <Input
@@ -1223,7 +1072,6 @@ export default function CandidateSelfService({ onLogout }) {
             </Button>
           </div>
         </Card>
-
         <Card title="Education">
           <div className="space-y-4">
             {education.map((row, idx) => (
@@ -1599,6 +1447,86 @@ export default function CandidateSelfService({ onLogout }) {
             >
               Save Experience
             </Button>
+          </div>
+        </Card>
+
+        {onboardingStatus ? (
+          <Card title="Onboarding Status">
+            <div className="grid gap-3 md:grid-cols-1">
+              <div>
+                <div className="text-xs text-slate-500">Overall completion</div>
+                <div className="text-lg font-semibold">
+                  {Number(onboardingStatus.overall_completion || 0).toFixed(0)}%
+                </div>
+              </div>
+            </div>
+
+            {onboardingStatus.forms_status ? (
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {Object.entries(onboardingStatus.forms_status).map(
+                  ([key, value]) => (
+                    <div
+                      key={key}
+                      className="rounded-lg border bg-slate-50 px-3 py-2 text-xs"
+                    >
+                      <div className="font-semibold">
+                        {String(key).replace(/_/g, " ")}
+                      </div>
+                      <div>Completed: {value?.completed ? "Yes" : "No"}</div>
+                      {"verified" in (value || {}) ? (
+                        <div>Verified: {value?.verified ? "Yes" : "No"}</div>
+                      ) : null}
+                      {"count" in (value || {}) ? (
+                        <div>Count: {value?.count ?? 0}</div>
+                      ) : null}
+                    </div>
+                  ),
+                )}
+              </div>
+            ) : null}
+          </Card>
+        ) : null}
+        <Card title="My Documents">
+          <div className="space-y-2">
+            {myDocuments?.documents?.length ? (
+              myDocuments.documents.map((doc) => {
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold">
+                        {DOC_LABELS[doc.document_type] || doc.document_type}
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        {doc.original_filename} •{" "}
+                        {doc.uploaded_at
+                          ? new Date(doc.uploaded_at).toLocaleDateString()
+                          : "-"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        status={
+                          doc.is_verified
+                            ? "Verified"
+                            : doc.notes
+                              ? "Rejected"
+                              : "Pending"
+                        }
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-sm text-slate-600">
+                No documents uploaded yet.
+              </div>
+            )}
           </div>
         </Card>
 
