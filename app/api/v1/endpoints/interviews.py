@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -66,7 +66,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
       3. Every piece of feedback across ALL those completed interviews has
          recommendation in {"Hire", "Must Hire"}.
 
-    If all conditions pass, the pipeline status is moved to 'Approval' and
+    If all conditions pass, the pipeline status is moved to 'Pre-onboarding-Approval' and
     the hiring manager receives an email notification.
     """
     HIRE_RECOMMENDATIONS = {"Hire", "Must Hire"}
@@ -108,9 +108,9 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
             if fb.recommendation not in HIRE_RECOMMENDATIONS:
                 return
 
-    # --- All conditions met → auto-promote to 'Approval' ---
+    # --- All conditions met → auto-promote to 'Pre-onboarding-Approval' ---
     old_status = cs.piplineStatus
-    cs.piplineStatus = "Approval"
+    cs.piplineStatus = "Pre-onboarding-Approval"
 
     # Log history
     db.add(CandidateHistory(
@@ -128,7 +128,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
 
     logger.info(
         f"[AutoHire] Candidate '{candidate_id}' promoted "
-        f"'{old_status}' → 'Approval' after {len(completed_interviews)} completed interviews."
+        f"'{old_status}' → 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."
     )
 
     # --- Notify the hiring manager ---
@@ -142,19 +142,41 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     hiring_manager_email: str | None = None
     hiring_manager_name: str = "Hiring Manager"
 
-    # Try assignment table first
-    assignment = (
-        db.query(CandidateAssignment)
-        .filter(CandidateAssignment.candidate_id == candidate_id)
+    # Priority 1: HM from the job linked to the interview's panel
+    # (the panel now stores the job the candidate was interviewed for)
+    panel = (
+        db.query(InterviewPanel)
+        .filter(InterviewPanel.id == interview.panel_id)
         .first()
     )
-    if assignment and assignment.hiring_manager_id:
-        hm = db.query(Users).filter(Users.UserID == assignment.hiring_manager_id).first()
-        if hm:
-            hiring_manager_email = hm.UserEmail
-            hiring_manager_name = hm.UserName or "Hiring Manager"
+    if panel and panel.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+        if job and job.hiringManagerID:
+            hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
+            if hm:
+                hiring_manager_email = hm.UserEmail
+                hiring_manager_name = hm.UserName or "Hiring Manager"
+                logger.info(
+                    f"[AutoHire] HM resolved from panel job '{panel.job_id}': {hiring_manager_email}"
+                )
 
-    # Fallback: look up via the job
+    # Priority 2: CandidateAssignment table
+    if not hiring_manager_email:
+        assignment = (
+            db.query(CandidateAssignment)
+            .filter(CandidateAssignment.candidate_id == candidate_id)
+            .first()
+        )
+        if assignment and assignment.hiring_manager_id:
+            hm = db.query(Users).filter(Users.UserID == assignment.hiring_manager_id).first()
+            if hm:
+                hiring_manager_email = hm.UserEmail
+                hiring_manager_name = hm.UserName or "Hiring Manager"
+                logger.info(
+                    f"[AutoHire] HM resolved from CandidateAssignment: {hiring_manager_email}"
+                )
+
+    # Priority 3: job linked directly to the candidate record
     if not hiring_manager_email and candidate and candidate.job_id:
         job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
         if job and job.hiringManagerID:
@@ -162,6 +184,9 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
             if hm:
                 hiring_manager_email = hm.UserEmail
                 hiring_manager_name = hm.UserName or "Hiring Manager"
+                logger.info(
+                    f"[AutoHire] HM resolved from candidate.job_id '{candidate.job_id}': {hiring_manager_email}"
+                )
 
     if hiring_manager_email:
         try:
@@ -186,105 +211,161 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
 
 def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
     """
-    Register (or replace) a one-shot APScheduler job that fires 1 hour before
-    the interview to send reminder emails to the candidate and all panel members.
+    Register (or replace) one-shot APScheduler jobs for the interview reminder.
 
-    Safe to call on both create and update — replaces any existing job for the
-    same interview ID so the reminder always matches the current start_time.
+    Two reminders are scheduled:
+      - 1 hour  before start_time  (job id: interview_reminder_{id}_1h)
+      - 15 mins before start_time  (job id: interview_reminder_{id}_15m)
+
+    FIX: The DB stores start_time as a *naive* local time (IST, UTC+5:30).
+    APScheduler is configured with timezone="UTC", so a naive datetime passed
+    as run_date is interpreted as UTC — causing reminders to fire 5.5 h late.
+    We attach the IST offset to make the datetime timezone-aware, which
+    APScheduler then correctly converts to its UTC timeline.
+
+    Safe to call on both create and update — replaces any existing jobs so the
+    reminder always matches the current start_time.
     """
-    reminder_time = interview.start_time - timedelta(hours=1)
-    now = datetime.utcnow()
+    IST = timezone(timedelta(hours=5, minutes=30))  # UTC+05:30
 
-    if reminder_time <= now:
-        logger.info(
-            f"[InterviewReminder] Interview {interview.id} start_time is < 1 h away "
-            f"or in the past — skipping reminder scheduling."
-        )
-        return
+    # Treat the naive DB timestamp as IST, then make it timezone-aware
+    if interview.start_time.tzinfo is None:
+        start_ist = interview.start_time.replace(tzinfo=IST)
+    else:
+        start_ist = interview.start_time
 
-    interview_id = interview.id
+    # Gate check using local time (also interpreted as IST on this server)
+    now_local = datetime.now(IST)
 
-    async def _send_reminder():
-        """Async job executed by APScheduler."""
-        from app.core.database import SessionLocal
-        _db = SessionLocal()
-        try:
-            iv = _db.query(Interview).filter(Interview.id == interview_id).first()
-            if not iv:
-                logger.warning(f"[InterviewReminder] Interview {interview_id} not found at reminder time.")
-                return
+    # Schedule points: 1 hour and 15 minutes before the interview
+    reminder_configs = [
+        (timedelta(hours=1),  "1 hour",    f"interview_reminder_{interview.id}_1h"),
+        (timedelta(minutes=15), "15 minutes", f"interview_reminder_{interview.id}_15m"),
+    ]
 
-            # Candidate details
-            cand = _db.query(Candidate).filter(Candidate.candidateID == iv.candidate_id).first()
-            panel = _db.query(InterviewPanel).filter(InterviewPanel.id == iv.panel_id).first()
-            round_name = panel.round_name if panel else "Interview"
-            start_str = iv.start_time.strftime("%d %b %Y, %I:%M %p") if iv.start_time else "N/A"
-            end_str = iv.end_time.strftime("%d %b %Y, %I:%M %p") if iv.end_time else "N/A"
+    interview_id   = interview.id
 
-            # Email to candidate
-            if cand and cand.candidateEmail:
-                cand_name = _candidate_display_name(cand)
-                try:
-                    EmailService.send_notification(
-                        to_email=cand.candidateEmail,
-                        heading=f"Reminder: Your Interview is in 1 Hour — {round_name}",
-                        message=(
-                            f"Dear <strong>{cand_name}</strong>,<br><br>"
-                            f"This is a reminder that your <strong>{round_name}</strong> interview "
-                            f"is scheduled to begin in <strong>1 hour</strong>.<br><br>"
-                            f"📅 <strong>Start:</strong> {start_str}<br>"
-                            f"🕐 <strong>End:</strong> {end_str}<br>"
-                            + (f"🔗 <strong>Meeting Link:</strong> <a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>" if iv.meeting_link else "")
-                            + "<br>Please ensure you are ready and join on time. Best of luck!"
-                        ),
+    for delta, label, job_id in reminder_configs:
+        fire_at = start_ist - delta
+
+        if fire_at <= now_local:
+            logger.info(
+                f"[InterviewReminder] Skipping '{label}' reminder for interview {interview_id} "
+                f"— fire time {fire_at.isoformat()} is already past."
+            )
+            continue
+
+        # Capture loop variables for the closure
+        _fire_at   = fire_at
+        _label     = label
+        _job_id    = job_id
+
+        async def _send_reminder(
+            _interview_id=interview_id,
+            _reminder_label=_label,
+        ):
+            """Async job executed by APScheduler."""
+            from app.core.database import SessionLocal
+            _db = SessionLocal()
+            try:
+                iv = _db.query(Interview).filter(Interview.id == _interview_id).first()
+                if not iv:
+                    logger.warning(
+                        f"[InterviewReminder] Interview {_interview_id} not found at reminder time."
                     )
-                    logger.info(f"[InterviewReminder] Reminder sent to candidate {cand.candidateEmail}")
-                except Exception as exc:
-                    logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
+                    return
 
-            # Emails to panel members
-            if panel:
-                members = _db.query(PanelMember).filter(PanelMember.panel_id == panel.id).all()
-                for member in members:
-                    interviewer = _db.query(Users).filter(Users.UserID == member.interviewer_id).first()
-                    if interviewer and interviewer.UserEmail:
-                        cand_name = _candidate_display_name(cand) if cand else iv.candidate_id
-                        try:
-                            EmailService.send_notification(
-                                to_email=interviewer.UserEmail,
-                                heading=f"Reminder: Interview in 1 Hour — {round_name}",
-                                message=(
-                                    f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
-                                    f"This is a reminder that the <strong>{round_name}</strong> interview "
-                                    f"for candidate <strong>{cand_name}</strong> begins in "
-                                    f"<strong>1 hour</strong>.<br><br>"
-                                    f"📅 <strong>Start:</strong> {start_str}<br>"
-                                    f"🕐 <strong>End:</strong> {end_str}<br>"
-                                    + (f"🔗 <strong>Meeting Link:</strong> <a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>" if iv.meeting_link else "")
-                                ),
-                            )
-                            logger.info(f"[InterviewReminder] Reminder sent to panel member {interviewer.UserEmail}")
-                        except Exception as exc:
-                            logger.warning(f"[InterviewReminder] Could not email panel member {interviewer.UserID}: {exc}")
+                cand  = _db.query(Candidate).filter(Candidate.candidateID == iv.candidate_id).first()
+                panel = _db.query(InterviewPanel).filter(InterviewPanel.id == iv.panel_id).first()
+                round_name = panel.round_name if panel else "Interview"
+                start_str  = iv.start_time.strftime("%d %b %Y, %I:%M %p") if iv.start_time else "N/A"
+                end_str    = iv.end_time.strftime("%d %b %Y, %I:%M %p")   if iv.end_time   else "N/A"
+
+                # ── Email to candidate ──────────────────────────────────────────
+                if cand and cand.candidateEmail:
+                    cand_name = _candidate_display_name(cand)
+                    try:
+                        EmailService.send_notification(
+                            to_email=cand.candidateEmail,
+                            heading=f"Reminder: Your {round_name} Interview is in {_reminder_label}",
+                            message=(
+                                f"Dear <strong>{cand_name}</strong>,<br><br>"
+                                f"This is a reminder that your <strong>{round_name}</strong> interview "
+                                f"is scheduled to begin in <strong>{_reminder_label}</strong>.<br><br>"
+                                f"⚡ <strong>Start:</strong> {start_str}<br>"
+                                f"🕐 <strong>End:</strong>   {end_str}<br>"
+                                + (f"🔗 <strong>Meeting Link:</strong> "
+                                   f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
+                                   if iv.meeting_link else "")
+                                + "<br>Please ensure you are ready and join on time. Best of luck!"
+                            ),
+                        )
+                        logger.info(
+                            f"[InterviewReminder] [{_reminder_label}] Reminder sent to candidate "
+                            f"{cand.candidateEmail}"
+                        )
+                    except Exception as exc:
+                        logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
+
+                # ── Emails to panel members ─────────────────────────────────────
+                if panel:
+                    members = _db.query(PanelMember).filter(PanelMember.panel_id == panel.id).all()
+                    for member in members:
+                        interviewer = _db.query(Users).filter(
+                            Users.UserID == member.interviewer_id
+                        ).first()
+                        if interviewer and interviewer.UserEmail:
+                            cand_name = _candidate_display_name(cand) if cand else iv.candidate_id
+                            try:
+                                EmailService.send_notification(
+                                    to_email=interviewer.UserEmail,
+                                    heading=(
+                                        f"Reminder: Interview in {_reminder_label} "
+                                        f"— {round_name}"
+                                    ),
+                                    message=(
+                                        f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
+                                        f"This is a reminder that the <strong>{round_name}</strong> interview "
+                                        f"for candidate <strong>{cand_name}</strong> begins in "
+                                        f"<strong>{_reminder_label}</strong>.<br><br>"
+                                        f"⚡ <strong>Start:</strong> {start_str}<br>"
+                                        f"🕐 <strong>End:</strong>   {end_str}<br>"
+                                        + (f"🔗 <strong>Meeting Link:</strong> "
+                                           f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
+                                           if iv.meeting_link else "")
+                                    ),
+                                )
+                                logger.info(
+                                    f"[InterviewReminder] [{_reminder_label}] Reminder sent to "
+                                    f"panel member {interviewer.UserEmail}"
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    f"[InterviewReminder] Could not email panel member "
+                                    f"{interviewer.UserID}: {exc}"
+                                )
+            except Exception as exc:
+                logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
+            finally:
+                _db.close()
+
+        try:
+            scheduler.add_job(
+                _send_reminder,
+                trigger="date",
+                run_date=_fire_at,          # timezone-aware IST → scheduler converts to UTC
+                id=_job_id,
+                replace_existing=True,
+            )
+            logger.info(
+                f"[InterviewReminder] Scheduled [{_label}] reminder for interview "
+                f"{interview_id} at {_fire_at.isoformat()} (IST)"
+            )
         except Exception as exc:
-            logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
-        finally:
-            _db.close()
-
-    try:
-        job_id = f"interview_reminder_{interview_id}"
-        scheduler.add_job(
-            _send_reminder,
-            trigger="date",
-            run_date=reminder_time,
-            id=job_id,
-            replace_existing=True,  # If start_time was updated, replace old job
-        )
-        logger.info(
-            f"[InterviewReminder] Scheduled reminder for interview {interview_id} at {reminder_time.isoformat()} UTC"
-        )
-    except Exception as exc:
-        logger.warning(f"[InterviewReminder] Could not schedule reminder for interview {interview_id}: {exc}")
+            logger.warning(
+                f"[InterviewReminder] Could not schedule [{_label}] reminder "
+                f"for interview {interview_id}: {exc}"
+            )
 
 
 # ============================================
@@ -312,17 +393,17 @@ def create_interview_panel(
 ):
     """
     Create a new interview panel for a candidate.
-    
+
     Args:
-        request: InterviewPanelCreate with candidate_id and round_name
+        request: InterviewPanelCreate with candidate_id, round_name, and optional job_id
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
-        InterviewPanelResponse with panel details
-        
+        InterviewPanelResponse with panel details including job info
+
     Raises:
-        HTTPException: If candidate not found
+        HTTPException: If candidate or job not found
     """
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
@@ -331,21 +412,34 @@ def create_interview_panel(
             status_code=404,
             detail=f"Candidate with ID {request.candidate_id} not found"
         )
-    
+
+    # Validate job if provided
+    job = None
+    if request.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == request.job_id).first()
+        if not job:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Job with ID {request.job_id} not found"
+            )
+
     # Create panel
     panel = InterviewPanel(
         candidate_id=request.candidate_id,
-        round_name=request.round_name
+        round_name=request.round_name,
+        job_id=request.job_id,
     )
-    
+
     db.add(panel)
     db.commit()
     db.refresh(panel)
-    
+
     return InterviewPanelResponse(
         id=panel.id,
         candidate_id=panel.candidate_id,
         round_name=panel.round_name,
+        job_id=panel.job_id,
+        job_title=job.jobTitle if job else None,
         created_at=panel.created_at
     )
 
@@ -380,7 +474,7 @@ def get_interview_panel(
             status_code=404,
             detail=f"Interview panel with ID {panel_id} not found"
         )
-    
+
     # Get candidate details
     candidate = db.query(Candidate).filter(Candidate.candidateID == panel.candidate_id).first()
     candidate_name = "N/A"
@@ -391,16 +485,24 @@ def get_interview_panel(
             candidate.candidateLastName or ""
         ]
         candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
-    
+
+    # Resolve job title
+    job_title = None
+    if panel.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+        job_title = job.jobTitle if job else None
+
     # Count members and interviews
     member_count = db.query(PanelMember).filter(PanelMember.panel_id == panel_id).count()
     interview_count = db.query(Interview).filter(Interview.panel_id == panel_id).count()
-    
+
     return InterviewPanelWithDetails(
         id=panel.id,
         candidate_id=panel.candidate_id,
         candidate_name=candidate_name,
         round_name=panel.round_name,
+        job_id=panel.job_id,
+        job_title=job_title,
         created_at=panel.created_at,
         member_count=member_count,
         interview_count=interview_count
@@ -415,30 +517,34 @@ def get_interview_panel(
 def get_all_interview_panels(
     candidate_id: Optional[str] = Query(None, description="Filter by candidate ID"),
     round_name: Optional[str] = Query(None, description="Filter by round name"),
+    job_id: Optional[str] = Query(None, description="Filter by job ID"),
     db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
     Get all interview panels with optional filtering.
-    
+
     Args:
         candidate_id: Optional filter by candidate ID
         round_name: Optional filter by round name
+        job_id: Optional filter by job ID
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         List of InterviewPanelWithDetails
     """
     query = db.query(InterviewPanel)
-    
+
     if candidate_id:
         query = query.filter(InterviewPanel.candidate_id == candidate_id)
     if round_name:
         query = query.filter(InterviewPanel.round_name == round_name)
-    
+    if job_id:
+        query = query.filter(InterviewPanel.job_id == job_id)
+
     panels = query.all()
-    
+
     results = []
     for panel in panels:
         # Get candidate details
@@ -451,21 +557,29 @@ def get_all_interview_panels(
                 candidate.candidateLastName or ""
             ]
             candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
-        
+
+        # Resolve job title
+        job_title = None
+        if panel.job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+            job_title = job.jobTitle if job else None
+
         # Count members and interviews
         member_count = db.query(PanelMember).filter(PanelMember.panel_id == panel.id).count()
         interview_count = db.query(Interview).filter(Interview.panel_id == panel.id).count()
-        
+
         results.append(InterviewPanelWithDetails(
             id=panel.id,
             candidate_id=panel.candidate_id,
             candidate_name=candidate_name,
             round_name=panel.round_name,
+            job_id=panel.job_id,
+            job_title=job_title,
             created_at=panel.created_at,
             member_count=member_count,
             interview_count=interview_count
         ))
-    
+
     return results
 
 
@@ -1241,6 +1355,38 @@ def submit_interview_feedback(
     db.commit()
     db.refresh(feedback)
     
+    # Auto-complete interview status when last panel member submits feedback
+    try:
+        # Get all panel members assigned to this interview's panel
+        panel_members = (
+            db.query(PanelMember)
+            .filter(PanelMember.panel_id == interview.panel_id)
+            .all()
+        )
+        panel_member_ids = {pm.interviewer_id for pm in panel_members}
+
+        if panel_member_ids:
+            # Get all interviewers who have submitted feedback for this interview
+            submitted_ids = {
+                fb.interviewer_id
+                for fb in db.query(InterviewFeedback)
+                .filter(InterviewFeedback.interview_id == interview.id)
+                .all()
+            }
+
+            # If every panel member has now submitted feedback, mark interview as Completed
+            if panel_member_ids.issubset(submitted_ids):
+                if interview.status != "Completed":
+                    interview.status = "Completed"
+                    interview.feedback_status = "Completed"
+                    db.commit()
+                    logger.info(
+                        f"[FeedbackComplete] Interview #{interview.id} marked as 'Completed' — "
+                        f"all {len(panel_member_ids)} panel member(s) have submitted feedback."
+                    )
+    except Exception as exc:
+        logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
+
     # Auto-hire check: promote to Approval if all interviews are Hire/Must Hire
     try:
         _check_and_auto_submit_for_hire(interview, db)

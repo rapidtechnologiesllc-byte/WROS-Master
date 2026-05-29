@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel as _BM
 from sqlalchemy.orm import Session
 import os as _os
@@ -13,7 +13,7 @@ from app.core.dependencies import (
     require_permission,
 )
 from app.models.offer_letter import OfferLetter
-from app.models.candidate import Candidate
+from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import Users, Jobs
 from app.schemas.user import (
     OfferLetterCreateRequest,
@@ -21,20 +21,54 @@ from app.schemas.user import (
     OfferLetterResponse,
     OfferAcceptanceRequest,
     OfferAcceptanceResponse,
+    OfferApprovalResponse,
+    OfferReleaseResponse,
+    CandidateSignedAcceptanceResponse,
     OfferCancelRequest,
     AllOffersResponse,
     DeleteResponse,
 )
-from app.services.offer_letter_generator import generate_filled_docx, generated_file_path
+from app.services.offer_letter_generator import (
+    generate_filled_docx,
+    generated_file_path,
+    signed_offer_file_path,
+    get_template_path,
+)
 from app.services.sharepoint_service import upload_file, get_file_download_link, list_folder
 from app.services.salary_structure_generator import (
     generate_salary_structure_docx,
     get_salary_filename,
     calculate_salary,
 )
+from app.services.email_service import EmailService
 
 
 router = APIRouter(prefix="/offer-letter", tags=["offer-letter"])
+
+
+# ── Pipeline-status helper (fire-and-forget, never blocks offer flow) ─────────
+
+def _update_pipeline_status(candidate_id: str, new_status: str, db: Session) -> None:
+    """
+    Silently upsert the candidate pipeline status.
+    Swallows all exceptions so it never interrupts the offer workflow.
+    """
+    try:
+        cs = db.query(CandidateStatus).filter(
+            CandidateStatus.candidateID == candidate_id
+        ).first()
+        if cs:
+            cs.piplineStatus = new_status
+        else:
+            cs = CandidateStatus(
+                candidateID=candidate_id,
+                status="Active",
+                piplineStatus=new_status,
+            )
+            db.add(cs)
+        db.commit()
+    except Exception:
+        pass  # Status update must never block offer operations
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -48,6 +82,42 @@ def _candidate_name(c) -> str | None:
         c.candidateLastName,
     ]
     return " ".join(p for p in parts if p) or None
+
+
+def _build_offer_response(offer: OfferLetter, candidate: Candidate | None) -> OfferLetterResponse:
+    """Build an OfferLetterResponse from ORM objects, including all workflow fields."""
+    return OfferLetterResponse(
+        id=offer.id,
+        candidate_id=offer.candidate_id,
+        candidate_name=_candidate_name(candidate),
+        candidate_email=candidate.candidateEmail if candidate else None,
+        job_id=offer.job_id,
+        offer_expire_date=offer.offer_expire_date,
+        hiring_manager_id=offer.hiring_manager_id,
+        reporting_manager_id=offer.reporting_manager_id,
+        position=offer.position,
+        salary=offer.salary,
+        joining_date=offer.joining_date,
+        offer_status=offer.offer_status,
+        candidate_response=offer.candidate_response,
+        responded_at=offer.responded_at,
+        created_at=offer.created_at,
+        created_by=offer.created_by,
+        cancelled_at=offer.cancelled_at,
+        cancelled_by=offer.cancelled_by,
+        sharepoint_url=offer.sharepoint_url,
+        download_url=offer.download_url,
+        sharepoint_path=offer.sharepoint_path,
+        approval_status=offer.approval_status,
+        approved_at=offer.approved_at,
+        approved_by=offer.approved_by,
+        approval_notes=offer.approval_notes,
+        released_at=offer.released_at,
+        released_by=offer.released_by,
+        hm_signature_path=offer.hm_signature_path,
+        candidate_signature_path=offer.candidate_signature_path,
+        signed_offer_path=offer.signed_offer_path,
+    )
 
 
 # ============================================
@@ -127,10 +197,11 @@ def respond_to_offer(
     if offer.candidate_id != candidate.candidateID:
         raise HTTPException(status_code=403, detail="You are not authorized to respond to this offer")
 
-    if offer.offer_status != "Pending":
+    # Candidates can only respond to Released offers (offers visible to them)
+    if offer.offer_status != "Released":
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot respond to offer with status '{offer.offer_status}'. Only pending offers can be responded to.",
+            detail=f"Cannot respond to offer with status '{offer.offer_status}'. Only Released offers can be responded to.",
         )
 
     offer.offer_status = "Accepted" if request.action.lower() == "accept" else "Rejected"
@@ -139,7 +210,13 @@ def respond_to_offer(
     db.commit()
     db.refresh(offer)
 
-    # ── Pool ownership transition: candidate rejects offer → Org Pool ───────────
+    # ── Update candidate pipeline status based on response ────────────────────
+    if request.action.lower() == "accept":
+        _update_pipeline_status(offer.candidate_id, "Hired", db)
+    else:
+        _update_pipeline_status(offer.candidate_id, "Rejected", db)
+
+    # ── Pool ownership transition: candidate rejects offer → Org Pool ─────────
     if request.action.lower() == "reject":
         from app.services.candidate_pool_service import set_org_pool
         set_org_pool(
@@ -153,6 +230,24 @@ def respond_to_offer(
             ),
         )
         db.commit()
+
+    # ── Email HR on candidate response ───────────────────────────────────────
+    try:
+        hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
+        if hr_creator:
+            candidate_name = _candidate_name(
+                db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+            ) or offer.candidate_id
+            EmailService.notify_hr_candidate_responded(
+                hr_email=hr_creator.UserEmail,
+                candidate_name=candidate_name,
+                position=offer.position or "",
+                offer_id=offer.id,
+                decision=offer.offer_status,
+                response_message=request.response_message or "",
+            )
+    except Exception:
+        pass  # Email failure must never block the response
 
     return OfferAcceptanceResponse(
         status="Success",
@@ -168,34 +263,16 @@ def get_my_offers(
     db: Session = Depends(get_db),
     candidate=Depends(get_current_candidate),
 ):
-    """Get all offer letters for the authenticated candidate."""
+    """Get all Released offer letters for the authenticated candidate."""
     offers = db.query(OfferLetter).filter(
-        OfferLetter.candidate_id == candidate.candidateID
+        OfferLetter.candidate_id == candidate.candidateID,
+        OfferLetter.offer_status.in_(["Released", "Accepted", "Rejected"]),
     ).all()
 
     offer_responses = []
     for offer in offers:
         c = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
-        offer_responses.append(OfferLetterResponse(
-            id=offer.id,
-            candidate_id=offer.candidate_id,
-            candidate_name=_candidate_name(c),
-            candidate_email=c.candidateEmail if c else None,
-            job_id=offer.job_id,
-            offer_expire_date=offer.offer_expire_date,
-            hiring_manager_id=offer.hiring_manager_id,
-            reporting_manager_id=offer.reporting_manager_id,
-            position=offer.position,
-            salary=offer.salary,
-            joining_date=offer.joining_date,
-            offer_status=offer.offer_status,
-            candidate_response=offer.candidate_response,
-            responded_at=offer.responded_at,
-            created_at=offer.created_at,
-            created_by=offer.created_by,
-            cancelled_at=offer.cancelled_at,
-            cancelled_by=offer.cancelled_by,
-        ))
+        offer_responses.append(_build_offer_response(offer, c))
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
@@ -251,7 +328,11 @@ def create_offer_letter(
     db.commit()
     db.refresh(new_offer)
 
-    # ── Pool ownership transition: offer released → BU Owned (90-day clock) ────
+    # ── Update candidate pipeline status → OfferApproval ─────────────────────
+    # Offer created — candidate is in the offer approval workflow
+    _update_pipeline_status(request.candidate_id, "OfferApproval", db)
+
+    # ── Pool ownership transition: offer created → BU Owned (90-day clock) ────
     # Determine BU from the linked job; if no job/BU, skip.
     try:
         linked_job = None
@@ -421,26 +502,34 @@ def get_all_offers(
     offer_responses = []
     for offer in offers:
         c = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
-        offer_responses.append(OfferLetterResponse(
-            id=offer.id,
-            candidate_id=offer.candidate_id,
-            candidate_name=_candidate_name(c),
-            candidate_email=c.candidateEmail if c else None,
-            job_id=offer.job_id,
-            offer_expire_date=offer.offer_expire_date,
-            hiring_manager_id=offer.hiring_manager_id,
-            reporting_manager_id=offer.reporting_manager_id,
-            position=offer.position,
-            salary=offer.salary,
-            joining_date=offer.joining_date,
-            offer_status=offer.offer_status,
-            candidate_response=offer.candidate_response,
-            responded_at=offer.responded_at,
-            created_at=offer.created_at,
-            created_by=offer.created_by,
-            cancelled_at=offer.cancelled_at,
-            cancelled_by=offer.cancelled_by,
-        ))
+        offer_responses.append(_build_offer_response(offer, c))
+
+    return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
+
+
+# ── Hiring Manager: list offers pending approval ─────────────────────────────
+@router.get(
+    "/pending-approval",
+    response_model=AllOffersResponse,
+    summary="List offer letters pending the authenticated Hiring Manager's approval",
+)
+def get_pending_approval_offers(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Returns all offer letters where `approval_status = AwaitingApproval` and
+    `hiring_manager_id` matches the authenticated user.
+    """
+    offers = db.query(OfferLetter).filter(
+        OfferLetter.hiring_manager_id == user.UserID,
+        OfferLetter.approval_status == "AwaitingApproval",
+    ).all()
+
+    offer_responses = []
+    for offer in offers:
+        c = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+        offer_responses.append(_build_offer_response(offer, c))
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
@@ -463,42 +552,21 @@ def get_offer_by_id(
     candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
 
     # ── Resolve document links ────────────────────────────────────────────────
-    # Use stored URLs first; fall back to a live SharePoint lookup if the
-    # document was generated before these columns were added.
-    sp_url      = offer.sharepoint_url
-    dl_url      = offer.download_url
-    sp_path     = offer.sharepoint_path
+    sp_url  = offer.sharepoint_url
+    dl_url  = offer.download_url
+    sp_path = offer.sharepoint_path
 
     if not dl_url and sp_path:
-        # Attempt a live download-link refresh (non-fatal)
         try:
             dl_url = get_file_download_link(sp_path) or sp_url
         except Exception:
             dl_url = sp_url
 
-    return OfferLetterResponse(
-        id=offer.id,
-        candidate_id=offer.candidate_id,
-        candidate_name=_candidate_name(candidate),
-        candidate_email=candidate.candidateEmail if candidate else None,
-        job_id=offer.job_id,
-        offer_expire_date=offer.offer_expire_date,
-        hiring_manager_id=offer.hiring_manager_id,
-        reporting_manager_id=offer.reporting_manager_id,
-        position=offer.position,
-        salary=offer.salary,
-        joining_date=offer.joining_date,
-        offer_status=offer.offer_status,
-        candidate_response=offer.candidate_response,
-        responded_at=offer.responded_at,
-        created_at=offer.created_at,
-        created_by=offer.created_by,
-        cancelled_at=offer.cancelled_at,
-        cancelled_by=offer.cancelled_by,
-        sharepoint_url=sp_url,
-        download_url=dl_url,
-        sharepoint_path=sp_path,
-    )
+    response = _build_offer_response(offer, candidate)
+    response.sharepoint_url = sp_url
+    response.download_url   = dl_url
+    response.sharepoint_path = sp_path
+    return response
 
 
 # ============================================
@@ -512,6 +580,10 @@ def get_offer_by_id(
 )
 def generate_offer_letter_document(
     offer_id: int,
+    template_type: str = Query(
+        default="fulltime",
+        description="Template to use: 'intern' for Internship Offer Letter, 'fulltime' for Full-Time Offer Letter.",
+    ),
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
@@ -519,16 +591,24 @@ def generate_offer_letter_document(
     Auto-generate a filled `.docx` offer letter for the given offer.
 
     1. Load offer + candidate + job details from the database.
-    2. Fetch the template `.docx` from SharePoint.
+    2. Select the correct SharePoint template based on `template_type`
+       (`'intern'` → Internship template, `'fulltime'` → Full-Time template).
     3. Replace all `{{placeholder}}` tokens and inject the salary table.
     4. Upload the filled document back to SharePoint.
-    5. Return the SharePoint web URL and a pre-authenticated download link.
+    5. Set `approval_status = AwaitingApproval` and notify the Hiring Manager by email.
+    6. Return the SharePoint web URL and a pre-authenticated download link.
 
     **Required permission:** `offer.manage`
     """
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
+
+    # Resolve template path — validate early so we fail fast before any DB work
+    try:
+        resolved_template_path = get_template_path(template_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
     if not candidate:
@@ -550,10 +630,11 @@ def generate_offer_letter_document(
 
     # Hiring manager name
     hiring_manager_name = ""
+    hm_user = None
     if offer.hiring_manager_id:
-        hm = db.query(Users).filter(Users.UserID == offer.hiring_manager_id).first()
-        if hm:
-            hiring_manager_name = hm.UserName or hm.UserEmail or ""
+        hm_user = db.query(Users).filter(Users.UserID == offer.hiring_manager_id).first()
+        if hm_user:
+            hiring_manager_name = hm_user.UserName or hm_user.UserEmail or ""
 
     try:
         docx_bytes = generate_filled_docx(
@@ -566,6 +647,7 @@ def generate_offer_letter_document(
             joining_date=offer.joining_date,
             annual_salary=offer.salary or "",
             hiring_manager_name=hiring_manager_name,
+            template_path=resolved_template_path,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to generate offer letter document: {exc}")
@@ -581,23 +663,395 @@ def generate_offer_letter_document(
     download_link = get_file_download_link(dest_path) or web_url
     candidate_name = f"{first_name} {last_name}".strip() or offer.candidate_id
 
-    # ── Persist URLs back to the DB so GET /{offer_id} returns them ──────────
-    offer.sharepoint_url  = web_url
-    offer.download_url    = download_link
-    offer.sharepoint_path = dest_path
+    # ── Persist URLs + set approval gate ─────────────────────────────────────
+    offer.sharepoint_url    = web_url
+    offer.download_url      = download_link
+    offer.sharepoint_path   = dest_path
+    offer.offer_status      = "AwaitingApproval"   # offer is now with Hiring Manager
+    offer.approval_status   = "AwaitingApproval"
     db.commit()
 
+    # ── Notify Hiring Manager by email (best-effort) ─────────────────────────
+    try:
+        if hm_user:
+            EmailService.notify_hm_approval_requested(
+                hm_email=hm_user.UserEmail,
+                hm_name=hm_user.UserName or hm_user.UserEmail,
+                candidate_name=candidate_name,
+                position=offer.position or "",
+                offer_id=offer_id,
+            )
+    except Exception:
+        pass  # Email failure must never block the generation response
+
     return {
-        "status":          "success",
-        "message":         f"Offer letter generated for {candidate_name}",
-        "offer_id":        offer_id,
-        "candidate_id":    offer.candidate_id,
-        "candidate_name":  candidate_name,
-        "file_name":       f"offer_{offer_id}.docx",
-        "sharepoint_path": dest_path,
-        "sharepoint_url":  web_url,
-        "download_url":    download_link,
+        "status":           "success",
+        "message":          f"Offer letter generated for {candidate_name}. Awaiting hiring manager approval.",
+        "offer_id":         offer_id,
+        "candidate_id":     offer.candidate_id,
+        "candidate_name":   candidate_name,
+        "template_type":    template_type,
+        "template_path":    resolved_template_path,
+        "approval_status":  offer.approval_status,
+        "file_name":        f"offer_{offer_id}.docx",
+        "sharepoint_path":  dest_path,
+        "sharepoint_url":   web_url,
+        "download_url":     download_link,
     }
+
+
+# ============================================
+# HIRING MANAGER APPROVAL WORKFLOW
+# ============================================
+
+@router.post(
+    "/approve/{offer_id}",
+    response_model=OfferApprovalResponse,
+    summary="Hiring Manager approves or rejects an offer letter and submits their signature",
+)
+async def approve_offer_letter(
+    offer_id: int,
+    action: str = Query(..., description="'approve' or 'reject'"),
+    notes: Optional[str] = Query(None, description="Optional notes for the decision"),
+    signature: Optional[UploadFile] = File(None, description="Hiring manager signature PNG (required when action=approve)"),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Hiring Manager reviews the offer and either approves or rejects it.
+
+    - **approve**: Upload a PNG signature file. The offer letter `.docx` is
+      re-generated with the dynamic signature embedded and re-uploaded to SharePoint.
+    - **reject**: No signature needed. Provide optional notes.
+
+    The HR team is notified by email of the decision.
+    """
+    if action.lower() not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'")
+
+    offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
+    if not offer:
+        raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
+
+    # Only the designated hiring manager for this offer can approve
+    if offer.hiring_manager_id != user.UserID:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not the designated hiring manager for this offer.",
+        )
+
+    if offer.approval_status != "AwaitingApproval":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Offer is not awaiting approval (current approval_status: '{offer.approval_status}').",
+        )
+
+    now = datetime.now()
+
+    if action.lower() == "approve":
+        if not signature:
+            raise HTTPException(
+                status_code=422,
+                detail="A signature PNG file is required when approving an offer.",
+            )
+        if not signature.content_type.startswith("image/"):
+            raise HTTPException(status_code=422, detail="Signature file must be an image (PNG preferred).")
+
+        sig_bytes = await signature.read()
+
+        # Upload signature PNG to SharePoint
+        sig_path = f"signatures/hm/{offer_id}.png"
+        try:
+            upload_file(sig_path, sig_bytes, content_type="image/png")
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Failed to upload signature: {exc}")
+
+        # Re-generate the offer docx with the real HM signature embedded
+        candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail=f"Candidate '{offer.candidate_id}' not found")
+
+        first_name     = candidate.candidateFirstName or ""
+        last_name      = candidate.candidateLastName or ""
+        job_location   = offer.position or ""
+        job_department = ""
+        if offer.job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == offer.job_id).first()
+            if job:
+                if job.jobLocation:  job_location   = job.jobLocation
+                if job.department:   job_department = job.department.name or ""
+
+        hm_name = user.UserName or user.UserEmail or ""
+
+        try:
+            docx_bytes = generate_filled_docx(
+                first_name=first_name,
+                last_name=last_name,
+                job_title=offer.position or "",
+                department=job_department,
+                location=job_location,
+                offer_expire_date=offer.offer_expire_date,
+                joining_date=offer.joining_date,
+                annual_salary=offer.salary or "",
+                hiring_manager_name=hm_name,
+                hm_signature_bytes=sig_bytes,           # <-- dynamic signature
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Failed to re-generate offer letter: {exc}")
+
+        dest_path = generated_file_path(offer.candidate_id, offer_id)
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        try:
+            web_url = upload_file(dest_path, docx_bytes, content_type=mime)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Failed to upload signed offer letter: {exc}")
+
+        offer.sharepoint_url    = web_url
+        offer.download_url      = get_file_download_link(dest_path) or web_url
+        offer.sharepoint_path   = dest_path
+        offer.hm_signature_path = sig_path
+        offer.approval_status   = "Approved"
+        offer.offer_status      = "Approved"        # HM approved → ready for HR to release
+    else:
+        # Reject — no signature required
+        offer.approval_status = "Rejected"
+        offer.offer_status    = "Rejected"          # HM rejected → back to HR
+
+    offer.approved_at    = now
+    offer.approved_by    = user.UserID
+    offer.approval_notes = notes
+    db.commit()
+
+    # ── Notify the HR creator by email ────────────────────────────────────────
+    try:
+        hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
+        candidate_for_email = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+        if hr_creator and candidate_for_email:
+            EmailService.notify_hr_hm_decision(
+                hr_email=hr_creator.UserEmail,
+                hm_name=user.UserName or user.UserEmail,
+                candidate_name=_candidate_name(candidate_for_email) or offer.candidate_id,
+                position=offer.position or "",
+                offer_id=offer_id,
+                decision=offer.approval_status,
+                approval_notes=notes or "",
+            )
+    except Exception:
+        pass
+
+    return OfferApprovalResponse(
+        status="success",
+        message=f"Offer #{offer_id} {offer.approval_status.lower()} successfully.",
+        offer_id=offer_id,
+        approval_status=offer.approval_status,
+        approved_at=offer.approved_at,
+    )
+
+
+# ============================================
+# HR RELEASES OFFER TO CANDIDATE
+# ============================================
+
+@router.post(
+    "/release/{offer_id}",
+    response_model=OfferReleaseResponse,
+    dependencies=[Depends(require_permission("offer.manage"))],
+    summary="Release an approved offer letter to the candidate",
+)
+def release_offer_letter(
+    offer_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("offer.manage")),
+):
+    """
+    HR releases an `Approved` offer to the candidate, changing
+    `offer_status` from `Approved` → `Released`. The candidate is
+    notified by email and the offer appears in their `my-offers` list.
+
+    **Required permission:** `offer.manage`
+    """
+    offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
+    if not offer:
+        raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
+
+    if offer.approval_status != "Approved":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Offer cannot be released — approval_status is '{offer.approval_status}' (must be 'Approved').",
+        )
+
+    if offer.offer_status == "Released":
+        raise HTTPException(status_code=400, detail="Offer has already been released.")
+
+    now = datetime.now()
+    offer.offer_status = "Released"
+    offer.released_at  = now
+    offer.released_by  = user.UserID
+    db.commit()
+
+    # ── Notify the candidate by email ────────────────────────────────────────
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+        if candidate:
+            EmailService.notify_candidate_offer_released(
+                candidate_email=candidate.candidateEmail,
+                candidate_name=_candidate_name(candidate) or candidate.candidateEmail,
+                position=offer.position or "",
+                joining_date=str(offer.joining_date) if offer.joining_date else "",
+                offer_expire_date=str(offer.offer_expire_date) if offer.offer_expire_date else "",
+            )
+    except Exception:
+        pass
+
+    return OfferReleaseResponse(
+        status="success",
+        message=f"Offer #{offer_id} released to candidate successfully.",
+        offer_id=offer_id,
+        offer_status=offer.offer_status,
+        released_at=offer.released_at,
+    )
+
+
+# ============================================
+# CANDIDATE SIGNATURE + ACCEPTANCE
+# ============================================
+
+@router.post(
+    "/sign/{offer_id}",
+    response_model=CandidateSignedAcceptanceResponse,
+    summary="Candidate signs the offer letter (uploads signature PNG)",
+)
+async def candidate_sign_offer(
+    offer_id: int,
+    signature: UploadFile = File(..., description="Candidate signature PNG"),
+    db: Session = Depends(get_db),
+    candidate=Depends(get_current_candidate),
+):
+    """
+    Candidate uploads their PNG signature to formally accept the offer.
+
+    1. Validates the offer is `Released` and belongs to this candidate.
+    2. Uploads the signature PNG to SharePoint.
+    3. Re-generates the final `.docx` with **both** the HM signature (already
+       embedded from the approval step) and the candidate signature.
+    4. Uploads the fully-signed document to `signed-offers/`.
+    5. Sets `offer_status = Accepted` and notifies HR by email.
+    """
+    offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
+    if not offer:
+        raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
+
+    if offer.candidate_id != candidate.candidateID:
+        raise HTTPException(status_code=403, detail="You are not authorized to sign this offer.")
+
+    if offer.offer_status != "Released":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Offer is not available for signing (status: '{offer.offer_status}'). Only 'Released' offers can be signed.",
+        )
+
+    if not signature.content_type.startswith("image/"):
+        raise HTTPException(status_code=422, detail="Signature file must be an image (PNG preferred).")
+
+    sig_bytes = await signature.read()
+
+    # Upload candidate signature PNG to SharePoint
+    cand_sig_path = f"signatures/candidate/{offer_id}.png"
+    try:
+        upload_file(cand_sig_path, sig_bytes, content_type="image/png")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to upload candidate signature: {exc}")
+
+    # Download HM signature from SharePoint (already uploaded during approval)
+    hm_sig_bytes: Optional[bytes] = None
+    if offer.hm_signature_path:
+        try:
+            from app.services.sharepoint_service import download_file
+            hm_sig_bytes = download_file(offer.hm_signature_path)
+        except Exception:
+            pass  # Will fall back to static file inside generate_filled_docx
+
+    # Resolve job/candidate details for doc generation
+    first_name     = candidate.candidateFirstName or ""
+    last_name      = candidate.candidateLastName or ""
+    job_location   = offer.position or ""
+    job_department = ""
+    if offer.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == offer.job_id).first()
+        if job:
+            if job.jobLocation:  job_location   = job.jobLocation
+            if job.department:   job_department = job.department.name or ""
+
+    hm_name = ""
+    if offer.hiring_manager_id:
+        hm = db.query(Users).filter(Users.UserID == offer.hiring_manager_id).first()
+        if hm:
+            hm_name = hm.UserName or hm.UserEmail or ""
+
+    candidate_full = f"{first_name} {last_name}".strip()
+
+    # Generate final signed docx with both signatures
+    try:
+        signed_docx = generate_filled_docx(
+            first_name=first_name,
+            last_name=last_name,
+            job_title=offer.position or "",
+            department=job_department,
+            location=job_location,
+            offer_expire_date=offer.offer_expire_date,
+            joining_date=offer.joining_date,
+            annual_salary=offer.salary or "",
+            hiring_manager_name=hm_name,
+            hm_signature_bytes=hm_sig_bytes,
+            candidate_name=candidate_full,
+            candidate_signature_bytes=sig_bytes,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to generate signed offer letter: {exc}")
+
+    # Upload final signed docx
+    signed_path = signed_offer_file_path(offer.candidate_id, offer_id)
+    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    try:
+        signed_web_url = upload_file(signed_path, signed_docx, content_type=mime)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to upload signed offer letter: {exc}")
+
+    # Persist results
+    offer.offer_status             = "Accepted"
+    offer.responded_at             = datetime.now()
+    offer.candidate_signature_path = cand_sig_path
+    offer.signed_offer_path        = signed_path
+    offer.sharepoint_url           = signed_web_url
+    offer.download_url             = get_file_download_link(signed_path) or signed_web_url
+    offer.sharepoint_path          = signed_path
+    db.commit()
+
+    # ── Update candidate pipeline status → Hired ──────────────────────────────
+    # Candidate signed the offer — they are now officially Hired
+    _update_pipeline_status(offer.candidate_id, "Hired", db)
+
+    # ── Notify HR by email ────────────────────────────────────────────────────
+    try:
+        hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
+        if hr_creator:
+            EmailService.notify_hr_candidate_responded(
+                hr_email=hr_creator.UserEmail,
+                candidate_name=candidate_full or offer.candidate_id,
+                position=offer.position or "",
+                offer_id=offer_id,
+                decision="Accepted",
+            )
+    except Exception:
+        pass
+
+    return CandidateSignedAcceptanceResponse(
+        status="success",
+        message="Offer signed and accepted successfully. The final document is available in SharePoint.",
+        offer_id=offer_id,
+        offer_status=offer.offer_status,
+        signed_offer_path=signed_path,
+    )
 
 
 # ============================================

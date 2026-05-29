@@ -488,11 +488,11 @@ def hiring_manager_approval(
     """
     Process Hiring Manager Approval for a candidate.
 
-    The candidate must be in the 'Approval' pipeline stage.
+    The candidate must be in the 'Pre-onboarding-Approval' pipeline stage.
     The authenticated user must be the assigned hiring manager for the candidate
     (or an administrator, depending on business rules).
 
-    If Approved -> Candidate moves to 'Pre-Onboarding'
+    If Approved -> Candidate moves to 'Pre-Onboarding' (checklist auto-assigned)
     If Rejected -> Candidate moves to 'Rejected' (and goes to Org Pool)
     """
     # 1. Verify candidate exists
@@ -505,10 +505,10 @@ def hiring_manager_approval(
     if not cs:
         raise HTTPException(status_code=400, detail="Candidate does not have a status record.")
 
-    if cs.piplineStatus != "Approval":
+    if cs.piplineStatus != "Pre-onboarding-Approval":
         raise HTTPException(
             status_code=400,
-            detail=f"Candidate is currently in '{cs.piplineStatus}' stage, not 'Approval'.",
+            detail=f"Candidate is currently in '{cs.piplineStatus}' stage, not 'Pre-onboarding-Approval'.",
         )
 
     # 3. Verify user is the hiring manager or admin
