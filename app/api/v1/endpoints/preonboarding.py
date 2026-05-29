@@ -297,88 +297,113 @@ def get_hm_candidate_review(
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Returns the list of candidates who have completed **at least 2 interviews**
-    for jobs where the authenticated user is the **Hiring Manager**.
+    Returns candidates who have **≥ 2 completed interview rounds** across panels
+    that are linked to a job managed by the authenticated Hiring Manager.
 
-    For each candidate every completed interview round is included together
-    with the full feedback from each panel member (scores, comments, recommendation).
+    **Mapping logic (source of truth: InterviewPanel.job_id)**
 
-    Use the ``approval_endpoint`` field in each candidate entry to approve or
-    reject them via ``POST /preonboarding/{candidate_id}/hiring-manager-approval``.
+    1. Collect all `job_id`s where `job.hiringManagerID == authenticated_user`.
+    2. Query all `InterviewPanel` rows whose `job_id` is in that set.
+    3. Group panels by `(candidate_id, job_id)` — each group represents one
+       candidate's interview journey for a specific job.
+    4. For each group, count `Interview` rows with `status == "Completed"`.
+       Skip the group if < 2 completed rounds.
+    5. Return full feedback from every completed interview in the group.
+
+    Use the ``approval_endpoint`` field to approve/reject via
+    ``POST /preonboarding/{candidate_id}/hiring-manager-approval``.
     """
-    hm_id: str = user.UserID
+    from collections import defaultdict
+
+    hm_id:   str = user.UserID
     hm_name: str = getattr(user, "UserName", None) or "Hiring Manager"
 
-    # ── Step 1: collect all job IDs managed by this hiring manager ──────────
+    # ── Step 1: jobs this HM manages ─────────────────────────────────────────
     managed_jobs = (
         db.query(Jobs)
         .filter(Jobs.hiringManagerID == hm_id)
         .all()
     )
     managed_job_ids = {j.jobID for j in managed_jobs}
+    job_map = {j.jobID: j for j in managed_jobs}
 
-    # Also include jobs where the HM is set via CandidateAssignment
-    hm_assignments = (
-        db.query(CandidateAssignment)
-        .filter(CandidateAssignment.hiring_manager_id == hm_id)
+    if not managed_job_ids:
+        return HMCandidateReviewListResponse(
+            hiring_manager_id=hm_id,
+            hiring_manager_name=hm_name,
+            total_candidates=0,
+            candidates=[],
+        )
+
+    # ── Step 2: all panels for those jobs ────────────────────────────────────
+    all_panels = (
+        db.query(InterviewPanel)
+        .filter(InterviewPanel.job_id.in_(managed_job_ids))
         .all()
     )
-    hm_assigned_candidate_ids = {a.candidate_id for a in hm_assignments}
 
-    # ── Step 2: find candidates linked to those jobs OR assigned to this HM ─
-    candidate_pool: list[Candidate] = []
-    seen_ids: set[str] = set()
-
-    if managed_job_ids:
-        job_candidates = (
-            db.query(Candidate)
-            .filter(Candidate.job_id.in_(managed_job_ids))
-            .all()
+    if not all_panels:
+        return HMCandidateReviewListResponse(
+            hiring_manager_id=hm_id,
+            hiring_manager_name=hm_name,
+            total_candidates=0,
+            candidates=[],
         )
-        for c in job_candidates:
-            if c.candidateID not in seen_ids:
-                candidate_pool.append(c)
-                seen_ids.add(c.candidateID)
 
-    if hm_assigned_candidate_ids:
-        assigned_candidates = (
-            db.query(Candidate)
-            .filter(Candidate.candidateID.in_(hm_assigned_candidate_ids))
-            .all()
-        )
-        for c in assigned_candidates:
-            if c.candidateID not in seen_ids:
-                candidate_pool.append(c)
-                seen_ids.add(c.candidateID)
+    # ── Step 3: group panel IDs by (candidate_id, job_id) ───────────────────
+    # One candidate may have been interviewed multiple times via different
+    # panels for the same job (e.g. HR Round, Tech Round, Manager Round).
+    # We want to keep those rounds together.
+    group_panels: dict[tuple, list[int]] = defaultdict(list)
+    for panel in all_panels:
+        if panel.candidate_id:
+            group_panels[(panel.candidate_id, panel.job_id)].append(panel.id)
 
-    # ── Step 3: keep only those with >= 2 completed interviews ───────────────
+    # ── Step 4: for each group, collect completed interviews ─────────────────
     results: list[HMCandidateReviewItem] = []
 
-    for candidate in candidate_pool:
+    for (candidate_id, job_id), panel_ids in group_panels.items():
+
+        # Only interviews linked to THIS group's panels
         completed_ivs = (
             db.query(Interview)
             .filter(
-                Interview.candidate_id == candidate.candidateID,
+                Interview.panel_id.in_(panel_ids),
                 Interview.status == "Completed",
             )
             .order_by(Interview.start_time)
             .all()
         )
+
         if len(completed_ivs) < 2:
+            continue  # not enough rounds done yet
+
+        # Candidate record
+        candidate = (
+            db.query(Candidate)
+            .filter(Candidate.candidateID == candidate_id)
+            .first()
+        )
+        if not candidate:
             continue
 
-        # ── Pipeline status ──────────────────────────────────────────────────
+        # Pipeline status
         cs = (
             db.query(CandidateStatus)
-            .filter(CandidateStatus.candidateID == candidate.candidateID)
+            .filter(CandidateStatus.candidateID == candidate_id)
             .first()
         )
         pipeline_status = cs.piplineStatus if cs else "Unknown"
 
-        # ── Build interview round details ────────────────────────────────────
+        # ── Build interview round details with feedback ───────────────────────
         hm_rounds: list[HMInterviewRound] = []
+
         for iv in completed_ivs:
-            panel = db.query(InterviewPanel).filter(InterviewPanel.id == iv.panel_id).first()
+            panel = (
+                db.query(InterviewPanel)
+                .filter(InterviewPanel.id == iv.panel_id)
+                .first()
+            )
             round_name = panel.round_name if panel else "Interview"
 
             raw_feedbacks = (
@@ -389,6 +414,7 @@ def get_hm_candidate_review(
 
             hm_feedbacks: list[HMFeedbackDetail] = []
             recommendations_seen: set[str] = set()
+
             for fb in raw_feedbacks:
                 interviewer = (
                     db.query(Users)
@@ -421,7 +447,7 @@ def get_hm_candidate_review(
                 )
                 recommendations_seen.add(fb.recommendation)
 
-            # Derive an overall recommendation label for the round
+            # Overall recommendation for the round
             if not recommendations_seen:
                 overall_rec = "No Feedback"
             elif recommendations_seen <= {"Hire", "Must Hire"}:
@@ -442,25 +468,22 @@ def get_hm_candidate_review(
                 )
             )
 
-        # ── Job title lookup ─────────────────────────────────────────────────
-        job_title: str | None = None
-        if candidate.job_id:
-            job_obj = next((j for j in managed_jobs if j.jobID == candidate.job_id), None)
-            if job_obj:
-                job_title = job_obj.jobTitle
+        # ── Job details ──────────────────────────────────────────────────────
+        job_obj   = job_map.get(job_id)
+        job_title = job_obj.jobTitle if job_obj else None
 
         results.append(
             HMCandidateReviewItem(
-                candidate_id=candidate.candidateID,
+                candidate_id=candidate_id,
                 candidate_name=_candidate_display_name(candidate),
                 candidate_email=candidate.candidateEmail,
                 candidate_mobile=candidate.candidateMobile,
                 candidate_experience=candidate.candidateExperience,
-                job_id=candidate.job_id,
+                job_id=job_id,          # job from panel — most accurate
                 job_title=job_title,
                 pipeline_status=pipeline_status,
                 completed_interview_count=len(completed_ivs),
-                approval_endpoint=f"/preonboarding/{candidate.candidateID}/hiring-manager-approval",
+                approval_endpoint=f"/preonboarding/{candidate_id}/hiring-manager-approval",
                 interviews=hm_rounds,
             )
         )
@@ -471,6 +494,7 @@ def get_hm_candidate_review(
         total_candidates=len(results),
         candidates=results,
     )
+
 
 
 @router.post(
