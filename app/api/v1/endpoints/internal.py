@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import require_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.internal_note import InternalNote
@@ -46,7 +46,6 @@ def get_notes_by_candidate(
         description="Filter by note category (e.g. 'General', 'Background Check').",
     ),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
 ):
     """
     Returns all **internal HR notes** for the given candidate, ordered by
@@ -95,14 +94,13 @@ def get_notes_by_candidate(
     "/notes/{candidate_id}",
     response_model=InternalNoteResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("candidate.edit"))],
     summary="Add an internal HR note to a candidate",
 )
 def create_note(
     candidate_id: str,
     payload: InternalNoteCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(require_permission("candidate.edit")),
 ):
     """
     Creates a new **internal HR note** on a candidate.

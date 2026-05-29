@@ -385,6 +385,18 @@ class OfferLetterResponse(BaseModel):
     sharepoint_url: str | None = None
     download_url: str | None = None
     sharepoint_path: str | None = None
+    # Approval workflow fields
+    approval_status: str | None = None
+    approved_at: datetime | None = None
+    approved_by: str | None = None
+    approval_notes: str | None = None
+    # Release tracking
+    released_at: datetime | None = None
+    released_by: str | None = None
+    # Signature paths
+    hm_signature_path: str | None = None
+    candidate_signature_path: str | None = None
+    signed_offer_path: str | None = None
 
 class OfferAcceptanceRequest(BaseModel):
     offer_id: int
@@ -404,6 +416,38 @@ class OfferCancelRequest(BaseModel):
 class AllOffersResponse(BaseModel):
     total_offers: int
     offers: list[OfferLetterResponse]
+
+
+# ── Offer Approval (Hiring Manager) ──────────────────────────────────────────
+
+class OfferApprovalResponse(BaseModel):
+    status: str
+    message: str
+    offer_id: int
+    approval_status: str
+    approved_at: Optional[datetime] = None
+
+
+# ── Offer Release (HR releases to candidate) ──────────────────────────────────
+
+class OfferReleaseResponse(BaseModel):
+    status: str
+    message: str
+    offer_id: int
+    offer_status: str
+    released_at: datetime
+
+
+# ── Candidate Signature + Acceptance ─────────────────────────────────────────
+
+class CandidateSignedAcceptanceResponse(BaseModel):
+    status: str
+    message: str
+    offer_id: int
+    offer_status: str
+    signed_offer_path: Optional[str] = None
+
+
 
 
 # ── User Section ─────────────────────────────────────────────────────────────

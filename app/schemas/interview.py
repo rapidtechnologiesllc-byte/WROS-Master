@@ -10,12 +10,15 @@ class InterviewPanelCreate(BaseModel):
     """Schema for creating a new interview panel"""
     candidate_id: str
     round_name: str = Field(..., description="Round name: HR, Technical, Managerial, etc.")
+    job_id: Optional[str] = Field(None, description="Job the candidate is being interviewed for")
 
 class InterviewPanelResponse(BaseModel):
     """Schema for interview panel response"""
     id: int
     candidate_id: str
     round_name: str
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
     created_at: datetime
 
 class InterviewPanelWithDetails(BaseModel):
@@ -24,6 +27,8 @@ class InterviewPanelWithDetails(BaseModel):
     candidate_id: str
     candidate_name: str
     round_name: str
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
     created_at: datetime
     member_count: int
     interview_count: int
@@ -167,6 +172,7 @@ class InterviewFilterParams(BaseModel):
     """Schema for filtering interviews"""
     candidate_id: Optional[str] = None
     panel_id: Optional[int] = None
+    job_id: Optional[str] = None
     status: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None

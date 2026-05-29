@@ -365,3 +365,278 @@ class EmailService:
         except Exception as e:
             logger.error(f"[EmailService] send_interview_invite error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    # ------------------------------------------------------------------
+    # Offer Letter Workflow Emails
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def notify_hm_approval_requested(
+        cls,
+        hm_email: str,
+        hm_name: str,
+        candidate_name: str,
+        position: str,
+        offer_id: int,
+    ) -> None:
+        """
+        Email sent to the Hiring Manager when an offer letter is submitted for their approval.
+        Sent as a best-effort fire-and-forget (errors are logged, not re-raised).
+        """
+        try:
+            body = f"""
+            <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+              Dear <strong>{hm_name}</strong>,
+            </p>
+            <p style="font-size:14px;color:#374151;line-height:1.6;">
+              An offer letter has been submitted and is awaiting your approval.
+              Please review the details below and take action.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Candidate:</strong> {candidate_name}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Position:</strong> {position}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Offer ID:</strong> #{offer_id}
+                </p>
+              </td></tr>
+            </table>
+            <p style="font-size:14px;color:#374151;line-height:1.6;">
+              Please log in to the HRMS portal and navigate to
+              <strong>Offer Letters &rarr; Pending Approval</strong> to review and sign.
+            </p>
+            <p style="font-size:14px;color:#374151;margin-top:24px;">
+              Best regards,<br/><strong>BlitzenX HR Team</strong>
+            </p>
+            """
+            html = cls._base_html("Offer Letter Pending Your Approval", body)
+            cls.send_email(
+                to_email=hm_email,
+                subject=f"[Action Required] Offer Letter Approval — {candidate_name} | #{offer_id}",
+                body_content=html,
+                is_html=True,
+            )
+            logger.info(f"[EmailService] HM approval-request email sent to {hm_email}")
+        except Exception as exc:
+            logger.warning(f"[EmailService] notify_hm_approval_requested failed: {exc}")
+
+    @classmethod
+    def notify_hr_hm_decision(
+        cls,
+        hr_email: str,
+        hm_name: str,
+        candidate_name: str,
+        position: str,
+        offer_id: int,
+        decision: str,          # "Approved" or "Rejected"
+        approval_notes: str = "",
+    ) -> None:
+        """
+        Email sent to HR when the Hiring Manager approves or rejects an offer.
+        """
+        try:
+            colour = "#16a34a" if decision == "Approved" else "#dc2626"
+            badge = f'<span style="color:{colour};font-weight:700;">{decision}</span>'
+            notes_section = ""
+            if approval_notes:
+                notes_section = f"""
+                <tr><td style="padding:6px 0;">
+                  <p style="margin:0;font-size:14px;color:#374151;">
+                    <strong>Notes:</strong> {approval_notes}
+                  </p>
+                </td></tr>"""
+
+            body = f"""
+            <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+              The hiring manager has reviewed an offer letter.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Decision:</strong> {badge}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Hiring Manager:</strong> {hm_name}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Candidate:</strong> {candidate_name}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Position:</strong> {position}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Offer ID:</strong> #{offer_id}
+                </p>
+              </td></tr>
+              {notes_section}
+            </table>
+            {"<p style='font-size:14px;color:#374151;'>The offer is ready to be released to the candidate.</p>" if decision == "Approved" else ""}
+            <p style="font-size:14px;color:#374151;margin-top:24px;">
+              Best regards,<br/><strong>BlitzenX HR Team</strong>
+            </p>
+            """
+            html = cls._base_html(f"Offer Letter {decision} by Hiring Manager", body)
+            cls.send_email(
+                to_email=hr_email,
+                subject=f"Offer #{offer_id} {decision} by {hm_name} — {candidate_name}",
+                body_content=html,
+                is_html=True,
+            )
+            logger.info(f"[EmailService] HR decision notification sent to {hr_email} — {decision}")
+        except Exception as exc:
+            logger.warning(f"[EmailService] notify_hr_hm_decision failed: {exc}")
+
+    @classmethod
+    def notify_candidate_offer_released(
+        cls,
+        candidate_email: str,
+        candidate_name: str,
+        position: str,
+        company_name: str = "BlitzenX",
+        joining_date: str = "",
+        offer_expire_date: str = "",
+    ) -> None:
+        """
+        Email sent to the candidate when HR releases the approved offer letter.
+        """
+        try:
+            expire_row = ""
+            if offer_expire_date:
+                expire_row = f"""
+                <tr><td style="padding:6px 0;">
+                  <p style="margin:0;font-size:14px;color:#374151;">
+                    <strong>Offer Valid Until:</strong> {offer_expire_date}
+                  </p>
+                </td></tr>"""
+            joining_row = ""
+            if joining_date:
+                joining_row = f"""
+                <tr><td style="padding:6px 0;">
+                  <p style="margin:0;font-size:14px;color:#374151;">
+                    <strong>Joining Date:</strong> {joining_date}
+                  </p>
+                </td></tr>"""
+
+            body = f"""
+            <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+              Dear <strong>{candidate_name}</strong>,
+            </p>
+            <p style="font-size:14px;color:#374151;line-height:1.6;">
+              We are delighted to extend an offer of employment to you from
+              <strong>{company_name}</strong>. Please log in to the candidate portal
+              to view your offer letter, provide your signature, and formally accept.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Position:</strong> {position}
+                </p>
+              </td></tr>
+              {joining_row}
+              {expire_row}
+            </table>
+            <p style="font-size:14px;color:#374151;line-height:1.6;">
+              Please review the offer carefully and respond before the expiry date.
+            </p>
+            <p style="font-size:14px;color:#374151;margin-top:24px;">
+              Warm regards,<br/><strong>BlitzenX HR Team</strong>
+            </p>
+            """
+            html = cls._base_html("Your Offer Letter is Ready", body)
+            cls.send_email(
+                to_email=candidate_email,
+                subject=f"Congratulations! Your Offer Letter from {company_name}",
+                body_content=html,
+                is_html=True,
+            )
+            logger.info(f"[EmailService] Offer-released email sent to {candidate_email}")
+        except Exception as exc:
+            logger.warning(f"[EmailService] notify_candidate_offer_released failed: {exc}")
+
+    @classmethod
+    def notify_hr_candidate_responded(
+        cls,
+        hr_email: str,
+        candidate_name: str,
+        position: str,
+        offer_id: int,
+        decision: str,          # "Accepted" or "Rejected"
+        response_message: str = "",
+    ) -> None:
+        """
+        Email sent to HR when the candidate accepts or rejects the offer.
+        """
+        try:
+            colour = "#16a34a" if decision == "Accepted" else "#dc2626"
+            badge = f'<span style="color:{colour};font-weight:700;">{decision}</span>'
+            msg_section = ""
+            if response_message:
+                msg_section = f"""
+                <tr><td style="padding:6px 0;">
+                  <p style="margin:0;font-size:14px;color:#374151;">
+                    <strong>Candidate Message:</strong> {response_message}
+                  </p>
+                </td></tr>"""
+
+            body = f"""
+            <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+              A candidate has responded to their offer letter.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Decision:</strong> {badge}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Candidate:</strong> {candidate_name}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Position:</strong> {position}
+                </p>
+              </td></tr>
+              <tr><td style="padding:6px 0;">
+                <p style="margin:0;font-size:14px;color:#374151;">
+                  <strong>Offer ID:</strong> #{offer_id}
+                </p>
+              </td></tr>
+              {msg_section}
+            </table>
+            <p style="font-size:14px;color:#374151;margin-top:24px;">
+              Best regards,<br/><strong>BlitzenX HRMS</strong>
+            </p>
+            """
+            html = cls._base_html(f"Candidate {decision} the Offer", body)
+            cls.send_email(
+                to_email=hr_email,
+                subject=f"Offer #{offer_id} {decision} by {candidate_name}",
+                body_content=html,
+                is_html=True,
+            )
+            logger.info(f"[EmailService] Candidate-response email sent to {hr_email} — {decision}")
+        except Exception as exc:
+            logger.warning(f"[EmailService] notify_hr_candidate_responded failed: {exc}")
+
