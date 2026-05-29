@@ -350,6 +350,60 @@ def get_my_jobs(
     return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
 
 
+@router.get(
+    "/job-details/{job_id}",
+    response_model=JobResponse,
+    dependencies=[Depends(require_permission("job.view"))],
+)
+def get_job_by_id(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Get whole information of a job by job ID.
+    
+    Args:
+        job_id: ID of the job to retrieve
+        db: Database session
+        user: Authenticated HR/Admin user
+        
+    Returns:
+        JobResponse with full job details
+        
+    Raises:
+        HTTPException: If job not found
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job with ID {job_id} not found"
+        )
+    
+    return JobResponse(
+        job_id=job.jobID,
+        job_title=job.jobTitle,
+        job_description=job.jobDescription,
+        job_skills=job.jobSkills,
+        job_experience=job.jobExperience,
+        job_location=job.jobLocation,
+        job_created_at=job.jobCreatedAt,
+        company_type=job.companyType,
+        company_name=job.companyName,
+        contact_person=job.contactPerson,
+        job_status=job.jobStatus,
+        no_of_positions=job.noOfPositions,
+        start_date=job.startDate,
+        end_date=job.endDate,
+        hiring_manager_id=job.hiringManagerID,
+        recuriter_id=job.recuriterID,
+        business_unit=job.business_unit_id,
+        department_id=job.department_id,
+        salary_range=job.salaryRange
+    )
+
+
 @router.post(
     "/create_job",
     response_model=JobCreateResponse,
