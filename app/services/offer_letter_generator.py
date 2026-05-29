@@ -49,6 +49,10 @@ TEMPLATE_PATH = os.getenv(
     "SHAREPOINT_TEMPLATE_PATH",
     "templates/Internship Offer letter.docx",
 )
+FULLTIME_TEMPLATE_PATH = os.getenv(
+    "SHAREPOINT_FULLTIME_TEMPLATE_PATH",
+    "templates/Full Time Offer letter.docx",
+)
 GENERATED_FOLDER = os.getenv(
     "SHAREPOINT_GENERATED_FOLDER",
     "generated-offers",
@@ -57,6 +61,35 @@ HR_MANAGER_SIGNATURE_PATH = os.getenv(
     "SHAREPOINT_HR_MANAGER_SIGNATURE_PATH",
     "templates/hiringmanager_signature.png",
 )
+
+# Friendly name → SharePoint template path mapping
+_TEMPLATE_MAP: dict[str, str] = {
+    "intern":    TEMPLATE_PATH,
+    "fulltime":  FULLTIME_TEMPLATE_PATH,
+}
+
+
+def get_template_path(template_type: str) -> str:
+    """
+    Resolve a user-friendly template type string to the corresponding
+    SharePoint path.
+
+    Args:
+        template_type: "intern" or "fulltime" (case-insensitive).
+
+    Returns:
+        SharePoint-relative path string.
+
+    Raises:
+        ValueError: If the type is not recognised.
+    """
+    key = template_type.strip().lower()
+    if key not in _TEMPLATE_MAP:
+        valid = ", ".join(f"'{k}'" for k in _TEMPLATE_MAP)
+        raise ValueError(
+            f"Unknown template_type '{template_type}'. Valid options: {valid}."
+        )
+    return _TEMPLATE_MAP[key]
 
 # Sentinel used internally — the salary placeholder is replaced with this
 # string first, then found again and swapped out for a real table.
@@ -415,6 +448,59 @@ def _inject_signature_image(
     )
 
 
+def _inject_candidate_signature(
+    doc: Document,
+    candidate_name: str,
+    signature_img_bytes: Optional[bytes],
+    width_inches: float = 1.5,
+) -> None:
+    """
+    Find the paragraph containing {{Signature CandidateSignature}},
+    clear the placeholder text, and insert the candidate's signature image
+    inline.  Falls back to a "Signed by <name>" label if no image is supplied.
+    """
+    placeholder = "{{Signature CandidateSignature}}"
+
+    def _process_para(para) -> bool:
+        full_text = "".join(run.text for run in para.runs)
+        if placeholder not in full_text:
+            return False
+
+        for run in para.runs:
+            run.text = ""
+
+        if signature_img_bytes:
+            run = para.add_run()
+            run.add_picture(io.BytesIO(signature_img_bytes), width=Inches(width_inches))
+            logger.info(
+                "offer_letter_generator — candidate signature image injected"
+            )
+        else:
+            # Fallback: candidate name as plain text
+            para.add_run(f"Signed by: {candidate_name}" if candidate_name else "Candidate Signature")
+            logger.warning(
+                "offer_letter_generator — candidate signature image unavailable; "
+                "falling back to plain-text label"
+            )
+        return True
+
+    for para in doc.paragraphs:
+        if _process_para(para):
+            return
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    if _process_para(para):
+                        return
+
+    logger.warning(
+        "offer_letter_generator — {{Signature CandidateSignature}} placeholder not found"
+    )
+
+
+
 def _inject_salary_table(doc: Document, annual_salary_str: str) -> None:
     """
     Find the paragraph containing _SALARY_TABLE_MARKER, build the salary table
@@ -520,13 +606,23 @@ def generate_filled_docx(
     annual_salary: str,
     hiring_manager_name: str,
     template_path: Optional[str] = None,
+    hm_signature_bytes: Optional[bytes] = None,
+    candidate_name: Optional[str] = None,
+    candidate_signature_bytes: Optional[bytes] = None,
 ) -> bytes:
     """
     Download the SharePoint template, fill all placeholders, inject the salary
     table, and return the resulting .docx as raw bytes.
 
     Args:
-        template_path: Override the default SHAREPOINT_TEMPLATE_PATH env var.
+        template_path:            Override the default SHAREPOINT_TEMPLATE_PATH env var.
+        hm_signature_bytes:       PNG bytes of the hiring manager's signature.
+                                  When provided, the static SharePoint file is skipped.
+                                  When None, the legacy SharePoint file is downloaded.
+        candidate_name:           Candidate full name (used as fallback label if no sig image).
+        candidate_signature_bytes: PNG bytes of the candidate's signature.
+                                  When provided, the {{Signature CandidateSignature}}
+                                  placeholder is replaced with the actual image.
 
     Returns:
         Bytes of the filled .docx file.
@@ -558,30 +654,36 @@ def generate_filled_docx(
         f"{first_name} {last_name} (position: {job_title})"
     )
 
-    # 4. Download hiring-manager signature image from SharePoint (best-effort)
-    sig_img_bytes: Optional[bytes] = None
-    try:
-        sig_img_bytes = download_file(HR_MANAGER_SIGNATURE_PATH)
-        logger.info(
-            f"offer_letter_generator — signature image downloaded "
-            f"({len(sig_img_bytes)} bytes) from {HR_MANAGER_SIGNATURE_PATH}"
-        )
-    except Exception as exc:
-        logger.warning(
-            f"offer_letter_generator — could not download signature image "
-            f"from '{HR_MANAGER_SIGNATURE_PATH}': {exc}"
-        )
+    # 4. Resolve hiring-manager signature bytes
+    #    Priority: caller-supplied bytes → SharePoint static file → plain-text fallback
+    sig_img_bytes: Optional[bytes] = hm_signature_bytes
+    if sig_img_bytes is None:
+        try:
+            sig_img_bytes = download_file(HR_MANAGER_SIGNATURE_PATH)
+            logger.info(
+                f"offer_letter_generator — static signature image downloaded "
+                f"({len(sig_img_bytes)} bytes) from {HR_MANAGER_SIGNATURE_PATH}"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"offer_letter_generator — could not download static signature image "
+                f"from '{HR_MANAGER_SIGNATURE_PATH}': {exc}"
+            )
 
     # 5. Text placeholder replacement (sentinel written for salary table)
     _replace_in_doc(doc, context)
 
-    # 6. Inject hiring-manager signature image where the placeholder was
+    # 6. Inject hiring-manager signature image
     _inject_signature_image(doc, hiring_manager_name, sig_img_bytes)
 
-    # 7. Inject the salary breakdown table where the sentinel now sits
+    # 7. Inject candidate signature image (if supplied, otherwise placeholder already handled in context)
+    if candidate_signature_bytes is not None or candidate_name:
+        _inject_candidate_signature(doc, candidate_name or "", candidate_signature_bytes)
+
+    # 8. Inject the salary breakdown table where the sentinel now sits
     _inject_salary_table(doc, annual_salary)
 
-    # 6. Serialise to bytes
+    # 9. Serialise to bytes
     output = io.BytesIO()
     doc.save(output)
     output.seek(0)
@@ -593,3 +695,8 @@ def generate_filled_docx(
 def generated_file_path(candidate_id: str, offer_id: int) -> str:
     """Return the SharePoint path where the generated offer letter will be saved."""
     return f"{GENERATED_FOLDER}/{candidate_id}/offer_{offer_id}.docx"
+
+
+def signed_offer_file_path(candidate_id: str, offer_id: int) -> str:
+    """Return the SharePoint path where the fully-signed offer letter will be saved."""
+    return f"{GENERATED_FOLDER}/{candidate_id}/offer_{offer_id}_signed.docx"
