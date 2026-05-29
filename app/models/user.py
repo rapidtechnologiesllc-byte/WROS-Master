@@ -69,9 +69,13 @@ class InterviewPanel(Base):
 
     id = Column(Integer, primary_key=True)
     candidate_id = Column(String(50), ForeignKey("candidates.candidateID"))
+    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)  # job the candidate is interviewed for
     round_name = Column(String(50))  # HR, Tech, Manager
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("Jobs", foreign_keys=[job_id], lazy="select")
+
 
 class PanelMember(Base):
     __tablename__ = "panel_members"
