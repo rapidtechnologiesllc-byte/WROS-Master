@@ -58,6 +58,9 @@ export default function JobWorkspaceScreen({
   candidates = [],
   onAddCandidate,
   onOpenCandidate,
+  onFetchCandidateById,
+  setSelectedCandidate,
+  setScreen,
 }) {
   const [activeTab, setActiveTab] = useState("Candidates");
   const [query, setQuery] = useState("");
@@ -433,7 +436,20 @@ export default function JobWorkspaceScreen({
                   candidate: (
                     <button
                       className="font-semibold text-blue-700 hover:underline"
-                      onClick={() => onOpenCandidate?.(c.id)}
+                      onClick={async () => {
+                        onOpenCandidate?.(c.id);
+                        let finalCandidate = c;
+                        if (onFetchCandidateById) {
+                          try {
+                            const fresh = await onFetchCandidateById(c.id);
+                            if (fresh) {
+                              finalCandidate = fresh;
+                            }
+                          } catch (err) {}
+                        }
+                        setSelectedCandidate(finalCandidate);
+                        setScreen("candidateDetails");
+                      }}
                     >
                       {c.name}
                     </button>
