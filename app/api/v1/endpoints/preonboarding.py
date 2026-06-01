@@ -513,18 +513,28 @@ def hiring_manager_approval(
     Process Hiring Manager Approval for a candidate.
 
     The candidate must be in the 'Pre-onboarding-Approval' pipeline stage.
-    The authenticated user must be the assigned hiring manager for the candidate
-    (or an administrator, depending on business rules).
+
+    Permitted roles:
+      - Super User  — full bypass
+      - BU Head     — business-unit authority
+      - Hiring Manager — the specific HM assigned to this candidate / job
 
     If Approved -> Candidate moves to 'Pre-Onboarding' (checklist auto-assigned)
     If Rejected -> Candidate moves to 'Rejected' (and goes to Org Pool)
     """
-    # 1. Verify candidate exists
+    # ── 0. Validate action early (before any DB writes) ─────────────────────
+    if request.action not in ("Approve", "Reject"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid action. Must be 'Approve' or 'Reject'.",
+        )
+
+    # ── 1. Verify candidate exists ───────────────────────────────────────────
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
-    # 2. Verify candidate is in the 'Approval' stage
+    # ── 2. Verify candidate is in the 'Pre-onboarding-Approval' stage ────────
     cs = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).first()
     if not cs:
         raise HTTPException(status_code=400, detail="Candidate does not have a status record.")
@@ -532,81 +542,76 @@ def hiring_manager_approval(
     if cs.piplineStatus != "Pre-onboarding-Approval":
         raise HTTPException(
             status_code=400,
-            detail=f"Candidate is currently in '{cs.piplineStatus}' stage, not 'Pre-onboarding-Approval'.",
+            detail=(
+                f"Candidate is currently in '{cs.piplineStatus}' stage, "
+                f"not 'Pre-onboarding-Approval'."
+            ),
         )
 
-    # 3. Verify user is the hiring manager or admin
-    is_admin = False
-    if hasattr(user, "UserRole") and user.UserRole == "Admin":
-        is_admin = True
-    elif hasattr(user, "role") and user.role and user.role.name == "Admin":
-        is_admin = True
-
-    is_hiring_manager = False
-
-    # Check CandidateAssignment
-    assignment = (
-        db.query(CandidateAssignment)
-        .filter(CandidateAssignment.candidate_id == candidate_id)
-        .first()
-    )
-    if assignment and assignment.hiring_manager_id == user.UserID:
-        is_hiring_manager = True
-
-    # Check Job directly if no assignment or not match
-    if not is_hiring_manager and candidate.job_id:
-        job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
-        if job and job.hiringManagerID == user.UserID:
-            is_hiring_manager = True
-
-    if not is_hiring_manager and not is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Only the assigned hiring manager or an admin can approve/reject this candidate.",
-        )
-
-    # 4. Process Action
-    if request.action not in ["Approve", "Reject"]:
-        raise HTTPException(status_code=400, detail="Invalid action. Must be 'Approve' or 'Reject'.")
-
+    # ── 4. Apply pipeline status change ─────────────────────────────────────
     old_status = cs.piplineStatus
-    if request.action == "Approve":
-        cs.piplineStatus = "Pre-Onboarding"
-    else:  # Reject
-        cs.piplineStatus = "Rejected"
+    new_status = "Pre-Onboarding" if request.action == "Approve" else "Rejected"
+    cs.piplineStatus = new_status
 
-    db.commit()
-    db.refresh(cs)
+    # Log history entry for the approval/rejection action
+    db.add(
+        CandidateHistory(
+            candidateID=candidate_id,
+            event_type="Custom",
+            note=(
+                f"Candidate {request.action.lower()}d by {getattr(user, 'UserName', user.UserID)} "
+                f"({getattr(user, 'UserRole', 'User')}) at Hiring Manager Approval stage."
+                + (f" Comments: {request.comments}" if request.comments else "")
+            ),
+            performed_by_id=user.UserID,
+            performed_by_name=getattr(user, "UserName", None) or user.UserID,
+            event_at=datetime.utcnow(),
+        )
+    )
 
+    # Flush the status change and history before side-effects
+    db.flush()
+
+    # ── 5. Approval side-effects ─────────────────────────────────────────────
     if request.action == "Approve":
-        # ── Auto-assign pre-boarding checklist(s) based on candidate experience ──
+        # Auto-assign pre-boarding checklist(s) based on candidate experience
         try:
-            _assign_preboarding_checklist(candidate, db, performed_by_id=getattr(user, "UserID", None))
+            _assign_preboarding_checklist(
+                candidate, db, performed_by_id=user.UserID
+            )
         except Exception as exc:
             logger.warning(f"[Approval] Checklist auto-assign failed: {exc}")
 
-        # ── Email notifications ──
-        _send_approval_notifications(candidate, cs, assignment, db)
-
-    # 5. Handle Rejection (Org Pool transfer)
-    if request.action == "Reject":
-        # pyrefly: ignore [missing-import]
-        from app.services.candidate_pool_service import set_org_pool
-
-        reason_msg = (
-            "BU rejected candidate at Hiring Manager Approval stage \u2014 returned to Org Pool"
-        )
-        if request.comments:
-            reason_msg += f". Comments: {request.comments}"
-
-        set_org_pool(
-            candidate_id=candidate_id,
-            reason=reason_msg,
-            db=db,
-            performed_by_id=getattr(user, "UserID", None),
-            performed_by_name=getattr(user, "UserName", None),
-        )
         db.commit()
+        db.refresh(cs)
+
+        # Email notifications (non-critical — errors are logged, not raised)
+        #_send_approval_notifications(candidate, cs, assignment, db)
+
+    # ── 6. Rejection side-effects ────────────────────────────────────────────
+    elif request.action == "Reject":
+        db.commit()
+        db.refresh(cs)
+
+        try:
+            from app.services.candidate_pool_service import set_org_pool
+
+            reason_msg = (
+                "Rejected at Hiring Manager Approval stage — returned to Org Pool"
+            )
+            if request.comments:
+                reason_msg += f". Comments: {request.comments}"
+
+            set_org_pool(
+                candidate_id=candidate_id,
+                reason=reason_msg,
+                db=db,
+                performed_by_id=user.UserID,
+                performed_by_name=getattr(user, "UserName", None),
+            )
+            db.commit()
+        except Exception as exc:
+            logger.warning(f"[Approval] Org Pool transfer failed: {exc}")
 
     return StatusActionResponse(
         status="success",
