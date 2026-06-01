@@ -188,3 +188,12 @@ export const jobsFilter = async (parameters) => {
   );
   return data;
 };
+export const getCandidateApplications = async (candidateId) => {
+  const { data } = await apiRequest(
+    `/jobs/candidate-applications/${candidateId}`,
+    {
+      method: "GET",
+    },
+  );
+  return data;
+};
