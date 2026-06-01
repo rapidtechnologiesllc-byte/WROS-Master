@@ -171,13 +171,10 @@ export default function ProfileTab({ candidateId, candidate }) {
               profile?.available_to_join
             }
           />
+
           <Info
             label="Experience"
-            value={
-              profile?.candidate_experience ||
-              profile?.experience ||
-              profile?.total_experience
-            }
+            value={profile?.experience?.[0]?.year_of_experience || "-"}
           />
           <Info
             label="Location"
@@ -439,7 +436,7 @@ function Info({ label, value }) {
       </div>
 
       <div className="text-sm font-semibold text-gray-900 break-words leading-relaxed">
-        {value || "-"}
+        {typeof value === "object" ? JSON.stringify(value) : value || "-"}
       </div>
     </div>
   );
