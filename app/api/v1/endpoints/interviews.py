@@ -63,14 +63,10 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     Conditions (ALL must be true):
       1. Candidate's current pipeline status is still 'Interview'.
       2. The candidate has >= 2 completed interviews.
-      3. Every piece of feedback across ALL those completed interviews has
-         recommendation in {"Hire", "Must Hire"}.
 
     If all conditions pass, the pipeline status is moved to 'Pre-onboarding-Approval' and
     the hiring manager receives an email notification.
     """
-    HIRE_RECOMMENDATIONS = {"Hire", "Must Hire"}
-
     candidate_id = interview.candidate_id
 
     # --- Condition 1: must be in 'Interview' stage ---
@@ -94,20 +90,6 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     if len(completed_interviews) < 2:
         return
 
-    # --- Condition 3: every feedback on every completed interview is Hire/Must Hire ---
-    for iv in completed_interviews:
-        feedbacks = (
-            db.query(InterviewFeedback)
-            .filter(InterviewFeedback.interview_id == iv.id)
-            .all()
-        )
-        if not feedbacks:
-            # An interview with NO feedback cannot count as a confirmed hire
-            return
-        for fb in feedbacks:
-            if fb.recommendation not in HIRE_RECOMMENDATIONS:
-                return
-
     # --- All conditions met → auto-promote to 'Pre-onboarding-Approval' ---
     old_status = cs.piplineStatus
     cs.piplineStatus = "Pre-onboarding-Approval"
@@ -118,7 +100,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
         event_type="Custom",
         note=(
             f"Candidate auto-submitted for Hiring Manager approval after "
-            f"{len(completed_interviews)} completed interviews — all feedback 'Hire'/'Must Hire'."
+            f"{len(completed_interviews)} completed interviews."
         ),
         performed_by_id="system",
         performed_by_name="Auto-Hire Engine",
@@ -196,8 +178,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
                 message=(
                     f"Dear {hiring_manager_name},<br><br>"
                     f"Candidate <strong>{candidate_name}</strong> has successfully completed "
-                    f"{len(completed_interviews)} interview round(s), with all interviewers "
-                    f"recommending <strong>Hire</strong> or <strong>Must Hire</strong>.<br><br>"
+                    f"{len(completed_interviews)} interview round(s).<br><br>"
                     f"Please log in to the HRMS portal to review and approve or reject this candidate.<br><br>"
                     f"Candidate ID: <strong>{candidate_id}</strong>"
                 ),
