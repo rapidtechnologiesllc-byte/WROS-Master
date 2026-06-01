@@ -23,6 +23,12 @@ import {
   ButtonDiv,
   RejectButton,
 } from "../styles/CandidateSearchStyles";
+import {
+  managerReviewApprove,
+  managerReviewList,
+} from "../services/api/preOnboarding";
+import { sendPlainEmail } from "../services/api/email";
+import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 
 export default function CandidateSearch({
   candidates,
@@ -53,13 +59,14 @@ export default function CandidateSearch({
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [preonboardingModal, setPreonboardingModal] = useState(false);
   const currentRole = localStorage.getItem("hrms_role");
+  const [candidateActions, setCandidateActions] = useState({});
 
   useEffect(() => {
     let currentRole = localStorage.getItem("hrms_role");
-    if (currentRole === "HR MANAGER") {
+    if (currentRole === "HIRING MANAGER") {
       const data = async () => {
         try {
-          const canData = await getAllCandidates();
+          const canData = await managerReviewList();
           setCandidateList(canData?.candidates);
         } catch (err) {
           console.log(err);
@@ -172,6 +179,76 @@ export default function CandidateSearch({
     } catch (err) {}
   };
 
+  const handlePreOnboardingAction = async (record, action) => {
+    try {
+      const res = await managerReviewApprove(record, action);
+
+      if (res?.status === "success") {
+        const updatedCandidate = res?.data;
+        setCandidateList((prev) =>
+          prev.map((candidate) =>
+            candidate.candidate_id === updatedCandidate.candidate_id
+              ? {
+                  ...candidate,
+                  pipeline_status: updatedCandidate.pipeline_status,
+                  status: updatedCandidate.status,
+                  updated_at: updatedCandidate.updated_at,
+                }
+              : candidate,
+          ),
+        );
+        if (action === "Approve") {
+          const emailSend = await sendPlainEmail({
+            toEmail: record?.candidate_email,
+            subject: "Pre-Onboarding Task",
+            bodyContent: getEmailBodyHTML(record?.candidate_name),
+            isHtml: false,
+          });
+
+          if (emailSend?.status === "success") {
+            toast.success(
+              `Candidate ${record?.candidate_name} approved for Pre-Onboarding`,
+            );
+          }
+        } else {
+          toast.success(
+            `Candidate ${record?.candidate_name} has been rejected`,
+          );
+        }
+      }
+    } catch (err) {
+      toast.error(
+        action === "Approve"
+          ? "Candidate already moved to Pre-Onboarding"
+          : "Failed to reject candidate",
+      );
+    }
+  };
+
+  const managerRejectCandidate = async (record) => {
+    try {
+      const result = await updateCandidateStatus(record?.candidate_id, {
+        status: "Active",
+        pipeline_status: "Pre-onboarding-Approval",
+      });
+      if (result?.status === "success") {
+        setCandidateList((prev) =>
+          prev.map((candidate) =>
+            candidate.candidate_id === result.candidate_id
+              ? { ...candidate, ...result }
+              : candidate,
+          ),
+        );
+
+        toast.success(
+          `Candidate ${record?.candidate_name} rejected successfully`,
+        );
+      }
+    } catch (err) {
+      toast.error(err?.message);
+    }
+  };
+
   const columns = [
     {
       title: "Name",
@@ -210,11 +287,11 @@ export default function CandidateSearch({
     },
     {
       title: "Job Title",
-      dataIndex: "candidate_job_title",
+      dataIndex: "job_title",
     },
     {
       title: "Pipeline",
-      dataIndex: "pipline_status",
+      dataIndex: "pipeline_status",
     },
     {
       title: "Status",
@@ -223,13 +300,25 @@ export default function CandidateSearch({
     {
       title: "Action",
       key: "action",
-      render: (_, record) => (
-        <ButtonDiv>
-          <AcceptButton onClick={() => console.log("")}>Accept</AcceptButton>
-
-          <RejectButton onClick={() => console.log("")}>Reject</RejectButton>
-        </ButtonDiv>
-      ),
+      render: (_, record) => {
+        const action = candidateActions[record?.candidate_id];
+        return (
+          <ButtonDiv>
+            <AcceptButton
+              disabled={action === "Approve"}
+              onClick={() => handlePreOnboardingAction(record, "Approve")}
+            >
+              Accept
+            </AcceptButton>
+            <RejectButton
+              disabled={action === "Reject"}
+              onClick={() => managerRejectCandidate(record)}
+            >
+              Reject
+            </RejectButton>
+          </ButtonDiv>
+        );
+      },
     },
   ];
 
@@ -270,7 +359,7 @@ export default function CandidateSearch({
           </div>
         </div>
 
-        {currentRole === "HR MANAGER" ? (
+        {currentRole === "HIRING MANAGER" ? (
           <Card
             title={`Candidates (${filtered.length})`}
             icon={<Users className="h-4 w-4 text-gray-700" />}
