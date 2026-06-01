@@ -738,6 +738,11 @@ ${jobDescription}
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
+      await updateCandidateStatus(candidate.id, {
+        pipeline_status: "Interview",
+      });
+      const updatedStatusRes = await getCandidateStatus(candidate.id);
+      setStatusData(updatedStatusRes);
       const performedBy =
         localStorage?.getItem?.("hrms_user_name") || "HR User";
       await createCandidateHistoryEvent(candidate?.id, {
