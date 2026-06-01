@@ -38,8 +38,9 @@ export default function Shell({
   const isAdmin = normalizedRole === "ADMIN";
   const isHr = normalizedRole === "HR";
   const isHR_Manager = normalizedRole === "HR MANAGER";
+  const isHiringManager = normalizedRole === "HIRING MANAGER";
   const nav = useMemo(() => {
-    if (isHR_Manager) {
+    if (isHiringManager) {
       return [
         { id: "candidateSearch", label: "Candidates", icon: Users },
         {

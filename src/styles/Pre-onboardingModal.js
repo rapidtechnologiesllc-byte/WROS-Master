@@ -30,26 +30,6 @@ const BonusButtonDiv = styled.div`
   margin-top: 10px;
 `;
 
-const Container = styled.div`
-  padding: 20px;
-  background: #f5f6f8;
-  min-height: 60vh;
-`;
-
-const Section = styled.div`
-  background: #fff;
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 20px;
-`;
-
-const ScrollContainer = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 6px;
-  max-height: 60vh;
-`;
-
 const Title = styled.h3`
   margin-bottom: 16px;
   font-weight: 600;
@@ -69,15 +49,6 @@ const Name = styled.div`
 const Role = styled.div`
   font-size: 12px;
   color: #888;
-`;
-
-const PreviewBox = styled.div`
-  height: 600px;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-  background: #fafafa;
-  overflow-y: auto;
-  padding: 20px;
 `;
 
 const IconDiv = styled.div`
@@ -243,19 +214,86 @@ const Content = styled.div`
   }
 `;
 
+const PreviewLayout = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: #f3f4f6;
+`;
+
+const PreviewTopBar = styled.div`
+  padding: 20px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+`;
+
+const DocumentViewer = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e5e7eb;
+`;
+
+const EmptyState = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 15px;
+`;
+
+const DocumentPaper = styled.div`
+  width: 850px;
+  min-height: 1100px;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 56px;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.04);
+  margin-bottom: 40px;
+  @media (max-width: 900px) {
+    width: 100%;
+    padding: 24px;
+  }
+`;
+
+const FormStepContainer = styled.div`
+  padding: 24px;
+  min-height: 100%;
+  background: #fff;
+`;
+
+const ContactPersonDiv = styled.div`
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const NameDiv = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+`;
+
 export {
   StepperDiv,
   Span,
   CheckBoxesDiv,
   BonusButtonDiv,
-  Container,
   CandidateWrapper,
   Name,
-  PreviewBox,
   Role,
-  Section,
   Title,
-  ScrollContainer,
   IconDiv,
   AvatarWrapper,
   CandidateName,
@@ -274,4 +312,12 @@ export {
   DateText,
   FileText,
   HeaderRow,
+  DocumentViewer,
+  EmptyState,
+  PreviewLayout,
+  PreviewTopBar,
+  DocumentPaper,
+  FormStepContainer,
+  ContactPersonDiv,
+  NameDiv,
 };
