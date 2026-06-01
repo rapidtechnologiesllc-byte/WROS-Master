@@ -37,6 +37,10 @@ import { Mail, MessageCircle } from "lucide-react";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import StatusDropdown from "../components/ui/StatusDropdown";
 import PreonboardingModal from "./PreonboardingModal";
+import { getCandidateNotes, createCandidateNote } from "../services/api/notes";
+import { getCandidateApplications, getActiveJobs } from "../services/api/jobs";
+import ReactMarkdown from "react-markdown";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const initialScheduleForm = {
   roundName: "",
@@ -115,6 +119,7 @@ export default function CandidateDetailsScreen({
   const [isChecklistAssigned, setIsChecklistAssigned] = useState(false);
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
   const scheduleMenuRef = useRef(null);
+  const notesMenuRef = useRef(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleType, setScheduleType] = useState("");
   const [scheduleForm, setScheduleForm] = useState(initialScheduleForm);
@@ -127,6 +132,16 @@ export default function CandidateDetailsScreen({
   const [preonboardingModal, setPreonboardingModal] = useState(false);
   const [radioStatus, setRadioStatus] = useState("");
   const [updatedStatus, setUpdatedStatus] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [showNotesMenu, setShowNotesMenu] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [candidateJobs, setCandidateJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
+
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
   const currentRole = localStorage.getItem("hrms_role");
@@ -189,6 +204,22 @@ export default function CandidateDetailsScreen({
   }, [candidate?.id, limitedMode]);
 
   useEffect(() => {
+    if (!candidate?.id) return;
+    const loadNotes = async () => {
+      try {
+        setLoadingNotes(true);
+        const response = await getCandidateNotes(candidate?.id);
+        setNotes(response?.notes || []);
+      } catch (error) {
+        console.error("Failed to fetch candidate notes", error);
+      } finally {
+        setLoadingNotes(false);
+      }
+    };
+    loadNotes();
+  }, [candidate?.id]);
+
+  useEffect(() => {
     if (!showAssignModal) return;
 
     const fetchTemplates = async () => {
@@ -224,6 +255,22 @@ export default function CandidateDetailsScreen({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showScheduleMenu]);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        notesMenuRef.current &&
+        !notesMenuRef.current.contains(event.target)
+      ) {
+        setShowNotesMenu(false);
+      }
+    };
+    if (showNotesMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showNotesMenu]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -408,7 +455,7 @@ export default function CandidateDetailsScreen({
     return String(diffMinutes);
   };
 
-  const openScheduleModal = (type) => {
+  const openScheduleModal = async (type) => {
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, "0");
@@ -432,6 +479,21 @@ export default function CandidateDetailsScreen({
       emailSubject: defaults.subject,
       emailBody: defaults.body,
     });
+    try {
+      setLoadingCandidateJobs(true);
+      const candidateId =
+        candidate?.candidate_id ?? candidate?.id ?? candidate?._id;
+      const response = await getCandidateApplications(candidateId);
+      const applications = response?.applications ?? [];
+      setCandidateJobs(applications);
+      setSelectedJobId("");
+    } catch (error) {
+      console.error("Failed to fetch candidate applications", error);
+      setCandidateJobs([]);
+      setSelectedJobId("");
+    } finally {
+      setLoadingCandidateJobs(false);
+    }
     setShowScheduleModal(true);
   };
 
@@ -442,6 +504,8 @@ export default function CandidateDetailsScreen({
     setScheduleErrors({});
     setPanelSearch("");
     setShowPanelMemberDropdown(false);
+    setCandidateJobs([]);
+    setSelectedJobId("");
     setScheduleForm(initialScheduleForm);
   };
 
@@ -582,12 +646,14 @@ export default function CandidateDetailsScreen({
     if (!scheduleForm.emailBody.trim()) {
       errors.emailBody = "Email body is required";
     }
-
+    if (!selectedJobId) {
+      errors.selectedJobId = "Please select a job";
+    }
     setScheduleErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const buildFaceToFaceEmailBody = () => {
+  const buildFaceToFaceEmailBody = (jobDescription = "") => {
     return `${scheduleForm.emailBody}
 
 Location: ${scheduleForm.location}
@@ -596,7 +662,18 @@ Start Time: ${scheduleForm.startTime}
 End Time: ${scheduleForm.endTime}
 Duration: ${scheduleForm.durationMinutes} minutes
 Timezone: ${scheduleForm.timezone}
-Meeting Platform: ${scheduleForm.meetingPlatform}`;
+Meeting Platform: ${scheduleForm.meetingPlatform}
+
+${
+  jobDescription
+    ? `
+
+Job Description:
+${jobDescription}
+`
+    : ""
+}
+`;
   };
 
   const handleScheduleInterview = async () => {
@@ -616,10 +693,21 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
     try {
       setScheduling(true);
+      let selectedApplication = null;
+      const candidateId =
+        candidate?.candidate_id || candidate?.id || candidate?._id || null;
+      const applicationRes = await getCandidateApplications(candidateId);
+      const applications = applicationRes?.applications || [];
+      selectedApplication =
+        applications?.find?.(
+          (application) =>
+            String(application?.job_id) === String(selectedJobId),
+        ) ?? null;
 
       const panelRes = await createInterviewPanel({
         candidateId: candidate.id,
         roundName: scheduleForm.roundName.trim(),
+        jobId: selectedApplication?.job_id,
       });
 
       const panelId = panelRes?.id;
@@ -659,16 +747,61 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         performed_by_name: performedBy,
         event_at: computedDateTime?.startDateTime,
       });
+      let jobDescription = "";
+      let formattedJD = "<p>Not Available</p>";
+      try {
+        const candidateId =
+          candidate?.candidate_id || candidate?.id || candidate?._id || null;
+        const applicationRes = await getCandidateApplications(candidateId);
+        const applications = applicationRes?.applications || [];
+        selectedApplication =
+          applications?.find?.(
+            (application) =>
+              String(application?.job_id) === String(selectedJobId),
+          ) ?? null;
+        if (!selectedApplication) {
+          console.warn("No application found for candidate");
+        }
+        if (selectedApplication?.job_id) {
+          const activeJobsRes = await getActiveJobs();
+
+          const matchedJob =
+            activeJobsRes?.jobs?.find?.(
+              (job) =>
+                String(job?.job_id) === String(selectedApplication?.job_id),
+            ) || null;
+          jobDescription =
+            matchedJob?.job_description || matchedJob?.description || "";
+
+          if (jobDescription?.trim()) {
+            formattedJD = renderToStaticMarkup(
+              <ReactMarkdown>{jobDescription}</ReactMarkdown>,
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch candidate applications", error);
+      }
       const resumeLink = await getCandidateResumeLink();
       if (scheduleType === "online") {
         await sendInterviewInvite({
           interviewId,
-          extraNotes: scheduleForm.extraNotes,
+          extraNotes: `
+<p>${scheduleForm?.extraNotes?.trim?.() || ""}</p>
+<hr />
+<h3 style="margin-bottom: 12px;">
+  Job Description
+</h3>
+
+${formattedJD}
+`,
           timezone: scheduleForm.timezone,
           createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
         });
-
-        await sendPanelInterviewBriefEmail({ resumeLink });
+        await sendPanelInterviewBriefEmail({
+          resumeLink,
+          selectedApplication,
+        });
       } else {
         const ccEmails = scheduleForm.ccEmails
           .split(",")
@@ -678,11 +811,14 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         await sendPlainEmail({
           toEmail: candidate.email,
           subject: scheduleForm.emailSubject.trim(),
-          bodyContent: buildFaceToFaceEmailBody(),
+          bodyContent: buildFaceToFaceEmailBody(jobDescription),
           isHtml: false,
           ccEmails,
         });
-        await sendPanelInterviewBriefEmail({ resumeLink });
+        await sendPanelInterviewBriefEmail({
+          resumeLink,
+          selectedApplication,
+        });
       }
 
       showNotice(
@@ -738,7 +874,10 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
       .map((email) => email.trim())
       .filter(Boolean);
   };
-  const sendPanelInterviewBriefEmail = async ({ resumeLink }) => {
+  const sendPanelInterviewBriefEmail = async ({
+    resumeLink,
+    selectedApplication,
+  }) => {
     const panelEmails = getSelectedPanelEmails();
     if (!panelEmails.length) {
       showNotice(
@@ -759,7 +898,9 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
     <p>
       <strong>Candidate Name:</strong> ${fullName}<br/>
-      <strong>Role:</strong> ${candidate?.jobTitle || "-"}<br/>
+  <strong>Role:</strong> ${
+    selectedApplication?.job_title || candidate?.jobTitle || "-"
+  }<br/>
       <strong>Round:</strong> ${scheduleForm.roundName || "-"}<br/>
       <strong>Interview Time:</strong> ${interviewTime}<br/>
       <strong>Timezone:</strong> ${scheduleForm.timezone || "-"}
@@ -785,6 +926,34 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
 
   const openOfferModal = () => {
     setPreonboardingModal(true);
+  };
+
+  const handleSaveNote = async () => {
+    if (!noteText?.trim()) {
+      showNotice("Please enter note content", "error");
+
+      return;
+    }
+
+    try {
+      setSavingNote(true);
+
+      await createCandidateNote(candidate?.id, {
+        content: noteText?.trim(),
+        category: "General",
+      });
+
+      const updatedNotes = await getCandidateNotes(candidate?.id);
+      setNotes(updatedNotes?.notes || []);
+      setNoteText("");
+      setShowNoteModal(false);
+      showNotice("Note added successfully", "success");
+    } catch (error) {
+      console.error("Failed to save candidate note", error);
+      showNotice("Failed to save note", "error");
+    } finally {
+      setSavingNote(false);
+    }
   };
   const handleArchiveToggle = async () => {
     try {
@@ -830,7 +999,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
         )}
 
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
-          <div className="px-6 py-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+          <div className="px-6 py-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6 overflow-visible">
             <div className="flex items-start gap-4 min-w-0">
               <div className="w-14 h-14 rounded-full bg-orange-500 text-white flex items-center justify-center text-lg font-semibold shrink-0">
                 {(fullName || "C")
@@ -896,7 +1065,7 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2 overflow-visible">
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
@@ -1011,6 +1180,30 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                   >
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </button>
+                  <div className="relative z-[9999]" ref={notesMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowNotesMenu((prev) => !prev)}
+                      className="h-[46px] w-[46px] rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition flex items-center justify-center text-xl"
+                    >
+                      ⋯
+                    </button>
+
+                    {showNotesMenu && (
+                      <div className="absolute top-full -left-24 mt-2 w-44 rounded-xl border border-gray-200 bg-white shadow-xl z-[9999] overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
+                            setShowNoteModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50"
+                        >
+                          Add Note
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
 
@@ -1043,52 +1236,150 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
             ))}
           </div>
         </div>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
+          <div className="p-5 bg-white border rounded-2xl shadow-sm">
+            {activeTab === "profile" && !limitedMode && (
+              <ProfileTab candidateId={candidate?.id} candidate={candidate} />
+            )}
 
-        <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          {activeTab === "profile" && !limitedMode && (
-            <ProfileTab candidateId={candidate?.id} candidate={candidate} />
-          )}
+            {activeTab === "feedback" && (
+              <FeedbackTab
+                candidateId={candidate?.id}
+                limitedMode={limitedMode}
+                limitedInterview={candidate?.limitedInterview || null}
+              />
+            )}
 
-          {activeTab === "feedback" && (
-            <FeedbackTab
-              candidateId={candidate?.id}
-              limitedMode={limitedMode}
-              limitedInterview={candidate?.limitedInterview || null}
-            />
-          )}
+            {activeTab === "documents" && !limitedMode && (
+              <DocumentsTab
+                candidateId={candidate?.id}
+                candidateEmail={candidate?.email || candidate?.candidate_email}
+                candidateName={candidate?.name || candidate?.candidate_name}
+              />
+            )}
 
-          {activeTab === "documents" && !limitedMode && (
-            <DocumentsTab
-              candidateId={candidate?.id}
-              candidateEmail={candidate?.email || candidate?.candidate_email}
-              candidateName={candidate?.name || candidate?.candidate_name}
-            />
-          )}
+            {activeTab === "tasks" && !limitedMode && (
+              <TasksTab candidateId={candidate?.id} />
+            )}
 
-          {activeTab === "tasks" && !limitedMode && (
-            <TasksTab candidateId={candidate?.id} />
-          )}
+            {activeTab === "messages" && !limitedMode && (
+              <div className="text-gray-500">Messages Coming Soon</div>
+            )}
 
-          {activeTab === "messages" && !limitedMode && (
-            <div className="text-gray-500">Messages Coming Soon</div>
-          )}
+            {activeTab === "interview" && !limitedMode && (
+              <ActivityTab candidateId={candidate?.id} />
+            )}
+            {activeTab === "history" && !limitedMode && (
+              <HistoryTab
+                candidateId={candidate?.id || candidate?.candidate_id}
+              />
+            )}
+          </div>
 
-          {activeTab === "interview" && !limitedMode && (
-            <ActivityTab candidateId={candidate?.id} />
-          )}
-          {activeTab === "history" && !limitedMode && (
-            <HistoryTab
-              candidateId={candidate?.id || candidate?.candidate_id}
-            />
-          )}
+          <div className="bg-white border rounded-2xl shadow-sm h-fit">
+            <div className="border-b px-5 py-4">
+              <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
+            </div>
+
+            <div className="max-h-[600px] overflow-y-auto">
+              {loadingNotes ? (
+                <div className="p-5 text-sm text-gray-500">
+                  Loading notes...
+                </div>
+              ) : notes?.length ? (
+                <div className="divide-y divide-gray-100">
+                  {notes.map((note) => (
+                    <div key={note?.id} className="p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-gray-900">
+                          {note?.created_by_name || "HR User"}
+                        </p>
+
+                        <span className="text-xs text-gray-400">
+                          {note?.created_at
+                            ? new Date(note.created_at).toLocaleDateString()
+                            : ""}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap break-words">
+                        {note?.content || "-"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-5 text-sm text-gray-500">
+                  No notes available
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-
         {editModalOpen && (
           <CandidateEditModal
             candidate={candidate}
             onClose={() => setEditModalOpen(false)}
             onUpdateCandidate={onUpdateCandidate}
           />
+        )}
+        {showNoteModal && (
+          <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="border-b px-6 py-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Add Note for{" "}
+                    {candidate?.name ||
+                      candidate?.candidate_name ||
+                      "Candidate"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (savingNote) return;
+
+                    setShowNoteModal(false);
+                  }}
+                  className="text-2xl text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="px-6 py-5 space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Note
+                  </label>
+                  <textarea
+                    rows={7}
+                    value={noteText}
+                    onChange={(event) =>
+                      setNoteText(event?.target?.value || "")
+                    }
+                    placeholder="Write a note here..."
+                    className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none resize-none focus:border-gray-400"
+                  />
+                </div>
+              </div>
+              <div className="border-t px-6 py-4 flex items-center justify-end gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (savingNote) return;
+
+                    setShowNoteModal(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveNote} disabled={savingNote}>
+                  {savingNote ? "Saving..." : "Save Note"}
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {showAssignModal && (
@@ -1149,6 +1440,25 @@ Meeting Platform: ${scheduleForm.meetingPlatform}`;
                         value={candidate?.id || ""}
                         readOnly
                       />
+                      <SelectField
+                        label="Applied Job"
+                        value={selectedJobId}
+                        onChange={(e) => setSelectedJobId(e.target.value)}
+                        error={scheduleErrors.selectedJobId}
+                        disabled={loadingCandidateJobs}
+                      >
+                        <option value="">
+                          {loadingCandidateJobs
+                            ? "Loading jobs..."
+                            : "Select Job"}
+                        </option>
+
+                        {candidateJobs?.map((job) => (
+                          <option key={job?.job_id} value={job?.job_id}>
+                            {job?.job_title ?? `Job ${job?.job_id}`}
+                          </option>
+                        ))}
+                      </SelectField>
 
                       <SelectField
                         label="Round Name"

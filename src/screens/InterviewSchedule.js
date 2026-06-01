@@ -5,12 +5,12 @@ import { Button, Card, Input, Select } from "../components/ui";
 import {
   assignPanelMember,
   createInterview,
-  createInterviewPanel
+  createInterviewPanel,
 } from "../services/api/interviews";
 import {
   getGraphMe,
   getMicrosoftSigninUrl,
-  scheduleUserMeeting
+  scheduleUserMeeting,
 } from "../services/api/msgraph";
 import { getAllUsers } from "../services/api/users";
 
@@ -24,7 +24,7 @@ export default function InterviewSchedule({
   onChangeCandidate,
   onChangeJob,
   onSchedule,
-  onViewStatus
+  onViewStatus,
 }) {
   const normalizeText = (value) =>
     String(value || "")
@@ -35,9 +35,10 @@ export default function InterviewSchedule({
 
   const findMatchingJobForCandidate = (candidateJobTitle) => {
     const normalizedCandidateJob = normalizeText(candidateJobTitle);
-    if (!normalizedCandidateJob || !Array.isArray(jobs) || !jobs.length) return null;
+    if (!normalizedCandidateJob || !Array.isArray(jobs) || !jobs.length)
+      return null;
     const exact = jobs.find(
-      (j) => normalizeText(j?.title) === normalizedCandidateJob
+      (j) => normalizeText(j?.title) === normalizedCandidateJob,
     );
     if (exact) return exact;
     const contains = jobs.find((j) => {
@@ -70,13 +71,16 @@ export default function InterviewSchedule({
 
   const activeCandidate = useMemo(() => {
     return (
-      candidates.find((c) => String(c.id) === String(selectedCandidateId || candidate?.id)) ||
-      candidate
+      candidates.find(
+        (c) => String(c.id) === String(selectedCandidateId || candidate?.id),
+      ) || candidate
     );
   }, [candidates, selectedCandidateId, candidate]);
 
   const activeJob = useMemo(() => {
-    return jobs.find((j) => String(j.id) === String(selectedJobId || job?.id)) || job;
+    return (
+      jobs.find((j) => String(j.id) === String(selectedJobId || job?.id)) || job
+    );
   }, [jobs, selectedJobId, job]);
 
   useEffect(() => {
@@ -86,13 +90,22 @@ export default function InterviewSchedule({
   }, [attendeeEmails, activeCandidate?.email]);
 
   useEffect(() => {
-    if (!activeCandidate?.jobTitle || !Array.isArray(jobs) || !jobs.length) return;
+    if (!activeCandidate?.jobTitle || !Array.isArray(jobs) || !jobs.length)
+      return;
     const matchedJob = findMatchingJobForCandidate(activeCandidate.jobTitle);
     if (matchedJob && String(matchedJob.id) !== String(activeJob?.id || "")) {
       onChangeJob?.(matchedJob.id);
-      setStatusNotice(`Auto-selected job "${matchedJob.title}" for ${activeCandidate.name}.`);
+      setStatusNotice(
+        `Auto-selected job "${matchedJob.title}" for ${activeCandidate.name}.`,
+      );
     }
-  }, [activeCandidate?.id, activeCandidate?.jobTitle, jobs, activeJob?.id, onChangeJob]);
+  }, [
+    activeCandidate?.id,
+    activeCandidate?.jobTitle,
+    jobs,
+    activeJob?.id,
+    onChangeJob,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -102,7 +115,10 @@ export default function InterviewSchedule({
         const me = await getGraphMe();
         if (!isMounted) return;
         const email =
-          me?.user?.email || me?.user?.userPrincipalName || me?.user?.mail || "";
+          me?.user?.email ||
+          me?.user?.userPrincipalName ||
+          me?.user?.mail ||
+          "";
         setMsConnected(true);
         setMsUserEmail(email);
       } catch (err) {
@@ -142,7 +158,7 @@ export default function InterviewSchedule({
         const users = (res?.users || []).map((u) => ({
           id: u.user_id,
           name: u.user_name || u.user_email,
-          email: u.user_email
+          email: u.user_email,
         }));
         setInterviewerOptions(users);
       } catch (err) {
@@ -177,31 +193,43 @@ export default function InterviewSchedule({
             <div className="text-sm font-extrabold tracking-tight">
               {activeCandidate?.name}
             </div>
-            <div className="mt-1 text-xs text-gray-600">{activeCandidate?.id}</div>
+            <div className="mt-1 text-xs text-gray-600">
+              {activeCandidate?.id}
+            </div>
           </div>
           <div className="rounded-2xl border bg-gray-50 p-4">
             <div className="text-xs font-semibold text-gray-500">Job</div>
-            <div className="text-sm font-extrabold tracking-tight">{activeJob?.title}</div>
+            <div className="text-sm font-extrabold tracking-tight">
+              {activeJob?.title}
+            </div>
             <div className="mt-1 text-xs text-gray-600">{activeJob?.id}</div>
           </div>
           <label className="block">
-            <div className="mb-1 text-xs font-semibold text-gray-700">Candidate</div>
+            <div className="mb-1 text-xs font-semibold text-gray-700">
+              Candidate
+            </div>
             <select
               value={activeCandidate?.id || ""}
               onChange={(event) => {
                 const value = event.target.value;
                 onChangeCandidate?.(value);
-                const nextCandidate = candidates.find((c) => String(c.id) === String(value));
+                const nextCandidate = candidates.find(
+                  (c) => String(c.id) === String(value),
+                );
                 if (nextCandidate?.email) {
                   setAttendeeEmails(nextCandidate.email);
                 }
-                const matchedJob = findMatchingJobForCandidate(nextCandidate?.jobTitle);
+                const matchedJob = findMatchingJobForCandidate(
+                  nextCandidate?.jobTitle,
+                );
                 if (matchedJob) {
                   onChangeJob?.(matchedJob.id);
-                  setStatusNotice(`Auto-selected job "${matchedJob.title}" for ${nextCandidate?.name}.`);
+                  setStatusNotice(
+                    `Auto-selected job "${matchedJob.title}" for ${nextCandidate?.name}.`,
+                  );
                 } else if (nextCandidate?.jobTitle) {
                   setStatusNotice(
-                    `No matching job found for candidate job title "${nextCandidate.jobTitle}".`
+                    `No matching job found for candidate job title "${nextCandidate.jobTitle}".`,
                   );
                 }
               }}
@@ -264,10 +292,13 @@ export default function InterviewSchedule({
                         checked={checked}
                         onChange={(event) => {
                           if (event.target.checked) {
-                            setSelectedInterviewers((prev) => [...prev, user.id]);
+                            setSelectedInterviewers((prev) => [
+                              ...prev,
+                              user.id,
+                            ]);
                           } else {
                             setSelectedInterviewers((prev) =>
-                              prev.filter((id) => id !== user.id)
+                              prev.filter((id) => id !== user.id),
                             );
                           }
                         }}
@@ -295,7 +326,10 @@ export default function InterviewSchedule({
               </Button>
             </div>
             <div className="mt-2 text-xs text-gray-500">
-              Status: {msConnected ? `Connected${msUserEmail ? ` (${msUserEmail})` : ""}` : "Not connected"}
+              Status:{" "}
+              {msConnected
+                ? `Connected${msUserEmail ? ` (${msUserEmail})` : ""}`
+                : "Not connected"}
             </div>
           </div>
           <div className="md:col-span-2">
@@ -326,7 +360,9 @@ export default function InterviewSchedule({
                 .filter(Boolean);
               setStatusNotice("");
               if (!msConnected) {
-                setStatusNotice("Microsoft sign-in required. Please connect first.");
+                setStatusNotice(
+                  "Microsoft sign-in required. Please connect first.",
+                );
                 window.open(getMicrosoftSigninUrl(), "_blank");
                 return;
               }
@@ -334,7 +370,8 @@ export default function InterviewSchedule({
               try {
                 const panel = await createInterviewPanel({
                   candidateId: activeCandidate.id,
-                  roundName
+                  roundName,
+                  jobId: activeJob?.id,
                 });
                 const panelId = panel?.id;
                 for (const interviewerId of interviewerList) {
@@ -348,7 +385,7 @@ export default function InterviewSchedule({
                   endIso,
                   attendees: attendeeList,
                   timezone: timezone || "UTC",
-                  teamsOnline: true
+                  teamsOnline: true,
                 });
                 const interview = await createInterview({
                   panelId,
@@ -357,7 +394,7 @@ export default function InterviewSchedule({
                   endTime: endIso,
                   meetingLink: meeting?.joinUrl || null,
                   outlookEventId: meeting?.eventId || null,
-                  status: "Scheduled"
+                  status: "Scheduled",
                 });
                 onSchedule({
                   id: interview.id || newId,
@@ -367,8 +404,9 @@ export default function InterviewSchedule({
                   startTime: interview.start_time,
                   endTime: interview.end_time,
                   meetingLink: interview.meeting_link || meeting?.joinUrl || "",
-                  outlookEventId: interview.outlook_event_id || meeting?.eventId || "",
-                  status: interview.status || "Scheduled"
+                  outlookEventId:
+                    interview.outlook_event_id || meeting?.eventId || "",
+                  status: interview.status || "Scheduled",
                 });
                 setStatusNotice("Interview scheduled.");
               } catch (err) {
