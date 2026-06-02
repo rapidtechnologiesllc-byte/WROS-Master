@@ -15,7 +15,7 @@ export const getEmailBodyHTML = (candidateName) => {
 
     <p>
       <b>Portal Link:</b> 
-      <a href="https://your-hrms-link.com">Click here to access</a>
+      <a href="https://hrms.blitzenx.com/">Click here to access</a>
     </p>
 
     <p>If you have any questions, feel free to contact the HR team.</p>

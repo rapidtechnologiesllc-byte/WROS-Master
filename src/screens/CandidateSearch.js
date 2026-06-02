@@ -60,6 +60,9 @@ export default function CandidateSearch({
   const [preonboardingModal, setPreonboardingModal] = useState(false);
   const currentRole = localStorage.getItem("hrms_role");
   const [candidateActions, setCandidateActions] = useState({});
+  const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
+  const isAntTableRole =
+    currentRole === "HIRING MANAGER" || currentRole === "HR MANAGER";
 
   useEffect(() => {
     let currentRole = localStorage.getItem("hrms_role");
@@ -73,6 +76,30 @@ export default function CandidateSearch({
         }
       };
       data();
+    }
+  }, []);
+
+  useEffect(() => {
+    let currentRole = localStorage.getItem("hrms_role");
+    if (currentRole === "HR MANAGER") {
+      const fetchCandidates = async () => {
+        try {
+          const canData = await getAllCandidates();
+
+          const filteredCandidates =
+            canData?.candidates?.filter(
+              (candidate) =>
+                candidate.pipline_status?.toLowerCase() ===
+                "pre-onboarding".toLowerCase(),
+            ) || [];
+
+          setPreOnboardingCandidates(filteredCandidates);
+        } catch (err) {
+          console.log(err);
+        }
+      };
+
+      fetchCandidates();
     }
   }, []);
 
@@ -297,30 +324,39 @@ export default function CandidateSearch({
       title: "Status",
       dataIndex: "status",
     },
-    {
-      title: "Action",
-      key: "action",
-      render: (_, record) => {
-        const action = candidateActions[record?.candidate_id];
-        return (
-          <ButtonDiv>
-            <AcceptButton
-              disabled={action === "Approve"}
-              onClick={() => handlePreOnboardingAction(record, "Approve")}
-            >
-              Accept
-            </AcceptButton>
-            <RejectButton
-              disabled={action === "Reject"}
-              onClick={() => managerRejectCandidate(record)}
-            >
-              Reject
-            </RejectButton>
-          </ButtonDiv>
-        );
-      },
-    },
+    ...(currentRole === "HIRING MANAGER"
+      ? [
+          {
+            title: "Action",
+            key: "action",
+            render: (_, record) => {
+              const action = candidateActions[record?.candidate_id];
+
+              return (
+                <ButtonDiv>
+                  <AcceptButton
+                    disabled={action === "Approve"}
+                    onClick={() => handlePreOnboardingAction(record, "Approve")}
+                  >
+                    Accept
+                  </AcceptButton>
+
+                  <RejectButton
+                    disabled={action === "Reject"}
+                    onClick={() => managerRejectCandidate(record)}
+                  >
+                    Reject
+                  </RejectButton>
+                </ButtonDiv>
+              );
+            },
+          },
+        ]
+      : []),
   ];
+
+  const tableData =
+    currentRole === "HR MANAGER" ? preOnboardingCandidates : filtered;
 
   return (
     <>
@@ -357,15 +393,15 @@ export default function CandidateSearch({
           </div>
         </div>
 
-        {currentRole === "HIRING MANAGER" ? (
+        {isAntTableRole ? (
           <Card
-            title={`Candidates (${filtered.length})`}
+            title={`Candidates (${tableData.length})`}
             icon={<Users className="h-4 w-4 text-gray-700" />}
             className="shadow-sm"
           >
             <AntTable
               columns={columns}
-              dataSource={filtered}
+              dataSource={tableData}
               pagination={false}
               bordered
             />
