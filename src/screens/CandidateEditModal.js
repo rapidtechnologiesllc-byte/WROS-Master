@@ -48,7 +48,7 @@ export default function CandidateEditModal({
     [candidate],
   );
   const candidateId = candidate?.id;
-  const [candidateRole] = useState("Candidate");
+  const [candidateRole,setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState(
     candidate?.jobTitle || "",
   );
@@ -90,8 +90,8 @@ export default function CandidateEditModal({
   const [pipelineStatusEdit, setPipelineStatusEdit] = useState("Applied");
   const [statusSaving, setStatusSaving] = useState(false);
   const [users, setUsers] = useState([]);
+  const [employeeType, setEmployeeType] = useState("");
 
-  // Keep state in sync when switching the candidate inside the modal.
   useEffect(() => {
     const nameParts = splitFullName(candidate?.name || "");
     setFirstName(nameParts.firstName);
@@ -262,9 +262,29 @@ export default function CandidateEditModal({
             <Select
               label="Role"
               value={candidateRole}
-              onChange={() => {}}
-              options={[candidateRole]}
+              onChange={setCandidateRole}
+              options={[
+                {
+                  label: "Please select your option",
+                  value: "",
+                  disabled: true,
+                },
+                { label: "Candidate", value: "Candidate" },
+                { label: "Employee", value: "Employee" },
+                { label: "Contractor", value: "Contractor" },
+              ]}
             />
+            <Select
+            label="Employee Type"
+            value={employeeType}
+            onChange={setEmployeeType}
+            options={[
+              { label: "Please select your option", value: "", disabled: true },
+              { label: "Full time employee", value: "Full time employee" },
+              { label: "Intern", value: "Intern" },
+              { label: "Guidewire Employee", value: "Guidewire Employee" },
+            ]}
+          />
             <Input
               label="Email (read-only)"
               value={email}
@@ -331,17 +351,6 @@ export default function CandidateEditModal({
               value={currentLocation}
               onChange={setCurrentLocation}
             />
-            <Input
-              label="Assigned HR Manager ID"
-              value={assignedHrManagerId}
-              onChange={setAssignedHrManagerId}
-            />
-            <Input
-              label="Assigned Reporting Manager ID"
-              value={assignedReportManagerId}
-              onChange={setAssignedReportManagerId}
-            />
-
             <label className="block md:col-span-2">
               <div className="mb-1 text-xs font-semibold text-gray-700">
                 Resume attachment (optional)
@@ -363,42 +372,7 @@ export default function CandidateEditModal({
                 </div>
               ) : null}
             </label>
-
-            <label className="flex items-center gap-2 text-sm md:col-span-2">
-              <input type="checkbox" checked={sendLoginEmail} disabled />
-              Send login email to candidate (not available for edit in this UI).
-            </label>
           </div>
-
-          <div className="mt-6 border-t border-gray-200 pt-4 md:col-span-2">
-            <div className="mb-2 text-xs font-semibold text-gray-700">
-              Account & pipeline (HR)
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Select
-                label="Account status"
-                value={accountStatusEdit}
-                onChange={setAccountStatusEdit}
-                options={["Active", "Inactive"]}
-              />
-              <Select
-                label="Pipeline status"
-                value={pipelineStatusEdit}
-                onChange={setPipelineStatusEdit}
-                options={PIPELINE_OPTIONS}
-              />
-            </div>
-            <div className="mt-3">
-              <Button
-                onClick={handleSaveStatus}
-                disabled={statusSaving}
-                variant="secondary"
-              >
-                {statusSaving ? "Saving…" : "Save status"}
-              </Button>
-            </div>
-          </div>
-
           <div className="mt-4 flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={onClose} disabled={isSaving}>
               Cancel
