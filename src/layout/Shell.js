@@ -40,14 +40,9 @@ export default function Shell({
   const isHR_Manager = normalizedRole === "HR MANAGER";
   const isHiringManager = normalizedRole === "HIRING MANAGER";
   const nav = useMemo(() => {
-    if (isHiringManager) {
+    if (isHiringManager || isHR_Manager) {
       return [
         { id: "candidateSearch", label: "Candidates", icon: Users },
-        {
-          id: "checklistTemplates",
-          label: "Checklist Templates",
-          icon: ListChecks,
-        },
       ];
     }
 
