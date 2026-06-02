@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import { candidateAppendedJob, removeCandidateApi } from "../services/api/jobs";
 import CandidateEditModal from "./CandidateEditModal";
 import AssignJobModal from "./AssignJobModal";
+import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import { toast } from "react-toastify";
 import { getCandidateById } from "../services/api/candidates";
 import { UserMinus } from "lucide-react";
@@ -82,40 +83,45 @@ export default function JobWorkspaceScreen({
   const [assignModal, setAssignModal] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
+  const [showSubmitJobModal, setShowSubmitJobModal] = useState(false);
+  const [selectedJobForSubmission, setSelectedJobForSubmission] =
+    useState(null);
 
+  const fetchCandidateJob = async () => {
+    try {
+      setLoading(true);
+
+      const result = await candidateAppendedJob(job?.id);
+      const applications = result?.applications || [];
+
+      const enrichedCandidates = await Promise.all(
+        applications.map(async (app) => {
+          try {
+            const candidateDetails = await getCandidateById(app?.candidate_id);
+
+            return {
+              ...app,
+              candidate: candidateDetails,
+            };
+          } catch (err) {
+            console.log(`Error fetching candidate ${app?.candidate_id}`, err);
+
+            return {
+              ...app,
+              candidate: null,
+            };
+          }
+        }),
+      );
+
+      setFinalCandidates(enrichedCandidates);
+      setLoading(false);
+    } catch (err) {
+      console.log(err);
+    }
+  };
   useEffect(() => {
     if (!job?.id) return;
-
-    const fetchCandidateJob = async () => {
-      try {
-        setLoading(true);
-        const result = await candidateAppendedJob(job?.id);
-        const applications = result?.applications || [];
-        const enrichedCandidates = await Promise.all(
-          applications.map(async (app) => {
-            try {
-              const candidateDetails = await getCandidateById(
-                app?.candidate_id,
-              );
-              return {
-                ...app,
-                candidate: candidateDetails,
-              };
-            } catch (err) {
-              console.log(`Error fetching candidate ${app?.candidate_id}`, err);
-              return {
-                ...app,
-                candidate: null,
-              };
-            }
-          }),
-        );
-        setFinalCandidates(enrichedCandidates);
-        setLoading(false);
-      } catch (err) {
-        console.log(err);
-      }
-    };
     fetchCandidateJob();
   }, [job?.id]);
 
@@ -367,7 +373,12 @@ export default function JobWorkspaceScreen({
           <div className="flex items-center gap-2">
             <StatusBadge status={job?.status || "Open"} />
             <Button onClick={onAddCandidate}>+ Add Candidate</Button>
-            <Button onClick={() => setAssignModal(true)}>
+            <Button
+              onClick={() => {
+                setSelectedJobForSubmission(job);
+                setShowSubmitJobModal(true);
+              }}
+            >
               + Submit Candidate
             </Button>
           </div>
@@ -395,14 +406,12 @@ export default function JobWorkspaceScreen({
 
       {activeTab === "Candidates" ? (
         <>
-          {assignModal && (
-            <AssignJobModal
-              candidate={visibleCandidates}
-              onClose={() => setAssignModal(false)}
+          {showSubmitJobModal && (
+            <CandidateAssignJobModal
+              onClose={() => setShowSubmitJobModal(false)}
+              selectedJob={selectedJobForSubmission}
               allCandidates={candidates}
-              selectedJob={job}
-              setAssignModal={setAssignModal}
-              onAssignSuccess={handleAssignedCandidate}
+              onAssignSuccess={fetchCandidateJob}
             />
           )}
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-6">

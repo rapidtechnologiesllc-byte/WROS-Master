@@ -107,10 +107,31 @@ const getSubmitJobErrorMessage = (error) => {
 
   return backendMessage || "Unable to submit the candidate to this job.";
 };
-
-const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
+const CandidateAssignJobModal = ({
+  onClose,
+  candidateDetails,
+  selectedJob: preSelectedJob,
+  allCandidates = [],
+  onAssignSuccess,
+}) => {
+  const isJobWorkspaceFlow = Boolean(preSelectedJob?.id);
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState("");
+  const candidateId = isJobWorkspaceFlow
+    ? selectedCandidateId
+    : candidateDetails?.id;
+  const candidateOptions = useMemo(() => {
+    return allCandidates?.map((candidate) => ({
+      label: candidate?.name || "Unknown Candidate",
+      value: candidate?.id,
+    }));
+  }, [allCandidates]);
+  useEffect(() => {
+    if (preSelectedJob?.id) {
+      setSelectedJobId(preSelectedJob.id);
+    }
+  }, [preSelectedJob]);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [showUdfModal, setShowUdfModal] = useState(false);
   const [udfData, setUdfData] = useState(INITIAL_UDF_STATE);
@@ -145,9 +166,10 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
         const mappedJobs = (response?.jobs || [])?.map((job) =>
           mapJobFromApi(job, []),
         );
-
         setJobs(mappedJobs);
-        setSelectedJobId("");
+        if (!preSelectedJob?.id) {
+          setSelectedJobId("");
+        }
       } catch (err) {
         console.error("Failed to fetch jobs", err);
         toast.error("Failed to load jobs");
@@ -219,11 +241,10 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
   };
   const isEmptyValue = (value) => !String(value ?? "").trim();
   const validateForm = () => {
-    if (!candidateDetails?.id) {
-      toast.error("Candidate details are missing");
+    if (!candidateId) {
+      toast.error("Please select a candidate");
       return false;
     }
-
     if (!selectedJobId) {
       toast.error("Please select a job");
       return false;
@@ -282,7 +303,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
       const result = await assignMultipleJobs(
         selectedJobId,
-        candidateDetails?.id,
+        candidateId,
         submitJobPayload,
       );
       if (result?.status === 201) {
@@ -295,7 +316,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
           formData?.submittalDate && formData?.submittalTime
             ? `${formData.submittalDate}T${formData.submittalTime}:00`
             : new Date().toISOString();
-        await createCandidateHistoryEvent(candidateDetails?.id, {
+        await createCandidateHistoryEvent(candidateId, {
           event_type: HISTORY_EVENT_TYPES.APPLIED,
           note: historyNote,
           job_id: selectedJob?.id || selectedJob?.job_id || selectedJobId,
@@ -303,6 +324,7 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
           event_at: appliedDateTime,
         });
         toast.success("Job submitted successfully ✅");
+        await onAssignSuccess?.();
         onClose?.();
         return;
       }
@@ -316,7 +338,6 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
       setIsAssigning(false);
     }
   };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 xl:items-center"
@@ -370,18 +391,18 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
                     <p className="text-xs font-medium uppercase text-gray-500">
                       Selected Job
                     </p>
-
                     <p className="mt-1 font-semibold text-gray-900">
                       {selectedJob?.title ||
                         selectedJob?.job_title ||
+                        preSelectedJob?.title ||
                         "No job selected"}
                     </p>
-
                     <p className="mt-1 text-xs text-gray-500">
                       {selectedJob?.company ||
                         selectedJob?.companyName ||
                         selectedJob?.clientName ||
                         selectedJob?.location ||
+                        preSelectedJob?.location ||
                         "-"}
                     </p>
                   </div>
@@ -391,15 +412,30 @@ const CandidateAssignJobModal = ({ onClose, candidateDetails }) => {
 
             <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-3">
               <SectionCard title="Basic Info">
-                <SelectWrapper>
-                  <Label>Selected Job</Label>
-                  <StyledSelect
-                    showSearch={{ optionFilterProp: "label" }}
-                    placeholder="Select a Job"
-                    onChange={setSelectedJobId}
-                    options={jobOptions}
-                  />
-                </SelectWrapper>
+                {!isJobWorkspaceFlow && (
+                  <SelectWrapper>
+                    <Label>Selected Job</Label>
+                    <StyledSelect
+                      showSearch={{ optionFilterProp: "label" }}
+                      value={selectedJobId}
+                      placeholder="Select a Job"
+                      onChange={setSelectedJobId}
+                      options={jobOptions}
+                    />
+                  </SelectWrapper>
+                )}
+                {isJobWorkspaceFlow && (
+                  <SelectWrapper>
+                    <Label>Select Candidate</Label>
+                    <StyledSelect
+                      showSearch={{ optionFilterProp: "label" }}
+                      value={selectedCandidateId}
+                      placeholder="Select a Candidate"
+                      onChange={setSelectedCandidateId}
+                      options={candidateOptions}
+                    />
+                  </SelectWrapper>
+                )}
 
                 <FormInput
                   label="Submit To"
