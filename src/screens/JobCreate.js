@@ -194,12 +194,6 @@ export default function JobCreate({
       toast.error("Please select a Hiring Manager.");
       return;
     }
-
-    if (!rmUserId?.trim()) {
-      toast.error("Please select a Reporting Manager.");
-      return;
-    }
-
     if (!contactPerson?.trim()) {
       toast.error("Please select a Contact Person.");
       return;
@@ -405,7 +399,7 @@ export default function JobCreate({
               ]}
             />
             <Select
-              label="Reporting Manager (Azure AD) *"
+              label="Reporting Manager (Azure AD)"
               value={rmUserId}
               onChange={setRmUserId}
               options={[
