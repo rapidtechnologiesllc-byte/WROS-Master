@@ -662,7 +662,7 @@ Start Time: ${scheduleForm.startTime}
 End Time: ${scheduleForm.endTime}
 Duration: ${scheduleForm.durationMinutes} minutes
 Timezone: ${scheduleForm.timezone}
-Meeting Platform: ${scheduleForm.meetingPlatform}
+Meeting Platform: ${scheduleForm?.meetingPlatform}
 
 ${
   jobDescription
@@ -697,7 +697,7 @@ ${jobDescription}
       const candidateId =
         candidate?.candidate_id || candidate?.id || candidate?._id || null;
       const applicationRes = await getCandidateApplications(candidateId);
-      const applications = applicationRes?.applications || [];
+      const applications = applicationRes?.applications ?? [];
       selectedApplication =
         applications?.find?.(
           (application) =>
@@ -765,7 +765,7 @@ ${jobDescription}
               String(application?.job_id) === String(selectedJobId),
           ) ?? null;
         if (!selectedApplication) {
-          console.warn("No application found for candidate");
+          showNotice("No application found for candidate", "error");
         }
         if (selectedApplication?.job_id) {
           const activeJobsRes = await getActiveJobs();
@@ -808,10 +808,11 @@ ${formattedJD}
           selectedApplication,
         });
       } else {
-        const ccEmails = scheduleForm.ccEmails
-          .split(",")
-          .map((email) => email.trim())
-          .filter(Boolean);
+        const ccEmails =
+          scheduleForm?.ccEmails
+            ?.split(",")
+            ?.map((email) => email.trim())
+            ?.filter(Boolean) ?? [];
 
         await sendPlainEmail({
           toEmail: candidate.email,
@@ -1280,46 +1281,47 @@ ${formattedJD}
               />
             )}
           </div>
+          {!limitedMode && (
+            <div className="bg-white border rounded-2xl shadow-sm h-fit">
+              <div className="border-b px-5 py-4">
+                <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
+              </div>
 
-          <div className="bg-white border rounded-2xl shadow-sm h-fit">
-            <div className="border-b px-5 py-4">
-              <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
-            </div>
+              <div className="max-h-[600px] overflow-y-auto">
+                {loadingNotes ? (
+                  <div className="p-5 text-sm text-gray-500">
+                    Loading notes...
+                  </div>
+                ) : notes?.length ? (
+                  <div className="divide-y divide-gray-100">
+                    {notes.map((note) => (
+                      <div key={note?.id} className="p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-gray-900">
+                            {note?.created_by_name || "HR User"}
+                          </p>
 
-            <div className="max-h-[600px] overflow-y-auto">
-              {loadingNotes ? (
-                <div className="p-5 text-sm text-gray-500">
-                  Loading notes...
-                </div>
-              ) : notes?.length ? (
-                <div className="divide-y divide-gray-100">
-                  {notes.map((note) => (
-                    <div key={note?.id} className="p-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-gray-900">
-                          {note?.created_by_name || "HR User"}
+                          <span className="text-xs text-gray-400">
+                            {note?.created_at
+                              ? new Date(note.created_at).toLocaleDateString()
+                              : ""}
+                          </span>
+                        </div>
+
+                        <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap break-words">
+                          {note?.content || "-"}
                         </p>
-
-                        <span className="text-xs text-gray-400">
-                          {note?.created_at
-                            ? new Date(note.created_at).toLocaleDateString()
-                            : ""}
-                        </span>
                       </div>
-
-                      <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap break-words">
-                        {note?.content || "-"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-5 text-sm text-gray-500">
-                  No notes available
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-5 text-sm text-gray-500">
+                    No notes available
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
         {editModalOpen && (
           <CandidateEditModal
@@ -1448,8 +1450,8 @@ ${formattedJD}
                       <SelectField
                         label="Applied Job"
                         value={selectedJobId}
-                        onChange={(e) => setSelectedJobId(e.target.value)}
-                        error={scheduleErrors.selectedJobId}
+                        onChange={(e) => setSelectedJobId(e?.target?.value)}
+                        error={scheduleErrors?.selectedJobId}
                         disabled={loadingCandidateJobs}
                       >
                         <option value="">

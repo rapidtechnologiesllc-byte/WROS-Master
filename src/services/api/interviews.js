@@ -6,7 +6,6 @@ export const createInterviewPanel = async ({
   roundName,
   jobId,
 }) => {
-  // Create a panel for a candidate and round.
   const { data } = await apiRequest("/interviews/panels/create", {
     method: "POST",
     body: JSON.stringify({
@@ -19,7 +18,6 @@ export const createInterviewPanel = async ({
 };
 
 export const assignPanelMember = async ({ panelId, interviewerId }) => {
-  // Assign an interviewer to the panel.
   const { data } = await apiRequest("/interviews/panel-members/assign", {
     method: "POST",
     body: JSON.stringify({
@@ -39,7 +37,6 @@ export const createInterview = async ({
   outlookEventId,
   status,
 }) => {
-  // Create interview entry after panel + meeting are ready.
   const { data } = await apiRequest("/interviews/create", {
     method: "POST",
     body: JSON.stringify({
@@ -64,7 +61,6 @@ export const updateInterview = async (interviewId, payload) => {
 };
 
 export const getAllInterviews = async () => {
-  // Fetch all interviews for HR/Admin dashboards.
   const { data } = await apiRequest("/interviews", {
     method: "GET",
   });
@@ -72,7 +68,6 @@ export const getAllInterviews = async () => {
 };
 
 export const getInterviewPanels = async () => {
-  // Fetch all panels (used for status view).
   const { data } = await apiRequest("/interviews/panels", {
     method: "GET",
   });
@@ -80,7 +75,6 @@ export const getInterviewPanels = async () => {
 };
 
 export const getInterviewPanel = async (panelId) => {
-  // Fetch a single panel by ID.
   const { data } = await apiRequest(`/interviews/panels/${panelId}`, {
     method: "GET",
   });
@@ -88,7 +82,6 @@ export const getInterviewPanel = async (panelId) => {
 };
 
 export const getPanelMembers = async (panelId) => {
-  // List members of a panel.
   const { data } = await apiRequest(`/interviews/panel-members/${panelId}`, {
     method: "GET",
   });
@@ -96,7 +89,6 @@ export const getPanelMembers = async (panelId) => {
 };
 
 export const deletePanelMember = async (memberId) => {
-  // Remove interviewer from a panel.
   const { data } = await apiRequest(`/interviews/panel-members/${memberId}`, {
     method: "DELETE",
   });
@@ -104,7 +96,6 @@ export const deletePanelMember = async (memberId) => {
 };
 
 export const deleteInterview = async (interviewId) => {
-  // Delete interview record.
   const { data } = await apiRequest(`/interviews/${interviewId}`, {
     method: "DELETE",
   });
@@ -112,7 +103,6 @@ export const deleteInterview = async (interviewId) => {
 };
 
 export const deleteInterviewPanel = async (panelId) => {
-  // Delete panel and related interviews/feedback.
   const { data } = await apiRequest(`/interviews/panels/${panelId}`, {
     method: "DELETE",
   });
@@ -120,7 +110,6 @@ export const deleteInterviewPanel = async (panelId) => {
 };
 
 export const getInterviewById = async (interviewId) => {
-  // Fetch a single interview with details.
   const { data } = await apiRequest(`/interviews/${interviewId}`, {
     method: "GET",
   });
@@ -137,7 +126,6 @@ export const submitInterviewFeedback = async ({
   comments,
   recommendation,
 }) => {
-  // Create feedback for an interview.
   const { data } = await apiRequest("/interviews/feedback/submit", {
     method: "POST",
     body: JSON.stringify({
@@ -163,7 +151,6 @@ export const updateInterviewFeedback = async ({
   comments,
   recommendation,
 }) => {
-  // Update feedback by ID.
   const { data } = await apiRequest(`/interviews/feedback/${feedbackId}`, {
     method: "PUT",
     body: JSON.stringify({
@@ -179,7 +166,6 @@ export const updateInterviewFeedback = async ({
 };
 
 export const getFeedbackForInterview = async (interviewId) => {
-  // List feedback entries for a specific interview.
   const { data } = await apiRequest(
     `/interviews/feedback/interview/${interviewId}`,
     {
@@ -190,7 +176,6 @@ export const getFeedbackForInterview = async (interviewId) => {
 };
 
 export const getFeedbackById = async (feedbackId) => {
-  // Fetch a single feedback record.
   const { data } = await apiRequest(`/interviews/feedback/${feedbackId}`, {
     method: "GET",
   });
@@ -198,7 +183,6 @@ export const getFeedbackById = async (feedbackId) => {
 };
 
 export const deleteInterviewFeedback = async (feedbackId) => {
-  // Delete feedback entry.
   const { data } = await apiRequest(`/interviews/feedback/${feedbackId}`, {
     method: "DELETE",
   });
@@ -206,9 +190,6 @@ export const deleteInterviewFeedback = async (feedbackId) => {
 };
 
 export const getInterviewStatistics = async () => {
-  // High-level interview metrics for dashboards.
-  // Some backends may not have `/interviews/statistics` registered correctly;
-  // in that case, we compute stats from `/interviews` as a fallback.
   try {
     const { data } = await apiRequest("/interviews/statistics", {
       method: "GET",
@@ -255,7 +236,6 @@ export const getInterviewStatistics = async () => {
 };
 
 export const getCandidateInterviewHistory = async (candidateId) => {
-  // Full interview history for a candidate.
   const { data } = await apiRequest(
     `/interviews/candidate-history/${candidateId}`,
     {
@@ -266,7 +246,6 @@ export const getCandidateInterviewHistory = async (candidateId) => {
 };
 
 export const getInterviewerWorkload = async (interviewerId) => {
-  // Workload summary for a given interviewer.
   const { data } = await apiRequest(
     `/interviews/interviewer-workload/${interviewerId}`,
     {

@@ -42,6 +42,8 @@ import {
   candidateCompleteChecklistItem,
   getMyChecklists,
 } from "../services/api/checklists";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -378,8 +380,8 @@ export default function CandidateSelfService({ onLogout }) {
           getCandidateMyInfo(),
           listCandidateEducation(),
           listCandidateExperience(),
-          // getCandidateAadhar(),
-          // getCandidatePan(),
+          getCandidateAadhar(),
+          getCandidatePan(),
           getCandidateOnboardingStatus(),
           getMyOffers(),
           getMyDocuments(),
@@ -391,9 +393,10 @@ export default function CandidateSelfService({ onLogout }) {
 
         if (myInfoResult.status === "fulfilled") {
           setProfile(myInfoResult.value);
+          const personalInfo = myInfoResult.value?.personal_info || {};
           setPersonal((prev) => ({
             ...prev,
-            ...myInfoResult.value,
+            ...personalInfo,
             dob: myInfoResult.value.dob || prev.dob,
             submitted_at: today(),
           }));
@@ -1204,28 +1207,41 @@ export default function CandidateSelfService({ onLogout }) {
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setEducation((prev) => [
-                  ...prev,
-                  {
-                    id: null,
-                    education_institute: "",
-                    degree: "",
-                    field_of_study: "",
-                    starting_year: "",
-                    year_of_passing: "",
-                    percentage: "",
-                    submitted_at: today(),
-                    document_is_submitted: false,
-                  },
-                ])
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <DocumentUploadRow
+              label="Education Certificate"
+              onUpload={(file) =>
+                handleUpload(
+                  uploadEducationCertificate,
+                  "Education Certificate",
+                  file,
+                )
               }
-            >
-              Add Education
-            </Button>
+              disabled={loading || uploadingType === "Education Certificate"}
+            />
+            <div className="ml-auto">
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setEducation((prev) => [
+                    ...prev,
+                    {
+                      id: null,
+                      education_institute: "",
+                      degree: "",
+                      field_of_study: "",
+                      starting_year: "",
+                      year_of_passing: "",
+                      percentage: "",
+                      submitted_at: today(),
+                      document_is_submitted: false,
+                    },
+                  ])
+                }
+              >
+                Add Education
+              </Button>
+            </div>
 
             <Button
               onClick={async () => {
@@ -1390,27 +1406,36 @@ export default function CandidateSelfService({ onLogout }) {
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setExperience((prev) => [
-                  ...prev,
-                  {
-                    id: null,
-                    company_name: "",
-                    job_title: "",
-                    start_date: "",
-                    end_date: "",
-                    year_of_experience: "",
-                    submitted_at: today(),
-                    document_is_submitted: false,
-                  },
-                ])
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <DocumentUploadRow
+              label="Experience Letter"
+              onUpload={(file) =>
+                handleUpload(uploadExperienceLetter, "Experience Letter", file)
               }
-            >
-              Add Experience
-            </Button>
+              disabled={loading || uploadingType === "Experience Letter"}
+            />
+            <div className="ml-auto">
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setExperience((prev) => [
+                    ...prev,
+                    {
+                      id: null,
+                      company_name: "",
+                      job_title: "",
+                      start_date: "",
+                      end_date: "",
+                      year_of_experience: "",
+                      submitted_at: today(),
+                      document_is_submitted: false,
+                    },
+                  ])
+                }
+              >
+                Add Experience
+              </Button>
+            </div>
 
             <Button
               onClick={async () => {
@@ -1450,20 +1475,191 @@ export default function CandidateSelfService({ onLogout }) {
           </div>
         </Card>
 
+        <Card title="PAN Details">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              label="PAN"
+              value={pan.pan}
+              onChange={(v) => setPan((p) => ({ ...p, pan: v }))}
+            />
+            <Input
+              label="Name in PAN"
+              value={pan.name_in_pan}
+              onChange={(v) => setPan((p) => ({ ...p, name_in_pan: v }))}
+            />
+            <Input
+              label="Father's Name"
+              value={pan.father_name_in_pan}
+              onChange={(v) => setPan((p) => ({ ...p, father_name_in_pan: v }))}
+            />
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={pan.pan_is_submitted}
+                onChange={(e) =>
+                  setPan((p) => ({ ...p, pan_is_submitted: e.target.checked }))
+                }
+              />
+              PAN submitted
+            </label>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={pan.is_verified}
+                onChange={(e) =>
+                  setPan((p) => ({ ...p, is_verified: e.target.checked }))
+                }
+              />
+              Verified
+            </label>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <DocumentUploadRow
+              label="PAN Card"
+              onUpload={(file) => handleUpload(uploadPan, "PAN Card", file)}
+              disabled={loading || uploadingType === "PAN Card"}
+            />
+            <Button
+              onClick={async () => {
+                clearNotice();
+
+                try {
+                  await submitCandidatePanForm({
+                    ...pan,
+                    submitted_at: pan.submitted_at || today(),
+                  });
+                  showNotice("PAN saved.", "success");
+                } catch (err) {
+                  showNotice(err.message || "Failed to save PAN.");
+                }
+              }}
+            >
+              Save PAN
+            </Button>
+          </div>
+        </Card>
+
+        <Card title="Aadhar Details">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              label="Aadhar"
+              value={aadhar.aadhar}
+              onChange={(v) => setAadhar((a) => ({ ...a, aadhar: v }))}
+            />
+            <Input
+              label="Name in Aadhar"
+              value={aadhar.name_in_aadhar}
+              onChange={(v) => setAadhar((a) => ({ ...a, name_in_aadhar: v }))}
+            />
+            <Input
+              label="Enrollment Number"
+              value={aadhar.enrollment_number}
+              onChange={(v) =>
+                setAadhar((a) => ({ ...a, enrollment_number: v }))
+              }
+            />
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={aadhar.aadhar_is_submitted}
+                onChange={(e) =>
+                  setAadhar((a) => ({
+                    ...a,
+                    aadhar_is_submitted: e.target.checked,
+                  }))
+                }
+              />
+              Aadhar submitted
+            </label>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={aadhar.is_verified}
+                onChange={(e) =>
+                  setAadhar((a) => ({ ...a, is_verified: e.target.checked }))
+                }
+              />
+              Verified
+            </label>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <DocumentUploadRow
+              label="Aadhar Card"
+              onUpload={(file) =>
+                handleUpload(uploadAadhar, "Aadhar Card", file)
+              }
+              disabled={loading || uploadingType === "Aadhar Card"}
+            />
+            <Button
+              onClick={async () => {
+                clearNotice();
+
+                try {
+                  await submitCandidateAadharForm({
+                    ...aadhar,
+                    submitted_at: aadhar.submitted_at || today(),
+                  });
+                  showNotice("Aadhar saved.", "success");
+                } catch (err) {
+                  showNotice(err.message || "Failed to save Aadhar.");
+                }
+              }}
+            >
+              Save Aadhar
+            </Button>
+          </div>
+        </Card>
+        <Card title="Bank Statement">
+          <div className="mb-3 text-sm text-slate-600">
+            Please upload bank statements for the last 3 months showing salary
+            credits.
+          </div>
+
+          <DocumentUploadRow
+            label="Bank Statement"
+            onUpload={(file) =>
+              handleUpload(uploadBankStatement, "Bank Statement", file)
+            }
+            disabled={loading || uploadingType === "Bank Statement"}
+          />
+        </Card>
+        <Card title="Salary Slip">
+          <div className="mb-3 text-sm text-slate-600">
+            Please upload your last 3 months payslips.
+          </div>
+
+          <DocumentUploadRow
+            label="Salary Slip"
+            onUpload={(file) =>
+              handleUpload(uploadSalarySlip, "Salary Slip", file)
+            }
+            disabled={loading || uploadingType === "Salary Slip"}
+          />
+        </Card>
+
+        <div className="mt-4"></div>
+
         {onboardingStatus ? (
           <Card title="Onboarding Status">
             <div className="grid gap-3 md:grid-cols-1">
               <div>
                 <div className="text-xs text-slate-500">Overall completion</div>
                 <div className="text-lg font-semibold">
-                  {Number(onboardingStatus.overall_completion || 0).toFixed(0)}%
+                  {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
+                  %
                 </div>
               </div>
             </div>
 
             {onboardingStatus.forms_status ? (
               <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {Object.entries(onboardingStatus.forms_status).map(
+                {Object.entries(onboardingStatus?.forms_status).map(
                   ([key, value]) => (
                     <div
                       key={key}
@@ -1527,176 +1723,6 @@ export default function CandidateSelfService({ onLogout }) {
                 No documents uploaded yet.
               </div>
             )}
-          </div>
-        </Card>
-
-        <Card title="Aadhar Details">
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="Aadhar"
-              value={aadhar.aadhar}
-              onChange={(v) => setAadhar((a) => ({ ...a, aadhar: v }))}
-            />
-            <Input
-              label="Name in Aadhar"
-              value={aadhar.name_in_aadhar}
-              onChange={(v) => setAadhar((a) => ({ ...a, name_in_aadhar: v }))}
-            />
-            <Input
-              label="Enrollment Number"
-              value={aadhar.enrollment_number}
-              onChange={(v) =>
-                setAadhar((a) => ({ ...a, enrollment_number: v }))
-              }
-            />
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={aadhar.aadhar_is_submitted}
-                onChange={(e) =>
-                  setAadhar((a) => ({
-                    ...a,
-                    aadhar_is_submitted: e.target.checked,
-                  }))
-                }
-              />
-              Aadhar submitted
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={aadhar.is_verified}
-                onChange={(e) =>
-                  setAadhar((a) => ({ ...a, is_verified: e.target.checked }))
-                }
-              />
-              Verified
-            </label>
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  await submitCandidateAadharForm({
-                    ...aadhar,
-                    submitted_at: aadhar.submitted_at || today(),
-                  });
-                  showNotice("Aadhar saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to save Aadhar.");
-                }
-              }}
-            >
-              Save Aadhar
-            </Button>
-          </div>
-        </Card>
-
-        <Card title="PAN Details">
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="PAN"
-              value={pan.pan}
-              onChange={(v) => setPan((p) => ({ ...p, pan: v }))}
-            />
-            <Input
-              label="Name in PAN"
-              value={pan.name_in_pan}
-              onChange={(v) => setPan((p) => ({ ...p, name_in_pan: v }))}
-            />
-            <Input
-              label="Father's Name"
-              value={pan.father_name_in_pan}
-              onChange={(v) => setPan((p) => ({ ...p, father_name_in_pan: v }))}
-            />
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={pan.pan_is_submitted}
-                onChange={(e) =>
-                  setPan((p) => ({ ...p, pan_is_submitted: e.target.checked }))
-                }
-              />
-              PAN submitted
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={pan.is_verified}
-                onChange={(e) =>
-                  setPan((p) => ({ ...p, is_verified: e.target.checked }))
-                }
-              />
-              Verified
-            </label>
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  await submitCandidatePanForm({
-                    ...pan,
-                    submitted_at: pan.submitted_at || today(),
-                  });
-                  showNotice("PAN saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to save PAN.");
-                }
-              }}
-            >
-              Save PAN
-            </Button>
-          </div>
-        </Card>
-
-        <Card title="Document Uploads">
-          <div className="mb-3 text-sm text-slate-600">
-            Upload documents (PDF, JPG, PNG). Accepted: PAN, Aadhar, Education,
-            Experience, Salary Slip, Bank Statement.
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-2">
-            {[
-              { key: "pan", label: "PAN Card", upload: uploadPan },
-              { key: "aadhar", label: "Aadhar Card", upload: uploadAadhar },
-              {
-                key: "education",
-                label: "Education Certificate",
-                upload: uploadEducationCertificate,
-              },
-              {
-                key: "experience",
-                label: "Experience Letter",
-                upload: uploadExperienceLetter,
-              },
-              {
-                key: "salary_slip",
-                label: "Salary Slip",
-                upload: uploadSalarySlip,
-              },
-              {
-                key: "bank_statement",
-                label: "Bank Statement",
-                upload: uploadBankStatement,
-              },
-            ].map(({ key, label, upload }) => (
-              <DocumentUploadRow
-                key={key}
-                label={label}
-                onUpload={(file) => handleUpload(upload, label, file)}
-                disabled={loading || uploadingType === label}
-              />
-            ))}
           </div>
         </Card>
 
