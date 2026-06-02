@@ -832,7 +832,7 @@ ${formattedJD}
           ? "Online interview scheduled successfully"
           : "Face-to-face interview scheduled successfully",
       );
-
+      await onRefreshCandidates?.();
       closeScheduleModal();
       setActiveTab("interview");
     } catch (err) {
@@ -1411,7 +1411,7 @@ ${formattedJD}
                         candidate?.name || "Candidate"
                       }`}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">Testing Interview</p>
+                <p className="text-sm text-gray-500 mt-1">Schedule Interview</p>
               </div>
 
               <button
