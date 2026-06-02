@@ -238,19 +238,16 @@ export default function CandidateSearch({
       <div className="grid gap-6">
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="w-full lg:w-[30%]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by candidate name, email, job title or phone number"
-                    className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition-all focus:border-gray-400"
-                  />
-                </div>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Candidates
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Total Candidates: {candidateList.length}
+                </p>
               </div>
+
               <div className="flex items-center gap-2">
                 <Button
                   variant="secondary"
@@ -259,6 +256,7 @@ export default function CandidateSearch({
                 >
                   Show Matching Jobs
                 </Button>
+
                 <Button
                   onClick={onCreateCandidate}
                   className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"

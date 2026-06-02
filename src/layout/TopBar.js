@@ -75,6 +75,38 @@ export default function TopBar({
     setPasswordSuccess("");
     setShowPasswordModal(true);
   };
+  const getSearchableText = (item, fields) =>
+    fields
+      .map((field) => {
+        const value = item?.[field];
+        if (Array.isArray(value)) {
+          return value.join(" ");
+        }
+        return value || "";
+      })
+      .join(" ")
+      .toLowerCase();
+  const matchesSearch = (item, query, fields) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const searchableText = getSearchableText(item, fields);
+    const matchesKeyword = (keyword) => {
+      const cleanKeyword = keyword.trim().toLowerCase();
+      if (!cleanKeyword) return true;
+      return searchableText.includes(cleanKeyword);
+    };
+    if (q.includes(" and ")) {
+      return q.split(" and ").every((keyword) => matchesKeyword(keyword));
+    }
+    if (q.includes(" or ")) {
+      return q.split(" or ").some((keyword) => matchesKeyword(keyword));
+    }
+    if (q.includes(" not ")) {
+      const [includeKeyword, excludeKeyword] = q.split(" not ");
+      return matchesKeyword(includeKeyword) && !matchesKeyword(excludeKeyword);
+    }
+    return matchesKeyword(q);
+  };
 
   const crumbs = useMemo(() => {
     const map = {
@@ -86,29 +118,24 @@ export default function TopBar({
     };
     return map[screen] || ["Dashboard"];
   }, [screen]);
-  const filteredCandidates = candidates
-    .filter((candidate) => {
-      const query = searchTerm.trim().toLowerCase();
+  const filteredCandidates = useMemo(() => {
+    return candidates
+      .filter((candidate) =>
+        matchesSearch(candidate, searchTerm, [
+          "name",
+          "email",
+          "phone",
+          "jobTitle",
+        ]),
+      )
+      .slice(0, 5);
+  }, [candidates, searchTerm]);
 
-      return (
-        candidate.name?.toLowerCase().includes(query) ||
-        candidate.email?.toLowerCase().includes(query) ||
-        candidate.phone?.toLowerCase().includes(query)
-      );
-    })
-    .slice(0, 5);
-
-  const filteredJobs = jobs
-    .filter((job) => {
-      const query = searchTerm.trim().toLowerCase();
-
-      return (
-        job.title?.toLowerCase().includes(query) ||
-        job.location?.toLowerCase().includes(query) ||
-        job.skills?.some((skill) => skill.toLowerCase().includes(query))
-      );
-    })
-    .slice(0, 5);
+  const filteredJobs = useMemo(() => {
+    return jobs
+      .filter((job) => matchesSearch(job, searchTerm, ["title", "location"]))
+      .slice(0, 5);
+  }, [jobs, searchTerm]);
 
   return (
     <>
@@ -171,6 +198,12 @@ export default function TopBar({
                           <span className="text-sm font-medium">
                             {candidate.name}
                           </span>
+
+                          {candidate.jobTitle && (
+                            <span className="text-xs text-gray-600">
+                              {candidate.jobTitle}
+                            </span>
+                          )}
 
                           <span className="text-xs text-gray-500">
                             {candidate.email}
