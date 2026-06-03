@@ -346,8 +346,8 @@ class LinkedInPostResponse(BaseModel):
 class OfferLetterCreateRequest(BaseModel):
     candidate_id: str
     job_id: Optional[str] = None
-    hiring_manager_id: str
-    reporting_manager_id: str
+    hiring_manager_id: Optional[str] = None
+    reporting_manager_id: Optional[str] = None
     position: str
     salary: str
     joining_date: date
@@ -368,8 +368,8 @@ class OfferLetterResponse(BaseModel):
     candidate_name: str | None = None
     candidate_email: str | None = None
     job_id: str | None = None
-    hiring_manager_id: str
-    reporting_manager_id: str
+    hiring_manager_id: str | None = None
+    reporting_manager_id: str | None = None
     position: str
     salary: str
     joining_date: date
