@@ -349,16 +349,16 @@ export default function JobCreate({
               onChange={setCompanyType}
             />
             <Select
-              label="Department"
-              value={selectedDept}
-              onChange={(value) => setSelectedDept(value)}
-              options={deptOptions}
-            />
-            <Select
               label="Business Unit"
               value={selectedBusinessUnit}
               onChange={(value) => setSelectedBusinessUnit(value)}
               options={buOptions}
+            />
+            <Select
+              label="Department"
+              value={selectedDept}
+              onChange={(value) => setSelectedDept(value)}
+              options={deptOptions}
             />
             <Input label="Location *" value={location} onChange={setLocation} />
             <Select
