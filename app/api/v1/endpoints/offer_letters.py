@@ -296,12 +296,12 @@ def create_offer_letter(
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate {request.candidate_id} not found")
 
-    hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first()
-    if not hiring_manager:
+    hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first() if request.hiring_manager_id else None
+    if request.hiring_manager_id and not hiring_manager:
         raise HTTPException(status_code=404, detail=f"Hiring manager {request.hiring_manager_id} not found")
 
-    reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first()
-    if not reporting_manager:
+    reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first() if request.reporting_manager_id else None
+    if request.reporting_manager_id and not reporting_manager:
         raise HTTPException(status_code=404, detail=f"Reporting manager {request.reporting_manager_id} not found")
 
     if request.job_id is not None:
@@ -1320,23 +1320,26 @@ def preview_salary_structure(
         "employee_name": sal.employee_name,
         "annual_ctc":    sal.annual_ctc,
         "earnings": {
-            "basic_salary":          {"monthly": sal.basic_pm,       "annual": sal.basic_pa},
-            "hra":                   {"monthly": sal.hra_pm,         "annual": sal.hra_pa},
-            "medical_allowance":     {"monthly": sal.medical_pm,     "annual": sal.medical_pa},
-            "transport_allowance":   {"monthly": sal.transport_pm,   "annual": sal.transport_pa},
-            "performance_allowance": {"monthly": sal.performance_pm, "annual": sal.performance_pa},
-            "gross_salary":          {"monthly": sal.gross_pm,       "annual": sal.gross_pa},
+            "basic_salary":                  {"monthly": sal.basic_pm,           "annual": sal.basic_pa},
+            "hra":                           {"monthly": sal.hra_pm,             "annual": sal.hra_pa},
+            "medical_allowance":             {"monthly": sal.medical_pm,         "annual": sal.medical_pa},
+            "transport_allowance":           {"monthly": sal.transport_pm,       "annual": sal.transport_pa},
+            "deployment_performance_allowance": {"monthly": sal.deployment_pm,  "annual": sal.deployment_pa},
+            "fixed_allowance":               {"monthly": sal.fixed_allowance_pm, "annual": sal.fixed_allowance_pa},
+            "gross_salary":                  {"monthly": sal.gross_pm,           "annual": sal.gross_pa},
         },
         "deductions": {
-            "professional_tax": {"monthly": sal.pt_pm, "annual": sal.pt_pa},
-            "total_deductions": {"monthly": sal.pt_pm, "annual": sal.total_deductions_pa},
+            "epf_employee":     {"monthly": sal.epf_employee_pm,    "annual": sal.epf_employee_pa},
+            "epf_employer":     {"monthly": sal.epf_employer_pm,    "annual": sal.epf_employer_pa},
+            "esic_employee":    {"monthly": sal.esic_employee_pm,   "annual": sal.esic_employee_pa},
+            "total_deductions": {"monthly": sal.total_deductions_pm, "annual": sal.total_deductions_pa},
         },
         "net_income": {"monthly": sal.net_pm, "annual": sal.net_pa},
         "other_benefits": {
+            "esic_employer":    {"monthly": sal.esic_employer_pm,  "annual": sal.esic_employer_pa},
             "health_insurance":  {"annual": 25_600.0},
-            "paid_time_off":     {"annual": 30_000.0},
+            "paid_time_off":     {"annual": sal.gross_pa / 12},
             "accidental_policy": {"annual":  1_440.0},
             "term_insurance":    {"annual":  3_000.0},
-            "total":             {"annual": 60_040.0},
         },
     }
