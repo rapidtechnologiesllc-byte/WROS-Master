@@ -5,6 +5,7 @@ import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { searchUsers } from "../services/api/users";
 import { toast } from "react-toastify";
+import { departmentList, listBusinessUnits } from "../services/api/rbac";
 
 export default function JobCreate({
   onSave,
@@ -42,6 +43,10 @@ export default function JobCreate({
   const [externalJD, setExternalJD] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [departmentListState, setDepartmentList] = useState([]);
+  const [selectedDept, setSelectedDept] = useState("");
+  const [businessUnitList, setBusinessUnitList] = useState([]);
+  const [selectedBusinessUnit, setSelectedBusinessUnit] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -123,6 +128,46 @@ export default function JobCreate({
     setHmOneLiner(initialJob.hiringManagerOneLiner || "");
     setInternalJD(initialJob.internalJD || initialJob.jobDescription || "");
   }, [initialJob, mode]);
+
+  useEffect(() => {
+    const listingDepartments = async () => {
+      try {
+        const listResult = await departmentList();
+        setDepartmentList(listResult);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+    listingDepartments();
+  }, []);
+
+  useEffect(() => {
+    const listingBusinessUnits = async () => {
+      try {
+        const listResult = await listBusinessUnits();
+        setBusinessUnitList(listResult);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+    listingBusinessUnits();
+  }, []);
+
+  const deptOptions = [
+    { label: "Please select department", value: "", disabled: true },
+    ...(departmentListState?.map((dept) => ({
+      label: dept?.name,
+      value: dept?.id,
+    })) || []),
+  ];
+
+  const buOptions = [
+    { label: "Please select Business Unit", value: "", disabled: true },
+    ...(businessUnitList?.map((bu) => ({
+      label: bu?.name,
+      value: bu?.id,
+    })) || []),
+  ];
 
   const normalizeJobStatusForApi = (uiStatus) => {
     const raw = String(uiStatus || "").trim();
@@ -279,22 +324,6 @@ export default function JobCreate({
               options={["Low", "High"]}
             />
             <Select
-              label="Department"
-              value={dept}
-              onChange={setDept}
-              options={["Low", "High"]}
-            />
-            <Input
-              label="Company / Client *"
-              value={companyClient}
-              onChange={setCompanyClient}
-            />
-            <Input
-              label="Company Type *"
-              value={companyType}
-              onChange={setCompanyType}
-            />
-            <Select
               label="Contact Person *"
               value={contactPerson}
               onChange={setContactPerson}
@@ -309,7 +338,28 @@ export default function JobCreate({
                 })),
               ]}
             />
-            <Input label="Division" value={division} onChange={setDivision} />
+            <Input
+              label="Company / Client *"
+              value={companyClient}
+              onChange={setCompanyClient}
+            />
+            <Input
+              label="Company Type *"
+              value={companyType}
+              onChange={setCompanyType}
+            />
+            <Select
+              label="Department"
+              value={selectedDept}
+              onChange={(value) => setSelectedDept(value)}
+              options={deptOptions}
+            />
+            <Select
+              label="Business Unit"
+              value={selectedBusinessUnit}
+              onChange={(value) => setSelectedBusinessUnit(value)}
+              options={buOptions}
+            />
             <Input label="Location *" value={location} onChange={setLocation} />
             <Select
               label="Job Status *"
