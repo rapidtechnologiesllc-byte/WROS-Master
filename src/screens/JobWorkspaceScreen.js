@@ -12,6 +12,7 @@ import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import { toast } from "react-toastify";
 import { getCandidateById } from "../services/api/candidates";
 import { UserMinus } from "lucide-react";
+import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 
 const TABS = ["Candidates", "Job Info", "Job Analytics"];
 
@@ -62,6 +63,9 @@ export default function JobWorkspaceScreen({
   onFetchCandidateById,
   setSelectedCandidate,
   setScreen,
+  setSelectedCandidateId,
+  setCandidateDetailsDefaultTab,
+  setAutoOpenSchedule,
 }) {
   const [activeTab, setActiveTab] = useState("Candidates");
   const [query, setQuery] = useState("");
@@ -77,6 +81,8 @@ export default function JobWorkspaceScreen({
   const [loading, setLoading] = useState(false);
   const [finalCandidates, setFinalCandidates] = useState([]);
   const [assignModal, setAssignModal] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [showSubmitJobModal, setShowSubmitJobModal] = useState(false);
   const [selectedJobForSubmission, setSelectedJobForSubmission] =
     useState(null);
@@ -299,6 +305,59 @@ export default function JobWorkspaceScreen({
       toast.error("Error Occured");
     }
   };
+
+  const handleActiveStatus = async (status, candidateId) => {
+    try {
+      const result = await updateCandidateStatus(candidateId, {
+        status: status,
+      });
+      if (result?.status === "success") {
+        toast.success(`Candidate ${result?.data?.candidate_name} is Archvied`);
+        const candidateStatus = await getCandidateStatus(candidateId);
+        setCandidateList((prev) =>
+          prev.map((c) =>
+            c.id === candidateId
+              ? {
+                  ...c,
+                  accountStatus: candidateStatus?.status,
+                  pipelineStatus: candidateStatus?.pipeline_status,
+                }
+              : c,
+          ),
+        );
+      }
+    } catch (err) {}
+  };
+
+  const handleCandidateStatus = async (candidateId) => {
+    try {
+      const result = await updateCandidateStatus(candidateId, {
+        status: "Active",
+        pipeline_status: "Pre-Onboarding",
+      });
+      if (result?.status === "success") {
+        toast.success(
+          `Candidate ${result?.data?.candidate_name} moved to Pre-Onboarding`,
+        );
+        const candidateStatus = await getCandidateStatus(candidateId);
+        setCandidateList((prev) =>
+          prev.map((c) =>
+            c.id === candidateId
+              ? {
+                  ...c,
+                  accountStatus: candidateStatus?.status,
+                  pipelineStatus: candidateStatus?.pipeline_status,
+                }
+              : c,
+          ),
+        );
+      }
+    } catch (err) {
+      toast.error(err);
+      console.log(err);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -472,15 +531,147 @@ export default function JobWorkspaceScreen({
                     </div>
                   ),
                   actions: (
-                    <span className="text-xs text-slate-500">
+                    <div className="relative">
                       <button
-                        onClick={() => removeCandidateHandler(c?.id)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition"
+                        className="px-2 py-1 text-gray-600 hover:text-black"
+                        onClick={() =>
+                          setOpenMenuId(openMenuId === c.id ? null : c.id)
+                        }
                       >
-                        <UserMinus size={14} />
-                        Remove
+                        ⋮
                       </button>
-                    </span>
+                      {openMenuId === c.id && (
+                        <div className="absolute right-0 z-10 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                            onClick={() => {
+                              setSelectedCandidateId(c?.id);
+                              setSelectedCandidate(c);
+                              setCandidateDetailsDefaultTab?.("profile");
+                              setAutoOpenSchedule?.(true);
+                              setScreen("candidateDetails");
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            Schedule Interview
+                          </button>
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                            onClick={() => {
+                              const email = c?.email?.trim();
+
+                              if (!email) {
+                                return;
+                              }
+                              const subject = encodeURIComponent(
+                                "Regarding your application",
+                              );
+                              const body = encodeURIComponent(
+                                `Hi ${c?.name || "Candidate"},\n\n`,
+                              );
+                              const to = encodeURIComponent(email);
+                              const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+                              const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
+                              const openedWindow = window.open(
+                                gmailUrl,
+                                "_blank",
+                                "noopener,noreferrer",
+                              );
+                              if (!openedWindow) {
+                                window.location.href = mailtoUrl;
+                              }
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            Send Email
+                          </button>
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!c?.phone}
+                            onClick={() => {
+                              if (!c?.phone) return;
+                              const cleanedPhone = c.phone.replace(/\D/g, "");
+                              if (!cleanedPhone) {
+                                return;
+                              }
+                              window.open(
+                                `https://wa.me/${cleanedPhone}`,
+                                "_blank",
+                              );
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            Message on WhatsApp
+                          </button>
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                            onClick={async () => {
+                              setSelectedCandidateId(c.id);
+                              let finalCandidate = c;
+                              if (onFetchCandidateById) {
+                                try {
+                                  const fresh = await onFetchCandidateById(
+                                    c.id,
+                                  );
+                                  if (fresh) {
+                                    finalCandidate = fresh;
+                                  }
+                                } catch (err) {}
+                              }
+                              setSelectedCandidate(finalCandidate);
+                              setCandidateDetailsDefaultTab?.("feedback");
+                              setScreen("candidateDetails");
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            Add Feedback
+                          </button>
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                            onClick={() => {
+                              handleActiveStatus("Inactive", c?.id);
+                            }}
+                          >
+                            Archive
+                          </button>
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                            onClick={() => {
+                              handleCandidateStatus(c?.id);
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            Pre Onboarding
+                          </button>
+                          <button
+                            className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+                            onClick={() => {
+                              setOpenMoveDrawer(true);
+                            }}
+                          >
+                            Move Stage
+                          </button>
+                          <MoveStageDrawer
+                            open={openMoveDrawer}
+                            onClose={() => setOpenMoveDrawer(false)}
+                            onSubmit={(stage) => {
+                              setCandidateList((prev) =>
+                                prev.map((c) =>
+                                  c.id === stage?.candidate_id
+                                    ? {
+                                        ...c,
+                                        status: stage?.status,
+                                        pipelineStatus: stage?.pipeline_status,
+                                      }
+                                    : c,
+                                ),
+                              );
+                            }}
+                            data={c}
+                          />
+                        </div>
+                      )}
+                    </div>
                   ),
                 }))}
               />
