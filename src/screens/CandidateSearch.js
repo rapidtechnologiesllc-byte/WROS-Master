@@ -29,6 +29,7 @@ import {
 } from "../services/api/preOnboarding";
 import { sendPlainEmail } from "../services/api/email";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
+import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 
 export default function CandidateSearch({
   candidates,
@@ -209,8 +210,6 @@ export default function CandidateSearch({
   const handlePreOnboardingAction = async (record, action) => {
     try {
       const res = await managerReviewApprove(record, action);
-      console.log("Approve Response:", res);
-
       if (res?.status === "success") {
         const updatedCandidate = res?.data;
         setCandidateList((prev) =>
@@ -262,7 +261,7 @@ export default function CandidateSearch({
       if (result?.status === "success") {
         setCandidateList((prev) =>
           prev.map((candidate) =>
-            candidate.candidate_id === result.candidate_id
+            candidate.candidate_id === result?.candidate_id
               ? { ...candidate, ...result }
               : candidate,
           ),
@@ -271,6 +270,21 @@ export default function CandidateSearch({
         toast.success(
           `Candidate ${record?.candidate_name} rejected successfully`,
         );
+
+        try {
+          await sendPlainEmail({
+            toEmail: record?.candidate_email,
+            subject: "Update on Your Application",
+            bodyContent: getRejectionEmailHTML(record?.candidate_name),
+            isHtml: true,
+          });
+
+          toast.success("Rejection email sent successfully");
+        } catch (emailError) {
+          console.error("Failed to send rejection email", emailError);
+
+          toast.warning("Candidate rejected, but email could not be sent");
+        }
       }
     } catch (err) {
       toast.error(err?.message);
