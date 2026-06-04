@@ -10,10 +10,10 @@ import { getHrCandidateFullDetails } from "../../services/api/candidateSelfServi
 
 const DOCUMENT_LABELS = {
   pan: "PAN Card",
-  aadhar: "Aadhar Card",
+  aadhar: "Aadhaar Card",
   education: "Education Certificate",
   experience: "Experience Letter",
-  salary_slip: "Salary Slip",
+  salary_slip: "Salary Slips",
   bank_statement: "Bank Statement",
   resume: "Resume",
 };
@@ -780,10 +780,10 @@ function CandidateSubmittedDetails({ title, description, fields, isLoading }) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
         <div className="text-sm font-semibold text-gray-700">
-          No submitted details available
+          No Submitted Details Available
         </div>
         <p className="mt-1 text-xs text-gray-400">
-          Candidate-filled details are not available for this document type.
+          No candidate details are available for this document type.
         </p>
       </div>
     );
