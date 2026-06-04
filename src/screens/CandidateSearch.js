@@ -182,6 +182,7 @@ export default function CandidateSearch({
   const handlePreOnboardingAction = async (record, action) => {
     try {
       const res = await managerReviewApprove(record, action);
+      console.log("Approve Response:", res);
 
       if (res?.status === "success") {
         const updatedCandidate = res?.data;

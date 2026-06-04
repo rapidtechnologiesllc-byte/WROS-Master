@@ -104,8 +104,6 @@ function DocumentUploadRow({ label, onUpload, disabled }) {
 
 export default function CandidateSelfService({ onLogout }) {
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [noticeType, setNoticeType] = useState("error");
   const [profile, setProfile] = useState(null);
   const [onboardingStatus, setOnboardingStatus] = useState(null);
   const [passwordForm, setPasswordForm] = useState({
@@ -136,27 +134,20 @@ export default function CandidateSelfService({ onLogout }) {
   const storedCandidateName = localStorage.getItem("hrms_user_name") || "";
   const storedCandidateEmail = localStorage.getItem("hrms_user_email") || "";
 
-  let noticeTimer;
-
-  const showNotice = (message, type = "error", scroll = true) => {
-    setNotice(message);
-    setNoticeType(type);
-
-    if (scroll) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+  const showNotice = (message, type = "error") => {
+    if (type === "success") {
+      toast.success(message, {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    } else {
+      toast.error(message, {
+        position: "top-right",
+        autoClose: 3000,
+      });
     }
-
-    if (noticeTimer) clearTimeout(noticeTimer);
-
-    noticeTimer = setTimeout(() => {
-      setNotice("");
-    }, 3000);
   };
-
-  const clearNotice = () => {
-    setNotice("");
-    setNoticeType("error");
-  };
+  const clearNotice = () => {};
 
   const normalizeEducationRecord = (record = {}) => ({
     id: record.formID ?? record.id ?? null,
@@ -524,6 +515,14 @@ export default function CandidateSelfService({ onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900">
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+      />
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
           <div>
@@ -796,17 +795,6 @@ export default function CandidateSelfService({ onLogout }) {
             </div>
           </div>
         ) : null}
-        {notice ? (
-          <div
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              noticeType === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-rose-200 bg-rose-50 text-rose-700"
-            }`}
-          >
-            {notice}
-          </div>
-        ) : null}
 
         {myOffers?.length > 0 ? (
           <Card title="Offer Letters">
@@ -980,7 +968,7 @@ export default function CandidateSelfService({ onLogout }) {
                                   >
                                     {checklistCompletingId === item.id
                                       ? "Saving…"
-                                      : "Mark complete"}
+                                      : "Mark Complete"}
                                   </Button>
                                 ) : (
                                   <span className="text-xs font-semibold text-green-700">
@@ -1002,11 +990,53 @@ export default function CandidateSelfService({ onLogout }) {
             )}
           </Card>
         ) : null}
+        <Card title="My Documents">
+          <div className="space-y-2">
+            {myDocuments?.documents?.length ? (
+              myDocuments.documents.map((doc) => {
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold">
+                        {DOC_LABELS[doc.document_type] || doc.document_type}
+                      </div>
 
+                      <div className="text-xs text-slate-500">
+                        {doc.original_filename} •{" "}
+                        {doc.uploaded_at
+                          ? new Date(doc.uploaded_at).toLocaleDateString()
+                          : "-"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        status={
+                          doc.is_verified
+                            ? "Verified"
+                            : doc.notes
+                              ? "Rejected"
+                              : "Pending"
+                        }
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-sm text-slate-600">
+                No documents uploaded yet.
+              </div>
+            )}
+          </div>
+        </Card>
         <Card title="Personal Information">
           <div className="grid gap-3 md:grid-cols-2">
             <Input
-              label="Position"
+              label="Designation"
               value={personal.position}
               onChange={(v) => setPersonal((p) => ({ ...p, position: v }))}
             />
@@ -1040,7 +1070,7 @@ export default function CandidateSelfService({ onLogout }) {
               onChange={(v) => setPersonal((p) => ({ ...p, nationality: v }))}
             />
             <TextArea
-              label="Current Address"
+              label="Current Residential Address"
               value={personal.current_address}
               onChange={(v) =>
                 setPersonal((p) => ({ ...p, current_address: v }))
@@ -1064,18 +1094,21 @@ export default function CandidateSelfService({ onLogout }) {
 
                 try {
                   await submitCandidateInfoForm(personal);
-                  showNotice("Personal info saved.", "success");
+                  showNotice("Personal Information Saved.", "success");
                 } catch (err) {
                   showNotice(err.message || "Failed to save personal info.");
                 }
               }}
               disabled={loading}
             >
-              Save Personal Info
+              Save Personal Information
             </Button>
           </div>
         </Card>
-        <Card title="Education">
+        <Card
+          title="Education Details"
+          subtitle="Please provide details of your SSC, HSC, Bachelor's Degree, and Master's Degree (if completed)."
+        >
           <div className="space-y-4">
             {education.map((row, idx) => (
               <div
@@ -1083,7 +1116,7 @@ export default function CandidateSelfService({ onLogout }) {
                 className="grid gap-3 rounded-xl border p-3 md:grid-cols-2"
               >
                 <Input
-                  label="Institute"
+                  label="Institute / School / College"
                   value={row.education_institute}
                   onChange={(v) => {
                     const next = [...education];
@@ -1092,7 +1125,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }}
                 />
                 <Input
-                  label="Degree"
+                  label="Degree / Qualification"
                   value={row.degree}
                   onChange={(v) => {
                     const next = [...education];
@@ -1101,7 +1134,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }}
                 />
                 <Input
-                  label="Field of Study"
+                  label="Specialization / Field of Study"
                   value={row.field_of_study}
                   onChange={(v) => {
                     const next = [...education];
@@ -1110,7 +1143,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }}
                 />
                 <Input
-                  label="Starting Year"
+                  label="Start Year"
                   value={row.starting_year}
                   onChange={(v) => {
                     const next = [...education];
@@ -1128,7 +1161,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }}
                 />
                 <Input
-                  label="Percentage"
+                  label="Percentage / CGPA"
                   value={row.percentage}
                   onChange={(v) => {
                     const next = [...education];
@@ -1147,7 +1180,7 @@ export default function CandidateSelfService({ onLogout }) {
                       setEducation(next);
                     }}
                   />
-                  Document submitted
+                  Document Submitted
                 </label>
 
                 <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
@@ -1239,7 +1272,7 @@ export default function CandidateSelfService({ onLogout }) {
                   ])
                 }
               >
-                Add Education
+                Add Education Record
               </Button>
             </div>
 
@@ -1268,7 +1301,7 @@ export default function CandidateSelfService({ onLogout }) {
                     );
                   }
 
-                  showNotice("Education saved.", "success");
+                  showNotice("Education Details Saved.", "success");
                 } catch (err) {
                   showNotice(err.message || "Failed to save education.");
                 } finally {
@@ -1276,12 +1309,15 @@ export default function CandidateSelfService({ onLogout }) {
                 }
               }}
             >
-              Save Education
+              Save Education Details
             </Button>
           </div>
         </Card>
 
-        <Card title="Experience">
+        <Card
+          title="Experience Details"
+          subtitle="Please provide details of your previous employment and upload your experience letter."
+        >
           <div className="space-y-4">
             {experience.map((row, idx) => (
               <div
@@ -1298,7 +1334,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }}
                 />
                 <Input
-                  label="Job Title"
+                  label="Designation / Job Title"
                   value={row.job_title}
                   onChange={(v) => {
                     const next = [...experience];
@@ -1327,7 +1363,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }}
                 />
                 <Input
-                  label="Years of Experience"
+                  label="Total Experience (Years)"
                   value={row.year_of_experience}
                   onChange={(v) => {
                     const next = [...experience];
@@ -1346,7 +1382,7 @@ export default function CandidateSelfService({ onLogout }) {
                       setExperience(next);
                     }}
                   />
-                  Document submitted
+                  Experience Letter Submitted
                 </label>
 
                 <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
@@ -1462,7 +1498,7 @@ export default function CandidateSelfService({ onLogout }) {
                     );
                   }
 
-                  showNotice("Experience saved.", "success");
+                  showNotice("Experience Details Saved.", "success");
                 } catch (err) {
                   showNotice(err.message || "Failed to save experience.");
                 } finally {
@@ -1475,20 +1511,23 @@ export default function CandidateSelfService({ onLogout }) {
           </div>
         </Card>
 
-        <Card title="PAN Details">
+        <Card
+          title="PAN Details"
+          subtitle="Please upload a clear copy of your PAN Card for identity verification."
+        >
           <div className="grid gap-3 md:grid-cols-2">
             <Input
-              label="PAN"
+              label="PAN Number"
               value={pan.pan}
               onChange={(v) => setPan((p) => ({ ...p, pan: v }))}
             />
             <Input
-              label="Name in PAN"
+              label="Name as per PAN"
               value={pan.name_in_pan}
               onChange={(v) => setPan((p) => ({ ...p, name_in_pan: v }))}
             />
             <Input
-              label="Father's Name"
+              label="Father's Name as per PAN"
               value={pan.father_name_in_pan}
               onChange={(v) => setPan((p) => ({ ...p, father_name_in_pan: v }))}
             />
@@ -1501,7 +1540,7 @@ export default function CandidateSelfService({ onLogout }) {
                   setPan((p) => ({ ...p, pan_is_submitted: e.target.checked }))
                 }
               />
-              PAN submitted
+              PAN Submitted
             </label>
 
             <label className="flex items-center gap-2 text-sm">
@@ -1531,9 +1570,9 @@ export default function CandidateSelfService({ onLogout }) {
                     ...pan,
                     submitted_at: pan.submitted_at || today(),
                   });
-                  showNotice("PAN saved.", "success");
+                  showNotice("PAN Details Saved.", "success");
                 } catch (err) {
-                  showNotice(err.message || "Failed to save PAN.");
+                  showNotice(err.message || "Failed to Save PAN Details.");
                 }
               }}
             >
@@ -1542,20 +1581,23 @@ export default function CandidateSelfService({ onLogout }) {
           </div>
         </Card>
 
-        <Card title="Aadhar Details">
+        <Card
+          title="Aadhaar Details"
+          subtitle="Please upload a clear copy of your Aadhaar Card for identity and address verification."
+        >
           <div className="grid gap-3 md:grid-cols-2">
             <Input
-              label="Aadhar"
+              label="Aadhaar Number"
               value={aadhar.aadhar}
               onChange={(v) => setAadhar((a) => ({ ...a, aadhar: v }))}
             />
             <Input
-              label="Name in Aadhar"
+              label="Name as per Aadhaar"
               value={aadhar.name_in_aadhar}
               onChange={(v) => setAadhar((a) => ({ ...a, name_in_aadhar: v }))}
             />
             <Input
-              label="Enrollment Number"
+              label="Aadhaar Enrollment Number"
               value={aadhar.enrollment_number}
               onChange={(v) =>
                 setAadhar((a) => ({ ...a, enrollment_number: v }))
@@ -1573,7 +1615,7 @@ export default function CandidateSelfService({ onLogout }) {
                   }))
                 }
               />
-              Aadhar submitted
+              Aadhaar Submitted
             </label>
 
             <label className="flex items-center gap-2 text-sm">
@@ -1584,7 +1626,7 @@ export default function CandidateSelfService({ onLogout }) {
                   setAadhar((a) => ({ ...a, is_verified: e.target.checked }))
                 }
               />
-              Verified
+              Aadhaar Verified
             </label>
           </div>
 
@@ -1605,37 +1647,34 @@ export default function CandidateSelfService({ onLogout }) {
                     ...aadhar,
                     submitted_at: aadhar.submitted_at || today(),
                   });
-                  showNotice("Aadhar saved.", "success");
+                  showNotice("Aadhaar Details Saved.", "success");
                 } catch (err) {
-                  showNotice(err.message || "Failed to save Aadhar.");
+                  showNotice(err.message || "Failed to Save Aadhaar Details.");
                 }
               }}
             >
-              Save Aadhar
+              Save Aadhaar
             </Button>
           </div>
         </Card>
-        <Card title="Bank Statement">
-          <div className="mb-3 text-sm text-slate-600">
-            Please upload bank statements for the last 3 months showing salary
-            credits.
-          </div>
-
+        <Card
+          title="Bank Statements"
+          subtitle="Please upload your bank statements for the last 3 months showing salary credits."
+        >
           <DocumentUploadRow
-            label="Bank Statement"
+            label="Last 3 Months Bank Statements"
             onUpload={(file) =>
               handleUpload(uploadBankStatement, "Bank Statement", file)
             }
             disabled={loading || uploadingType === "Bank Statement"}
           />
         </Card>
-        <Card title="Salary Slip">
-          <div className="mb-3 text-sm text-slate-600">
-            Please upload your last 3 months payslips.
-          </div>
-
+        <Card
+          title="Salary Slips"
+          subtitle="Please upload your salary slips for the last 3 months."
+        >
           <DocumentUploadRow
-            label="Salary Slip"
+            label="Last 3 Months Salary Slips"
             onUpload={(file) =>
               handleUpload(uploadSalarySlip, "Salary Slip", file)
             }
@@ -1666,7 +1705,16 @@ export default function CandidateSelfService({ onLogout }) {
                       className="rounded-lg border bg-slate-50 px-3 py-2 text-xs"
                     >
                       <div className="font-semibold">
-                        {String(key).replace(/_/g, " ")}
+                        {{
+                          personal_info: "Personal Information",
+                          education: "Education",
+                          experience: "Experience",
+                          pan: "PAN",
+                          aadhar: "Aadhaar",
+                        }[key] ||
+                          String(key)
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (c) => c.toUpperCase())}
                       </div>
                       <div>Completed: {value?.completed ? "Yes" : "No"}</div>
                       {"verified" in (value || {}) ? (
@@ -1682,50 +1730,70 @@ export default function CandidateSelfService({ onLogout }) {
             ) : null}
           </Card>
         ) : null}
-        <Card title="My Documents">
-          <div className="space-y-2">
-            {myDocuments?.documents?.length ? (
-              myDocuments.documents.map((doc) => {
-                return (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3"
-                  >
+        <Card title={`Jobs & Apply (${activeJobs?.length || 0})`}>
+          <div className="space-y-3">
+            {activeJobs?.length ? (
+              activeJobs.slice(0, 10).map((j) => (
+                <div
+                  key={j?.job_id || j?.id}
+                  className="rounded-lg border bg-white p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold">
-                        {DOC_LABELS[doc.document_type] || doc.document_type}
+                        {j?.job_title || "Untitled Job"}
                       </div>
-
-                      <div className="text-xs text-slate-500">
-                        {doc.original_filename} •{" "}
-                        {doc.uploaded_at
-                          ? new Date(doc.uploaded_at).toLocaleDateString()
-                          : "-"}
+                      <div className="text-xs text-slate-600">
+                        {j?.job_location || "—"} • {j?.company_name || "—"}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <StatusBadge
+                          status={normalizeJobStatus(j?.job_status)}
+                        />
+                        <span className="text-xs text-slate-500">
+                          {j?.job_id || "-"}
+                        </span>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <StatusBadge
-                        status={
-                          doc.is_verified
-                            ? "Verified"
-                            : doc.notes
-                              ? "Rejected"
-                              : "Pending"
-                        }
-                      />
-                    </div>
+                    <Button
+                      onClick={() => handleApplyForJob(j?.job_id)}
+                      disabled={!profile?.candidate_mobile || !j?.job_id}
+                    >
+                      Apply
+                    </Button>
                   </div>
-                );
-              })
+                </div>
+              ))
             ) : (
               <div className="text-sm text-slate-600">
-                No documents uploaded yet.
+                No Active Jobs Right Now
               </div>
             )}
+            <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
+              <div className="mb-2 font-semibold text-slate-700">
+                Optional: Resume for Job Application
+              </div>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setJobResumeFile(file || null);
+                }}
+              />
+              <div className="mt-1">
+                {jobResumeFile
+                  ? `Selected: ${jobResumeFile.name} (${(
+                      jobResumeFile.size / 1024
+                    ).toFixed(1)} KB)`
+                  : "No resume selected."}
+              </div>
+            </div>
+            <div className="text-xs text-slate-500">
+              Jobs list is sourced from active/public jobs.
+            </div>
           </div>
         </Card>
-
         <Card title="Change Password">
           <div className="grid gap-3 md:grid-cols-2">
             <Input
