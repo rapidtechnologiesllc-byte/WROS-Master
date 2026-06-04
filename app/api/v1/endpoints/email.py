@@ -63,6 +63,14 @@ class SendCustomInterviewInviteRequest(BaseModel):
     create_teams_event: Optional[bool] = True
 
 
+class SendLoginCredentialsRequest(BaseModel):
+    """
+    Optional override for the portal link.
+    The candidate's email and password are read directly from the database.
+    """
+    portal_link: Optional[str] = "https://hrms.blitzenx.com/"
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────────────────────────────────────
@@ -305,4 +313,78 @@ def send_custom_interview_invite(
         extra_notes=request.extra_notes or "",
         timezone=request.timezone or "Asia/Kolkata",
         create_teams_event=request.create_teams_event,
+    )
+
+
+@router.post(
+    "/login-credentials/{candidate_id}",
+    dependencies=[Depends(require_permission("interview.manage"))],
+    summary="Send login credentials to a candidate via email",
+)
+def send_login_credentials(
+    candidate_id: str,
+    request: SendLoginCredentialsRequest = SendLoginCredentialsRequest(),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """
+    Looks up the candidate by **candidate_id** and sends a branded HTML email
+    to their registered email address containing their login credentials and a
+    direct link to the HRMS portal.
+
+    Both the **email address** (`candidateEmail`) and the **plain-text password**
+    (`candidateTempPassword`) are read automatically from the candidate record in
+    the database — no manual input is needed.
+
+    Returns **400** if the candidate's plain-text password is not stored
+    (e.g. candidates created before this feature). In that case, reset their
+    password via the change-password endpoint first.
+    """
+    # ── Load candidate ──────────────────────────────────────────────────────
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.candidateID == candidate_id)
+        .first()
+    )
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate '{candidate_id}' not found.",
+        )
+
+    candidate_name = " ".join(
+        filter(None, [candidate.candidateFirstName, candidate.candidateLastName])
+    ) or "Candidate"
+
+    # ── Read email and plain-text password from DB ──────────────────────────
+    login_email: str = candidate.candidateEmail
+    plain_password: str = candidate.candidateTempPassword
+    portal_link: str = request.portal_link or "https://hrms.blitzenx.com/"
+
+    if not login_email:
+        raise HTTPException(
+            status_code=400,
+            detail="No email address found for this candidate.",
+        )
+    if not plain_password:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Plain-text password is not stored for this candidate. "
+                "Reset their password via the change-password endpoint — "
+                "the new password will be saved and can then be emailed."
+            ),
+        )
+
+    logger.info(
+        f"[email/login-credentials] {current_user.UserEmail} → "
+        f"Candidate: {candidate_id} ({login_email})"
+    )
+
+    return EmailService.send_login_credentials(
+        candidate_email=login_email,
+        candidate_name=candidate_name,
+        login_email=login_email,
+        password=plain_password,
+        portal_link=portal_link,
     )
