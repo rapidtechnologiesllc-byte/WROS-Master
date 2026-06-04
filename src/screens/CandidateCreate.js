@@ -20,7 +20,6 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 export default function CandidateCreate({ onBack, onSave }) {
-  // These fields map 1:1 to CandidateCreateRequest on the backend.
   const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState("");
   const [firstName, setFirstName] = useState("");

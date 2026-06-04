@@ -85,6 +85,11 @@ export const createDepartment = async (payload) => {
   return data;
 };
 
+export const departmentList = async () => {
+  const { data } = await apiRequest("/rbac/departments", { method: "GET" });
+  return data;
+};
+
 // User assignment
 export const assignRoleToUser = async (userId, roleId) => {
   const { data } = await apiRequest(`/rbac/users/${userId}/assign-role`, {

@@ -819,9 +819,6 @@ export default function App() {
         />
       )}
 
-      {/* {screen === "pre-onboarding" && (
-        <PreOnboardingPage candidates={candidates} />
-      )} */}
       {screen === "hrUsers" && <HrUserManagement />}
 
       {screen === "jobWorkspace" && selectedJob && (
@@ -840,6 +837,14 @@ export default function App() {
             }}
             setSelectedCandidate={setSelectedCandidateData}
             setScreen={safeSetScreen}
+            setSelectedCandidateId={setSelectedCandidateId}
+            onFetchCandidateById={async (candidateId) => {
+              const res = await getCandidateById(candidateId);
+              return mapCandidateFromApi(res || {});
+            }}
+            setCandidateDetailsDefaultTab={setCandidateDetailsDefaultTab}
+            setScreen={safeSetScreen}
+            setAutoOpenSchedule={setAutoOpenSchedule}
           />
           <ToastContainer position="top-right" autoClose={3000} />
         </>
