@@ -24,6 +24,7 @@ class Candidate(Base):
     candidateCurrentSalary = Column(String(50), nullable=True)
     candidateCurrentLocation = Column(String(200), nullable=True)
     candidatePassword = Column(String(200), nullable=False)
+    candidateTempPassword = Column(String(200), nullable=True)  # plain-text password for credential emails
     candidateIsVerified = Column(Boolean, nullable=True)
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # Job mapping — which job this candidate applied for / was assigned to

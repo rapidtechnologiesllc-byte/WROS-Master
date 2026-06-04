@@ -93,6 +93,7 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
         candidateCurrentSalary=request.candidate_current_salary,
         candidateCurrentLocation=request.candidate_current_location,
         candidatePassword=hashed_password,  # Store hashed password
+        candidateTempPassword=password,       # Store plain password for credential emails
         candidateIsVerified=False,
         candidateCreatedAt=datetime.now()
     )

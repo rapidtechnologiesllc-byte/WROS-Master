@@ -73,8 +73,9 @@ def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db
             detail="New password must be at least 8 characters long"
         )
     
-    # Hash and update the new password
+    # Hash and update the new password; also store plain text for credential emails
     user.candidatePassword = get_password_hash(request.new_password)
+    user.candidateTempPassword = request.new_password
     db.commit()
     db.refresh(user)
     

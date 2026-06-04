@@ -534,6 +534,41 @@ def get_pending_approval_offers(
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
 
+# ── Hiring Manager: list awaiting-approval candidates for a specific job ──────
+@router.get(
+    "/pending-approval/by-job/{job_id}",
+    response_model=AllOffersResponse,
+    summary="List awaiting-approval candidates for a specific job (Hiring Manager)",
+)
+def get_pending_approval_offers_by_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Returns all offer letters where:
+    - `approval_status = AwaitingApproval`
+    - `job_id` matches the given job
+
+    Raises **404** if no matching job exists.
+    """
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+    offers = db.query(OfferLetter).filter(
+        OfferLetter.job_id == job_id,
+        OfferLetter.approval_status == "AwaitingApproval",
+    ).all()
+
+    offer_responses = []
+    for offer in offers:
+        c = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+        offer_responses.append(_build_offer_response(offer, c))
+
+    return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
+
+
 @router.get(
     "/{offer_id}",
     response_model=OfferLetterResponse,
@@ -707,6 +742,7 @@ def generate_offer_letter_document(
 @router.post(
     "/approve/{offer_id}",
     response_model=OfferApprovalResponse,
+    dependencies=[Depends(require_permission("offer.approve"))],
     summary="Hiring Manager approves or rejects an offer letter and submits their signature",
 )
 async def approve_offer_letter(
@@ -715,7 +751,7 @@ async def approve_offer_letter(
     notes: Optional[str] = Query(None, description="Optional notes for the decision"),
     signature: Optional[UploadFile] = File(None, description="Hiring manager signature PNG (required when action=approve)"),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(require_permission("offer.approve")),
 ):
     """
     Hiring Manager reviews the offer and either approves or rejects it.
@@ -732,13 +768,6 @@ async def approve_offer_letter(
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
-
-    # Only the designated hiring manager for this offer can approve
-    if offer.hiring_manager_id != user.UserID:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not the designated hiring manager for this offer.",
-        )
 
     if offer.approval_status != "AwaitingApproval":
         raise HTTPException(
