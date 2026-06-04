@@ -41,6 +41,10 @@ import { getCandidateNotes, createCandidateNote } from "../services/api/notes";
 import { getCandidateApplications, getActiveJobs } from "../services/api/jobs";
 import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
+import { AcceptButton } from "../styles/CandidateSearchStyles";
+import { managerReviewApprove } from "../services/api/preOnboarding";
+import { toast } from "react-toastify";
+import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 
 const initialScheduleForm = {
   roundName: "",
@@ -96,6 +100,7 @@ const roundNameOptions = [
 ];
 
 export default function CandidateDetailsScreen({
+  apiState,
   candidate,
   onBack,
   onUpdateCandidate,
@@ -141,7 +146,8 @@ export default function CandidateDetailsScreen({
   const [candidateJobs, setCandidateJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
-
+  const [candidateDocCount, setCandidateDocCount] = useState(null);
+  const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
   const currentRole = localStorage.getItem("hrms_role");
@@ -371,6 +377,21 @@ export default function CandidateDetailsScreen({
       setNotice("");
     }, duration);
   };
+
+  useEffect(() => {
+    const loadDocumentCount = async () => {
+      try {
+        const docs = await getCandidateDocuments(candidate?.id);
+        setCandidateDocCount(docs);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    if (candidate?.id) {
+      loadDocumentCount();
+    }
+  }, [candidate?.id]);
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
@@ -851,7 +872,6 @@ ${formattedJD}
 
     try {
       const docsRes = await getCandidateDocuments(candidate.id);
-
       const documents = Array.isArray(docsRes?.documents)
         ? docsRes?.documents
         : [];
@@ -989,6 +1009,38 @@ ${formattedJD}
     }
   };
 
+  const handlePreOnboardingAction = async (record, action) => {
+    try {
+      const res = await managerReviewApprove(record, action);
+
+      if (res?.status === "success") {
+        const updatedCandidate = res?.data;
+        if (action === "Approve") {
+          const emailSend = await sendPlainEmail({
+            toEmail: candidate?.email,
+            subject: "Pre-Onboarding Task",
+            bodyContent: getEmailBodyHTML(candidate?.name),
+            isHtml: false,
+          });
+
+          if (emailSend?.status === "success") {
+            toast.success(
+              `Candidate ${candidate?.name} approved for Pre-Onboarding`,
+            );
+          }
+        } else {
+          toast.success(`Candidate ${candidate?.name} has been rejected`);
+        }
+      }
+    } catch (err) {
+      toast.error(
+        action === "Approve"
+          ? "Candidate already moved to Pre-Onboarding"
+          : "Failed to reject candidate",
+      );
+    }
+  };
+
   return (
     <>
       <div className="grid gap-5">
@@ -1076,7 +1128,17 @@ ${formattedJD}
                 Back
               </Button>
 
-              {currentRole === "HR MANAGER" || "HR" ? (
+              {currentRole === "HIRING MANAGER" &&
+              candidate?.pipelineStatus == "Pre-onboarding-Approval" ? (
+                <AcceptButton
+                  disabled={isApproved}
+                  onClick={() => handlePreOnboardingAction(apiState, "Approve")}
+                >
+                  {isApproved ? "Approved" : "Accept"}
+                </AcceptButton>
+              ) : null}
+
+              {currentRole === "HR MANAGER" ? (
                 <Button
                   variant="secondary"
                   onClick={openOfferModal}

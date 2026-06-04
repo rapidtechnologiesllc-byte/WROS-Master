@@ -4,7 +4,11 @@ import {
   getCandidateDocuments,
   viewDocument,
 } from "../../services/api/documents";
-export default function ProfileTab({ candidateId, candidate }) {
+export default function ProfileTab({
+  candidateId,
+  candidate,
+  onDocumentsLoaded,
+}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -12,6 +16,11 @@ export default function ProfileTab({ candidateId, candidate }) {
   const [resumePreviewUrl, setResumePreviewUrl] = useState("");
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState("");
+  const [candidateDocCount, setCandidateDocCount] = useState(null);
+
+  const handleDocumentsLoaded = (data) => {
+    setCandidateDocCount(data);
+  };
 
   useEffect(() => {
     if (!candidateId) return;
