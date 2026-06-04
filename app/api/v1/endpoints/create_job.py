@@ -859,6 +859,7 @@ async def apply_for_job(
         candidateExpectedSalary=expected_lpa,
         candidateSource="public_application",
         candidatePassword=hashed_password,
+        candidateTempPassword=plain_password,  # Store plain password for credential emails
         candidateIsVerified=False,
         candidateCreatedAt=datetime.now(),
     )

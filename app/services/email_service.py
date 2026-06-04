@@ -367,6 +367,92 @@ class EmailService:
             raise HTTPException(status_code=500, detail=str(e))
 
     # ------------------------------------------------------------------
+    # Login Credentials Email
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _login_credentials_html(
+        candidate_name: str,
+        login_email: str,
+        password: str,
+        portal_link: str,
+    ) -> str:
+        body = f"""
+        <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+          Dear <strong>{candidate_name}</strong>,
+        </p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          Welcome to <strong>BlitzenX HRMS</strong>! Your onboarding account has been created.
+          Please use the credentials below to access the candidate portal.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Portal:</strong>
+              <a href="{portal_link}" style="color:#1a56db;">{portal_link}</a>
+            </p>
+          </td></tr>
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Login Email:</strong> {login_email}
+            </p>
+          </td></tr>
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Password:</strong>
+              <span style="font-family:monospace;background:#e0e7ff;padding:2px 8px;
+                           border-radius:4px;letter-spacing:0.05em;">{password}</span>
+            </p>
+          </td></tr>
+        </table>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          For security reasons, we strongly recommend changing your password after your first login.
+          If you have any issues accessing the portal, please contact the HR team.
+        </p>
+        <p style="font-size:14px;color:#374151;margin-top:24px;">
+          Warm regards,<br/><strong>BlitzenX HR Team</strong>
+        </p>
+        """
+        return EmailService._base_html("Your Portal Login Credentials", body)
+
+    @classmethod
+    def send_login_credentials(
+        cls,
+        candidate_email: str,
+        candidate_name: str,
+        login_email: str,
+        password: str,
+        portal_link: str = "https://hrms.blitzenx.com/",
+    ) -> Dict[str, Any]:
+        """
+        Send a branded welcome email containing the candidate's login credentials
+        (email + password) and a direct link to the HRMS portal.
+        """
+        try:
+            html = cls._login_credentials_html(
+                candidate_name=candidate_name,
+                login_email=login_email,
+                password=password,
+                portal_link=portal_link,
+            )
+            result = cls.send_email(
+                to_email=candidate_email,
+                subject="Welcome to BlitzenX HRMS — Your Login Credentials",
+                body_content=html,
+                is_html=True,
+            )
+            logger.info(
+                f"[EmailService] Login credentials email sent to {candidate_email}"
+            )
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[EmailService] send_login_credentials error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # ------------------------------------------------------------------
     # Offer Letter Workflow Emails
     # ------------------------------------------------------------------
 
