@@ -479,6 +479,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             }))
           : null,
       });
+      console.log(data?.candidate_password, "assa");
       const candidateName = [firstName, middleName, lastName]
         .filter(Boolean)
         .join(" ")
@@ -696,11 +697,7 @@ HRMS Team`,
               { label: "Guidewire Employee", value: "Guidewire Employee" },
             ]}
           />
-          <Input
-            label="Job Title"
-            value={jobName}
-            onChange={setJobName}
-          />
+          <Input label="Job Title" value={jobName} onChange={setJobName} />
           <div>
             <Input
               label="Email *"

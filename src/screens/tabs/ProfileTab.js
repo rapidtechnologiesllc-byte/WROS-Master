@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { getCandidateById } from "../../services/api/candidates";
+import {
+  getCandidateById,
+  getCandidateContacts,
+} from "../../services/api/candidates";
 import {
   getCandidateDocuments,
   viewDocument,
@@ -17,7 +20,7 @@ export default function ProfileTab({
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState("");
   const [candidateDocCount, setCandidateDocCount] = useState(null);
-
+  const [contacts, setContacts] = useState(null);
   const handleDocumentsLoaded = (data) => {
     setCandidateDocCount(data);
   };
@@ -49,6 +52,26 @@ export default function ProfileTab({
     };
 
     fetchProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [candidateId]);
+  useEffect(() => {
+    if (!candidateId) return;
+    let isMounted = true;
+    const fetchContacts = async () => {
+      try {
+        const result = await getCandidateContacts(candidateId);
+
+        if (isMounted) {
+          setContacts(result || null);
+        }
+      } catch (err) {
+        console.error("Failed to load candidate contacts", err);
+      }
+    };
+    fetchContacts();
 
     return () => {
       isMounted = false;
@@ -273,6 +296,10 @@ export default function ProfileTab({
           <Info
             label="Role"
             value={profile?.candidate_role || profile?.jobTitle}
+          />
+          <Info
+            label="Hiring Manager"
+            value={contacts?.job_hiring_manager?.name}
           />
           <Info
             label="Verified"
