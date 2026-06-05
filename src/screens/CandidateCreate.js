@@ -479,7 +479,6 @@ export default function CandidateCreate({ onBack, onSave }) {
             }))
           : null,
       });
-      console.log(data?.candidate_password, "assa");
       const candidateName = [firstName, middleName, lastName]
         .filter(Boolean)
         .join(" ")
@@ -504,39 +503,6 @@ export default function CandidateCreate({ onBack, onSave }) {
       };
 
       let nextNotice = "Candidate created successfully.";
-
-      if (sendLoginEmail && candidateEmail && candidatePassword) {
-        try {
-          const candidatePortalUrl = "https://hrms.blitzenx.com/";
-          await sendPlainEmail({
-            toEmail: candidateEmail,
-            bodyContent: `Hello ${candidateName || "Candidate"},
-
-Your HRMS candidate account has been created successfully.
-
-Portal Link: ${candidatePortalUrl}
-Login Email: ${candidateEmail}
-Temporary Password: ${candidatePassword}
-
-Please access the HRMS portal using the link above and update your password after your first login.
-
-Thanks,
-HRMS Team`,
-            isHtml: false,
-          });
-
-          nextNotice = `${nextNotice} Login email sent.`;
-        } catch (mailErr) {
-          console.error("Candidate login email failed:", mailErr);
-
-          nextNotice = `${nextNotice} Login email failed: ${
-            mailErr?.message || "Unable to send email."
-          }`;
-        }
-      } else if (sendLoginEmail && !candidatePassword) {
-        nextNotice = `${nextNotice} Login email skipped because password was not returned by backend.`;
-      }
-
       if (resumeFile) {
         if (!createdCandidateId) {
           nextNotice = `${nextNotice} Resume skipped because candidate id is missing.`;
@@ -557,33 +523,6 @@ HRMS Team`,
           }
         }
       }
-      if (sendLoginEmail && candidateEmail && candidatePassword) {
-        try {
-          await sendPlainEmail({
-            toEmail: candidateEmail,
-            subject: "Your HRMS Candidate Login Credentials",
-            bodyContent: `Hello ${firstName || "Candidate"},
-
-Your HRMS account has been created successfully.
-
-Portal Link: ${candidatePortalUrl}
-Login Email: ${candidateEmail}
-Temporary Password: ${candidatePassword}
-
-Please access the HRMS portal using the link above and change your password after first login.
-
-Thanks,
-HRMS Team`,
-            isHtml: false,
-          });
-
-          // setActionNotice("Candidate created & email sent.");
-        } catch (err) {
-          console.error("Email failed:", err);
-          setActionNotice("Candidate created but email failed.");
-        }
-      }
-
       setActionNotice(nextNotice);
       return createdCandidate;
     } catch (err) {
