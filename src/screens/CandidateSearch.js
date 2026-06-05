@@ -27,7 +27,7 @@ import {
   managerReviewApprove,
   managerReviewList,
 } from "../services/api/preOnboarding";
-import { sendPlainEmail } from "../services/api/email";
+import { sendPlainEmail, sendLoginCredentials } from "../services/api/email";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 
@@ -231,7 +231,7 @@ export default function CandidateSearch({
             bodyContent: getEmailBodyHTML(record?.candidate_name),
             isHtml: false,
           });
-
+          await sendLoginCredentials(record?.candidate_id);
           if (emailSend?.status === "success") {
             toast.success(
               `Candidate ${record?.candidate_name} approved for Pre-Onboarding`,
