@@ -78,3 +78,12 @@ export const sendMailAttachments = async ({
 
   return data;
 };
+export const sendLoginCredentials = async (candidateId) => {
+  const { data } = await apiRequest(`/email/login-credentials/${candidateId}`, {
+    method: "POST",
+    body: JSON.stringify({
+      portal_link: "https://hrms.blitzenx.com/",
+    }),
+  });
+  return data;
+};
