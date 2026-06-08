@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "antd": "^6.3.6",
+    "dayjs": "^1.11.21",
     "docx-preview": "^0.3.7",
     "lucide-react": "^0.507.0",
     "mammoth": "^1.12.0",
