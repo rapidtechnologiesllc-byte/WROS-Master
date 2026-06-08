@@ -19,6 +19,7 @@ from app.api.v1.endpoints.candidate_history import router as candidate_history_r
 from app.api.v1.endpoints.candidate_ownership import router as candidate_ownership_router
 from app.api.v1.endpoints.preonboarding import router as preonboarding_router
 from app.api.v1.endpoints.internal import router as internal_router
+from app.api.v1.endpoints.hr_assignments import router as hr_assignments_router
 
 router = fastapi.APIRouter()
 
@@ -40,4 +41,5 @@ router.include_router(router=email_router)
 router.include_router(router=candidate_history_router)
 router.include_router(router=candidate_ownership_router)
 router.include_router(router=preonboarding_router)
-router.include_router(router=internal_router)
+router.include_router(router=internal_router)
+router.include_router(router=hr_assignments_router)
