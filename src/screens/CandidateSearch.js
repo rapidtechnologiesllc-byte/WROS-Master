@@ -36,6 +36,7 @@ export default function CandidateSearch({
   jobs,
   selectedCandidateId,
   setSelectedCandidateId,
+  setCandidateRecord,
   selectedJobId,
   setSelectedJobId,
   onCreateCandidate,
@@ -62,8 +63,16 @@ export default function CandidateSearch({
   const currentRole = localStorage.getItem("hrms_role");
   const [candidateActions, setCandidateActions] = useState({});
   const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
+  const [managerCandidatesList, setManagerCandidatesList] = useState([]);
   const isAntTableRole =
     currentRole === "HIRING MANAGER" || currentRole === "HR MANAGER";
+
+  useEffect(() => {
+    const role = localStorage.getItem("hrms_role");
+    if (role === "HR MANAGER") {
+      fetchCandidates();
+    }
+  }, []);
 
   useEffect(() => {
     let currentRole = localStorage.getItem("hrms_role");
@@ -71,7 +80,7 @@ export default function CandidateSearch({
       const data = async () => {
         try {
           const canData = await managerReviewList();
-          setCandidateList(canData?.candidates);
+          setManagerCandidatesList(canData?.candidates);
         } catch (err) {
           console.log(err);
         }
@@ -80,29 +89,22 @@ export default function CandidateSearch({
     }
   }, []);
 
-  useEffect(() => {
-    let currentRole = localStorage.getItem("hrms_role");
-    if (currentRole === "HR MANAGER") {
-      const fetchCandidates = async () => {
-        try {
-          const canData = await getAllCandidates();
+  const fetchCandidates = async () => {
+    try {
+      const canData = await getAllCandidates();
 
-          const filteredCandidates =
-            canData?.candidates?.filter(
-              (candidate) =>
-                candidate.pipline_status?.toLowerCase() ===
-                "pre-onboarding".toLowerCase(),
-            ) || [];
+      const filteredCandidates =
+        canData?.candidates?.filter(
+          (candidate) =>
+            candidate.pipline_status?.toLowerCase() ===
+            "pre-onboarding".toLowerCase(),
+        ) || [];
 
-          setPreOnboardingCandidates(filteredCandidates);
-        } catch (err) {
-          console.log(err);
-        }
-      };
-
-      fetchCandidates();
+      setPreOnboardingCandidates(filteredCandidates);
+    } catch (err) {
+      console.log(err);
     }
-  }, []);
+  };
 
   useEffect(() => {
     setCandidateList([...candidates]);
@@ -259,6 +261,8 @@ export default function CandidateSearch({
         pipeline_status: "Pre-onboarding-Approval",
       });
       if (result?.status === "success") {
+        await fetchCandidates();
+        const updatedCandidate = result.data;
         setCandidateList((prev) =>
           prev.map((candidate) =>
             candidate.candidate_id === result?.candidate_id
@@ -312,6 +316,7 @@ export default function CandidateSearch({
                   }
                 } catch (err) {}
               }
+              setCandidateRecord(record);
               setSelectedCandidate(finalCandidate);
               setCandidateDetailsDefaultTab?.("profile");
               setAutoOpenSchedule?.(false);
@@ -345,21 +350,16 @@ export default function CandidateSearch({
             title: "Action",
             key: "action",
             render: (_, record) => {
-              const action = candidateActions[record?.candidate_id];
-
+              const isApproved = record?.pipeline_status === "Pre-Onboarding";
               return (
                 <ButtonDiv>
                   <AcceptButton
-                    disabled={action === "Approve"}
+                    disabled={isApproved}
                     onClick={() => handlePreOnboardingAction(record, "Approve")}
                   >
-                    Accept
+                    {isApproved ? "Approved" : "Accept"}
                   </AcceptButton>
-
-                  <RejectButton
-                    disabled={action === "Reject"}
-                    onClick={() => managerRejectCandidate(record)}
-                  >
+                  <RejectButton onClick={() => managerRejectCandidate(record)}>
                     Reject
                   </RejectButton>
                 </ButtonDiv>
@@ -371,7 +371,9 @@ export default function CandidateSearch({
   ];
 
   const tableData =
-    currentRole === "HR MANAGER" ? preOnboardingCandidates : filtered;
+    currentRole === "HR MANAGER"
+      ? preOnboardingCandidates
+      : managerCandidatesList;
 
   return (
     <>

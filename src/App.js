@@ -259,6 +259,7 @@ export default function App() {
 
   const [role, setRole] = useState(normalizedRole);
   const [screen, setScreen] = useState("dashboard");
+  const [candidateRecord, setCandidateRecord] = useState(null);
 
   const [candidates, setCandidates] = useState([
     {
@@ -340,7 +341,7 @@ export default function App() {
   const [candidateDetailsDefaultTab, setCandidateDetailsDefaultTab] =
     useState("profile");
   const [autoOpenSchedule, setAutoOpenSchedule] = useState(false);
-
+  const [apiState, setApiState] = useState();
   const selectedCandidate = useMemo(
     () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
     [candidates, selectedCandidateId],
@@ -573,6 +574,7 @@ export default function App() {
               jobs={jobs}
               selectedCandidateId={selectedCandidateId}
               setSelectedCandidateId={setSelectedCandidateId}
+              setCandidateRecord={setApiState}
               selectedJobId={selectedJobId}
               setSelectedJobId={setSelectedJobId}
               onCreateCandidate={() => safeSetScreen("candidateCreate")}
@@ -616,6 +618,7 @@ export default function App() {
             />
           ) : screen === "candidateDetails" ? (
             <CandidateDetailsScreen
+              apiState={apiState}
               candidate={selectedCandidateData}
               defaultTab={candidateDetailsDefaultTab}
               autoOpenSchedule={
