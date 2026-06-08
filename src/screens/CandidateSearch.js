@@ -64,13 +64,25 @@ export default function CandidateSearch({
   const [candidateActions, setCandidateActions] = useState({});
   const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
   const [managerCandidatesList, setManagerCandidatesList] = useState([]);
-  const isAntTableRole =
-    currentRole === "HIRING MANAGER" || currentRole === "HR MANAGER";
+  const [approvalCandidates, setApprovalCandidates] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const isAntTableRole = [
+    "HIRING MANAGER",
+    "HR OPERATIONS",
+    "HR MANAGER",
+  ].includes(currentRole);
+
+  useEffect(() => {
+    const role = localStorage.getItem("hrms_role");
+    if (role === "HR OPERATIONS") {
+      fetchCandidates();
+    }
+  }, []);
 
   useEffect(() => {
     const role = localStorage.getItem("hrms_role");
     if (role === "HR MANAGER") {
-      fetchCandidates();
+      offerApprovalCandidates();
     }
   }, []);
 
@@ -91,6 +103,7 @@ export default function CandidateSearch({
 
   const fetchCandidates = async () => {
     try {
+      setLoading(true)
       const canData = await getAllCandidates();
 
       const filteredCandidates =
@@ -99,10 +112,31 @@ export default function CandidateSearch({
             candidate.pipline_status?.toLowerCase() ===
             "pre-onboarding".toLowerCase(),
         ) || [];
-
       setPreOnboardingCandidates(filteredCandidates);
     } catch (err) {
       console.log(err);
+    }
+    finally{
+      setLoading(false)
+    }
+  };
+
+  const offerApprovalCandidates = async () => {
+    try {
+      setLoading(true);
+      const canData = await getAllCandidates();
+
+      const filteredCandidates =
+        canData?.candidates?.filter(
+          (candidate) =>
+            candidate.pipline_status?.toLowerCase() ===
+            "OfferApproval".toLowerCase(),
+        ) || [];
+      setApprovalCandidates(filteredCandidates);
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -370,10 +404,12 @@ export default function CandidateSearch({
       : []),
   ];
 
-  const tableData =
-    currentRole === "HR MANAGER"
-      ? preOnboardingCandidates
-      : managerCandidatesList;
+  const tableDataMap = {
+    "HIRING MANAGER": managerCandidatesList,
+    "HR MANAGER": approvalCandidates,
+    "HR OPERATIONS": preOnboardingCandidates,
+  };
+  const tableData = tableDataMap[currentRole] || [];
 
   return (
     <>
@@ -421,6 +457,7 @@ export default function CandidateSearch({
               dataSource={tableData}
               pagination={false}
               bordered
+              loading={loading}
             />
           </Card>
         ) : (

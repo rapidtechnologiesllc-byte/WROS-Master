@@ -147,6 +147,7 @@ export default function CandidateDetailsScreen({
   const [selectedJobId, setSelectedJobId] = useState("");
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
   const [candidateDocCount, setCandidateDocCount] = useState(null);
+  const [offerId, setOfferId] = useState(null);
   const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
@@ -1084,7 +1085,9 @@ ${formattedJD}
                       candidate={candidate}
                       onClose={() => setPreonboardingModal(false)}
                       status={radioStatus}
+                      offerId={offerId}
                       onSuccess={(data) => {
+                        setOfferId(data?.id);
                         setUpdatedStatus(data);
                       }}
                     />
@@ -1138,7 +1141,8 @@ ${formattedJD}
                 </AcceptButton>
               ) : null}
 
-              {currentRole === "HR MANAGER" ? (
+              {(currentRole === "HR MANAGER" ||
+                currentRole === "HR OPERATIONS") && (
                 <Button
                   variant="secondary"
                   onClick={openOfferModal}
@@ -1146,7 +1150,7 @@ ${formattedJD}
                 >
                   Create Offer
                 </Button>
-              ) : null}
+              )}
 
               {canShowFullActions && (
                 <>
