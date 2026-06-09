@@ -15,13 +15,15 @@ from app.schemas.rbac import (
     UserPermissionSummary,
     SetBusinessUnitRequest, SetBusinessUnitResponse,
     BusinessUnitCreate, BusinessUnitResponse, BusinessUnitListItem,
+    BusinessUnitWithDepartmentsResponse,
     DepartmentCreate, DepartmentUpdate, DepartmentResponse, DepartmentListItem,
     SetDepartmentRequest, SetDepartmentResponse,
 )
 from app.services.rbac_service import RBACService
 from app.core.logging import logger
 from app.models.rbac import BusinessUnit, Department
-from app.models.user import Users
+from app.models.user import Users, Jobs
+from app.models.candidate_ownership import CandidateOwnership
 
 router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
@@ -391,6 +393,11 @@ def delete_business_unit(
     if not business_unit:
         raise HTTPException(status_code=404, detail="Business unit not found")
     try:
+        # Nullify referencing departments, users, jobs, and candidate ownerships to avoid foreign key violations
+        db.query(Department).filter(Department.business_unit_id == business_unit_id).update({Department.business_unit_id: None}, synchronize_session=False)
+        db.query(Users).filter(Users.business_unit_id == business_unit_id).update({Users.business_unit_id: None}, synchronize_session=False)
+        db.query(Jobs).filter(Jobs.business_unit_id == business_unit_id).update({Jobs.business_unit_id: None}, synchronize_session=False)
+        db.query(CandidateOwnership).filter(CandidateOwnership.owned_by_bu_id == business_unit_id).update({CandidateOwnership.owned_by_bu_id: None}, synchronize_session=False)
         db.delete(business_unit)
         db.commit()
     except Exception as exc:
@@ -581,20 +588,36 @@ def create_department(
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Create a new department.
+    Create a new department, optionally linking it to a Business Unit.
     Returns **409** if a department with the same name already exists.
+    Returns **404** if the specified `business_unit_id` does not exist.
     """
     if db.query(Department).filter(Department.name == data.name).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Department '{data.name}' already exists",
         )
+    if data.business_unit_id is not None:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == data.business_unit_id).first()
+        if not bu:
+            raise HTTPException(status_code=404, detail=f"Business unit {data.business_unit_id} not found")
     try:
-        dept = Department(name=data.name, description=data.description)
+        dept = Department(
+            name=data.name,
+            description=data.description,
+            business_unit_id=data.business_unit_id,
+        )
         db.add(dept)
         db.commit()
         db.refresh(dept)
-        return dept
+        return DepartmentResponse(
+            id=dept.id,
+            name=dept.name,
+            description=dept.description,
+            created_at=dept.created_at,
+            business_unit_id=dept.business_unit_id,
+            business_unit_name=dept.business_unit.name if dept.business_unit else None,
+        )
     except Exception as exc:
         logger.error(f"Error creating department: {exc}")
         raise HTTPException(status_code=500, detail="Failed to create department")
@@ -610,9 +633,19 @@ def list_departments(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
-    """Return all defined departments."""
+    """Return all defined departments with their linked Business Unit info."""
     try:
-        return db.query(Department).order_by(Department.name).all()
+        depts = db.query(Department).order_by(Department.name).all()
+        return [
+            DepartmentListItem(
+                id=d.id,
+                name=d.name,
+                description=d.description,
+                business_unit_id=d.business_unit_id,
+                business_unit_name=d.business_unit.name if d.business_unit else None,
+            )
+            for d in depts
+        ]
     except Exception as exc:
         logger.error(f"Error listing departments: {exc}")
         raise HTTPException(status_code=500, detail="Failed to list departments")
@@ -633,7 +666,14 @@ def get_department(
     dept = db.query(Department).filter(Department.id == department_id).first()
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
-    return dept
+    return DepartmentResponse(
+        id=dept.id,
+        name=dept.name,
+        description=dept.description,
+        created_at=dept.created_at,
+        business_unit_id=dept.business_unit_id,
+        business_unit_name=dept.business_unit.name if dept.business_unit else None,
+    )
 
 
 @router.put(
@@ -649,8 +689,9 @@ def update_department(
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Update the name or description of a department.
-    Returns **404** if not found. Returns **409** if the new name already exists.
+    Update the name, description, or Business Unit of a department.
+    Returns **404** if the department or specified BU is not found.
+    Returns **409** if the new name already exists.
     """
     dept = db.query(Department).filter(Department.id == department_id).first()
     if not dept:
@@ -661,14 +702,29 @@ def update_department(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Department '{data.name}' already exists",
             )
+    # Validate business_unit_id if it is being changed
+    if data.business_unit_id is not None:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == data.business_unit_id).first()
+        if not bu:
+            raise HTTPException(status_code=404, detail=f"Business unit {data.business_unit_id} not found")
     try:
         if data.name is not None:
             dept.name = data.name
         if data.description is not None:
             dept.description = data.description
+        # Allow explicit None to unlink from BU; only update if key was provided
+        if data.business_unit_id is not None or "business_unit_id" in (data.model_fields_set or set()):
+            dept.business_unit_id = data.business_unit_id
         db.commit()
         db.refresh(dept)
-        return dept
+        return DepartmentResponse(
+            id=dept.id,
+            name=dept.name,
+            description=dept.description,
+            created_at=dept.created_at,
+            business_unit_id=dept.business_unit_id,
+            business_unit_name=dept.business_unit.name if dept.business_unit else None,
+        )
     except Exception as exc:
         logger.error(f"Error updating department: {exc}")
         raise HTTPException(status_code=500, detail="Failed to update department")
@@ -690,6 +746,9 @@ def delete_department(
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
     try:
+        # Nullify referencing users and jobs to avoid foreign key violations
+        db.query(Users).filter(Users.department_id == department_id).update({Users.department_id: None}, synchronize_session=False)
+        db.query(Jobs).filter(Jobs.department_id == department_id).update({Jobs.department_id: None}, synchronize_session=False)
         db.delete(dept)
         db.commit()
     except Exception as exc:
@@ -791,4 +850,71 @@ def get_user_department(
     dept = db.query(Department).filter(Department.id == target_user.department_id).first()
     if not dept:
         raise HTTPException(status_code=404, detail="Assigned department not found")
-    return dept
+    return DepartmentResponse(
+        id=dept.id,
+        name=dept.name,
+        description=dept.description,
+        created_at=dept.created_at,
+        business_unit_id=dept.business_unit_id,
+        business_unit_name=dept.business_unit.name if dept.business_unit else None,
+    )
+
+
+# ===========================================================================
+# BU ↔ Department cross-lookup endpoints
+# ===========================================================================
+
+@router.get(
+    "/business-units/{business_unit_id}/departments",
+    response_model=BusinessUnitWithDepartmentsResponse,
+    summary="Get all departments that belong to a Business Unit",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_departments_by_business_unit(
+    business_unit_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return a Business Unit together with the full list of departments linked to it.
+    Returns **404** if the Business Unit does not exist.
+    """
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+    return BusinessUnitWithDepartmentsResponse(
+        id=bu.id,
+        name=bu.name,
+        description=bu.description,
+        created_at=bu.created_at,
+        departments=bu.departments,
+    )
+
+
+@router.get(
+    "/departments/{department_id}/business-unit",
+    response_model=BusinessUnitResponse,
+    summary="Get the Business Unit that a department belongs to",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def get_business_unit_by_department(
+    department_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Resolve the parent Business Unit for a given department.
+    Returns **404** if the department does not exist or is not linked to any BU.
+    """
+    dept = db.query(Department).filter(Department.id == department_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    if not dept.business_unit_id:
+        raise HTTPException(
+            status_code=404,
+            detail="This department is not linked to any Business Unit",
+        )
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == dept.business_unit_id).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Linked Business Unit not found")
+    return bu

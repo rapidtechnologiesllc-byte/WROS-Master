@@ -80,16 +80,31 @@ def _assign_preboarding_checklist(
     performed_by_id: Optional[str] = None,
 ) -> None:
     """
-    Auto-assign a pre-boarding checklist based on candidate experience.
-    Interns get 'Intern Document Collection', others get 'Experience Document Collection'.
+    Auto-assign a pre-boarding checklist based on candidate employee type.
+
+    Mapping:
+      - "Intern"             → 'Intern Document Collection'
+      - "Guidewire"          → 'Guidewire Document Collection'
+      - "Full Time Employee" → 'Experience Document Collection'
+      - (not set / unknown)  → falls back to experience check for backward compatibility
     """
     from datetime import timedelta
 
-    experience = str(candidate.candidateExperience or "").strip().lower()
-    if experience in {"", "0", "fresher", "intern", "none"}:
+    employee_type = str(candidate.candidateEmployeeType or "").strip().lower()
+
+    if employee_type == "intern":
         template_name = "Intern Document Collection"
-    else:
+    elif employee_type == "guidewire":
+        template_name = "Guidewire Document Collection"
+    elif employee_type == "full time employee":
         template_name = "Experience Document Collection"
+    else:
+        # Backward-compatibility fallback: use experience if employee type is not set
+        experience = str(candidate.candidateExperience or "").strip().lower()
+        if experience in {"", "0", "fresher", "intern", "none"}:
+            template_name = "Intern Document Collection"
+        else:
+            template_name = "Experience Document Collection"
 
     template = (
         db.query(ChecklistTemplate)
@@ -169,7 +184,7 @@ def _assign_preboarding_checklist(
             event_type="Custom",
             note=(
                 f"Pre-Onboarding Checklist '{template_name}' auto-assigned based on "
-                f"experience '{candidate.candidateExperience or 'Fresher/Intern'}'."
+                f"employee type '{candidate.candidateEmployeeType or 'Not Set (fallback to experience)'}'."
             ),
             performed_by_id=performed_by_id or "system",
             performed_by_name="System",

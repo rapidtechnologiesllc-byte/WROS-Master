@@ -133,11 +133,17 @@ class SetBusinessUnitResponse(BaseModel):
 class DepartmentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, example="Engineering")
     description: Optional[str] = None
+    business_unit_id: Optional[int] = Field(
+        None, description="ID of the parent Business Unit (optional — can be set later)"
+    )
 
 
 class DepartmentUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
+    business_unit_id: Optional[int] = Field(
+        None, description="Reassign to a different Business Unit (set null to unlink)"
+    )
 
 
 class DepartmentResponse(BaseModel):
@@ -145,6 +151,8 @@ class DepartmentResponse(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: datetime
+    business_unit_id: Optional[int] = None
+    business_unit_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -154,6 +162,8 @@ class DepartmentListItem(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    business_unit_id: Optional[int] = None
+    business_unit_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -166,4 +176,28 @@ class SetDepartmentRequest(BaseModel):
 class SetDepartmentResponse(BaseModel):
     user_id: str
     department_id: int
-    message: str = "Department assigned successfully"
+    message: str = "Department assigned successfully"
+
+
+# ---------------------------------------------------------------------------
+# BU ↔ Department cross-lookup schemas
+# ---------------------------------------------------------------------------
+
+class DepartmentInBU(BaseModel):
+    """Compact department info used inside BusinessUnitWithDepartmentsResponse."""
+    id: int
+    name: str
+    description: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class BusinessUnitWithDepartmentsResponse(BaseModel):
+    """Business unit with all its linked departments."""
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    departments: List[DepartmentInBU] = []
+
+    model_config = {"from_attributes": True}

@@ -8,6 +8,8 @@ class Candidate(Base):
     __tablename__ = "candidates"
     candidateID = Column(String(50), primary_key=True, index=True)
     candidateRole = Column(String(50), nullable=True, default="Candidate")
+    # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
+    candidateEmployeeType = Column(String(50), nullable=True)
     candidateJobTitle = Column(String(50), nullable=True)
     candidateFirstName = Column(String(150), nullable=True)
     candidateMiddleName = Column(String(150), nullable=True)
