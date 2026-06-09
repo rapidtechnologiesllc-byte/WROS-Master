@@ -11,6 +11,8 @@ class CandidateCreateRequest(BaseModel):
     
     # Role (optional, defaults to "Candidate")
     candidate_role: Optional[str] = "Candidate"
+    # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
+    candidate_employee_type: Optional[str] = None
     candidate_job_title: Optional[str] = None
     # Name fields (optional)
     candidate_first_name: Optional[str] = None
@@ -34,7 +36,9 @@ class CandidateCreateRequest(BaseModel):
     
     # Location (optional)
     candidate_current_location: Optional[str] = None
-
+    candidate_job_title: Optional[str] = None
+    # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
+    candidate_employee_type: Optional[str] = None
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
 
@@ -110,6 +114,8 @@ class CandidateCompleteResponse(BaseModel):
     candidate_current_location: str | None = None
     candidate_current_salary: str | None = None
     candidate_expected_salary: str | None = None
+    # ── Employee type ────────────────────────────────────────────────────────
+    candidate_employee_type: str | None = None
     # ── Job assignment ───────────────────────────────────────────────────────
     job_id: str | None = None
     # ── Related records ──────────────────────────────────────────────────────

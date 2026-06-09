@@ -53,6 +53,58 @@ def _drive_path_url(path: str) -> str:
     return f"{_GRAPH_BASE}/sites/{SITE_ID}/drives/{DRIVE_ID}/root:/{encoded}"
 
 
+def _get_item_id(path: str) -> Optional[str]:
+    """
+    Resolve the Graph driveItem ID for a given path.
+    Returns None if the item is not found.
+    """
+    meta_url = f"{_drive_path_url(path)}:"
+    resp = requests.get(meta_url, headers=_headers(), timeout=30)
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json().get("id")
+
+
+def _create_or_get_sharing_link(item_id: str, scope: str = "organization") -> Optional[str]:
+    """
+    Create (or return an existing) non-expiring sharing link for a driveItem.
+
+    Uses Microsoft Graph POST /drives/{driveId}/items/{itemId}/createLink.
+    If a link with the same type+scope already exists, Graph returns it unchanged.
+
+    Args:
+        item_id: The Graph driveItem ID.
+        scope:   "organization" — only org members can open the link (recommended).
+                 "anonymous"   — anyone with the link can open it (public files only).
+
+    Returns:
+        The sharing webUrl (a permanent link), or None on failure.
+    """
+    url = f"{_GRAPH_BASE}/drives/{DRIVE_ID}/items/{item_id}/createLink"
+    payload = {
+        "type": "view",      # read-only
+        "scope": scope,      # "organization" or "anonymous"
+        # No expirationDateTime → link never expires (unless org policy enforces one)
+    }
+    headers = _headers()
+    headers["Content-Type"] = "application/json"
+
+    resp = requests.post(url, headers=headers, json=payload, timeout=30)
+    if resp.status_code in (200, 201):
+        link = resp.json().get("link", {})
+        web_url = link.get("webUrl")
+        logger.info(f"SharePoint createLink — {scope} view link: {web_url}")
+        return web_url
+    else:
+        try:
+            err = resp.json().get("error", {}).get("message", resp.text)
+        except Exception:
+            err = resp.text
+        logger.warning(f"SharePoint createLink failed (status={resp.status_code}): {err}")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -60,6 +112,10 @@ def _drive_path_url(path: str) -> str:
 def download_file(path: str) -> bytes:
     """
     Download a file from SharePoint and return its raw bytes.
+
+    Uses the authenticated Graph /content endpoint — this is always valid as long
+    as the app credentials are valid, unlike @microsoft.graph.downloadUrl which
+    expires within ~1 day.
 
     Args:
         path: SharePoint-relative path, e.g.
@@ -76,25 +132,21 @@ def download_file(path: str) -> bytes:
             "SHAREPOINT_SITE_ID and SHAREPOINT_DRIVE_ID must be set in .env"
         )
 
-    # Step 1: resolve the download URL via Graph metadata
-    meta_url = f"{_drive_path_url(path)}:"
-    logger.info(f"SharePoint download — resolving metadata: {meta_url}")
-    meta_resp = requests.get(meta_url, headers=_headers(), timeout=30)
-    meta_resp.raise_for_status()
-    download_url = meta_resp.json().get("@microsoft.graph.downloadUrl")
-
-    if not download_url:
-        raise ValueError(f"No @microsoft.graph.downloadUrl for path: {path}")
-
-    # Step 2: fetch the actual binary content (URL is pre-auth, no header needed)
+    # Use the Graph /content endpoint with the app's auth token — never expires
+    content_url = f"{_drive_path_url(path)}:/content"
     logger.info(f"SharePoint download — fetching content for: {path}")
-    content_resp = requests.get(download_url, timeout=60)
-    content_resp.raise_for_status()
+    resp = requests.get(
+        content_url,
+        headers=_headers(),
+        allow_redirects=True,
+        timeout=60,
+    )
+    resp.raise_for_status()
 
     logger.info(
-        f"SharePoint download — success ({len(content_resp.content)} bytes): {path}"
+        f"SharePoint download — success ({len(resp.content)} bytes): {path}"
     )
-    return content_resp.content
+    return resp.content
 
 
 def upload_file(path: str, content: bytes, content_type: str = "application/octet-stream") -> str:
@@ -131,20 +183,45 @@ def upload_file(path: str, content: bytes, content_type: str = "application/octe
     return web_url
 
 
-def get_file_download_link(path: str) -> Optional[str]:
+def get_file_download_link(path: str, scope: str = "organization") -> Optional[str]:
     """
-    Return a direct (pre-authenticated) download URL for a SharePoint file.
-    The URL expires after ~1 hour.
+    Return a **non-expiring** sharing link for a SharePoint file.
 
-    Returns None if the file doesn't exist.
+    Strategy:
+      1. Resolve the driveItem ID from the file path.
+      2. Call POST /createLink (type=view, scope=organization) to get a
+         permanent sharing link. Graph returns the same link on repeated
+         calls — it does NOT create duplicates.
+
+    The returned `webUrl` opens the file in the browser (SharePoint viewer).
+    Anyone inside the organisation can use the link without signing in to
+    the app — the link itself handles authentication via SharePoint.
+
+    Falls back to None if the file doesn't exist or the call fails.
+
+    Args:
+        path:  Drive-relative file path.
+        scope: "organization" (default, internal-only) or "anonymous" (public).
+
+    Returns:
+        A permanent sharing webUrl, or None.
     """
     try:
+        item_id = _get_item_id(path)
+        if not item_id:
+            logger.warning(f"SharePoint get_file_download_link — file not found: {path}")
+            return None
+
+        sharing_url = _create_or_get_sharing_link(item_id, scope=scope)
+        if sharing_url:
+            return sharing_url
+
+        # Graceful fallback: return the webUrl from the item metadata
         meta_url = f"{_drive_path_url(path)}:"
         resp = requests.get(meta_url, headers=_headers(), timeout=15)
-        if resp.status_code == 404:
-            return None
         resp.raise_for_status()
-        return resp.json().get("@microsoft.graph.downloadUrl")
+        return resp.json().get("webUrl")
+
     except Exception as exc:
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
         return None
@@ -185,10 +262,11 @@ def list_folder(folder_path: str) -> list[dict]:
         is_file   = "file" in item
         is_folder = "folder" in item
 
-        # Try to get a pre-auth download URL for files
+        # Use the persistent webUrl instead of the expiring downloadUrl
         download_url = None
         if is_file:
-            download_url = item.get("@microsoft.graph.downloadUrl")
+            # webUrl is the SharePoint browser view link — permanent
+            download_url = item.get("webUrl")
 
         items.append({
             "name":        item.get("name"),

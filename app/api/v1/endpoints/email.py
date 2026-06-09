@@ -286,6 +286,101 @@ def send_interview_invite_by_id(
     return result
 
 
+@router.delete(
+    "/interview/cancel/{interview_id}",
+    dependencies=[Depends(require_permission("interview.manage"))],
+    summary="Cancel a scheduled interview — removes the Teams event and notifies everyone",
+)
+def cancel_interview_by_id(
+    interview_id: int,
+    reason: str = "",
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """
+    Cancels an existing interview by its ID.
+
+    **What this does:**
+    - Deletes the Teams / Outlook calendar event from the HRMS service mailbox via
+      Microsoft Graph (so it disappears from every attendee's calendar).
+    - Sends a branded cancellation email to the **candidate** with all panel
+      interviewers in **CC**, optionally including the reason provided.
+    - Marks the interview `status` as `"Cancelled"` in the database and clears
+      `meeting_link` / `outlook_event_id`.
+
+    **`reason`** (optional query param) — e.g. *"Candidate not available"*.
+    If omitted, the email will still be sent without a reason clause.
+    """
+    # ── Load interview ──────────────────────────────────────────────────────
+    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail=f"Interview {interview_id} not found")
+
+    if interview.status == "Cancelled":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Interview {interview_id} is already cancelled.",
+        )
+
+    # ── Load candidate ──────────────────────────────────────────────────────
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.candidateID == interview.candidate_id)
+        .first()
+    )
+    if not candidate:
+        raise HTTPException(
+            status_code=404, detail=f"Candidate {interview.candidate_id} not found"
+        )
+
+    candidate_name = " ".join(
+        filter(None, [candidate.candidateFirstName, candidate.candidateLastName])
+    ) or "Candidate"
+    candidate_email = candidate.candidateEmail
+
+    # ── Load panel round name ───────────────────────────────────────────────
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    round_name = panel.round_name if panel else "Interview"
+
+    # ── Load panel member (interviewer) emails ──────────────────────────────
+    members = (
+        db.query(PanelMember)
+        .filter(PanelMember.panel_id == interview.panel_id)
+        .all()
+    )
+    interviewer_emails: List[str] = []
+    for m in members:
+        user = db.query(Users).filter(Users.UserID == m.interviewer_id).first()
+        if user and user.UserEmail:
+            interviewer_emails.append(user.UserEmail)
+
+    start_iso = interview.start_time.isoformat() if interview.start_time else "N/A"
+
+    logger.info(
+        f"[email/interview/cancel] {current_user.UserEmail} → "
+        f"Interview {interview_id} | Candidate: {candidate_email} | Reason: {reason!r}"
+    )
+
+    # ── Cancel Teams event + send email ────────────────────────────────────
+    result = EmailService.cancel_interview_event(
+        outlook_event_id=interview.outlook_event_id or "",
+        candidate_email=candidate_email,
+        candidate_name=candidate_name,
+        round_name=round_name,
+        start_time_iso=start_iso,
+        interviewer_emails=interviewer_emails,
+        reason=reason,
+    )
+
+    # ── Update interview record in DB ───────────────────────────────────────
+    interview.status = "Cancelled"
+    interview.meeting_link = None
+    interview.outlook_event_id = None
+    db.commit()
+
+    return result
+
+
 @router.post(
     "/interview/invite/custom",
     dependencies=[Depends(require_permission("interview.manage"))],

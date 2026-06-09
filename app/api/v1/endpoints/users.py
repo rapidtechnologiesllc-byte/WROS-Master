@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role
+from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
@@ -104,7 +104,11 @@ def get_all_users(
             user_email=u.UserEmail,
             user_role=u.UserRole,
             created_at=u.CreatedAt,
-            permission_role = role.name if role else None
+            permission_role=role.name if role else None,
+            department_id=u.department_id,
+            department_name=u.department.name if u.department else None,
+            business_unit_id=u.business_unit_id,
+            business_unit_name=u.business_unit.name if u.business_unit else None,
         ))
     
     return AllUsersResponse(
@@ -133,6 +137,14 @@ def search_users(
         default=None,
         description="Legacy UserRole field filter (e.g. 'HR', 'Admin', 'Recruiter')",
     ),
+    department: Optional[str] = Query(
+        default=None,
+        description="Partial, case-insensitive match on department name",
+    ),
+    business_unit: Optional[str] = Query(
+        default=None,
+        description="Partial, case-insensitive match on business unit name",
+    ),
     skip: int = Query(default=0, ge=0, description="Records to skip"),
     limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1–200)"),
 ):
@@ -146,6 +158,8 @@ def search_users(
       (e.g. `'HR Manager'`, `'Recruiter'`, `'Admin'`)
     - `user_role` — exact match on the legacy `UserRole` column
       (e.g. `'HR'`, `'Admin'`)
+    - `department` — partial, case-insensitive match on `Department.name`
+    - `business_unit` — partial, case-insensitive match on `BusinessUnit.name`
 
     **Pagination:** use `skip` / `limit`.
     """
@@ -173,6 +187,20 @@ def search_users(
             Role.name == permission_role
         )
 
+    # ── Department filter — join through Department ───────────────────────────
+    if department:
+        dept_pattern = f"%{department.lower()}%"
+        query = query.join(Department, Department.id == Users.department_id).filter(
+            sql_func.lower(Department.name).like(dept_pattern)
+        )
+
+    # ── Business unit filter — join through BusinessUnit ─────────────────────
+    if business_unit:
+        bu_pattern = f"%{business_unit.lower()}%"
+        query = query.join(BusinessUnit, BusinessUnit.id == Users.business_unit_id).filter(
+            sql_func.lower(BusinessUnit.name).like(bu_pattern)
+        )
+
     total = query.count()
     matched_users = query.order_by(Users.UserID).offset(skip).limit(limit).all()
 
@@ -186,6 +214,10 @@ def search_users(
             user_role=u.UserRole,
             created_at=u.CreatedAt,
             permission_role=role.name if role else None,
+            department_id=u.department_id,
+            department_name=u.department.name if u.department else None,
+            business_unit_id=u.business_unit_id,
+            business_unit_name=u.business_unit.name if u.business_unit else None,
         ))
 
     return AllUsersResponse(
