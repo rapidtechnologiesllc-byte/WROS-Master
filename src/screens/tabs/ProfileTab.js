@@ -298,10 +298,6 @@ export default function ProfileTab({
             value={profile?.candidate_role || profile?.jobTitle}
           />
           <Info
-            label="Hiring Manager"
-            value={contacts?.job_hiring_manager?.name}
-          />
-          <Info
             label="Verified"
             value={profile?.candidate_is_verified ? "Yes" : "No"}
           />

@@ -136,3 +136,10 @@ export const releaseOfferApi = async (offerId) => {
   });
   return data;
 };
+export const signOfferLetter = async (offerId, formData) => {
+  const { data } = await apiRequest(`/offer-letter/sign/${offerId}`, {
+    method: "POST",
+    body: formData,
+  });
+  return data;
+};

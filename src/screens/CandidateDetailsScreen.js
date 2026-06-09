@@ -1257,7 +1257,15 @@ ${formattedJD}
                   >
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </button>
-                  <div className="relative z-[9999]" ref={notesMenuRef}>
+                  <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
+
+                  <Button
+                    disabled={isChecklistAssigned}
+                    onClick={() => setShowAssignModal(true)}
+                  >
+                    Submit Job
+                  </Button>
+                  <div className="relative" ref={notesMenuRef}>
                     <button
                       type="button"
                       onClick={() => setShowNotesMenu((prev) => !prev)}
@@ -1267,7 +1275,7 @@ ${formattedJD}
                     </button>
 
                     {showNotesMenu && (
-                      <div className="absolute top-full -left-24 mt-2 w-44 rounded-xl border border-gray-200 bg-white shadow-xl z-[9999] overflow-hidden">
+                      <div className="absolute top-full -left-24 mt-2 w-44 rounded-xl border border-gray-200 bg-white shadow-xl  z-50 overflow-hidden">
                         <button
                           type="button"
                           onClick={() => {
@@ -1281,15 +1289,6 @@ ${formattedJD}
                       </div>
                     )}
                   </div>
-
-                  <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
-
-                  <Button
-                    disabled={isChecklistAssigned}
-                    onClick={() => setShowAssignModal(true)}
-                  >
-                    Submit Job
-                  </Button>
                 </>
               )}
             </div>
