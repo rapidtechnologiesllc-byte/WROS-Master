@@ -13,9 +13,17 @@ const AcceptButton = styled.button`
   color: white;
   cursor: pointer;
   font-size: 13px;
+  transition: all 0.2s ease;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: #15803d;
+  }
+
+  &:disabled {
+    background: #16a34a;
+    color: white;
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `;
 
@@ -23,8 +31,8 @@ const RejectButton = styled.div`
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
-  background: #FEE2E2;
-  color: #B91C1C;
+  background: #fee2e2;
+  color: #b91c1c;
   cursor: pointer;
   font-size: 13px;
 
@@ -34,4 +42,4 @@ const RejectButton = styled.div`
   }
 `;
 
-export {AcceptButton,ButtonDiv,RejectButton}
+export { AcceptButton, ButtonDiv, RejectButton };

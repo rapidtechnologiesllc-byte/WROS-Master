@@ -50,17 +50,20 @@ import BonusModal from "./BonusModal";
 import { DownOutlined } from "@ant-design/icons";
 import { getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
-import { listBusinessUnits } from "../services/api/rbac";
+import { departmentList, listBusinessUnits } from "../services/api/rbac";
 import {
+  approveOfferLetter,
   createOfferLetter,
   generateOfferDoc,
   offerLetterById,
+  salaryStructure,
 } from "../services/api/offerLetters";
 import { renderAsync } from "docx-preview";
 import { viewDocument } from "../services/api/documents";
 import DocxViewer from "../components/ui/DocxViewer";
 import { sendMailAttachments } from "../services/api/email";
 import OfferConfirmationEmail from "../utils/offerLetterTemplate";
+import SignatureModal from "../components/ui/SignatureModal";
 
 const PreonboardingModal = ({
   fullName,
@@ -95,6 +98,13 @@ const PreonboardingModal = ({
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [offerDocData, setOfferDocData] = useState(null);
   const [docBlob, setDocBlob] = useState(null);
+  const [departmentListState, setDepartmentList] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signaturePng, setSignaturePng] = useState(null);
+  const [offerIdData, setOfferIdData] = useState();
+  const [salaryData, setSalaryData] = useState();
+  const [salaryLoading, setSalaryLoading] = useState(false);
   const previewRef = useRef(null);
   const isRendering = useRef(false);
   const { Panel } = Collapse;
@@ -140,6 +150,18 @@ const PreonboardingModal = ({
   }, []);
 
   useEffect(() => {
+    const listingDepartments = async () => {
+      try {
+        const listResult = await departmentList();
+        setDepartmentList(listResult);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+    listingDepartments();
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
       try {
@@ -175,16 +197,16 @@ const PreonboardingModal = ({
     })) || []),
   ];
 
+  const deptOptions = [
+    { label: "Please select department", value: "", disabled: true },
+    ...(departmentListState?.map((dept) => ({
+      label: dept?.name,
+      value: dept?.id,
+    })) || []),
+  ];
+
   const onJoiningDateChange = (date, dateString) => {
     setJoiningDate(dateString);
-    if (date) {
-      const validDate = date.add(7, "day");
-      setOfferValidDate(validDate.format("YYYY-MM-DD"));
-      form.setFieldsValue({
-        joiningDate: date,
-        offerValidUpto: validDate,
-      });
-    }
   };
 
   const onChange = (value) => {
@@ -192,7 +214,7 @@ const PreonboardingModal = ({
   };
 
   const onDateChange = (date, dateString) => {
-    setJoiningDate(dateString);
+    setOfferValidDate(dateString);
   };
 
   const next = () => {
@@ -217,8 +239,21 @@ const PreonboardingModal = ({
     console.log(e?.target?.checked);
   };
 
-  const salaryTableHandler = () => {
-    setSalaryTable(true);
+  const salaryTableHandler = async () => {
+    try {
+      setSalaryTable(true);
+      setSalaryLoading(true);
+      const payload = {
+        employee_name: fullName,
+        annual_ctc: parseInt(salaryText),
+      };
+      const salaryDetails = await salaryStructure(payload);
+      setSalaryData(salaryDetails?.salary_structure);
+    } catch (error) {
+      toast.error("Failed to fetch salary structure:", error);
+    } finally {
+      setSalaryLoading(false);
+    }
   };
 
   const handleBonusModal = () => {
@@ -286,16 +321,16 @@ const PreonboardingModal = ({
       setIsSaving(true);
       const payload = {
         candidateId: candidate?.id,
-        jobId: selectedJobId,
-        hiringManagerId: "adae1bd3-4118-46ea-a20e-604cd90fe982",
-        reportingManagerId: "USER-e4521331-313d-4c1c-a299-f55f41ff2187",
-        position: "Guidewire Developer",
+        jobId: selectedJob?.id,
+        hiringManagerId: selectedJob?.hiringManager,
+        position: selectedJob?.title,
         salary: salaryText,
         joiningDate: joiningDate,
         offer_expire_date: offerValidDate,
       };
       const result = await createOfferLetter(payload);
       if (result) {
+        setOfferIdData(result?.id);
         const generateOfferLetter = await generateOfferDoc(result?.id);
         if (generateOfferLetter?.status === "success") {
           const createOfferId = await offerLetterById(result?.id);
@@ -323,8 +358,15 @@ const PreonboardingModal = ({
     return current.toDate() < today;
   };
 
-  const sendEmailOffer = async () => {
-    console.log("function trigger");
+  const sendEmailOffer = async (signaturePng) => {
+    try {
+      const formData = new FormData();
+      formData.append("offer_id", offerIdData);
+      formData.append("signature", signaturePng);
+      const offerApproveApi = await approveOfferLetter(offerIdData, formData);
+    } catch (error) {
+      console.error(error);
+    }
     //  const emailResult = sendMailAttachments({
     //    email,
     //    subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
@@ -343,6 +385,22 @@ const PreonboardingModal = ({
     const last = parts[parts.length - 1][0];
 
     return (first + last).toUpperCase();
+  };
+
+  const handleSignatureSave = async (pngData) => {
+    setSignaturePng(pngData);
+
+    setShowSignatureModal(false);
+
+    await sendEmailOffer(pngData);
+  };
+
+  const handleGenerateOfferClick = () => {
+    if (current === 1) {
+      setShowSignatureModal(true);
+    } else {
+      offerLetterHandler();
+    }
   };
 
   const renderStepContent = () => {
@@ -381,8 +439,11 @@ const PreonboardingModal = ({
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
               <Select
                 label="Job Title"
-                value={selectedJobId}
-                onChange={(value) => setSelectedJobId(value)}
+                value={selectedJob?.id || ""}
+                onChange={(value) => {
+                  const job = jobs.find((j) => j.id === value);
+                  setSelectedJob(job);
+                }}
                 options={jobOptions}
               />
               <Select
@@ -402,8 +463,8 @@ const PreonboardingModal = ({
               <Select
                 label="Select Department"
                 value={selectDepartment}
-                onChange={setSelectDepartment}
-                options={Department}
+                onChange={(value) => setSelectDepartment(value)}
+                options={deptOptions}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
@@ -445,17 +506,16 @@ const PreonboardingModal = ({
                     },
                   ]}
                 >
-                  <DatePicker
-                    onChange={onDateChange}
-                    format="YYYY-MM-DD"
-                    inputReadOnly
-                    open={false}
-                  />
+                  <DatePicker onChange={onDateChange} format="YYYY-MM-DD" />
                 </Form.Item>
               </div>
             </Form>
             {salaryTable ? (
-              <SalaryModal onClose={() => setSalaryTable(false)} />
+              <SalaryModal
+                onClose={() => setSalaryTable(false)}
+                salaryDataProp={salaryData}
+                loading={salaryLoading}
+              />
             ) : null}
             {bonus ? <BonusModal onClose={() => setBonus(false)} /> : null}
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
@@ -593,10 +653,7 @@ const PreonboardingModal = ({
           <Button variant="secondary" onClick={prev} disabled={current === 0}>
             Back
           </Button>
-          <Button
-            onClick={current === 1 ? sendEmailOffer : offerLetterHandler}
-            disabled={isSaving}
-          >
+          <Button onClick={handleGenerateOfferClick} disabled={isSaving}>
             {isSaving
               ? "Saving..."
               : current === 1
@@ -605,6 +662,11 @@ const PreonboardingModal = ({
           </Button>
         </div>
       </div>
+      <SignatureModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        onSave={handleSignatureSave}
+      />
     </div>
   );
 };
