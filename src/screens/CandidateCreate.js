@@ -440,6 +440,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_email: email.trim(),
         candidate_role: candidateRole || "Candidate",
         candidate_job_title: candidateJobTitle || null,
+        candidate_employee_type: employeeType || null,
         candidate_first_name: firstName || null,
         candidate_middle_name: middleName || null,
         candidate_last_name: lastName || null,
@@ -631,9 +632,9 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={setEmployeeType}
             options={[
               { label: "Please select your option", value: "", disabled: true },
-              { label: "Full time employee", value: "Full time employee" },
+              { label: "Full time employee", value: "Full Time Employee" },
               { label: "Intern", value: "Intern" },
-              { label: "Guidewire Employee", value: "Guidewire Employee" },
+              { label: "Guidewire Employee", value: "Guidewire" },
             ]}
           />
           <Input label="Job Title" value={jobName} onChange={setJobName} />

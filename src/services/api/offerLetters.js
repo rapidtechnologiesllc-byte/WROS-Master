@@ -55,10 +55,10 @@ export const updateOfferLetter = async (offerId, payload) => {
   return data;
 };
 
-export const cancelOfferLetter = async (offerId, reason) => {
+export const cancelOfferLetter = async (offerId, payload) => {
   const { data } = await apiRequest(`/offer-letter/cancel/${offerId}`, {
     method: "POST",
-    body: JSON.stringify({ reason: reason || null }),
+    body: JSON.stringify(payload),
   });
   return data;
 };
