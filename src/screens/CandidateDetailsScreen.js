@@ -152,7 +152,6 @@ export default function CandidateDetailsScreen({
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
   const currentRole = localStorage.getItem("hrms_role");
-
   const candidateTabs = limitedMode
     ? ["feedback"]
     : [
@@ -392,7 +391,7 @@ export default function CandidateDetailsScreen({
     if (candidate?.id) {
       loadDocumentCount();
     }
-  }, [candidate?.id]);
+  }, [candidate]);
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
@@ -1042,6 +1041,10 @@ ${formattedJD}
     }
   };
 
+  const handleDocumentsUpdate = (docs) => {
+    setCandidateDocCount(docs);
+  };
+
   return (
     <>
       <div className="grid gap-5">
@@ -1142,15 +1145,17 @@ ${formattedJD}
               ) : null}
 
               {(currentRole === "HR MANAGER" ||
-                currentRole === "HR OPERATIONS") && (
-                <Button
-                  variant="secondary"
-                  onClick={openOfferModal}
-                  className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
-                >
-                  Create Offer
-                </Button>
-              )}
+                currentRole === "HR OPERATIONS") &&
+                candidateDocCount?.verified_count ===
+                  candidateDocCount?.total_documents && (
+                  <Button
+                    variant="secondary"
+                    onClick={openOfferModal}
+                    className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
+                  >
+                    Create Offer
+                  </Button>
+                )}
 
               {canShowFullActions && (
                 <>
@@ -1326,6 +1331,7 @@ ${formattedJD}
                 candidateId={candidate?.id}
                 candidateEmail={candidate?.email || candidate?.candidate_email}
                 candidateName={candidate?.name || candidate?.candidate_name}
+                onDocumentsUpdate={handleDocumentsUpdate}
               />
             )}
 
