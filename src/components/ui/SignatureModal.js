@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { toast } from "react-toastify";
 
-const SignatureModal = ({ isOpen, onClose, onSave }) => {
+const SignatureModal = ({ isOpen, onClose, onSave, loading }) => {
   const sigCanvas = useRef(null);
   const [signatureType, setSignatureType] = useState("draw");
   const [typedSignature, setTypedSignature] = useState("");
@@ -22,12 +22,12 @@ const SignatureModal = ({ isOpen, onClose, onSave }) => {
         return;
       }
       const canvas = sigCanvas.current.getCanvas();
-      canvas.toBlob((blob) => {
+      canvas.toBlob(async (blob) => {
         const file = new File([blob], "signature.png", {
           type: "image/png",
         });
 
-        onSave(file);
+        await onSave(file);
       }, "image/png");
 
       return;
@@ -46,10 +46,11 @@ const SignatureModal = ({ isOpen, onClose, onSave }) => {
       ctx.fillStyle = "black";
       ctx.font = "48px cursive";
       ctx.fillText(typedSignature, 20, 90);
-      pngData = canvas.toDataURL("image/png");
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], "signature.png", { type: "image/png" });
+        await onSave(file);
+      }, "image/png");
     }
-
-    onSave(pngData);
   };
 
   return (
@@ -84,9 +85,12 @@ const SignatureModal = ({ isOpen, onClose, onSave }) => {
           <button onClick={onClose}>Cancel</button>
           <button
             onClick={handleSave}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
+            disabled={loading}
+            className={`px-4 py-2 rounded text-white ${
+              loading ? "bg-blue-300 cursor-not-allowed" : "bg-blue-500"
+            }`}
           >
-            Save Signature
+            {loading ? "Processing..." : "Save Signature and Release"}
           </button>
         </div>
       </div>
