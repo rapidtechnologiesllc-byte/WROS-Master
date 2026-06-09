@@ -269,7 +269,7 @@ export default function TopBar({
                 </div>
 
                 {isOpen && (
-                  <div className="absolute right-0 top-10 bg-white border rounded-lg shadow-md w-48">
+                  <div className="absolute right-0 top-10 z-[9999] bg-white border rounded-lg shadow-md w-48">
                     <p
                       onClick={() => {
                         handleViewProfile();
