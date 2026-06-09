@@ -96,4 +96,26 @@ export const offerLetterById = async (offerId) => {
     method: "GET",
   });
   return data;
-}
+};
+
+export const approveOfferLetter = async (offerId, formData) => {
+  const { data } = await apiRequest(
+    `/offer-letter/approve/${offerId}?action=approve`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+  return data;
+};
+
+export const salaryStructure = async (payload) => {
+  const { data } = await apiRequest(`/offer-letter/salary-structure/details`, {
+    method: "POST",
+    body: JSON.stringify({
+      employee_name: payload.employee_name,
+      annual_ctc: payload.annual_ctc,
+    }),
+  });
+  return data;
+};

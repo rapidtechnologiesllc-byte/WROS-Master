@@ -1,70 +1,111 @@
 import React from "react";
 import { Button, Card } from "../components/ui";
-import { Divider, Table, Typography } from "antd";
+import { Divider, Table, Typography, Spin } from "antd";
 
-const SalaryModal = ({ onClose }) => {
+const SalaryModal = ({ onClose, salaryDataProp, loading }) => {
   const { Text } = Typography;
 
-  const salaryData = [
-    {
-      key: "1",
-      label: "Basic Salary",
-      monthly: "INR 1,25,000",
-      annually: "INR 15,00,000",
-    },
-    {
-      key: "2",
-      label: "House Rent Allowance/Company Leased Accommodation",
-      monthly: "INR 50,000",
-      annually: "INR 6,00,000",
-    },
-    {
-      key: "3",
-      label: "Medical Allowance",
-      monthly: "INR 1,250",
-      annually: "INR 15,000",
-    },
-    {
-      key: "4",
-      label: "Fixed Allowance",
-      monthly: "INR 67,150",
-      annually: "INR 8,05,800",
-    },
-    {
-      key: "5",
-      label: "Transport Allowance",
-      monthly: "INR 1,600",
-      annually: "INR 19,200",
-    },
-    {
-      key: "6",
-      label: "Deployment Allowance/ Performance Incentive",
-      monthly: "INR 5,000",
-      annually: "INR 60,000",
-    },
-    {
-      key: "7",
-      label: "TOTAL",
-      monthly: "INR 2,50,000",
-      annually: "INR 30,00,000",
-      isTotal: true,
-    },
-  ];
+  const formatINR = (value) => {
+    if (value === null || value === undefined) return "-";
+    return `INR ${Number(value).toLocaleString("en-IN")}`;
+  };
 
-  const deductionData = [
-    {
-      key: "1",
-      label: "PF Employee",
-      monthly: "INR 1,800",
-      annually: "INR 21,600",
-    },
-    {
-      key: "2",
-      label: "PF - Employer",
-      monthly: "INR 1,800",
-      annually: "INR 21,600",
-    },
-  ];
+  const mapSalaryData = (data) => {
+    if (!data) return [];
+
+    return [
+      {
+        key: "basic",
+        label: "Basic Salary",
+        monthly: formatINR(data.basic_pm),
+        annually: formatINR(data.basic_pa),
+      },
+      {
+        key: "hra",
+        label: "House Rent Allowance",
+        monthly: formatINR(data.hra_pm),
+        annually: formatINR(data.hra_pa),
+      },
+      {
+        key: "medical",
+        label: "Medical Allowance",
+        monthly: formatINR(data.medical_pm),
+        annually: formatINR(data.medical_pa),
+      },
+      {
+        key: "transport",
+        label: "Transport Allowance",
+        monthly: formatINR(data.transport_pm),
+        annually: formatINR(data.transport_pa),
+      },
+      {
+        key: "deployment",
+        label: "Deployment Allowance",
+        monthly: formatINR(data.deployment_pm),
+        annually: formatINR(data.deployment_pa),
+      },
+      {
+        key: "fixed",
+        label: "Fixed Allowance",
+        monthly: formatINR(data.fixed_allowance_pm),
+        annually: formatINR(data.fixed_allowance_pa),
+      },
+      {
+        key: "gross",
+        label: "GROSS",
+        monthly: formatINR(data.gross_pm),
+        annually: formatINR(data.gross_pa),
+        isTotal: true,
+      },
+    ];
+  };
+
+  const mapDeductionData = (data) => {
+    if (!data) return [];
+
+    return [
+      {
+        key: "epf_emp",
+        label: "PF Employee",
+        monthly: formatINR(data.epf_employee_pm),
+        annually: formatINR(data.epf_employee_pa),
+      },
+      {
+        key: "epf_employer",
+        label: "PF Employer",
+        monthly: formatINR(data.epf_employer_pm),
+        annually: formatINR(data.epf_employer_pa),
+      },
+      {
+        key: "esic_emp",
+        label: "ESIC Employee",
+        monthly: formatINR(data.esic_employee_pm),
+        annually: formatINR(data.esic_employee_pa),
+      },
+      {
+        key: "total_deductions",
+        label: "Total Deductions",
+        monthly: formatINR(data.total_deductions_pm),
+        annually: formatINR(data.total_deductions_pa),
+        isTotal: true,
+      },
+      {
+        key: "net",
+        label: "Net Salary",
+        monthly: formatINR(data.net_pm),
+        annually: formatINR(data.net_pa),
+        isTotal: true,
+      },
+    ];
+  };
+
+  const salaryData = React.useMemo(() => {
+    return mapSalaryData(salaryDataProp);
+  }, [salaryDataProp]);
+
+  const deductionData = React.useMemo(() => {
+    return mapDeductionData(salaryDataProp);
+  }, [salaryDataProp]);
 
   const columns = [
     {
@@ -93,44 +134,56 @@ const SalaryModal = ({ onClose }) => {
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex justify-center bg-black/40 p-4 overflow-hidden"
+        className="fixed inset-0 z-50 flex justify-center bg-black/40 p-4"
         role="dialog"
         aria-modal="true"
       >
-        <div className="w-full max-w-4xl max-h-[75vh] flex flex-col">
+        <div className="w-full max-w-4xl max-h-[90vh] flex flex-col bg-white rounded-lg overflow-hidden">
           <Card
             title="Salary Structure"
-            bodyClassName="px-2 py-4 flex flex-col overflow-hidden max-h-[75vh]"
+            bodyClassName="px-2 py-4 flex flex-col overflow-y-auto"
             right={
               <Button variant="ghost" onClick={onClose}>
                 Close
               </Button>
             }
           >
-            <div>
-              <Table
-                columns={columns}
-                dataSource={salaryData}
-                pagination={false}
-                bordered
-                size="middle"
-                rowClassName={(record) => (record.isTotal ? "total-row" : "")}
-              />
-              <Divider />
-              <Table
-                columns={[
-                  {
-                    ...columns[0],
-                    title: "DEDUCTIONS",
-                  },
-                  columns[1],
-                  columns[2],
-                ]}
-                dataSource={deductionData}
-                pagination={false}
-                bordered
-                size="middle"
-              />
+            <div className="overflow-y-auto max-h-[70vh] pr-2">
+              {loading ? (
+                <div className="flex justify-center items-center h-64">
+                  <Spin size="large" />
+                </div>
+              ) : (
+                <>
+                  <Table
+                    columns={columns}
+                    dataSource={salaryData}
+                    pagination={false}
+                    bordered
+                    size="middle"
+                    rowClassName={(record) =>
+                      record.isTotal ? "total-row" : ""
+                    }
+                  />
+
+                  <Divider />
+
+                  <Table
+                    columns={[
+                      {
+                        ...columns[0],
+                        title: "DEDUCTIONS",
+                      },
+                      columns[1],
+                      columns[2],
+                    ]}
+                    dataSource={deductionData}
+                    pagination={false}
+                    bordered
+                    size="middle"
+                  />
+                </>
+              )}
             </div>
           </Card>
         </div>
