@@ -14,6 +14,7 @@ import {
   Shield,
   UserCheck,
   Users,
+  FileTextIcon,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -39,10 +40,20 @@ export default function Shell({
   const isHr = normalizedRole === "HR";
   const isHR_Manager = normalizedRole === "HR MANAGER";
   const isHiringManager = normalizedRole === "HIRING MANAGER";
+  const isHrOperations = normalizedRole === "HR OPERATIONS";
   const nav = useMemo(() => {
     if (isHiringManager || isHR_Manager) {
       return [
         { id: "candidateSearch", label: "Candidates", icon: Users },
+        ...(isHR_Manager
+          ? [
+              {
+                id: "offerListing",
+                label: "Offer Letters",
+                icon: FileTextIcon,
+              },
+            ]
+          : []),
       ];
     }
 

@@ -55,6 +55,7 @@ import {
   approveOfferLetter,
   createOfferLetter,
   generateOfferDoc,
+  getOfferById,
   offerLetterById,
   salaryStructure,
 } from "../services/api/offerLetters";
@@ -64,12 +65,14 @@ import DocxViewer from "../components/ui/DocxViewer";
 import { sendMailAttachments } from "../services/api/email";
 import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 import SignatureModal from "../components/ui/SignatureModal";
+import { dayjs } from "dayjs";
 
 const PreonboardingModal = ({
   fullName,
   candidate,
   onClose,
   status,
+  offerId,
   onSuccess,
 }) => {
   const Locations = ["Hyderabad", "Chennai", "Texas", "Remote"];
@@ -111,6 +114,7 @@ const PreonboardingModal = ({
   const [form] = Form.useForm();
   const localName = localStorage.getItem("hrms_user_name");
   const localEmail = localStorage.getItem("hrms_user_email");
+  const currentRole = localStorage.getItem("hrms_role");
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
@@ -136,6 +140,12 @@ const PreonboardingModal = ({
       content: "Another offer letter details here",
     },
   ];
+
+  useEffect(() => {
+    if (offerId) {
+      fetchOfferDetails();
+    }
+  }, [offerId]);
 
   useEffect(() => {
     const fetchBusinessUnit = async () => {
@@ -308,7 +318,15 @@ const PreonboardingModal = ({
     },
   ];
 
+  const disablePastDates = (current) => {
+    if (!current) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return current.toDate() < today;
+  };
+
   const offerLetterHandler = async () => {
+    const currentRole = localStorage.getItem("hrms_role");
     try {
       if (!joiningDate) {
         toast.error("Enter Joining Date");
@@ -329,20 +347,19 @@ const PreonboardingModal = ({
         offer_expire_date: offerValidDate,
       };
       const result = await createOfferLetter(payload);
-      if (result) {
-        setOfferIdData(result?.id);
-        const generateOfferLetter = await generateOfferDoc(result?.id);
-        if (generateOfferLetter?.status === "success") {
-          const createOfferId = await offerLetterById(result?.id);
-          const response = await fetch(createOfferId?.download_url);
-          if (!response.ok) {
-            throw new Error("Failed to fetch DOCX");
-          }
-          const blob = await response.blob();
-          setDocBlob(blob);
-          toast.success(generateOfferLetter?.message);
-          next();
+      if (!result) return;
+      setOfferIdData(result?.id);
+      const generateOfferLetter = await generateOfferDoc(result?.id);
+      if (generateOfferLetter?.status === "success") {
+        const createOfferId = await offerLetterById(result?.id);
+        const response = await fetch(createOfferId?.download_url);
+        if (!response.ok) {
+          throw new Error("Failed to fetch DOCX");
         }
+        const blob = await response.blob();
+        setDocBlob(blob);
+        toast.success(generateOfferLetter?.message);
+        next();
       }
     } catch (err) {
       toast.error(err);
@@ -351,11 +368,29 @@ const PreonboardingModal = ({
     }
   };
 
-  const disablePastDates = (current) => {
-    if (!current) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return current.toDate() < today;
+  const sendEmailHandler = async () => {
+    toast.info("Email will be send to HR Head for Approval");
+    // try {
+    //   setIsSaving(true);
+
+    //   const payload = {
+    //     offer_id: offerIdData,
+    //     candidate_id: candidate?.id,
+    //     job_id: selectedJob?.id,
+    //   };
+
+    //   const response = await sendOfferApprovalEmail(payload);
+
+    //   if (response?.success) {
+    //     toast.success("Email sent successfully to HR Head");
+    //     onSuccess?.();
+    //     onClose?.();
+    //   }
+    // } catch (error) {
+    //   toast.error(error?.message || "Failed to send email");
+    // } finally {
+    //   setIsSaving(false);
+    // }
   };
 
   const sendEmailOffer = async (signaturePng) => {
@@ -364,8 +399,11 @@ const PreonboardingModal = ({
       formData.append("offer_id", offerIdData);
       formData.append("signature", signaturePng);
       const offerApproveApi = await approveOfferLetter(offerIdData, formData);
+      if (offerApproveApi?.status === "success") {
+        toast.success("Offer Approved, waiting for release");
+      }
     } catch (error) {
-      console.error(error);
+      toast.error("Offer Already Approved");
     }
     //  const emailResult = sendMailAttachments({
     //    email,
@@ -376,11 +414,9 @@ const PreonboardingModal = ({
 
   const getInitials = (name = "") => {
     const parts = name.trim().split(/\s+/);
-
     if (parts.length === 1) {
       return parts[0][0]?.toUpperCase();
     }
-
     const first = parts[0][0];
     const last = parts[parts.length - 1][0];
 
@@ -389,13 +425,49 @@ const PreonboardingModal = ({
 
   const handleSignatureSave = async (pngData) => {
     setSignaturePng(pngData);
-
     setShowSignatureModal(false);
-
     await sendEmailOffer(pngData);
   };
 
   const handleGenerateOfferClick = () => {
+    if (current === 1) {
+      setShowSignatureModal(true);
+    } else {
+      offerLetterHandler();
+    }
+  };
+
+  const fetchOfferDetails = async () => {
+    try {
+      const data = await getOfferById(offerId);
+      setSalaryText(data.salary);
+      setJoiningDate(data.joining_date);
+      setOfferValidDate(data.offer_expire_date);
+      const job = jobs.find((item) => item.id === data.job_id);
+      if (job) {
+        setSelectedJob(job);
+      }
+      form.setFieldsValue({
+        joiningDate: data.joining_date ? dayjs(data.joining_date) : null,
+        offerValidUpto: data.offer_expire_date
+          ? dayjs(data.offer_expire_date)
+          : null,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleButtonClick = () => {
+    if (currentRole === "HR OPERATIONS") {
+      if (current === 0) {
+        offerLetterHandler();
+      } else if (current === 1) {
+        sendEmailHandler();
+      }
+      return;
+    }
+
     if (current === 1) {
       setShowSignatureModal(true);
     } else {
@@ -653,12 +725,16 @@ const PreonboardingModal = ({
           <Button variant="secondary" onClick={prev} disabled={current === 0}>
             Back
           </Button>
-          <Button onClick={handleGenerateOfferClick} disabled={isSaving}>
+          <Button onClick={handleButtonClick} disabled={isSaving}>
             {isSaving
-              ? "Saving..."
-              : current === 1
-                ? "Generate Offer"
-                : "Continue"}
+              ? "Processing..."
+              : currentRole === "HR OPERATIONS"
+                ? current === 0
+                  ? "Next"
+                  : "Send Email"
+                : current === 1
+                  ? "Generate Offer"
+                  : "Continue"}
           </Button>
         </div>
       </div>

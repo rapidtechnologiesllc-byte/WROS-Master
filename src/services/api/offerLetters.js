@@ -119,3 +119,20 @@ export const salaryStructure = async (payload) => {
   });
   return data;
 };
+
+export const offerLetterByJobId = async (jobId) => {
+  const { data } = await apiRequest(
+    `/offer-letter/pending-approval/by-job/${jobId}`,
+    {
+      method: "GET",
+    },
+  );
+  return data;
+};
+
+export const releaseOfferApi = async (offerId) => {
+  const { data } = await apiRequest(`/offer-letter/release/${offerId}`, {
+    method: "POST",
+  });
+  return data;
+};

@@ -89,15 +89,18 @@ export const apiRequest = async (path, options = {}) => {
     skipAuth = false,
     allow404 = false,
     allowStatuses = [],
+    body,
     ...rest
   } = options;
+  const isFormData = body instanceof FormData;
   const baseHeaders = {
-    "Content-Type": "application/json",
-    ...(headers || {})
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(headers || {}),
   };
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: (skipAuth ? baseHeaders : withAuthHeaders(baseHeaders)),
-    ...rest
+    headers: skipAuth ? baseHeaders : withAuthHeaders(baseHeaders),
+    body,
+    ...rest,
   });
 
   let data = null;
