@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { SectionTitle } from "../styles/Pre-onboardingModal";
+import { Label, SectionTitle } from "../styles/Pre-onboardingModal";
 import { getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
 import { Select } from "antd";
@@ -9,6 +9,7 @@ import { Users } from "lucide-react";
 import { toast } from "react-toastify";
 import {
   approveOfferLetter,
+  cancelOfferLetter,
   offerLetterByJobId,
   releaseOfferApi,
 } from "../services/api/offerLetters";
@@ -27,6 +28,8 @@ import {
   OfferLetterButtonContainer,
   ViewButton,
 } from "../styles/OfferListingStyles";
+import RejectModal from "../components/ui/RejectModal";
+import { updateCandidateStatus } from "../services/api/candidates";
 
 const OfferListing = () => {
   const [jobs, setJobs] = useState([]);
@@ -39,6 +42,8 @@ const OfferListing = () => {
   const [selectedOfferCandidate, setSelectedOfferCandidate] = useState(null);
   const [signaturePng, setSignaturePng] = useState(null);
   const [signatureLoading, setSignatureLoading] = useState(false);
+  const [rejectModalShow, setRejectModalShow] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const currentRole = localStorage.getItem("hrms_role");
 
   useEffect(() => {
@@ -69,7 +74,6 @@ const OfferListing = () => {
         setLoading(true);
         const list = await offerLetterByJobId(selectedJob?.id || "");
         setOfferDetails(list?.offers);
-        console.log(list);
       } catch (err) {
         toast.error(err);
       } finally {
@@ -114,6 +118,38 @@ const OfferListing = () => {
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error("Download failed", error);
+    }
+  };
+
+  const cancelOfferHandler = (record) => {
+    setSelectedOfferCandidate(record);
+    setRejectModalShow(true);
+  };
+
+  const handleRejectOffer = async () => {
+    try {
+      const payload = { reason: rejectReason };
+      const cancelOfferApi = await cancelOfferLetter(
+        selectedOfferCandidate?.id,
+        payload,
+      );
+      if (cancelOfferApi?.status === "Success") {
+        const result = await updateCandidateStatus(
+          selectedOfferCandidate?.candidate_id,
+          {
+            status: "Active",
+            pipeline_status: "Applied",
+          },
+        );
+        if (result?.status === "success") {
+          toast.success("Offer rejected successfully");
+        }
+      }
+      setRejectModalShow(false);
+      setRejectReason("");
+      console.log(cancelOfferApi);
+    } catch (err) {
+      toast.error(err?.message);
     }
   };
 
@@ -194,9 +230,7 @@ const OfferListing = () => {
                   <AcceptButton onClick={() => sigatureModalHandler(record)}>
                     Accept
                   </AcceptButton>
-                  <RejectButton
-                  //   onClick={() => managerRejectCandidate(record)}
-                  >
+                  <RejectButton onClick={() => cancelOfferHandler(record)}>
                     Reject
                   </RejectButton>
                 </ButtonDiv>
@@ -256,20 +290,9 @@ const OfferListing = () => {
   return (
     <>
       <div className="grid gap-6">
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              Candidate List
-            </div>
-            <span>
-              Lisintg of candidates who's offer letters are pending for approval
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="grid gap-6">
         <section className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
           <SectionTitle title="Candidate Overview" />
+          <Label>Select Job</Label>
           <Select
             label="Job Title"
             value={selectedJob?.id || ""}
@@ -300,6 +323,16 @@ const OfferListing = () => {
         onClose={() => setShowSignatureModal(false)}
         onSave={handleSignatureSave}
         loading={signatureLoading}
+      />
+      <RejectModal
+        isOpen={rejectModalShow}
+        onClose={() => {
+          setRejectModalShow(false);
+          setRejectReason("");
+        }}
+        onSubmit={handleRejectOffer}
+        value={rejectReason}
+        setValue={setRejectReason}
       />
     </>
   );

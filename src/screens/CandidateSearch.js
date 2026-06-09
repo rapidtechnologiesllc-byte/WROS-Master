@@ -89,21 +89,25 @@ export default function CandidateSearch({
   useEffect(() => {
     let currentRole = localStorage.getItem("hrms_role");
     if (currentRole === "HIRING MANAGER") {
-      const data = async () => {
-        try {
-          const canData = await managerReviewList();
-          setManagerCandidatesList(canData?.candidates);
-        } catch (err) {
-          console.log(err);
-        }
-      };
-      data();
+      fetchApprovalCandidates();
     }
   }, []);
 
+  const fetchApprovalCandidates = async () => {
+    try {
+      setLoading(true);
+      const canData = await managerReviewList();
+      setManagerCandidatesList(canData?.candidates);
+    } catch (err) {
+      toast.error(err?.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchCandidates = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
       const canData = await getAllCandidates();
 
       const filteredCandidates =
@@ -115,9 +119,8 @@ export default function CandidateSearch({
       setPreOnboardingCandidates(filteredCandidates);
     } catch (err) {
       console.log(err);
-    }
-    finally{
-      setLoading(false)
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -265,7 +268,7 @@ export default function CandidateSearch({
             toEmail: record?.candidate_email,
             subject: "Pre-Onboarding Task",
             bodyContent: getEmailBodyHTML(record?.candidate_name),
-            isHtml: false,
+            isHtml: true,
           });
           await sendLoginCredentials(record?.candidate_id);
           if (emailSend?.status === "success") {

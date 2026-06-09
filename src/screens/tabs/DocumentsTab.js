@@ -22,6 +22,7 @@ export default function DocumentsTab({
   candidateId,
   candidateEmail,
   candidateName,
+  onDocumentsUpdate,
 }) {
   const [documents, setDocuments] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState(null);
@@ -76,6 +77,9 @@ export default function DocumentsTab({
       setLoading(true);
       const data = await getCandidateDocuments(candidateId);
       const rows = Array.isArray(data?.documents) ? data.documents : [];
+      if (onDocumentsUpdate) {
+        onDocumentsUpdate(data);
+      }
       setDocuments(rows);
       if (rows.length && !selectedDocId) {
         setSelectedDocId(rows[0]?.id);
