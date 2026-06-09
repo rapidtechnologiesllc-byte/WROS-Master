@@ -990,7 +990,7 @@ export default function CandidateSelfService({ onLogout }) {
             )}
           </Card>
         ) : null}
-        <Card title="My Documents">
+        <Card title="Document Verification Status">
           <div className="space-y-2">
             {myDocuments?.documents?.length ? (
               myDocuments.documents.map((doc) => {
@@ -1272,7 +1272,7 @@ export default function CandidateSelfService({ onLogout }) {
                   ])
                 }
               >
-                Add Education Record
+                Add Education
               </Button>
             </div>
 
@@ -1309,7 +1309,7 @@ export default function CandidateSelfService({ onLogout }) {
                 }
               }}
             >
-              Save Education Details
+              Save Education
             </Button>
           </div>
         </Card>
@@ -1632,7 +1632,7 @@ export default function CandidateSelfService({ onLogout }) {
 
           <div className="mt-4 flex items-center justify-between gap-3">
             <DocumentUploadRow
-              label="Aadhar Card"
+              label="Aadhaar Card"
               onUpload={(file) =>
                 handleUpload(uploadAadhar, "Aadhar Card", file)
               }
@@ -1692,6 +1692,16 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="text-lg font-semibold">
                   {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
                   %
+                </div>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-green-500"
+                    style={{
+                      width: `${Number(
+                        onboardingStatus?.overall_completion || 0,
+                      )}%`,
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -1792,48 +1802,6 @@ export default function CandidateSelfService({ onLogout }) {
             <div className="text-xs text-slate-500">
               Jobs list is sourced from active/public jobs.
             </div>
-          </div>
-        </Card>
-        <Card title="Change Password">
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="New Password"
-              type="password"
-              value={passwordForm.new_password}
-              onChange={(v) =>
-                setPasswordForm((p) => ({ ...p, new_password: v }))
-              }
-            />
-            <Input
-              label="Confirm Password"
-              type="password"
-              value={passwordForm.confirm_password}
-              onChange={(v) =>
-                setPasswordForm((p) => ({ ...p, confirm_password: v }))
-              }
-            />
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={async () => {
-                clearNotice();
-                setLoading(true);
-
-                try {
-                  await changeCandidatePassword(passwordForm);
-                  showNotice("Password updated.", "success");
-                  setPasswordForm({ new_password: "", confirm_password: "" });
-                } catch (err) {
-                  showNotice(err.message || "Failed to update password.");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-            >
-              Update Password
-            </Button>
           </div>
         </Card>
       </div>
