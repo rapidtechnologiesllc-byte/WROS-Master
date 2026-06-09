@@ -27,7 +27,11 @@ import {
   updateCandidateEducation,
   updateCandidateExperience,
 } from "../services/api/candidateSelfService";
-import { getMyOffers, respondToOffer } from "../services/api/offerLetters";
+import {
+  getMyOffers,
+  respondToOffer,
+  signOfferLetter,
+} from "../services/api/offerLetters";
 import {
   uploadPan,
   uploadAadhar,
@@ -44,6 +48,7 @@ import {
 } from "../services/api/checklists";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import SignatureModal from "../components/ui/SignatureModal";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -111,6 +116,9 @@ export default function CandidateSelfService({ onLogout }) {
     confirm_password: "",
   });
   const [myOffers, setMyOffers] = useState([]);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState(null);
+  const [signatureLoading, setSignatureLoading] = useState(false);
   const [myDocuments, setMyDocuments] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
   const [uploadingType, setUploadingType] = useState(null);
@@ -271,6 +279,64 @@ export default function CandidateSelfService({ onLogout }) {
       showNotice(`❌ ${err.message || `Failed to upload ${label}.`}`, "error");
     } finally {
       setUploadingType(null);
+    }
+  };
+  const handleSignatureSave = async (signatureFile) => {
+    if (!selectedOffer?.id || !signatureFile) return;
+
+    try {
+      setSignatureLoading(true);
+      clearNotice();
+
+      const formData = new FormData();
+      formData.append("signature", signatureFile);
+
+      await signOfferLetter(selectedOffer.id, formData);
+
+      await respondToOffer({
+        offerId: selectedOffer.id,
+        action: "accept",
+      });
+
+      const refreshed = await getMyOffers();
+
+      setMyOffers(refreshed?.offers || []);
+      setShowSignatureModal(false);
+      setSelectedOffer(null);
+
+      showNotice("Offer accepted successfully.", "success");
+    } catch (err) {
+      showNotice(err?.message || "Failed to sign and accept offer.", "error");
+    } finally {
+      setSignatureLoading(false);
+    }
+  };
+  const downloadOfferLetter = async (url, fileName = "OfferLetter.pdf") => {
+    if (!url) {
+      showNotice("Offer letter download URL is unavailable.");
+      return;
+    }
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Failed to download offer letter.");
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      showNotice(error?.message || "Failed to download offer letter.");
     }
   };
 
@@ -802,69 +868,71 @@ export default function CandidateSelfService({ onLogout }) {
               {myOffers.map((o) => (
                 <div key={o.id} className="rounded-lg border bg-slate-50 p-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold">{o.position}</div>
-                      <div className="text-xs text-slate-600">
-                        Salary: ${o.salary} | Joining: {o.joining_date}
-                      </div>
-                      <div className="mt-1 text-xs">
-                        Status:{" "}
-                        <span className="font-medium">{o.offer_status}</span>
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          o?.sharepoint_url &&
+                          window.open(
+                            o.sharepoint_url,
+                            "_blank",
+                            "noopener,noreferrer",
+                          )
+                        }
+                        disabled={!o?.sharepoint_url}
+                      >
+                        View
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          downloadOfferLetter(
+                            o?.download_url,
+                            `${o?.position || "Offer"}-Letter.pdf`,
+                          )
+                        }
+                        disabled={!o?.download_url}
+                      >
+                        Download
+                      </Button>
+
+                      {String(o?.offer_status).toLowerCase() === "pending" && (
+                        <>
+                          <Button
+                            variant="danger"
+                            onClick={async () => {
+                              clearNotice();
+                              try {
+                                await respondToOffer({
+                                  offerId: o.id,
+                                  action: "reject",
+                                });
+                                const refreshed = await getMyOffers();
+                                setMyOffers(refreshed?.offers || []);
+                                showNotice("Offer declined.", "success");
+                              } catch (err) {
+                                showNotice(
+                                  err?.message || "Failed to decline offer.",
+                                );
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            Decline
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setSelectedOffer(o);
+                              setShowSignatureModal(true);
+                            }}
+                            disabled={loading}
+                          >
+                            Accept
+                          </Button>
+                        </>
+                      )}
                     </div>
-
-                    {o.offer_status === "Pending" ? (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="danger"
-                          onClick={async () => {
-                            clearNotice();
-
-                            try {
-                              await respondToOffer({
-                                offerId: o.id,
-                                action: "reject",
-                              });
-
-                              const refreshed = await getMyOffers();
-                              setMyOffers(refreshed?.offers || []);
-                              showNotice("Offer declined.", "success");
-                            } catch (err) {
-                              showNotice(
-                                err.message || "Failed to decline offer.",
-                              );
-                            }
-                          }}
-                          disabled={loading}
-                        >
-                          Decline
-                        </Button>
-
-                        <Button
-                          onClick={async () => {
-                            clearNotice();
-
-                            try {
-                              await respondToOffer({
-                                offerId: o.id,
-                                action: "accept",
-                              });
-
-                              const refreshed = await getMyOffers();
-                              setMyOffers(refreshed?.offers || []);
-                              showNotice("Offer accepted!", "success");
-                            } catch (err) {
-                              showNotice(
-                                err.message || "Failed to accept offer.",
-                              );
-                            }
-                          }}
-                          disabled={loading}
-                        >
-                          Accept
-                        </Button>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               ))}
@@ -990,7 +1058,7 @@ export default function CandidateSelfService({ onLogout }) {
             )}
           </Card>
         ) : null}
-        <Card title="My Documents">
+        <Card title="Document Verification Status">
           <div className="space-y-2">
             {myDocuments?.documents?.length ? (
               myDocuments.documents.map((doc) => {
@@ -1272,7 +1340,7 @@ export default function CandidateSelfService({ onLogout }) {
                   ])
                 }
               >
-                Add Education Record
+                Add Education
               </Button>
             </div>
 
@@ -1309,7 +1377,7 @@ export default function CandidateSelfService({ onLogout }) {
                 }
               }}
             >
-              Save Education Details
+              Save Education
             </Button>
           </div>
         </Card>
@@ -1632,7 +1700,7 @@ export default function CandidateSelfService({ onLogout }) {
 
           <div className="mt-4 flex items-center justify-between gap-3">
             <DocumentUploadRow
-              label="Aadhar Card"
+              label="Aadhaar Card"
               onUpload={(file) =>
                 handleUpload(uploadAadhar, "Aadhar Card", file)
               }
@@ -1692,6 +1760,16 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="text-lg font-semibold">
                   {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
                   %
+                </div>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-green-500"
+                    style={{
+                      width: `${Number(
+                        onboardingStatus?.overall_completion || 0,
+                      )}%`,
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -1794,48 +1872,15 @@ export default function CandidateSelfService({ onLogout }) {
             </div>
           </div>
         </Card>
-        <Card title="Change Password">
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="New Password"
-              type="password"
-              value={passwordForm.new_password}
-              onChange={(v) =>
-                setPasswordForm((p) => ({ ...p, new_password: v }))
-              }
-            />
-            <Input
-              label="Confirm Password"
-              type="password"
-              value={passwordForm.confirm_password}
-              onChange={(v) =>
-                setPasswordForm((p) => ({ ...p, confirm_password: v }))
-              }
-            />
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={async () => {
-                clearNotice();
-                setLoading(true);
-
-                try {
-                  await changeCandidatePassword(passwordForm);
-                  showNotice("Password updated.", "success");
-                  setPasswordForm({ new_password: "", confirm_password: "" });
-                } catch (err) {
-                  showNotice(err.message || "Failed to update password.");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-            >
-              Update Password
-            </Button>
-          </div>
-        </Card>
+        <SignatureModal
+          isOpen={showSignatureModal}
+          onClose={() => {
+            setShowSignatureModal(false);
+            setSelectedOffer(null);
+          }}
+          onSave={handleSignatureSave}
+          loading={signatureLoading}
+        />
       </div>
     </div>
   );
