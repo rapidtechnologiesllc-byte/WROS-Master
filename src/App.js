@@ -62,6 +62,7 @@ import {
 import CandidateDetailsScreen from "./screens/CandidateDetailsScreen";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import OfferListing from "./screens/OfferListing";
 
 // Helpers to normalize API responses into UI-friendly models
 const mapCandidateFromApi = (c) => {
@@ -258,9 +259,8 @@ export default function App() {
   }
 
   const [role, setRole] = useState(normalizedRole);
-  const [screen, setScreen] = useState("dashboard");
+  const [screen, setScreen] = useState("");
   const [candidateRecord, setCandidateRecord] = useState(null);
-
   const [candidates, setCandidates] = useState([
     {
       id: "C-1001",
@@ -642,6 +642,16 @@ export default function App() {
             />
           ) : screen === "checklistTemplates" ? (
             <ChecklistTemplatesScreen />
+          ) : screen === "offerListing" ? (
+            <OfferListing
+              selectedCandidateId={selectedCandidateId}
+              onFetchCandidateById={async (candidateId) => {
+                const res = await getCandidateById(candidateId);
+                return mapCandidateFromApi(res || {});
+              }}
+              setCandidateRecord={setApiState}
+              setSelectedCandidate={setSelectedCandidateData}
+            />
           ) : (
             <MyWorkspace onLogout={handleLogout} />
           )}
