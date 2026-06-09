@@ -367,6 +367,154 @@ class EmailService:
             raise HTTPException(status_code=500, detail=str(e))
 
     # ------------------------------------------------------------------
+    # Cancel Interview (Teams event + notification email)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _interview_cancellation_html(
+        candidate_name: str,
+        round_name: str,
+        start_time: str,
+        reason: str,
+    ) -> str:
+        reason_section = ""
+        if reason:
+            reason_section = f"""
+            <tr><td style="padding:8px 0;">
+              <p style="margin:0;font-size:14px;color:#374151;"><strong>Reason:</strong>
+                {reason}
+              </p>
+            </td></tr>"""
+
+        body = f"""
+        <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+          Dear <strong>{candidate_name}</strong>,
+        </p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          We regret to inform you that the interview scheduled below has been
+          <strong style="color:#dc2626;">cancelled</strong>.
+          Our HR team will reach out shortly to reschedule at a convenient time.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#fff1f2;border-left:4px solid #dc2626;border-radius:6px;
+                      padding:16px;margin:16px 0;">
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Round:</strong> {round_name}
+            </p>
+          </td></tr>
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Scheduled Start:</strong> {start_time}
+            </p>
+          </td></tr>
+          {reason_section}
+        </table>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          We apologise for any inconvenience caused. Please do not attempt to join
+          the Teams meeting — the event has been removed from your calendar.
+        </p>
+        <p style="font-size:14px;color:#374151;margin-top:24px;">
+          Best regards,<br/><strong>BlitzenX HR Team</strong>
+        </p>
+        """
+        return EmailService._base_html("Interview Cancellation", body)
+
+    @classmethod
+    def cancel_interview_event(
+        cls,
+        outlook_event_id: str,
+        candidate_email: str,
+        candidate_name: str,
+        round_name: str,
+        start_time_iso: str,
+        interviewer_emails: List[str],
+        reason: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Cancel an interview by:
+        1. Deleting the Teams/Outlook calendar event from the service mailbox via
+           Microsoft Graph (DELETE /users/{user}/events/{id}).
+        2. Sending a branded cancellation email to the candidate (+ interviewers
+           in CC) so they know the meeting is no longer active.
+
+        Returns a dict with the operation status.
+        """
+        try:
+            token = cls._get_token()
+            event_deleted = False
+
+            # ── Step 1: Delete the calendar event from the service mailbox ────
+            if outlook_event_id:
+                delete_url = (
+                    f"https://graph.microsoft.com/v1.0/users/{cls.SERVICE_EMAIL}"
+                    f"/events/{outlook_event_id}"
+                )
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                }
+                resp = requests.delete(delete_url, headers=headers, timeout=15)
+                if resp.status_code == 204:
+                    event_deleted = True
+                    logger.info(
+                        f"[EmailService] Teams event deleted. ID={outlook_event_id}"
+                    )
+                elif resp.status_code == 404:
+                    # Event already gone — treat as success
+                    event_deleted = True
+                    logger.warning(
+                        f"[EmailService] Teams event {outlook_event_id} not found "
+                        f"(already deleted or never created)."
+                    )
+                else:
+                    # Non-fatal — log and continue so the email still goes out
+                    try:
+                        err_msg = resp.json().get("error", {}).get("message", resp.text)
+                    except Exception:
+                        err_msg = resp.text
+                    logger.error(
+                        f"[EmailService] Graph DELETE returned {resp.status_code}: {err_msg}"
+                    )
+            else:
+                logger.info(
+                    "[EmailService] No outlook_event_id stored — skipping Graph DELETE."
+                )
+
+            # ── Step 2: Send cancellation email to candidate + interviewers ──
+            html = cls._interview_cancellation_html(
+                candidate_name=candidate_name,
+                round_name=round_name,
+                start_time=start_time_iso,
+                reason=reason,
+            )
+            cls.send_email(
+                to_email=candidate_email,
+                subject=f"Interview Cancelled — {round_name} | {candidate_name}",
+                body_content=html,
+                is_html=True,
+                cc_emails=interviewer_emails if interviewer_emails else None,
+            )
+
+            logger.info(
+                f"[EmailService] Cancellation email sent to {candidate_email} "
+                f"| Round: {round_name} | CC: {interviewer_emails}"
+            )
+            return {
+                "status": "success",
+                "message": "Interview cancelled. Teams event deleted and cancellation email sent.",
+                "teams_event_deleted": event_deleted,
+                "cancellation_email_sent_to": candidate_email,
+                "cc_recipients": interviewer_emails,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[EmailService] cancel_interview_event error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # ------------------------------------------------------------------
     # Login Credentials Email
     # ------------------------------------------------------------------
 
