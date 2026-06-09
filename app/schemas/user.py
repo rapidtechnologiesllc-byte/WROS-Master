@@ -107,6 +107,10 @@ class UserResponse(BaseModel):
     user_email: str
     user_role: str
     permission_role: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    business_unit_id: Optional[int] = None
+    business_unit_name: Optional[str] = None
     created_at: datetime
 
 class AllUsersResponse(BaseModel):
@@ -300,6 +304,8 @@ class CandidateUpdateRequest(BaseModel):
     candidate_current_salary: Optional[str] = None
     candidate_current_location: Optional[str] = None
     candidate_job_title: Optional[str] = None
+    # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
+    candidate_employee_type: Optional[str] = None
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
 

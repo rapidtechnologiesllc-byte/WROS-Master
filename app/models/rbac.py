@@ -88,7 +88,7 @@ class RolePermission(Base):
         return f"<RolePermission role_id={self.role_id} permission_id={self.permission_id}>"
 
 class BusinessUnit(Base):
-    """A business unit (BU) that users can belong to."""
+    """A business unit (BU) that users can belong to. BU is independent."""
     __tablename__ = "business_units"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
@@ -96,12 +96,15 @@ class BusinessUnit(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
+    # Back-reference: all departments that belong to this BU
+    departments = relationship("Department", back_populates="business_unit", lazy="select")
+
     def __repr__(self) -> str:
         return f"<BusinessUnit id={self.id} name={self.name!r}>"
 
 
 class Department(Base):
-    """A department that users can belong to."""
+    """A department that belongs to a BusinessUnit (dependent on BU)."""
     __tablename__ = "departments"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
@@ -109,5 +112,10 @@ class Department(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
+    # FK — nullable so existing departments aren't broken during migration
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+
+    business_unit = relationship("BusinessUnit", back_populates="departments", lazy="select")
+
     def __repr__(self) -> str:
-        return f"<Department id={self.id} name={self.name!r}>"
+        return f"<Department id={self.id} name={self.name!r} bu_id={self.business_unit_id}>"

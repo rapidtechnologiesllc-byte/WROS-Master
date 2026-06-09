@@ -77,6 +77,7 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
     candidate = Candidate(
         candidateID=candidate_id,
         candidateRole=request.candidate_role,
+        candidateEmployeeType=request.candidate_employee_type,
         candidateJobTitle=request.candidate_job_title,
         candidateFirstName=request.candidate_first_name,
         candidateMiddleName=request.candidate_middle_name,
@@ -227,6 +228,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate_current_location=candidate.candidateCurrentLocation,
             candidate_current_salary=candidate.candidateCurrentSalary,
             candidate_expected_salary=candidate.candidateExpectedSalary,
+            candidate_employee_type=candidate.candidateEmployeeType,
             job_id=candidate.job_id,
             personal_info=CandidateInfoResponse(
                 position=personal_info.position if personal_info else None,
@@ -363,6 +365,7 @@ def get_candidate_by_id(
         candidate_current_location=candidate.candidateCurrentLocation,
         candidate_current_salary=candidate.candidateCurrentSalary,
         candidate_expected_salary=candidate.candidateExpectedSalary,
+        candidate_employee_type=candidate.candidateEmployeeType,
         job_id=candidate.job_id,
         personal_info=CandidateInfoResponse(
             position=personal_info.position if personal_info else None,
@@ -546,6 +549,7 @@ def get_candidates_by_my_bu(
             candidate_current_location=candidate.candidateCurrentLocation,
             candidate_current_salary=candidate.candidateCurrentSalary,
             candidate_expected_salary=candidate.candidateExpectedSalary,
+            candidate_employee_type=candidate.candidateEmployeeType,
             job_id=candidate.job_id,
             personal_info=CandidateInfoResponse(
                 position=personal_info.position if personal_info else None,
@@ -661,6 +665,8 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.candidateCurrentLocation = request.candidate_current_location
     if request.candidate_job_title is not None:
         candidate.candidateJobTitle = request.candidate_job_title
+    if request.candidate_employee_type is not None:
+        candidate.candidateEmployeeType = request.candidate_employee_type
     if request.assigned_hr_manager_id is not None:
         candidate.assignedHRManagerID = request.assigned_hr_manager_id
     if request.assigned_report_manager_id is not None:
