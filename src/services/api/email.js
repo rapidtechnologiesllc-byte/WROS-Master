@@ -65,6 +65,8 @@ export const sendMailAttachments = async ({
   subject,
   bodyContent,
   files = [],
+  is_html,
+  cc = "",
 }) => {
   const { data } = await apiRequest("/email/send-with-attachments", {
     method: "POST",
@@ -73,11 +75,14 @@ export const sendMailAttachments = async ({
       subject,
       body_content: bodyContent,
       files: files,
+      is_html,
+      cc: cc,
     }),
   });
 
   return data;
 };
+
 export const sendLoginCredentials = async (candidateId) => {
   const { data } = await apiRequest(`/email/login-credentials/${candidateId}`, {
     method: "POST",
