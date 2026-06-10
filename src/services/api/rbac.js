@@ -195,3 +195,14 @@ export const updateUserBusinessUnit = async (userId, businessUnitId) => {
   });
   return data;
 };
+
+export const setDepartmentForUser = async (userId, departmentId) => {
+  const { data } = await apiRequest("/rbac/users/set-department", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      department_id: departmentId,
+    }),
+  });
+  return data;
+};

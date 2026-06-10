@@ -182,6 +182,7 @@ export default function CandidateEditModal({
         candidate_first_name: firstName.trim() || null,
         candidate_middle_name: middleName.trim() || null,
         candidate_last_name: lastName.trim() || null,
+        candidate_employee_type: employeeType || null,
         candidate_mobile: mobile.trim() || null,
         candidate_gender: gender.trim() || null,
         candidate_date_of_birth: dob || null,
@@ -280,9 +281,9 @@ export default function CandidateEditModal({
             onChange={setEmployeeType}
             options={[
               { label: "Please select your option", value: "", disabled: true },
-              { label: "Full time employee", value: "Full time employee" },
+              { label: "Full time employee", value: "Full Time Employee" },
               { label: "Intern", value: "Intern" },
-              { label: "Guidewire Employee", value: "Guidewire Employee" },
+              { label: "Guidewire Employee", value: "Guidewire" },
             ]}
           />
             <Input
