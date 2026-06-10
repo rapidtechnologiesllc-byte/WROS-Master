@@ -183,7 +183,7 @@ def upload_file(path: str, content: bytes, content_type: str = "application/octe
     return web_url
 
 
-def get_file_download_link(path: str, scope: str = "organization") -> Optional[str]:
+def get_file_download_link(path: str) -> Optional[str]:
     """
     Return a **non-expiring** sharing link for a SharePoint file.
 
@@ -207,20 +207,12 @@ def get_file_download_link(path: str, scope: str = "organization") -> Optional[s
         A permanent sharing webUrl, or None.
     """
     try:
-        item_id = _get_item_id(path)
-        if not item_id:
-            logger.warning(f"SharePoint get_file_download_link — file not found: {path}")
-            return None
-
-        sharing_url = _create_or_get_sharing_link(item_id, scope=scope)
-        if sharing_url:
-            return sharing_url
-
-        # Graceful fallback: return the webUrl from the item metadata
         meta_url = f"{_drive_path_url(path)}:"
         resp = requests.get(meta_url, headers=_headers(), timeout=15)
+        if resp.status_code == 404:
+            return None
         resp.raise_for_status()
-        return resp.json().get("webUrl")
+        return resp.json().get("@microsoft.graph.downloadUrl")
 
     except Exception as exc:
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
@@ -262,11 +254,9 @@ def list_folder(folder_path: str) -> list[dict]:
         is_file   = "file" in item
         is_folder = "folder" in item
 
-        # Use the persistent webUrl instead of the expiring downloadUrl
         download_url = None
         if is_file:
-            # webUrl is the SharePoint browser view link — permanent
-            download_url = item.get("webUrl")
+            download_url = item.get("@microsoft.graph.downloadUrl")
 
         items.append({
             "name":        item.get("name"),
