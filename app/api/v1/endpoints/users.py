@@ -226,6 +226,43 @@ def search_users(
     )
 
 
+@router.get(
+    "/users/details/{user_id}",
+    response_model=UserResponse,
+    summary="Get user details by user ID",
+)
+def get_user_details_by_id(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """
+    Retrieve user details by their User ID, including department and business unit.
+    """
+    u = db.query(Users).filter(Users.UserID == user_id).first()
+    if not u:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User with ID '{user_id}' not found"
+        )
+
+    role = db.query(Role).filter(Role.id == u.role_id).first() if u.role_id else None
+
+    return UserResponse(
+        user_id=u.UserID,
+        user_name=u.UserName or "",
+        user_email=u.UserEmail,
+        user_role=u.UserRole,
+        created_at=u.CreatedAt,
+        permission_role=role.name if role else None,
+        department_id=u.department_id,
+        department_name=u.department.name if u.department else None,
+        business_unit_id=u.business_unit_id,
+        business_unit_name=u.business_unit.name if u.business_unit else None,
+    )
+
+
+
 @router.post(
     "/assignments/create",
     response_model=CandidateAssignmentResponse,
