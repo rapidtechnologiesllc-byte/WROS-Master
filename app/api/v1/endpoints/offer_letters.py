@@ -588,14 +588,12 @@ def get_offer_by_id(
 
     # ── Resolve document links ────────────────────────────────────────────────
     sp_url  = offer.sharepoint_url
-    dl_url  = offer.download_url
+    
     sp_path = offer.sharepoint_path
 
-    if not dl_url and sp_path:
-        try:
-            dl_url = get_file_download_link(sp_path) or sp_url
-        except Exception:
-            dl_url = sp_url
+   
+    dl_url = get_file_download_link(sp_path) 
+   
 
     response = _build_offer_response(offer, candidate)
     response.sharepoint_url = sp_url
