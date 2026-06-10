@@ -25,7 +25,10 @@ import {
   revokeUserRole,
   updateBusinessUnit,
   updateRole,
+  departmentList,
+  setDepartmentForUser,
 } from "../services/api/rbac";
+import { toast } from "react-toastify";
 
 export default function RbacSettingsScreen() {
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,9 @@ export default function RbacSettingsScreen() {
     name: "",
     description: "",
   });
+  const [userForDept, setUserForDept] = useState("");
+  const [department, setDepartment] = useState([]);
+  const [selectedDept, setSelectedDept] = useState("");
 
   const roleOptions = useMemo(() => {
     const rows = roles.map((r) => {
@@ -73,10 +79,12 @@ export default function RbacSettingsScreen() {
     });
     return [{ value: "", label: "—" }, ...rows];
   }, [roles]);
+
   const permissionOptions = useMemo(
     () => ["", ...permissions.map((p) => String(p.id))],
     [permissions],
   );
+
   const userOptions = useMemo(() => {
     const rows = users.map((u) => {
       const id = String(u.user_id ?? "");
@@ -90,10 +98,19 @@ export default function RbacSettingsScreen() {
     });
     return [{ value: "", label: "—" }, ...rows];
   }, [users]);
+
   const buOptions = useMemo(
     () => ["", ...businessUnits.map((b) => String(b.id))],
     [businessUnits],
   );
+
+  const deptOptions = [
+    { label: "Please select Department", value: "", disabled: true },
+    ...(department?.map((dept) => ({
+      label: dept?.name,
+      value: dept?.id,
+    })) || []),
+  ];
 
   useEffect(() => {
     if (
@@ -145,16 +162,19 @@ export default function RbacSettingsScreen() {
     setLoading(true);
     setError("");
     try {
-      const [rolesRes, permsRes, buRes, usersRes] = await Promise.all([
-        listRoles(),
-        listPermissions(),
-        listBusinessUnits(),
-        getAllUsers(),
-      ]);
+      const [rolesRes, permsRes, buRes, usersRes, departmentRes] =
+        await Promise.all([
+          listRoles(),
+          listPermissions(),
+          listBusinessUnits(),
+          getAllUsers(),
+          departmentList(),
+        ]);
       setRoles(Array.isArray(rolesRes) ? rolesRes : []);
       setPermissions(Array.isArray(permsRes) ? permsRes : []);
       setBusinessUnits(Array.isArray(buRes) ? buRes : []);
       setUsers(Array.isArray(usersRes?.users) ? usersRes.users : []);
+      setDepartment(departmentRes);
     } catch (err) {
       setError(err.message || "Failed to load RBAC data.");
     } finally {
@@ -578,6 +598,64 @@ export default function RbacSettingsScreen() {
                 disabled={busy || !selectedRoleId || !selectedPermissionId}
               >
                 Assign Permission
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-gray-50 p-4">
+            <div className="mb-2 text-sm font-semibold">
+              Assign User Department
+            </div>
+            <Select
+              label="Select User"
+              value={userForDept}
+              onChange={setUserForDept}
+              options={userOptions}
+            />
+            <Select
+              label="Select Department"
+              value={selectedDept}
+              onChange={setSelectedDept}
+              options={deptOptions}
+            />
+            <div className="mt-2">
+              <Button
+                onClick={async () => {
+                  if (!userForDept || !selectedDept) return;
+                  if (
+                    !users.some(
+                      (u) => String(u.user_id) === String(userForDept),
+                    )
+                  ) {
+                    setError("Selected user is not in backend list.");
+                    return;
+                  }
+                  if (
+                    !department.some(
+                      (b) => String(b.id) === String(selectedDept),
+                    )
+                  ) {
+                    setError("Selected Department is not in backend list.");
+                    return;
+                  }
+                  setBusy(true);
+                  setError("");
+                  setNotice("");
+                  try {
+                    await setDepartmentForUser(
+                      String(userForDept),
+                      Number(selectedDept),
+                    );
+                    toast.success("Department assigned.");
+                  } catch (err) {
+                    setError(err.message || "Failed to assign business unit.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy || !userForDept || !selectedDept}
+              >
+                Set Department
               </Button>
             </div>
           </div>

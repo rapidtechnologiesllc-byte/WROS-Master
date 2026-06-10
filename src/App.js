@@ -60,7 +60,7 @@ import {
   updateCandidateStatus,
 } from "./services/api/candidateStatus";
 import CandidateDetailsScreen from "./screens/CandidateDetailsScreen";
-import { ToastContainer } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OfferListing from "./screens/OfferListing";
 
@@ -631,7 +631,7 @@ export default function App() {
                 try {
                   await updateCandidate(candidateId, payload);
                   await refreshCandidates();
-                  notify("Candidate", "Candidate updated.");
+                  toast.success("Candidate updated.");
                 } catch (err) {
                   notify(
                     "Candidate",
