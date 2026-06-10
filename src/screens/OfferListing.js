@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import {
   approveOfferLetter,
   cancelOfferLetter,
+  getAllOffers,
   offerLetterByJobId,
   releaseOfferApi,
 } from "../services/api/offerLetters";
@@ -25,6 +26,7 @@ import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 import { EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import {
   DownloadButton,
+  DropdownContainer,
   OfferLetterButtonContainer,
   ViewButton,
 } from "../styles/OfferListingStyles";
@@ -44,7 +46,13 @@ const OfferListing = () => {
   const [signatureLoading, setSignatureLoading] = useState(false);
   const [rejectModalShow, setRejectModalShow] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [statusSelected, setStatusSelected] = useState("");
   const currentRole = localStorage.getItem("hrms_role");
+  const offerStatusOptions = [
+    { label: "Released", value: "Released" },
+    { label: "AwaitingApproval", value: "AwaitingApproval" },
+    { label: "Cancelled", value: "Cancelled" },
+  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -82,6 +90,22 @@ const OfferListing = () => {
     };
     fetchList();
   }, [selectedJob]);
+
+  useEffect(() => {
+    const fetchOfferList = async () => {
+      if (!statusSelected) return;
+      try {
+        setLoading(true);
+        const list = await getAllOffers({ status: statusSelected });
+        setOfferDetails(list?.offers);
+      } catch (err) {
+        toast.error("Failed to fetch offers");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOfferList();
+  }, [statusSelected]);
 
   const jobOptions = [
     { label: "Please select job", value: "", disabled: true },
@@ -142,12 +166,19 @@ const OfferListing = () => {
           },
         );
         if (result?.status === "success") {
+          const matchid = selectedOfferCandidate?.id;
+          setOfferDetails((prev) =>
+            prev.map((item) =>
+              item?.id == matchid
+                ? { ...item, offer_status: "Cancelled" }
+                : item,
+            ),
+          );
           toast.success("Offer rejected successfully");
         }
       }
       setRejectModalShow(false);
       setRejectReason("");
-      console.log(cancelOfferApi);
     } catch (err) {
       toast.error(err?.message);
     }
@@ -255,7 +286,8 @@ const OfferListing = () => {
         if (releasOffer?.status === "success") {
           toast.success("Offer Approved, and release");
         }
-        // const emailResult = sendMailAttachments({
+
+        // const emailResult = await sendMailAttachments({
         //   toEmail: candidateData?.candidate_email,
         //   subject: `BlitzenX-Employment Offer ${candidateData?.candidate_name} | ${candidateData?.position} `,
         //   bodyContent: OfferConfirmationEmail(
@@ -264,7 +296,8 @@ const OfferListing = () => {
         //     "BlitzenX",
         //     candidateData?.job_id,
         //   ),
-        //   files: candidateData?.download_url,
+        //   files: [candidateData?.download_url],
+        //   is_html: false,
         // });
       }
     } catch (error) {
@@ -291,17 +324,25 @@ const OfferListing = () => {
     <>
       <div className="grid gap-6">
         <section className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <SectionTitle title="Candidate Overview" />
-          <Label>Select Job</Label>
-          <Select
-            label="Job Title"
-            value={selectedJob?.id || ""}
-            onChange={(value) => {
-              const job = jobs.find((j) => j.id === value);
-              setSelectedJob(job);
-            }}
-            options={jobOptions}
-          />
+          <DropdownContainer>
+            <Label>Select Job</Label>
+            <Select
+              label="Job Title"
+              value={selectedJob?.id || ""}
+              onChange={(value) => {
+                const job = jobs.find((j) => j.id === value);
+                setSelectedJob(job);
+              }}
+              options={jobOptions}
+            />
+            <Label>Select Offer Status</Label>
+            <Select
+              label="Select Offer Status"
+              value={statusSelected}
+              onChange={(value) => setStatusSelected(value)}
+              options={offerStatusOptions}
+            />
+          </DropdownContainer>
         </section>
       </div>
       <Card
