@@ -21,7 +21,7 @@ import {
 } from "../styles/CandidateSearchStyles";
 import PreonboardingModal from "./PreonboardingModal";
 import SignatureModal from "../components/ui/SignatureModal";
-import { sendMailAttachments } from "../services/api/email";
+import { sendMailAttachments, sendPlainEmail } from "../services/api/email";
 import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 import { EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import {
@@ -32,6 +32,7 @@ import {
 } from "../styles/OfferListingStyles";
 import RejectModal from "../components/ui/RejectModal";
 import { updateCandidateStatus } from "../services/api/candidates";
+import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 
 const OfferListing = () => {
   const [jobs, setJobs] = useState([]);
@@ -52,6 +53,7 @@ const OfferListing = () => {
     { label: "Released", value: "Released" },
     { label: "AwaitingApproval", value: "AwaitingApproval" },
     { label: "Cancelled", value: "Cancelled" },
+    { label: "Accepted", value: "Accepted" },
   ];
 
   useEffect(() => {
@@ -76,7 +78,10 @@ const OfferListing = () => {
 
   useEffect(() => {
     const fetchList = async () => {
-      if (!selectedJob?.id) return;
+      if (!selectedJob?.id) {
+        setOfferDetails([]);
+        return;
+      }
 
       try {
         setLoading(true);
@@ -93,7 +98,10 @@ const OfferListing = () => {
 
   useEffect(() => {
     const fetchOfferList = async () => {
-      if (!statusSelected) return;
+      if (!statusSelected) {
+        setOfferDetails([]);
+        return;
+      }
       try {
         setLoading(true);
         const list = await getAllOffers({ status: statusSelected });
@@ -166,6 +174,14 @@ const OfferListing = () => {
           },
         );
         if (result?.status === "success") {
+          await sendPlainEmail({
+            toEmail: selectedOfferCandidate?.candidate_email,
+            subject: `Update on Your Application - ${selectedOfferCandidate?.position}`,
+            bodyContent: getRejectionEmailHTML(
+              selectedOfferCandidate?.candidate_name,
+            ),
+            isHtml: true,
+          });
           const matchid = selectedOfferCandidate?.id;
           setOfferDetails((prev) =>
             prev.map((item) =>
@@ -258,10 +274,16 @@ const OfferListing = () => {
             render: (_, record) => {
               return (
                 <ButtonDiv>
-                  <AcceptButton onClick={() => sigatureModalHandler(record)}>
+                  <AcceptButton
+                    onClick={() => sigatureModalHandler(record)}
+                    disabled={record?.offer_status === "Accepted"}
+                  >
                     Accept
                   </AcceptButton>
-                  <RejectButton onClick={() => cancelOfferHandler(record)}>
+                  <RejectButton
+                    onClick={() => cancelOfferHandler(record)}
+                    disabled={record?.offer_status === "Cancelled"}
+                  >
                     Reject
                   </RejectButton>
                 </ButtonDiv>
@@ -334,19 +356,24 @@ const OfferListing = () => {
                 setSelectedJob(job);
               }}
               options={jobOptions}
+              style={{ width: "20%" }}
+              allowClear
             />
             <Label>Select Offer Status</Label>
             <Select
+              placeholder="Please select offer type"
               label="Select Offer Status"
               value={statusSelected}
               onChange={(value) => setStatusSelected(value)}
               options={offerStatusOptions}
+              style={{ width: "20%" }}
+              allowClear
             />
           </DropdownContainer>
         </section>
       </div>
       <Card
-        // title={`Candidates (${tableData.length})`}
+        title={`Offer Listing`}
         icon={<Users className="h-4 w-4 text-gray-700" />}
         className="shadow-sm"
       >
