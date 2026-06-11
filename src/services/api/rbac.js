@@ -195,3 +195,13 @@ export const updateUserBusinessUnit = async (userId, businessUnitId) => {
   });
   return data;
 };
+export const getDepartmentsByBusinessUnit = async (businessUnitId) => {
+  if (!businessUnitId) return [];
+  const { data } = await apiRequest(
+    `/rbac/business-units/${businessUnitId}/departments`,
+    {
+      method: "GET",
+    },
+  );
+  return Array.isArray(data?.departments) ? data.departments : [];
+};

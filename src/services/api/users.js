@@ -77,24 +77,34 @@ export const changeHrMePassword = async ({
   return data;
 };
 export const searchUsers = async ({
+  name,
   permission_role,
+  user_role,
+  department,
+  business_unit,
   skip = 0,
   limit = 50,
 } = {}) => {
   const params = new URLSearchParams();
-
+  if (name?.trim()) {
+    params.set("name", name.trim());
+  }
   if (permission_role?.trim()) {
     params.set("permission_role", permission_role.trim());
   }
-
+  if (user_role?.trim()) {
+    params.set("user_role", user_role.trim());
+  }
+  if (department?.trim()) {
+    params.set("department", department.trim());
+  }
+  if (business_unit?.trim()) {
+    params.set("business_unit", business_unit.trim());
+  }
   params.set("skip", String(skip));
   params.set("limit", String(limit));
-
-  const query = params.toString();
-
-  const { data } = await apiRequest(`/hr/users/search?${query}`, {
+  const { data } = await apiRequest(`/hr/users/search?${params.toString()}`, {
     method: "GET",
   });
-
   return data;
 };
