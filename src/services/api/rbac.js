@@ -195,7 +195,6 @@ export const updateUserBusinessUnit = async (userId, businessUnitId) => {
   });
   return data;
 };
-<<<<<<< HEAD
 export const getDepartmentsByBusinessUnit = async (businessUnitId) => {
   if (!businessUnitId) return [];
   const { data } = await apiRequest(
@@ -206,7 +205,6 @@ export const getDepartmentsByBusinessUnit = async (businessUnitId) => {
   );
   return Array.isArray(data?.departments) ? data.departments : [];
 };
-=======
 
 export const setDepartmentForUser = async (userId, departmentId) => {
   const { data } = await apiRequest("/rbac/users/set-department", {
@@ -218,4 +216,3 @@ export const setDepartmentForUser = async (userId, departmentId) => {
   });
   return data;
 };
->>>>>>> 9e0c792836e465b2eaf809e1f37137654d466cba
