@@ -108,3 +108,28 @@ export const searchUsers = async ({
   });
   return data;
 };
+export const getUserDetails = async (userId) => {
+  const { data } = await apiRequest(`/hr/users/details/${userId}`, {
+    method: "GET",
+  });
+
+  return data;
+};
+
+export const createHrAssignment = async (payload) => {
+  const { data } = await apiRequest("/hr-assignments/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return data;
+};
+export const getHrAssignmentByCandidate = async (candidateId) => {
+  const { data } = await apiRequest(
+    `/hr-assignments/by-candidate/${candidateId}`,
+    {
+      method: "GET",
+    },
+  );
+  return data;
+};

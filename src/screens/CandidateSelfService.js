@@ -49,6 +49,8 @@ import {
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SignatureModal from "../components/ui/SignatureModal";
+import { getHrAssignmentByCandidate } from "../services/api/users";
+import { sendPlainEmail } from "../services/api/email";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -263,6 +265,49 @@ export default function CandidateSelfService({ onLogout }) {
       showNotice(err.message || "Failed to refresh documents.");
     }
   };
+  const notifyAssignedHr = async (documentName) => {
+    try {
+      console.log("STEP 1");
+      const candidateId = profile?.candidate_id;
+      console.log("STEP 2", candidateId);
+
+      if (!candidateId) return;
+
+      const assignment = await getHrAssignmentByCandidate(candidateId);
+      console.log("STEP 3", assignment);
+
+      const hrEmail = assignment?.hr1?.user_email;
+      console.log("STEP 4", hrEmail);
+
+      if (!hrEmail) return;
+
+      const candidateName = profile?.candidate_name || "Candidate";
+
+      await sendPlainEmail({
+        toEmail: hrEmail,
+        subject: "Action Required: Candidate Document Uploaded",
+        bodyContent: `
+Hello ${assignment?.hr1?.user_name || "HR"},
+
+A candidate has uploaded a document that requires your review and verification.
+
+Candidate Information
+• Name: ${candidateName}
+
+Uploaded Document
+• ${documentName}
+
+Please review and verify the uploaded document in the HRMS portal at your earliest convenience.
+
+Thank you,
+BlitzenX HRMS Team
+  `,
+        isHtml: false,
+      });
+    } catch (error) {
+      console.error("Failed to notify assigned HR", error);
+    }
+  };
 
   const handleUpload = async (uploadFn, label, file) => {
     if (!file) return;
@@ -270,9 +315,9 @@ export default function CandidateSelfService({ onLogout }) {
     try {
       setUploadingType(label);
       clearNotice();
-
       await uploadFn(file);
       await fetchDocuments();
+      await notifyAssignedHr(label);
 
       showNotice(`✅ ${label} uploaded successfully.`, "success");
     } catch (err) {
@@ -293,10 +338,10 @@ export default function CandidateSelfService({ onLogout }) {
 
       await signOfferLetter(selectedOffer.id, formData);
 
-      await respondToOffer({
-        offerId: selectedOffer.id,
-        action: "accept",
-      });
+      // await respondToOffer({
+      //   offerId: selectedOffer.id,
+      //   action: "accept",
+      // });
 
       const refreshed = await getMyOffers();
 
@@ -868,7 +913,7 @@ export default function CandidateSelfService({ onLogout }) {
               {myOffers.map((o) => (
                 <div key={o.id} className="rounded-lg border bg-slate-50 p-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex gap-2">
                       <Button
                         variant="secondary"
                         onClick={() =>
@@ -896,11 +941,23 @@ export default function CandidateSelfService({ onLogout }) {
                       >
                         Download
                       </Button>
+                    </div>
 
-                      {String(o?.offer_status).toLowerCase() === "pending" && (
-                        <>
+                    {String(o?.offer_status).toLowerCase() === "released" &&
+                      !o?.candidate_response && (
+                        <div className="flex gap-2">
                           <Button
-                            variant="danger"
+                            onClick={() => {
+                              setSelectedOffer(o);
+                              setShowSignatureModal(true);
+                            }}
+                            disabled={loading}
+                          >
+                            Accept
+                          </Button>
+
+                          <Button
+                            variant="secondary"
                             onClick={async () => {
                               clearNotice();
                               try {
@@ -921,18 +978,8 @@ export default function CandidateSelfService({ onLogout }) {
                           >
                             Decline
                           </Button>
-                          <Button
-                            onClick={() => {
-                              setSelectedOffer(o);
-                              setShowSignatureModal(true);
-                            }}
-                            disabled={loading}
-                          >
-                            Accept
-                          </Button>
-                        </>
+                        </div>
                       )}
-                    </div>
                   </div>
                 </div>
               ))}
