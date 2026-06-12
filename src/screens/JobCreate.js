@@ -159,26 +159,11 @@ export default function JobCreate({
   ]);
   useEffect(() => {
     const loadHiringManagers = async () => {
-      if (!selectedBusinessUnit || !selectedDept) {
-        setHiringManagers([]);
-        return;
-      }
-      const businessUnitName =
-        businessUnitList?.find((bu) => bu?.id === Number(selectedBusinessUnit))
-          ?.name ?? "";
-      const departmentName =
-        departmentListState?.find((dept) => dept?.id === Number(selectedDept))
-          ?.name ?? "";
-      if (!businessUnitName || !departmentName) {
-        setHiringManagers([]);
-        return;
-      }
       try {
         const response = await searchUsers({
           permission_role: "Hiring Manager",
-          business_unit: businessUnitName,
-          department: departmentName,
         });
+
         setHiringManagers(Array.isArray(response?.users) ? response.users : []);
       } catch (error) {
         console.error("Failed to load Hiring Managers:", error);
@@ -187,12 +172,7 @@ export default function JobCreate({
     };
 
     loadHiringManagers();
-  }, [
-    selectedBusinessUnit,
-    selectedDept,
-    businessUnitList,
-    departmentListState,
-  ]);
+  }, []);
 
   useEffect(() => {
     if (!initialJob || mode !== "view") return;
