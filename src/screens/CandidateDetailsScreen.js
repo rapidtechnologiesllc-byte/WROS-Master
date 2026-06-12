@@ -391,7 +391,7 @@ export default function CandidateDetailsScreen({
     if (candidate?.id) {
       loadDocumentCount();
     }
-  }, [candidate]);
+  }, []);
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
@@ -1146,6 +1146,7 @@ ${formattedJD}
 
               {(currentRole === "HR MANAGER" ||
                 currentRole === "HR OPERATIONS") &&
+                candidateDocCount?.total_documents > 0 &&
                 candidateDocCount?.verified_count ===
                   candidateDocCount?.total_documents && (
                   <Button
