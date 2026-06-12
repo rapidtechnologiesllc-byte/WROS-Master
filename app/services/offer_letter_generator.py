@@ -590,7 +590,6 @@ def build_context(
         # Signatures
         # NOTE: {{Signature SignatureHRManager2}} is intentionally omitted here;
         #       it is replaced with the actual PNG image by _inject_signature_image().
-        "{{Signature CandidateSignature}}":                            "Please sign here",
     }
 
 
