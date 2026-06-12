@@ -267,22 +267,12 @@ export default function CandidateSelfService({ onLogout }) {
   };
   const notifyAssignedHr = async (documentName) => {
     try {
-      console.log("STEP 1");
       const candidateId = profile?.candidate_id;
-      console.log("STEP 2", candidateId);
-
       if (!candidateId) return;
-
       const assignment = await getHrAssignmentByCandidate(candidateId);
-      console.log("STEP 3", assignment);
-
       const hrEmail = assignment?.hr1?.user_email;
-      console.log("STEP 4", hrEmail);
-
       if (!hrEmail) return;
-
       const candidateName = profile?.candidate_name || "Candidate";
-
       await sendPlainEmail({
         toEmail: hrEmail,
         subject: "Action Required: Candidate Document Uploaded",
