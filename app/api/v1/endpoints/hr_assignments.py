@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, get_current_user
 from app.models.candidate import Candidate
 from app.models.hr_assignment import HRAssignment
 from app.models.user import Users
@@ -192,13 +192,12 @@ def get_my_candidates(
 @router.get(
     "/by-candidate/{candidate_id}",
     response_model=HRAssignmentResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
     summary="Get HR assignment for a specific candidate",
 )
 def get_hr_by_candidate(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Returns the HR/Recruiter assignment details for the given candidate.
