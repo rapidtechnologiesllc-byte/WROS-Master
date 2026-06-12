@@ -5,7 +5,10 @@ import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { searchUsers } from "../services/api/users";
 import { toast } from "react-toastify";
-import { departmentList, listBusinessUnits } from "../services/api/rbac";
+import {
+  listBusinessUnits,
+  getDepartmentsByBusinessUnit,
+} from "../services/api/rbac";
 
 export default function JobCreate({
   onSave,
@@ -46,7 +49,9 @@ export default function JobCreate({
   const [departmentListState, setDepartmentList] = useState([]);
   const [selectedDept, setSelectedDept] = useState("");
   const [businessUnitList, setBusinessUnitList] = useState([]);
-  const [selectedBusinessUnit, setSelectedBusinessUnit] = useState([]);
+  const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
+  const [hrUsers, setHrUsers] = useState([]);
+  const [hiringManagers, setHiringManagers] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -56,7 +61,8 @@ export default function JobCreate({
       try {
         const [hrManagers, reportingManagers] = await Promise.all([
           searchUsers({
-            permission_role: "HR Manager",
+            // permission_role: "HR Manager",
+            user_role: "HR",
           }),
           searchUsers({
             permission_role: "Reporting Manager",
@@ -91,6 +97,81 @@ export default function JobCreate({
     return () => {
       isMounted = false;
     };
+  }, []);
+  useEffect(() => {
+    const loadDepartments = async () => {
+      if (!selectedBusinessUnit) {
+        setDepartmentList([]);
+        setSelectedDept("");
+        return;
+      }
+      try {
+        const departments =
+          await getDepartmentsByBusinessUnit(selectedBusinessUnit);
+
+        setDepartmentList(departments);
+        setSelectedDept("");
+      } catch (err) {
+        console.error("Failed to load departments:", err);
+        setDepartmentList([]);
+      }
+    };
+    loadDepartments();
+  }, [selectedBusinessUnit]);
+
+  useEffect(() => {
+    const loadHrUsers = async () => {
+      if (!selectedBusinessUnit || !selectedDept) {
+        setHrUsers([]);
+        return;
+      }
+
+      const businessUnitName =
+        businessUnitList?.find((bu) => bu?.id === Number(selectedBusinessUnit))
+          ?.name ?? "";
+      const departmentName =
+        departmentListState?.find((dept) => dept?.id === Number(selectedDept))
+          ?.name ?? "";
+      if (!businessUnitName || !departmentName) {
+        setHrUsers([]);
+        return;
+      }
+      try {
+        const response = await searchUsers({
+          // permission_role: "HR Manager",
+          user_role: "HR",
+          business_unit: businessUnitName,
+          department: departmentName,
+        });
+
+        setHrUsers(Array.isArray(response?.users) ? response.users : []);
+      } catch (error) {
+        console.error("Failed to load HR users:", error);
+        setHrUsers([]);
+      }
+    };
+    loadHrUsers();
+  }, [
+    selectedBusinessUnit,
+    selectedDept,
+    businessUnitList,
+    departmentListState,
+  ]);
+  useEffect(() => {
+    const loadHiringManagers = async () => {
+      try {
+        const response = await searchUsers({
+          permission_role: "Hiring Manager",
+        });
+
+        setHiringManagers(Array.isArray(response?.users) ? response.users : []);
+      } catch (error) {
+        console.error("Failed to load Hiring Managers:", error);
+        setHiringManagers([]);
+      }
+    };
+
+    loadHiringManagers();
   }, []);
 
   useEffect(() => {
@@ -128,18 +209,6 @@ export default function JobCreate({
     setHmOneLiner(initialJob.hiringManagerOneLiner || "");
     setInternalJD(initialJob.internalJD || initialJob.jobDescription || "");
   }, [initialJob, mode]);
-
-  useEffect(() => {
-    const listingDepartments = async () => {
-      try {
-        const listResult = await departmentList();
-        setDepartmentList(listResult);
-      } catch (err) {
-        console.log(err);
-      }
-    };
-    listingDepartments();
-  }, []);
 
   useEffect(() => {
     const listingBusinessUnits = async () => {
@@ -220,7 +289,7 @@ export default function JobCreate({
       { label: "Location", value: location },
       { label: "Company Type", value: companyType },
       { label: "Company / Client", value: companyClient },
-      { label: "Contact Person", value: contactPerson },
+      { label: "HR", value: contactPerson },
       { label: "Job Status", value: jobStatus },
       { label: "No. of Positions", value: noOfPositions },
       { label: "Start Date", value: startDate },
@@ -240,7 +309,7 @@ export default function JobCreate({
       return;
     }
     if (!contactPerson?.trim()) {
-      toast.error("Please select a Contact Person.");
+      toast.error("Please select an HR.");
       return;
     }
     try {
@@ -324,18 +393,18 @@ export default function JobCreate({
               options={["Low", "High"]}
             />
             <Select
-              label="Contact Person *"
+              label="HR *"
               value={contactPerson}
               onChange={setContactPerson}
               options={[
                 {
-                  label: "Select Contact Person",
+                  label: "Select HR",
                   value: "",
                 },
-                ...users.map((user) => ({
+                ...(hrUsers?.map((user) => ({
                   label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
                   value: user?.user_id ?? "",
-                })),
+                })) ?? []),
               ]}
             />
             <Input
@@ -442,10 +511,10 @@ export default function JobCreate({
                   label: "Select Hiring Manager",
                   value: "",
                 },
-                ...users.map((user) => ({
+                ...(hiringManagers?.map((user) => ({
                   label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
                   value: user?.user_id ?? "",
-                })),
+                })) ?? []),
               ]}
             />
             <Select

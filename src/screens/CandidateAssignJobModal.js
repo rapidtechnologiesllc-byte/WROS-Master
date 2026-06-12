@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { Button, Card } from "../components/ui";
 import { assignMultipleJobs, getAllJobs } from "../services/api/jobs";
+import { getUserDetails, createHrAssignment } from "../services/api/users";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -132,11 +133,15 @@ const CandidateAssignJobModal = ({
       setSelectedJobId(preSelectedJob.id);
     }
   }, [preSelectedJob]);
+
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [showUdfModal, setShowUdfModal] = useState(false);
   const [udfData, setUdfData] = useState(INITIAL_UDF_STATE);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [hrOptions, setHrOptions] = useState([]);
+  const [selectedHr1Id, setSelectedHr1Id] = useState("");
+  const [selectedHr2Id, setSelectedHr2Id] = useState("");
 
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => ({
@@ -152,6 +157,35 @@ const CandidateAssignJobModal = ({
       (job) => String(job?.id || job?.job_id) === String(selectedJobId),
     );
   }, [jobs, selectedJobId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchDefaultHr = async () => {
+      const activeJob = preSelectedJob || selectedJob;
+      const hrUserId = activeJob?.contactPerson;
+      if (!hrUserId) return;
+      try {
+        const response = await getUserDetails(hrUserId);
+
+        if (!isMounted) return;
+
+        const option = {
+          label: response?.user_name || response?.user_email || "Assigned HR",
+          value: response?.user_id,
+        };
+
+        setHrOptions([option]);
+        setSelectedHr1Id(response?.user_id ?? "");
+      } catch (error) {
+        console.error("Failed to load HR details", error);
+      }
+    };
+    fetchDefaultHr();
+    return () => {
+      isMounted = false;
+    };
+  }, [preSelectedJob?.contactPerson, selectedJob?.contactPerson]);
 
   useEffect(() => {
     let isMounted = true;
@@ -268,7 +302,10 @@ const CandidateAssignJobModal = ({
       toast.error("Please enter agreed pay rate");
       return false;
     }
-
+    if (!selectedHr1Id) {
+      toast.error("Please select Primary HR");
+      return false;
+    }
     return true;
   };
 
@@ -322,6 +359,11 @@ const CandidateAssignJobModal = ({
           job_id: selectedJob?.id || selectedJob?.job_id || selectedJobId,
           performed_by_name: performedBy,
           event_at: appliedDateTime,
+        });
+        await createHrAssignment({
+          candidate_id: candidateId,
+          hr1_id: selectedHr1Id,
+          hr2_id: selectedHr2Id || "",
         });
         toast.success("Job submitted successfully ✅");
         await onAssignSuccess?.();
@@ -443,6 +485,15 @@ const CandidateAssignJobModal = ({
                   onChange={(value) => updateFormField("submitTo", value)}
                   disabled={isAssigning}
                 />
+                <SelectWrapper>
+                  <Label>Primary HR *</Label>
+                  <StyledSelect
+                    value={selectedHr1Id}
+                    onChange={setSelectedHr1Id}
+                    options={hrOptions}
+                    placeholder="Select HR"
+                  />
+                </SelectWrapper>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <FormInput
