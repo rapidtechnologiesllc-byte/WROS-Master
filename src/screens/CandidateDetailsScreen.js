@@ -45,6 +45,8 @@ import { AcceptButton } from "../styles/CandidateSearchStyles";
 import { managerReviewApprove } from "../services/api/preOnboarding";
 import { toast } from "react-toastify";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
+import { getAllOffers } from "../services/api/offerLetters";
+import PreviousOfferModal from "./PreviousOfferModal";
 
 const initialScheduleForm = {
   roundName: "",
@@ -148,6 +150,8 @@ export default function CandidateDetailsScreen({
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
   const [candidateDocCount, setCandidateDocCount] = useState(null);
   const [offerId, setOfferId] = useState(null);
+  const [previousOffer, setPreviousOffer] = useState([]);
+  const [previousOfferModalState, setPreviousOfferModalState] = useState(false);
   const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
@@ -165,6 +169,14 @@ export default function CandidateDetailsScreen({
       ];
 
   const canShowFullActions = !limitedMode;
+
+  useEffect(() => {
+    const fetchCandidateOffer = async () => {
+      const canOffer = await getAllOffers({ candidate_id: candidate?.id });
+      setPreviousOffer(canOffer?.offers);
+    };
+    fetchCandidateOffer();
+  }, []);
 
   useEffect(() => {
     if (limitedMode) {
@@ -1096,6 +1108,13 @@ ${formattedJD}
                     />
                   )}
 
+                  {previousOfferModalState ? (
+                    <PreviousOfferModal
+                      onClose={() => setPreviousOfferModalState(false)}
+                      previousOffer={previousOffer}
+                    />
+                  ) : null}
+
                   {statusData?.pipeline_status && (
                     <StatusDropdown statusData={statusData} />
                   )}
@@ -1133,6 +1152,15 @@ ${formattedJD}
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
+              {previousOffer.length > 0 ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => setPreviousOfferModalState(true)}
+                  className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
+                >
+                  Show Previous Offers
+                </Button>
+              ) : null}
 
               {currentRole === "HIRING MANAGER" &&
               candidate?.pipelineStatus == "Pre-onboarding-Approval" ? (
