@@ -68,6 +68,8 @@ const Wrapper = styled.div`
   padding: 24px;
   width: 100%;
   margin-top: 24px;
+  max-height: 70vh;
+  overflow-y: auto;
 `;
 
 const Header = styled.div`
