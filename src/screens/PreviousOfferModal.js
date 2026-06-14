@@ -16,17 +16,19 @@ import { DownOutlined } from "@ant-design/icons";
 import { Collapse } from "antd";
 import { EyeIcon, FileText } from "lucide-react";
 import { toast } from "react-toastify";
+import { offerLetterById } from "../services/api/offerLetters";
 
 const PreviousOfferModal = ({ onClose, previousOffer }) => {
   const { Panel } = Collapse;
 
-  const downloadHandler = async (url, fileName = "OfferLetter.pdf") => {
-    if (!url) {
+  const downloadHandler = async (id, fileName = "OfferLetter.docx") => {
+    if (!id) {
       toast.error("Offer letter download url is not available");
     }
 
     try {
-      const response = await fetch(url, {
+      const createOfferId = await offerLetterById(id);
+      const response = await fetch(createOfferId?.download_url, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
@@ -115,7 +117,7 @@ const PreviousOfferModal = ({ onClose, previousOffer }) => {
                         </DetailItem>
                         <Button
                           variant="secondary"
-                          onClick={() => downloadHandler(offer?.download_url)}
+                          onClick={() => downloadHandler(offer?.id)}
                         >
                           Download Offer Letter
                         </Button>
