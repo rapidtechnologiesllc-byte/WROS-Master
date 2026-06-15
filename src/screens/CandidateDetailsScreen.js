@@ -171,12 +171,13 @@ export default function CandidateDetailsScreen({
   const canShowFullActions = !limitedMode;
 
   useEffect(() => {
+    if (limitedMode) return;
     const fetchCandidateOffer = async () => {
       const canOffer = await getAllOffers({ candidate_id: candidate?.id });
       setPreviousOffer(canOffer?.offers);
     };
     fetchCandidateOffer();
-  }, []);
+  }, [candidate?.id, limitedMode]);
 
   useEffect(() => {
     if (limitedMode) {
@@ -391,6 +392,7 @@ export default function CandidateDetailsScreen({
   };
 
   useEffect(() => {
+    if (limitedMode) return;
     const loadDocumentCount = async () => {
       try {
         const docs = await getCandidateDocuments(candidate?.id);
@@ -399,11 +401,10 @@ export default function CandidateDetailsScreen({
         console.error(error);
       }
     };
-
     if (candidate?.id) {
       loadDocumentCount();
     }
-  }, []);
+  }, [candidate?.id, limitedMode]);
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
