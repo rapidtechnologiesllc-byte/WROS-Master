@@ -11,6 +11,7 @@ import {
   approveOfferLetter,
   cancelOfferLetter,
   getAllOffers,
+  offerLetterById,
   offerLetterByJobId,
   releaseOfferApi,
 } from "../services/api/offerLetters";
@@ -128,28 +129,32 @@ const OfferListing = () => {
     setShowSignatureModal(true);
   };
 
-  const downloadFile = async (url, fileName = "OfferLetter.pdf") => {
+  const downloadFile = async (id, fileName = "OfferLetter.docx") => {
+    if (!id) {
+      toast.error("Offer letter download url is not available");
+    }
     try {
-      const response = await fetch(url, {
+      const createOfferId = await offerLetterById(id);
+      const response = await fetch(createOfferId?.download_url, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
       });
+      if (!response.ok) {
+        toast.error("Failed to download offer letter.");
+      }
 
       const blob = await response.blob();
-
       const blobUrl = window.URL.createObjectURL(blob);
-
       const link = document.createElement("a");
       link.href = blobUrl;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
-
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
-      console.error("Download failed", error);
+      toast.error("Download failed", error);
     }
   };
 
@@ -246,7 +251,7 @@ const OfferListing = () => {
               View
             </ViewButton>
 
-            <DownloadButton onClick={() => downloadFile(record?.download_url)}>
+            <DownloadButton onClick={() => downloadFile(record?.id)}>
               <DownloadOutlined style={{ marginRight: "6px" }} />
               Download
             </DownloadButton>
