@@ -874,3 +874,194 @@ class EmailService:
         except Exception as exc:
             logger.warning(f"[EmailService] notify_hr_candidate_responded failed: {exc}")
 
+    # ------------------------------------------------------------------
+    # Generic Event Notification Email
+    # ------------------------------------------------------------------
+
+    # Colour & icon map for each event type
+    _EVENT_STYLES: Dict[str, Dict[str, str]] = {
+        "document_uploaded": {
+            "colour": "#1a56db",
+            "badge_bg": "#dbeafe",
+            "label": "📄 Document Uploaded",
+        },
+        "document_verified": {
+            "colour": "#16a34a",
+            "badge_bg": "#dcfce7",
+            "label": "✅ Document Verified",
+        },
+        "document_rejected": {
+            "colour": "#dc2626",
+            "badge_bg": "#fee2e2",
+            "label": "❌ Document Rejected",
+        },
+        "status_update": {
+            "colour": "#7c3aed",
+            "badge_bg": "#ede9fe",
+            "label": "🔄 Status Update",
+        },
+        "action_required": {
+            "colour": "#d97706",
+            "badge_bg": "#fef3c7",
+            "label": "⚠️ Action Required",
+        },
+        "general": {
+            "colour": "#374151",
+            "badge_bg": "#f3f4f6",
+            "label": "ℹ️ Notification",
+        },
+    }
+
+    @classmethod
+    def _event_notification_html(
+        cls,
+        recipient_name: str,
+        event_type: str,
+        heading: str,
+        message: str,
+        metadata: Optional[Dict[str, str]] = None,
+        action_url: Optional[str] = None,
+        action_label: str = "View Details",
+        triggered_by_name: Optional[str] = None,
+    ) -> str:
+        style = cls._EVENT_STYLES.get(event_type, cls._EVENT_STYLES["general"])
+        colour = style["colour"]
+        badge_bg = style["badge_bg"]
+        event_label = style["label"]
+
+        # ── Badge chip ───────────────────────────────────────────────────
+        badge_html = f"""
+        <p style="margin:0 0 20px;">
+          <span style="display:inline-block;background:{badge_bg};color:{colour};
+                       font-size:12px;font-weight:700;padding:4px 12px;
+                       border-radius:999px;border:1px solid {colour}33;">
+            {event_label}
+          </span>
+        </p>"""
+
+        # ── Metadata rows (candidate name, document name, etc.) ──────────
+        meta_rows = ""
+        if metadata:
+            rows = ""
+            for key, val in metadata.items():
+                rows += f"""
+              <tr>
+                <td style="padding:7px 0;border-bottom:1px solid #e5e7eb;">
+                  <span style="font-size:13px;color:#6b7280;min-width:140px;display:inline-block;">
+                    {key}
+                  </span>
+                  <span style="font-size:13px;color:#111827;font-weight:600;">{val}</span>
+                </td>
+              </tr>"""
+            meta_rows = f"""
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="margin:16px 0;border-top:1px solid #e5e7eb;">
+              {rows}
+            </table>"""
+
+        # ── CTA button ───────────────────────────────────────────────────
+        cta_html = ""
+        if action_url:
+            cta_html = f"""
+            <p style="margin:24px 0 0;text-align:center;">
+              <a href="{action_url}"
+                 style="display:inline-block;background:{colour};color:#ffffff;
+                        font-size:14px;font-weight:600;padding:11px 28px;
+                        border-radius:6px;text-decoration:none;">
+                {action_label}
+              </a>
+            </p>"""
+
+        # ── Triggered-by footer note ─────────────────────────────────────
+        triggered_html = ""
+        if triggered_by_name:
+            triggered_html = f"""
+            <p style="font-size:12px;color:#9ca3af;margin-top:20px;">
+              This notification was triggered by <strong>{triggered_by_name}</strong>.
+            </p>"""
+
+        body = f"""
+        {badge_html}
+        <p style="font-size:16px;color:#111827;font-weight:700;margin:0 0 8px;">{heading}</p>
+        <p style="font-size:14px;color:#374151;line-height:1.7;margin:0 0 4px;">
+          Dear <strong>{recipient_name}</strong>,
+        </p>
+        <p style="font-size:14px;color:#374151;line-height:1.7;">{message}</p>
+        {meta_rows}
+        {cta_html}
+        {triggered_html}
+        <p style="font-size:14px;color:#374151;margin-top:24px;">
+          Best regards,<br/><strong>BlitzenX HR Team</strong>
+        </p>
+        """
+        return cls._base_html(heading, body)
+
+    @classmethod
+    def send_event_notification(
+        cls,
+        to_email: str,
+        recipient_name: str,
+        event_type: str,
+        heading: str,
+        message: str,
+        cc_emails: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, str]] = None,
+        action_url: Optional[str] = None,
+        action_label: str = "View Details",
+        triggered_by_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Send a rich, branded event notification email to any recipient
+        (HR user, admin, or candidate).
+
+        Supported event_type values:
+          - ``document_uploaded``  : Candidate uploaded a document → notify HR
+          - ``document_verified``  : HR verified a document → notify candidate
+          - ``document_rejected``  : HR rejected a document → notify candidate
+          - ``status_update``      : Pipeline/status changed → notify either party
+          - ``action_required``    : Something needs attention → notify either party
+          - ``general``            : Generic notification (default fallback)
+
+        Parameters
+        ----------
+        to_email         : Recipient email address.
+        recipient_name   : Recipient's display name (used in salutation).
+        event_type       : One of the event_type keys above.
+        heading          : Short subject/heading for the notification.
+        message          : Body paragraph explaining the event.
+        cc_emails        : Optional list of CC recipients.
+        metadata         : Optional key-value pairs shown as a detail table
+                           (e.g. {"Candidate": "John Doe", "Document": "Aadhaar"}).
+        action_url       : Optional deep-link URL for a CTA button.
+        action_label     : Label for the CTA button (default "View Details").
+        triggered_by_name: Optional name of the user who triggered the event,
+                           shown as a footer note.
+        """
+        try:
+            html = cls._event_notification_html(
+                recipient_name=recipient_name,
+                event_type=event_type,
+                heading=heading,
+                message=message,
+                metadata=metadata,
+                action_url=action_url,
+                action_label=action_label,
+                triggered_by_name=triggered_by_name,
+            )
+            result = cls.send_email(
+                to_email=to_email,
+                subject=heading,
+                body_content=html,
+                is_html=True,
+                cc_emails=cc_emails,
+            )
+            logger.info(
+                f"[EmailService] Event notification '{event_type}' sent to {to_email} | {heading}"
+            )
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[EmailService] send_event_notification error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+

@@ -3,19 +3,20 @@ HRMS Email Service Endpoints
 Provides production-ready mail & interview scheduling APIs backed by
 Microsoft Graph via helpdesk_hrms@blitzenx.com.
 """
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, get_current_user, require_permission
 from app.core.logging import logger
 from app.models import Candidate, Interview, InterviewPanel, PanelMember, Users
 from app.services.email_service import EmailService
 
 router = APIRouter(prefix="/email", tags=["Email Service"])
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -36,6 +37,39 @@ class SendNotificationRequest(BaseModel):
     message: str
     cc_emails: Optional[List[EmailStr]] = None
 
+
+# Allowed event type values for the event notification endpoint
+EventType = Literal[
+    "document_uploaded",
+    "document_verified",
+    "document_rejected",
+    "status_update",
+    "action_required",
+    "general",
+]
+
+
+class SendEventNotificationRequest(BaseModel):
+    """
+    Universal event notification request.  Can be sent by any authenticated
+    user — HR, admin, or candidate.
+
+    Example use-cases:
+    - Candidate uploads a document → call with event_type="document_uploaded"
+      to_email = HR's email, recipient_name = HR's name
+    - HR verifies a document → event_type="document_verified"
+      to_email = candidate's email, recipient_name = candidate's name
+    - Any status change → event_type="status_update"
+    """
+    to_email: EmailStr
+    recipient_name: str
+    event_type: EventType = "general"
+    heading: str
+    message: str
+    cc_emails: Optional[List[EmailStr]] = None
+    metadata: Optional[Dict[str, str]] = None  # Extra key-value details shown in the email table
+    action_url: Optional[str] = None           # Optional CTA deep-link button URL
+    action_label: str = "View Details"         # Label for the CTA button
 
 class SendInterviewInviteRequest(BaseModel):
     """
@@ -189,6 +223,79 @@ def send_notification(
         cc_emails=request.cc_emails,
     )
 
+
+@router.post(
+    "/notify/event",
+    summary="Send a rich event notification email (open to any authenticated user)",
+    response_description="Email send result",
+)
+def send_event_notification(
+    request: SendEventNotificationRequest,
+    current_user=Depends(get_current_user),
+):
+    """
+    Universal event-driven notification email endpoint.
+
+    **Who can call this?**
+    Any authenticated user — HR users, admins, **and candidates** — all share this
+    single endpoint.  Authentication is JWT-based (`get_current_user` resolves
+    both `Users` and `Candidate` token types).
+
+    **Supported `event_type` values:**
+
+    | Value | Colour | Use-case |
+    |---|---|---|
+    | `document_uploaded` | 🔵 Blue | Candidate uploaded a document → notify HR |
+    | `document_verified` | 🟢 Green | HR verified a document → notify candidate |
+    | `document_rejected` | 🔴 Red | HR rejected a document → notify candidate |
+    | `status_update` | 🟣 Purple | Pipeline/status changed |
+    | `action_required` | 🟡 Amber | Something needs attention |
+    | `general` | ⚫ Grey | Generic catch-all notification |
+
+    **`metadata`** (optional): A flat key-value dict rendered as a detail table
+    inside the email.  Example:
+    ```json
+    {
+      "Candidate": "John Doe",
+      "Document": "Aadhaar Card",
+      "Uploaded At": "2026-06-15 10:30 IST"
+    }
+    ```
+
+    **`action_url`** (optional): A CTA button deep-link rendered inside the email
+    (e.g. a link to the candidate's profile or the document review page).
+
+    The caller's display name is automatically attached as a *"triggered by"*
+    footer note in the email body.
+    """
+    # ── Resolve caller display name ──────────────────────────────────────
+    if isinstance(current_user, Users):
+        caller_name = current_user.UserName or current_user.UserEmail
+        caller_ref = current_user.UserEmail
+    else:
+        # Candidate
+        caller_name = " ".join(
+            filter(None, [current_user.candidateFirstName, current_user.candidateLastName])
+        ) or current_user.candidateEmail
+        caller_ref = current_user.candidateEmail
+
+    logger.info(
+        f"[email/notify/event] Triggered by {caller_ref} | type={request.event_type} "
+        f"→ {request.to_email} | {request.heading}"
+    )
+
+    return EmailService.send_event_notification(
+        to_email=request.to_email,
+        recipient_name=request.recipient_name,
+        event_type=request.event_type,
+        heading=request.heading,
+        message=request.message,
+        cc_emails=list(request.cc_emails) if request.cc_emails else None,
+        metadata=request.metadata,
+        action_url=request.action_url,
+        action_label=request.action_label,
+        triggered_by_name=caller_name,
+    )
 
 @router.post(
     "/interview/invite/{interview_id}",
