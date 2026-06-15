@@ -272,9 +272,20 @@ def get_my_offers(
     offer_responses = []
     for offer in offers:
         c = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
-        offer_responses.append(_build_offer_response(offer, c))
+        resp = _build_offer_response(offer, c)
+
+        # ── Always generate a fresh download link so the 24-hour expiry
+        #    on SharePoint pre-signed URLs is never a problem ────────────────
+        if offer.sharepoint_path:
+            try:
+                resp.download_url = get_file_download_link(offer.sharepoint_path)
+            except Exception:
+                pass  # Keep whatever URL is already in resp rather than breaking the list
+
+        offer_responses.append(resp)
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
+
 
 
 # ============================================
