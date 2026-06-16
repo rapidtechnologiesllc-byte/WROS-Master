@@ -50,7 +50,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SignatureModal from "../components/ui/SignatureModal";
 import { getHrAssignmentByCandidate } from "../services/api/users";
-import { sendPlainEmail } from "../services/api/email";
+import { sendEventNotification } from "../services/api/email";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -270,29 +270,21 @@ export default function CandidateSelfService({ onLogout }) {
       const candidateId = profile?.candidate_id;
       if (!candidateId) return;
       const assignment = await getHrAssignmentByCandidate(candidateId);
-      const hrEmail = assignment?.hr1?.user_email;
-      if (!hrEmail) return;
+      const hr = assignment?.hr1;
+      if (!hr?.user_email) {
+        console.warn("No HR email found for candidate");
+        return;
+      }
       const candidateName = profile?.candidate_name || "Candidate";
-      await sendPlainEmail({
-        toEmail: hrEmail,
-        subject: "Action Required: Candidate Document Uploaded",
-        bodyContent: `
-Hello ${assignment?.hr1?.user_name || "HR"},
-
-A candidate has uploaded a document that requires your review and verification.
-
-Candidate Information
-• Name: ${candidateName}
-
-Uploaded Document
-• ${documentName}
-
-Please review and verify the uploaded document in the HRMS portal at your earliest convenience.
-
-Thank you,
-BlitzenX HRMS Team
-  `,
-        isHtml: false,
+      await sendEventNotification({
+        toEmail: hr.user_email,
+        recipientName: hr.user_name,
+        heading: "Candidate Document Uploaded",
+        message: `${candidateName} has uploaded ${documentName} for verification.`,
+        metadata: {
+          Candidate: candidateName,
+          Document: documentName,
+        },
       });
     } catch (error) {
       console.error("Failed to notify assigned HR", error);
@@ -982,9 +974,8 @@ BlitzenX HRMS Team
             {checklistList.length ? (
               <>
                 <p className="mb-3 text-sm text-slate-600">
-                  Complete assigned tasks. Queue steps unlock in order.
+                  Complete assigned tasks.
                 </p>
-
                 <div className="space-y-4">
                   {checklistList.map((cl) => (
                     <div key={cl.id} className="rounded-xl border bg-white p-3">
@@ -992,13 +983,6 @@ BlitzenX HRMS Team
                         <div className="font-semibold text-slate-900">
                           {cl.template_name || `Checklist ${cl.id}`}
                         </div>
-                        <StatusBadge
-                          status={
-                            cl.status === "completed"
-                              ? "Completed"
-                              : "Scheduled"
-                          }
-                        />
                       </div>
 
                       <ul className="space-y-2">
@@ -1029,57 +1013,12 @@ BlitzenX HRMS Team
                                       {item.description}
                                     </div>
                                   ) : null}
-                                  <div className="mt-1">
-                                    <StatusBadge status={item.status} />
-                                  </div>
                                   {waitingQueue ? (
                                     <div className="mt-1 text-xs text-amber-700">
                                       Awaiting previous step
                                     </div>
                                   ) : null}
                                 </div>
-
-                                {item.status !== "completed" ? (
-                                  <Button
-                                    variant="secondary"
-                                    onClick={async () => {
-                                      clearNotice();
-                                      setChecklistCompletingId(item.id);
-
-                                      try {
-                                        await candidateCompleteChecklistItem(
-                                          item.id,
-                                        );
-                                        const refreshed =
-                                          await getMyChecklists();
-                                        setMyChecklistsPayload(refreshed);
-                                        showNotice(
-                                          "Task marked complete.",
-                                          "success",
-                                        );
-                                      } catch (err) {
-                                        showNotice(
-                                          err.message ||
-                                            "Could not complete task.",
-                                        );
-                                      } finally {
-                                        setChecklistCompletingId(null);
-                                      }
-                                    }}
-                                    disabled={
-                                      !actionable ||
-                                      checklistCompletingId === item.id
-                                    }
-                                  >
-                                    {checklistCompletingId === item.id
-                                      ? "Saving…"
-                                      : "Mark Complete"}
-                                  </Button>
-                                ) : (
-                                  <span className="text-xs font-semibold text-green-700">
-                                    Done
-                                  </span>
-                                )}
                               </li>
                             );
                           })}
