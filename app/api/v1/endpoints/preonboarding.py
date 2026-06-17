@@ -94,8 +94,8 @@ def _assign_preboarding_checklist(
 
     if employee_type == "intern":
         template_name = "Intern Document Collection"
-    elif employee_type == "guidewire":
-        template_name = "Guidewire Document Collection"
+    elif employee_type == "guidewire employee":
+        template_name = "Experience Document Collection"
     elif employee_type == "full time employee":
         template_name = "Experience Document Collection"
     else:
