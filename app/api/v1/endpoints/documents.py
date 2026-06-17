@@ -199,6 +199,15 @@ async def upload_bank_statement(
     """Upload bank statement to SharePoint with database tracking."""
     return await _upload_document_helper(file, "bank_statement", user, db)
 
+@router.post("/upload/uan-pf", response_model=DocumentUploadResponse)
+async def upload_uan_pf(
+    file: UploadFile = File(..., description="UAN-PF file (PDF, JPG, PNG)"),
+    user = Depends(get_current_candidate),
+    db: Session = Depends(get_db)
+):
+    """Upload UAN-PF to SharePoint with database tracking."""
+    return await _upload_document_helper(file, "uan_pf", user, db)
+
 
 # ============================================
 # Candidate Self-Service Document Endpoint

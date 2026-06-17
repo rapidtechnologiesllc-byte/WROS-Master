@@ -360,6 +360,8 @@ class OfferLetterCreateRequest(BaseModel):
     offer_expire_date: date
 
 class OfferLetterUpdateRequest(BaseModel):
+    # ── Core offer fields ─────────────────────────────────────────────────────
+    candidate_id: Optional[str] = None
     job_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     reporting_manager_id: Optional[str] = None
@@ -367,6 +369,21 @@ class OfferLetterUpdateRequest(BaseModel):
     salary: Optional[str] = None
     joining_date: Optional[date] = None
     offer_expire_date: Optional[date] = None
+
+    # ── Status overrides (HR manual control) ─────────────────────────────────
+    offer_status: Optional[str] = None
+    candidate_response: Optional[str] = None
+    responded_at: Optional[datetime] = None
+
+    # ── Document links (manual correction / re-generation) ───────────────────
+    sharepoint_url: Optional[str] = None
+    download_url: Optional[str] = None
+    sharepoint_path: Optional[str] = None
+
+    # ── Approval workflow fields ──────────────────────────────────────────────
+    approval_status: Optional[str] = None
+    approval_notes: Optional[str] = None
+
 
 class OfferLetterResponse(BaseModel):
     id: int
