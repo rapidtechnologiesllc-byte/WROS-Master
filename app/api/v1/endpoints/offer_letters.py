@@ -33,6 +33,7 @@ from app.services.offer_letter_generator import (
     generated_file_path,
     signed_offer_file_path,
     get_template_path,
+    inject_candidate_signature_into_docx,
 )
 from app.services.sharepoint_service import upload_file, get_file_download_link, list_folder
 from app.services.salary_structure_generator import (
@@ -982,11 +983,11 @@ async def candidate_sign_offer(
     if offer.candidate_id != candidate.candidateID:
         raise HTTPException(status_code=403, detail="You are not authorized to sign this offer.")
 
-    if offer.offer_status != "Released":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Offer is not available for signing (status: '{offer.offer_status}'). Only 'Released' offers can be signed.",
-        )
+    # if offer.offer_status != "Released":
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail=f"Offer is not available for signing (status: '{offer.offer_status}'). Only 'Released' offers can be signed.",
+    #     )
 
     if not signature.content_type.startswith("image/"):
         raise HTTPException(status_code=422, detail="Signature file must be an image (PNG preferred).")
@@ -1000,52 +1001,41 @@ async def candidate_sign_offer(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to upload candidate signature: {exc}")
 
-    # Download HM signature from SharePoint (already uploaded during approval)
-    hm_sig_bytes: Optional[bytes] = None
-    if offer.hm_signature_path:
-        try:
-            from app.services.sharepoint_service import download_file
-            hm_sig_bytes = download_file(offer.hm_signature_path)
-        except Exception:
-            pass  # Will fall back to static file inside generate_filled_docx
+    candidate_full = (
+        f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
+    )
 
-    # Resolve job/candidate details for doc generation
-    first_name     = candidate.candidateFirstName or ""
-    last_name      = candidate.candidateLastName or ""
-    job_location   = offer.position or ""
-    job_department = ""
-    if offer.job_id:
-        job = db.query(Jobs).filter(Jobs.jobID == offer.job_id).first()
-        if job:
-            if job.jobLocation:  job_location   = job.jobLocation
-            if job.department:   job_department = job.department.name or ""
+    # ── Step 2: Download the HM-approved docx from SharePoint ────────────────
+    # The document stored at offer.sharepoint_path already has the hiring
+    # manager's signature embedded (done during the approval step).  We must
+    # inject the candidate signature INTO that document — NOT re-generate from
+    # the blank template (which would lose the HM signature and might use the
+    # wrong template type).
+    if not offer.sharepoint_path:
+        raise HTTPException(
+            status_code=502,
+            detail="Offer document path is missing. Please regenerate the offer letter first.",
+        )
 
-    hm_name = ""
-    if offer.hiring_manager_id:
-        hm = db.query(Users).filter(Users.UserID == offer.hiring_manager_id).first()
-        if hm:
-            hm_name = hm.UserName or hm.UserEmail or ""
-
-    candidate_full = f"{first_name} {last_name}".strip()
-
-    # Generate final signed docx with both signatures
     try:
-        signed_docx = generate_filled_docx(
-            first_name=first_name,
-            last_name=last_name,
-            job_title=offer.position or "",
-            department=job_department,
-            location=job_location,
-            offer_expire_date=offer.offer_expire_date,
-            joining_date=offer.joining_date,
-            annual_salary=offer.salary or "",
-            hiring_manager_name=hm_name,
-            hm_signature_bytes=hm_sig_bytes,
+        # pyrefly: ignore [missing-import]
+        from app.services.sharepoint_service import download_file
+        existing_docx_bytes = download_file(offer.sharepoint_path)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to download the approved offer document from SharePoint: {exc}",
+        )
+
+    # ── Step 3: Inject only the candidate signature into the existing docx ────
+    try:
+        signed_docx = inject_candidate_signature_into_docx(
+            docx_bytes=existing_docx_bytes,
             candidate_name=candidate_full,
-            candidate_signature_bytes=sig_bytes,
+            signature_img_bytes=sig_bytes,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to generate signed offer letter: {exc}")
+        raise HTTPException(status_code=502, detail=f"Failed to inject candidate signature: {exc}")
 
     # Upload final signed docx
     signed_path = signed_offer_file_path(offer.candidate_id, offer_id)

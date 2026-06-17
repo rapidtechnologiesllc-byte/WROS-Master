@@ -455,49 +455,61 @@ def _inject_candidate_signature(
     width_inches: float = 1.5,
 ) -> None:
     """
-    Find the paragraph containing {{Signature CandidateSignature}},
+    Find **all** paragraphs containing ``{{Signature CandidateSignature}}``,
     clear the placeholder text, and insert the candidate's signature image
-    inline.  Falls back to a "Signed by <name>" label if no image is supplied.
+    inline in each one.  Falls back to a "Signed by <name>" label if no
+    image is supplied.
+
+    NOTE: The template may contain the placeholder more than once (e.g. once
+    in the body and once in a signature table).  All occurrences are replaced.
     """
     placeholder = "{{Signature CandidateSignature}}"
+    found_count = 0
 
-    def _process_para(para) -> bool:
+    def _process_para(para) -> None:
+        nonlocal found_count
         full_text = "".join(run.text for run in para.runs)
         if placeholder not in full_text:
-            return False
+            return
 
+        # Clear all runs so the raw placeholder text disappears
         for run in para.runs:
             run.text = ""
 
         if signature_img_bytes:
             run = para.add_run()
             run.add_picture(io.BytesIO(signature_img_bytes), width=Inches(width_inches))
-            logger.info(
-                "offer_letter_generator — candidate signature image injected"
-            )
         else:
             # Fallback: candidate name as plain text
             para.add_run(f"Signed by: {candidate_name}" if candidate_name else "Candidate Signature")
-            logger.warning(
-                "offer_letter_generator — candidate signature image unavailable; "
-                "falling back to plain-text label"
-            )
-        return True
 
+        found_count += 1
+
+    # Search top-level paragraphs — replace every match (do NOT return early)
     for para in doc.paragraphs:
-        if _process_para(para):
-            return
+        _process_para(para)
 
+    # Search inside table cells — replace every match (do NOT return early)
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for para in cell.paragraphs:
-                    if _process_para(para):
-                        return
+                    _process_para(para)
 
-    logger.warning(
-        "offer_letter_generator — {{Signature CandidateSignature}} placeholder not found"
-    )
+    if found_count == 0:
+        logger.warning(
+            "offer_letter_generator — {{Signature CandidateSignature}} placeholder not found"
+        )
+    elif signature_img_bytes:
+        logger.info(
+            f"offer_letter_generator — candidate signature image injected "
+            f"into {found_count} location(s)"
+        )
+    else:
+        logger.warning(
+            f"offer_letter_generator — candidate signature image unavailable; "
+            f"fell back to plain-text label in {found_count} location(s)"
+        )
 
 
 
@@ -699,3 +711,38 @@ def generated_file_path(candidate_id: str, offer_id: int) -> str:
 def signed_offer_file_path(candidate_id: str, offer_id: int) -> str:
     """Return the SharePoint path where the fully-signed offer letter will be saved."""
     return f"{GENERATED_FOLDER}/{candidate_id}/offer_{offer_id}_signed.docx"
+
+
+def inject_candidate_signature_into_docx(
+    docx_bytes: bytes,
+    candidate_name: str,
+    signature_img_bytes: Optional[bytes],
+    width_inches: float = 1.5,
+) -> bytes:
+    """
+    Take an already-generated `.docx` (e.g. the HM-approved version stored on
+    SharePoint) and inject the candidate's signature image into the
+    ``{{Signature CandidateSignature}}`` placeholder **without re-generating
+    the whole document from the template**.
+
+    This preserves the hiring-manager signature that was already embedded
+    during the approval step.
+
+    Args:
+        docx_bytes:          Raw bytes of the existing `.docx` file.
+        candidate_name:      Candidate full name (used as fallback label if no
+                             signature image is available).
+        signature_img_bytes: PNG bytes of the candidate's hand-written signature.
+        width_inches:        Width of the signature image in the document.
+
+    Returns:
+        Bytes of the updated `.docx` with the candidate signature injected.
+    """
+    doc = Document(io.BytesIO(docx_bytes))
+    _inject_candidate_signature(doc, candidate_name, signature_img_bytes, width_inches)
+
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    logger.info("offer_letter_generator — candidate signature injected into existing docx")
+    return output.read()
