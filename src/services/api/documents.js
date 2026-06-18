@@ -1,5 +1,9 @@
 // Document upload helpers (resume and candidate documents).
-import { getApiBaseUrl, apiRequest, maybeRedirectOnUnauthorized } from "./client";
+import {
+  getApiBaseUrl,
+  apiRequest,
+  maybeRedirectOnUnauthorized,
+} from "./client";
 
 const _uploadDocument = async (path, file, token) => {
   if (!file) throw new Error("File is required.");
@@ -9,7 +13,7 @@ const _uploadDocument = async (path, file, token) => {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: formData
+    body: formData,
   });
 
   let data = null;
@@ -31,12 +35,13 @@ const _uploadDocument = async (path, file, token) => {
 };
 
 export const uploadResume = async ({ candidateId, file }) => {
-  if (!candidateId) throw new Error("Candidate ID is required for resume upload.");
+  if (!candidateId)
+    throw new Error("Candidate ID is required for resume upload.");
   const token = localStorage.getItem("hrms_token");
   return _uploadDocument(
     `/documents/upload/resume?candidate_id=${encodeURIComponent(candidateId)}`,
     file,
-    token
+    token,
   );
 };
 
@@ -69,21 +74,30 @@ export const uploadBankStatement = async (file) => {
   const token = localStorage.getItem("hrms_token");
   return _uploadDocument("/documents/upload/bank-statement", file, token);
 };
+export const uploadUanPfDocument = async (file) => {
+  const token = localStorage.getItem("hrms_token");
+  return _uploadDocument("/documents/upload/uan-pf", file, token);
+};
 
 export const getCandidateDocuments = async (candidateId) => {
   const { data } = await apiRequest(`/documents/candidate/${candidateId}`, {
-    method: "GET"
+    method: "GET",
   });
   return data;
 };
 
-export const verifyDocument = async (candidateId, documentType, isVerified, notes) => {
+export const verifyDocument = async (
+  candidateId,
+  documentType,
+  isVerified,
+  notes,
+) => {
   const params = new URLSearchParams();
   params.set("is_verified", String(isVerified));
   if (notes) params.set("notes", notes);
   const { data } = await apiRequest(
     `/documents/verify/${candidateId}/${documentType}?${params.toString()}`,
-    { method: "PATCH" }
+    { method: "PATCH" },
   );
   return data;
 };
@@ -95,7 +109,7 @@ export const getMyDocuments = async () => {
     allow404: true,
     // Some environments still gate this endpoint with HR-only permission.
     // Treat 401 as "no documents yet" so candidate portal does not auto-logout.
-    allowStatuses: [401]
+    allowStatuses: [401],
   });
   return data;
 };
@@ -108,8 +122,8 @@ export const viewDocument = async (documentId) => {
     `${getApiBaseUrl()}/documents/${encodeURIComponent(documentId)}/view`,
     {
       method: "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined
-    }
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
   );
 
   if (!response.ok) {
@@ -127,6 +141,7 @@ export const viewDocument = async (documentId) => {
   }
 
   const blob = await response.blob();
-  const contentType = response.headers.get("content-type") || "application/octet-stream";
+  const contentType =
+    response.headers.get("content-type") || "application/octet-stream";
   return { blob, contentType };
 };
