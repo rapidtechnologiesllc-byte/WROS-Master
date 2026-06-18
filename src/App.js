@@ -21,6 +21,7 @@ import JobWorkspaceScreen from "./screens/JobWorkspaceScreen";
 import MatchingJobs from "./screens/MatchingJobs";
 import NewsletterScreen from "./screens/NewsletterScreen";
 import OfferScreen from "./screens/OfferScreen";
+import OfferLettersScreen from "./screens/OfferLettersScreen";
 import PreOnboarding from "./screens/PreOnboardingOld";
 import PreOnboardingPage from "./screens/PreOnboarding";
 import ChecklistTemplatesScreen from "./screens/ChecklistTemplatesScreen";
@@ -833,6 +834,7 @@ export default function App() {
       )}
 
       {screen === "hrUsers" && <HrUserManagement />}
+      {screen === "offerLetters" && <OfferLettersScreen />}
 
       {screen === "jobWorkspace" && selectedJob && (
         <>
