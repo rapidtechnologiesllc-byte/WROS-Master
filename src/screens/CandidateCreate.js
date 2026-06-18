@@ -375,7 +375,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!email.trim()) newErrors.email = "Email is required.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      setActionNotice("Please fill all required fields.");
+      toast.error(Object.values(newErrors)[0]);
       return;
     }
     const filledEducationRows = educationRows.filter((row) =>
@@ -527,7 +527,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice(nextNotice);
       return createdCandidate;
     } catch (err) {
-      setActionNotice(err.message || "Failed to create candidate.");
+      toast.error(err.message || "Failed to create candidate.");
     } finally {
       setIsSaving(false);
     }
