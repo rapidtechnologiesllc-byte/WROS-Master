@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Label, SectionTitle } from "../styles/Pre-onboardingModal";
 import { getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../App";
 import { Select } from "antd";
 import { Card } from "../components/ui";
 import { Table as AntTable } from "antd";
@@ -34,6 +33,7 @@ import {
 import RejectModal from "../components/ui/RejectModal";
 import { updateCandidateStatus } from "../services/api/candidates";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
+import { mapJobFromApi } from "../routes/Approutes";
 
 const OfferListing = () => {
   const [jobs, setJobs] = useState([]);

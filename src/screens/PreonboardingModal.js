@@ -49,7 +49,6 @@ import SalaryModal from "./SalaryModal";
 import BonusModal from "./BonusModal";
 import { DownOutlined } from "@ant-design/icons";
 import { getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../App";
 import { departmentList, listBusinessUnits } from "../services/api/rbac";
 import {
   approveOfferLetter,
@@ -66,6 +65,7 @@ import { sendMailAttachments } from "../services/api/email";
 import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 import SignatureModal from "../components/ui/SignatureModal";
 import { dayjs } from "dayjs";
+import { mapJobFromApi } from "../routes/Approutes";
 
 const PreonboardingModal = ({
   fullName,

@@ -197,3 +197,10 @@ export const getCandidateApplications = async (candidateId) => {
   );
   return data;
 };
+
+export const getJobById = async (jobId) => {
+  const { data } = await apiRequest(`/jobs/job-details/${jobId}`, {
+    method: "GET",
+  });
+  return data;
+};

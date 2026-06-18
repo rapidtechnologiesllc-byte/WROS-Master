@@ -2,6 +2,8 @@
 import { Briefcase, Plus } from "lucide-react";
 import { Button, Card, StatusBadge, Table } from "../components/ui";
 import TableView from "../components/ui/TableView";
+import { useNavigate } from "react-router-dom";
+import { ROUTES } from "../utils/Routes";
 
 export default function JobsOverview({
   jobs,
@@ -16,6 +18,7 @@ export default function JobsOverview({
   const canApprove = Boolean(onApproveJob);
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;
+  const navigate = useNavigate();
 
   return (
     <div className="grid gap-4">
@@ -23,7 +26,7 @@ export default function JobsOverview({
         title="Jobs"
         icon={<Briefcase className="h-4 w-4" />}
         right={
-          <Button onClick={onCreate}>
+          <Button onClick={() => navigate(ROUTES.JOB_CREATE)}>
             <Plus className="h-4 w-4" /> Create Job
           </Button>
         }
