@@ -18,6 +18,7 @@ import { assignJob, getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { useNavigate } from "react-router-dom";
 
 export default function CandidateCreate({ onBack, onSave }) {
   const [candidateRole, setCandidateRole] = useState("");
@@ -52,6 +53,7 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
   const [employeeType, setEmployeeType] = useState("");
+  const navigate = useNavigate();
 
   const clearFieldError = (field) => {
     setErrors((prev) => {
@@ -582,7 +584,10 @@ export default function CandidateCreate({ onBack, onSave }) {
         title="Create Candidate"
         icon={<Users className="h-4 w-4" />}
         right={
-          <Button variant="ghost" onClick={onBack}>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/candidates")}
+          >
             Back
           </Button>
         }

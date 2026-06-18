@@ -18,18 +18,22 @@ import {
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
+import { ROUTES } from "../utils/Routes";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 
 export default function Shell({
   role,
   screen,
   setScreen,
   onLogout,
-  children,
   candidates = [],
   jobs = [],
   setSelectedCandidateData,
   setSelectedJobId,
 }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const normalizedRole = String(role || "")
     .trim()
     .toUpperCase();
@@ -42,32 +46,105 @@ export default function Shell({
   const isHiringManager = normalizedRole === "HIRING MANAGER";
   const isHrOperations = normalizedRole === "HR OPERATIONS";
   const nav = useMemo(() => {
-    if (isHiringManager || isHR_Manager) {
+    if (isSuperUser) {
       return [
-        { id: "candidateSearch", label: "Candidates", icon: Users },
-        ...(isHR_Manager
-          ? [
-              {
-                id: "offerListing",
-                label: "Offer Letters",
-                icon: FileTextIcon,
-              },
-            ]
-          : []),
+        {
+          path: ROUTES.DASHBOARD,
+          label: "Dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          path: ROUTES.CANDIDATES,
+          label: "Candidates",
+          icon: Users,
+        },
+        {
+          path: ROUTES.JOBS,
+          label: "Jobs",
+          icon: Briefcase,
+        },
+        {
+          path: ROUTES.RBAC,
+          label: "RBAC Settings",
+          icon: Shield,
+        },
+        {
+          path: ROUTES.HR_USERS,
+          label: "HR Users",
+          icon: Users,
+        },
+      ];
+    }
+    if (isAdmin) {
+      return [
+        {
+          path: ROUTES.DASHBOARD,
+          label: "Dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          path: ROUTES.CANDIDATES,
+          label: "Candidates",
+          icon: Users,
+        },
+        {
+          path: ROUTES.JOBS,
+          label: "Jobs",
+          icon: Briefcase,
+        },
+        {
+          path: ROUTES.RBAC,
+          label: "RBAC Settings",
+          icon: Shield,
+        },
+        {
+          path: ROUTES.HR_USERS,
+          label: "HR Users",
+          icon: Users,
+        },
+      ];
+    }
+    if (isHR_Manager) {
+      return [
+        {
+          path: ROUTES.CANDIDATES,
+          label: "Candidates",
+          icon: Users,
+        },
+        {
+          path: ROUTES.OFFERS_LISTING,
+          label: "Offer Letters",
+          icon: FileTextIcon,
+        },
+      ];
+    }
+    if (isHiringManager) {
+      return [
+        {
+          path: ROUTES.CANDIDATES,
+          label: "Candidates",
+          icon: Users,
+        },
+      ];
+    }
+    if (isHrOperations) {
+      return [
+        {
+          path: ROUTES.CANDIDATES,
+          label: "Candidates",
+          icon: Users,
+        },
       ];
     }
 
-    const items = [
-      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { id: "candidateSearch", label: "Candidates", icon: Users },
-      { id: "jobs", label: "Jobs", icon: Briefcase },
+    return [
+      {
+        path: ROUTES.DASHBOARD,
+        label: "Dashboard",
+        icon: LayoutDashboard,
+      },
     ];
-    if (isAdmin || isSuperUser) {
-      items.push({ id: "rbac", label: "RBAC Settings", icon: Shield });
-      items.push({ id: "hrUsers", label: "HR Users", icon: Users });
-    }
-    return items;
-  }, [isAdmin, isSuperUser, isHR_Manager]);
+  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -84,11 +161,11 @@ export default function Shell({
             <nav className="space-y-1">
               {nav.map((n) => {
                 const Icon = n.icon;
-                const active = screen === n.id;
+                const active = location.pathname === n.path;
                 return (
                   <button
-                    key={n.id}
-                    onClick={() => setScreen(n.id)}
+                    key={n.path}
+                    onClick={() => navigate(n?.path)}
                     className={cx(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
                       active ? "bg-gray-900 text-white" : "hover:bg-gray-100",
@@ -114,7 +191,9 @@ export default function Shell({
             setSelectedCandidateData={setSelectedCandidateData}
             setSelectedJobId={setSelectedJobId}
           />
-          <div className="mt-4">{children}</div>
+          <div className="mt-4">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

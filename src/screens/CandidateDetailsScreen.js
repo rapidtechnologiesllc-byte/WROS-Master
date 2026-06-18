@@ -1428,6 +1428,7 @@ ${formattedJD}
             candidate={candidate}
             onClose={() => setEditModalOpen(false)}
             onUpdateCandidate={onUpdateCandidate}
+            onRefreshCandidates={onRefreshCandidates}
           />
         )}
         {showNoteModal && (
