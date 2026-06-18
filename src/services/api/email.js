@@ -92,3 +92,24 @@ export const sendLoginCredentials = async (candidateId) => {
   });
   return data;
 };
+export const sendEventNotification = async ({
+  toEmail,
+  recipientName,
+  heading,
+  message,
+  metadata = {},
+}) => {
+  const { data } = await apiRequest("/email/notify/event", {
+    method: "POST",
+    body: JSON.stringify({
+      to_email: toEmail,
+      recipient_name: recipientName,
+      event_type: "document_uploaded",
+      heading,
+      message,
+      metadata,
+    }),
+  });
+
+  return data;
+};

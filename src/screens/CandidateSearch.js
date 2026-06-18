@@ -415,13 +415,13 @@ export default function CandidateSearch({
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
+                {/* <Button
                   variant="secondary"
                   onClick={onMatchingJobs}
                   className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
                 >
                   Show Matching Jobs
-                </Button>
+                </Button> */}
 
                 <Button
                   onClick={onCreateCandidate}
