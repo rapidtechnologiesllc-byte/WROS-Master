@@ -39,6 +39,7 @@ import {
   uploadExperienceLetter,
   uploadSalarySlip,
   uploadBankStatement,
+  uploadUanPfDocument,
   getMyDocuments,
 } from "../services/api/documents";
 import { getActiveJobs, applyForJob } from "../services/api/jobs";
@@ -62,7 +63,7 @@ const DOC_LABELS = {
   experience: "Experience Letter",
   salary_slip: "Salary Slip",
   bank_statement: "Bank Statement",
-  uan: "UAN / PF Document",
+  // uan: "UAN / PF Document",
 };
 
 function canCandidateCompleteItem(item) {
@@ -421,13 +422,6 @@ export default function CandidateSelfService({ onLogout }) {
     name_in_pan: "",
     father_name_in_pan: "",
     pan_is_submitted: false,
-    submitted_at: today(),
-    is_verified: false,
-  });
-  const [uan, setUan] = useState({
-    uan_number: "",
-    pf_number: "",
-    uan_is_submitted: false,
     submitted_at: today(),
     is_verified: false,
   });
@@ -1711,56 +1705,15 @@ export default function CandidateSelfService({ onLogout }) {
         </Card>
         <Card
           title="UAN / PF Details"
-          subtitle="Please provide your UAN Number or PF Details."
+          subtitle="Please upload your UAN / PF document for verification."
         >
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="UAN Number"
-              value={uan.uan_number}
-              onChange={(v) => setUan((u) => ({ ...u, uan_number: v }))}
-            />
-            <Input
-              label="PF Number"
-              value={uan.pf_number}
-              onChange={(v) => setUan((u) => ({ ...u, pf_number: v }))}
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={uan.uan_is_submitted}
-                onChange={(e) =>
-                  setUan((u) => ({
-                    ...u,
-                    uan_is_submitted: e.target.checked,
-                  }))
-                }
-              />
-              UAN Submitted
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={uan.is_verified}
-                onChange={(e) =>
-                  setUan((u) => ({
-                    ...u,
-                    is_verified: e.target.checked,
-                  }))
-                }
-              />
-              UAN Verified
-            </label>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={() => {
-                showNotice("UAN Details Saved.", "success");
-              }}
-            >
-              Save UAN
-            </Button>
-          </div>
+          <DocumentUploadRow
+            label="UAN / PF Document"
+            onUpload={(file) =>
+              handleUpload(uploadUanPfDocument, "UAN / PF Document", file)
+            }
+            disabled={loading || uploadingType === "UAN / PF Document"}
+          />
         </Card>
         <Card
           title="Bank Statements"
