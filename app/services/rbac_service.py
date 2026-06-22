@@ -153,48 +153,59 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
         "candidate.view", "candidate.edit", "job.view", "job.create", "job.edit",
         "job.approve", "pipeline.move", "interview.feedback",
         "offer.manage", "employee.view", "employee.edit","document.verify",
-        "interview.manage","interview.view","newsletter.view","document.view"
+        "interview.manage","interview.view","newsletter.view","document.view","history.create","rbac.manage",
     ],
     "Hiring Manager": [
-        "candidate.view", "job.view", "interview.feedback","offer.manage","offer.view",
-        "interview.manage","interview.view","newsletter.view","document.view","document.verify"
+        "candidate.view", "job.view", "interview.feedback","offer.manage","offer.view","candidate.edit",
+        "interview.manage","interview.view","newsletter.view","document.view","document.verify","history.create"
     ],
     "HR Manager": [
         "candidate.view", "candidate.edit", "employee.view", "employee.edit",
-        "user.manage", "newsletter.manage","newsletter.view","document.view","document.verify"
+        "user.manage", "newsletter.manage","newsletter.view","document.view","document.verify",
+        "history.create","interview.feedback","offer.manage","offer.view","interview.manage","interview.view"
+
     ],
     "HR Operations": [
-        "candidate.view", "candidate.edit", "employee.view","newsletter.view","document.view","document.verify"
+        "candidate.view", "candidate.edit", "employee.view",
+        "newsletter.view","document.view","document.verify","history.create",
+        "interview.feedback","offer.manage","offer.view","interview.manage","interview.view"
     ],
     "HRBP": [
-        "candidate.view", "candidate.edit","newsletter.view","document.view","document.verify"
+        "candidate.view", "candidate.edit","newsletter.view",
+        "document.view","document.verify","history.create","rbac.manage",
+        "interview.feedback","offer.manage","offer.view","interview.manage","interview.view"
     ],
     "Recruitment Manager": [
         "candidate.view", "candidate.create", "candidate.edit",
         "job.view", "job.create", "job.edit",
         "pipeline.move", "interview.feedback",
         "offer.manage", "offer.view",
-        "interview.manage","interview.view","newsletter.view","document.view","document.verify"
+        "interview.manage","interview.view","newsletter.view",
+        "document.view","document.verify","history.create"
     ],
     "Recruitment Team Lead": [
         "candidate.view", "candidate.create", "candidate.edit",
         "job.view", "pipeline.move", "interview.feedback",
         "offer.manage", "offer.view",
-        "interview.manage","interview.view","newsletter.view","document.view","document.verify"
+        "interview.manage","interview.view","newsletter.view","document.view",
+        "document.verify","history.create"
     ],
     "Recruiter": [
         "candidate.view", "candidate.create", "candidate.edit",
         "job.view", "pipeline.move", "interview.feedback",
         "offer.manage", "offer.view",
-        "interview.manage","interview.view","newsletter.view","document.view","document.verify"
+        "interview.manage","interview.view","newsletter.view","document.view",
+        "document.verify","history.create"
     ],
     "Employee": [
-        "job.view","newsletter.view","candidate.view","interview.view","interview.feedback","document.view"
+        "job.view","newsletter.view","candidate.view","interview.view",
+        "interview.feedback","document.view",
     ],
     "Consultant": [
-        "job.view","newsletter.view","document.view"
+        "job.view","newsletter.view","document.view","history.create",
+        "interview.feedback"
     ],
-    "Candidate": [],
+    "Candidate": ["history.create"],
 }
 
 
