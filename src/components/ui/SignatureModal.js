@@ -2,7 +2,13 @@ import React, { useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { toast } from "react-toastify";
 
-const SignatureModal = ({ isOpen, onClose, onSave, loading }) => {
+const SignatureModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  loading,
+  submitButtonText = "Save Signature and Release",
+}) => {
   const sigCanvas = useRef(null);
   const [signatureType, setSignatureType] = useState("draw");
   const [typedSignature, setTypedSignature] = useState("");
@@ -90,7 +96,7 @@ const SignatureModal = ({ isOpen, onClose, onSave, loading }) => {
               loading ? "bg-blue-300 cursor-not-allowed" : "bg-blue-500"
             }`}
           >
-            {loading ? "Processing..." : "Save Signature and Release"}
+            {loading ? "Processing..." : submitButtonText}
           </button>
         </div>
       </div>
