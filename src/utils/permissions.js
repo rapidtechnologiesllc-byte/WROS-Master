@@ -27,6 +27,10 @@ export const canAccessFullHrms = ({ role }) => {
   return isSuperUserRole(role);
 };
 
-export const canAccessMyWorkspace = ({ role, userType }) => {
-  return !canAccessFullHrms({ role }) && !isCandidateUser({ role, userType });
+export const canAccessMyWorkspace = ({ permissionRole }) => {
+  return (
+    String(permissionRole || "")
+      .trim()
+      .toLowerCase() === "employee"
+  );
 };
