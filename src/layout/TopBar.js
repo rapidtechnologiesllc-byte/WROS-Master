@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Settings, Eye, EyeOff, Search } from "lucide-react";
 import { Button } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
+import { useNavigate } from "react-router-dom";
+import { ROUTES } from "../utils/Routes";
 
 export default function TopBar({
   role,
@@ -25,6 +27,7 @@ export default function TopBar({
   const [showSearchResults, setShowSearchResults] = useState(false);
   const dropdownRef = useRef(null);
   const searchRef = useRef(null);
+  const navigate = useNavigate();
 
   const toggleProfile = () => setIsOpen(!isOpen);
   useEffect(() => {
@@ -188,8 +191,7 @@ export default function TopBar({
                         <button
                           key={candidate.id}
                           onClick={() => {
-                            setSelectedCandidateData(candidate);
-                            setScreen("candidateDetails");
+                            navigate(`/candidates/${candidate.id}`);
                             setShowSearchResults(false);
                             setSearchTerm("");
                           }}
@@ -223,8 +225,7 @@ export default function TopBar({
                         <button
                           key={job.id}
                           onClick={() => {
-                            setSelectedJobId(job.id);
-                            setScreen("jobWorkspace");
+                            navigate(`/jobs/${job.id}/workspace`);
                             setShowSearchResults(false);
                             setSearchTerm("");
                           }}
