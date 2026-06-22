@@ -503,19 +503,8 @@ export default function JobWorkspaceScreen({
                   candidate: (
                     <button
                       className="font-semibold text-blue-700 hover:underline"
-                      onClick={async () => {
+                      onClick={() => {
                         onOpenCandidate?.(c.id);
-                        let finalCandidate = c;
-                        if (onFetchCandidateById) {
-                          try {
-                            const fresh = await onFetchCandidateById(c.id);
-                            if (fresh) {
-                              finalCandidate = fresh;
-                            }
-                          } catch (err) {}
-                        }
-                        setSelectedCandidate(finalCandidate);
-                        setScreen("candidateDetails");
                       }}
                     >
                       {c.name}
@@ -546,7 +535,6 @@ export default function JobWorkspaceScreen({
                             className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
                             onClick={() => {
                               setSelectedCandidateId(c?.id);
-                              setSelectedCandidate(c);
                               setCandidateDetailsDefaultTab?.("profile");
                               setAutoOpenSchedule?.(true);
                               setScreen("candidateDetails");
