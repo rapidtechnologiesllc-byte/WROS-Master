@@ -9,28 +9,25 @@ import {
   Col,
   Statistic,
   Select,
+  Drawer,
+  Button,
 } from "antd";
-import styled from "styled-components";
+
 import { getAllOffers } from "../services/api/offerLetters";
+import {
+  FiltersContainer,
+  PageContainer,
+  StatsContainer,
+} from "../styles/OfferLetterStyles";
 const { Search } = Input;
-const PageContainer = styled.div`
-  padding: 24px;
-`;
-const FiltersContainer = styled.div`
-  display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-`;
-const StatsContainer = styled.div`
-  margin-bottom: 20px;
-`;
 
 function OfferLettersScreen() {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
 
   useEffect(() => {
     loadOffers();
@@ -66,40 +63,83 @@ function OfferLettersScreen() {
       rejected: (counts.Rejected || 0) + (counts.Cancelled || 0),
     };
   }, [offers]);
-  const filteredOffers = useMemo(() => {
-    let filtered = [...offers];
+  const candidateRows = useMemo(() => {
+    const groupedCandidates = {};
+
+    offers?.forEach((offer) => {
+      const candidateId = offer?.candidate_id;
+
+      if (!candidateId) return;
+
+      if (!groupedCandidates[candidateId]) {
+        groupedCandidates[candidateId] = {
+          candidate_id: candidateId,
+          candidate_name: offer?.candidate_name,
+          candidate_email: offer?.candidate_email,
+          offers: [],
+        };
+      }
+
+      groupedCandidates[candidateId]?.offers?.push(offer);
+    });
+
+    let candidates = Object.values(groupedCandidates);
+
+    candidates = candidates.map((candidate) => {
+      const latestOffer = [...candidate.offers].sort(
+        (a, b) => new Date(b?.created_at) - new Date(a?.created_at),
+      )[0];
+
+      return {
+        ...candidate,
+        latestStatus: latestOffer?.offer_status ?? "-",
+        offersCount: candidate?.offers?.length ?? 0,
+      };
+    });
 
     if (statusFilter !== "all") {
-      filtered = filtered.filter(
-        (offer) =>
-          offer?.offer_status?.toLowerCase() === statusFilter.toLowerCase(),
+      candidates = candidates.filter(
+        (candidate) =>
+          candidate?.latestStatus?.toLowerCase() ===
+          statusFilter?.toLowerCase(),
       );
     }
 
-    if (searchText.trim()) {
+    if (searchText?.trim()) {
       const search = searchText.toLowerCase();
 
-      filtered = filtered.filter(
-        (offer) =>
-          offer?.candidate_name?.toLowerCase().includes(search) ||
-          offer?.candidate_email?.toLowerCase().includes(search) ||
-          offer?.position?.toLowerCase().includes(search),
+      candidates = candidates.filter(
+        (candidate) =>
+          candidate?.candidate_name?.toLowerCase()?.includes(search) ||
+          candidate?.candidate_email?.toLowerCase()?.includes(search),
       );
     }
 
-    return filtered;
+    return candidates;
   }, [offers, searchText, statusFilter]);
-
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case "accepted":
         return "success";
+
+      case "approved":
+        return "processing";
+
+      case "awaitingapproval":
+        return "warning";
+
+      case "released":
+        return "cyan";
+
+      case "pending":
+        return "gold";
+
       case "rejected":
         return "error";
-      case "pending":
-        return "warning";
+
       case "cancelled":
         return "default";
+
       default:
         return "default";
     }
@@ -147,6 +187,36 @@ function OfferLettersScreen() {
         );
       },
     },
+    {
+      title: "Latest Status",
+      dataIndex: "latestStatus",
+      key: "latestStatus",
+      render: (status) => (
+        <Tag color={getStatusColor(status)}>{status || "N/A"}</Tag>
+      ),
+    },
+    {
+      title: "Offers Count",
+      dataIndex: "offersCount",
+      key: "offersCount",
+    },
+    {
+      title: "Action",
+      key: "action",
+      render: (_, record) => (
+        <Button
+          type="link"
+          onClick={() => {
+            setSelectedCandidate(record);
+            setDrawerOpen(true);
+          }}
+        >
+          View All Offers
+        </Button>
+      ),
+    },
+  ];
+  const historyColumns = [
     {
       title: "Position",
       dataIndex: "position",
@@ -231,7 +301,10 @@ function OfferLettersScreen() {
         </Row>
       </StatsContainer>
 
-      <Card title={`Offer Letters (${filteredOffers.length})`} bordered={false}>
+      <Card
+        title={`Offer Tracking  (${candidateRows.length})`}
+        bordered={false}
+      >
         <FiltersContainer>
           <Search
             placeholder="Search by candidate, email, or position"
@@ -260,7 +333,7 @@ function OfferLettersScreen() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredOffers}
+          dataSource={candidateRows}
           loading={loading}
           pagination={{
             defaultPageSize: 10,
@@ -268,6 +341,39 @@ function OfferLettersScreen() {
           }}
         />
       </Card>
+      <Drawer
+        title="Offer History"
+        open={drawerOpen}
+        width={900}
+        onClose={() => {
+          setDrawerOpen(false);
+          setSelectedCandidate(null);
+        }}
+      >
+        <div style={{ marginBottom: 20 }}>
+          <h3>{selectedCandidate?.candidate_name}</h3>
+
+          <p>{selectedCandidate?.candidate_email}</p>
+
+          <p>
+            <strong>Total Offers:</strong> {selectedCandidate?.offersCount ?? 0}
+          </p>
+
+          <p>
+            <strong>Latest Status:</strong>{" "}
+            {selectedCandidate?.latestStatus ?? "-"}
+          </p>
+        </div>
+
+        <Table
+          rowKey="id"
+          columns={historyColumns}
+          dataSource={[...(selectedCandidate?.offers ?? [])].sort(
+            (a, b) => new Date(b?.created_at) - new Date(a?.created_at),
+          )}
+          pagination={false}
+        />
+      </Drawer>
     </PageContainer>
   );
 }

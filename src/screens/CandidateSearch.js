@@ -30,6 +30,7 @@ import {
 import { sendPlainEmail, sendLoginCredentials } from "../services/api/email";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
+import { useNavigate } from "react-router-dom";
 
 export default function CandidateSearch({
   candidates,
@@ -45,7 +46,6 @@ export default function CandidateSearch({
   onUpdateCandidate,
   onDeleteCandidate,
   onFetchCandidateById,
-  setScreen,
   setSelectedCandidate,
   setCandidateDetailsDefaultTab,
   setAutoOpenSchedule,
@@ -66,6 +66,7 @@ export default function CandidateSearch({
   const [managerCandidatesList, setManagerCandidatesList] = useState([]);
   const [approvalCandidates, setApprovalCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
   const isAntTableRole = [
     "HIRING MANAGER",
     "HR OPERATIONS",
@@ -340,24 +341,8 @@ export default function CandidateSearch({
         return (
           <button
             className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
-            onClick={async () => {
-              setSelectedCandidateId(record?.candidate_id);
-              let finalCandidate = record;
-              if (onFetchCandidateById) {
-                try {
-                  const fresh = await onFetchCandidateById(
-                    record?.candidate_id,
-                  );
-                  if (fresh) {
-                    finalCandidate = fresh;
-                  }
-                } catch (err) {}
-              }
-              setCandidateRecord(record);
-              setSelectedCandidate(finalCandidate);
-              setCandidateDetailsDefaultTab?.("profile");
-              setAutoOpenSchedule?.(false);
-              setScreen("candidateDetails");
+            onClick={() => {
+              navigate(`/candidates/${record.candidate_id}`);
             }}
           >
             {record?.candidate_name}
@@ -478,21 +463,8 @@ export default function CandidateSearch({
               name: (
                 <button
                   className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
-                  onClick={async () => {
-                    setSelectedCandidateId(c.id);
-                    let finalCandidate = c;
-                    if (onFetchCandidateById) {
-                      try {
-                        const fresh = await onFetchCandidateById(c.id);
-                        if (fresh) {
-                          finalCandidate = fresh;
-                        }
-                      } catch (err) {}
-                    }
-                    setSelectedCandidate(finalCandidate);
-                    setCandidateDetailsDefaultTab?.("profile");
-                    setAutoOpenSchedule?.(false);
-                    setScreen("candidateDetails");
+                  onClick={() => {
+                    navigate(`/candidates/${c.id}`);
                   }}
                 >
                   {c.name}
@@ -531,11 +503,7 @@ export default function CandidateSearch({
                       <button
                         className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
                         onClick={() => {
-                          setSelectedCandidateId(c?.id);
-                          setSelectedCandidate(c);
-                          setCandidateDetailsDefaultTab?.("profile");
-                          setAutoOpenSchedule?.(true);
-                          setScreen("candidateDetails");
+                          navigate(`/candidates/${c.id}?schedule=true`);
                           setOpenMenuId(null);
                         }}
                       >
@@ -591,20 +559,8 @@ export default function CandidateSearch({
                       </button>
                       <button
                         className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
-                        onClick={async () => {
-                          setSelectedCandidateId(c.id);
-                          let finalCandidate = c;
-                          if (onFetchCandidateById) {
-                            try {
-                              const fresh = await onFetchCandidateById(c.id);
-                              if (fresh) {
-                                finalCandidate = fresh;
-                              }
-                            } catch (err) {}
-                          }
-                          setSelectedCandidate(finalCandidate);
-                          setCandidateDetailsDefaultTab?.("feedback");
-                          setScreen("candidateDetails");
+                        onClick={() => {
+                          navigate(`/candidates/${c.id}?tab=feedback`);
                           setOpenMenuId(null);
                         }}
                       >

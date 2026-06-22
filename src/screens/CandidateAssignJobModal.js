@@ -7,7 +7,6 @@ import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
 } from "../services/api/candidateHistory";
-import { mapJobFromApi } from "../App";
 import { toast } from "react-toastify";
 import { Select } from "antd";
 import {
@@ -15,6 +14,7 @@ import {
   SelectWrapper,
   StyledSelect,
 } from "../styles/CandidateAssignJobModalStyles";
+import { mapJobFromApi } from "../routes/Approutes";
 
 const getTodayDate = () => {
   const today = new Date();
