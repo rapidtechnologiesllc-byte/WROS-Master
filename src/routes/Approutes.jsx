@@ -393,7 +393,6 @@ export default function AppRoutes() {
   if (
     canAccessMyWorkspace({
       role: storedRole,
-      userType: storedUserType,
     })
   ) {
     return (
