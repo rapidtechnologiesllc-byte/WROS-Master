@@ -49,7 +49,7 @@ const OfferListing = () => {
   const [rejectModalShow, setRejectModalShow] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [statusSelected, setStatusSelected] = useState("");
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const offerStatusOptions = [
     { label: "Released", value: "Released" },
     { label: "AwaitingApproval", value: "AwaitingApproval" },
