@@ -363,7 +363,6 @@ export default function JobCreate({
         externalJD,
         status: jobStatus || "Draft",
       });
-      toast.success("Job created successfully.");
     } catch (err) {
       toast.error(err?.message || "Failed to create job.");
     } finally {

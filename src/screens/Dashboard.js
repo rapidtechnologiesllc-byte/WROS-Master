@@ -6,9 +6,10 @@ import {
   LayoutDashboard,
   Plus,
   Search,
-  Users
+  Users,
 } from "lucide-react";
 import { Button, Card, StatusBadge } from "../components/ui";
+import { useNavigate } from "react-router-dom";
 
 function StatCard({ title, value, icon, onClick }) {
   return (
@@ -25,8 +26,17 @@ function StatCard({ title, value, icon, onClick }) {
   );
 }
 
-export default function Dashboard({ candidates, jobs, interviews, offers = [], onGo }) {
-  const openJobs = jobs.filter((j) => j.status === "Open" || j.status === "Public").length;
+export default function Dashboard({
+  candidates,
+  jobs,
+  interviews,
+  offers = [],
+  onGo,
+}) {
+  const navigate = useNavigate();
+  const openJobs = jobs.filter(
+    (j) => j.status === "Open" || j.status === "Public",
+  ).length;
   const inPipeline = candidates.filter((c) => {
     const p = (c.pipelineStatus || "").trim();
     if (p === "Rejected") return false;
@@ -35,7 +45,9 @@ export default function Dashboard({ candidates, jobs, interviews, offers = [], o
     return true;
   }).length;
   const scheduled = interviews.filter((i) => i.status === "Scheduled").length;
-  const pendingOffers = offers.filter((o) => o.offer_status === "Pending").length;
+  const pendingOffers = offers.filter(
+    (o) => o.offer_status === "Pending",
+  ).length;
   const latestOffer = offers.length ? offers[offers.length - 1] : null;
 
   return (
@@ -45,24 +57,26 @@ export default function Dashboard({ candidates, jobs, interviews, offers = [], o
           title="Open Jobs"
           value={String(openJobs)}
           icon={<Briefcase className="h-4 w-4" />}
-          onClick={() => onGo("jobs")}
+          onClick={() => navigate("/jobs")}
         />
         <StatCard
           title="Candidates in Pipeline"
           value={String(inPipeline)}
           icon={<Users className="h-4 w-4" />}
-          onClick={() => onGo("candidateSearch")}
+          onClick={() => navigate("/candidates")}
         />
         <StatCard
           title="Interviews Scheduled"
           value={String(scheduled)}
           icon={<Calendar className="h-4 w-4" />}
-          onClick={() => onGo("interviewStatus")}
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Quick actions" icon={<LayoutDashboard className="h-4 w-4" />}>
+        <Card
+          title="Quick actions"
+          icon={<LayoutDashboard className="h-4 w-4" />}
+        >
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => onGo("candidateCreate")}>
               <Plus className="h-4 w-4" /> Add New Candidate
@@ -76,7 +90,10 @@ export default function Dashboard({ candidates, jobs, interviews, offers = [], o
           </div>
         </Card>
 
-        <Card title="Offer snapshot" icon={<BadgeDollarSign className="h-4 w-4" />}>
+        <Card
+          title="Offer snapshot"
+          icon={<BadgeDollarSign className="h-4 w-4" />}
+        >
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-gray-900">
@@ -85,7 +102,10 @@ export default function Dashboard({ candidates, jobs, interviews, offers = [], o
               {latestOffer ? (
                 <>
                   <div className="mt-1 text-xs text-gray-600">
-                    Latest: <span className="font-semibold">{latestOffer.position}</span>
+                    Latest:{" "}
+                    <span className="font-semibold">
+                      {latestOffer.position}
+                    </span>
                   </div>
                   <div className="mt-1 text-xs text-gray-600">
                     Salary:{" "}
