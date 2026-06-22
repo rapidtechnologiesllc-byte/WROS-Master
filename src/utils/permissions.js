@@ -31,6 +31,6 @@ export const canAccessMyWorkspace = ({ permissionRole }) => {
   return (
     String(permissionRole || "")
       .trim()
-      .toLowerCase() === "employee"
+      .toLowerCase() === "employee" || "HR Manager"
   );
 };
