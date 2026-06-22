@@ -1,4 +1,3 @@
-// Main dashboard cards and quick actions.
 import {
   BadgeDollarSign,
   Briefcase,
@@ -78,13 +77,13 @@ export default function Dashboard({
           icon={<LayoutDashboard className="h-4 w-4" />}
         >
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => onGo("candidateCreate")}>
+            <Button onClick={() => navigate("/candidates/create")}>
               <Plus className="h-4 w-4" /> Add New Candidate
             </Button>
-            <Button variant="secondary" onClick={() => onGo("candidateSearch")}>
+            <Button variant="secondary" onClick={() => navigate("/candidates")}>
               <Search className="h-4 w-4" /> Search Candidate
             </Button>
-            <Button variant="secondary" onClick={() => onGo("jobs")}>
+            <Button variant="secondary" onClick={() => navigate("/jobs/create")}>
               <Plus className="h-4 w-4" /> Create Job
             </Button>
           </div>
@@ -123,7 +122,6 @@ export default function Dashboard({
           <Button
             variant="secondary"
             className="mt-3 w-full"
-            onClick={() => onGo("offer")}
           >
             Manage Offers
           </Button>

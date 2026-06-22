@@ -155,7 +155,7 @@ export default function CandidateDetailsScreen({
   const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const candidateTabs = limitedMode
     ? ["feedback"]
     : [

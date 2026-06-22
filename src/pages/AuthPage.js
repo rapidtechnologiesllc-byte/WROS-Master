@@ -2,12 +2,16 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { getAzureSigninUrl, login } from "../services/api/auth";
+import { getHrMe } from "../services/api/users";
 
 export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState("email");
-  const [loginForm, setLoginForm] = useState({ UserEmail: "", UserPassword: "" });
+  const [loginForm, setLoginForm] = useState({
+    UserEmail: "",
+    UserPassword: "",
+  });
   const [showPassword, setShowPassword] = useState(false);
 
   const handleNext = (event) => {
@@ -18,6 +22,17 @@ export default function AuthPage() {
       return;
     }
     setStep("password");
+  };
+
+  const getCurrentUser = async () => {
+    try {
+      const response = await getHrMe();
+      const user = response;
+      return user;
+    } catch (error) {
+      console.error("Failed to fetch user details", error);
+      return null;
+    }
   };
 
   const submitLogin = async (event) => {
@@ -35,20 +50,30 @@ export default function AuthPage() {
 
       const data = await login({
         email: loginForm.UserEmail,
-        password: loginForm.UserPassword
+        password: loginForm.UserPassword,
       });
       if (data?.access_token) {
-        const entityType = String(data?.entity_type || "").trim().toLowerCase();
+        localStorage.setItem("hrms_token", data.access_token);
+        const user = await getCurrentUser();
+        if (user) {
+          localStorage.setItem("user_info", JSON.stringify(user));
+          localStorage.setItem("permission_role", user.permission_role);
+        }
+        const entityType = String(data?.entity_type || "")
+          .trim()
+          .toLowerCase();
         const looksLikeCandidate =
           entityType === "candidate" ||
-          Boolean(data?.candidate_id || data?.candidate_email || data?.candidate_role);
+          Boolean(
+            data?.candidate_id || data?.candidate_email || data?.candidate_role,
+          );
 
         localStorage.setItem("hrms_token", data.access_token);
         if (looksLikeCandidate) {
           localStorage.setItem("hrms_user_type", "candidate");
           localStorage.setItem(
             "hrms_role",
-            String(data?.candidate_role || "Candidate").toUpperCase()
+            String(data?.candidate_role || "Candidate").toUpperCase(),
           );
           if (data?.candidate_name) {
             localStorage.setItem("hrms_user_name", data.candidate_name);
@@ -86,7 +111,11 @@ export default function AuthPage() {
       <div className="pointer-events-none absolute bottom-0 left-1/3 h-52 w-52 rotate-12 rounded-2xl bg-blue-200/60" />
       <div className="pointer-events-none absolute bottom-0 right-14 h-56 w-56 -rotate-12 rounded-3xl bg-pink-300/60" />
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-4 py-8">
-        <img src="/blitzenx-logo.svg" alt="Blitzenx" className="mb-8 h-10 w-auto" />
+        <img
+          src="/blitzenx-logo.svg"
+          alt="Blitzenx"
+          className="mb-8 h-10 w-auto"
+        />
         <h1 className="mb-8 text-center text-4xl font-bold text-slate-800">
           Sign In to Your Account
         </h1>
@@ -112,7 +141,7 @@ export default function AuthPage() {
                   onChange={(event) =>
                     setLoginForm((prev) => ({
                       ...prev,
-                      UserEmail: event.target.value
+                      UserEmail: event.target.value,
                     }))
                   }
                 />
@@ -144,7 +173,9 @@ export default function AuthPage() {
                   <button
                     type="button"
                     className="text-sm font-semibold text-blue-600 hover:underline"
-                    onClick={() => setError("Please contact admin to reset your password.")}
+                    onClick={() =>
+                      setError("Please contact admin to reset your password.")
+                    }
                   >
                     Forgot Password?
                   </button>
@@ -158,7 +189,7 @@ export default function AuthPage() {
                     onChange={(event) =>
                       setLoginForm((prev) => ({
                         ...prev,
-                        UserPassword: event.target.value
+                        UserPassword: event.target.value,
                       }))
                     }
                   />
@@ -167,7 +198,11 @@ export default function AuthPage() {
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500"
                     onClick={() => setShowPassword((prev) => !prev)}
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
