@@ -462,7 +462,7 @@ async def update_document_verification(
     from datetime import datetime
     
     # Valid document types
-    valid_types = ["pan", "aadhar", "education", "experience", "salary_slip", "bank_statement", "resume"]
+    valid_types = ["pan", "aadhar", "education", "experience", "salary_slip", "bank_statement", "resume","uan_pf"]
     
     if document_type not in valid_types:
         raise HTTPException(
