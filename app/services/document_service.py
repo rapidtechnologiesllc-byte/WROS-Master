@@ -33,6 +33,7 @@ DOCUMENT_TYPES = {
     "experience": {"folder": "Experience_Letters", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
     "salary_slip": {"folder": "Salary_Slips", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
     "bank_statement": {"folder": "Bank_Statements", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
+    "uan_pf": {"folder": "UAN_PF", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
 }
 
 
