@@ -114,7 +114,7 @@ const PreonboardingModal = ({
   const [form] = Form.useForm();
   const localName = localStorage.getItem("hrms_user_name");
   const localEmail = localStorage.getItem("hrms_user_email");
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },

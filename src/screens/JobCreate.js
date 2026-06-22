@@ -52,6 +52,7 @@ export default function JobCreate({
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [hrUsers, setHrUsers] = useState([]);
   const [hiringManagers, setHiringManagers] = useState([]);
+  const storedRole = localStorage.getItem("permission_role");
 
   useEffect(() => {
     let isMounted = true;
@@ -583,9 +584,11 @@ export default function JobCreate({
                 Submit for Approval
               </Button>
             </div>
-            <Button onClick={handleCreateJob} disabled={isSaving}>
-              {isSaving ? "Creating..." : "Create Job"}
-            </Button>
+            {storedRole === "BU Head" || "SUPER USER" ? (
+              <Button onClick={handleCreateJob} disabled={isSaving}>
+                {isSaving ? "Creating..." : "Create Job"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </Card>

@@ -134,6 +134,11 @@ export default function Shell({
           label: "Candidates",
           icon: Users,
         },
+        {
+          path: ROUTES.JOBS,
+          label: "Jobs",
+          icon: Briefcase,
+        },
       ];
     }
 

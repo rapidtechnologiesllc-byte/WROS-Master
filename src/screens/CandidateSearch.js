@@ -60,7 +60,7 @@ export default function CandidateSearch({
   const [candidateList, setCandidateList] = useState(candidates);
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [preonboardingModal, setPreonboardingModal] = useState(false);
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const [candidateActions, setCandidateActions] = useState({});
   const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
   const [managerCandidatesList, setManagerCandidatesList] = useState([]);
@@ -68,28 +68,28 @@ export default function CandidateSearch({
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const isAntTableRole = [
-    "HIRING MANAGER",
+    "Hiring Manager",
     "HR OPERATIONS",
     "HR MANAGER",
   ].includes(currentRole);
 
   useEffect(() => {
-    const role = localStorage.getItem("hrms_role");
+    const role = localStorage.getItem("permission_role");
     if (role === "HR OPERATIONS") {
       fetchCandidates();
     }
   }, []);
 
   useEffect(() => {
-    const role = localStorage.getItem("hrms_role");
+    const role = localStorage.getItem("permission_role");
     if (role === "HR MANAGER") {
       offerApprovalCandidates();
     }
   }, []);
 
   useEffect(() => {
-    let currentRole = localStorage.getItem("hrms_role");
-    if (currentRole === "HIRING MANAGER") {
+    let currentRole = localStorage.getItem("permission_role");
+    if (currentRole === "Hiring Manager") {
       fetchApprovalCandidates();
     }
   }, []);
@@ -366,7 +366,7 @@ export default function CandidateSearch({
       title: "Status",
       dataIndex: "status",
     },
-    ...(currentRole === "HIRING MANAGER"
+    ...(currentRole === "Hiring Manager"
       ? [
           {
             title: "Action",
@@ -393,7 +393,7 @@ export default function CandidateSearch({
   ];
 
   const tableDataMap = {
-    "HIRING MANAGER": managerCandidatesList,
+    "Hiring Manager": managerCandidatesList,
     "HR MANAGER": approvalCandidates,
     "HR OPERATIONS": preOnboardingCandidates,
   };
