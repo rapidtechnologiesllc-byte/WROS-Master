@@ -271,7 +271,7 @@ const OfferListing = () => {
       title: "Offer Status",
       dataIndex: "offer_status",
     },
-    ...(currentRole === "HR MANAGER"
+    ...(currentRole === "HR Manager"
       ? [
           {
             title: "Action",
