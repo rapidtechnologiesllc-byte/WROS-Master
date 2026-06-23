@@ -390,164 +390,170 @@ export default function AppRoutes() {
     return mapCandidateFromApi(res || {});
   };
 
-  if (
-    canAccessMyWorkspace({
-      role: storedRole,
-    })
-  ) {
+  const hasWorkspaceAccess = canAccessMyWorkspace({
+    permissionRole: storedRole,
+  });
+
+  if (hasWorkspaceAccess) {
     return (
-      <Routes>
-        <Route
-          path="/"
-          element={<Shell role={storedRole} onLogout={handleLogout} />}
-        >
-          <Route index element={<MyWorkspace onLogout={handleLogout} />} />
-
+      <>
+        <Routes>
           <Route
-            path="candidates"
-            element={
-              <CandidateSearch
-                candidates={candidates}
-                jobs={jobs}
-                setAutoOpenSchedule={setAutoOpenSchedule}
-                onRefreshCandidates={refreshCandidates}
-                onCreateCandidate={() => navigate("/candidates/create")}
-              />
-            }
-          />
+            path="/"
+            element={<Shell role={storedRole} onLogout={handleLogout} />}
+          >
+            <Route index element={<MyWorkspace onLogout={handleLogout} />} />
 
-          <Route
-            path="candidates/create"
-            element={
-              <CandidateCreate
-                onSave={async (c) => {
-                  const fullCandidate = await fetchCandidateById(c.id);
-                  setCandidates((prev) => [fullCandidate, ...prev]);
-                  navigate(`/candidates/${fullCandidate.id}`);
-                }}
-              />
-            }
-          />
+            <Route
+              path="candidates"
+              element={
+                <CandidateSearch
+                  candidates={candidates}
+                  jobs={jobs}
+                  setAutoOpenSchedule={setAutoOpenSchedule}
+                  onRefreshCandidates={refreshCandidates}
+                  onCreateCandidate={() => navigate("/candidates/create")}
+                />
+              }
+            />
 
-          <Route
-            path="candidates/:candidateId"
-            element={
-              <CandidateDetailsWrapper
-                refreshCandidates={refreshCandidates}
-                fetchCandidateById={fetchCandidateById}
-              />
-            }
-          />
+            <Route
+              path="candidates/create"
+              element={
+                <CandidateCreate
+                  onSave={async (c) => {
+                    const fullCandidate = await fetchCandidateById(c.id);
+                    setCandidates((prev) => [fullCandidate, ...prev]);
+                    navigate(`/candidates/${fullCandidate.id}`);
+                  }}
+                />
+              }
+            />
 
-          <Route
-            path="/jobs"
-            element={
-              <JobsOverview
-                jobs={jobs}
-                onCreate={() => {
-                  setJobCreateMode("create");
-                }}
-                onViewJob={(jobId) => {
-                  navigate(`/jobs/${jobId}/workspace`);
-                }}
-                onOpenJob={(jobId) => {
-                  navigate(`/jobs/${jobId}`);
-                }}
-                onPostToLinkedIn={async (jobId) => {
-                  try {
-                    const res = await postJobOnLinkedIn(jobId);
-                    notify(
-                      "LinkedIn",
-                      res?.message || "Job posted to LinkedIn.",
-                    );
-                  } catch (err) {
-                    notify(
-                      "LinkedIn",
-                      err.message || "Failed to post to LinkedIn.",
-                    );
-                  }
-                }}
-                onApproveJob={async (jobId) => {
-                  try {
-                    const response = await approveJob(jobId);
-                    await refreshJobs();
-                    notify(
-                      "Job",
-                      response?.message || `Approved job ${jobId}.`,
-                    );
-                  } catch (err) {
-                    notify("Job", err.message || "Failed to approve job.");
-                  }
-                }}
-                onDeleteJob={
-                  isSuperUser
-                    ? async (jobId) => {
-                        const ok = window.confirm(`Delete job ${jobId}?`);
-                        if (!ok) return;
+            <Route
+              path="candidates/:candidateId"
+              element={
+                <CandidateDetailsWrapper
+                  refreshCandidates={refreshCandidates}
+                  fetchCandidateById={fetchCandidateById}
+                />
+              }
+            />
 
-                        try {
-                          await deleteJob(jobId);
-                          await refreshJobs();
-                          notify("Job", `Deleted job ${jobId}.`);
-                        } catch (err) {
-                          notify("Job", err.message || "Failed to delete job.");
+            <Route
+              path="/jobs"
+              element={
+                <JobsOverview
+                  jobs={jobs}
+                  onCreate={() => {
+                    setJobCreateMode("create");
+                  }}
+                  onViewJob={(jobId) => {
+                    navigate(`/jobs/${jobId}/workspace`);
+                  }}
+                  onOpenJob={(jobId) => {
+                    navigate(`/jobs/${jobId}`);
+                  }}
+                  onPostToLinkedIn={async (jobId) => {
+                    try {
+                      const res = await postJobOnLinkedIn(jobId);
+                      notify(
+                        "LinkedIn",
+                        res?.message || "Job posted to LinkedIn.",
+                      );
+                    } catch (err) {
+                      notify(
+                        "LinkedIn",
+                        err.message || "Failed to post to LinkedIn.",
+                      );
+                    }
+                  }}
+                  onApproveJob={async (jobId) => {
+                    try {
+                      const response = await approveJob(jobId);
+                      await refreshJobs();
+                      notify(
+                        "Job",
+                        response?.message || `Approved job ${jobId}.`,
+                      );
+                    } catch (err) {
+                      notify("Job", err.message || "Failed to approve job.");
+                    }
+                  }}
+                  onDeleteJob={
+                    isSuperUser
+                      ? async (jobId) => {
+                          const ok = window.confirm(`Delete job ${jobId}?`);
+                          if (!ok) return;
+
+                          try {
+                            await deleteJob(jobId);
+                            await refreshJobs();
+                            notify("Job", `Deleted job ${jobId}.`);
+                          } catch (err) {
+                            notify(
+                              "Job",
+                              err.message || "Failed to delete job.",
+                            );
+                          }
                         }
-                      }
-                    : undefined
-                }
-              />
-            }
-          />
+                      : undefined
+                  }
+                />
+              }
+            />
 
-          <Route
-            path="jobs/create"
-            element={
-              <JobCreate
-                onSave={(j) => {
-                  setJobs((prev) => [
-                    {
-                      ...j,
-                      hiringManagerName: j?.hiringManager || "-",
-                    },
-                    ...prev,
-                  ]);
-                  setSelectedJobId(j.id);
-                  toast.success(`Created job ${j.title}`);
-                  navigate(ROUTES.JOBS);
-                }}
-              />
-            }
-          />
+            <Route
+              path="jobs/create"
+              element={
+                <JobCreate
+                  onSave={(j) => {
+                    setJobs((prev) => [
+                      {
+                        ...j,
+                        hiringManagerName: j?.hiringManager || "-",
+                      },
+                      ...prev,
+                    ]);
+                    setSelectedJobId(j.id);
+                    toast.success(`Created job ${j.title}`);
+                    navigate(ROUTES.JOBS);
+                  }}
+                />
+              }
+            />
 
-          <Route
-            path="jobs/:jobId/workspace"
-            element={
-              <JobWorkspaceWrapper
-                users={users}
-                candidates={candidates}
-                notify={notify}
-              />
-            }
-          />
+            <Route
+              path="jobs/:jobId/workspace"
+              element={
+                <JobWorkspaceWrapper
+                  users={users}
+                  candidates={candidates}
+                  notify={notify}
+                />
+              }
+            />
 
-          <Route
-            path="checklist-templates"
-            element={<ChecklistTemplatesScreen />}
-          />
+            <Route
+              path="checklist-templates"
+              element={<ChecklistTemplatesScreen />}
+            />
 
-          <Route
-            path="offers-listing"
-            element={
-              <OfferListing
-                onFetchCandidateById={async (candidateId) => {
-                  const res = await getCandidateById(candidateId);
-                  return mapCandidateFromApi(res || {});
-                }}
-              />
-            }
-          />
-        </Route>
-      </Routes>
+            <Route
+              path="offers-listing"
+              element={
+                <OfferListing
+                  onFetchCandidateById={async (candidateId) => {
+                    const res = await getCandidateById(candidateId);
+                    return mapCandidateFromApi(res || {});
+                  }}
+                />
+              }
+            />
+          </Route>
+        </Routes>
+        <ToastContainer position="top-right" autoClose={3000} />
+      </>
     );
   }
 

@@ -1,4 +1,3 @@
-// Shell layout for HR/Admin screens (sidebar + content area).
 import { useMemo } from "react";
 import {
   BadgeDollarSign,

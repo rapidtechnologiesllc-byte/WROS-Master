@@ -378,7 +378,7 @@ export default function CandidateSelfService({ onLogout }) {
       setSignatureLoading(false);
     }
   };
-  const downloadOfferLetter = async (url, fileName = "OfferLetter.pdf") => {
+  const downloadOfferLetter = async (url, fileName = "OfferLetter.docx") => {
     if (!url) {
       showNotice("Offer letter download URL is unavailable.");
       return;
@@ -956,7 +956,7 @@ export default function CandidateSelfService({ onLogout }) {
                         onClick={() =>
                           downloadOfferLetter(
                             o?.download_url,
-                            `${o?.position || "Offer"}-Letter.pdf`,
+                            `${o?.position || "Offer"}-Letter.docx`,
                           )
                         }
                         disabled={!o?.download_url}
