@@ -1173,8 +1173,8 @@ ${formattedJD}
                 </AcceptButton>
               ) : null}
 
-              {(currentRole === "HR MANAGER" ||
-                currentRole === "HR OPERATIONS") &&
+              {(currentRole === "HR Manager" ||
+                currentRole === "HR Operations") &&
                 candidateDocCount?.total_documents > 0 &&
                 candidateDocCount?.verified_count ===
                   candidateDocCount?.total_documents && (
@@ -1830,6 +1830,7 @@ ${formattedJD}
               </Button>
             </div>
           </div>
+          <ToastContainer position="top-right" autoClose={3000} />
         </div>
       )}
     </>
