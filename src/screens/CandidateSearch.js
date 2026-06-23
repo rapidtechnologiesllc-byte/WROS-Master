@@ -69,20 +69,20 @@ export default function CandidateSearch({
   const navigate = useNavigate();
   const isAntTableRole = [
     "Hiring Manager",
-    "HR OPERATIONS",
-    "HR MANAGER",
+    "HR Operations",
+    "HR Manager",
   ].includes(currentRole);
 
   useEffect(() => {
     const role = localStorage.getItem("permission_role");
-    if (role === "HR OPERATIONS") {
+    if (role === "HR Operations") {
       fetchCandidates();
     }
   }, []);
 
   useEffect(() => {
     const role = localStorage.getItem("permission_role");
-    if (role === "HR MANAGER") {
+    if (role === "HR Manager") {
       offerApprovalCandidates();
     }
   }, []);
@@ -394,8 +394,8 @@ export default function CandidateSearch({
 
   const tableDataMap = {
     "Hiring Manager": managerCandidatesList,
-    "HR MANAGER": approvalCandidates,
-    "HR OPERATIONS": preOnboardingCandidates,
+    "HR Manager": approvalCandidates,
+    "HR Operations": preOnboardingCandidates,
   };
   const tableData = tableDataMap[currentRole] || [];
 
