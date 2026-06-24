@@ -43,7 +43,7 @@ import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AcceptButton } from "../styles/CandidateSearchStyles";
 import { managerReviewApprove } from "../services/api/preOnboarding";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getAllOffers } from "../services/api/offerLetters";
 import PreviousOfferModal from "./PreviousOfferModal";
