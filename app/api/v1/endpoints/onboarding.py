@@ -20,6 +20,13 @@ from app.models.candidate import (
 from app.models.user import Users, Jobs, Interview, CandidateAssignment, InterviewPanel, PanelMember, InterviewFeedback
 from app.models.document import CandidateDocument
 from app.models.checklist import CandidateChecklist, CandidateChecklistItem
+from app.models.candidate_history import CandidateHistory
+from app.models.candidate_ai import CandidateConversation, CandidateAIAssignment, ConversationEvent
+from app.models.offer_letter import OfferLetter
+from app.models.internal_note import InternalNote
+from app.models.ats import ATSScore
+from app.models.hr_assignment import HRAssignment
+from app.models.candidate_ownership import CandidateOwnership
 
 from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission
 
@@ -763,7 +770,63 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         CandidateChecklist.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 9. Finally delete the candidate row
+    # 9. CandidateHistory — has backref="history" which makes SQLAlchemy try to
+    #    SET candidateID=NULL before the parent delete; column is NOT NULL so we
+    #    must delete these rows explicitly first.
+    db.query(CandidateHistory).filter(
+        CandidateHistory.candidateID == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 10. OfferLetter — no ondelete="CASCADE" on FK; must be deleted manually.
+    db.query(OfferLetter).filter(
+        OfferLetter.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 11. InternalNote — has backref="internal_notes"; same NULL risk as CandidateHistory.
+    db.query(InternalNote).filter(
+        InternalNote.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 12. ATSScore — has ondelete="CASCADE" but ORM may still interfere; explicit is safer.
+    db.query(ATSScore).filter(
+        ATSScore.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 13. HRAssignment — has ondelete="CASCADE" but explicit delete ensures no ORM conflict.
+    db.query(HRAssignment).filter(
+        HRAssignment.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 14. CandidateOwnership — has ondelete="CASCADE".
+    db.query(CandidateOwnership).filter(
+        CandidateOwnership.candidateID == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 15. AI agentic tables
+    conv_ids = [
+        row.id for row in
+        db.query(CandidateConversation.id).filter(
+            CandidateConversation.candidate_id == candidate_id
+        ).all()
+    ]
+    if conv_ids:
+        db.query(ConversationEvent).filter(
+            ConversationEvent.conversation_id.in_(conv_ids)
+        ).delete(synchronize_session=False)
+    db.query(CandidateConversation).filter(
+        CandidateConversation.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+    db.query(CandidateAIAssignment).filter(
+        CandidateAIAssignment.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 16. CandidateJobApplication — has ondelete="CASCADE".
+    from app.models.candidate import CandidateJobApplication
+    db.query(CandidateJobApplication).filter(
+        CandidateJobApplication.candidate_id == candidate_id
+    ).delete(synchronize_session=False)
+
+    # 17. Finally delete the candidate row — all FKs cleared above.
     db.delete(candidate)
     db.commit()
     
