@@ -1,0 +1,416 @@
+"""
+AI Email Conversation Agent — API Endpoints
+============================================
+Prefix: /ai-agent
+Tag:    ai-agent
+
+Routes:
+  POST   /ai-agent/assign
+      Assign AI agent to a candidate. Checks missing fields, sends email,
+      opens a conversation thread.
+
+  GET    /ai-agent/missing-fields/{candidate_id}
+      Dry-run: preview which fields are missing for a candidate.
+
+  POST   /ai-agent/webhook/email-reply
+      Process an incoming candidate reply (webhook mode).
+      Supply raw_reply_text directly OR leave blank to trigger a live
+      inbox poll against the Graph API.
+
+  POST   /ai-agent/poll/{candidate_id}
+      Convenience endpoint: polls the Graph inbox for new replies from
+      the candidate and runs the full processing pipeline.
+
+  GET    /ai-agent/conversations/{candidate_id}
+      Return the full conversation thread (all conversations + events)
+      for a candidate — used by the HR UI to display the dialogue timeline.
+
+  GET    /ai-agent/conversations/{candidate_id}/active
+      Return only the single active (open / awaiting) conversation + events.
+
+  GET    /ai-agent/assignments/{candidate_id}
+      Return all AI agent assignments for a candidate.
+
+  DELETE /ai-agent/assign/{candidate_id}
+      Deactivate the AI agent assignment for a candidate.
+"""
+
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.dependencies import get_current_hr_or_admin, require_permission, get_current_user
+from app.models.candidate import Candidate
+from app.models.candidate_ai import (
+    CandidateAIAssignment,
+    CandidateConversation,
+    ConversationEvent,
+)
+from app.models.user import Users
+from app.schemas.ai_agent import (
+    AIAgentAssignRequest,
+    AIAgentAssignResponse,
+    AIAssignmentOut,
+    ConversationThreadResponse,
+    ConversationThreadItem,
+    ConversationEventOut,
+    EmailReplyWebhookRequest,
+    MissingFieldItem,
+    MissingFieldsResponse,
+    ProcessReplyResponse,
+)
+from app.services.ai_conversation_service import (
+    assign_ai_agent,
+    get_conversation_thread,
+    get_missing_fields,
+    process_candidate_reply,
+)
+
+router = APIRouter(prefix="/ai-agent", tags=["ai-agent"])
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
+    candidate = db.query(Candidate).filter(
+        Candidate.candidateID == candidate_id
+    ).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate '{candidate_id}' not found.",
+        )
+    return candidate
+
+
+# ===========================================================================
+# POST /ai-agent/assign
+# ===========================================================================
+
+@router.post(
+    "/assign",
+    response_model=AIAgentAssignResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Assign AI agent to a candidate",
+    description=(
+        "Assigns the onboarding AI agent to a candidate. "
+        "The agent immediately checks for missing profile fields and sends "
+        "a polite email to the candidate requesting the information. "
+        "All activity is logged to the conversation tables."
+    ),
+)
+def assign_agent(
+    body: AIAgentAssignRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    **Flow:**
+    1. Deactivates any previous AI assignment for the candidate.
+    2. Creates a new `candidate_ai_assignments` row.
+    3. Opens a `candidate_conversations` thread.
+    4. Detects missing core profile fields.
+    5. Sends a missing-fields email to the candidate.
+    6. Logs `ai_assigned`, `field_check`, and `ai_message_sent` events.
+
+    **Required permission:** `candidate.edit`
+    """
+    result = assign_ai_agent(
+        candidate_id=body.candidate_id,
+        tenant_id=current_user.UserID,
+        assigned_by=current_user.UserID,
+        db=db,
+    )
+    return AIAgentAssignResponse(**result)
+
+
+# ===========================================================================
+# GET /ai-agent/missing-fields/{candidate_id}
+# ===========================================================================
+
+@router.get(
+    "/missing-fields/{candidate_id}",
+    response_model=MissingFieldsResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Preview missing fields for a candidate (dry-run, no email sent)",
+    description=(
+        "Returns a list of all profile fields that are currently empty for "
+        "the given candidate. This is a read-only check — no email is sent "
+        "and no conversation is created."
+    ),
+)
+def preview_missing_fields(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    candidate = _get_candidate_or_404(candidate_id, db)
+    missing = get_missing_fields(candidate, db)
+    return MissingFieldsResponse(
+        candidate_id=candidate_id,
+        total_missing=len(missing),
+        missing_fields=[MissingFieldItem(**m) for m in missing],
+    )
+
+
+# ===========================================================================
+# POST /ai-agent/webhook/email-reply
+# ===========================================================================
+
+@router.post(
+    "/webhook/email-reply",
+    response_model=ProcessReplyResponse,
+    summary="Process an incoming candidate reply email",
+    description=(
+        "Accepts a candidate reply (either raw text passed directly, or triggers "
+        "a live Graph inbox poll if `raw_reply_text` is omitted). "
+        "Gemini extracts field values from the reply, merges them into the candidate "
+        "record, and sends a follow-up email if fields are still missing.\n\n"
+        "This endpoint can be called:\n"
+        "- By a scheduler polling the Graph inbox periodically.\n"
+        "- By an external webhook when a new email arrives.\n"
+        "- Directly from the HR portal for manual testing.\n\n"
+        "**No auth required** — secured by the candidate_id + internal caller "
+        "(or add bearer token via dependencies as needed in production)."
+    ),
+)
+def webhook_email_reply(
+    body: EmailReplyWebhookRequest,
+    db: Session = Depends(get_db),
+):
+    result = process_candidate_reply(
+        candidate_id=body.candidate_id,
+        db=db,
+        raw_reply_text=body.raw_reply_text,
+        message_id=body.message_id,
+    )
+    return ProcessReplyResponse(**result)
+
+
+# ===========================================================================
+# POST /ai-agent/poll/{candidate_id}
+# ===========================================================================
+
+@router.post(
+    "/poll/{candidate_id}",
+    response_model=ProcessReplyResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Manually poll Graph inbox and process reply for a candidate",
+    description=(
+        "Polls the service mailbox (`helpdesk_hrms@blitzenx.com`) for new reply "
+        "emails from the candidate, then runs the full AI processing pipeline: "
+        "parse with Gemini → merge into DB → send follow-up if needed.\n\n"
+        "Useful for testing, manual HR-triggered processing, or scheduler integration."
+    ),
+)
+def poll_and_process(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    result = process_candidate_reply(
+        candidate_id=candidate_id,
+        db=db,
+        raw_reply_text=None,    # triggers live Graph inbox poll
+        message_id=None,
+    )
+    return ProcessReplyResponse(**result)
+
+
+# ===========================================================================
+# GET /ai-agent/conversations/{candidate_id}
+# ===========================================================================
+
+@router.get(
+    "/conversations/{candidate_id}",
+    response_model=ConversationThreadResponse,
+    summary="Get full agent–candidate conversation thread",
+    description=(
+        "Returns **all conversations** for a candidate, each containing the full "
+        "chronological event log. This is the primary endpoint for the HR UI to "
+        "render the dialogue timeline between the AI agent and the candidate.\n\n"
+        "Events include:\n"
+        "- `ai_assigned` — agent was assigned\n"
+        "- `field_check` — agent detected missing fields\n"
+        "- `ai_message_sent` — agent sent an email\n"
+        "- `candidate_reply` — candidate replied\n"
+        "- `gemini_parse` — Gemini extracted field values\n"
+        "- `fields_merged` — extracted values written to DB\n"
+        "- `status_changed` — conversation status changed\n"
+    ),
+)
+def get_conversations(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_candidate_or_404(candidate_id, db)
+    thread = get_conversation_thread(candidate_id, db)
+
+    return ConversationThreadResponse(
+        candidate_id=candidate_id,
+        total_conversations=len(thread),
+        conversations=[ConversationThreadItem(**c) for c in thread],
+    )
+
+
+# ===========================================================================
+# GET /ai-agent/conversations/{candidate_id}/active
+# ===========================================================================
+
+@router.get(
+    "/conversations/{candidate_id}/active",
+    response_model=ConversationThreadItem,
+    summary="Get the active conversation for a candidate",
+    description=(
+        "Returns the single most-recent open or awaiting conversation for the "
+        "candidate, with its full event log. Returns 404 if no active conversation exists."
+    ),
+)
+def get_active_conversation(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_candidate_or_404(candidate_id, db)
+
+    conv = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == candidate_id,
+            CandidateConversation.status.in_(["open", "awaiting_candidate"]),
+        )
+        .order_by(CandidateConversation.created_at.desc())
+        .first()
+    )
+    if not conv:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No active conversation found for candidate '{candidate_id}'.",
+        )
+
+    events = (
+        db.query(ConversationEvent)
+        .filter(ConversationEvent.conversation_id == conv.id)
+        .order_by(ConversationEvent.created_at.asc())
+        .all()
+    )
+
+    return ConversationThreadItem(
+        conversation_id=conv.id,
+        status=conv.status,
+        ai_agent_name=conv.ai_agent_name,
+        channel_preference=conv.channel_preference,
+        summary=conv.summary,
+        next_action=conv.next_action,
+        owner_type=conv.owner_type,
+        escalation_state=conv.escalation_state,
+        created_at=conv.created_at.isoformat() if conv.created_at else None,
+        updated_at=conv.updated_at.isoformat() if conv.updated_at else None,
+        events=[
+            ConversationEventOut(
+                id=ev.id,
+                event_type=ev.event_type,
+                event_data=ev.event_data,
+                triggered_by=ev.triggered_by,
+                created_at=ev.created_at.isoformat() if ev.created_at else None,
+            )
+            for ev in events
+        ],
+    )
+
+
+# ===========================================================================
+# GET /ai-agent/assignments/{candidate_id}
+# ===========================================================================
+
+@router.get(
+    "/assignments/{candidate_id}",
+    response_model=List[AIAssignmentOut],
+    summary="Get all AI agent assignments for a candidate",
+    description=(
+        "Returns the full history of AI agent assignments for a candidate, "
+        "ordered newest-first. The active assignment has `is_active = true`."
+    ),
+)
+def get_assignments(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_candidate_or_404(candidate_id, db)
+
+    assignments = (
+        db.query(CandidateAIAssignment)
+        .filter(CandidateAIAssignment.candidate_id == candidate_id)
+        .order_by(CandidateAIAssignment.assigned_at.desc())
+        .all()
+    )
+    return [AIAssignmentOut.model_validate(a) for a in assignments]
+
+
+# ===========================================================================
+# DELETE /ai-agent/assign/{candidate_id}
+# ===========================================================================
+
+@router.delete(
+    "/assign/{candidate_id}",
+    status_code=200,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Deactivate AI agent for a candidate",
+    description=(
+        "Marks all active AI agent assignments for the candidate as inactive "
+        "and closes any open conversations."
+    ),
+)
+def deactivate_agent(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    _get_candidate_or_404(candidate_id, db)
+
+    updated_assignments = (
+        db.query(CandidateAIAssignment)
+        .filter(
+            CandidateAIAssignment.candidate_id == candidate_id,
+            CandidateAIAssignment.is_active == True,
+        )
+        .update({"is_active": False})
+    )
+
+    # Close open conversations
+    open_convs = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == candidate_id,
+            CandidateConversation.status.in_(["open", "awaiting_candidate"]),
+        )
+        .all()
+    )
+    for conv in open_convs:
+        conv.status = "closed"
+        conv.next_action = "none"
+        conv.summary = (conv.summary or "") + " [Manually deactivated by HR]"
+        # Log the deactivation event
+        event = ConversationEvent(
+            conversation_id=conv.id,
+            event_type="ai_deassigned",
+            event_data={"deactivated_by": current_user.UserID},
+            triggered_by="hr_user",
+        )
+        db.add(event)
+
+    db.commit()
+
+    return {
+        "message": f"AI agent deactivated for candidate '{candidate_id}'.",
+        "candidate_id": candidate_id,
+        "assignments_deactivated": updated_assignments,
+        "conversations_closed": len(open_convs),
+    }
