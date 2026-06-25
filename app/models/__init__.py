@@ -38,6 +38,11 @@ from app.models.candidate_history import CandidateHistory
 from app.models.candidate_ownership import CandidateOwnership
 from app.models.internal_note import InternalNote
 from app.models.hr_assignment import HRAssignment
+from app.models.candidate_ai import (
+    CandidateConversation,
+    CandidateAIAssignment,
+    ConversationEvent,
+)
 
 __all__ = [
     # Base
@@ -87,5 +92,9 @@ __all__ = [
     "InternalNote",
     # HR Assignments
     "HRAssignment",
+    # AI Agentic Hiring
+    "CandidateConversation",
+    "CandidateAIAssignment",
+    "ConversationEvent",
 ]
 
