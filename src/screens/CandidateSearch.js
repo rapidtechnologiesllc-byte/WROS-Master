@@ -110,13 +110,7 @@ export default function CandidateSearch({
     try {
       setLoading(true);
       const canData = await getAllCandidates();
-
-      const filteredCandidates =
-        canData?.candidates?.filter(
-          (candidate) =>
-            candidate.pipline_status?.toLowerCase() ===
-            "pre-onboarding".toLowerCase(),
-        ) || [];
+      const filteredCandidates = canData?.candidates;
       setPreOnboardingCandidates(filteredCandidates);
     } catch (err) {
       console.log(err);
