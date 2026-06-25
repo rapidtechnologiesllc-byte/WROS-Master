@@ -592,11 +592,6 @@ def create_department(
     Returns **409** if a department with the same name already exists.
     Returns **404** if the specified `business_unit_id` does not exist.
     """
-    if db.query(Department).filter(Department.name == data.name).first():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Department '{data.name}' already exists",
-        )
     if data.business_unit_id is not None:
         bu = db.query(BusinessUnit).filter(BusinessUnit.id == data.business_unit_id).first()
         if not bu:
