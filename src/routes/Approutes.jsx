@@ -697,7 +697,7 @@ export default function AppRoutes() {
                   ]);
                   setSelectedJobId(j.id);
                   toast.success(`Created job ${j.title}`);
-                  navigate(ROUTES.JOBS)
+                  navigate(ROUTES.JOBS);
                 }}
               />
             }

@@ -1,6 +1,15 @@
-// Candidate portal for personal info, education, experience, and documents.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Eye, EyeOff, ListChecks } from "lucide-react";
+import {
+  ChevronDown,
+  Eye,
+  EyeOff,
+  ListChecks,
+  LayoutDashboard,
+  User,
+  FileText,
+  BadgeCheck,
+  Briefcase,
+} from "lucide-react";
 import {
   Button,
   Card,
@@ -64,7 +73,7 @@ const DOC_LABELS = {
   experience: "Experience Letter",
   salary_slip: "Salary Slip",
   bank_statement: "Bank Statement",
-  // uan: "UAN / PF Document",
+  uan_pf: "UAN / PF Document",
 };
 
 function canCandidateCompleteItem(item) {
@@ -116,6 +125,7 @@ export default function CandidateSelfService({ onLogout }) {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState(null);
   const [onboardingStatus, setOnboardingStatus] = useState(null);
+  const [activeSection, setActiveSection] = useState("dashboard");
   const [passwordForm, setPasswordForm] = useState({
     new_password: "",
     confirm_password: "",
@@ -632,7 +642,80 @@ export default function CandidateSelfService({ onLogout }) {
   const candidateEmail = useMemo(() => {
     return profile?.candidate_email || storedCandidateEmail || "";
   }, [profile, storedCandidateEmail]);
+  const menuItems = [
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      icon: <LayoutDashboard size={18} />,
+    },
+    {
+      key: "profile",
+      label: "Profile",
+      icon: <User size={18} />,
+    },
+    {
+      key: "documents",
+      label: "Documents",
+      icon: <FileText size={18} />,
+    },
+    {
+      key: "offers",
+      label: "Offers",
+      icon: <BadgeCheck size={18} />,
+    },
+    {
+      key: "jobs",
+      label: "Jobs",
+      icon: <Briefcase size={18} />,
+    },
+  ];
+  const renderSection = () => {
+    switch (activeSection) {
+      case "dashboard":
+        return (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="text-sm text-slate-500">Documents Uploaded</div>
+                <div className="mt-2 text-3xl font-bold text-[#1F3766]">
+                  {myDocuments?.documents?.length || 0} / 8
+                </div>
 
+                <p className="mt-2 text-xs text-slate-500">
+                  Get started by uploading your required documents.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="text-sm text-slate-500">
+                  Onboarding Progress
+                </div>
+
+                <div className="mt-2 text-3xl font-bold text-[#1F3766]">
+                  {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
+                  %
+                </div>
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-[#1F3766]"
+                    style={{
+                      width: `${Number(onboardingStatus?.overall_completion || 0)}%`,
+                    }}
+                  />
+                </div>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Complete your onboarding journey
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
   const checklistList = myChecklistsPayload?.checklists || [];
   const profilePipeline = String(
     profile?.pipeline_status ||
@@ -657,75 +740,1108 @@ export default function CandidateSelfService({ onLogout }) {
         pauseOnHover
       />
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
-          <div>
-            <div className="text-xs font-semibold text-slate-500">
-              Candidate Portal
-            </div>
-            <div className="text-xl font-bold">{candidateName}</div>
-            {candidateEmail ? (
-              <div className="text-xs text-slate-500">{candidateEmail}</div>
-            ) : null}
-          </div>
+        <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+          <aside className="rounded-2xl border bg-white p-4 shadow-sm h-fit">
+            <div className="mb-6 border-b border-slate-200 pb-5">
+              <div className="flex flex-col items-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1F3766] text-2xl font-extrabold text-white shadow-md">
+                  BX
+                </div>
 
-          <div className="relative" ref={profileMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
-                {candidateName?.[0]?.toUpperCase() || "C"}
-              </span>
-
-              <span className="hidden max-w-[160px] truncate sm:inline">
-                {candidateName || "Candidate"}
-              </span>
-
-              <ChevronDown className="h-4 w-4 text-slate-500" />
-            </button>
-
-            {isProfileMenuOpen ? (
-              <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowProfileModal(true);
-                    setIsProfileMenuOpen(false);
-                  }}
-                  className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                >
-                  View Profile
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCandidatePasswordForm({
-                      new_password: "",
-                      confirm_password: "",
-                    });
-                    setShowNewPassword(false);
-                    setShowConfirmPassword(false);
-                    setShowPasswordModal(true);
-                    setIsProfileMenuOpen(false);
-                  }}
-                  className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                >
-                  Change Password
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="block w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
-                >
-                  Logout
-                </button>
+                <p className="mt-3 text-sm font-semibold uppercase tracking-[0.em] text-slate-500">
+                  Candidate Portal
+                </p>
               </div>
+            </div>
+            <div className="space-y-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveSection(item.key)}
+                  className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
+                    activeSection === item.key
+                      ? "bg-[#1F3766] text-white"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <div className="space-y-6 ">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-[#1F3766] px-5 py-4 shadow-sm">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Welcome back, {candidateName}
+                </h2>
+
+                <p className="mt-1 text-sm text-blue-100">
+                  Track your onboarding progress and complete pending documents.
+                </p>
+              </div>
+
+              <div className="relative" ref={profileMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+                    {candidateName?.[0]?.toUpperCase() || "C"}
+                  </span>
+
+                  <span className="hidden max-w-[160px] truncate sm:inline">
+                    {candidateName || "Candidate"}
+                  </span>
+
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                </button>
+
+                {isProfileMenuOpen ? (
+                  <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileModal(true);
+                        setIsProfileMenuOpen(false);
+                      }}
+                      className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      View Profile
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCandidatePasswordForm({
+                          new_password: "",
+                          confirm_password: "",
+                        });
+                        setShowNewPassword(false);
+                        setShowConfirmPassword(false);
+                        setShowPasswordModal(true);
+                        setIsProfileMenuOpen(false);
+                      }}
+                      className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Change Password
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      className="block w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {renderSection()}
+
+            {activeSection === "offers" &&
+              (myOffers?.length > 0 ? (
+                <Card
+                  title="Offer Letters"
+                  subtitle="View, download and respond to your offer letters."
+                >
+                  <div className="space-y-3">
+                    {myOffers.map((o) => (
+                      <div
+                        key={o.id}
+                        className="rounded-lg border bg-slate-50 p-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                o?.sharepoint_url &&
+                                window.open(
+                                  o.sharepoint_url,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                )
+                              }
+                              disabled={!o?.sharepoint_url}
+                            >
+                              View
+                            </Button>
+
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                downloadOfferLetter(
+                                  o?.download_url,
+                                  `${o?.position || "Offer"}-Letter.docx`,
+                                )
+                              }
+                              disabled={!o?.download_url}
+                            >
+                              Download
+                            </Button>
+                          </div>
+
+                          {String(o?.offer_status).toLowerCase() ===
+                            "released" &&
+                            !o?.candidate_response && (
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => {
+                                    setSelectedOffer(o);
+                                    setShowSignatureModal(true);
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Accept
+                                </Button>
+
+                                <Button
+                                  variant="secondary"
+                                  onClick={async () => {
+                                    clearNotice();
+                                    try {
+                                      await respondToOffer({
+                                        offerId: o.id,
+                                        action: "reject",
+                                      });
+                                      const refreshed = await getMyOffers();
+                                      setMyOffers(refreshed?.offers || []);
+                                      showNotice("Offer declined.", "success");
+                                    } catch (err) {
+                                      showNotice(
+                                        err?.message ||
+                                          "Failed to decline offer.",
+                                      );
+                                    }
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Decline
+                                </Button>
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : (
+                <Card
+                  title="Offer Letters"
+                  subtitle="View, download and respond to your offer letters."
+                >
+                  <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">
+                    You don't have any offer letters yet.
+                  </div>
+                </Card>
+              ))}
+
+            {activeSection === "profile" && (
+              <Card title="Personal Information">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input
+                    label="Department (Previous Company)"
+                    value={personal.department}
+                    onChange={(v) =>
+                      setPersonal((p) => ({ ...p, department: v }))
+                    }
+                  />
+                  <Input
+                    label="Date of Birth"
+                    type="date"
+                    value={personal.dob || ""}
+                    onChange={(v) => setPersonal((p) => ({ ...p, dob: v }))}
+                  />
+                  <Select
+                    label="Gender"
+                    value={personal.gender || ""}
+                    onChange={(v) => setPersonal((p) => ({ ...p, gender: v }))}
+                    options={["", "Male", "Female", "Other"]}
+                  />
+                  <Input
+                    label="Nationality"
+                    value={personal.nationality}
+                    onChange={(v) =>
+                      setPersonal((p) => ({ ...p, nationality: v }))
+                    }
+                  />
+                  <TextArea
+                    label="Current Residential Address"
+                    value={personal.current_address}
+                    onChange={(v) =>
+                      setPersonal((p) => ({ ...p, current_address: v }))
+                    }
+                    rows={3}
+                  />
+                  <TextArea
+                    label="Permanent Address"
+                    value={personal.permanent_address}
+                    onChange={(v) =>
+                      setPersonal((p) => ({ ...p, permanent_address: v }))
+                    }
+                    rows={3}
+                  />
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    onClick={async () => {
+                      clearNotice();
+
+                      try {
+                        await submitCandidateInfoForm(personal);
+                        showNotice("Personal Information Saved.", "success");
+                      } catch (err) {
+                        showNotice(
+                          err.message || "Failed to save personal info.",
+                        );
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    Save Personal Information
+                  </Button>
+                </div>
+              </Card>
+            )}
+            {activeSection === "documents" && (
+              <Card
+                title="Document Verification Status"
+                subtitle="Track the verification status of all uploaded documents."
+              >
+                <div className="space-y-2">
+                  {myDocuments?.documents?.length ? (
+                    myDocuments.documents.map((doc) => {
+                      return (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold">
+                              {DOC_LABELS[doc.document_type] ||
+                                doc.document_type}
+                            </div>
+
+                            <div className="text-xs text-slate-500">
+                              {doc.original_filename} •{" "}
+                              {doc.uploaded_at
+                                ? new Date(doc.uploaded_at).toLocaleDateString()
+                                : "-"}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <StatusBadge
+                              status={
+                                doc.is_verified
+                                  ? "Verified"
+                                  : doc.notes
+                                    ? "Rejected"
+                                    : "Pending"
+                              }
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-slate-600">
+                      No documents uploaded yet. Upload your required documents
+                      to begin verification.
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+            {activeSection === "documents" && (
+              <Card
+                title="Education Details"
+                subtitle="Please provide details of your SSC, HSC, Bachelor's Degree, and Master's Degree (if completed)."
+              >
+                <div className="space-y-4">
+                  {education.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className="grid gap-3 rounded-xl border p-3 md:grid-cols-2"
+                    >
+                      <Input
+                        label="Institute / School / College"
+                        value={row.education_institute}
+                        onChange={(v) => {
+                          const next = [...education];
+                          next[idx].education_institute = v;
+                          setEducation(next);
+                        }}
+                      />
+                      <Input
+                        label="Degree / Qualification"
+                        value={row.degree}
+                        onChange={(v) => {
+                          const next = [...education];
+                          next[idx].degree = v;
+                          setEducation(next);
+                        }}
+                      />
+                      <Input
+                        label="Specialization / Field of Study"
+                        value={row.field_of_study}
+                        onChange={(v) => {
+                          const next = [...education];
+                          next[idx].field_of_study = v;
+                          setEducation(next);
+                        }}
+                      />
+                      <Input
+                        label="Start Year"
+                        value={row.starting_year}
+                        onChange={(v) => {
+                          const next = [...education];
+                          next[idx].starting_year = v;
+                          setEducation(next);
+                        }}
+                      />
+                      <Input
+                        label="Year of Passing"
+                        value={row.year_of_passing}
+                        onChange={(v) => {
+                          const next = [...education];
+                          next[idx].year_of_passing = v;
+                          setEducation(next);
+                        }}
+                      />
+                      <Input
+                        label="Percentage / CGPA"
+                        value={row.percentage}
+                        onChange={(v) => {
+                          const next = [...education];
+                          next[idx].percentage = v;
+                          setEducation(next);
+                        }}
+                      />
+
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={row.document_is_submitted}
+                          onChange={(e) => {
+                            const next = [...education];
+                            next[idx].document_is_submitted = e.target.checked;
+                            setEducation(next);
+                          }}
+                        />
+                        Document Submitted
+                      </label>
+
+                      <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
+                        <span>
+                          {row.id ? `Record ID: ${row.id}` : "New record"}
+                        </span>
+
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            clearNotice();
+
+                            if (row.id) {
+                              setLoading(true);
+
+                              try {
+                                await deleteCandidateEducation(row.id);
+                                const refreshed =
+                                  await listCandidateEducation();
+
+                                if (refreshed?.records?.length) {
+                                  setEducation(
+                                    refreshed.records.map(
+                                      normalizeEducationRecord,
+                                    ),
+                                  );
+                                } else {
+                                  setEducation([
+                                    {
+                                      id: null,
+                                      education_institute: "",
+                                      degree: "",
+                                      field_of_study: "",
+                                      starting_year: "",
+                                      year_of_passing: "",
+                                      percentage: "",
+                                      submitted_at: today(),
+                                      document_is_submitted: false,
+                                    },
+                                  ]);
+                                }
+
+                                showNotice(
+                                  "Education record deleted.",
+                                  "success",
+                                );
+                              } catch (err) {
+                                showNotice(
+                                  err.message ||
+                                    "Failed to delete education record.",
+                                );
+                              } finally {
+                                setLoading(false);
+                              }
+                            } else {
+                              setEducation((prev) =>
+                                prev.filter((_, index) => index !== idx),
+                              );
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <DocumentUploadRow
+                    label="Education Certificate"
+                    onUpload={(file) =>
+                      handleUpload(
+                        uploadEducationCertificate,
+                        "Education Certificate",
+                        file,
+                      )
+                    }
+                    disabled={
+                      loading || uploadingType === "Education Certificate"
+                    }
+                  />
+                  <div className="ml-auto">
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        setEducation((prev) => [
+                          ...prev,
+                          {
+                            id: null,
+                            education_institute: "",
+                            degree: "",
+                            field_of_study: "",
+                            starting_year: "",
+                            year_of_passing: "",
+                            percentage: "",
+                            submitted_at: today(),
+                            document_is_submitted: false,
+                          },
+                        ])
+                      }
+                    >
+                      Add Education
+                    </Button>
+                  </div>
+
+                  <Button
+                    onClick={async () => {
+                      clearNotice();
+
+                      try {
+                        setLoading(true);
+
+                        for (const record of education) {
+                          const payload = toEducationPayload(record);
+
+                          if (record.id) {
+                            await updateCandidateEducation(record.id, payload);
+                          } else {
+                            await addCandidateEducation(payload);
+                          }
+                        }
+
+                        const refreshed = await listCandidateEducation();
+
+                        if (refreshed?.records?.length) {
+                          setEducation(
+                            refreshed.records.map(normalizeEducationRecord),
+                          );
+                        }
+
+                        showNotice("Education Details Saved.", "success");
+                      } catch (err) {
+                        showNotice(err.message || "Failed to save education.");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    Save Education
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {activeSection === "documents" && (
+              <Card
+                title="Experience Details"
+                subtitle="Please provide details of your previous employment and upload your experience letter."
+              >
+                <div className="space-y-4">
+                  {experience.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className="grid gap-3 rounded-xl border p-3 md:grid-cols-2"
+                    >
+                      <Input
+                        label="Company Name"
+                        value={row.company_name}
+                        onChange={(v) => {
+                          const next = [...experience];
+                          next[idx].company_name = v;
+                          setExperience(next);
+                        }}
+                      />
+                      <Input
+                        label="Designation / Job Title"
+                        value={row.job_title}
+                        onChange={(v) => {
+                          const next = [...experience];
+                          next[idx].job_title = v;
+                          setExperience(next);
+                        }}
+                      />
+                      <Input
+                        label="Start Date"
+                        type="date"
+                        value={row.start_date || ""}
+                        onChange={(v) => {
+                          const next = [...experience];
+                          next[idx].start_date = v;
+                          setExperience(next);
+                        }}
+                      />
+                      <Input
+                        label="End Date"
+                        type="date"
+                        value={row.end_date || ""}
+                        onChange={(v) => {
+                          const next = [...experience];
+                          next[idx].end_date = v;
+                          setExperience(next);
+                        }}
+                      />
+                      <Input
+                        label="Total Experience (Years)"
+                        value={row.year_of_experience}
+                        onChange={(v) => {
+                          const next = [...experience];
+                          next[idx].year_of_experience = v;
+                          setExperience(next);
+                        }}
+                      />
+
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={row.document_is_submitted}
+                          onChange={(e) => {
+                            const next = [...experience];
+                            next[idx].document_is_submitted = e.target.checked;
+                            setExperience(next);
+                          }}
+                        />
+                        Experience Letter Submitted
+                      </label>
+
+                      <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
+                        <span>
+                          {row.id ? `Record ID: ${row.id}` : "New record"}
+                        </span>
+
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            clearNotice();
+
+                            if (row.id) {
+                              setLoading(true);
+
+                              try {
+                                await deleteCandidateExperience(row.id);
+                                const refreshed =
+                                  await listCandidateExperience();
+
+                                if (refreshed?.records?.length) {
+                                  setExperience(
+                                    refreshed.records.map(
+                                      normalizeExperienceRecord,
+                                    ),
+                                  );
+                                } else {
+                                  setExperience([
+                                    {
+                                      id: null,
+                                      company_name: "",
+                                      job_title: "",
+                                      start_date: "",
+                                      end_date: "",
+                                      year_of_experience: "",
+                                      submitted_at: today(),
+                                      document_is_submitted: false,
+                                    },
+                                  ]);
+                                }
+
+                                showNotice(
+                                  "Experience record deleted.",
+                                  "success",
+                                );
+                              } catch (err) {
+                                showNotice(
+                                  err.message ||
+                                    "Failed to delete experience record.",
+                                );
+                              } finally {
+                                setLoading(false);
+                              }
+                            } else {
+                              setExperience((prev) =>
+                                prev.filter((_, index) => index !== idx),
+                              );
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <DocumentUploadRow
+                    label="Experience Letter"
+                    onUpload={(file) =>
+                      handleUpload(
+                        uploadExperienceLetter,
+                        "Experience Letter",
+                        file,
+                      )
+                    }
+                    disabled={loading || uploadingType === "Experience Letter"}
+                  />
+                  <div className="ml-auto">
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        setExperience((prev) => [
+                          ...prev,
+                          {
+                            id: null,
+                            company_name: "",
+                            job_title: "",
+                            start_date: "",
+                            end_date: "",
+                            year_of_experience: "",
+                            submitted_at: today(),
+                            document_is_submitted: false,
+                          },
+                        ])
+                      }
+                    >
+                      Add Experience
+                    </Button>
+                  </div>
+
+                  <Button
+                    onClick={async () => {
+                      clearNotice();
+
+                      try {
+                        setLoading(true);
+
+                        for (const record of experience) {
+                          const payload = toExperiencePayload(record);
+
+                          if (record.id) {
+                            await updateCandidateExperience(record.id, payload);
+                          } else {
+                            await addCandidateExperience(payload);
+                          }
+                        }
+
+                        const refreshed = await listCandidateExperience();
+
+                        if (refreshed?.records?.length) {
+                          setExperience(
+                            refreshed.records.map(normalizeExperienceRecord),
+                          );
+                        }
+
+                        showNotice("Experience Details Saved.", "success");
+                      } catch (err) {
+                        showNotice(err.message || "Failed to save experience.");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    Save Experience
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {activeSection === "documents" && (
+              <Card
+                title="PAN Details"
+                subtitle="Please upload a clear copy of your PAN Card for identity verification."
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input
+                    label="PAN Number"
+                    value={pan.pan}
+                    onChange={(v) => setPan((p) => ({ ...p, pan: v }))}
+                  />
+                  <Input
+                    label="Name as per PAN"
+                    value={pan.name_in_pan}
+                    onChange={(v) => setPan((p) => ({ ...p, name_in_pan: v }))}
+                  />
+                  <Input
+                    label="Father's Name as per PAN"
+                    value={pan.father_name_in_pan}
+                    onChange={(v) =>
+                      setPan((p) => ({ ...p, father_name_in_pan: v }))
+                    }
+                  />
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={pan.pan_is_submitted}
+                      onChange={(e) =>
+                        setPan((p) => ({
+                          ...p,
+                          pan_is_submitted: e.target.checked,
+                        }))
+                      }
+                    />
+                    PAN Submitted
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={pan.is_verified}
+                      onChange={(e) =>
+                        setPan((p) => ({ ...p, is_verified: e.target.checked }))
+                      }
+                    />
+                    Verified
+                  </label>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <DocumentUploadRow
+                    label="PAN Card"
+                    onUpload={(file) =>
+                      handleUpload(uploadPan, "PAN Card", file)
+                    }
+                    disabled={loading || uploadingType === "PAN Card"}
+                  />
+                  <Button
+                    onClick={async () => {
+                      clearNotice();
+
+                      try {
+                        await submitCandidatePanForm({
+                          ...pan,
+                          submitted_at: pan.submitted_at || today(),
+                        });
+                        showNotice("PAN Details Saved.", "success");
+                      } catch (err) {
+                        showNotice(
+                          err.message || "Failed to Save PAN Details.",
+                        );
+                      }
+                    }}
+                  >
+                    Save PAN
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {activeSection === "documents" && (
+              <Card
+                title="Aadhaar Details"
+                subtitle="Please upload a clear copy of your Aadhaar Card for identity and address verification."
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input
+                    label="Aadhaar Number"
+                    value={aadhar.aadhar}
+                    onChange={(v) => setAadhar((a) => ({ ...a, aadhar: v }))}
+                  />
+                  <Input
+                    label="Name as per Aadhaar"
+                    value={aadhar.name_in_aadhar}
+                    onChange={(v) =>
+                      setAadhar((a) => ({ ...a, name_in_aadhar: v }))
+                    }
+                  />
+                  <Input
+                    label="Aadhaar Enrollment Number"
+                    value={aadhar.enrollment_number}
+                    onChange={(v) =>
+                      setAadhar((a) => ({ ...a, enrollment_number: v }))
+                    }
+                  />
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={aadhar.aadhar_is_submitted}
+                      onChange={(e) =>
+                        setAadhar((a) => ({
+                          ...a,
+                          aadhar_is_submitted: e.target.checked,
+                        }))
+                      }
+                    />
+                    Aadhaar Submitted
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={aadhar.is_verified}
+                      onChange={(e) =>
+                        setAadhar((a) => ({
+                          ...a,
+                          is_verified: e.target.checked,
+                        }))
+                      }
+                    />
+                    Aadhaar Verified
+                  </label>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <DocumentUploadRow
+                    label="Aadhaar Card"
+                    onUpload={(file) =>
+                      handleUpload(uploadAadhar, "Aadhar Card", file)
+                    }
+                    disabled={loading || uploadingType === "Aadhar Card"}
+                  />
+                  <Button
+                    onClick={async () => {
+                      clearNotice();
+
+                      try {
+                        await submitCandidateAadharForm({
+                          ...aadhar,
+                          submitted_at: aadhar.submitted_at || today(),
+                        });
+                        showNotice("Aadhaar Details Saved.", "success");
+                      } catch (err) {
+                        showNotice(
+                          err.message || "Failed to Save Aadhaar Details.",
+                        );
+                      }
+                    }}
+                  >
+                    Save Aadhaar
+                  </Button>
+                </div>
+              </Card>
+            )}
+            {activeSection === "documents" && (
+              <Card
+                title="UAN / PF Details"
+                subtitle="Please upload your UAN / PF document for verification."
+              >
+                <DocumentUploadRow
+                  label="UAN / PF Document"
+                  onUpload={(file) =>
+                    handleUpload(uploadUanPfDocument, "UAN / PF Document", file)
+                  }
+                  disabled={loading || uploadingType === "UAN / PF Document"}
+                />
+              </Card>
+            )}
+            {activeSection === "documents" && (
+              <Card
+                title="Bank Statements"
+                subtitle="Please upload your bank statements for the last 3 months showing salary credits."
+              >
+                <DocumentUploadRow
+                  label="Last 3 Months Bank Statements"
+                  onUpload={(file) =>
+                    handleUpload(uploadBankStatement, "Bank Statement", file)
+                  }
+                  disabled={loading || uploadingType === "Bank Statement"}
+                />
+              </Card>
+            )}
+            {activeSection === "documents" && (
+              <Card
+                title="Salary Slips"
+                subtitle="Please upload your salary slips for the last 3 months."
+              >
+                <DocumentUploadRow
+                  label="Last 3 Months Salary Slips"
+                  onUpload={(file) =>
+                    handleUpload(uploadSalarySlip, "Salary Slip", file)
+                  }
+                  disabled={loading || uploadingType === "Salary Slip"}
+                />
+              </Card>
+            )}
+
+            <div className="mt-4"></div>
+
+            {activeSection === "dashboard" && onboardingStatus ? (
+              <Card title="Onboarding Status">
+                <div className="grid gap-3 md:grid-cols-1">
+                  <div>
+                    <div className="text-xs text-slate-500">
+                      Overall completion
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {Number(
+                        onboardingStatus?.overall_completion || 0,
+                      ).toFixed(0)}
+                      %
+                    </div>
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-green-500"
+                        style={{
+                          width: `${Number(
+                            onboardingStatus?.overall_completion || 0,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {onboardingStatus.forms_status ? (
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {Object.entries(onboardingStatus?.forms_status).map(
+                      ([key, value]) => (
+                        <div
+                          key={key}
+                          className="rounded-lg border bg-slate-50 px-3 py-2 text-xs"
+                        >
+                          <div className="font-semibold">
+                            {{
+                              personal_info: "Personal Information",
+                              education: "Education",
+                              experience: "Experience",
+                              pan: "PAN",
+                              aadhar: "Aadhaar",
+                            }[key] ||
+                              String(key)
+                                .replace(/_/g, " ")
+                                .replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </div>
+                          <div>
+                            Completed: {value?.completed ? "Yes" : "No"}
+                          </div>
+                          {"verified" in (value || {}) ? (
+                            <div>
+                              Verified: {value?.verified ? "Yes" : "No"}
+                            </div>
+                          ) : null}
+                          {"count" in (value || {}) ? (
+                            <div>Count: {value?.count ?? 0}</div>
+                          ) : null}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+              </Card>
             ) : null}
+            {activeSection === "jobs" && (
+              <Card
+                title={`Jobs & Apply (${activeJobs?.length || 0})`}
+                subtitle="Browse available positions and submit applications."
+              >
+                <div className="space-y-3">
+                  {activeJobs?.length ? (
+                    activeJobs.slice(0, 10).map((j) => (
+                      <div
+                        key={j?.job_id || j?.id}
+                        className="rounded-lg border bg-white p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold">
+                              {j?.job_title || "Untitled Job"}
+                            </div>
+                            <div className="text-xs text-slate-600">
+                              {j?.job_location || "—"} •{" "}
+                              {j?.company_name || "—"}
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <StatusBadge
+                                status={normalizeJobStatus(j?.job_status)}
+                              />
+                              <span className="text-xs text-slate-500">
+                                {j?.job_id || "-"}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => handleApplyForJob(j?.job_id)}
+                            disabled={!profile?.candidate_mobile || !j?.job_id}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-slate-600">
+                      No job openings are available at the moment.
+                    </div>
+                  )}
+                  <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
+                    <div className="mb-2 font-semibold text-slate-700">
+                      Resume for Application (Optional)
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        setJobResumeFile(file || null);
+                      }}
+                    />
+                    <div className="mt-1">
+                      {jobResumeFile
+                        ? `Selected: ${jobResumeFile.name} (${(
+                            jobResumeFile.size / 1024
+                          ).toFixed(1)} KB)`
+                        : "No resume selected."}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Jobs list is sourced from active/public jobs.
+                  </div>
+                </div>
+              </Card>
+            )}
           </div>
         </div>
+
         {showProfileModal ? (
           <div
             onClick={() => setShowProfileModal(false)}
@@ -929,977 +2045,6 @@ export default function CandidateSelfService({ onLogout }) {
           </div>
         ) : null}
 
-        {myOffers?.length > 0 ? (
-          <Card title="Offer Letters">
-            <div className="space-y-3">
-              {myOffers.map((o) => (
-                <div key={o.id} className="rounded-lg border bg-slate-50 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          o?.sharepoint_url &&
-                          window.open(
-                            o.sharepoint_url,
-                            "_blank",
-                            "noopener,noreferrer",
-                          )
-                        }
-                        disabled={!o?.sharepoint_url}
-                      >
-                        View
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          downloadOfferLetter(
-                            o?.download_url,
-                            `${o?.position || "Offer"}-Letter.docx`,
-                          )
-                        }
-                        disabled={!o?.download_url}
-                      >
-                        Download
-                      </Button>
-                    </div>
-
-                    {String(o?.offer_status).toLowerCase() === "released" &&
-                      !o?.candidate_response && (
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => {
-                              setSelectedOffer(o);
-                              setShowSignatureModal(true);
-                            }}
-                            disabled={loading}
-                          >
-                            Accept
-                          </Button>
-
-                          <Button
-                            variant="secondary"
-                            onClick={async () => {
-                              clearNotice();
-                              try {
-                                await respondToOffer({
-                                  offerId: o.id,
-                                  action: "reject",
-                                });
-                                const refreshed = await getMyOffers();
-                                setMyOffers(refreshed?.offers || []);
-                                showNotice("Offer declined.", "success");
-                              } catch (err) {
-                                showNotice(
-                                  err?.message || "Failed to decline offer.",
-                                );
-                              }
-                            }}
-                            disabled={loading}
-                          >
-                            Decline
-                          </Button>
-                        </div>
-                      )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ) : null}
-
-        {shouldShowChecklists ? (
-          <Card title="My checklists" icon={<ListChecks className="h-4 w-4" />}>
-            {checklistList.length ? (
-              <>
-                <p className="mb-3 text-sm text-slate-600">
-                  Complete assigned tasks.
-                </p>
-                <div className="space-y-4">
-                  {checklistList.map((cl) => (
-                    <div key={cl.id} className="rounded-xl border bg-white p-3">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <div className="font-semibold text-slate-900">
-                          {cl.template_name || `Checklist ${cl.id}`}
-                        </div>
-                      </div>
-
-                      <ul className="space-y-2">
-                        {(cl.items || [])
-                          .slice()
-                          .sort(
-                            (a, b) =>
-                              (a.order_index ?? 0) - (b.order_index ?? 0),
-                          )
-                          .map((item) => {
-                            const actionable = canCandidateCompleteItem(item);
-                            const waitingQueue =
-                              item.item_type === "queue" &&
-                              item.status === "pending" &&
-                              !actionable;
-
-                            return (
-                              <li
-                                key={item.id}
-                                className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
-                              >
-                                <div>
-                                  <div className="text-sm font-medium">
-                                    {item.title}
-                                  </div>
-                                  {item.description ? (
-                                    <div className="text-xs text-slate-600">
-                                      {item.description}
-                                    </div>
-                                  ) : null}
-                                  {waitingQueue ? (
-                                    <div className="mt-1 text-xs text-amber-700">
-                                      Awaiting previous step
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </li>
-                            );
-                          })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">
-                No checklist assigned yet.
-              </div>
-            )}
-          </Card>
-        ) : null}
-        <Card title="Document Verification Status">
-          <div className="space-y-2">
-            {myDocuments?.documents?.length ? (
-              myDocuments.documents.map((doc) => {
-                return (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {DOC_LABELS[doc.document_type] || doc.document_type}
-                      </div>
-
-                      <div className="text-xs text-slate-500">
-                        {doc.original_filename} •{" "}
-                        {doc.uploaded_at
-                          ? new Date(doc.uploaded_at).toLocaleDateString()
-                          : "-"}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <StatusBadge
-                        status={
-                          doc.is_verified
-                            ? "Verified"
-                            : doc.notes
-                              ? "Rejected"
-                              : "Pending"
-                        }
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-sm text-slate-600">
-                No documents uploaded yet.
-              </div>
-            )}
-          </div>
-        </Card>
-        <Card title="Personal Information">
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="Designation"
-              value={personal.position}
-              onChange={(v) => setPersonal((p) => ({ ...p, position: v }))}
-            />
-            <Input
-              label="Department"
-              value={personal.department}
-              onChange={(v) => setPersonal((p) => ({ ...p, department: v }))}
-            />
-            <Input
-              label="Date of Birth"
-              type="date"
-              value={personal.dob || ""}
-              onChange={(v) => setPersonal((p) => ({ ...p, dob: v }))}
-            />
-            <Select
-              label="Gender"
-              value={personal.gender || ""}
-              onChange={(v) => setPersonal((p) => ({ ...p, gender: v }))}
-              options={["", "Male", "Female", "Other"]}
-            />
-            <Input
-              label="Marital Status"
-              value={personal.marital_status}
-              onChange={(v) =>
-                setPersonal((p) => ({ ...p, marital_status: v }))
-              }
-            />
-            <Input
-              label="Nationality"
-              value={personal.nationality}
-              onChange={(v) => setPersonal((p) => ({ ...p, nationality: v }))}
-            />
-            <TextArea
-              label="Current Residential Address"
-              value={personal.current_address}
-              onChange={(v) =>
-                setPersonal((p) => ({ ...p, current_address: v }))
-              }
-              rows={3}
-            />
-            <TextArea
-              label="Permanent Address"
-              value={personal.permanent_address}
-              onChange={(v) =>
-                setPersonal((p) => ({ ...p, permanent_address: v }))
-              }
-              rows={3}
-            />
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  await submitCandidateInfoForm(personal);
-                  showNotice("Personal Information Saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to save personal info.");
-                }
-              }}
-              disabled={loading}
-            >
-              Save Personal Information
-            </Button>
-          </div>
-        </Card>
-        <Card
-          title="Education Details"
-          subtitle="Please provide details of your SSC, HSC, Bachelor's Degree, and Master's Degree (if completed)."
-        >
-          <div className="space-y-4">
-            {education.map((row, idx) => (
-              <div
-                key={idx}
-                className="grid gap-3 rounded-xl border p-3 md:grid-cols-2"
-              >
-                <Input
-                  label="Institute / School / College"
-                  value={row.education_institute}
-                  onChange={(v) => {
-                    const next = [...education];
-                    next[idx].education_institute = v;
-                    setEducation(next);
-                  }}
-                />
-                <Input
-                  label="Degree / Qualification"
-                  value={row.degree}
-                  onChange={(v) => {
-                    const next = [...education];
-                    next[idx].degree = v;
-                    setEducation(next);
-                  }}
-                />
-                <Input
-                  label="Specialization / Field of Study"
-                  value={row.field_of_study}
-                  onChange={(v) => {
-                    const next = [...education];
-                    next[idx].field_of_study = v;
-                    setEducation(next);
-                  }}
-                />
-                <Input
-                  label="Start Year"
-                  value={row.starting_year}
-                  onChange={(v) => {
-                    const next = [...education];
-                    next[idx].starting_year = v;
-                    setEducation(next);
-                  }}
-                />
-                <Input
-                  label="Year of Passing"
-                  value={row.year_of_passing}
-                  onChange={(v) => {
-                    const next = [...education];
-                    next[idx].year_of_passing = v;
-                    setEducation(next);
-                  }}
-                />
-                <Input
-                  label="Percentage / CGPA"
-                  value={row.percentage}
-                  onChange={(v) => {
-                    const next = [...education];
-                    next[idx].percentage = v;
-                    setEducation(next);
-                  }}
-                />
-
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={row.document_is_submitted}
-                    onChange={(e) => {
-                      const next = [...education];
-                      next[idx].document_is_submitted = e.target.checked;
-                      setEducation(next);
-                    }}
-                  />
-                  Document Submitted
-                </label>
-
-                <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
-                  <span>{row.id ? `Record ID: ${row.id}` : "New record"}</span>
-
-                  <Button
-                    variant="danger"
-                    onClick={async () => {
-                      clearNotice();
-
-                      if (row.id) {
-                        setLoading(true);
-
-                        try {
-                          await deleteCandidateEducation(row.id);
-                          const refreshed = await listCandidateEducation();
-
-                          if (refreshed?.records?.length) {
-                            setEducation(
-                              refreshed.records.map(normalizeEducationRecord),
-                            );
-                          } else {
-                            setEducation([
-                              {
-                                id: null,
-                                education_institute: "",
-                                degree: "",
-                                field_of_study: "",
-                                starting_year: "",
-                                year_of_passing: "",
-                                percentage: "",
-                                submitted_at: today(),
-                                document_is_submitted: false,
-                              },
-                            ]);
-                          }
-
-                          showNotice("Education record deleted.", "success");
-                        } catch (err) {
-                          showNotice(
-                            err.message || "Failed to delete education record.",
-                          );
-                        } finally {
-                          setLoading(false);
-                        }
-                      } else {
-                        setEducation((prev) =>
-                          prev.filter((_, index) => index !== idx),
-                        );
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <DocumentUploadRow
-              label="Education Certificate"
-              onUpload={(file) =>
-                handleUpload(
-                  uploadEducationCertificate,
-                  "Education Certificate",
-                  file,
-                )
-              }
-              disabled={loading || uploadingType === "Education Certificate"}
-            />
-            <div className="ml-auto">
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  setEducation((prev) => [
-                    ...prev,
-                    {
-                      id: null,
-                      education_institute: "",
-                      degree: "",
-                      field_of_study: "",
-                      starting_year: "",
-                      year_of_passing: "",
-                      percentage: "",
-                      submitted_at: today(),
-                      document_is_submitted: false,
-                    },
-                  ])
-                }
-              >
-                Add Education
-              </Button>
-            </div>
-
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  setLoading(true);
-
-                  for (const record of education) {
-                    const payload = toEducationPayload(record);
-
-                    if (record.id) {
-                      await updateCandidateEducation(record.id, payload);
-                    } else {
-                      await addCandidateEducation(payload);
-                    }
-                  }
-
-                  const refreshed = await listCandidateEducation();
-
-                  if (refreshed?.records?.length) {
-                    setEducation(
-                      refreshed.records.map(normalizeEducationRecord),
-                    );
-                  }
-
-                  showNotice("Education Details Saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to save education.");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-              Save Education
-            </Button>
-          </div>
-        </Card>
-
-        <Card
-          title="Experience Details"
-          subtitle="Please provide details of your previous employment and upload your experience letter."
-        >
-          <div className="space-y-4">
-            {experience.map((row, idx) => (
-              <div
-                key={idx}
-                className="grid gap-3 rounded-xl border p-3 md:grid-cols-2"
-              >
-                <Input
-                  label="Company Name"
-                  value={row.company_name}
-                  onChange={(v) => {
-                    const next = [...experience];
-                    next[idx].company_name = v;
-                    setExperience(next);
-                  }}
-                />
-                <Input
-                  label="Designation / Job Title"
-                  value={row.job_title}
-                  onChange={(v) => {
-                    const next = [...experience];
-                    next[idx].job_title = v;
-                    setExperience(next);
-                  }}
-                />
-                <Input
-                  label="Start Date"
-                  type="date"
-                  value={row.start_date || ""}
-                  onChange={(v) => {
-                    const next = [...experience];
-                    next[idx].start_date = v;
-                    setExperience(next);
-                  }}
-                />
-                <Input
-                  label="End Date"
-                  type="date"
-                  value={row.end_date || ""}
-                  onChange={(v) => {
-                    const next = [...experience];
-                    next[idx].end_date = v;
-                    setExperience(next);
-                  }}
-                />
-                <Input
-                  label="Total Experience (Years)"
-                  value={row.year_of_experience}
-                  onChange={(v) => {
-                    const next = [...experience];
-                    next[idx].year_of_experience = v;
-                    setExperience(next);
-                  }}
-                />
-
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={row.document_is_submitted}
-                    onChange={(e) => {
-                      const next = [...experience];
-                      next[idx].document_is_submitted = e.target.checked;
-                      setExperience(next);
-                    }}
-                  />
-                  Experience Letter Submitted
-                </label>
-
-                <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
-                  <span>{row.id ? `Record ID: ${row.id}` : "New record"}</span>
-
-                  <Button
-                    variant="danger"
-                    onClick={async () => {
-                      clearNotice();
-
-                      if (row.id) {
-                        setLoading(true);
-
-                        try {
-                          await deleteCandidateExperience(row.id);
-                          const refreshed = await listCandidateExperience();
-
-                          if (refreshed?.records?.length) {
-                            setExperience(
-                              refreshed.records.map(normalizeExperienceRecord),
-                            );
-                          } else {
-                            setExperience([
-                              {
-                                id: null,
-                                company_name: "",
-                                job_title: "",
-                                start_date: "",
-                                end_date: "",
-                                year_of_experience: "",
-                                submitted_at: today(),
-                                document_is_submitted: false,
-                              },
-                            ]);
-                          }
-
-                          showNotice("Experience record deleted.", "success");
-                        } catch (err) {
-                          showNotice(
-                            err.message ||
-                              "Failed to delete experience record.",
-                          );
-                        } finally {
-                          setLoading(false);
-                        }
-                      } else {
-                        setExperience((prev) =>
-                          prev.filter((_, index) => index !== idx),
-                        );
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <DocumentUploadRow
-              label="Experience Letter"
-              onUpload={(file) =>
-                handleUpload(uploadExperienceLetter, "Experience Letter", file)
-              }
-              disabled={loading || uploadingType === "Experience Letter"}
-            />
-            <div className="ml-auto">
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  setExperience((prev) => [
-                    ...prev,
-                    {
-                      id: null,
-                      company_name: "",
-                      job_title: "",
-                      start_date: "",
-                      end_date: "",
-                      year_of_experience: "",
-                      submitted_at: today(),
-                      document_is_submitted: false,
-                    },
-                  ])
-                }
-              >
-                Add Experience
-              </Button>
-            </div>
-
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  setLoading(true);
-
-                  for (const record of experience) {
-                    const payload = toExperiencePayload(record);
-
-                    if (record.id) {
-                      await updateCandidateExperience(record.id, payload);
-                    } else {
-                      await addCandidateExperience(payload);
-                    }
-                  }
-
-                  const refreshed = await listCandidateExperience();
-
-                  if (refreshed?.records?.length) {
-                    setExperience(
-                      refreshed.records.map(normalizeExperienceRecord),
-                    );
-                  }
-
-                  showNotice("Experience Details Saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to save experience.");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-              Save Experience
-            </Button>
-          </div>
-        </Card>
-
-        <Card
-          title="PAN Details"
-          subtitle="Please upload a clear copy of your PAN Card for identity verification."
-        >
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="PAN Number"
-              value={pan.pan}
-              onChange={(v) => setPan((p) => ({ ...p, pan: v }))}
-            />
-            <Input
-              label="Name as per PAN"
-              value={pan.name_in_pan}
-              onChange={(v) => setPan((p) => ({ ...p, name_in_pan: v }))}
-            />
-            <Input
-              label="Father's Name as per PAN"
-              value={pan.father_name_in_pan}
-              onChange={(v) => setPan((p) => ({ ...p, father_name_in_pan: v }))}
-            />
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={pan.pan_is_submitted}
-                onChange={(e) =>
-                  setPan((p) => ({ ...p, pan_is_submitted: e.target.checked }))
-                }
-              />
-              PAN Submitted
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={pan.is_verified}
-                onChange={(e) =>
-                  setPan((p) => ({ ...p, is_verified: e.target.checked }))
-                }
-              />
-              Verified
-            </label>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <DocumentUploadRow
-              label="PAN Card"
-              onUpload={(file) => handleUpload(uploadPan, "PAN Card", file)}
-              disabled={loading || uploadingType === "PAN Card"}
-            />
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  await submitCandidatePanForm({
-                    ...pan,
-                    submitted_at: pan.submitted_at || today(),
-                  });
-                  showNotice("PAN Details Saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to Save PAN Details.");
-                }
-              }}
-            >
-              Save PAN
-            </Button>
-          </div>
-        </Card>
-
-        <Card
-          title="Aadhaar Details"
-          subtitle="Please upload a clear copy of your Aadhaar Card for identity and address verification."
-        >
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="Aadhaar Number"
-              value={aadhar.aadhar}
-              onChange={(v) => setAadhar((a) => ({ ...a, aadhar: v }))}
-            />
-            <Input
-              label="Name as per Aadhaar"
-              value={aadhar.name_in_aadhar}
-              onChange={(v) => setAadhar((a) => ({ ...a, name_in_aadhar: v }))}
-            />
-            <Input
-              label="Aadhaar Enrollment Number"
-              value={aadhar.enrollment_number}
-              onChange={(v) =>
-                setAadhar((a) => ({ ...a, enrollment_number: v }))
-              }
-            />
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={aadhar.aadhar_is_submitted}
-                onChange={(e) =>
-                  setAadhar((a) => ({
-                    ...a,
-                    aadhar_is_submitted: e.target.checked,
-                  }))
-                }
-              />
-              Aadhaar Submitted
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={aadhar.is_verified}
-                onChange={(e) =>
-                  setAadhar((a) => ({ ...a, is_verified: e.target.checked }))
-                }
-              />
-              Aadhaar Verified
-            </label>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <DocumentUploadRow
-              label="Aadhaar Card"
-              onUpload={(file) =>
-                handleUpload(uploadAadhar, "Aadhar Card", file)
-              }
-              disabled={loading || uploadingType === "Aadhar Card"}
-            />
-            <Button
-              onClick={async () => {
-                clearNotice();
-
-                try {
-                  await submitCandidateAadharForm({
-                    ...aadhar,
-                    submitted_at: aadhar.submitted_at || today(),
-                  });
-                  showNotice("Aadhaar Details Saved.", "success");
-                } catch (err) {
-                  showNotice(err.message || "Failed to Save Aadhaar Details.");
-                }
-              }}
-            >
-              Save Aadhaar
-            </Button>
-          </div>
-        </Card>
-        <Card
-          title="UAN / PF Details"
-          subtitle="Please upload your UAN / PF document for verification."
-        >
-          <DocumentUploadRow
-            label="UAN / PF Document"
-            onUpload={(file) =>
-              handleUpload(uploadUanPfDocument, "UAN / PF Document", file)
-            }
-            disabled={loading || uploadingType === "UAN / PF Document"}
-          />
-        </Card>
-        <Card
-          title="Bank Statements"
-          subtitle="Please upload your bank statements for the last 3 months showing salary credits."
-        >
-          <DocumentUploadRow
-            label="Last 3 Months Bank Statements"
-            onUpload={(file) =>
-              handleUpload(uploadBankStatement, "Bank Statement", file)
-            }
-            disabled={loading || uploadingType === "Bank Statement"}
-          />
-        </Card>
-        <Card
-          title="Salary Slips"
-          subtitle="Please upload your salary slips for the last 3 months."
-        >
-          <DocumentUploadRow
-            label="Last 3 Months Salary Slips"
-            onUpload={(file) =>
-              handleUpload(uploadSalarySlip, "Salary Slip", file)
-            }
-            disabled={loading || uploadingType === "Salary Slip"}
-          />
-        </Card>
-
-        <div className="mt-4"></div>
-
-        {onboardingStatus ? (
-          <Card title="Onboarding Status">
-            <div className="grid gap-3 md:grid-cols-1">
-              <div>
-                <div className="text-xs text-slate-500">Overall completion</div>
-                <div className="text-lg font-semibold">
-                  {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
-                  %
-                </div>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-green-500"
-                    style={{
-                      width: `${Number(
-                        onboardingStatus?.overall_completion || 0,
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {onboardingStatus.forms_status ? (
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {Object.entries(onboardingStatus?.forms_status).map(
-                  ([key, value]) => (
-                    <div
-                      key={key}
-                      className="rounded-lg border bg-slate-50 px-3 py-2 text-xs"
-                    >
-                      <div className="font-semibold">
-                        {{
-                          personal_info: "Personal Information",
-                          education: "Education",
-                          experience: "Experience",
-                          pan: "PAN",
-                          aadhar: "Aadhaar",
-                        }[key] ||
-                          String(key)
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </div>
-                      <div>Completed: {value?.completed ? "Yes" : "No"}</div>
-                      {"verified" in (value || {}) ? (
-                        <div>Verified: {value?.verified ? "Yes" : "No"}</div>
-                      ) : null}
-                      {"count" in (value || {}) ? (
-                        <div>Count: {value?.count ?? 0}</div>
-                      ) : null}
-                    </div>
-                  ),
-                )}
-              </div>
-            ) : null}
-          </Card>
-        ) : null}
-        <Card title={`Jobs & Apply (${activeJobs?.length || 0})`}>
-          <div className="space-y-3">
-            {activeJobs?.length ? (
-              activeJobs.slice(0, 10).map((j) => (
-                <div
-                  key={j?.job_id || j?.id}
-                  className="rounded-lg border bg-white p-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {j?.job_title || "Untitled Job"}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        {j?.job_location || "—"} • {j?.company_name || "—"}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <StatusBadge
-                          status={normalizeJobStatus(j?.job_status)}
-                        />
-                        <span className="text-xs text-slate-500">
-                          {j?.job_id || "-"}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => handleApplyForJob(j?.job_id)}
-                      disabled={!profile?.candidate_mobile || !j?.job_id}
-                    >
-                      Apply
-                    </Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-slate-600">
-                No Active Jobs Right Now
-              </div>
-            )}
-            <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
-              <div className="mb-2 font-semibold text-slate-700">
-                Optional: Resume for Job Application
-              </div>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  setJobResumeFile(file || null);
-                }}
-              />
-              <div className="mt-1">
-                {jobResumeFile
-                  ? `Selected: ${jobResumeFile.name} (${(
-                      jobResumeFile.size / 1024
-                    ).toFixed(1)} KB)`
-                  : "No resume selected."}
-              </div>
-            </div>
-            <div className="text-xs text-slate-500">
-              Jobs list is sourced from active/public jobs.
-            </div>
-          </div>
-        </Card>
         <SignatureModal
           isOpen={showSignatureModal}
           onClose={() => {
