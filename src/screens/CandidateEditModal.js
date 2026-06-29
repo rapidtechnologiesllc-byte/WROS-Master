@@ -9,6 +9,7 @@ import {
 } from "../utils/resumeAutofill";
 import { assignJob, getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
+import { toast } from "react-toastify";
 
 function splitFullName(full) {
   const parts = String(full || "")
@@ -48,7 +49,7 @@ export default function CandidateEditModal({
     [candidate],
   );
   const candidateId = candidate?.id;
-  const [candidateRole,setCandidateRole] = useState("");
+  const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState(
     candidate?.jobTitle || "",
   );
@@ -61,9 +62,7 @@ export default function CandidateEditModal({
   const [dob, setDob] = useState(candidate?.dob || "");
   const [source, setSource] = useState(candidate?.source || "");
   const [experience, setExperience] = useState(candidate?.experience || "");
-  const [skills, setSkills] = useState(
-    Array.isArray(candidate?.skills) ? candidate.skills.join(", ") : "",
-  );
+  const [skills, setSkills] = useState("");
   const [joiningDate, setJoiningDate] = useState(candidate?.joiningDate || "");
   const [expectedSalary, setExpectedSalary] = useState(
     candidate?.expectedSalary || "",
@@ -105,7 +104,9 @@ export default function CandidateEditModal({
     setSource(candidate?.source || "");
     setExperience(candidate?.experience || "");
     setSkills(
-      Array.isArray(candidate?.skills) ? candidate.skills.join(", ") : "",
+      Array.isArray(candidate?.skills)
+        ? candidate.skills.join(", ")
+        : candidate?.skills || "",
     );
     setJoiningDate(candidate?.joiningDate || "");
     setExpectedSalary(candidate?.expectedSalary || "");
@@ -188,12 +189,7 @@ export default function CandidateEditModal({
         candidate_date_of_birth: dob || null,
         candidate_source: source || null,
         candidate_experience: experience || null,
-        candidate_skills: skills
-          ? skills
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : null,
+        candidate_skills: skills.trim() || null,
         candidate_joining_date: joiningDate || null,
         candidate_expected_salary: expectedSalary || null,
         candidate_current_salary: currentSalary || null,
@@ -205,21 +201,11 @@ export default function CandidateEditModal({
       if (resumeFile) {
         await uploadResume({ candidateId, file: resumeFile });
       }
-
-      if (selectedJobId) {
-        setIsAssigning(true);
-        const result = await assignJob(selectedJobId, candidateId);
-        if (result?.status === 200) {
-          toast.success("Candidate saved & job assigned ✅");
-        } else {
-          toast.error("Candidate saved but job assignment failed.");
-        }
-      }
-      onClose?.();
     } catch (err) {
       setActionNotice(err.message || "Failed to update candidate.");
     } finally {
       setIsSaving(false);
+      onClose?.();
     }
   };
 
@@ -261,31 +247,20 @@ export default function CandidateEditModal({
         >
           <div className="mb-4 grid gap-3 md:grid-cols-2">
             <Select
-              label="Role"
-              value={candidateRole}
-              onChange={setCandidateRole}
+              label="Employee Type"
+              value={employeeType}
+              onChange={setEmployeeType}
               options={[
                 {
                   label: "Please select your option",
                   value: "",
                   disabled: true,
                 },
-                { label: "Candidate", value: "Candidate" },
-                { label: "Employee", value: "Employee" },
-                { label: "Contractor", value: "Contractor" },
+                { label: "Full time employee", value: "Full Time Employee" },
+                { label: "Intern", value: "Intern" },
+                { label: "Guidewire Employee", value: "Guidewire" },
               ]}
             />
-            <Select
-            label="Employee Type"
-            value={employeeType}
-            onChange={setEmployeeType}
-            options={[
-              { label: "Please select your option", value: "", disabled: true },
-              { label: "Full time employee", value: "Full Time Employee" },
-              { label: "Intern", value: "Intern" },
-              { label: "Guidewire Employee", value: "Guidewire" },
-            ]}
-          />
             <Input
               label="Email (read-only)"
               value={email}
