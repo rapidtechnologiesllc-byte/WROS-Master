@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import CandidateDetailsScreen from "../../screens/CandidateDetailsScreen";
 import { useSearchParams } from "react-router-dom";
+import { toast } from "react-toastify";
 
 export default function CandidateDetailsWrapper({
   fetchCandidateById,
@@ -44,8 +45,9 @@ export default function CandidateDetailsWrapper({
         try {
           await updateCandidate(id, payload);
           await refreshCandidates();
+          toast.success("Candidate Updated")
         } catch (err) {
-          notify("Candidate", err.message || "Failed to update candidate.");
+          toast.error("Failed to update candidate.");
         }
       }}
     />
