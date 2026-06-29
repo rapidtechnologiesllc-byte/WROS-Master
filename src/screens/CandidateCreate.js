@@ -504,7 +504,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           .filter(Boolean),
         status: "New",
       };
-
+      toast.success("Candidate created successfully")
       let nextNotice = "Candidate created successfully.";
       if (resumeFile) {
         if (!createdCandidateId) {
@@ -515,11 +515,9 @@ export default function CandidateCreate({ onBack, onSave }) {
               candidateId: createdCandidateId,
               file: resumeFile,
             });
-
-            nextNotice = `${nextNotice} Resume uploaded.`;
+            toast.success(`${nextNotice} Resume uploaded.`)
           } catch (uploadErr) {
             console.error("Resume upload failed:", uploadErr);
-
             nextNotice = `${nextNotice} Resume upload failed: ${
               uploadErr?.message || "Unknown error"
             }.`;
