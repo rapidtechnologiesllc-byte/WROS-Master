@@ -576,6 +576,7 @@ function DocumentDetailsPanel({
             description={submittedDetails?.description}
             fields={submittedDetails?.fields}
             isLoading={isCandidateDetailsLoading}
+            groups={submittedDetails?.groups}
           />
         </div>
 
@@ -760,7 +761,13 @@ function RejectReasonModal({
     </div>
   );
 }
-function CandidateSubmittedDetails({ title, description, fields, isLoading }) {
+function CandidateSubmittedDetails({
+  title,
+  description,
+  fields,
+  isLoading,
+  groups,
+}) {
   const visibleFields = Array.isArray(fields)
     ? fields.filter(
         (field) =>
@@ -768,6 +775,19 @@ function CandidateSubmittedDetails({ title, description, fields, isLoading }) {
           field?.value !== null &&
           field?.value !== "",
       )
+    : [];
+  const visibleGroups = Array.isArray(groups)
+    ? groups
+        .map((group) => ({
+          ...group,
+          fields: group.fields.filter(
+            (field) =>
+              field?.value !== undefined &&
+              field?.value !== null &&
+              field?.value !== "",
+          ),
+        }))
+        .filter((group) => group.fields.length)
     : [];
 
   if (isLoading) {
@@ -780,7 +800,7 @@ function CandidateSubmittedDetails({ title, description, fields, isLoading }) {
     );
   }
 
-  if (!visibleFields.length) {
+  if (!visibleFields?.length && !visibleGroups?.length) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
         <div className="text-sm font-semibold text-gray-700">
@@ -804,15 +824,43 @@ function CandidateSubmittedDetails({ title, description, fields, isLoading }) {
         ) : null}
       </div>
 
-      <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
-        {visibleFields.map((field) => (
-          <Info
-            key={`${field?.label}-${field?.value}`}
-            label={field?.label}
-            value={field?.value}
-          />
-        ))}
-      </div>
+      {visibleGroups?.length ? (
+        <div className="space-y-5 p-4">
+          {visibleGroups.map((group, index) => (
+            <div key={index} className="rounded-xl border border-gray-200">
+              <div className="border-b bg-gray-50 px-4 py-3">
+                <h5 className="font-semibold text-gray-800">{group?.title}</h5>
+              </div>
+              <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
+                {group.fields
+                  .filter(
+                    (field) =>
+                      field?.value !== undefined &&
+                      field?.value !== null &&
+                      field?.value !== "",
+                  )
+                  .map((field) => (
+                    <Info
+                      key={`${field?.label}-${field?.value}`}
+                      label={field?.label}
+                      value={field?.value}
+                    />
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
+          {visibleFields.map((field) => (
+            <Info
+              key={`${field?.label}-${field?.value}`}
+              label={field?.label}
+              value={field?.value}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -883,36 +931,39 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
     return {
       title: "Education Details",
       description: "Education details submitted by the candidate.",
-      fields: educationRecords.flatMap((item, index) => [
-        {
-          label: `Institute ${index + 1}`,
-          value: item?.education_institute,
-        },
-        {
-          label: `Degree ${index + 1}`,
-          value: item?.degree,
-        },
-        {
-          label: `Field of Study ${index + 1}`,
-          value: item?.field_of_study,
-        },
-        {
-          label: `Starting Year ${index + 1}`,
-          value: item?.starting_year,
-        },
-        {
-          label: `Year of Passing ${index + 1}`,
-          value: item?.year_of_passing,
-        },
-        {
-          label: `Percentage ${index + 1}`,
-          value: item?.percentage,
-        },
-        {
-          label: `Document Submitted ${index + 1}`,
-          value: formatBooleanStatus(item?.document_is_submitted),
-        },
-      ]),
+      groups: educationRecords.map((item, index) => ({
+        title: `Education ${index + 1}`,
+        fields: [
+          {
+            label: "University / College",
+            value: item?.education_institute,
+          },
+          {
+            label: "Degree",
+            value: item?.degree,
+          },
+          {
+            label: "Branch / Specialization",
+            value: item?.field_of_study,
+          },
+          {
+            label: "Starting Year",
+            value: item?.starting_year,
+          },
+          {
+            label: "Year of Passing",
+            value: item?.year_of_passing,
+          },
+          {
+            label: "Percentage",
+            value: item?.percentage,
+          },
+          {
+            label: "Document Submitted",
+            value: formatBooleanStatus(item?.document_is_submitted),
+          },
+        ],
+      })),
     };
   }
 
@@ -924,32 +975,35 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
     return {
       title: "Experience Details",
       description: "Experience details submitted by the candidate.",
-      fields: experienceRecords.flatMap((item, index) => [
-        {
-          label: `Company ${index + 1}`,
-          value: item?.company_name,
-        },
-        {
-          label: `Job Title ${index + 1}`,
-          value: item?.job_title,
-        },
-        {
-          label: `Start Date ${index + 1}`,
-          value: formatDate(item?.start_date),
-        },
-        {
-          label: `End Date ${index + 1}`,
-          value: formatDate(item?.end_date),
-        },
-        {
-          label: `Experience ${index + 1}`,
-          value: item?.year_of_experience,
-        },
-        {
-          label: `Document Submitted ${index + 1}`,
-          value: formatBooleanStatus(item?.document_is_submitted),
-        },
-      ]),
+      groups: experienceRecords.flatMap((item, index) => ({
+        title: `Experience ${index + 1}`,
+        fields: [
+          {
+            label: `Company ${index + 1}`,
+            value: item?.company_name,
+          },
+          {
+            label: `Job Title ${index + 1}`,
+            value: item?.job_title,
+          },
+          {
+            label: `Start Date ${index + 1}`,
+            value: formatDate(item?.start_date),
+          },
+          {
+            label: `End Date ${index + 1}`,
+            value: formatDate(item?.end_date),
+          },
+          {
+            label: `Experience ${index + 1}`,
+            value: item?.year_of_experience,
+          },
+          {
+            label: `Document Submitted ${index + 1}`,
+            value: formatBooleanStatus(item?.document_is_submitted),
+          },
+        ],
+      })),
     };
   }
 
