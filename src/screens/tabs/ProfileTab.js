@@ -3,6 +3,7 @@ import {
   getCandidateById,
   getCandidateContacts,
 } from "../../services/api/candidates";
+import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
 import {
   getCandidateDocuments,
   viewDocument,
@@ -21,6 +22,7 @@ export default function ProfileTab({
   const [documentsError, setDocumentsError] = useState("");
   const [candidateDocCount, setCandidateDocCount] = useState(null);
   const [contacts, setContacts] = useState(null);
+  const [candidateFullDetails, setCandidateFullDetails] = useState(null);
   const handleDocumentsLoaded = (data) => {
     setCandidateDocCount(data);
   };
@@ -53,6 +55,27 @@ export default function ProfileTab({
 
     fetchProfile();
 
+    return () => {
+      isMounted = false;
+    };
+  }, [candidateId]);
+  useEffect(() => {
+    if (!candidateId) return;
+    let isMounted = true;
+    const fetchCandidateFullDetails = async () => {
+      try {
+        const result = await getHrCandidateFullDetails(candidateId);
+        if (isMounted) {
+          setCandidateFullDetails(result || null);
+        }
+      } catch (err) {
+        console.error("Failed to load candidate education and experience", err);
+        if (isMounted) {
+          setCandidateFullDetails(null);
+        }
+      }
+    };
+    fetchCandidateFullDetails();
     return () => {
       isMounted = false;
     };
@@ -161,12 +184,11 @@ export default function ProfileTab({
     return [];
   }, [profile]);
 
-  const educationRecords = Array.isArray(profile?.education_records)
-    ? profile.education_records
+  const educationRecords = Array.isArray(candidateFullDetails?.education)
+    ? candidateFullDetails.education
     : [];
-
-  const experienceRecords = Array.isArray(profile?.experience_records)
-    ? profile.experience_records
+  const experienceRecords = Array.isArray(candidateFullDetails?.experience)
+    ? candidateFullDetails.experience
     : [];
 
   if (loading) {
@@ -337,9 +359,12 @@ export default function ProfileTab({
                 className="rounded-xl border border-gray-100 bg-gray-50 p-4"
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Info label="Qualification" value={item?.qualification} />
-                  <Info label="Institute" value={item?.institute_name} />
-                  <Info label="Year" value={item?.year_of_passing} />
+                  <Info label="Institute" value={item?.education_institute} />
+                  <Info label="Degree" value={item?.degree} />
+                  <Info label="Field of Study" value={item?.field_of_study} />
+                  <Info label="Starting Year" value={item?.starting_year} />
+                  <Info label="Year of Passing" value={item?.year_of_passing} />
+                  <Info label="Percentage" value={item?.percentage} />
                 </div>
               </div>
             ))}
@@ -361,8 +386,10 @@ export default function ProfileTab({
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Info label="Company" value={item?.company_name} />
-                  <Info label="Designation" value={item?.designation} />
-                  <Info label="Duration" value={item?.duration} />
+                  <Info label="Job Title" value={item?.job_title} />
+                  <Info label="Start Date" value={item?.start_date} />
+                  <Info label="End Date" value={item?.end_date} />
+                  <Info label="Experience" value={item?.year_of_experience} />
                 </div>
               </div>
             ))}
