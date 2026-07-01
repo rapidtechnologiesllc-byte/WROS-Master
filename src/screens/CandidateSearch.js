@@ -60,7 +60,7 @@ export default function CandidateSearch({
   const [candidateList, setCandidateList] = useState(candidates);
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [preonboardingModal, setPreonboardingModal] = useState(false);
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const [candidateActions, setCandidateActions] = useState({});
   const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
   const [managerCandidatesList, setManagerCandidatesList] = useState([]);
@@ -68,28 +68,28 @@ export default function CandidateSearch({
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const isAntTableRole = [
-    "HIRING MANAGER",
-    "HR OPERATIONS",
-    "HR MANAGER",
+    "Hiring Manager",
+    "HR Operations",
+    "HR Manager",
   ].includes(currentRole);
 
   useEffect(() => {
-    const role = localStorage.getItem("hrms_role");
-    if (role === "HR OPERATIONS") {
+    const role = localStorage.getItem("permission_role");
+    if (role === "HR Operations") {
       fetchCandidates();
     }
   }, []);
 
   useEffect(() => {
-    const role = localStorage.getItem("hrms_role");
-    if (role === "HR MANAGER") {
+    const role = localStorage.getItem("permission_role");
+    if (role === "HR Manager") {
       offerApprovalCandidates();
     }
   }, []);
 
   useEffect(() => {
-    let currentRole = localStorage.getItem("hrms_role");
-    if (currentRole === "HIRING MANAGER") {
+    let currentRole = localStorage.getItem("permission_role");
+    if (currentRole === "Hiring Manager") {
       fetchApprovalCandidates();
     }
   }, []);
@@ -110,13 +110,7 @@ export default function CandidateSearch({
     try {
       setLoading(true);
       const canData = await getAllCandidates();
-
-      const filteredCandidates =
-        canData?.candidates?.filter(
-          (candidate) =>
-            candidate.pipline_status?.toLowerCase() ===
-            "pre-onboarding".toLowerCase(),
-        ) || [];
+      const filteredCandidates = canData?.candidates;
       setPreOnboardingCandidates(filteredCandidates);
     } catch (err) {
       console.log(err);
@@ -366,7 +360,7 @@ export default function CandidateSearch({
       title: "Status",
       dataIndex: "status",
     },
-    ...(currentRole === "HIRING MANAGER"
+    ...(currentRole === "Hiring Manager"
       ? [
           {
             title: "Action",
@@ -393,9 +387,9 @@ export default function CandidateSearch({
   ];
 
   const tableDataMap = {
-    "HIRING MANAGER": managerCandidatesList,
-    "HR MANAGER": approvalCandidates,
-    "HR OPERATIONS": preOnboardingCandidates,
+    "Hiring Manager": managerCandidatesList,
+    "HR Manager": approvalCandidates,
+    "HR Operations": preOnboardingCandidates,
   };
   const tableData = tableDataMap[currentRole] || [];
 

@@ -32,7 +32,7 @@ export default function JobCreate({
   const [payAmount, setPayAmount] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [skills, setSkills] = useState("React, TypeScript");
+  const [skills, setSkills] = useState("");
   const [jobStatus, setJobStatus] = useState("Draft");
   const [noOfPositions, setNoOfPositions] = useState(1);
   const [hmUserId, setHmUserId] = useState("");
@@ -52,6 +52,7 @@ export default function JobCreate({
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [hrUsers, setHrUsers] = useState([]);
   const [hiringManagers, setHiringManagers] = useState([]);
+  const storedRole = localStorage.getItem("permission_role");
 
   useEffect(() => {
     let isMounted = true;
@@ -282,7 +283,6 @@ export default function JobCreate({
   const handleCreateJob = async () => {
     const required = [
       { label: "Job Title", value: title },
-      { label: "Hiring Manager 1-Liner", value: hmOneLiner },
       { label: "Internal Job Description", value: internalJD },
       { label: "Skills", value: skills },
       { label: "Experience Level", value: experienceLevel },
@@ -540,7 +540,7 @@ export default function JobCreate({
             </div>
             <div className="md:col-span-2">
               <TextArea
-                label="Hiring Manager 1-Liner *"
+                label="Hiring Manager 1-Liner "
                 value={hmOneLiner}
                 onChange={setHmOneLiner}
                 rows={2}
@@ -583,9 +583,11 @@ export default function JobCreate({
                 Submit for Approval
               </Button>
             </div>
-            <Button onClick={handleCreateJob} disabled={isSaving}>
-              {isSaving ? "Creating..." : "Create Job"}
-            </Button>
+            {storedRole === "BU Head" || "SUPER USER" ? (
+              <Button onClick={handleCreateJob} disabled={isSaving}>
+                {isSaving ? "Creating..." : "Create Job"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </Card>

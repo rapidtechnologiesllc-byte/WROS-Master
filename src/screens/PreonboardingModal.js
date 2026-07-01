@@ -114,7 +114,7 @@ const PreonboardingModal = ({
   const [form] = Form.useForm();
   const localName = localStorage.getItem("hrms_user_name");
   const localEmail = localStorage.getItem("hrms_user_email");
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
@@ -326,7 +326,6 @@ const PreonboardingModal = ({
   };
 
   const offerLetterHandler = async () => {
-    const currentRole = localStorage.getItem("hrms_role");
     try {
       if (!joiningDate) {
         toast.error("Enter Joining Date");
@@ -369,7 +368,7 @@ const PreonboardingModal = ({
   };
 
   const sendEmailHandler = async () => {
-    toast.info("Email will be send to HR Head for Approval");
+    toast.info("Email will be send to HR Manager for Approval");
     // try {
     //   setIsSaving(true);
 
@@ -400,7 +399,7 @@ const PreonboardingModal = ({
       formData.append("signature", signaturePng);
       const offerApproveApi = await approveOfferLetter(offerIdData, formData);
       if (offerApproveApi?.status === "success") {
-        toast.success("Offer Approved, waiting for release");
+        toast.success("Offer Approved and released");
       }
     } catch (error) {
       toast.error("Offer Already Approved");
@@ -459,7 +458,7 @@ const PreonboardingModal = ({
   };
 
   const handleButtonClick = () => {
-    if (currentRole === "HR OPERATIONS") {
+    if (currentRole === "HR Operations") {
       if (current === 0) {
         offerLetterHandler();
       } else if (current === 1) {
@@ -728,7 +727,7 @@ const PreonboardingModal = ({
           <Button onClick={handleButtonClick} disabled={isSaving}>
             {isSaving
               ? "Processing..."
-              : currentRole === "HR OPERATIONS"
+              : currentRole === "HR Operations"
                 ? current === 0
                   ? "Next"
                   : "Send Email"

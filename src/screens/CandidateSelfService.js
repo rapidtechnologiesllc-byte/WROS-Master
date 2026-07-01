@@ -52,6 +52,7 @@ import "react-toastify/dist/ReactToastify.css";
 import SignatureModal from "../components/ui/SignatureModal";
 import { getHrAssignmentByCandidate } from "../services/api/users";
 import { sendEventNotification } from "../services/api/email";
+import { getOfferAcceptedNotificationTemplate } from "../utils/offerAcceptedEmailTemplate";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -292,6 +293,34 @@ export default function CandidateSelfService({ onLogout }) {
       console.error("Failed to notify assigned HR", error);
     }
   };
+  const notifyOfferAcceptedHr = async (offer) => {
+    try {
+      const candidateId = offer?.candidate_id;
+
+      if (!candidateId) {
+        console.warn("Candidate ID not found for offer");
+        return;
+      }
+      const assignment = await getHrAssignmentByCandidate(candidateId);
+      const hr = assignment?.hr1;
+      if (!hr?.user_email) {
+        console.warn("No assigned HR email found");
+        return;
+      }
+      const notification = getOfferAcceptedNotificationTemplate({
+        candidateName: offer?.candidate_name,
+        position: offer?.position,
+        offerId: offer?.id,
+      });
+      await sendEventNotification({
+        toEmail: hr.user_email,
+        recipientName: hr?.user_name || "HR",
+        ...notification,
+      });
+    } catch (error) {
+      console.error("Failed to send offer accepted notification", error);
+    }
+  };
 
   const handleUpload = async (uploadFn, label, file) => {
     if (!file) return;
@@ -322,6 +351,15 @@ export default function CandidateSelfService({ onLogout }) {
 
       await signOfferLetter(selectedOffer.id, formData);
 
+      try {
+        await notifyOfferAcceptedHr(selectedOffer);
+      } catch (error) {
+        console.error(
+          "Failed to send HR notification after offer acceptance",
+          error,
+        );
+      }
+
       // await respondToOffer({
       //   offerId: selectedOffer.id,
       //   action: "accept",
@@ -340,7 +378,7 @@ export default function CandidateSelfService({ onLogout }) {
       setSignatureLoading(false);
     }
   };
-  const downloadOfferLetter = async (url, fileName = "OfferLetter.pdf") => {
+  const downloadOfferLetter = async (url, fileName = "OfferLetter.docx") => {
     if (!url) {
       showNotice("Offer letter download URL is unavailable.");
       return;
@@ -918,7 +956,7 @@ export default function CandidateSelfService({ onLogout }) {
                         onClick={() =>
                           downloadOfferLetter(
                             o?.download_url,
-                            `${o?.position || "Offer"}-Letter.pdf`,
+                            `${o?.position || "Offer"}-Letter.docx`,
                           )
                         }
                         disabled={!o?.download_url}
@@ -1870,6 +1908,7 @@ export default function CandidateSelfService({ onLogout }) {
           }}
           onSave={handleSignatureSave}
           loading={signatureLoading}
+          submitButtonText="Sign & Accept"
         />
       </div>
     </div>

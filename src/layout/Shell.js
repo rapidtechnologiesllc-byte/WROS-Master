@@ -1,4 +1,3 @@
-// Shell layout for HR/Admin screens (sidebar + content area).
 import { useMemo } from "react";
 import {
   BadgeDollarSign,
@@ -134,6 +133,11 @@ export default function Shell({
           path: ROUTES.CANDIDATES,
           label: "Candidates",
           icon: Users,
+        },
+        {
+          path: ROUTES.JOBS,
+          label: "Jobs",
+          icon: Briefcase,
         },
       ];
     }
