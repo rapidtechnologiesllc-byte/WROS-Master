@@ -43,7 +43,7 @@ import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AcceptButton } from "../styles/CandidateSearchStyles";
 import { managerReviewApprove } from "../services/api/preOnboarding";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getAllOffers } from "../services/api/offerLetters";
 import PreviousOfferModal from "./PreviousOfferModal";
@@ -155,7 +155,7 @@ export default function CandidateDetailsScreen({
   const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
-  const currentRole = localStorage.getItem("hrms_role");
+  const currentRole = localStorage.getItem("permission_role");
   const candidateTabs = limitedMode
     ? ["feedback"]
     : [
@@ -1173,8 +1173,8 @@ ${formattedJD}
                 </AcceptButton>
               ) : null}
 
-              {(currentRole === "HR MANAGER" ||
-                currentRole === "HR OPERATIONS") &&
+              {(currentRole === "HR Manager" ||
+                currentRole === "HR Operations") &&
                 candidateDocCount?.total_documents > 0 &&
                 candidateDocCount?.verified_count ===
                   candidateDocCount?.total_documents && (
@@ -1830,6 +1830,7 @@ ${formattedJD}
               </Button>
             </div>
           </div>
+          <ToastContainer position="top-right" autoClose={3000} />
         </div>
       )}
     </>
