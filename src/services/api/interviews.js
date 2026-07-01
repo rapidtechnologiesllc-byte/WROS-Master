@@ -53,11 +53,11 @@ export const createInterview = async ({
 };
 
 export const updateInterview = async (interviewId, payload) => {
-  const { data } = await apiRequest(`/interviews/${interviewId}`, {
+  const { data, response } = await apiRequest(`/interviews/${interviewId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
-  return data;
+  return {data,response};
 };
 
 export const getAllInterviews = async () => {
@@ -96,10 +96,10 @@ export const deletePanelMember = async (memberId) => {
 };
 
 export const deleteInterview = async (interviewId) => {
-  const { data } = await apiRequest(`/interviews/${interviewId}`, {
+  const { data,response } = await apiRequest(`/interviews/${interviewId}`, {
     method: "DELETE",
   });
-  return data;
+  return {data,response};
 };
 
 export const deleteInterviewPanel = async (panelId) => {
