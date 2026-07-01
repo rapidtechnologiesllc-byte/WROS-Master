@@ -6,6 +6,11 @@ import {
   updateInterview,
   deleteInterview,
 } from "../../services/api/interviews";
+import {
+  deleteInterviewMail,
+  sendInterviewInvite,
+} from "../../services/api/email";
+import { toast } from "react-toastify";
 
 export default function ActivityTab({ candidateId }) {
   const [historySummary, setHistorySummary] = useState(null);
@@ -30,6 +35,7 @@ export default function ActivityTab({ candidateId }) {
     endTime: "",
     durationMinutes: "60",
     status: "Scheduled",
+    reason: "",
   });
   const [rescheduleErrors, setRescheduleErrors] = useState({});
   const [rescheduling, setRescheduling] = useState(false);
@@ -42,7 +48,6 @@ export default function ActivityTab({ candidateId }) {
   const [cancelling, setCancelling] = useState(false);
   const [cancelNotice, setCancelNotice] = useState("");
   const [cancelNoticeType, setCancelNoticeType] = useState("success");
-
   const fetchInterviewHistory = useCallback(async () => {
     if (!candidateId) return;
 
@@ -362,7 +367,10 @@ export default function ActivityTab({ candidateId }) {
       setRescheduling(true);
       setRescheduleNotice("");
       setRescheduleNoticeType("success");
-
+      const deleteMail = await deleteInterviewMail(
+        selectedInterviewIdForEdit,
+        rescheduleForm?.reason,
+      );
       const updatedStart = buildLocalDateTime(
         rescheduleForm.interviewDate,
         rescheduleForm.startTime,
@@ -381,18 +389,26 @@ export default function ActivityTab({ candidateId }) {
         outlook_event_id: selectedInterview.outlook_event_id || "",
         status: rescheduleForm.status,
       };
-      await updateInterview(selectedInterviewIdForEdit, payload);
-      await fetchInterviewHistory();
-
-      setRescheduleNotice("Interview rescheduled successfully");
-      setRescheduleNoticeType("success");
+      const updatedInterviewApi = await updateInterview(
+        selectedInterviewIdForEdit,
+        payload,
+      );
+      if (updatedInterviewApi?.response?.status === 200) {
+        const sendInvite = await sendInterviewInvite({
+          interviewId: selectedInterviewIdForEdit,
+        });
+        if (sendInvite?.status === "success") {
+          toast.success("Interview rescheduled successfully");
+          await fetchInterviewHistory();
+        }
+      }
 
       window.setTimeout(() => {
         closeRescheduleModal();
       }, 700);
     } catch (err) {
       console.error("Failed to reschedule interview", err);
-      setRescheduleNotice("Failed to reschedule interview");
+      toast.error("Failed to reschedule interview");
       setRescheduleNoticeType("error");
     } finally {
       setRescheduling(false);
@@ -425,20 +441,24 @@ export default function ActivityTab({ candidateId }) {
       setCancelling(true);
       setCancelNotice("");
       setCancelNoticeType("success");
-
-      await deleteInterview(selectedInterviewForCancel.id);
+      const deleteMail = await deleteInterviewMail(
+        selectedInterviewForCancel.id,
+        rescheduleForm?.reason,
+      );
+      if (deleteMail?.status === "success") {
+        const deletedInterviewApi = await deleteInterview(
+          selectedInterviewForCancel.id,
+        );
+      }
       await fetchInterviewHistory();
-
-      setCancelNotice("Interview cancelled successfully");
+      toast.success("Interview cancelled successfully");
       setCancelNoticeType("success");
-
       window.setTimeout(() => {
         closeCancelModal();
       }, 700);
     } catch (err) {
       console.error("Failed to cancel interview", err);
-      setCancelNotice("Failed to cancel interview");
-      setCancelNoticeType("error");
+      toast.error("Failed to cancel interview", err?.message);
     } finally {
       setCancelling(false);
     }
@@ -990,12 +1010,7 @@ function RescheduleModal({
               error={errors.interviewDate}
             />
 
-            <FormField
-              label="Status"
-              value={form.status}
-              onChange={(e) => onChange("status", e.target.value)}
-              error={errors.status}
-            />
+            <ReadOnlyField label="Status" value={form.status || "-"} />
 
             <SelectField
               label="Duration"
@@ -1023,6 +1038,14 @@ function RescheduleModal({
               value={form.endTime}
               readOnly
               error={errors.endTime}
+            />
+
+            <FormField
+              label="Add reason"
+              type="textarea"
+              value={form.reason}
+              onChange={(e) => onChange("reason", e?.target?.value)}
+              error={errors.reason}
             />
           </div>
         </div>

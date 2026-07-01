@@ -92,6 +92,7 @@ export const sendLoginCredentials = async (candidateId) => {
   });
   return data;
 };
+
 export const sendEventNotification = async ({
   toEmail,
   recipientName,
@@ -110,6 +111,17 @@ export const sendEventNotification = async ({
       metadata,
     }),
   });
+
+  return data;
+};
+
+export const deleteInterviewMail = async (interviewId, reason) => {
+  const { data } = await apiRequest(
+    `/email/interview/cancel/${interviewId}?${reason}`,
+    {
+      method: "DELETE",
+    },
+  );
 
   return data;
 };
