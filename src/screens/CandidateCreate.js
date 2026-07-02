@@ -504,7 +504,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           .filter(Boolean),
         status: "New",
       };
-      toast.success("Candidate created successfully")
+      toast.success("Candidate created successfully");
       let nextNotice = "Candidate created successfully.";
       if (resumeFile) {
         if (!createdCandidateId) {
@@ -515,7 +515,7 @@ export default function CandidateCreate({ onBack, onSave }) {
               candidateId: createdCandidateId,
               file: resumeFile,
             });
-            toast.success(`${nextNotice} Resume uploaded.`)
+            toast.success(`${nextNotice} Resume uploaded.`);
           } catch (uploadErr) {
             console.error("Resume upload failed:", uploadErr);
             nextNotice = `${nextNotice} Resume upload failed: ${
@@ -593,12 +593,11 @@ export default function CandidateCreate({ onBack, onSave }) {
             Resume attachment
           </div>
           <p className="mb-3 text-xs text-gray-600">
-            Upload first — we read PDF or DOCX and suggest name, email, phone,
-            skills, experience, and location when we can detect them.
+            Upload the candidate's resume in PDF or DOCX format.
           </p>
           <input
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf,.docx"
             disabled={resumeParsing}
             onChange={handleResumeFileChange}
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-blue-700"
