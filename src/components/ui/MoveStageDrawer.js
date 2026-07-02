@@ -38,7 +38,7 @@ const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
         <Select
           placeholder="Current Stage"
           options={stageOptions}
-          value={data?.pipelineStatus}
+          value={data?.status}
           onChange={setStage}
           disabled={true}
           style={{ width: "100%" }}
