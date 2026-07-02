@@ -436,6 +436,7 @@ export default function AppRoutes() {
                 <CandidateDetailsWrapper
                   refreshCandidates={refreshCandidates}
                   fetchCandidateById={fetchCandidateById}
+                  updateCandidate={updateCandidate}
                 />
               }
             />

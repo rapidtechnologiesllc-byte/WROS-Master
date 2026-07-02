@@ -440,7 +440,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       // Create the candidate in backend and receive generated password.
       const data = await createCandidate({
         candidate_email: email.trim(),
-        candidate_role: candidateRole || "Candidate",
+        candidate_role: "Candidate",
         candidate_job_title: candidateJobTitle || null,
         candidate_employee_type: employeeType || null,
         candidate_first_name: firstName || null,
@@ -504,7 +504,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           .filter(Boolean),
         status: "New",
       };
-
+      toast.success("Candidate created successfully")
       let nextNotice = "Candidate created successfully.";
       if (resumeFile) {
         if (!createdCandidateId) {
@@ -515,11 +515,9 @@ export default function CandidateCreate({ onBack, onSave }) {
               candidateId: createdCandidateId,
               file: resumeFile,
             });
-
-            nextNotice = `${nextNotice} Resume uploaded.`;
+            toast.success(`${nextNotice} Resume uploaded.`)
           } catch (uploadErr) {
             console.error("Resume upload failed:", uploadErr);
-
             nextNotice = `${nextNotice} Resume upload failed: ${
               uploadErr?.message || "Unknown error"
             }.`;
@@ -584,10 +582,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         title="Create Candidate"
         icon={<Users className="h-4 w-4" />}
         right={
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/candidates")}
-          >
+          <Button variant="ghost" onClick={() => navigate("/candidates")}>
             Back
           </Button>
         }
@@ -620,17 +615,6 @@ export default function CandidateCreate({ onBack, onSave }) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Select
-            label="Role"
-            value={candidateRole}
-            onChange={setCandidateRole}
-            options={[
-              { label: "Please select your option", value: "", disabled: true },
-              { label: "Candidate", value: "Candidate" },
-              { label: "Employee", value: "Employee" },
-              { label: "Contractor", value: "Contractor" },
-            ]}
-          />
           <Select
             label="Employee Type"
             value={employeeType}
@@ -754,15 +738,14 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={setSkills}
           />
           <Input
-            label="Expected Salary"
-            value={expectedSalary}
-            onChange={setExpectedSalary}
-          />
-
-          <Input
             label="Current Salary"
             value={currentSalary}
             onChange={setCurrentSalary}
+          />
+          <Input
+            label="Expected Salary"
+            value={expectedSalary}
+            onChange={setExpectedSalary}
           />
 
           <Input
