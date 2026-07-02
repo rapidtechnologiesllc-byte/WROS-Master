@@ -31,6 +31,7 @@ import { sendPlainEmail, sendLoginCredentials } from "../services/api/email";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
+import CandidateActionMenu from "../components/ui/CandidateActionMenu";
 
 export default function CandidateSearch({
   candidates,
@@ -327,10 +328,35 @@ export default function CandidateSearch({
     }
   };
 
+  const mapCandidate = (data, source) => {
+    if (source === "common") {
+      return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        status: data.pipelineStatus,
+      };
+    }
+
+    if (source === "ant") {
+      return {
+        id: data.candidate_id,
+        name: data.candidate_name,
+        email: data.candidate_email,
+        phone: data.candidate_mobile,
+        status: data.pipline_status,
+      };
+    }
+
+    return {};
+  };
+
   const columns = [
     {
       title: "Name",
       dataIndex: "candidate_name",
+      width: 300,
       render: (_, record) => {
         return (
           <button
@@ -347,18 +373,22 @@ export default function CandidateSearch({
     {
       title: "Contact",
       dataIndex: "candidate_email",
+      width: 80,
     },
     {
       title: "Job Title",
       dataIndex: "job_title",
+      width: 80,
     },
     {
       title: "Pipeline",
-      dataIndex: "pipeline_status",
+      dataIndex: "pipline_status",
+      width: 80,
     },
     {
       title: "Status",
       dataIndex: "status",
+      width: 80,
     },
     ...(currentRole === "Hiring Manager"
       ? [
@@ -384,6 +414,23 @@ export default function CandidateSearch({
           },
         ]
       : []),
+    {
+      title: "More Options",
+      key: "more_options",
+      width: 60,
+      render: (_, record) => {
+        return (
+          <CandidateActionMenu
+            candidate={mapCandidate(record, "ant")}
+            openMenuId={openMenuId}
+            setOpenMenuId={setOpenMenuId}
+            handleActiveStatus={handleActiveStatus}
+            handleCandidateStatus={handleCandidateStatus}
+            setCandidateList={setCandidateList}
+          />
+        );
+      },
+    },
   ];
 
   const tableDataMap = {
@@ -409,14 +456,6 @@ export default function CandidateSearch({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* <Button
-                  variant="secondary"
-                  onClick={onMatchingJobs}
-                  className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
-                >
-                  Show Matching Jobs
-                </Button> */}
-
                 <Button
                   onClick={onCreateCandidate}
                   className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
@@ -483,129 +522,14 @@ export default function CandidateSearch({
               ),
               status: <StatusBadge status={c.status} />,
               actions: (
-                <div className="relative">
-                  <button
-                    className="px-2 py-1 text-gray-600 hover:text-black"
-                    onClick={() =>
-                      setOpenMenuId(openMenuId === c.id ? null : c.id)
-                    }
-                  >
-                    ⋮
-                  </button>
-                  {openMenuId === c.id && (
-                    <div className="absolute right-0 z-10 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
-                        onClick={() => {
-                          navigate(`/candidates/${c.id}?schedule=true`);
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Schedule Interview
-                      </button>
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
-                        onClick={() => {
-                          const email = c?.email?.trim();
-
-                          if (!email) {
-                            return;
-                          }
-                          const subject = encodeURIComponent(
-                            "Regarding your application",
-                          );
-                          const body = encodeURIComponent(
-                            `Hi ${c?.name || "Candidate"},\n\n`,
-                          );
-                          const to = encodeURIComponent(email);
-                          const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
-                          const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
-                          const openedWindow = window.open(
-                            gmailUrl,
-                            "_blank",
-                            "noopener,noreferrer",
-                          );
-                          if (!openedWindow) {
-                            window.location.href = mailtoUrl;
-                          }
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Send Email
-                      </button>
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!c?.phone}
-                        onClick={() => {
-                          if (!c?.phone) return;
-                          const cleanedPhone = c.phone.replace(/\D/g, "");
-                          if (!cleanedPhone) {
-                            return;
-                          }
-                          window.open(
-                            `https://wa.me/${cleanedPhone}`,
-                            "_blank",
-                          );
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Message on WhatsApp
-                      </button>
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
-                        onClick={() => {
-                          navigate(`/candidates/${c.id}?tab=feedback`);
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Add Feedback
-                      </button>
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                        onClick={() => {
-                          handleActiveStatus("Inactive", c?.id);
-                        }}
-                      >
-                        Archive
-                      </button>
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
-                        onClick={() => {
-                          handleCandidateStatus(c?.id);
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Pre Onboarding
-                      </button>
-                      <button
-                        className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
-                        onClick={() => {
-                          setOpenMoveDrawer(true);
-                        }}
-                      >
-                        Move Stage
-                      </button>
-                      <MoveStageDrawer
-                        open={openMoveDrawer}
-                        onClose={() => setOpenMoveDrawer(false)}
-                        onSubmit={(stage) => {
-                          setCandidateList((prev) =>
-                            prev.map((c) =>
-                              c.id === stage?.candidate_id
-                                ? {
-                                    ...c,
-                                    status: stage?.status,
-                                    pipelineStatus: stage?.pipeline_status,
-                                  }
-                                : c,
-                            ),
-                          );
-                        }}
-                        data={c}
-                      />
-                    </div>
-                  )}
-                </div>
+                <CandidateActionMenu
+                  candidate={mapCandidate(c, "common")}
+                  openMenuId={openMenuId}
+                  setOpenMenuId={setOpenMenuId}
+                  handleActiveStatus={handleActiveStatus}
+                  handleCandidateStatus={handleCandidateStatus}
+                  setCandidateList={setCandidateList}
+                />
               ),
             }))}
           />
