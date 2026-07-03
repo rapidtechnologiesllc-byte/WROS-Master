@@ -121,3 +121,24 @@ class AIAssignmentOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Inbox message schemas
+# ---------------------------------------------------------------------------
+
+class InboxMessageItem(BaseModel):
+    id: str
+    subject: Optional[str]
+    from_email: Optional[str]
+    from_name: Optional[str]
+    body_preview: Optional[str]
+    body_text: Optional[str]
+    received_at: Optional[str]
+    is_read: bool = False
+
+
+class InboxResponse(BaseModel):
+    mailbox: str
+    total_returned: int
+    messages: List[InboxMessageItem]

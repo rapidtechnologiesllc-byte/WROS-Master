@@ -41,7 +41,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission, get_current_user
+from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
     CandidateAIAssignment,
@@ -60,12 +60,17 @@ from app.schemas.ai_agent import (
     MissingFieldItem,
     MissingFieldsResponse,
     ProcessReplyResponse,
+    InboxMessageItem,
+    InboxResponse,
 )
 from app.services.ai_conversation_service import (
     assign_ai_agent,
     get_conversation_thread,
     get_missing_fields,
     process_candidate_reply,
+    read_all_inbox,
+    read_inbox_by_email,
+    SERVICE_MAILBOX,
 )
 
 router = APIRouter(prefix="/ai-agent", tags=["ai-agent"])
@@ -247,7 +252,7 @@ def poll_and_process(
 def get_conversations(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: Users = Depends(get_current_hr_or_admin),
 ):
     _get_candidate_or_404(candidate_id, db)
     thread = get_conversation_thread(candidate_id, db)
@@ -275,7 +280,7 @@ def get_conversations(
 def get_active_conversation(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: Users = Depends(get_current_hr_or_admin),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -341,7 +346,7 @@ def get_active_conversation(
 def get_assignments(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: Users = Depends(get_current_hr_or_admin),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -414,3 +419,71 @@ def deactivate_agent(
         "assignments_deactivated": updated_assignments,
         "conversations_closed": len(open_convs),
     }
+
+
+# ===========================================================================
+# GET /ai-agent/inbox
+# ===========================================================================
+
+@router.get(
+    "/inbox",
+    response_model=InboxResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Show all inbox messages from the service mailbox",
+    description=(
+        "Returns the most recent emails received in the `helpdesk_hrms@blitzenx.com` "
+        "service mailbox, newest-first. Supports pagination via `top` and `skip`.\n\n"
+        "> **Prerequisite**: The Azure AD application must have `Mail.Read` or "
+        "`Mail.ReadWrite` **Application** permission granted by an admin.\n"
+        "Go to: *Azure Portal → App Registrations → API permissions → Add permission "
+        "→ Microsoft Graph → Application permissions → Mail.Read → Grant admin consent*."
+    ),
+)
+def list_inbox(
+    top: int = 50,
+    skip: int = 0,
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Lists all inbox messages from the service mailbox.
+    Returns 403 with a permission hint if Mail.Read is not granted.
+    """
+    messages = read_all_inbox(top=top, skip=skip)
+    return InboxResponse(
+        mailbox=SERVICE_MAILBOX,
+        total_returned=len(messages),
+        messages=[InboxMessageItem(**m) for m in messages],
+    )
+
+
+# ===========================================================================
+# GET /ai-agent/inbox/by-email
+# ===========================================================================
+
+@router.get(
+    "/inbox/by-email",
+    response_model=InboxResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Show all inbox messages from a specific sender email",
+    description=(
+        "Returns all inbox messages from `helpdesk_hrms@blitzenx.com` that were "
+        "sent **by** the given email address. Use this to view the full email "
+        "conversation thread with a specific candidate or sender.\n\n"
+        "> **Prerequisite**: `Mail.Read` or `Mail.ReadWrite` Application permission."
+    ),
+)
+def list_inbox_by_email(
+    email: str,
+    top: int = 50,
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Returns inbox messages filtered by sender email address.
+    Returns 403 with a permission hint if Mail.Read is not granted.
+    """
+    messages = read_inbox_by_email(email=email, top=top)
+    return InboxResponse(
+        mailbox=SERVICE_MAILBOX,
+        total_returned=len(messages),
+        messages=[InboxMessageItem(**m) for m in messages],
+    )

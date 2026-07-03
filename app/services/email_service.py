@@ -88,6 +88,19 @@ class EmailService:
         join_url: Optional[str],
         extra_notes: str = "",
     ) -> str:
+        # ── Format ISO times into human-readable strings ─────────────────────
+        from datetime import datetime as _dt
+        try:
+            _start_dt = _dt.fromisoformat(start_time)
+            _end_dt   = _dt.fromisoformat(end_time)
+            _date_label   = _start_dt.strftime("%d/%m/%Y")
+            _start_label  = _start_dt.strftime("%I:%M %p").lstrip("0")
+            _end_label    = _end_dt.strftime("%I:%M %p").lstrip("0")
+            _timing_label = f"{_start_label} to {_end_label}"
+        except Exception:
+            _date_label   = start_time
+            _timing_label = end_time
+
         join_section = ""
         if join_url:
             join_section = f"""
@@ -121,12 +134,12 @@ class EmailService:
           </td></tr>
           <tr><td style="padding:8px 0;">
             <p style="margin:0;font-size:14px;color:#374151;">
-              <strong>Start:</strong> {start_time}
+              <strong>Date:</strong> {_date_label}
             </p>
           </td></tr>
           <tr><td style="padding:8px 0;">
             <p style="margin:0;font-size:14px;color:#374151;">
-              <strong>End:</strong> {end_time}
+              <strong>Timing:</strong> {_timing_label}
             </p>
           </td></tr>
           {join_section}
@@ -263,6 +276,218 @@ class EmailService:
             cc_emails=cc_emails,
         )
 
+    @staticmethod
+    def _invite_request_html(
+        candidate_name: str,
+        round_name: str,
+        start_time: str,
+        end_time: str,
+        accept_url: str,
+        decline_url: str,
+        extra_notes: str = "",
+    ) -> str:
+        """
+        Branded invitation email with Accept / Decline action buttons.
+        No calendar event is created — the candidate decides first.
+        """
+        from datetime import datetime as _dt
+        try:
+            _start_dt = _dt.fromisoformat(start_time)
+            _end_dt   = _dt.fromisoformat(end_time)
+            _date_label   = _start_dt.strftime("%d/%m/%Y")
+            _start_label  = _start_dt.strftime("%I:%M %p").lstrip("0")
+            _end_label    = _end_dt.strftime("%I:%M %p").lstrip("0")
+            _timing_label = f"{_start_label} to {_end_label}"
+        except Exception:
+            _date_label   = start_time
+            _timing_label = end_time
+
+        notes_section = ""
+        if extra_notes:
+            notes_section = f"""
+            <tr><td style="padding:12px 0 0;">
+              <p style="margin:0;font-size:14px;color:#374151;"><strong>Additional Notes:</strong></p>
+              <p style="margin:6px 0 0;font-size:14px;color:#6b7280;">{extra_notes}</p>
+            </td></tr>"""
+
+        body = f"""
+        <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+          Dear <strong>{candidate_name}</strong>,
+        </p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          We would like to invite you for an interview at <strong>BlitzenX</strong>.
+          Please review the details below and confirm your availability.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Round:</strong> {round_name}
+            </p>
+          </td></tr>
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Date:</strong> {_date_label}
+            </p>
+          </td></tr>
+          <tr><td style="padding:8px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Timing:</strong> {_timing_label}
+            </p>
+          </td></tr>
+          {notes_section}
+        </table>
+
+        <!-- Action buttons -->
+        <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
+          <tr>
+            <td style="padding-right:12px;">
+              <a href="{accept_url}"
+                 style="display:inline-block;padding:12px 28px;background:#16a34a;
+                        color:#ffffff;text-decoration:none;border-radius:6px;
+                        font-size:15px;font-weight:600;">
+                &#10003; Accept Invitation
+              </a>
+            </td>
+            <td>
+              <a href="{decline_url}"
+                 style="display:inline-block;padding:12px 28px;background:#dc2626;
+                        color:#ffffff;text-decoration:none;border-radius:6px;
+                        font-size:15px;font-weight:600;">
+                &#10007; Decline Invitation
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size:13px;color:#6b7280;line-height:1.6;margin-top:8px;">
+          These links are unique to you. No login is required — simply click a button above.
+          If you have any questions, please contact our HR team.
+        </p>
+        <p style="font-size:14px;color:#374151;margin-top:24px;">
+          Best regards,<br/><strong>BlitzenX HR Team</strong>
+        </p>
+        """
+        return EmailService._base_html("Interview Invitation", body)
+
+    @classmethod
+    def send_interview_invite_request(
+        cls,
+        candidate_email: str,
+        candidate_name: str,
+        round_name: str,
+        start_time_iso: str,
+        end_time_iso: str,
+        interviewer_emails: List[str],
+        accept_url: str,
+        decline_url: str,
+        extra_notes: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Send an interview *invitation request* to the candidate.
+
+        Does NOT create a Teams calendar event — that happens only after
+        the candidate clicks Accept.
+        """
+        try:
+            html = cls._invite_request_html(
+                candidate_name=candidate_name,
+                round_name=round_name,
+                start_time=start_time_iso,
+                end_time=end_time_iso,
+                accept_url=accept_url,
+                decline_url=decline_url,
+                extra_notes=extra_notes,
+            )
+            cls.send_email(
+                to_email=candidate_email,
+                subject=f"Interview Invitation — {round_name} | {candidate_name}",
+                body_content=html,
+                is_html=True,
+                cc_emails=interviewer_emails,
+            )
+            logger.info(
+                f"[EmailService] Invite request sent to {candidate_email} | Round: {round_name}"
+            )
+            return {
+                "status": "success",
+                "message": "Interview invitation sent. Awaiting candidate response.",
+                "emailSentTo": candidate_email,
+                "ccRecipients": interviewer_emails,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[EmailService] send_interview_invite_request error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @classmethod
+    def send_invite_response_notification(
+        cls,
+        hr_emails: List[str],
+        candidate_name: str,
+        candidate_email: str,
+        round_name: str,
+        action: str,          # "accepted" | "declined"
+        start_time_iso: str,
+    ) -> None:
+        """Notify HR when a candidate accepts or declines an interview invitation."""
+        from datetime import datetime as _dt
+        try:
+            _start_dt = _dt.fromisoformat(start_time_iso)
+            _date_label   = _start_dt.strftime("%d/%m/%Y")
+            _time_label   = _start_dt.strftime("%I:%M %p").lstrip("0")
+            _when = f"{_date_label} at {_time_label}"
+        except Exception:
+            _when = start_time_iso
+
+        colour = "#16a34a" if action == "accepted" else "#dc2626"
+        label  = "Accepted &#10003;" if action == "accepted" else "Declined &#10007;"
+        verb   = "accepted" if action == "accepted" else "declined"
+        body = f"""
+        <p style="font-size:16px;color:#111827;margin:0 0 16px;">
+          Interview Invitation Response
+        </p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          <strong>{candidate_name}</strong> ({candidate_email}) has
+          <span style="color:{colour};font-weight:700;">{verb}</span>
+          the interview invitation for <strong>{round_name}</strong>.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+          <tr><td style="padding:6px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Round:</strong> {round_name}
+            </p>
+          </td></tr>
+          <tr><td style="padding:6px 0;">
+            <p style="margin:0;font-size:14px;color:#374151;">
+              <strong>Scheduled:</strong> {_when}
+            </p>
+          </td></tr>
+          <tr><td style="padding:6px 0;">
+            <p style="margin:0;font-size:14px;">
+              <strong>Response:</strong>
+              <span style="color:{colour};font-weight:700;"> {label}</span>
+            </p>
+          </td></tr>
+        </table>
+        <p style="font-size:14px;color:#374151;margin-top:24px;">
+          Best regards,<br/><strong>BlitzenX HR Team</strong>
+        </p>
+        """
+        html = cls._base_html("Interview Response Notification", body)
+        for hr_email in hr_emails:
+            try:
+                cls.send_email(
+                    to_email=hr_email,
+                    subject=f"[Interview Response] {candidate_name} — {label} — {round_name}",
+                    body_content=html,
+                    is_html=True,
+                )
+            except Exception as exc:
+                logger.warning(f"[EmailService] HR notification to {hr_email} failed: {exc}")
+
     @classmethod
     def send_interview_invite(
         cls,
@@ -318,7 +543,7 @@ class EmailService:
                 event_payload["onlineMeetingProvider"] = "teamsForBusiness"
 
                 resp = cls._graph_post(
-                    f"https://graph.microsoft.com/v1.0/users/{cls.SERVICE_EMAIL}/events",
+                    f"https://graph.microsoft.com/v1.0/users/{cls.SERVICE_EMAIL}/events?sendUpdates=all",
                     event_payload,
                     token,
                 )

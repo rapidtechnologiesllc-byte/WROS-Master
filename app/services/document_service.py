@@ -36,6 +36,10 @@ DOCUMENT_TYPES = {
     "uan_pf": {"folder": "UAN_PF", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
 }
 
+# Document types that allow multiple independent uploads (each file is a separate record).
+# For all other types only ONE active document (is_latest=True) is kept per candidate.
+MULTI_UPLOAD_TYPES = {"education", "experience"}
+
 
 class DocumentService:
     """Service class for handling document operations"""
@@ -211,19 +215,32 @@ class DocumentService:
         Returns:
             CandidateDocument instance
         """
-        # Check if there's an existing latest version
-        existing_doc = self.db.query(CandidateDocument).filter(
-            CandidateDocument.candidate_id == candidate_id,
-            CandidateDocument.document_type == document_type,
-            CandidateDocument.is_latest == True,
-            CandidateDocument.is_deleted == False
-        ).first()
-        
-        # If exists, mark as not latest
+        # ── Versioning logic ────────────────────────────────────────────────
+        # For multi-upload types (education, experience) every file is an
+        # independent record that stays visible — we never mark an earlier
+        # upload as "not latest".  For all other types only one record is
+        # the active latest version at a time.
         version = 1
-        if existing_doc:
-            existing_doc.is_latest = False
-            version = existing_doc.version + 1
+        if document_type not in MULTI_UPLOAD_TYPES:
+            existing_doc = self.db.query(CandidateDocument).filter(
+                CandidateDocument.candidate_id == candidate_id,
+                CandidateDocument.document_type == document_type,
+                CandidateDocument.is_latest == True,
+                CandidateDocument.is_deleted == False
+            ).first()
+            if existing_doc:
+                existing_doc.is_latest = False
+                version = existing_doc.version + 1
+        else:
+            # For multi-upload types count how many already exist so version
+            # numbers are still meaningful (v1, v2, …) even though all stay
+            # is_latest=True.
+            count = self.db.query(CandidateDocument).filter(
+                CandidateDocument.candidate_id == candidate_id,
+                CandidateDocument.document_type == document_type,
+                CandidateDocument.is_deleted == False
+            ).count()
+            version = count + 1
         
         # Get MIME type
         mime_type, _ = mimetypes.guess_type(original_filename)
