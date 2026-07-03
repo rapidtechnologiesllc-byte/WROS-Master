@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_permission
 from app.core.graph_auth import get_graph_token
 from app.schemas.document import DocumentUploadResponse
-from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID
+from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID, MULTI_UPLOAD_TYPES
 from app.core.logging import logger
 
 
@@ -237,43 +237,60 @@ async def get_my_documents(
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found")
 
-    documents = (
+    # Fetch ALL non-deleted documents (we sort per-type below)
+    all_docs = (
         db.query(CandidateDocument)
         .filter(
             CandidateDocument.candidate_id == candidate_id,
-            CandidateDocument.is_latest == True,
             CandidateDocument.is_deleted == False,
         )
-        .order_by(CandidateDocument.uploaded_at.desc())
+        .order_by(CandidateDocument.document_type, CandidateDocument.uploaded_at.desc())
         .all()
     )
 
+    # For single-upload types keep only the is_latest record;
+    # for multi-upload types keep every record.
+    visible_docs = [
+        doc for doc in all_docs
+        if doc.document_type in MULTI_UPLOAD_TYPES or doc.is_latest
+    ]
+
     candidate_full_name = f"{candidate.candidateFirstName or ''} {candidate.candidateMiddleName or ''} {candidate.candidateLastName or ''}".strip()
+
+    def _doc_dict(doc):
+        return {
+            "id": doc.id,
+            "document_type": doc.document_type,
+            "original_filename": doc.original_filename,
+            "file_size": doc.file_size,
+            "file_extension": doc.file_extension,
+            "sharepoint_url": doc.sharepoint_url,
+            "is_verified": doc.is_verified,
+            "verified_by": doc.verified_by,
+            "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
+            "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+            "notes": doc.notes,
+            "version": doc.version,
+        }
+
+    # Build a grouped structure: single-upload types as flat entries,
+    # multi-upload types under a "files" list.
+    grouped: dict = {}
+    for doc in visible_docs:
+        dtype = doc.document_type
+        if dtype in MULTI_UPLOAD_TYPES:
+            grouped.setdefault(dtype, {"document_type": dtype, "files": []})["files"].append(_doc_dict(doc))
+        else:
+            grouped[dtype] = _doc_dict(doc)
 
     return {
         "candidate_id": candidate_id,
         "candidate_name": candidate_full_name,
         "candidate_email": candidate.candidateEmail,
-        "total_documents": len(documents),
-        "verified_count": sum(1 for doc in documents if doc.is_verified),
-        "pending_count": sum(1 for doc in documents if not doc.is_verified),
-        "documents": [
-            {
-                "id": doc.id,
-                "document_type": doc.document_type,
-                "original_filename": doc.original_filename,
-                "file_size": doc.file_size,
-                "file_extension": doc.file_extension,
-                "sharepoint_url": doc.sharepoint_url,
-                "is_verified": doc.is_verified,
-                "verified_by": doc.verified_by,
-                "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
-                "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
-                "notes": doc.notes,
-                "version": doc.version,
-            }
-            for doc in documents
-        ],
+        "total_documents": len(visible_docs),
+        "verified_count": sum(1 for doc in visible_docs if doc.is_verified),
+        "pending_count": sum(1 for doc in visible_docs if not doc.is_verified),
+        "documents": list(grouped.values()),
     }
 
 
@@ -304,51 +321,69 @@ async def get_candidate_documents(
     """
     from app.models.document import CandidateDocument
     from app.models.candidate import Candidate
-    
+
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
-    
-    # Get all documents for the candidate (including soft-deleted ones)
-    documents = db.query(CandidateDocument).filter(
-        CandidateDocument.candidate_id == candidate_id,
-        CandidateDocument.is_latest == True  # Only get latest versions
-    ).order_by(CandidateDocument.uploaded_at.desc()).all()
-    
-    # Format response
+
+    # Fetch ALL non-deleted documents for this candidate
+    all_docs = (
+        db.query(CandidateDocument)
+        .filter(
+            CandidateDocument.candidate_id == candidate_id,
+            CandidateDocument.is_deleted == False,
+        )
+        .order_by(CandidateDocument.document_type, CandidateDocument.uploaded_at.desc())
+        .all()
+    )
+
+    # For single-upload types keep only the is_latest record;
+    # for multi-upload types keep every record.
+    visible_docs = [
+        doc for doc in all_docs
+        if doc.document_type in MULTI_UPLOAD_TYPES or doc.is_latest
+    ]
+
     candidate_full_name = f"{candidate.candidateFirstName or ''} {candidate.candidateMiddleName or ''} {candidate.candidateLastName or ''}".strip()
-    
-    result = {
+
+    def _doc_dict(doc):
+        return {
+            "id": doc.id,
+            "document_type": doc.document_type,
+            "original_filename": doc.original_filename,
+            "file_size": doc.file_size,
+            "file_extension": doc.file_extension,
+            "sharepoint_url": doc.sharepoint_url,
+            "is_verified": doc.is_verified,
+            "verified_by": doc.verified_by,
+            "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
+            "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+            "uploaded_by": doc.uploaded_by,
+            "is_deleted": doc.is_deleted,
+            "notes": doc.notes,
+            "version": doc.version,
+        }
+
+    # Group: multi-upload types get a "files" list; single-upload types are flat.
+    grouped: dict = {}
+    for doc in visible_docs:
+        dtype = doc.document_type
+        if dtype in MULTI_UPLOAD_TYPES:
+            grouped.setdefault(dtype, {"document_type": dtype, "files": []})["files"].append(_doc_dict(doc))
+        else:
+            grouped[dtype] = _doc_dict(doc)
+
+    logger.info(f"HR user {current_user.UserEmail} accessed documents for candidate {candidate_id}")
+    return {
         "candidate_id": candidate_id,
         "candidate_name": candidate_full_name,
         "candidate_email": candidate.candidateEmail,
-        "total_documents": len(documents),
-        "verified_count": sum(1 for doc in documents if doc.is_verified),
-        "pending_count": sum(1 for doc in documents if not doc.is_verified),
-        "documents": [
-            {
-                "id": doc.id,
-                "document_type": doc.document_type,
-                "original_filename": doc.original_filename,
-                "file_size": doc.file_size,
-                "file_extension": doc.file_extension,
-                "sharepoint_url": doc.sharepoint_url,
-                "is_verified": doc.is_verified,
-                "verified_by": doc.verified_by,
-                "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
-                "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
-                "uploaded_by": doc.uploaded_by,
-                "is_deleted": doc.is_deleted,
-                "notes": doc.notes,
-                "version": doc.version
-            }
-            for doc in documents
-        ]
+        "total_documents": len(visible_docs),
+        "verified_count": sum(1 for doc in visible_docs if doc.is_verified),
+        "pending_count": sum(1 for doc in visible_docs if not doc.is_verified),
+        "documents": list(grouped.values()),
     }
-    
-    logger.info(f"HR user {current_user.UserEmail} accessed documents for candidate {candidate_id}")
-    return result
 
 
 
@@ -431,85 +466,60 @@ async def view_document(
 
 
 @router.patch(
-    "/verify/{candidate_id}/{document_type}",
+    "/verify/{document_id}",
     dependencies=[Depends(require_permission("document.verify"))],
 )
 async def update_document_verification(
-    candidate_id: str,
-    document_type: str,
+    document_id: int,
     is_verified: bool,
     notes: str = None,
     current_user = Depends(get_current_hr_or_admin),
     db: Session = Depends(get_db)
 ):
     """
-    Update document verification status by candidate ID and document type.
-    Only accessible by HR and Admin users.
-    
+    Update verification status of a single document by its **document_id**.
+
+    This works for all document types including education and experience,
+    where multiple independent files exist per candidate.  To get the
+    document IDs, call `GET /documents/candidate/{candidate_id}`.
+
     Args:
-        candidate_id: Candidate ID
-        document_type: Type of document (pan, aadhar, education, experience, salary_slip, bank_statement, resume)
-        is_verified: Verification status (True/False)
-        notes: Optional notes about the verification
-        current_user: Authenticated HR/Admin user
-        db: Database session
-        
-    Returns:
-        Updated document details
+        document_id: ID of the specific document record to verify
+        is_verified: True to mark as verified, False to un-verify
+        notes: Optional HR notes about the verification decision
     """
     from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
     from datetime import datetime
-    
-    # Valid document types
-    valid_types = ["pan", "aadhar", "education", "experience", "salary_slip", "bank_statement", "resume","uan_pf"]
-    
-    if document_type not in valid_types:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid document type. Must be one of: {', '.join(valid_types)}"
-        )
-    
-    # Verify candidate exists
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
-    
-    # Get the latest document of this type for the candidate
+
     document = db.query(CandidateDocument).filter(
-        CandidateDocument.candidate_id == candidate_id,
-        CandidateDocument.document_type == document_type,
-        CandidateDocument.is_latest == True,
-        CandidateDocument.is_deleted == False
+        CandidateDocument.id == document_id,
+        CandidateDocument.is_deleted == False,
     ).first()
-    
+
     if not document:
         raise HTTPException(
-            status_code=404, 
-            detail=f"No {document_type} document found for candidate {candidate_id}"
+            status_code=404,
+            detail=f"Document {document_id} not found."
         )
-    
-    # Update verification status
+
     document.is_verified = is_verified
     document.verified_by = current_user.UserID
     document.verified_at = datetime.utcnow()
-    
-    # Update notes if provided
     if notes:
         document.notes = notes
-    
-    # Commit changes
+
     db.commit()
     db.refresh(document)
-    
+
     logger.info(
-        f"HR user {current_user.UserEmail} {'verified' if is_verified else 'rejected'} "
-        f"{document_type} document for candidate {candidate_id}"
+        f"HR user {current_user.UserEmail} "
+        f"{'verified' if is_verified else 'un-verified'} document {document_id} "
+        f"({document.document_type}) for candidate {document.candidate_id}"
     )
-    
+
     return {
         "status": "success",
-        "message": f"Document '{document_type}' {'verified' if is_verified else 'marked as unverified'} successfully",
+        "message": f"Document {'verified' if is_verified else 'marked as unverified'} successfully",
         "document": {
             "id": document.id,
             "candidate_id": document.candidate_id,
@@ -518,6 +528,6 @@ async def update_document_verification(
             "is_verified": document.is_verified,
             "verified_by": document.verified_by,
             "verified_at": document.verified_at.isoformat() if document.verified_at else None,
-            "notes": document.notes
+            "notes": document.notes,
         }
     }
