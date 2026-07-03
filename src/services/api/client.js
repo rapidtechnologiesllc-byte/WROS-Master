@@ -1,9 +1,7 @@
 // Shared API client helpers (base URL + auth headers).
 const API_BASE_URL =
-  //process.env.REACT_APP_API_BASE_URL || "http://46.224.149.7:8080";
-  process.env.REACT_APP_API_BASE_URL || "https://hrms-backend.blitzenx.com";
-  //process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
-
+  // process.env.REACT_APP_API_BASE_URL || "https://hrms-backend.blitzenx.com";
+  process.env.REACT_APP_API_BASE_URL || "https://hrms-backend.rcs9.com"
 
 export const getApiBaseUrl = () => API_BASE_URL;
 
