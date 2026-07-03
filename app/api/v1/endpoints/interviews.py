@@ -190,6 +190,399 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
         logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
 
 
+# ---------------------------------------------------------------------------
+# Feedback submitted — email notification
+# ---------------------------------------------------------------------------
+
+def _notify_feedback_submitted(
+    interview: Interview,
+    feedback: InterviewFeedback,
+    submitter: Users,
+    db: Session,
+) -> None:
+    """
+    Send a branded notification email when a panel member submits feedback.
+
+    Recipients:
+      TO  — Hiring Manager (resolved via panel → job → hiringManagerID)
+      CC  — All other panel members + any HR user linked via CandidateAssignment
+
+    The email is fire-and-forget; failures are logged but never raise.
+    """
+    try:
+        candidate = db.query(Candidate).filter(
+            Candidate.candidateID == interview.candidate_id
+        ).first()
+        candidate_name = _candidate_display_name(candidate) if candidate else interview.candidate_id
+
+        panel = db.query(InterviewPanel).filter(
+            InterviewPanel.id == interview.panel_id
+        ).first()
+        round_name = panel.round_name if panel else "Interview"
+        submitter_name = submitter.UserName or submitter.UserEmail
+
+        # ── Resolve Hiring Manager ─────────────────────────────────────────
+        hm_email: str | None = None
+        hm_name: str = "Hiring Manager"
+
+        if panel and panel.job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+            if job and job.hiringManagerID:
+                hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
+                if hm:
+                    hm_email = hm.UserEmail
+                    hm_name  = hm.UserName or "Hiring Manager"
+
+        if not hm_email and candidate and candidate.job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
+            if job and job.hiringManagerID:
+                hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
+                if hm:
+                    hm_email = hm.UserEmail
+                    hm_name  = hm.UserName or "Hiring Manager"
+
+        # ── Build CC list: all panel members + HR from CandidateAssignment ─
+        cc_emails: list[str] = []
+
+        if panel:
+            members = db.query(PanelMember).filter(
+                PanelMember.panel_id == panel.id
+            ).all()
+            for m in members:
+                if m.interviewer_id == submitter.UserID:
+                    continue          # submitter is already in TO or irrelevant
+                u = db.query(Users).filter(Users.UserID == m.interviewer_id).first()
+                if u and u.UserEmail and u.UserEmail not in cc_emails:
+                    cc_emails.append(u.UserEmail)
+
+        # HR from CandidateAssignment
+        assignment = db.query(CandidateAssignment).filter(
+            CandidateAssignment.candidate_id == interview.candidate_id
+        ).first()
+        if assignment and assignment.hiring_manager_id:
+            hr_user = db.query(Users).filter(
+                Users.UserID == assignment.hiring_manager_id
+            ).first()
+            if hr_user and hr_user.UserEmail and hr_user.UserEmail not in cc_emails:
+                cc_emails.append(hr_user.UserEmail)
+
+        # Remove HM from CC if they're already the TO recipient
+        if hm_email:
+            cc_emails = [e for e in cc_emails if e != hm_email]
+
+        # ── Score summary ──────────────────────────────────────────────────
+        total_score = (
+            (feedback.technical_score or 0)
+            + (feedback.communication_score or 0)
+            + (feedback.problem_solving_score or 0)
+            + (feedback.culture_fit_score or 0)
+        )
+        interview_date = (
+            interview.start_time.strftime("%d %b %Y, %I:%M %p")
+            if interview.start_time else "N/A"
+        )
+
+        metadata = {
+            "Candidate":        candidate_name,
+            "Round":            round_name,
+            "Interview Date":   interview_date,
+            "Submitted By":     submitter_name,
+            "Recommendation":   feedback.recommendation or "—",
+            "Overall Score":    f"{total_score} / 40",
+            "Technical":        f"{feedback.technical_score or 0} / 10",
+            "Communication":    f"{feedback.communication_score or 0} / 10",
+            "Problem Solving":  f"{feedback.problem_solving_score or 0} / 10",
+            "Culture Fit":      f"{feedback.culture_fit_score or 0} / 10",
+        }
+
+        heading = f"Interview Feedback Submitted — {candidate_name} | {round_name}"
+        message = (
+            f"<strong>{submitter_name}</strong> has submitted their interview feedback "
+            f"for candidate <strong>{candidate_name}</strong> ({round_name} round).<br><br>"
+            f"Please log in to the HRMS portal to review the complete feedback details."
+        )
+
+        # ── Send to HM (or fall back to panel-wide CC if HM not found) ────
+        to_email = hm_email
+        to_name  = hm_name
+        if not to_email and cc_emails:
+            to_email = cc_emails.pop(0)
+            u = db.query(Users).filter(Users.UserEmail == to_email).first()
+            to_name  = (u.UserName if u else None) or "Team"
+
+        if to_email:
+            EmailService.send_event_notification(
+                to_email=to_email,
+                recipient_name=to_name,
+                event_type="action_required",
+                heading=heading,
+                message=message,
+                cc_emails=cc_emails if cc_emails else None,
+                metadata=metadata,
+                triggered_by_name=submitter_name,
+            )
+            logger.info(
+                f"[FeedbackNotify] Feedback notification sent to HM {to_email} "
+                f"| CC: {cc_emails} | Interview #{interview.id}"
+            )
+        else:
+            logger.warning(
+                f"[FeedbackNotify] No recipient found for feedback notification "
+                f"on interview #{interview.id}."
+            )
+
+    except Exception as exc:
+        logger.warning(f"[FeedbackNotify] Non-critical notification error: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Feedback reminder scheduler — fires after interview ends
+# ---------------------------------------------------------------------------
+
+def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
+    """
+    Schedule two APScheduler one-shot jobs per panel member who has NOT yet
+    submitted feedback:
+
+      - Job 1: 1 hour  after interview.end_time  (id: feedback_reminder_{iv}_{member}_1h)
+      - Job 2: 24 hours after interview.end_time  (id: feedback_reminder_{iv}_{member}_24h)
+
+    Both jobs re-check at fire-time whether feedback has been submitted and
+    skip silently if it has. This prevents duplicate reminders after late submission.
+
+    If end_time is None, falls back to start_time + 1 hour as the baseline.
+    """
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(IST)
+
+    interview_id = interview.id
+
+    # ── Baseline: interview end time (or start + 1 h as fallback) ─────────
+    raw_end = interview.end_time or (
+        interview.start_time + timedelta(hours=1) if interview.start_time else None
+    )
+    if raw_end is None:
+        logger.warning(
+            f"[FeedbackReminder] Cannot schedule reminders for interview {interview_id}: "
+            "no end_time and no start_time."
+        )
+        return
+
+    end_ist = raw_end.replace(tzinfo=IST) if raw_end.tzinfo is None else raw_end
+
+    # ── Collect panel members ────────────────────────────────────────────
+    panel = db.query(InterviewPanel).filter(
+        InterviewPanel.id == interview.panel_id
+    ).first()
+    if not panel:
+        return
+
+    members = db.query(PanelMember).filter(
+        PanelMember.panel_id == panel.id
+    ).all()
+    if not members:
+        return
+
+    round_name   = panel.round_name or "Interview"
+    candidate = db.query(Candidate).filter(
+        Candidate.candidateID == interview.candidate_id
+    ).first()
+    candidate_name = _candidate_display_name(candidate) if candidate else interview.candidate_id
+
+    reminder_configs = [
+        (timedelta(hours=1),   "1 hour",   "1h"),
+        (timedelta(hours=24),  "24 hours", "24h"),
+    ]
+
+    for member in members:
+        member_id = member.interviewer_id
+
+        # Fix 1: skip members who already submitted — no point reminding them
+        already_done = db.query(InterviewFeedback).filter(
+            InterviewFeedback.interview_id == interview_id,
+            InterviewFeedback.interviewer_id == member_id,
+        ).first()
+        if already_done:
+            logger.info(
+                f"[FeedbackReminder] Skipping reminder scheduling for member "
+                f"{member_id} on interview {interview_id} — feedback already submitted."
+            )
+            continue
+
+        for delta, label, suffix in reminder_configs:
+            fire_at = end_ist + delta
+
+            if fire_at <= now:
+                logger.info(
+                    f"[FeedbackReminder] Skipping {suffix} reminder for member "
+                    f"{member_id} on interview {interview_id} — already past."
+                )
+                continue
+
+            job_id = f"feedback_reminder_{interview_id}_{member_id}_{suffix}"
+
+            # Capture loop-local values for the async closure
+            _fire_at       = fire_at
+            _label         = label
+            _member_id     = member_id
+            _interview_id  = interview_id
+            _candidate_name = candidate_name
+            _round_name    = round_name
+
+            async def _send_feedback_reminder(
+                __interview_id=_interview_id,
+                __member_id=_member_id,
+                __label=_label,
+                __candidate_name=_candidate_name,
+                __round_name=_round_name,
+            ):
+                """Async APScheduler job — send feedback reminder if not yet submitted."""
+                from app.core.database import SessionLocal
+                _db = SessionLocal()
+                try:
+                    # Re-check: has this member already submitted feedback?
+                    iv = _db.query(Interview).filter(
+                        Interview.id == __interview_id
+                    ).first()
+                    if not iv:
+                        return
+
+                    already_submitted = _db.query(InterviewFeedback).filter(
+                        InterviewFeedback.interview_id == __interview_id,
+                        InterviewFeedback.interviewer_id == __member_id,
+                    ).first()
+                    if already_submitted:
+                        logger.info(
+                            f"[FeedbackReminder] Skipping {__label} reminder for member "
+                            f"{__member_id} on interview {__interview_id} — feedback already submitted."
+                        )
+                        return
+
+                    interviewer = _db.query(Users).filter(
+                        Users.UserID == __member_id
+                    ).first()
+                    if not interviewer or not interviewer.UserEmail:
+                        return
+
+                    interviewer_name = interviewer.UserName or interviewer.UserEmail
+
+                    EmailService.send_event_notification(
+                        to_email=interviewer.UserEmail,
+                        recipient_name=interviewer_name,
+                        event_type="action_required",
+                        heading=(
+                            f"Reminder: Please Submit Your Interview Feedback "
+                            f"— {__candidate_name} | {__round_name}"
+                        ),
+                        message=(
+                            f"Dear <strong>{interviewer_name}</strong>,<br><br>"
+                            f"This is a <strong>{__label}</strong> reminder to submit your feedback "
+                            f"for the <strong>{__round_name}</strong> interview with candidate "
+                            f"<strong>{__candidate_name}</strong>.<br><br>"
+                            f"Your feedback has not yet been submitted. Please log in to the "
+                            f"HRMS portal and complete your evaluation at your earliest convenience."
+                        ),
+                        metadata={
+                            "Candidate": __candidate_name,
+                            "Round":     __round_name,
+                            "Reminder":  f"{__label} after interview ended",
+                        },
+                    )
+                    logger.info(
+                        f"[FeedbackReminder] {__label} reminder sent to {interviewer.UserEmail} "
+                        f"for interview {__interview_id}."
+                    )
+
+                except Exception as exc:
+                    logger.error(
+                        f"[FeedbackReminder] Error in reminder job for interview "
+                        f"{__interview_id}, member {__member_id}: {exc}"
+                    )
+                finally:
+                    _db.close()
+
+            try:
+                scheduler.add_job(
+                    _send_feedback_reminder,
+                    trigger="date",
+                    run_date=_fire_at,
+                    id=job_id,
+                    replace_existing=True,
+                )
+                logger.info(
+                    f"[FeedbackReminder] Scheduled {suffix} reminder for member "
+                    f"{member_id} on interview {interview_id} at {_fire_at.isoformat()} (IST)"
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"[FeedbackReminder] Could not schedule {suffix} reminder "
+                    f"for member {member_id}: {exc}"
+                )
+
+
+def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
+    """
+    Cancel any pending APScheduler feedback-reminder jobs for a specific
+    panel member on a given interview.
+
+    Removes both the 1 h and 24 h reminder jobs if they exist.  Safe to call
+    even when the jobs were never scheduled or have already fired.
+    """
+    for suffix in ("1h", "24h"):
+        job_id = f"feedback_reminder_{interview_id}_{member_id}_{suffix}"
+        try:
+            job = scheduler.get_job(job_id)
+            if job:
+                scheduler.remove_job(job_id)
+                logger.info(
+                    f"[FeedbackReminder] Cancelled {suffix} reminder for member "
+                    f"{member_id} on interview {interview_id} (feedback submitted)."
+                )
+        except Exception as exc:
+            logger.warning(
+                f"[FeedbackReminder] Could not cancel {suffix} reminder "
+                f"for member {member_id} on interview {interview_id}: {exc}"
+            )
+
+
+def _cancel_all_feedback_reminders(interview_id: int, db: Session) -> None:
+    """
+    Cancel ALL pending feedback-reminder jobs (both 1 h and 24 h) for every
+    panel member on the given interview.  Used when an interview is cancelled,
+    completed, or deleted so no stale reminder emails are sent.
+    """
+    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    if not interview:
+        return
+    members = db.query(PanelMember).filter(
+        PanelMember.panel_id == interview.panel_id
+    ).all()
+    for member in members:
+        _cancel_feedback_reminders(interview_id, member.interviewer_id)
+
+
+def _cancel_interview_reminders(interview_id: int) -> None:
+    """
+    Cancel the pre-interview reminder jobs (1 h and 15 min before start_time).
+    Used when an interview is deleted or cancelled.
+    """
+    for suffix in ("1h", "15m"):
+        job_id = f"interview_reminder_{interview_id}_{suffix}"
+        try:
+            job = scheduler.get_job(job_id)
+            if job:
+                scheduler.remove_job(job_id)
+                logger.info(
+                    f"[InterviewReminder] Cancelled {suffix} pre-interview reminder "
+                    f"for interview {interview_id}."
+                )
+        except Exception as exc:
+            logger.warning(
+                f"[InterviewReminder] Could not cancel {suffix} reminder "
+                f"for interview {interview_id}: {exc}"
+            )
+
+
 def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
     """
     Register (or replace) one-shot APScheduler jobs for the interview reminder.
@@ -682,7 +1075,30 @@ def assign_panel_member(
     db.add(panel_member)
     db.commit()
     db.refresh(panel_member)
-    
+
+    # Fix 5: schedule feedback reminders for this new member on any
+    # active (Scheduled) interviews already linked to their panel.
+    try:
+        active_interviews = (
+            db.query(Interview)
+            .filter(
+                Interview.panel_id == request.panel_id,
+                Interview.status == "Scheduled",
+            )
+            .all()
+        )
+        for iv in active_interviews:
+            _schedule_feedback_reminders(iv, db)
+            logger.info(
+                f"[FeedbackReminder] Scheduled reminders for new panel member "
+                f"{request.interviewer_id} on interview {iv.id}."
+            )
+    except Exception as exc:
+        logger.warning(
+            f"[FeedbackReminder] Could not schedule reminders for new panel member "
+            f"{request.interviewer_id}: {exc}"
+        )
+
     return PanelMemberResponse(
         id=panel_member.id,
         panel_id=panel_member.panel_id,
@@ -844,9 +1260,15 @@ def create_interview(
     db.add(interview)
     db.commit()
     db.refresh(interview)
-    
-    # Schedule 1-hour reminder
+
+    # Schedule pre-interview reminder (1 h and 15 min before start)
     _schedule_interview_reminder(interview, db)
+
+    # Schedule post-interview feedback reminders (1 h and 24 h after end)
+    try:
+        _schedule_feedback_reminders(interview, db)
+    except Exception as exc:
+        logger.warning(f"[FeedbackReminder] Scheduler error on create (non-critical): {exc}")
     
     return InterviewResponse(
         id=interview.id,
@@ -1207,9 +1629,26 @@ def update_interview(
     
     db.commit()
     db.refresh(interview)
-    
-    # Reschedule reminder if start_time changed
+
+    # Reschedule pre-interview reminder (replaces existing jobs)
     _schedule_interview_reminder(interview, db)
+
+    # Fix 2: if the interview is now Cancelled or Completed, kill all reminder
+    # jobs; otherwise reschedule them with the latest end_time.
+    if interview.status in ("Cancelled", "Completed"):
+        try:
+            _cancel_all_feedback_reminders(interview.id, db)
+            logger.info(
+                f"[FeedbackReminder] Cancelled all feedback reminders for interview "
+                f"{interview.id} (status: {interview.status})."
+            )
+        except Exception as exc:
+            logger.warning(f"[FeedbackReminder] Cancel-all error on update (non-critical): {exc}")
+    else:
+        try:
+            _schedule_feedback_reminders(interview, db)
+        except Exception as exc:
+            logger.warning(f"[FeedbackReminder] Scheduler error on update (non-critical): {exc}")
     
     return InterviewResponse(
         id=interview.id,
@@ -1254,9 +1693,20 @@ def delete_interview(
             detail=f"Interview with ID {interview_id} not found"
         )
     
+    # Fix 3: cancel all scheduler jobs BEFORE removing DB records so the
+    # helper functions can still read panel membership from the database.
+    try:
+        _cancel_all_feedback_reminders(interview_id, db)
+    except Exception as exc:
+        logger.warning(f"[FeedbackReminder] Cancel-all error on delete (non-critical): {exc}")
+    try:
+        _cancel_interview_reminders(interview_id)
+    except Exception as exc:
+        logger.warning(f"[InterviewReminder] Cancel error on delete (non-critical): {exc}")
+
     # Delete all associated feedback
     db.query(InterviewFeedback).filter(InterviewFeedback.interview_id == interview_id).delete()
-    
+
     # Delete the interview
     db.delete(interview)
     db.commit()
@@ -1320,6 +1770,20 @@ def submit_interview_feedback(
             detail=f"Invalid recommendation. Must be one of: {', '.join(valid_recommendations)}"
         )
     
+    # Fix 4: block duplicate submissions from the same interviewer
+    existing_feedback = db.query(InterviewFeedback).filter(
+        InterviewFeedback.interview_id == request.interview_id,
+        InterviewFeedback.interviewer_id == request.interviewer_id,
+    ).first()
+    if existing_feedback:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Interviewer {request.interviewer_id} has already submitted feedback "
+                f"for interview {request.interview_id}."
+            ),
+        )
+
     # Create feedback
     feedback = InterviewFeedback(
         interview_id=request.interview_id,
@@ -1331,7 +1795,7 @@ def submit_interview_feedback(
         comments=request.comments,
         recommendation=request.recommendation
     )
-    
+
     db.add(feedback)
     db.commit()
     db.refresh(feedback)
@@ -1373,7 +1837,19 @@ def submit_interview_feedback(
         _check_and_auto_submit_for_hire(interview, db)
     except Exception as exc:
         logger.warning(f"[AutoHire] check failed non-critically: {exc}")
-        
+
+    # ── Notify HM + HR + panel members that feedback was submitted ────────
+    try:
+        _notify_feedback_submitted(interview, feedback, user, db)
+    except Exception as exc:
+        logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
+
+    # ── Cancel pending feedback reminders for the member who just submitted ──
+    try:
+        _cancel_feedback_reminders(interview.id, request.interviewer_id)
+    except Exception as exc:
+        logger.warning(f"[FeedbackReminder] Cancel error (non-critical): {exc}")
+
     return InterviewFeedbackResponse(
         id=feedback.id,
         interview_id=feedback.interview_id,

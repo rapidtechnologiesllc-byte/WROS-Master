@@ -382,8 +382,113 @@ def _send_missing_fields_email(
 
 
 # ===========================================================================
-# 5. Read inbox replies via Graph API
+# 5. Read inbox via Graph API
 # ===========================================================================
+
+_GRAPH_MAIL_BASE = "https://graph.microsoft.com/v1.0/users/{mailbox}/mailFolders/Inbox/messages"
+
+_MAIL_READ_PERMISSION_HINT = (
+    "The Azure AD application is missing 'Mail.Read' or 'Mail.ReadWrite' "
+    "application permission for the service mailbox. "
+    "Go to Azure Portal → App registrations → API permissions → Add "
+    "'Mail.Read' (Application) → Grant admin consent."
+)
+
+
+def _graph_inbox_get(
+    filter_str: Optional[str] = None,
+    top: int = 50,
+    skip: int = 0,
+    orderby: str = "receivedDateTime desc",
+    select: str = "id,subject,bodyPreview,body,receivedDateTime,from,isRead",
+) -> List[Dict[str, Any]]:
+    """
+    Core helper: execute a GET against the service mailbox inbox.
+
+    NOTE: We build the URL query string manually instead of passing a
+    ``params`` dict to requests.  The requests library percent-encodes
+    dict *keys*, turning ``$filter`` into ``%24filter`` — which Microsoft
+    Graph rejects with a 400 Bad Request.  Encoding only the *values*
+    keeps the OData ``$``-prefixed keywords intact.
+
+    Raises HTTPException(403) with a clear permission hint if the app
+    lacks Mail.Read / Mail.ReadWrite.
+    Returns raw Graph API message list.
+    """
+    from urllib.parse import quote
+
+    token = get_graph_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    # Build OData query parts with literal $ keys; only encode values.
+    # IMPORTANT: Microsoft Graph rejects the combination of $orderby + $filter
+    # on mail messages with "InefficientFilter". Only add $orderby when there
+    # is no $filter (i.e., when listing the full inbox without filtering).
+    base = _GRAPH_MAIL_BASE.format(mailbox=SERVICE_MAILBOX)
+    qs_parts = [
+        f"$top={top}",
+        f"$skip={skip}",
+        f"$select={quote(select, safe=',/')}",
+    ]
+    if filter_str:
+        qs_parts.append(f"$filter={quote(filter_str, safe='/ ')}")
+    else:
+        # $orderby only safe when no $filter is present
+        qs_parts.append(f"$orderby={quote(orderby, safe=' ')}")
+
+    url = base + "?" + "&".join(qs_parts)
+
+    resp = requests.get(url, headers=headers, timeout=15)
+
+    if resp.status_code == 403:
+        logger.error(f"[AIAgent] Graph 403 — Mail.Read permission missing: {resp.text[:300]}")
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Cannot read service mailbox: Microsoft Graph returned 403 Forbidden. "
+                + _MAIL_READ_PERMISSION_HINT
+            ),
+        )
+
+    if not resp.ok:
+        logger.error(
+            f"[AIAgent] Graph {resp.status_code} on inbox read: {resp.text[:300]}"
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"Microsoft Graph returned {resp.status_code}: {resp.text[:200]}",
+        )
+
+    return resp.json().get("value", [])
+
+
+
+def _parse_graph_message(msg: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a raw Graph API message dict into a clean flat dict."""
+    import html as _html
+    body_content = msg.get("body", {}).get("content", "")
+    # 1. Strip HTML tags
+    plain = re.sub(r"<[^>]+>", " ", body_content)
+    # 2. Decode HTML entities (&nbsp; → space, &lt; → <, &amp; → &, etc.)
+    plain = _html.unescape(plain)
+    # 3. Collapse whitespace
+    plain = re.sub(r"[ \t]+", " ", plain)
+    plain = re.sub(r"\n{3,}", "\n\n", plain).strip()
+    from_addr = msg.get("from", {}).get("emailAddress", {})
+    return {
+        "id":           msg.get("id", ""),
+        "subject":      msg.get("subject", ""),
+        "from_email":   from_addr.get("address", ""),
+        "from_name":    from_addr.get("name", ""),
+        "body_preview": msg.get("bodyPreview", ""),
+        "body_text":    plain,
+        "received_at":  msg.get("receivedDateTime", ""),
+        "is_read":      msg.get("isRead", False),
+    }
+
 
 def read_candidate_replies(
     candidate_email: str,
@@ -391,52 +496,91 @@ def read_candidate_replies(
 ) -> List[Dict[str, Any]]:
     """
     Poll the service mailbox Inbox for messages FROM candidate_email.
-    Returns a list of message dicts: {id, subject, body_text, received_at}.
+    Returns a list of message dicts.
+    Raises HTTPException(403) if Mail.Read permission is missing.
     """
     try:
-        token = get_graph_token()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-
         filter_parts = [f"from/emailAddress/address eq '{candidate_email}'"]
         if after_datetime:
             iso_str = after_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
             filter_parts.append(f"receivedDateTime gt {iso_str}")
 
-        filter_str = " and ".join(filter_parts)
-        url = (
-            f"https://graph.microsoft.com/v1.0/users/{SERVICE_MAILBOX}"
-            f"/mailFolders/Inbox/messages"
-            f"?$filter={filter_str}"
-            f"&$orderby=receivedDateTime desc"
-            f"&$top=5"
-            f"&$select=id,subject,body,receivedDateTime,from"
+        raw = _graph_inbox_get(
+            filter_str=" and ".join(filter_parts),
+            top=5,
         )
+        return [_parse_graph_message(m) for m in raw]
 
-        resp = requests.get(url, headers=headers, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-
-        messages = []
-        for msg in data.get("value", []):
-            body_content = msg.get("body", {}).get("content", "")
-            # Strip HTML tags for plain text extraction
-            plain = re.sub(r"<[^>]+>", " ", body_content)
-            plain = re.sub(r"\s+", " ", plain).strip()
-            messages.append({
-                "id": msg["id"],
-                "subject": msg.get("subject", ""),
-                "body_text": plain,
-                "received_at": msg.get("receivedDateTime"),
-            })
-
-        return messages
-
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error(f"[AIAgent] Graph inbox read failed: {exc}")
         return []
+
+
+def read_all_inbox(
+    top: int = 50,
+    skip: int = 0,
+) -> List[Dict[str, Any]]:
+    """
+    Return the most recent messages from the service mailbox Inbox.
+    Raises HTTPException(403) if Mail.Read permission is missing.
+    """
+    raw = _graph_inbox_get(top=top, skip=skip)
+    return [_parse_graph_message(m) for m in raw]
+
+
+def read_inbox_by_email(
+    email: str,
+    top: int = 50,
+) -> List[Dict[str, Any]]:
+    """
+    Return all inbox messages FROM a specific email address.
+    Raises HTTPException(403) if Mail.Read permission is missing.
+    """
+    raw = _graph_inbox_get(
+        filter_str=f"from/emailAddress/address eq '{email}'",
+        top=top,
+    )
+    return [_parse_graph_message(m) for m in raw]
+
+
+# ===========================================================================
+# Helper: strip quoted email threads from a reply
+# ===========================================================================
+
+# Patterns that commonly mark the start of the quoted original message.
+_QUOTE_PATTERNS = re.compile(
+    r"(^On\s+.+wrote:\s*$"
+    r"|^-{3,}\s*Original Message\s*-{3,}"
+    r"|^From:\s.+Sent:"
+    r"|^>{1,}\s)",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def _extract_candidate_reply(full_text: str) -> str:
+    """
+    Strip the quoted original-message thread from an email body so only
+    the candidate's actual new text is sent to Gemini.
+
+    Strategy:
+      - Find the first line that looks like a quote marker
+        ("On Mon, 1 Jan... wrote:", "--- Original Message ---", "From: ...", etc.)
+      - Take only everything before that line.
+    """
+    import html as _html
+    # Decode any remaining HTML entities (safety net)
+    text = _html.unescape(full_text)
+
+    match = _QUOTE_PATTERNS.search(text)
+    if match:
+        candidate_part = text[: match.start()].strip()
+    else:
+        candidate_part = text.strip()
+
+    # If stripping removed everything meaningful, fall back to the full text
+    return candidate_part if len(candidate_part) > 20 else text.strip()
 
 
 # ===========================================================================
@@ -457,30 +601,41 @@ def parse_reply_with_gemini(
         logger.error("[AIAgent] GEMINI_API_KEY not set.")
         return {}
 
-    field_list = "\n".join(
-        f"- {item['field']} ({item['label']})"
+    # Strip quoted threads — only pass the candidate's actual new text
+    clean_text = _extract_candidate_reply(reply_text)
+    logger.info(f"[AIAgent] Cleaned reply for Gemini ({len(clean_text)} chars): {clean_text[:200]}")
+
+    # Build a field list that includes BOTH the field name AND its friendly label
+    # so Gemini can match regardless of how the candidate phrased their answer.
+    field_lines = "\n".join(
+        f"  - field_name: \"{item['field']}\"  |  label: \"{item['label']}\""
         for item in missing_fields
     )
 
-    prompt = f"""You are a data extraction assistant for an HR system.
-A candidate has replied to an email requesting their missing profile details.
+    prompt = f"""You are a data extraction assistant for an HR onboarding system.
+A candidate has replied to an HR email and provided their missing profile information.
 
-Extract the following fields from their reply:
-{field_list}
+Extract the following fields from the candidate's reply.
+For each field, look for either the field_name or the label (or any obvious paraphrase):
+{field_lines}
 
 Candidate's reply:
 \"\"\"
-{reply_text}
+{clean_text}
 \"\"\"
 
 Rules:
 - Return ONLY a valid JSON object. No explanation, no markdown, no code fences.
-- Keys must exactly match the field names listed above.
-- Include only fields that are clearly present in the reply.
+- Keys MUST be the field_name values listed above (not the labels).
+- Include only fields you can confidently identify in the reply.
+- For Employment Type: accepted values are Intern, Full Time, Contract, Guidewire Employee.
+  Map "intern" → "Intern", "full time" → "Full Time", "contract" → "Contract".
+- For Marital Status: accepted values are Single, Married, Divorced, Widowed.
+  Map "unmarried" or "single" → "Single".
 - For dates, use YYYY-MM-DD format.
-- For gender, use one of: Male, Female, Other.
-- If a field is not mentioned, do not include it in the JSON.
-- Example output: {{"candidateFirstName": "Priya", "candidateGender": "Female"}}
+- For Gender, use: Male, Female, Other.
+- If a field is clearly absent, omit it from the JSON.
+- Example output: {{"candidateEmployeeType": "Intern", "marital_status": "Single"}}
 
 JSON output:"""
 
@@ -524,27 +679,150 @@ JSON output:"""
 
 
 # ===========================================================================
-# 7. Merge extracted fields into DB
+# 7. LangGraph ReAct Agent — field extraction + DB merge + follow-up email
+# ===========================================================================
+#
+# Architecture
+# ─────────────
+#   create_reply_processing_agent()
+#     Returns a compiled LangGraph ReAct agent with three tools:
+#
+#     Tool 1 ─ extract_fields_from_reply
+#         LLM-based extractor.  Receives the clean candidate reply text and
+#         the list of still-missing fields.  Returns a JSON dict mapping
+#         field_name → extracted_value.
+#
+#     Tool 2 ─ merge_fields_to_db
+#         Writes the extracted values to the candidates / candidate_forms
+#         tables via the existing merge_extracted_fields() helper.
+#         Returns {"updated": [...], "skipped": [...]}.
+#
+#     Tool 3 ─ send_followup_email
+#         Sends a follow-up email to the candidate listing any fields that
+#         are still empty after the merge.  Returns a status dict.
+#
+#   run_reply_agent()
+#     Sets up a thread-local DB + candidate context, invokes the agent,
+#     and returns a structured result dict for the caller.
+
+"""
+Deterministic candidate-reply processing pipeline.
+
+Replaces the previous LangGraph ReAct agent (which let an LLM decide tool
+order/whether-to-call) with a straight-line pipeline:
+
+    1. extract_fields_from_reply(reply_text)   -> dict of field -> value
+    2. merge_fields_to_db(extracted)           -> {"updated": [...], "skipped": [...]}
+    3. get_missing_fields(candidate, db)       -> recheck what's still missing
+    4. if still missing: send_followup_email(...)  else: mark conversation closed
+
+The LLM is used ONLY for step 1 (genuinely fuzzy NLP extraction).
+Steps 2-4 are plain, deterministic, testable Python — no tool-calling agent,
+no risk of the model skipping/reordering/hallucinating a step.
+"""
+
+import json as _json_mod
+import re
+from datetime import date as _date
+from typing import Any, Dict, List, Optional
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from sqlalchemy.orm import Session
+
+# NOTE: the following are assumed to already be defined/imported elsewhere in
+# the original module (logger, GEMINI_API_KEY, Candidate, CandidateInfoForm,
+# CandidateConversation, ConversationEvent, CANDIDATE_CORE_FIELDS,
+# INFO_FORM_FIELDS, EmailService, get_missing_fields, _extract_candidate_reply,
+# _candidate_display_name, _build_followup_email, _log_event,
+# read_candidate_replies, HTTPException). They are left untouched here.
+
+
+# ===========================================================================
+# Step 1: Extraction (LLM) — plain function, not an agent tool
 # ===========================================================================
 
-def merge_extracted_fields(
-    candidate_id: str,
-    extracted: Dict[str, str],
-    db: Session,
-) -> Dict[str, List[str]]:
+def extract_fields_from_reply(reply_text: str, missing_fields: List[Dict[str, str]]) -> Dict[str, Any]:
     """
-    Apply the extracted values to the appropriate DB models.
+    Extract missing HR profile field values from the candidate's reply email.
+
+    Returns a dict field_name -> extracted_value for every field that was
+    confidently found in the reply. Fields not mentioned are omitted.
+    """
+    clean_text = _extract_candidate_reply(reply_text)
+    logger.info(
+        f"[ReplyPipeline] extract_fields_from_reply: "
+        f"{len(clean_text)} chars, {len(missing_fields)} field(s) to find."
+    )
+
+    field_lines = "\n".join(
+        f'  - field_name: "{item["field"]}"  |  label: "{item["label"]}"'
+        for item in missing_fields
+    )
+
+    prompt = f"""You are a data extraction assistant for an HR onboarding system.
+A candidate replied to an HR email and provided their missing profile information.
+
+Extract the following fields from the candidate's reply.
+Look for the field_name, its label, or any obvious paraphrase:
+{field_lines}
+
+Candidate's reply:
+\"\"\"
+{clean_text}
+\"\"\"
+
+Rules:
+- Return ONLY a valid JSON object. No explanation, no markdown, no code fences.
+- Keys MUST be the field_name values listed above.
+- Include only fields you can confidently identify.
+- For Employment Type accepted values: Intern, Full Time, Contract, Guidewire Employee.
+  Map "intern" -> "Intern", "full time" -> "Full Time", "contract" -> "Contract".
+- For Marital Status accepted values: Single, Married, Divorced, Widowed.
+  Map "unmarried" or "single" -> "Single".
+- For dates, use YYYY-MM-DD format.
+- For Gender: Male, Female, Other.
+- If a field is absent, omit it.
+- Example: {{"candidateEmployeeType": "Intern", "marital_status": "Single"}}
+
+JSON output:"""
+
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-3-flash-preview",
+        google_api_key=GEMINI_API_KEY,
+        temperature=0.1,
+    )
+    response = llm.invoke(prompt)
+    raw = response.content.strip()
+    raw = re.sub(r"```(?:json)?", "", raw).strip()
+
+    try:
+        result = _json_mod.loads(raw)
+        logger.info(f"[ReplyPipeline] extracted: {result}")
+        return result
+    except _json_mod.JSONDecodeError as e:
+        logger.error(f"[ReplyPipeline] extract_fields_from_reply JSON error: {e} | raw={raw!r}")
+        return {}
+
+
+# ===========================================================================
+# Step 2: Merge to DB — plain function, returns real result (no swallowing)
+# ===========================================================================
+
+def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session) -> Dict[str, List[str]]:
+    """
+    Write extracted field values to the candidate's DB record.
+
     Returns {"updated": [...field names...], "skipped": [...field names...]}.
     """
-    candidate = db.query(Candidate).filter(
-        Candidate.candidateID == candidate_id
-    ).first()
+    if not extracted:
+        return {"updated": [], "skipped": []}
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate not found.")
+        return {"updated": [], "skipped": list(extracted.keys()), "error": "Candidate not found"}
 
     core_fields = {f for f, _ in CANDIDATE_CORE_FIELDS}
     info_fields = {f for f, _ in INFO_FORM_FIELDS}
-
     updated: List[str] = []
     skipped: List[str] = []
 
@@ -553,22 +831,18 @@ def merge_extracted_fields(
             skipped.append(field)
             continue
 
-        # ── Core candidate table ─────────────────────────────────────────
         if field in core_fields:
             try:
-                # Date fields
                 if field in ("candidateDateOfBirth", "candidateJoiningDate"):
-                    from datetime import date
-                    value = date.fromisoformat(str(raw_value))
+                    value = _date.fromisoformat(str(raw_value))
                 else:
                     value = str(raw_value).strip()
                 setattr(candidate, field, value)
                 updated.append(field)
             except Exception as exc:
-                logger.warning(f"[AIAgent] Could not set {field}={raw_value!r}: {exc}")
+                logger.warning(f"[ReplyPipeline] core field {field}={raw_value!r}: {exc}")
                 skipped.append(field)
 
-        # ── CandidateInfoForm ────────────────────────────────────────────
         elif field in info_fields:
             info = db.query(CandidateInfoForm).filter(
                 CandidateInfoForm.candidateID == candidate_id
@@ -580,18 +854,125 @@ def merge_extracted_fields(
                 setattr(info, field, str(raw_value).strip())
                 updated.append(field)
             except Exception as exc:
-                logger.warning(f"[AIAgent] InfoForm set {field}={raw_value!r}: {exc}")
+                logger.warning(f"[ReplyPipeline] info field {field}={raw_value!r}: {exc}")
                 skipped.append(field)
 
         else:
             skipped.append(field)
 
     db.flush()
-    return {"updated": updated, "skipped": skipped}
+    result = {"updated": updated, "skipped": skipped}
+    logger.info(f"[ReplyPipeline] merge_fields_to_db: {result}")
+    return result
 
 
 # ===========================================================================
-# 8. Process a candidate reply (full pipeline)
+# Step 4: Follow-up email — plain function, called only when needed
+# ===========================================================================
+
+def send_followup_email(candidate, still_missing: List[Dict[str, str]], conversation_id: int) -> Dict[str, Any]:
+    """
+    Send a follow-up email listing fields still missing.
+    Caller is responsible for only invoking this when still_missing is non-empty.
+    """
+    if not candidate or not candidate.candidateEmail:
+        return {"sent": False, "reason": "Candidate or email not found"}
+
+    name = _candidate_display_name(candidate)
+    subject = f"Follow-up: Additional Information Needed — CONV-{conversation_id}"
+    html = _build_followup_email(name, still_missing, conversation_id)
+
+    try:
+        EmailService.send_email(
+            to_email=candidate.candidateEmail,
+            subject=subject,
+            body_content=html,
+            is_html=True,
+        )
+        logger.info(
+            f"[ReplyPipeline] send_followup_email: sent to {candidate.candidateEmail} | "
+            f"{len(still_missing)} field(s) still missing."
+        )
+        return {
+            "sent": True,
+            "to": candidate.candidateEmail,
+            "subject": subject,
+            "still_missing": [m["field"] for m in still_missing],
+        }
+    except Exception as exc:
+        logger.error(f"[ReplyPipeline] send_followup_email failed: {exc}")
+        return {"sent": False, "reason": str(exc)}
+
+
+# ===========================================================================
+# The pipeline itself — deterministic, no agent/tool-calling involved
+# ===========================================================================
+
+def run_reply_pipeline(
+    candidate_id: str,
+    reply_text: str,
+    missing_fields: List[Dict[str, str]],
+    conversation_id: int,
+    db: Session,
+) -> Dict[str, Any]:
+    """
+    Deterministically process a candidate's reply:
+      1. extract fields from the reply text (LLM)
+      2. merge extracted fields into the DB
+      3. recheck which fields are still missing
+      4. if any are still missing -> send follow-up email
+         else -> nothing further to do (caller marks conversation closed)
+
+    Returns:
+      {
+        "extracted": {...},
+        "updated_fields": [...],
+        "skipped_fields": [...],
+        "still_missing": [...field names...],
+        "followup_sent": bool,
+        "followup_subject": str | None,
+      }
+    """
+    if not GEMINI_API_KEY:
+        logger.error("[ReplyPipeline] GEMINI_API_KEY not set — cannot run reply pipeline.")
+        return {"error": "GEMINI_API_KEY not configured"}
+
+    # Step 1: extract
+    extracted = extract_fields_from_reply(reply_text, missing_fields)
+
+    # Step 2: merge
+    merge_result = merge_fields_to_db(candidate_id, extracted, db)
+    if merge_result.get("error"):
+        return {"error": merge_result["error"]}
+
+    # Step 3: recheck what's still missing (source of truth is the DB, not the LLM)
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    db.refresh(candidate)
+    still_missing = get_missing_fields(candidate, db)
+
+    result: Dict[str, Any] = {
+        "extracted": extracted,
+        "updated_fields": merge_result["updated"],
+        "skipped_fields": merge_result["skipped"],
+        "still_missing": [m["field"] for m in still_missing],
+        "followup_sent": False,
+        "followup_subject": None,
+    }
+
+    # Step 4: send follow-up only if something is genuinely still missing
+    if still_missing:
+        followup = send_followup_email(candidate, still_missing, conversation_id)
+        result["followup_sent"] = followup.get("sent", False)
+        result["followup_subject"] = followup.get("subject")
+        if not followup.get("sent"):
+            result["followup_error"] = followup.get("reason")
+
+    return result
+
+
+# ===========================================================================
+# 8. Process a candidate reply (full pipeline) — orchestration unchanged,
+#    just calls run_reply_pipeline instead of the old agent
 # ===========================================================================
 
 def process_candidate_reply(
@@ -603,15 +984,13 @@ def process_candidate_reply(
     """
     End-to-end reply processing pipeline:
       1. Load active conversation.
-      2. If raw_reply_text is None → poll Graph inbox for new messages.
-      3. Parse reply with Gemini.
-      4. Merge extracted fields into DB.
-      5. Log events.
-      6. Check if still missing → send follow-up OR close conversation.
-
-    Returns a processing summary dict.
+      2. If raw_reply_text is None -> poll Graph inbox for new messages.
+      3. Log candidate_reply event.
+      4. Run deterministic pipeline (extract -> merge -> recheck -> resend if needed).
+      5. Log fields_merged / status_changed events.
+      6. Return structured summary.
     """
-    # Load active conversation
+    # ── Load active conversation ──────────────────────────────────────────
     conversation = (
         db.query(CandidateConversation)
         .filter(
@@ -633,7 +1012,6 @@ def process_candidate_reply(
 
     # ── Step 1: Obtain reply text ─────────────────────────────────────────
     if raw_reply_text is None:
-        # Poll the inbox for replies received after the last AI message
         last_sent_event = (
             db.query(ConversationEvent)
             .filter(
@@ -651,7 +1029,6 @@ def process_candidate_reply(
                 "status": "no_reply_found",
                 "message": "No new replies found in the service mailbox.",
             }
-        # Use the most recent reply
         reply_msg = messages[0]
         raw_reply_text = reply_msg["body_text"]
         message_id = reply_msg["id"]
@@ -666,10 +1043,9 @@ def process_candidate_reply(
         triggered_by="candidate",
     )
 
-    # ── Step 3: Determine what's still missing ────────────────────────────
+    # ── Step 3: Check if anything is still missing before running pipeline ─
     missing = get_missing_fields(candidate, db)
     if not missing:
-        # All fields already filled — nothing to parse
         conversation.status = "closed"
         conversation.summary = "All fields complete. Conversation closed."
         conversation.next_action = "none"
@@ -680,30 +1056,42 @@ def process_candidate_reply(
             "updated_fields": [],
         }
 
-    # ── Step 4: Parse reply with Gemini ──────────────────────────────────
-    extracted = parse_reply_with_gemini(raw_reply_text, missing)
-
+    # ── Step 4: Run deterministic extract -> merge -> recheck -> resend ───
+    logger.info(
+        f"[ReplyPipeline] Processing reply for candidate '{candidate_id}' "
+        f"| {len(missing)} missing field(s) | conv #{conversation.id}"
+    )
     _log_event(
-        db, conversation.id, "gemini_parse",
-        {
-            "fields_attempted": [m["field"] for m in missing],
-            "fields_extracted": list(extracted.keys()),
-            "extracted_values": extracted,
-        },
+        db, conversation.id, "pipeline_start",
+        {"missing_fields": [m["field"] for m in missing]},
     )
 
-    # ── Step 5: Merge into DB ─────────────────────────────────────────────
-    merge_result = merge_extracted_fields(candidate_id, extracted, db)
+    pipeline_result = run_reply_pipeline(
+        candidate_id=candidate_id,
+        reply_text=raw_reply_text,
+        missing_fields=missing,
+        conversation_id=conversation.id,
+        db=db,
+    )
+
+    if "error" in pipeline_result:
+        _log_event(db, conversation.id, "pipeline_error", {"error": pipeline_result["error"]})
+        db.commit()
+        return {"conversation_id": conversation.id, "status": "pipeline_error", **pipeline_result}
 
     _log_event(
         db, conversation.id, "fields_merged",
-        merge_result,
+        {
+            "updated_fields": pipeline_result["updated_fields"],
+            "skipped_fields": pipeline_result["skipped_fields"],
+            "still_missing": pipeline_result["still_missing"],
+        },
     )
 
-    # ── Step 6: Re-check what's still missing ────────────────────────────
-    still_missing = get_missing_fields(candidate, db)
+    # ── Step 5: Decide conversation status based on real still_missing list ─
+    still_missing_fields = pipeline_result["still_missing"]
 
-    if not still_missing:
+    if not still_missing_fields:
         conversation.status = "closed"
         conversation.summary = "All fields complete after candidate reply. Conversation closed."
         conversation.next_action = "none"
@@ -715,54 +1103,52 @@ def process_candidate_reply(
         return {
             "conversation_id": conversation.id,
             "status": "completed",
-            "updated_fields": merge_result["updated"],
-            "skipped_fields": merge_result["skipped"],
+            "updated_fields": pipeline_result["updated_fields"],
+            "still_missing": [],
+            "followup_sent": False,
         }
 
-    # ── Step 7: Still missing → send follow-up ───────────────────────────
-    name = _candidate_display_name(candidate)
-    subject = (
-        f"Follow-up: Additional Information Needed — CONV-{conversation.id}"
-    )
-    html = _build_followup_email(name, still_missing, conversation.id)
-    try:
-        EmailService.send_email(
-            to_email=candidate.candidateEmail,
-            subject=subject,
-            body_content=html,
-            is_html=True,
-        )
+    # Fields still missing — pipeline should have sent a follow-up
+    if pipeline_result.get("followup_sent"):
         _log_event(
             db, conversation.id, "ai_message_sent",
             {
                 "channel": "email",
-                "subject": subject,
+                "subject": pipeline_result.get("followup_subject", ""),
                 "to": candidate.candidateEmail,
-                "missing_fields": [m["field"] for m in still_missing],
+                "missing_fields": still_missing_fields,
                 "message_type": "followup_request",
             },
         )
         conversation.status = "awaiting_candidate"
         conversation.summary = (
-            f"Follow-up sent. {len(still_missing)} field(s) still missing: "
-            + ", ".join(m["label"] for m in still_missing)
+            f"Follow-up sent. {len(still_missing_fields)} field(s) still missing: "
+            + ", ".join(still_missing_fields)
         )
         conversation.next_action = "wait_for_reply"
-    except Exception as exc:
-        logger.error(f"[AIAgent] Follow-up email failed: {exc}")
+    else:
+        # Email failed to send — surface this clearly instead of silently
+        # leaving the conversation in a stale state.
+        _log_event(
+            db, conversation.id, "followup_email_failed",
+            {"reason": pipeline_result.get("followup_error", "unknown")},
+        )
+        conversation.status = "awaiting_candidate"
+        conversation.summary = (
+            f"{len(still_missing_fields)} field(s) still missing, but follow-up email "
+            f"failed to send: {pipeline_result.get('followup_error', 'unknown error')}"
+        )
+        conversation.next_action = "retry_followup"
 
     db.commit()
 
     return {
         "conversation_id": conversation.id,
         "status": "partial",
-        "updated_fields": merge_result["updated"],
-        "skipped_fields": merge_result["skipped"],
-        "still_missing": [m["field"] for m in still_missing],
-        "followup_email_sent": True,
+        "updated_fields": pipeline_result["updated_fields"],
+        "still_missing": still_missing_fields,
+        "followup_sent": pipeline_result.get("followup_sent", False),
     }
-
-
 # ===========================================================================
 # 9. Get full conversation thread (for UI display)
 # ===========================================================================
