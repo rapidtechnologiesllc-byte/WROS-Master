@@ -1,4 +1,3 @@
-// Job creation form (simple flow).
 import { useEffect, useState } from "react";
 import { Briefcase } from "lucide-react";
 import { generateJobDescription, createJob } from "../services/api/jobs";
@@ -9,6 +8,8 @@ import {
   listBusinessUnits,
   getDepartmentsByBusinessUnit,
 } from "../services/api/rbac";
+import { Steps } from "antd";
+import { ROUTES } from "../utils/Routes";
 
 export default function JobCreate({
   onSave,
@@ -27,7 +28,7 @@ export default function JobCreate({
   const [location, setLocation] = useState("Remote");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [payRange, setPayRange] = useState("");
-  const [payCurrency, setPayCurrency] = useState("USD");
+  const [payCurrency, setPayCurrency] = useState("INR");
   const [payFrequency, setPayFrequency] = useState("Annual");
   const [payAmount, setPayAmount] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -52,6 +53,7 @@ export default function JobCreate({
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [hrUsers, setHrUsers] = useState([]);
   const [hiringManagers, setHiringManagers] = useState([]);
+  const [current, setCurrent] = useState(0);
   const storedRole = localStorage.getItem("permission_role");
 
   useEffect(() => {
@@ -62,35 +64,28 @@ export default function JobCreate({
       try {
         const [hrManagers, reportingManagers] = await Promise.all([
           searchUsers({
-            // permission_role: "HR Manager",
             user_role: "HR",
           }),
           searchUsers({
             permission_role: "Reporting Manager",
           }),
         ]);
-
         if (!isMounted) return;
 
         const mergedUsers = [
           ...(hrManagers?.users ?? []),
           ...(reportingManagers?.users ?? []),
         ];
-
         const uniqueUsers = Array.from(
           new Map(mergedUsers.map((user) => [user?.user_id, user])).values(),
         );
-
         setUsers(uniqueUsers);
       } catch (error) {
         console.error("Failed to load users:", error);
-
         if (!isMounted) return;
-
         setUsers([]);
       } finally {
         if (!isMounted) return;
-
         setUsersBusy(false);
       }
     };
@@ -99,6 +94,7 @@ export default function JobCreate({
       isMounted = false;
     };
   }, []);
+
   useEffect(() => {
     const loadDepartments = async () => {
       if (!selectedBusinessUnit) {
@@ -109,7 +105,6 @@ export default function JobCreate({
       try {
         const departments =
           await getDepartmentsByBusinessUnit(selectedBusinessUnit);
-
         setDepartmentList(departments);
         setSelectedDept("");
       } catch (err) {
@@ -139,7 +134,6 @@ export default function JobCreate({
       }
       try {
         const response = await searchUsers({
-          // permission_role: "HR Manager",
           user_role: "HR",
           business_unit: businessUnitName,
           department: departmentName,
@@ -158,6 +152,7 @@ export default function JobCreate({
     businessUnitList,
     departmentListState,
   ]);
+
   useEffect(() => {
     const loadHiringManagers = async () => {
       try {
@@ -287,7 +282,6 @@ export default function JobCreate({
       { label: "Skills", value: skills },
       { label: "Experience Level", value: experienceLevel },
       { label: "Location", value: location },
-      { label: "Company Type", value: companyType },
       { label: "Company / Client", value: companyClient },
       { label: "HR", value: contactPerson },
       { label: "Job Status", value: jobStatus },
@@ -331,38 +325,8 @@ export default function JobCreate({
       };
       const data = await createJob(payload);
       const createdId = data?.job_id;
-      onSave({
-        id: createdId,
-        title,
-        positionType,
-        priority,
-        companyClient,
-        companyType,
-        contactPerson,
-        division,
-        dept,
-        location,
-        experienceLevel,
-        payRange,
-        startDate,
-        endDate,
-        jobStatus,
-        noOfPositions,
-        jobDescription: internalJD,
-        jobSkillsText: skills,
-        skills: skills
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        hiringManager:
-          users.find((user) => user?.user_id === hmUserId)?.user_name ?? "",
-        reportingManager:
-          users.find((user) => user?.user_id === rmUserId)?.user_name ?? "",
-        hiringManagerOneLiner: hmOneLiner,
-        internalJD,
-        externalJD,
-        status: jobStatus || "Draft",
-      });
+      toast.success(`Created job ${title}`);
+      navigate(ROUTES.JOBS);
     } catch (err) {
       toast.error(err?.message || "Failed to create job.");
     } finally {
@@ -370,175 +334,24 @@ export default function JobCreate({
     }
   };
 
-  return (
-    <div className="grid gap-4">
-      <Card
-        title={isReadOnly ? "View Job" : "Create New Job"}
-        icon={<Briefcase className="h-4 w-4" />}
-      >
-        <fieldset disabled={isReadOnly}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input label="Job Title *" value={title} onChange={setTitle} />
-            <Select
-              label="Position Type"
-              value={positionType}
-              onChange={setPositionType}
-              options={["Full time", "Contract"]}
-            />
-            <Select
-              label="Priority"
-              value={priority}
-              onChange={setPriority}
-              options={["Low", "High"]}
-            />
-            <Select
-              label="HR *"
-              value={contactPerson}
-              onChange={setContactPerson}
-              options={[
-                {
-                  label: "Select HR",
-                  value: "",
-                },
-                ...(hrUsers?.map((user) => ({
-                  label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
-                  value: user?.user_id ?? "",
-                })) ?? []),
-              ]}
-            />
-            <Input
-              label="Company / Client *"
-              value={companyClient}
-              onChange={setCompanyClient}
-            />
-            <Input
-              label="Company Type *"
-              value={companyType}
-              onChange={setCompanyType}
-            />
-            <Select
-              label="Business Unit"
-              value={selectedBusinessUnit}
-              onChange={(value) => setSelectedBusinessUnit(value)}
-              options={buOptions}
-            />
-            <Select
-              label="Department"
-              value={selectedDept}
-              onChange={(value) => setSelectedDept(value)}
-              options={deptOptions}
-            />
-            <Input label="Location *" value={location} onChange={setLocation} />
-            <Select
-              label="Job Status *"
-              value={jobStatus}
-              onChange={setJobStatus}
-              options={["Draft", "Open", "Public", "Submitted", "Closed"]}
-            />
-            <Input
-              label="No. of Positions *"
-              value={String(noOfPositions)}
-              onChange={(value) => setNoOfPositions(Number(value || 0))}
-              type="number"
-            />
-            <Input
-              label="Experience Level *"
-              value={experienceLevel}
-              onChange={setExperienceLevel}
-            />
-            <div className="md:col-span-2">
-              <div className="mb-1 text-xs font-semibold text-gray-700">
-                Pay Range
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <Select
-                  label="Currency"
-                  value={payCurrency}
-                  onChange={(value) => {
-                    setPayCurrency(value);
-                    if (value === "INR") {
-                      setPayFrequency("Annual");
-                    }
-                  }}
-                  options={["USD", "INR"]}
-                />
-                <Select
-                  label="Frequency"
-                  value={payFrequency}
-                  onChange={setPayFrequency}
-                  options={
-                    payCurrency === "USD" ? ["Hourly", "Annual"] : ["Annual"]
-                  }
-                />
-                <Input
-                  label={
-                    payFrequency === "Hourly"
-                      ? "Amount (Hourly)"
-                      : "Amount (Annual)"
-                  }
-                  value={payAmount}
-                  onChange={(value) => {
-                    setPayAmount(value);
-                    const normalized = value ? String(value).trim() : "";
-                    const next = normalized
-                      ? `${payCurrency} ${payFrequency} ${normalized}`
-                      : "";
-                    setPayRange(next);
-                  }}
-                  type="number"
-                />
-              </div>
-            </div>
-            <Input
-              label="Start Date *"
-              value={startDate}
-              onChange={setStartDate}
-              type="date"
-            />
-            <Input
-              label="End Date *"
-              value={endDate}
-              onChange={setEndDate}
-              type="date"
-            />
-            <Select
-              label="Hiring Manager (Azure AD) *"
-              value={hmUserId}
-              onChange={setHmUserId}
-              options={[
-                {
-                  label: "Select Hiring Manager",
-                  value: "",
-                },
-                ...(hiringManagers?.map((user) => ({
-                  label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
-                  value: user?.user_id ?? "",
-                })) ?? []),
-              ]}
-            />
-            <Select
-              label="Reporting Manager (Azure AD)"
-              value={rmUserId}
-              onChange={setRmUserId}
-              options={[
-                {
-                  label: "Select Reporting Manager",
-                  value: "",
-                },
-                ...users.map((user) => ({
-                  label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
-                  value: user?.user_id ?? "",
-                })),
-              ]}
-            />
-            <div className="md:col-span-2">
-              <Input
-                label="Skills (comma separated) *"
-                value={skills}
-                onChange={setSkills}
-              />
-            </div>
-            <div className="md:col-span-2">
+  const next = () => {
+    if (current < 1) {
+      setCurrent(current + 1);
+    }
+  };
+
+  const prev = () => {
+    if (current > 0) {
+      setCurrent(current - 1);
+    }
+  };
+
+  const renderFormContent = () => {
+    switch (current) {
+      case 0:
+        return (
+          <fieldset disabled={isReadOnly}>
+            <div className="md:col-span-2 mt-2">
               <TextArea
                 label="Hiring Manager 1-Liner "
                 value={hmOneLiner}
@@ -546,6 +359,162 @@ export default function JobCreate({
                 rows={2}
                 placeholder="Include job_title, job_experience, job_location to generate JD"
               />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input label="Job Title *" value={title} onChange={setTitle} />
+              <Select
+                label="Position Type"
+                value={positionType}
+                onChange={setPositionType}
+                options={["Full time", "Contract"]}
+              />
+              <Select
+                label="Priority"
+                value={priority}
+                onChange={setPriority}
+                options={["Low", "High"]}
+              />
+              <Select
+                label="HR *"
+                value={contactPerson}
+                onChange={setContactPerson}
+                options={[
+                  {
+                    label: "Select HR",
+                    value: "",
+                  },
+                  ...(hrUsers?.map((user) => ({
+                    label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
+                    value: user?.user_id ?? "",
+                  })) ?? []),
+                ]}
+                disabled={true}
+              />
+              <Input
+                label="Company / Client *"
+                value={companyClient}
+                onChange={setCompanyClient}
+              />
+              <Select
+                label="Business Unit"
+                value={selectedBusinessUnit}
+                onChange={(value) => setSelectedBusinessUnit(value)}
+                options={buOptions}
+              />
+              <Select
+                label="Department"
+                value={selectedDept}
+                onChange={(value) => setSelectedDept(value)}
+                options={deptOptions}
+              />
+              <Input
+                label="Location *"
+                value={location}
+                onChange={setLocation}
+              />
+              <Select
+                label="Job Status *"
+                value={jobStatus}
+                onChange={setJobStatus}
+                options={["Draft", "Open", "Public", "Submitted", "Closed"]}
+                disabled={true}
+              />
+              <Input
+                label="No. of Positions *"
+                value={String(noOfPositions)}
+                onChange={(value) => setNoOfPositions(Number(value || 0))}
+                type="number"
+              />
+              <Select
+                label="Experience Level *"
+                value={experienceLevel}
+                onChange={setExperienceLevel}
+                options={Array.from({ length: 20 }, (_, i) => i + 1)}
+              />
+              <Select
+                label="Hiring Manager (Azure AD) *"
+                value={hmUserId}
+                onChange={setHmUserId}
+                options={[
+                  {
+                    label: "Select Hiring Manager",
+                    value: "",
+                  },
+                  ...(hiringManagers?.map((user) => ({
+                    label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
+                    value: user?.user_id ?? "",
+                  })) ?? []),
+                ]}
+              />
+              <div className="md:col-span-2">
+                <div className="mb-1 text-xs font-semibold text-gray-700">
+                  Pay Range
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Select
+                    label="Currency"
+                    value={payCurrency}
+                    onChange={(value) => {
+                      setPayCurrency(value);
+                      if (value === "INR") {
+                        setPayFrequency("Annual");
+                      }
+                    }}
+                    options={["INR", "USD"]}
+                  />
+                  <Select
+                    label="Frequency"
+                    value={payFrequency}
+                    onChange={setPayFrequency}
+                    options={["Hourly", "Weekly", "Annual"]}
+                  />
+                  <Input
+                    label={
+                      payFrequency === "Hourly"
+                        ? "Amount (Hourly)"
+                        : payFrequency === "Weekly"
+                          ? "Amount (Weekly)"
+                          : "Amount (Annual)"
+                    }
+                    value={payAmount}
+                    onChange={(value) => {
+                      setPayAmount(value);
+                      const normalized = value ? String(value).trim() : "";
+                      const next = normalized
+                        ? `${payCurrency} ${payFrequency} ${normalized}`
+                        : "";
+                      setPayRange(next);
+                    }}
+                    type="number"
+                  />
+                </div>
+              </div>
+              <Input
+                label="Start Date *"
+                value={startDate}
+                onChange={setStartDate}
+                type="date"
+              />
+              <Input
+                label="End Date *"
+                value={endDate}
+                onChange={setEndDate}
+                type="date"
+              />
+            </div>
+          </fieldset>
+        );
+      case 1:
+        return (
+          <>
+            <div className="md:col-span-2 mt-2">
+              <Input
+                label="Skills (comma separated) *"
+                value={skills}
+                onChange={setSkills}
+              />
+            </div>
+            <div className="md:col-span-2">
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
@@ -556,7 +525,7 @@ export default function JobCreate({
                 </Button>
               </div>
             </div>
-            <div className="md:col-span-2">
+            <div className="mt-2 md:col-span-2">
               <TextArea
                 label="Internal Job Description *"
                 value={internalJD}
@@ -565,31 +534,55 @@ export default function JobCreate({
                 placeholder="Editable; can be generated from AI"
               />
             </div>
-          </div>
-        </fieldset>
+          </>
+        );
+    }
+  };
 
-        {!isReadOnly ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2">
+  return (
+    <div className="grid gap-4">
+      <Card
+        title={isReadOnly ? "View Job" : "Create New Job"}
+        icon={<Briefcase className="h-4 w-4" />}
+      >
+        <div>
+          <Steps
+            current={current}
+            items={[{ title: "Step 1" }, { title: "Step 2" }]}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {renderFormContent()}
+        </div>
+
+        {current === 1 ? (
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+            <Button onClick={handleCreateJob} disabled={isSaving}>
+              {isSaving
+                ? "Creating..."
+                : storedRole === "BU Head" || storedRole === "Super User"
+                  ? "Create Job"
+                  : "Submit For Approval"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setCurrent((prev) => prev - 1)}
+            >
+              Back
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <div className="flex gap-2">
               <Button
                 variant="secondary"
-                onClick={() => toast.success("Draft saved (mock).")}
+                onClick={() => setCurrent((prev) => prev + 1)}
               >
-                Save Draft
-              </Button>
-              <Button
-                onClick={() => toast.success("Submitted for approval (mock).")}
-              >
-                Submit for Approval
+                Next
               </Button>
             </div>
-            {storedRole === "BU Head" || "SUPER USER" ? (
-              <Button onClick={handleCreateJob} disabled={isSaving}>
-                {isSaving ? "Creating..." : "Create Job"}
-              </Button>
-            ) : null}
           </div>
-        ) : null}
+        )}
       </Card>
     </div>
   );
