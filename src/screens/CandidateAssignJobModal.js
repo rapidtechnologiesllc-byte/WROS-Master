@@ -337,7 +337,6 @@ const CandidateAssignJobModal = ({
         notify_primary_sales: Boolean(formData?.notifyPrimarySales),
         udf_details: buildUdfPayload(),
       };
-
       const result = await assignMultipleJobs(
         selectedJobId,
         candidateId,
@@ -370,11 +369,9 @@ const CandidateAssignJobModal = ({
         onClose?.();
         return;
       }
-
       toast.error("Failed to submit job");
     } catch (err) {
       console.error("Error while submitting job", err);
-
       toast.error(getSubmitJobErrorMessage(err));
     } finally {
       setIsAssigning(false);

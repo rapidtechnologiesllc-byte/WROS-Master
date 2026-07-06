@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getCandidateById,
   getCandidateContacts,
 } from "../../services/api/candidates";
+import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
 import {
   getCandidateDocuments,
   viewDocument,
 } from "../../services/api/documents";
+import { renderAsync } from "docx-preview";
 export default function ProfileTab({
   candidateId,
   candidate,
@@ -17,10 +19,13 @@ export default function ProfileTab({
   const [error, setError] = useState("");
   const [documents, setDocuments] = useState([]);
   const [resumePreviewUrl, setResumePreviewUrl] = useState("");
+  const [resumeBlob, setResumeBlob] = useState(null);
+  const [resumeContentType, setResumeContentType] = useState("");
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState("");
   const [candidateDocCount, setCandidateDocCount] = useState(null);
   const [contacts, setContacts] = useState(null);
+  const [candidateFullDetails, setCandidateFullDetails] = useState(null);
   const handleDocumentsLoaded = (data) => {
     setCandidateDocCount(data);
   };
@@ -60,6 +65,27 @@ export default function ProfileTab({
   useEffect(() => {
     if (!candidateId) return;
     let isMounted = true;
+    const fetchCandidateFullDetails = async () => {
+      try {
+        const result = await getHrCandidateFullDetails(candidateId);
+        if (isMounted) {
+          setCandidateFullDetails(result || null);
+        }
+      } catch (err) {
+        console.error("Failed to load candidate education and experience", err);
+        if (isMounted) {
+          setCandidateFullDetails(null);
+        }
+      }
+    };
+    fetchCandidateFullDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [candidateId]);
+  useEffect(() => {
+    if (!candidateId) return;
+    let isMounted = true;
     const fetchContacts = async () => {
       try {
         const result = await getCandidateContacts(candidateId);
@@ -88,6 +114,8 @@ export default function ProfileTab({
         setDocumentsLoading(true);
         setDocumentsError("");
         setResumePreviewUrl("");
+        setResumeBlob(null);
+        setResumeContentType("");
 
         const result = await getCandidateDocuments(candidateId);
 
@@ -108,12 +136,12 @@ export default function ProfileTab({
 
         if (!resumeDocument?.id) return;
 
-        const { blob } = await viewDocument(resumeDocument.id);
-
+        const { blob, contentType } = await viewDocument(resumeDocument.id);
         if (!isMounted) return;
-
         objectUrl = URL.createObjectURL(blob);
         setResumePreviewUrl(objectUrl);
+        setResumeBlob(blob);
+        setResumeContentType(contentType ?? "");
       } catch (err) {
         if (isMounted) {
           setDocumentsError(err?.message || "Failed to load resume preview");
@@ -161,12 +189,11 @@ export default function ProfileTab({
     return [];
   }, [profile]);
 
-  const educationRecords = Array.isArray(profile?.education_records)
-    ? profile.education_records
+  const educationRecords = Array.isArray(candidateFullDetails?.education)
+    ? candidateFullDetails.education
     : [];
-
-  const experienceRecords = Array.isArray(profile?.experience_records)
-    ? profile.experience_records
+  const experienceRecords = Array.isArray(candidateFullDetails?.experience)
+    ? candidateFullDetails.experience
     : [];
 
   if (loading) {
@@ -269,6 +296,8 @@ export default function ProfileTab({
       <ResumePreview
         documents={documents}
         previewUrl={resumePreviewUrl}
+        resumeBlob={resumeBlob}
+        contentType={resumeContentType}
         loading={documentsLoading}
         error={documentsError}
       />
@@ -337,9 +366,12 @@ export default function ProfileTab({
                 className="rounded-xl border border-gray-100 bg-gray-50 p-4"
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Info label="Qualification" value={item?.qualification} />
-                  <Info label="Institute" value={item?.institute_name} />
-                  <Info label="Year" value={item?.year_of_passing} />
+                  <Info label="Institute" value={item?.education_institute} />
+                  <Info label="Degree" value={item?.degree} />
+                  <Info label="Field of Study" value={item?.field_of_study} />
+                  <Info label="Starting Year" value={item?.starting_year} />
+                  <Info label="Year of Passing" value={item?.year_of_passing} />
+                  <Info label="Percentage" value={item?.percentage} />
                 </div>
               </div>
             ))}
@@ -361,8 +393,10 @@ export default function ProfileTab({
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Info label="Company" value={item?.company_name} />
-                  <Info label="Designation" value={item?.designation} />
-                  <Info label="Duration" value={item?.duration} />
+                  <Info label="Job Title" value={item?.job_title} />
+                  <Info label="Start Date" value={item?.start_date} />
+                  <Info label="End Date" value={item?.end_date} />
+                  <Info label="Experience" value={item?.year_of_experience} />
                 </div>
               </div>
             ))}
@@ -391,7 +425,14 @@ export default function ProfileTab({
     </div>
   );
 }
-function ResumePreview({ documents, previewUrl, loading, error }) {
+function ResumePreview({
+  documents,
+  previewUrl,
+  resumeBlob,
+  contentType,
+  loading,
+  error,
+}) {
   const resumeDocument = useMemo(() => {
     if (!Array.isArray(documents)) return null;
 
@@ -403,7 +444,21 @@ function ResumePreview({ documents, previewUrl, loading, error }) {
   }, [documents]);
 
   const fileName = resumeDocument?.original_filename || "Candidate Resume.pdf";
-
+  const isPdf = contentType?.includes("application/pdf");
+  const docxContainerRef = useRef(null);
+  const isWordDocument =
+    contentType?.includes(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ) || contentType?.includes("application/msword");
+  useEffect(() => {
+    if (!resumeBlob || !isWordDocument || !docxContainerRef.current) {
+      return;
+    }
+    docxContainerRef.current.innerHTML = "";
+    renderAsync(resumeBlob, docxContainerRef.current).catch((err) => {
+      console.error("Failed to render Word preview:", err);
+    });
+  }, [resumeBlob, isWordDocument]);
   return (
     <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -436,11 +491,16 @@ function ResumePreview({ documents, previewUrl, loading, error }) {
           <div className="flex h-full items-center justify-center px-4 text-center text-sm font-medium text-red-500">
             {error}
           </div>
-        ) : previewUrl ? (
+        ) : previewUrl && isPdf ? (
           <iframe
             src={previewUrl}
             title="Candidate Resume Preview"
             className="h-full w-full border-0"
+          />
+        ) : resumeBlob ? (
+          <div
+            ref={docxContainerRef}
+            className="h-full overflow-auto bg-white p-6"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm font-medium text-gray-400">

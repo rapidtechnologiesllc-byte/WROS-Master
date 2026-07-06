@@ -401,7 +401,16 @@ export default function AppRoutes() {
         <Routes>
           <Route
             path="/"
-            element={<Shell role={storedRole} onLogout={handleLogout} />}
+            element={
+              <Shell
+                role={storedRole}
+                onLogout={handleLogout}
+                candidates={candidates}
+                jobs={jobs}
+                setSelectedCandidateData={setSelectedCandidateData}
+                setSelectedJobId={setSelectedJobId}
+              />
+            }
           >
             <Route index element={<MyWorkspace onLogout={handleLogout} />} />
 
