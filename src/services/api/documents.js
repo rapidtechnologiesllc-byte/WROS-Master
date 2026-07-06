@@ -86,17 +86,12 @@ export const getCandidateDocuments = async (candidateId) => {
   return data;
 };
 
-export const verifyDocument = async (
-  candidateId,
-  documentType,
-  isVerified,
-  notes,
-) => {
+export const verifyDocument = async (documentId, isVerified, notes) => {
   const params = new URLSearchParams();
   params.set("is_verified", String(isVerified));
   if (notes) params.set("notes", notes);
   const { data } = await apiRequest(
-    `/documents/verify/${candidateId}/${documentType}?${params.toString()}`,
+    `/documents/verify/${encodeURIComponent(documentId)}?${params.toString()}`,
     { method: "PATCH" },
   );
   return data;
