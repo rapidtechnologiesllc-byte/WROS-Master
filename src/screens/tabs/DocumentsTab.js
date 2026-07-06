@@ -77,6 +77,7 @@ export default function DocumentsTab({
       setLoading(true);
       const data = await getCandidateDocuments(candidateId);
       const rows = Array.isArray(data?.documents) ? data.documents : [];
+      console.log("Rows:", rows);
       if (onDocumentsUpdate) {
         onDocumentsUpdate(data);
       }
@@ -125,6 +126,7 @@ export default function DocumentsTab({
   }, [previewUrl]);
 
   const handleSelectDocument = async (doc) => {
+    console.log("Education files:", doc?.files);
     if (!doc?.id) {
       showNotice("Document ID is missing.", "error");
       return;
@@ -209,6 +211,7 @@ HR Team`;
   };
 
   const handleVerifyDocument = async (doc) => {
+    console.log("Selected document:", doc);
     if (!doc?.document_type) {
       showNotice("Document type is missing.", "error");
       return;
@@ -216,7 +219,7 @@ HR Team`;
 
     try {
       setActionLoadingId(doc?.id);
-      await verifyDocument(candidateId, doc?.document_type, true);
+      await verifyDocument(doc?.id, true);
 
       const emailResult = await notifyCandidateDocumentStatus({
         documentType: doc.document_type,
@@ -260,12 +263,7 @@ HR Team`;
 
     try {
       setActionLoadingId(rejectDoc.id);
-      await verifyDocument(
-        candidateId,
-        rejectDoc.document_type,
-        false,
-        trimmedReason,
-      );
+      await verifyDocument(rejectDoc?.id, false, trimmedReason);
 
       const emailResult = await notifyCandidateDocumentStatus({
         documentType: rejectDoc.document_type,
