@@ -12,7 +12,6 @@ import {
   Drawer,
   Button,
 } from "antd";
-
 import { getAllOffers } from "../services/api/offerLetters";
 import {
   FiltersContainer,
@@ -51,7 +50,6 @@ function OfferLettersScreen() {
       const status = offer?.offer_status || "Unknown";
       counts[status] = (counts[status] || 0) + 1;
     });
-
     return {
       total: offers.length,
       pending: counts.Pending || 0,
@@ -63,14 +61,12 @@ function OfferLettersScreen() {
       rejected: (counts.Rejected || 0) + (counts.Cancelled || 0),
     };
   }, [offers]);
+
   const candidateRows = useMemo(() => {
     const groupedCandidates = {};
-
     offers?.forEach((offer) => {
       const candidateId = offer?.candidate_id;
-
       if (!candidateId) return;
-
       if (!groupedCandidates[candidateId]) {
         groupedCandidates[candidateId] = {
           candidate_id: candidateId,
@@ -79,24 +75,19 @@ function OfferLettersScreen() {
           offers: [],
         };
       }
-
       groupedCandidates[candidateId]?.offers?.push(offer);
     });
-
     let candidates = Object.values(groupedCandidates);
-
     candidates = candidates.map((candidate) => {
       const latestOffer = [...candidate.offers].sort(
         (a, b) => new Date(b?.created_at) - new Date(a?.created_at),
       )[0];
-
       return {
         ...candidate,
         latestStatus: latestOffer?.offer_status ?? "-",
         offersCount: candidate?.offers?.length ?? 0,
       };
     });
-
     if (statusFilter !== "all") {
       candidates = candidates.filter(
         (candidate) =>
@@ -104,7 +95,6 @@ function OfferLettersScreen() {
           statusFilter?.toLowerCase(),
       );
     }
-
     if (searchText?.trim()) {
       const search = searchText.toLowerCase();
 
@@ -114,32 +104,25 @@ function OfferLettersScreen() {
           candidate?.candidate_email?.toLowerCase()?.includes(search),
       );
     }
-
     return candidates;
   }, [offers, searchText, statusFilter]);
+
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case "accepted":
         return "success";
-
       case "approved":
         return "processing";
-
       case "awaitingapproval":
         return "warning";
-
       case "released":
         return "cyan";
-
       case "pending":
         return "gold";
-
       case "rejected":
         return "error";
-
       case "cancelled":
         return "default";
-
       default:
         return "default";
     }
@@ -274,25 +257,21 @@ function OfferLettersScreen() {
               <Statistic title="Total Offers" value={statistics.total} />
             </Card>
           </Col>
-
           <Col span={5}>
             <Card>
               <Statistic title="Pending" value={statistics.pending} />
             </Card>
           </Col>
-
           <Col span={5}>
             <Card>
               <Statistic title="Approved" value={statistics.approved} />
             </Card>
           </Col>
-
           <Col span={5}>
             <Card>
               <Statistic title="Accepted" value={statistics.accepted} />
             </Card>
           </Col>
-
           <Col span={5}>
             <Card>
               <Statistic title="Rejected" value={statistics.rejected} />
@@ -312,7 +291,6 @@ function OfferLettersScreen() {
             style={{ maxWidth: 400 }}
             onChange={(e) => setSearchText(e.target.value)}
           />
-
           <Select
             value={statusFilter}
             style={{ width: 180 }}
@@ -329,7 +307,6 @@ function OfferLettersScreen() {
             ]}
           />
         </FiltersContainer>
-
         <Table
           rowKey="id"
           columns={columns}
@@ -352,19 +329,15 @@ function OfferLettersScreen() {
       >
         <div style={{ marginBottom: 20 }}>
           <h3>{selectedCandidate?.candidate_name}</h3>
-
           <p>{selectedCandidate?.candidate_email}</p>
-
           <p>
             <strong>Total Offers:</strong> {selectedCandidate?.offersCount ?? 0}
           </p>
-
           <p>
             <strong>Latest Status:</strong>{" "}
             {selectedCandidate?.latestStatus ?? "-"}
           </p>
         </div>
-
         <Table
           rowKey="id"
           columns={historyColumns}
@@ -377,5 +350,4 @@ function OfferLettersScreen() {
     </PageContainer>
   );
 }
-
 export default OfferLettersScreen;
