@@ -9,20 +9,17 @@ const _uploadDocument = async (path, file, token) => {
   if (!file) throw new Error("File is required.");
   const formData = new FormData();
   formData.append("file", file);
-
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   });
-
   let data = null;
   try {
     data = await response.json();
   } catch (err) {
     data = null;
   }
-
   if (!response.ok) {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
@@ -30,7 +27,6 @@ const _uploadDocument = async (path, file, token) => {
     const message = data?.detail || data?.message || "Upload failed.";
     throw new Error(message);
   }
-
   return data;
 };
 
@@ -108,7 +104,6 @@ export const getMyDocuments = async () => {
   });
   return data;
 };
-
 // Streams a document from SharePoint for inline viewing.
 // Returns a Blob so callers can open in a new tab.
 export const viewDocument = async (documentId) => {
@@ -120,7 +115,6 @@ export const viewDocument = async (documentId) => {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     },
   );
-
   if (!response.ok) {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
@@ -134,7 +128,6 @@ export const viewDocument = async (documentId) => {
     const message = data?.detail || data?.message || "Document view failed.";
     throw new Error(message);
   }
-
   const blob = await response.blob();
   const contentType =
     response.headers.get("content-type") || "application/octet-stream";

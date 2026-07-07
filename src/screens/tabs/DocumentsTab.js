@@ -57,13 +57,10 @@ export default function DocumentsTab({
   const totalGroupedFiles = groupedFiles.length;
   const canGoPrevious = currentGroupedFileIndex > 0;
   const canGoNext = currentGroupedFileIndex < totalGroupedFiles - 1;
-
   const showNotice = useCallback((message, type = "success") => {
     setNotice(message);
     setNoticeType(type);
-
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-
     noticeTimerRef.current = setTimeout(() => {
       setNotice("");
     }, 4000);
@@ -83,12 +80,10 @@ export default function DocumentsTab({
 
   const fetchDocuments = useCallback(async () => {
     if (!candidateId) return;
-
     try {
       setLoading(true);
       const data = await getCandidateDocuments(candidateId);
       const rows = Array.isArray(data?.documents) ? data.documents : [];
-      console.log("Rows:", rows);
       if (onDocumentsUpdate) {
         onDocumentsUpdate(data);
       }
@@ -104,6 +99,7 @@ export default function DocumentsTab({
       setLoading(false);
     }
   }, [candidateId, selectedDoc, showNotice]);
+
   const fetchCandidateFullDetails = useCallback(async () => {
     if (!candidateId) return;
     try {
@@ -124,7 +120,6 @@ export default function DocumentsTab({
   useEffect(() => {
     fetchDocuments();
     fetchCandidateFullDetails();
-
     return () => {
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     };
@@ -200,13 +195,17 @@ export default function DocumentsTab({
         ? `Hi ${displayName},
 
 Your ${documentLabel} has been approved successfully.
+
 Regards,
 HR Team`
         : `Hi ${displayName},
 
 Your ${documentLabel} has been rejected.
+
 Reason: ${reason}
+
 Please upload the correct document again.
+
 Regards,
 HR Team`;
     try {
@@ -230,7 +229,6 @@ HR Team`;
   };
 
   const handleVerifyDocument = async (doc) => {
-    console.log("Selected document:", doc);
     if (!doc?.document_type) {
       showNotice("Document type is missing.", "error");
       return;
@@ -238,7 +236,6 @@ HR Team`;
     try {
       setActionLoadingId(doc?.id);
       await verifyDocument(doc?.id, true);
-
       const emailResult = await notifyCandidateDocumentStatus({
         documentType: doc.document_type,
         status: "approved",
@@ -257,12 +254,10 @@ HR Team`;
       setActionLoadingId(null);
     }
   };
-
   const openRejectModal = (doc) => {
     setRejectDoc(doc);
     setRejectReason("");
   };
-
   const handleRejectDocument = async () => {
     if (!rejectDoc?.document_type) {
       showNotice("Document type is missing.", "error");
@@ -295,7 +290,6 @@ HR Team`;
       setActionLoadingId(null);
     }
   };
-
   if (loading) {
     return (
       <div className="rounded-2xl border bg-white p-6 text-center text-sm text-gray-500">
@@ -303,7 +297,6 @@ HR Team`;
       </div>
     );
   }
-
   return (
     <>
       <div className="space-y-4">
@@ -631,11 +624,9 @@ function DocumentDetailsPanel({
                 >
                   <Minus size={16} />
                 </button>
-
                 <div className="min-w-[70px] text-center text-sm font-semibold text-gray-700">
                   {zoomLevel}%
                 </div>
-
                 <button
                   type="button"
                   onClick={handleZoomIn}
@@ -644,7 +635,6 @@ function DocumentDetailsPanel({
                   <Plus size={16} />
                 </button>
               </div>
-
               <div className="flex items-center gap-2">
                 <a
                   href={previewUrl}
@@ -654,7 +644,6 @@ function DocumentDetailsPanel({
                   <Download size={16} />
                   Download
                 </a>
-
                 <button
                   type="button"
                   onClick={handleFullscreen}
@@ -773,7 +762,6 @@ function RejectReasonModal({
           <div className="text-base font-semibold text-gray-900">
             Reject document
           </div>
-
           <button
             type="button"
             onClick={onCancel}
@@ -852,7 +840,6 @@ function CandidateSubmittedDetails({
         }))
         .filter((group) => group.fields.length)
     : [];
-
   if (isLoading) {
     return (
       <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
@@ -862,7 +849,6 @@ function CandidateSubmittedDetails({
       </div>
     );
   }
-
   if (!visibleFields?.length && !visibleGroups?.length) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
@@ -928,7 +914,6 @@ function CandidateSubmittedDetails({
 
 function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
   const normalizedType = String(documentType || "").toLowerCase();
-
   if (normalizedType.includes("aadhar")) {
     const aadhar = candidateFullDetails?.aadhar;
     return {
@@ -958,7 +943,6 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
 
   if (normalizedType.includes("pan")) {
     const pan = candidateFullDetails?.pan;
-
     return {
       title: "PAN Details",
       description: "Details submitted by the candidate for PAN verification.",
@@ -986,7 +970,6 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
     const educationRecords = Array.isArray(candidateFullDetails?.education)
       ? candidateFullDetails.education
       : [];
-
     return {
       title: "Education Details",
       description: "Education details submitted by the candidate.",
@@ -1030,7 +1013,6 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
     const experienceRecords = Array.isArray(candidateFullDetails?.experience)
       ? candidateFullDetails.experience
       : [];
-
     return {
       title: "Experience Details",
       description: "Experience details submitted by the candidate.",
@@ -1124,21 +1106,19 @@ function Info({ label, value }) {
     </div>
   );
 }
+
 function getDocumentLabel(type) {
   return DOCUMENT_LABELS[type] || formatDocumentType(type) || "Document";
 }
 function formatDocumentType(type) {
   if (!type) return "";
-
   return String(type)
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 function StatusBadge({ status }) {
   const normalizedStatus = String(status || "").toLowerCase();
-
   let styles = "bg-gray-100 text-gray-600 border-gray-200";
-
   if (normalizedStatus === "verified") {
     styles = "bg-green-100 text-green-700 border-green-200";
   } else if (normalizedStatus === "pending") {
@@ -1158,10 +1138,8 @@ function StatusBadge({ status }) {
 
 function formatDate(date) {
   if (!date) return "-";
-
   const parsedDate = new Date(date);
   if (Number.isNaN(parsedDate.getTime())) return "-";
-
   return parsedDate.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -1171,9 +1149,7 @@ function formatDate(date) {
 function formatFileSize(size) {
   const bytes = Number(size);
   if (!Number.isFinite(bytes) || bytes <= 0) return "-";
-
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
