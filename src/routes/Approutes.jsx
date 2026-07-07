@@ -692,27 +692,7 @@ export default function AppRoutes() {
               />
             }
           />
-
-          <Route
-            path="jobs/create"
-            element={
-              <JobCreate
-                onSave={(j) => {
-                  setJobs((prev) => [
-                    {
-                      ...j,
-                      hiringManagerName: j?.hiringManager || "-",
-                    },
-                    ...prev,
-                  ]);
-                  setSelectedJobId(j.id);
-                  toast.success(`Created job ${j.title}`);
-                  navigate(ROUTES.JOBS);
-                }}
-              />
-            }
-          />
-
+          <Route path="jobs/create" element={<JobCreate />} />
           <Route
             path="jobs/:jobId/workspace"
             element={
