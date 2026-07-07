@@ -132,7 +132,6 @@ function OfferLettersScreen() {
     {
       title: "Candidate",
       key: "candidate",
-
       render: (_, record) => {
         const initials =
           record?.candidate_name
@@ -141,7 +140,6 @@ function OfferLettersScreen() {
             ?.join("")
             ?.slice(0, 2)
             ?.toUpperCase() || "NA";
-
         return (
           <div
             style={{
@@ -247,7 +245,6 @@ function OfferLettersScreen() {
       ),
     },
   ];
-
   return (
     <PageContainer>
       <StatsContainer>
@@ -279,7 +276,6 @@ function OfferLettersScreen() {
           </Col>
         </Row>
       </StatsContainer>
-
       <Card
         title={`Offer Tracking  (${candidateRows.length})`}
         bordered={false}
