@@ -99,7 +99,6 @@ function DocumentUploadRow({ label, onUpload, disabled }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-slate-50 p-3">
       <span className="text-sm font-medium flex-1">{label}</span>
-
       <input
         type="file"
         accept=".pdf,.jpg,.jpeg,.png"
@@ -107,7 +106,6 @@ function DocumentUploadRow({ label, onUpload, disabled }) {
         className="text-xs"
         disabled={disabled}
       />
-
       <Button
         variant="secondary"
         onClick={() => file && onUpload(file)}
@@ -183,7 +181,6 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || record.submittedAt || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
-
   const normalizeExperienceRecord = (record = {}) => ({
     id: record.formID ?? record.id ?? null,
     company_name: record.company_name || "",
@@ -194,7 +191,6 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || record.submittedAt || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
-
   const toEducationPayload = (record) => ({
     education_institute: record.education_institute,
     degree: record.degree,
@@ -205,7 +201,6 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
-
   const toExperiencePayload = (record) => ({
     company_name: record.company_name,
     job_title: record.job_title,
@@ -217,12 +212,10 @@ export default function CandidateSelfService({ onLogout }) {
   });
   const handleApplyForJob = async (jobId) => {
     if (!jobId) return;
-
     if (!profile?.candidate_email) {
       showNotice("Candidate email is missing. Please login again.");
       return;
     }
-
     if (!profile?.candidate_mobile) {
       showNotice(
         "Candidate phone is missing. Please update your phone number before applying.",
@@ -354,7 +347,6 @@ export default function CandidateSelfService({ onLogout }) {
   };
   const saveEducationRecord = async (record, idx) => {
     if (!record) return;
-
     try {
       setSavingEducationId(idx);
       clearNotice();
@@ -365,7 +357,6 @@ export default function CandidateSelfService({ onLogout }) {
         await addCandidateEducation(payload);
       }
       const refreshed = await listCandidateEducation();
-
       if (refreshed?.records?.length) {
         setEducation(refreshed.records.map(normalizeEducationRecord));
       }
@@ -512,7 +503,6 @@ export default function CandidateSelfService({ onLogout }) {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!isProfileMenuOpen) return;
-
       if (
         profileMenuRef.current &&
         !profileMenuRef.current.contains(event.target)
@@ -627,7 +617,6 @@ export default function CandidateSelfService({ onLogout }) {
         ]
           .filter((result) => result.status === "rejected")
           .map((result) => result.reason);
-
         if (errors.length) {
           showNotice(
             errors[0]?.message || "Failed to load some data.",
@@ -699,17 +688,14 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="mt-2 text-3xl font-bold text-[#1F3766]">
                   {myDocuments?.documents?.length || 0} / 8
                 </div>
-
                 <p className="mt-2 text-xs text-slate-500">
                   Get started by uploading your required documents.
                 </p>
               </div>
-
               <div className="rounded-2xl border bg-white p-5 shadow-sm">
                 <div className="text-sm text-slate-500">
                   Onboarding Progress
                 </div>
-
                 <div className="mt-2 text-3xl font-bold text-[#1F3766]">
                   {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
                   %
@@ -729,7 +715,6 @@ export default function CandidateSelfService({ onLogout }) {
             </div>
           </div>
         );
-
       default:
         return null;
     }
@@ -763,7 +748,6 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1F3766] text-2xl font-extrabold text-white shadow-md">
                   BX
                 </div>
-
                 <p className="mt-3 text-sm font-semibold uppercase tracking-[0.em] text-slate-500">
                   Candidate Portal
                 </p>
@@ -788,7 +772,6 @@ export default function CandidateSelfService({ onLogout }) {
               ))}
             </div>
           </aside>
-
           <div className="space-y-6 ">
             <div className="flex items-center justify-between gap-4 rounded-2xl border bg-[#1F3766] px-5 py-4 shadow-sm">
               <div className="flex-1 min-w-0">
@@ -808,11 +791,9 @@ export default function CandidateSelfService({ onLogout }) {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
                     {candidateName?.[0]?.toUpperCase() || "C"}
                   </span>
-
                   <span className="hidden max-w-[160px] truncate sm:inline">
                     {candidateName || "Candidate"}
                   </span>
-
                   <ChevronDown className="h-4 w-4 text-slate-500" />
                 </button>
                 {isProfileMenuOpen ? (
@@ -1003,7 +984,6 @@ export default function CandidateSelfService({ onLogout }) {
                   <Button
                     onClick={async () => {
                       clearNotice();
-
                       try {
                         await submitCandidateInfoForm(personal);
                         showNotice("Personal Information Saved.", "success");
@@ -1046,7 +1026,6 @@ export default function CandidateSelfService({ onLogout }) {
                                 : "-"}
                             </div>
                           </div>
-
                           <div className="flex items-center gap-2">
                             <StatusBadge
                               status={
@@ -1135,7 +1114,6 @@ export default function CandidateSelfService({ onLogout }) {
                           setEducation(next);
                         }}
                       />
-
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
@@ -1152,15 +1130,12 @@ export default function CandidateSelfService({ onLogout }) {
                         <span>
                           {row.id ? `Record ID: ${row.id}` : "New record"}
                         </span>
-
                         <Button
                           variant="danger"
                           onClick={async () => {
                             clearNotice();
-
                             if (row.id) {
                               setLoading(true);
-
                               try {
                                 await deleteCandidateEducation(row.id);
                                 const refreshed =
@@ -1420,7 +1395,6 @@ export default function CandidateSelfService({ onLogout }) {
                         <div className="mb-2 text-sm font-medium text-slate-700">
                           Experience Letter
                         </div>
-
                         <div className="flex flex-wrap items-center gap-2">
                           <input
                             type="file"
@@ -1434,7 +1408,6 @@ export default function CandidateSelfService({ onLogout }) {
                             }}
                             className="text-sm"
                           />
-
                           <Button
                             variant="secondary"
                             disabled={
@@ -1455,7 +1428,6 @@ export default function CandidateSelfService({ onLogout }) {
                               ? "Uploading..."
                               : "Upload"}
                           </Button>
-
                           <div className="ml-auto flex items-center gap-2">
                             {idx === experience.length - 1 && (
                               <Button
@@ -1521,7 +1493,6 @@ export default function CandidateSelfService({ onLogout }) {
                       setPan((p) => ({ ...p, father_name_in_pan: v }))
                     }
                   />
-
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -1535,7 +1506,6 @@ export default function CandidateSelfService({ onLogout }) {
                     />
                     PAN Submitted
                   </label>
-
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -1547,7 +1517,6 @@ export default function CandidateSelfService({ onLogout }) {
                     Verified
                   </label>
                 </div>
-
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <DocumentUploadRow
                     label="PAN Card"
@@ -1630,7 +1599,6 @@ export default function CandidateSelfService({ onLogout }) {
                     Aadhaar Verified
                   </label>
                 </div>
-
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <DocumentUploadRow
                     label="Aadhaar Card"
@@ -1852,7 +1820,6 @@ export default function CandidateSelfService({ onLogout }) {
               <h2 className="mb-5 text-xl font-semibold text-slate-900">
                 Candidate Profile
               </h2>
-
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Name</span>
@@ -1860,21 +1827,18 @@ export default function CandidateSelfService({ onLogout }) {
                     {profile?.candidate_name || candidateName || "-"}
                   </span>
                 </div>
-
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Email</span>
                   <span className="text-right font-medium text-slate-900">
                     {profile?.candidate_email || candidateEmail || "-"}
                   </span>
                 </div>
-
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Mobile</span>
                   <span className="text-right font-medium text-slate-900">
                     {profile?.candidate_mobile || "-"}
                   </span>
                 </div>
-
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Status</span>
                   <span className="text-right font-medium text-slate-900">
@@ -1885,7 +1849,6 @@ export default function CandidateSelfService({ onLogout }) {
                   </span>
                 </div>
               </div>
-
               <button
                 type="button"
                 onClick={() => setShowProfileModal(false)}
@@ -1935,7 +1898,6 @@ export default function CandidateSelfService({ onLogout }) {
                     )}
                   </button>
                 </div>
-
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
@@ -1949,7 +1911,6 @@ export default function CandidateSelfService({ onLogout }) {
                     }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm outline-none transition focus:border-slate-400"
                   />
-
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
@@ -1963,7 +1924,6 @@ export default function CandidateSelfService({ onLogout }) {
                   </button>
                 </div>
               </div>
-
               <div className="mt-5 flex gap-2">
                 <button
                   type="button"
@@ -1973,7 +1933,6 @@ export default function CandidateSelfService({ onLogout }) {
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
                   onClick={async () => {
@@ -1981,7 +1940,6 @@ export default function CandidateSelfService({ onLogout }) {
                       candidatePasswordForm?.new_password?.trim();
                     const confirmPassword =
                       candidatePasswordForm?.confirm_password?.trim();
-
                     if (!newPassword || !confirmPassword) {
                       showNotice(
                         "Please fill all password fields.",
