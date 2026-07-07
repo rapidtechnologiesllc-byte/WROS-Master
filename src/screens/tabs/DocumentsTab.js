@@ -25,27 +25,38 @@ export default function DocumentsTab({
   onDocumentsUpdate,
 }) {
   const [documents, setDocuments] = useState([]);
-  const [selectedDocId, setSelectedDocId] = useState(null);
+  const [selectedDoc, setSelectedDoc] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeType, setNoticeType] = useState("success");
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [previewLoadingId, setPreviewLoadingId] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
-
+  const [currentGroupedFileIndex, setCurrentGroupedFileIndex] = useState(0);
+  const [previewNavigation, setPreviewNavigation] = useState(null);
   const [rejectDoc, setRejectDoc] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [candidateFullDetails, setCandidateFullDetails] = useState(null);
   const [candidateDetailsLoading, setCandidateDetailsLoading] = useState(false);
   const noticeTimerRef = useRef(null);
 
-  const selectedDoc = useMemo(() => {
-    return (
-      documents?.find((doc) => doc?.id === selectedDocId) ||
-      documents?.[0] ||
-      null
-    );
-  }, [documents, selectedDocId]);
+  const activeDocument = useMemo(() => {
+    if (!selectedDoc) return null;
+    const groupedFiles = Array.isArray(selectedDoc?.files)
+      ? selectedDoc.files
+      : null;
+    if (!groupedFiles?.length) {
+      return selectedDoc;
+    }
+    return groupedFiles?.[currentGroupedFileIndex] ?? groupedFiles?.[0] ?? null;
+  }, [selectedDoc, currentGroupedFileIndex]);
+  const groupedFiles = Array.isArray(selectedDoc?.files)
+    ? selectedDoc.files
+    : [];
+  const hasGroupedFiles = groupedFiles.length > 0;
+  const totalGroupedFiles = groupedFiles.length;
+  const canGoPrevious = currentGroupedFileIndex > 0;
+  const canGoNext = currentGroupedFileIndex < totalGroupedFiles - 1;
 
   const showNotice = useCallback((message, type = "success") => {
     setNotice(message);
@@ -82,20 +93,19 @@ export default function DocumentsTab({
         onDocumentsUpdate(data);
       }
       setDocuments(rows);
-      if (rows.length && !selectedDocId) {
-        setSelectedDocId(rows[0]?.id);
+      if (rows.length && !selectedDoc) {
+        setSelectedDoc(rows[0]);
       }
     } catch (err) {
       setDocuments([]);
-      setSelectedDocId(null);
+      setSelectedDoc(null);
       showNotice(err.message || "Failed to load documents.", "error");
     } finally {
       setLoading(false);
     }
-  }, [candidateId, selectedDocId, showNotice]);
+  }, [candidateId, selectedDoc, showNotice]);
   const fetchCandidateFullDetails = useCallback(async () => {
     if (!candidateId) return;
-
     try {
       setCandidateDetailsLoading(true);
       const data = await getHrCandidateFullDetails(candidateId);
@@ -125,27 +135,44 @@ export default function DocumentsTab({
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    const loadGroupedPreview = async () => {
+      if (!hasGroupedFiles || !activeDocument?.id) return;
+      try {
+        setPreviewLoadingId(activeDocument.id);
+        clearPreviewUrl();
+        const { blob } = await viewDocument(activeDocument.id);
+        const fileUrl = URL.createObjectURL(blob);
+        setPreviewUrl(fileUrl);
+      } catch (err) {
+        showNotice(err?.message || "Failed to open document.", "error");
+      } finally {
+        setPreviewLoadingId(null);
+        setPreviewNavigation(null);
+      }
+    };
+    loadGroupedPreview();
+  }, [activeDocument?.id, hasGroupedFiles]);
+
   const handleSelectDocument = async (doc) => {
-    console.log("Education files:", doc?.files);
-    if (!doc?.id) {
-      showNotice("Document ID is missing.", "error");
+    if (!doc) return;
+    setSelectedDoc(doc);
+    setCurrentGroupedFileIndex(0);
+    clearPreviewUrl();
+    const documentToPreview = Array.isArray(doc?.files) ? doc?.files?.[0] : doc;
+    if (!documentToPreview?.id) {
+      showNotice("Document preview is not available.", "error");
       return;
     }
-
-    setSelectedDocId(doc.id);
-    clearPreviewUrl();
-
     try {
-      setPreviewLoadingId(doc.id);
-
-      const { blob } = await viewDocument(doc.id);
+      setPreviewLoadingId(documentToPreview?.id);
+      const { blob } = await viewDocument(documentToPreview?.id);
       const fileUrl = URL.createObjectURL(blob);
-
       clearPreviewUrl();
       setPreviewUrl(fileUrl);
     } catch (err) {
       setPreviewUrl("");
-      showNotice(err.message || "Failed to open document.", "error");
+      showNotice(err?.message || "Failed to open document.", "error");
     } finally {
       setPreviewLoadingId(null);
     }
@@ -161,10 +188,8 @@ export default function DocumentsTab({
         message: "Candidate email is missing.",
       };
     }
-
     const documentLabel = getDocumentLabel(documentType);
     const displayName = candidateName || "Candidate";
-
     const subject =
       status === "approved"
         ? `${documentLabel} Approved`
@@ -175,20 +200,15 @@ export default function DocumentsTab({
         ? `Hi ${displayName},
 
 Your ${documentLabel} has been approved successfully.
-
 Regards,
 HR Team`
         : `Hi ${displayName},
 
 Your ${documentLabel} has been rejected.
-
 Reason: ${reason}
-
 Please upload the correct document again.
-
 Regards,
 HR Team`;
-
     try {
       await sendPlainEmail({
         toEmail: candidateEmail,
@@ -197,7 +217,6 @@ HR Team`;
         isHtml: false,
         ccEmails: [],
       });
-
       return {
         success: true,
         message: "Notification email sent.",
@@ -216,7 +235,6 @@ HR Team`;
       showNotice("Document type is missing.", "error");
       return;
     }
-
     try {
       setActionLoadingId(doc?.id);
       await verifyDocument(doc?.id, true);
@@ -225,11 +243,8 @@ HR Team`;
         documentType: doc.document_type,
         status: "approved",
       });
-
       await fetchDocuments();
-
       closeRejectModal();
-
       showNotice(
         emailResult.success
           ? `${getDocumentLabel(doc?.document_type)} approved and notification sent.`
@@ -253,27 +268,21 @@ HR Team`;
       showNotice("Document type is missing.", "error");
       return;
     }
-
     const trimmedReason = rejectReason.trim();
-
     if (!trimmedReason) {
       showNotice("Rejection reason is required.", "error");
       return;
     }
-
     try {
       setActionLoadingId(rejectDoc.id);
       await verifyDocument(rejectDoc?.id, false, trimmedReason);
-
       const emailResult = await notifyCandidateDocumentStatus({
         documentType: rejectDoc.document_type,
         status: "rejected",
         reason: trimmedReason,
       });
-
       await fetchDocuments();
       closeRejectModal();
-
       showNotice(
         emailResult.success
           ? `${getDocumentLabel(rejectDoc.document_type)} rejected and notification sent successfully.`
@@ -309,7 +318,6 @@ HR Team`;
             {notice}
           </div>
         ) : null}
-
         {!documents.length ? (
           <div className="rounded-2xl border bg-white p-6 text-center text-sm text-gray-400">
             No documents available
@@ -325,14 +333,19 @@ HR Team`;
                   Select a document to preview and verify.
                 </p>
               </div>
-
               <div className="max-h-[72vh] space-y-2 overflow-y-auto p-3">
                 {documents.map((doc) => {
-                  const isSelected = selectedDoc?.id === doc?.id;
-                  const isVerified = Boolean(doc?.is_verified);
-                  const showRejectReason = !isVerified && Boolean(doc?.notes);
-                  const isPreviewLoading = previewLoadingId === doc?.id;
-
+                  const isGroupedDocument = Array.isArray(doc?.files);
+                  const isSelected = isGroupedDocument
+                    ? selectedDoc?.document_type === doc?.document_type
+                    : selectedDoc?.id === doc?.id;
+                  const currentDoc = isGroupedDocument
+                    ? doc?.files?.[currentGroupedFileIndex]
+                    : doc;
+                  const isVerified = Boolean(currentDoc?.is_verified);
+                  const showRejectReason =
+                    !isVerified && Boolean(currentDoc?.notes);
+                  const isPreviewLoading = previewLoadingId === currentDoc?.id;
                   return (
                     <button
                       key={String(doc?.id)}
@@ -353,7 +366,6 @@ HR Team`;
                           >
                             {getDocumentLabel(doc?.document_type)}
                           </div>
-
                           <div
                             className={`mt-1 truncate text-xs ${
                               isSelected ? "text-gray-300" : "text-gray-500"
@@ -370,7 +382,6 @@ HR Team`;
                             Uploaded: {formatDate(doc?.uploaded_at)}
                           </div>
                         </div>
-
                         <StatusBadge
                           status={
                             isVerified
@@ -381,7 +392,6 @@ HR Team`;
                           }
                         />
                       </div>
-
                       {isPreviewLoading ? (
                         <div
                           className={`mt-2 text-xs ${isSelected ? "text-gray-300" : "text-blue-600"}`}
@@ -389,7 +399,6 @@ HR Team`;
                           Opening preview...
                         </div>
                       ) : null}
-
                       {showRejectReason ? (
                         <div
                           className={`mt-3 rounded-lg px-3 py-2 text-xs ${
@@ -411,15 +420,31 @@ HR Team`;
             <section className="rounded-2xl border bg-white shadow-sm">
               {selectedDoc ? (
                 <DocumentDetailsPanel
-                  doc={selectedDoc}
+                  doc={activeDocument}
                   candidateFullDetails={candidateFullDetails}
                   isCandidateDetailsLoading={candidateDetailsLoading}
                   previewUrl={previewUrl}
-                  isPreviewLoading={previewLoadingId === selectedDoc?.id}
-                  isActionLoading={actionLoadingId === selectedDoc?.id}
-                  onPreview={() => handleSelectDocument(selectedDoc)}
-                  onVerify={() => handleVerifyDocument(selectedDoc)}
-                  onReject={() => openRejectModal(selectedDoc)}
+                  isPreviewLoading={previewLoadingId === activeDocument?.id}
+                  previewNavigation={previewNavigation}
+                  isActionLoading={actionLoadingId === activeDocument?.id}
+                  onPreview={() => handleSelectDocument(activeDocument)}
+                  onVerify={() => handleVerifyDocument(activeDocument)}
+                  onReject={() => openRejectModal(activeDocument)}
+                  hasGroupedFiles={hasGroupedFiles}
+                  currentGroupedFileIndex={currentGroupedFileIndex}
+                  totalGroupedFiles={totalGroupedFiles}
+                  canGoPrevious={canGoPrevious}
+                  canGoNext={canGoNext}
+                  onPrevious={() => {
+                    setPreviewNavigation("previous");
+                    setPreviewUrl("");
+                    setCurrentGroupedFileIndex((prev) => prev - 1);
+                  }}
+                  onNext={() => {
+                    setPreviewNavigation("next");
+                    setPreviewUrl("");
+                    setCurrentGroupedFileIndex((prev) => prev + 1);
+                  }}
                 />
               ) : (
                 <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-400">
@@ -430,7 +455,6 @@ HR Team`;
           </div>
         )}
       </div>
-
       {rejectDoc ? (
         <RejectReasonModal
           doc={rejectDoc}
@@ -444,7 +468,6 @@ HR Team`;
     </>
   );
 }
-
 function DocumentDetailsPanel({
   doc,
   candidateFullDetails,
@@ -453,8 +476,16 @@ function DocumentDetailsPanel({
   isPreviewLoading,
   isActionLoading,
   onPreview,
+  previewNavigation,
   onVerify,
   onReject,
+  hasGroupedFiles,
+  currentGroupedFileIndex,
+  totalGroupedFiles,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
 }) {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -494,7 +525,13 @@ function DocumentDetailsPanel({
     doc?.document_type,
     candidateFullDetails,
   );
-
+  const displayedGroups =
+    hasGroupedFiles && Array.isArray(submittedDetails?.groups)
+      ? submittedDetails.groups.slice(
+          currentGroupedFileIndex,
+          currentGroupedFileIndex + 1,
+        )
+      : submittedDetails?.groups;
   return (
     <div className="flex min-h-[72vh] flex-col">
       <div className="border-b px-5 py-4">
@@ -510,12 +547,10 @@ function DocumentDetailsPanel({
                 }
               />
             </div>
-
             <p className="mt-1 text-sm text-gray-500">
               Review the document details and approve or reject it.
             </p>
           </div>
-
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -525,7 +560,6 @@ function DocumentDetailsPanel({
             >
               {isPreviewLoading ? "Opening..." : "Open Preview"}
             </button>
-
             <button
               type="button"
               onClick={onVerify}
@@ -534,7 +568,6 @@ function DocumentDetailsPanel({
             >
               {isActionLoading ? "Processing..." : "Approve"}
             </button>
-
             <button
               type="button"
               onClick={onReject}
@@ -574,7 +607,7 @@ function DocumentDetailsPanel({
             description={submittedDetails?.description}
             fields={submittedDetails?.fields}
             isLoading={isCandidateDetailsLoading}
-            groups={submittedDetails?.groups}
+            groups={displayedGroups}
           />
         </div>
 
@@ -632,6 +665,29 @@ function DocumentDetailsPanel({
                 </button>
               </div>
             </div>
+            {hasGroupedFiles ? (
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={onPrevious}
+                  disabled={!canGoPrevious}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ← Previous
+                </button>
+                <div className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                  {currentGroupedFileIndex + 1} / {totalGroupedFiles}
+                </div>
+                <button
+                  type="button"
+                  onClick={onNext}
+                  disabled={!canGoNext}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next →
+                </button>
+              </div>
+            ) : null}
 
             <div
               ref={viewerRef}
@@ -665,6 +721,20 @@ function DocumentDetailsPanel({
                 )}
               </div>
             </div>
+          </div>
+        ) : isPreviewLoading &&
+          previewNavigation &&
+          (doc?.document_type === "education" ||
+            doc?.document_type === "experience") ? (
+          <div className="flex h-[58vh] flex-col items-center justify-center rounded-2xl border border-dashed bg-gray-50 text-center">
+            <div className="text-sm font-semibold text-gray-700">
+              Loading document preview...
+            </div>
+            <p className="mt-1 max-w-sm text-sm text-gray-400">
+              Please wait while the{" "}
+              {previewNavigation === "previous" ? "previous" : "next"} document
+              is being loaded.
+            </p>
           </div>
         ) : (
           <div className="flex h-[58vh] flex-col items-center justify-center rounded-2xl border border-dashed bg-gray-50 text-center">
@@ -712,7 +782,6 @@ function RejectReasonModal({
             ×
           </button>
         </div>
-
         <div className="px-5 py-4">
           <p className="text-sm text-gray-600">
             You are about to reject{" "}
@@ -721,7 +790,6 @@ function RejectReasonModal({
             </span>
             . Please provide a reason.
           </p>
-
           <textarea
             value={reason}
             onChange={(e) => onChangeReason(e.target.value.slice(0, 250))}
@@ -730,12 +798,10 @@ function RejectReasonModal({
             className="mt-3 w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100"
             autoFocus
           />
-
           <div className="mt-1 text-right text-xs text-gray-400">
             {reason.length} / 250
           </div>
         </div>
-
         <div className="flex justify-end gap-2 border-t px-5 py-4">
           <button
             type="button"
@@ -745,7 +811,6 @@ function RejectReasonModal({
           >
             Cancel
           </button>
-
           <button
             type="button"
             onClick={onSubmit}
@@ -810,7 +875,6 @@ function CandidateSubmittedDetails({
       </div>
     );
   }
-
   return (
     <div className="rounded-2xl border border-gray-100 bg-white">
       <div className="border-b px-4 py-3">
@@ -821,7 +885,6 @@ function CandidateSubmittedDetails({
           <p className="mt-1 text-xs text-gray-500">{description}</p>
         ) : null}
       </div>
-
       {visibleGroups?.length ? (
         <div className="space-y-5 p-4">
           {visibleGroups.map((group, index) => (
@@ -868,7 +931,6 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
 
   if (normalizedType.includes("aadhar")) {
     const aadhar = candidateFullDetails?.aadhar;
-
     return {
       title: "Aadhar Details",
       description:
@@ -920,7 +982,6 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
       ],
     };
   }
-
   if (normalizedType.includes("education")) {
     const educationRecords = Array.isArray(candidateFullDetails?.education)
       ? candidateFullDetails.education
@@ -1107,7 +1168,6 @@ function formatDate(date) {
     year: "numeric",
   });
 }
-
 function formatFileSize(size) {
   const bytes = Number(size);
   if (!Number.isFinite(bytes) || bytes <= 0) return "-";
