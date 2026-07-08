@@ -792,7 +792,16 @@ JSON output:"""
         temperature=0.1,
     )
     response = llm.invoke(prompt)
-    raw = response.content.strip()
+    # response.content may be a list of content blocks (newer LangChain/Gemini SDK)
+    # or a plain string (older behaviour). Normalise to a string either way.
+    _content = response.content
+    if isinstance(_content, list):
+        raw = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in _content
+        ).strip()
+    else:
+        raw = str(_content).strip()
     raw = re.sub(r"```(?:json)?", "", raw).strip()
 
     try:
