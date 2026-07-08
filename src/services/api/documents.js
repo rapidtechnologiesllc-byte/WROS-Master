@@ -9,20 +9,17 @@ const _uploadDocument = async (path, file, token) => {
   if (!file) throw new Error("File is required.");
   const formData = new FormData();
   formData.append("file", file);
-
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   });
-
   let data = null;
   try {
     data = await response.json();
   } catch (err) {
     data = null;
   }
-
   if (!response.ok) {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
@@ -30,7 +27,6 @@ const _uploadDocument = async (path, file, token) => {
     const message = data?.detail || data?.message || "Upload failed.";
     throw new Error(message);
   }
-
   return data;
 };
 
@@ -74,6 +70,7 @@ export const uploadBankStatement = async (file) => {
   const token = localStorage.getItem("hrms_token");
   return _uploadDocument("/documents/upload/bank-statement", file, token);
 };
+
 export const uploadUanPfDocument = async (file) => {
   const token = localStorage.getItem("hrms_token");
   return _uploadDocument("/documents/upload/uan-pf", file, token);
@@ -86,17 +83,12 @@ export const getCandidateDocuments = async (candidateId) => {
   return data;
 };
 
-export const verifyDocument = async (
-  candidateId,
-  documentType,
-  isVerified,
-  notes,
-) => {
+export const verifyDocument = async (documentId, isVerified, notes) => {
   const params = new URLSearchParams();
   params.set("is_verified", String(isVerified));
   if (notes) params.set("notes", notes);
   const { data } = await apiRequest(
-    `/documents/verify/${candidateId}/${documentType}?${params.toString()}`,
+    `/documents/verify/${encodeURIComponent(documentId)}?${params.toString()}`,
     { method: "PATCH" },
   );
   return data;
@@ -125,7 +117,6 @@ export const viewDocument = async (documentId) => {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     },
   );
-
   if (!response.ok) {
     if (maybeRedirectOnUnauthorized(response)) {
       throw new Error("Your session has expired. Please sign in again.");
@@ -139,7 +130,6 @@ export const viewDocument = async (documentId) => {
     const message = data?.detail || data?.message || "Document view failed.";
     throw new Error(message);
   }
-
   const blob = await response.blob();
   const contentType =
     response.headers.get("content-type") || "application/octet-stream";
