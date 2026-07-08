@@ -101,7 +101,6 @@ function DocumentUploadRow({ label, onUpload, disabled }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-slate-50 p-3">
       <span className="text-sm font-medium flex-1">{label}</span>
-
       <input
         type="file"
         accept=".pdf,.jpg,.jpeg,.png"
@@ -109,7 +108,6 @@ function DocumentUploadRow({ label, onUpload, disabled }) {
         className="text-xs"
         disabled={disabled}
       />
-
       <Button
         variant="secondary"
         onClick={() => file && onUpload(file)}
@@ -123,6 +121,11 @@ function DocumentUploadRow({ label, onUpload, disabled }) {
 
 export default function CandidateSelfService({ onLogout }) {
   const [loading, setLoading] = useState(false);
+  const [savingEducationId, setSavingEducationId] = useState(null);
+  const [savingExperienceId, setSavingExperienceId] = useState(null);
+  const [uploadingEducationIndex, setUploadingEducationIndex] = useState(null);
+  const [uploadingExperienceIndex, setUploadingExperienceIndex] =
+    useState(null);
   const [profile, setProfile] = useState(null);
   const [onboardingStatus, setOnboardingStatus] = useState(null);
   const [activeSection, setActiveSection] = useState("dashboard");
@@ -137,6 +140,8 @@ export default function CandidateSelfService({ onLogout }) {
   const [myDocuments, setMyDocuments] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
   const [uploadingType, setUploadingType] = useState(null);
+  const [educationFiles, setEducationFiles] = useState({});
+  const [experienceFiles, setExperienceFiles] = useState({});
   const [jobResumeFile, setJobResumeFile] = useState(null);
   const [myChecklistsPayload, setMyChecklistsPayload] = useState(null);
   const [checklistCompletingId, setChecklistCompletingId] = useState(null);
@@ -146,17 +151,13 @@ export default function CandidateSelfService({ onLogout }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
-
   const profileMenuRef = useRef(null);
-
   const [candidatePasswordForm, setCandidatePasswordForm] = useState({
     new_password: "",
     confirm_password: "",
   });
-
   const storedCandidateName = localStorage.getItem("hrms_user_name") || "";
   const storedCandidateEmail = localStorage.getItem("hrms_user_email") || "";
-
   const showNotice = (message, type = "error") => {
     if (type === "success") {
       toast.success(message, {
@@ -215,24 +216,21 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
+
   const handleApplyForJob = async (jobId) => {
     if (!jobId) return;
-
     if (!profile?.candidate_email) {
       showNotice("Candidate email is missing. Please login again.");
       return;
     }
-
     if (!profile?.candidate_mobile) {
       showNotice(
         "Candidate phone is missing. Please update your phone number before applying.",
       );
       return;
     }
-
     try {
       clearNotice();
-
       const educationEntries = (education || [])
         .filter((e) => e.education_institute || e.degree || e.field_of_study)
         .map((e) => ({
@@ -243,7 +241,6 @@ export default function CandidateSelfService({ onLogout }) {
           end_year: e.year_of_passing,
           percentage: e.percentage || null,
         }));
-
       const experienceEntries = (experience || [])
         .filter((e) => e.company_name || e.job_title)
         .map((e) => ({
@@ -253,7 +250,6 @@ export default function CandidateSelfService({ onLogout }) {
           end_date: e.end_date || null,
           years_of_experience: e.year_of_experience || null,
         }));
-
       const res = await applyForJob({
         jobId,
         fullName: profile?.candidate_name || "Candidate",
@@ -263,7 +259,6 @@ export default function CandidateSelfService({ onLogout }) {
         experienceEntries,
         resumeFile: jobResumeFile,
       });
-
       showNotice(res?.message || "Applied successfully.", "success");
     } catch (err) {
       showNotice(err.message || "Failed to apply for job.");
@@ -278,6 +273,7 @@ export default function CandidateSelfService({ onLogout }) {
       showNotice(err.message || "Failed to refresh documents.");
     }
   };
+
   const notifyAssignedHr = async (documentName) => {
     try {
       const candidateId = profile?.candidate_id;
@@ -303,10 +299,10 @@ export default function CandidateSelfService({ onLogout }) {
       console.error("Failed to notify assigned HR", error);
     }
   };
+
   const notifyOfferAcceptedHr = async (offer) => {
     try {
       const candidateId = offer?.candidate_id;
-
       if (!candidateId) {
         console.warn("Candidate ID not found for offer");
         return;
@@ -332,35 +328,88 @@ export default function CandidateSelfService({ onLogout }) {
     }
   };
 
-  const handleUpload = async (uploadFn, label, file) => {
+  const handleUpload = async (uploadFn, label, file, type, idx) => {
     if (!file) return;
-
     try {
-      setUploadingType(label);
+      if (type === "education") {
+        setUploadingEducationIndex(idx);
+      } else if (type === "experience") {
+        setUploadingExperienceIndex(idx);
+      } else {
+        setUploadingType(label);
+      }
       clearNotice();
       await uploadFn(file);
       await fetchDocuments();
       await notifyAssignedHr(label);
-
       showNotice(`✅ ${label} uploaded successfully.`, "success");
     } catch (err) {
       showNotice(`❌ ${err.message || `Failed to upload ${label}.`}`, "error");
     } finally {
-      setUploadingType(null);
+      if (type === "education") {
+        setUploadingEducationIndex(null);
+      } else if (type === "experience") {
+        setUploadingExperienceIndex(null);
+      } else {
+        setUploadingType(null);
+      }
     }
   };
+
+  const saveEducationRecord = async (record, idx) => {
+    if (!record) return;
+    try {
+      setSavingEducationId(idx);
+      clearNotice();
+      const payload = toEducationPayload(record);
+      if (record?.id) {
+        await updateCandidateEducation(record.id, payload);
+      } else {
+        await addCandidateEducation(payload);
+      }
+      const refreshed = await listCandidateEducation();
+      if (refreshed?.records?.length) {
+        setEducation(refreshed.records.map(normalizeEducationRecord));
+      }
+      showNotice("Education Details Saved.", "success");
+    } catch (err) {
+      showNotice(err?.message || "Failed to save education.");
+    } finally {
+      setSavingEducationId(null);
+    }
+  };
+
+  const saveExperienceRecord = async (record, idx) => {
+    if (!record) return;
+    try {
+      setSavingExperienceId(idx);
+      clearNotice();
+      const payload = toExperiencePayload(record);
+      if (record?.id) {
+        await updateCandidateExperience(record.id, payload);
+      } else {
+        await addCandidateExperience(payload);
+      }
+      const refreshed = await listCandidateExperience();
+      if (refreshed?.records?.length) {
+        setExperience(refreshed.records.map(normalizeExperienceRecord));
+      }
+      showNotice("Experience Details Saved.", "success");
+    } catch (err) {
+      showNotice(err?.message || "Failed to save experience.");
+    } finally {
+      setSavingExperienceId(null);
+    }
+  };
+
   const handleSignatureSave = async (signatureFile) => {
     if (!selectedOffer?.id || !signatureFile) return;
-
     try {
       setSignatureLoading(true);
       clearNotice();
-
       const formData = new FormData();
       formData.append("signature", signatureFile);
-
       await signOfferLetter(selectedOffer.id, formData);
-
       try {
         await notifyOfferAcceptedHr(selectedOffer);
       } catch (error) {
@@ -369,18 +418,10 @@ export default function CandidateSelfService({ onLogout }) {
           error,
         );
       }
-
-      // await respondToOffer({
-      //   offerId: selectedOffer.id,
-      //   action: "accept",
-      // });
-
       const refreshed = await getMyOffers();
-
       setMyOffers(refreshed?.offers || []);
       setShowSignatureModal(false);
       setSelectedOffer(null);
-
       showNotice("Offer accepted successfully.", "success");
     } catch (err) {
       showNotice(err?.message || "Failed to sign and accept offer.", "error");
@@ -388,12 +429,12 @@ export default function CandidateSelfService({ onLogout }) {
       setSignatureLoading(false);
     }
   };
+
   const downloadOfferLetter = async (url, fileName = "OfferLetter.docx") => {
     if (!url) {
       showNotice("Offer letter download URL is unavailable.");
       return;
     }
-
     try {
       const response = await fetch(url, {
         headers: {
@@ -473,10 +514,10 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: today(),
     is_verified: false,
   });
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!isProfileMenuOpen) return;
-
       if (
         profileMenuRef.current &&
         !profileMenuRef.current.contains(event.target)
@@ -484,9 +525,7 @@ export default function CandidateSelfService({ onLogout }) {
         setIsProfileMenuOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -494,10 +533,8 @@ export default function CandidateSelfService({ onLogout }) {
 
   useEffect(() => {
     let isMounted = true;
-
     const load = async () => {
       setLoading(true);
-
       try {
         const [
           myInfoResult,
@@ -522,9 +559,7 @@ export default function CandidateSelfService({ onLogout }) {
           getActiveJobs(),
           getMyChecklists(),
         ]);
-
         if (!isMounted) return;
-
         if (myInfoResult.status === "fulfilled") {
           setProfile(myInfoResult.value);
           const personalInfo = myInfoResult.value?.personal_info || {};
@@ -535,7 +570,6 @@ export default function CandidateSelfService({ onLogout }) {
             submitted_at: today(),
           }));
         }
-
         if (
           educationResult.status === "fulfilled" &&
           educationResult.value?.records?.length
@@ -544,7 +578,6 @@ export default function CandidateSelfService({ onLogout }) {
             educationResult.value.records.map(normalizeEducationRecord),
           );
         }
-
         if (
           experienceResult.status === "fulfilled" &&
           experienceResult.value?.records?.length
@@ -553,7 +586,6 @@ export default function CandidateSelfService({ onLogout }) {
             experienceResult.value.records.map(normalizeExperienceRecord),
           );
         }
-
         if (aadharResult.status === "fulfilled" && aadharResult.value) {
           setAadhar((prev) => ({
             ...prev,
@@ -561,7 +593,6 @@ export default function CandidateSelfService({ onLogout }) {
             submitted_at: today(),
           }));
         }
-
         if (panResult.status === "fulfilled" && panResult.value) {
           setPan((prev) => ({
             ...prev,
@@ -569,25 +600,20 @@ export default function CandidateSelfService({ onLogout }) {
             submitted_at: today(),
           }));
         }
-
         if (onboardingResult.status === "fulfilled" && onboardingResult.value) {
           setOnboardingStatus(onboardingResult.value);
         }
-
         if (offersResult.status === "fulfilled" && offersResult.value?.offers) {
           setMyOffers(offersResult.value.offers);
         }
-
         if (documentsResult.status === "fulfilled" && documentsResult.value) {
           setMyDocuments(documentsResult.value);
         }
-
         if (jobsResult.status === "fulfilled" && jobsResult.value) {
           setActiveJobs(
             Array.isArray(jobsResult.value?.jobs) ? jobsResult.value.jobs : [],
           );
         }
-
         if (checklistsResult.status === "fulfilled" && checklistsResult.value) {
           setMyChecklistsPayload(checklistsResult.value);
         }
@@ -606,7 +632,6 @@ export default function CandidateSelfService({ onLogout }) {
         ]
           .filter((result) => result.status === "rejected")
           .map((result) => result.reason);
-
         if (errors.length) {
           showNotice(
             errors[0]?.message || "Failed to load some data.",
@@ -627,9 +652,7 @@ export default function CandidateSelfService({ onLogout }) {
         }
       }
     };
-
     load();
-
     return () => {
       isMounted = false;
     };
@@ -642,6 +665,7 @@ export default function CandidateSelfService({ onLogout }) {
   const candidateEmail = useMemo(() => {
     return profile?.candidate_email || storedCandidateEmail || "";
   }, [profile, storedCandidateEmail]);
+
   const menuItems = [
     {
       key: "dashboard",
@@ -680,17 +704,14 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="mt-2 text-3xl font-bold text-[#1F3766]">
                   {myDocuments?.documents?.length || 0} / 8
                 </div>
-
                 <p className="mt-2 text-xs text-slate-500">
                   Get started by uploading your required documents.
                 </p>
               </div>
-
               <div className="rounded-2xl border bg-white p-5 shadow-sm">
                 <div className="text-sm text-slate-500">
                   Onboarding Progress
                 </div>
-
                 <div className="mt-2 text-3xl font-bold text-[#1F3766]">
                   {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
                   %
@@ -703,7 +724,6 @@ export default function CandidateSelfService({ onLogout }) {
                     }}
                   />
                 </div>
-
                 <p className="mt-2 text-xs text-slate-500">
                   Complete your onboarding journey
                 </p>
@@ -711,12 +731,13 @@ export default function CandidateSelfService({ onLogout }) {
             </div>
           </div>
         );
-
       default:
         return null;
     }
   };
+
   const checklistList = myChecklistsPayload?.checklists || [];
+
   const profilePipeline = String(
     profile?.pipeline_status ||
       profile?.pipline_status ||
@@ -725,7 +746,6 @@ export default function CandidateSelfService({ onLogout }) {
   )
     .trim()
     .toLowerCase();
-
   const isPreBoarding = profilePipeline.includes("pre");
   const shouldShowChecklists = checklistList.length > 0 || isPreBoarding;
 
@@ -747,7 +767,6 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1F3766] text-2xl font-extrabold text-white shadow-md">
                   BX
                 </div>
-
                 <p className="mt-3 text-sm font-semibold uppercase tracking-[0.em] text-slate-500">
                   Candidate Portal
                 </p>
@@ -772,20 +791,17 @@ export default function CandidateSelfService({ onLogout }) {
               ))}
             </div>
           </aside>
-
           <div className="space-y-6 ">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-[#1F3766] px-5 py-4 shadow-sm">
-              <div>
-                <h2 className="text-2xl font-bold text-white">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border bg-[#1F3766] px-5 py-4 shadow-sm">
+              <div className="flex-1 min-w-0">
+                <h2 className="truncate text-2xl font-bold text-white">
                   Welcome back, {candidateName}
                 </h2>
-
                 <p className="mt-1 text-sm text-blue-100">
                   Track your onboarding progress and complete pending documents.
                 </p>
               </div>
-
-              <div className="relative" ref={profileMenuRef}>
+              <div className="relative flex-shrink-0" ref={profileMenuRef}>
                 <button
                   type="button"
                   onClick={() => setIsProfileMenuOpen((prev) => !prev)}
@@ -794,14 +810,11 @@ export default function CandidateSelfService({ onLogout }) {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
                     {candidateName?.[0]?.toUpperCase() || "C"}
                   </span>
-
                   <span className="hidden max-w-[160px] truncate sm:inline">
                     {candidateName || "Candidate"}
                   </span>
-
                   <ChevronDown className="h-4 w-4 text-slate-500" />
                 </button>
-
                 {isProfileMenuOpen ? (
                   <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
                     <button
@@ -814,7 +827,6 @@ export default function CandidateSelfService({ onLogout }) {
                     >
                       View Profile
                     </button>
-
                     <button
                       type="button"
                       onClick={() => {
@@ -831,7 +843,6 @@ export default function CandidateSelfService({ onLogout }) {
                     >
                       Change Password
                     </button>
-
                     <button
                       type="button"
                       onClick={onLogout}
@@ -873,7 +884,6 @@ export default function CandidateSelfService({ onLogout }) {
                             >
                               View
                             </Button>
-
                             <Button
                               variant="secondary"
                               onClick={() =>
@@ -887,7 +897,6 @@ export default function CandidateSelfService({ onLogout }) {
                               Download
                             </Button>
                           </div>
-
                           {String(o?.offer_status).toLowerCase() ===
                             "released" &&
                             !o?.candidate_response && (
@@ -994,7 +1003,6 @@ export default function CandidateSelfService({ onLogout }) {
                   <Button
                     onClick={async () => {
                       clearNotice();
-
                       try {
                         await submitCandidateInfoForm(personal);
                         showNotice("Personal Information Saved.", "success");
@@ -1037,7 +1045,6 @@ export default function CandidateSelfService({ onLogout }) {
                                 : "-"}
                             </div>
                           </div>
-
                           <div className="flex items-center gap-2">
                             <StatusBadge
                               status={
@@ -1126,7 +1133,6 @@ export default function CandidateSelfService({ onLogout }) {
                           setEducation(next);
                         }}
                       />
-
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
@@ -1139,20 +1145,16 @@ export default function CandidateSelfService({ onLogout }) {
                         />
                         Document Submitted
                       </label>
-
                       <div className="flex items-center justify-between text-xs text-slate-500 md:col-span-2">
                         <span>
                           {row.id ? `Record ID: ${row.id}` : "New record"}
                         </span>
-
                         <Button
                           variant="danger"
                           onClick={async () => {
                             clearNotice();
-
                             if (row.id) {
                               setLoading(true);
-
                               try {
                                 await deleteCandidateEducation(row.id);
                                 const refreshed =
@@ -1179,7 +1181,6 @@ export default function CandidateSelfService({ onLogout }) {
                                     },
                                   ]);
                                 }
-
                                 showNotice(
                                   "Education record deleted.",
                                   "success",
@@ -1202,83 +1203,81 @@ export default function CandidateSelfService({ onLogout }) {
                           Delete
                         </Button>
                       </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+                        <div className="mb-2 text-sm font-medium text-slate-700">
+                          Education Certificate
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(event) => {
+                              const file = event?.target?.files?.[0];
+
+                              setEducationFiles((prev) => ({
+                                ...prev,
+                                [idx]: file ?? null,
+                              }));
+                            }}
+                            className="text-sm"
+                          />
+                          <Button
+                            variant="secondary"
+                            disabled={
+                              uploadingEducationIndex === idx ||
+                              !educationFiles?.[idx]
+                            }
+                            onClick={() =>
+                              handleUpload(
+                                uploadEducationCertificate,
+                                "Education Certificate",
+                                educationFiles?.[idx],
+                                "education",
+                                idx,
+                              )
+                            }
+                          >
+                            {uploadingEducationIndex === idx
+                              ? "Uploading..."
+                              : "Upload"}
+                          </Button>
+                          <div className="ml-auto flex items-center gap-2">
+                            {idx === education.length - 1 && (
+                              <Button
+                                variant="secondary"
+                                onClick={() =>
+                                  setEducation((prev) => [
+                                    ...prev,
+                                    {
+                                      id: null,
+                                      education_institute: "",
+                                      degree: "",
+                                      field_of_study: "",
+                                      starting_year: "",
+                                      year_of_passing: "",
+                                      percentage: "",
+                                      submitted_at: today(),
+                                      document_is_submitted: false,
+                                    },
+                                  ])
+                                }
+                              >
+                                Add Education
+                              </Button>
+                            )}
+                            <Button
+                              disabled={savingEducationId === idx}
+                              onClick={() => saveEducationRecord(row, idx)}
+                            >
+                              {savingEducationId === idx
+                                ? "Saving..."
+                                : "Save Education"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <DocumentUploadRow
-                    label="Education Certificate"
-                    onUpload={(file) =>
-                      handleUpload(
-                        uploadEducationCertificate,
-                        "Education Certificate",
-                        file,
-                      )
-                    }
-                    disabled={
-                      loading || uploadingType === "Education Certificate"
-                    }
-                  />
-                  <div className="ml-auto">
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        setEducation((prev) => [
-                          ...prev,
-                          {
-                            id: null,
-                            education_institute: "",
-                            degree: "",
-                            field_of_study: "",
-                            starting_year: "",
-                            year_of_passing: "",
-                            percentage: "",
-                            submitted_at: today(),
-                            document_is_submitted: false,
-                          },
-                        ])
-                      }
-                    >
-                      Add Education
-                    </Button>
-                  </div>
-
-                  <Button
-                    onClick={async () => {
-                      clearNotice();
-
-                      try {
-                        setLoading(true);
-
-                        for (const record of education) {
-                          const payload = toEducationPayload(record);
-
-                          if (record.id) {
-                            await updateCandidateEducation(record.id, payload);
-                          } else {
-                            await addCandidateEducation(payload);
-                          }
-                        }
-
-                        const refreshed = await listCandidateEducation();
-
-                        if (refreshed?.records?.length) {
-                          setEducation(
-                            refreshed.records.map(normalizeEducationRecord),
-                          );
-                        }
-
-                        showNotice("Education Details Saved.", "success");
-                      } catch (err) {
-                        showNotice(err.message || "Failed to save education.");
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    Save Education
-                  </Button>
                 </div>
               </Card>
             )}
@@ -1359,20 +1358,16 @@ export default function CandidateSelfService({ onLogout }) {
                         <span>
                           {row.id ? `Record ID: ${row.id}` : "New record"}
                         </span>
-
                         <Button
                           variant="danger"
                           onClick={async () => {
                             clearNotice();
-
                             if (row.id) {
                               setLoading(true);
-
                               try {
                                 await deleteCandidateExperience(row.id);
                                 const refreshed =
                                   await listCandidateExperience();
-
                                 if (refreshed?.records?.length) {
                                   setExperience(
                                     refreshed.records.map(
@@ -1393,7 +1388,6 @@ export default function CandidateSelfService({ onLogout }) {
                                     },
                                   ]);
                                 }
-
                                 showNotice(
                                   "Experience record deleted.",
                                   "success",
@@ -1416,80 +1410,81 @@ export default function CandidateSelfService({ onLogout }) {
                           Delete
                         </Button>
                       </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+                        <div className="mb-2 text-sm font-medium text-slate-700">
+                          Experience Letter
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(event) => {
+                              const file = event?.target?.files?.[0];
+                              setExperienceFiles((prev) => ({
+                                ...prev,
+                                [idx]: file ?? null,
+                              }));
+                            }}
+                            className="text-sm"
+                          />
+                          <Button
+                            variant="secondary"
+                            disabled={
+                              uploadingExperienceIndex === idx ||
+                              !experienceFiles?.[idx]
+                            }
+                            onClick={() =>
+                              handleUpload(
+                                uploadExperienceLetter,
+                                "Experience Letter",
+                                experienceFiles?.[idx],
+                                "experience",
+                                idx,
+                              )
+                            }
+                          >
+                            {uploadingExperienceIndex === idx
+                              ? "Uploading..."
+                              : "Upload"}
+                          </Button>
+                          <div className="ml-auto flex items-center gap-2">
+                            {idx === experience.length - 1 && (
+                              <Button
+                                variant="secondary"
+                                onClick={() =>
+                                  setExperience((prev) => [
+                                    ...prev,
+                                    {
+                                      id: null,
+                                      company_name: "",
+                                      job_title: "",
+                                      start_date: "",
+                                      end_date: "",
+                                      year_of_experience: "",
+                                      submitted_at: today(),
+                                      document_is_submitted: false,
+                                    },
+                                  ])
+                                }
+                              >
+                                Add Experience
+                              </Button>
+                            )}
+                            <Button
+                              disabled={
+                                savingExperienceId === (row?.id ?? "new")
+                              }
+                              onClick={() => saveExperienceRecord(row)}
+                            >
+                              {savingExperienceId === (row?.id ?? "new")
+                                ? "Saving..."
+                                : "Save Experience"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <DocumentUploadRow
-                    label="Experience Letter"
-                    onUpload={(file) =>
-                      handleUpload(
-                        uploadExperienceLetter,
-                        "Experience Letter",
-                        file,
-                      )
-                    }
-                    disabled={loading || uploadingType === "Experience Letter"}
-                  />
-                  <div className="ml-auto">
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        setExperience((prev) => [
-                          ...prev,
-                          {
-                            id: null,
-                            company_name: "",
-                            job_title: "",
-                            start_date: "",
-                            end_date: "",
-                            year_of_experience: "",
-                            submitted_at: today(),
-                            document_is_submitted: false,
-                          },
-                        ])
-                      }
-                    >
-                      Add Experience
-                    </Button>
-                  </div>
-
-                  <Button
-                    onClick={async () => {
-                      clearNotice();
-
-                      try {
-                        setLoading(true);
-
-                        for (const record of experience) {
-                          const payload = toExperiencePayload(record);
-
-                          if (record.id) {
-                            await updateCandidateExperience(record.id, payload);
-                          } else {
-                            await addCandidateExperience(payload);
-                          }
-                        }
-
-                        const refreshed = await listCandidateExperience();
-
-                        if (refreshed?.records?.length) {
-                          setExperience(
-                            refreshed.records.map(normalizeExperienceRecord),
-                          );
-                        }
-
-                        showNotice("Experience Details Saved.", "success");
-                      } catch (err) {
-                        showNotice(err.message || "Failed to save experience.");
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    Save Experience
-                  </Button>
                 </div>
               </Card>
             )}
@@ -1517,7 +1512,6 @@ export default function CandidateSelfService({ onLogout }) {
                       setPan((p) => ({ ...p, father_name_in_pan: v }))
                     }
                   />
-
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -1531,7 +1525,6 @@ export default function CandidateSelfService({ onLogout }) {
                     />
                     PAN Submitted
                   </label>
-
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -1543,7 +1536,6 @@ export default function CandidateSelfService({ onLogout }) {
                     Verified
                   </label>
                 </div>
-
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <DocumentUploadRow
                     label="PAN Card"
@@ -1555,7 +1547,6 @@ export default function CandidateSelfService({ onLogout }) {
                   <Button
                     onClick={async () => {
                       clearNotice();
-
                       try {
                         await submitCandidatePanForm({
                           ...pan,
@@ -1600,7 +1591,6 @@ export default function CandidateSelfService({ onLogout }) {
                       setAadhar((a) => ({ ...a, enrollment_number: v }))
                     }
                   />
-
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -1614,7 +1604,6 @@ export default function CandidateSelfService({ onLogout }) {
                     />
                     Aadhaar Submitted
                   </label>
-
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -1641,7 +1630,6 @@ export default function CandidateSelfService({ onLogout }) {
                   <Button
                     onClick={async () => {
                       clearNotice();
-
                       try {
                         await submitCandidateAadharForm({
                           ...aadhar,
@@ -1702,7 +1690,6 @@ export default function CandidateSelfService({ onLogout }) {
                 />
               </Card>
             )}
-
             <div className="mt-4"></div>
 
             {activeSection === "dashboard" && onboardingStatus ? (
@@ -1751,6 +1738,7 @@ export default function CandidateSelfService({ onLogout }) {
                                 .replace(/_/g, " ")
                                 .replace(/\b\w/g, (c) => c.toUpperCase())}
                           </div>
+
                           <div>
                             Completed: {value?.completed ? "Yes" : "No"}
                           </div>
@@ -1854,7 +1842,6 @@ export default function CandidateSelfService({ onLogout }) {
               <h2 className="mb-5 text-xl font-semibold text-slate-900">
                 Candidate Profile
               </h2>
-
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Name</span>
@@ -1862,21 +1849,18 @@ export default function CandidateSelfService({ onLogout }) {
                     {profile?.candidate_name || candidateName || "-"}
                   </span>
                 </div>
-
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Email</span>
                   <span className="text-right font-medium text-slate-900">
                     {profile?.candidate_email || candidateEmail || "-"}
                   </span>
                 </div>
-
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Mobile</span>
                   <span className="text-right font-medium text-slate-900">
                     {profile?.candidate_mobile || "-"}
                   </span>
                 </div>
-
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Status</span>
                   <span className="text-right font-medium text-slate-900">
@@ -1887,7 +1871,6 @@ export default function CandidateSelfService({ onLogout }) {
                   </span>
                 </div>
               </div>
-
               <button
                 type="button"
                 onClick={() => setShowProfileModal(false)}
@@ -1911,7 +1894,6 @@ export default function CandidateSelfService({ onLogout }) {
               <h2 className="mb-5 text-xl font-semibold text-slate-900">
                 Change Password
               </h2>
-
               <div className="space-y-3">
                 <div className="relative">
                   <input
@@ -1926,7 +1908,6 @@ export default function CandidateSelfService({ onLogout }) {
                     }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm outline-none transition focus:border-slate-400"
                   />
-
                   <button
                     type="button"
                     onClick={() => setShowNewPassword((prev) => !prev)}
@@ -1939,7 +1920,6 @@ export default function CandidateSelfService({ onLogout }) {
                     )}
                   </button>
                 </div>
-
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
@@ -1953,7 +1933,6 @@ export default function CandidateSelfService({ onLogout }) {
                     }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm outline-none transition focus:border-slate-400"
                   />
-
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
@@ -1967,7 +1946,6 @@ export default function CandidateSelfService({ onLogout }) {
                   </button>
                 </div>
               </div>
-
               <div className="mt-5 flex gap-2">
                 <button
                   type="button"
@@ -1977,7 +1955,6 @@ export default function CandidateSelfService({ onLogout }) {
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
                   onClick={async () => {
@@ -1985,7 +1962,6 @@ export default function CandidateSelfService({ onLogout }) {
                       candidatePasswordForm?.new_password?.trim();
                     const confirmPassword =
                       candidatePasswordForm?.confirm_password?.trim();
-
                     if (!newPassword || !confirmPassword) {
                       showNotice(
                         "Please fill all password fields.",
@@ -1994,7 +1970,6 @@ export default function CandidateSelfService({ onLogout }) {
                       );
                       return;
                     }
-
                     if (newPassword !== confirmPassword) {
                       showNotice(
                         "New password and confirm password do not match.",
@@ -2003,22 +1978,18 @@ export default function CandidateSelfService({ onLogout }) {
                       );
                       return;
                     }
-
                     try {
                       setPasswordSubmitting(true);
                       clearNotice();
-
                       await changeCandidatePassword({
                         new_password: newPassword,
                         confirm_password: confirmPassword,
                       });
-
                       showNotice(
                         "Password updated successfully.",
                         "success",
                         false,
                       );
-
                       setCandidatePasswordForm({
                         new_password: "",
                         confirm_password: "",
