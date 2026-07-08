@@ -14,9 +14,16 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 VALID_EVENT_TYPES = {
     "Applied",
+    "Candidate Added",
+    "Candidate Edited",
     "Screening",
+    "Job Assigned",
     "Interview Scheduled",
+    "Feedback Submitted",
     "Interview Completed",
+    "Preonboarding Approval",
+    "Preonboarding",
+    "Preonboarding document verifiy",
     "Offer Released",
     "Offer Accepted",
     "Offer Rejected",
