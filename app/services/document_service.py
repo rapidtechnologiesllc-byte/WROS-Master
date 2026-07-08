@@ -38,7 +38,7 @@ DOCUMENT_TYPES = {
 
 # Document types that allow multiple independent uploads (each file is a separate record).
 # For all other types only ONE active document (is_latest=True) is kept per candidate.
-MULTI_UPLOAD_TYPES = {"education", "experience"}
+MULTI_UPLOAD_TYPES = {"education", "experience","pan","aadhar","salary_slip","bank_statement","uan_pf"}
 
 
 class DocumentService:
