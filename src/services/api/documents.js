@@ -70,6 +70,7 @@ export const uploadBankStatement = async (file) => {
   const token = localStorage.getItem("hrms_token");
   return _uploadDocument("/documents/upload/bank-statement", file, token);
 };
+
 export const uploadUanPfDocument = async (file) => {
   const token = localStorage.getItem("hrms_token");
   return _uploadDocument("/documents/upload/uan-pf", file, token);
@@ -104,6 +105,7 @@ export const getMyDocuments = async () => {
   });
   return data;
 };
+
 // Streams a document from SharePoint for inline viewing.
 // Returns a Blob so callers can open in a new tab.
 export const viewDocument = async (documentId) => {

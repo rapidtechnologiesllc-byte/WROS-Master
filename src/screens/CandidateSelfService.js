@@ -64,6 +64,7 @@ import { sendEventNotification } from "../services/api/email";
 import { getOfferAcceptedNotificationTemplate } from "../utils/offerAcceptedEmailTemplate";
 
 const today = () => new Date().toISOString().slice(0, 10);
+
 const DOC_LABELS = {
   resume: "Resume",
   pan: "PAN Card",
@@ -96,6 +97,7 @@ const normalizeJobStatus = (rawStatus) => {
 
 function DocumentUploadRow({ label, onUpload, disabled }) {
   const [file, setFile] = useState(null);
+
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-slate-50 p-3">
       <span className="text-sm font-medium flex-1">{label}</span>
@@ -170,6 +172,7 @@ export default function CandidateSelfService({ onLogout }) {
     }
   };
   const clearNotice = () => {};
+
   const normalizeEducationRecord = (record = {}) => ({
     id: record.formID ?? record.id ?? null,
     education_institute: record.education_institute || "",
@@ -181,6 +184,7 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || record.submittedAt || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
+
   const normalizeExperienceRecord = (record = {}) => ({
     id: record.formID ?? record.id ?? null,
     company_name: record.company_name || "",
@@ -191,6 +195,7 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || record.submittedAt || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
+
   const toEducationPayload = (record) => ({
     education_institute: record.education_institute,
     degree: record.degree,
@@ -201,6 +206,7 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
+
   const toExperiencePayload = (record) => ({
     company_name: record.company_name,
     job_title: record.job_title,
@@ -210,6 +216,7 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: record.submitted_at || today(),
     document_is_submitted: Boolean(record.document_is_submitted),
   });
+
   const handleApplyForJob = async (jobId) => {
     if (!jobId) return;
     if (!profile?.candidate_email) {
@@ -266,6 +273,7 @@ export default function CandidateSelfService({ onLogout }) {
       showNotice(err.message || "Failed to refresh documents.");
     }
   };
+
   const notifyAssignedHr = async (documentName) => {
     try {
       const candidateId = profile?.candidate_id;
@@ -291,6 +299,7 @@ export default function CandidateSelfService({ onLogout }) {
       console.error("Failed to notify assigned HR", error);
     }
   };
+
   const notifyOfferAcceptedHr = async (offer) => {
     try {
       const candidateId = offer?.candidate_id;
@@ -318,6 +327,7 @@ export default function CandidateSelfService({ onLogout }) {
       console.error("Failed to send offer accepted notification", error);
     }
   };
+
   const handleUpload = async (uploadFn, label, file, type, idx) => {
     if (!file) return;
     try {
@@ -345,6 +355,7 @@ export default function CandidateSelfService({ onLogout }) {
       }
     }
   };
+
   const saveEducationRecord = async (record, idx) => {
     if (!record) return;
     try {
@@ -367,6 +378,7 @@ export default function CandidateSelfService({ onLogout }) {
       setSavingEducationId(null);
     }
   };
+
   const saveExperienceRecord = async (record, idx) => {
     if (!record) return;
     try {
@@ -389,6 +401,7 @@ export default function CandidateSelfService({ onLogout }) {
       setSavingExperienceId(null);
     }
   };
+
   const handleSignatureSave = async (signatureFile) => {
     if (!selectedOffer?.id || !signatureFile) return;
     try {
@@ -416,6 +429,7 @@ export default function CandidateSelfService({ onLogout }) {
       setSignatureLoading(false);
     }
   };
+
   const downloadOfferLetter = async (url, fileName = "OfferLetter.docx") => {
     if (!url) {
       showNotice("Offer letter download URL is unavailable.");
@@ -500,6 +514,7 @@ export default function CandidateSelfService({ onLogout }) {
     submitted_at: today(),
     is_verified: false,
   });
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!isProfileMenuOpen) return;
@@ -650,6 +665,7 @@ export default function CandidateSelfService({ onLogout }) {
   const candidateEmail = useMemo(() => {
     return profile?.candidate_email || storedCandidateEmail || "";
   }, [profile, storedCandidateEmail]);
+
   const menuItems = [
     {
       key: "dashboard",
@@ -719,7 +735,9 @@ export default function CandidateSelfService({ onLogout }) {
         return null;
     }
   };
+
   const checklistList = myChecklistsPayload?.checklists || [];
+
   const profilePipeline = String(
     profile?.pipeline_status ||
       profile?.pipline_status ||
@@ -730,6 +748,7 @@ export default function CandidateSelfService({ onLogout }) {
     .toLowerCase();
   const isPreBoarding = profilePipeline.includes("pre");
   const shouldShowChecklists = checklistList.length > 0 || isPreBoarding;
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900">
       <ToastContainer
@@ -1599,6 +1618,7 @@ export default function CandidateSelfService({ onLogout }) {
                     Aadhaar Verified
                   </label>
                 </div>
+
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <DocumentUploadRow
                     label="Aadhaar Card"
@@ -1671,6 +1691,7 @@ export default function CandidateSelfService({ onLogout }) {
               </Card>
             )}
             <div className="mt-4"></div>
+
             {activeSection === "dashboard" && onboardingStatus ? (
               <Card title="Onboarding Status">
                 <div className="grid gap-3 md:grid-cols-1">
@@ -1717,6 +1738,7 @@ export default function CandidateSelfService({ onLogout }) {
                                 .replace(/_/g, " ")
                                 .replace(/\b\w/g, (c) => c.toUpperCase())}
                           </div>
+
                           <div>
                             Completed: {value?.completed ? "Yes" : "No"}
                           </div>

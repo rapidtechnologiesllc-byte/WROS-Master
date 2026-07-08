@@ -50,6 +50,7 @@ export default function DocumentsTab({
     }
     return groupedFiles?.[currentGroupedFileIndex] ?? groupedFiles?.[0] ?? null;
   }, [selectedDoc, currentGroupedFileIndex]);
+
   const groupedFiles = Array.isArray(selectedDoc?.files)
     ? selectedDoc.files
     : [];
@@ -57,6 +58,7 @@ export default function DocumentsTab({
   const totalGroupedFiles = groupedFiles.length;
   const canGoPrevious = currentGroupedFileIndex > 0;
   const canGoNext = currentGroupedFileIndex < totalGroupedFiles - 1;
+
   const showNotice = useCallback((message, type = "success") => {
     setNotice(message);
     setNoticeType(type);
@@ -124,6 +126,7 @@ export default function DocumentsTab({
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     };
   }, [fetchDocuments, fetchCandidateFullDetails]);
+
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -172,6 +175,7 @@ export default function DocumentsTab({
       setPreviewLoadingId(null);
     }
   };
+
   const notifyCandidateDocumentStatus = async ({
     documentType,
     status,
@@ -254,10 +258,12 @@ HR Team`;
       setActionLoadingId(null);
     }
   };
+
   const openRejectModal = (doc) => {
     setRejectDoc(doc);
     setRejectReason("");
   };
+
   const handleRejectDocument = async () => {
     if (!rejectDoc?.document_type) {
       showNotice("Document type is missing.", "error");
@@ -290,6 +296,7 @@ HR Team`;
       setActionLoadingId(null);
     }
   };
+
   if (loading) {
     return (
       <div className="rounded-2xl border bg-white p-6 text-center text-sm text-gray-500">
@@ -297,6 +304,7 @@ HR Team`;
       </div>
     );
   }
+
   return (
     <>
       <div className="space-y-4">
@@ -461,6 +469,7 @@ HR Team`;
     </>
   );
 }
+
 function DocumentDetailsPanel({
   doc,
   candidateFullDetails,
@@ -494,6 +503,7 @@ function DocumentDetailsPanel({
   const handleZoomOut = () => {
     setZoomLevel((prev) => Math.max(prev - 10, 50));
   };
+
   const handleFullscreen = async () => {
     try {
       if (document?.fullscreenElement) {
@@ -505,6 +515,7 @@ function DocumentDetailsPanel({
       console.error("Fullscreen failed:", error);
     }
   };
+
   useEffect(() => {
     const onFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
@@ -514,10 +525,12 @@ function DocumentDetailsPanel({
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   }, []);
+
   const submittedDetails = getSubmittedDetailsByDocumentType(
     doc?.document_type,
     candidateFullDetails,
   );
+
   const displayedGroups =
     hasGroupedFiles && Array.isArray(submittedDetails?.groups)
       ? submittedDetails.groups.slice(
@@ -525,6 +538,7 @@ function DocumentDetailsPanel({
           currentGroupedFileIndex + 1,
         )
       : submittedDetails?.groups;
+
   return (
     <div className="flex min-h-[72vh] flex-col">
       <div className="border-b px-5 py-4">
@@ -654,6 +668,7 @@ function DocumentDetailsPanel({
                 </button>
               </div>
             </div>
+
             {hasGroupedFiles ? (
               <div className="mt-4 flex items-center justify-center gap-3">
                 <button
@@ -812,6 +827,7 @@ function RejectReasonModal({
     </div>
   );
 }
+
 function CandidateSubmittedDetails({
   title,
   description,
@@ -827,6 +843,7 @@ function CandidateSubmittedDetails({
           field?.value !== "",
       )
     : [];
+
   const visibleGroups = Array.isArray(groups)
     ? groups
         .map((group) => ({
@@ -849,6 +866,7 @@ function CandidateSubmittedDetails({
       </div>
     );
   }
+
   if (!visibleFields?.length && !visibleGroups?.length) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
@@ -861,6 +879,7 @@ function CandidateSubmittedDetails({
       </div>
     );
   }
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white">
       <div className="border-b px-4 py-3">
@@ -966,6 +985,7 @@ function getSubmittedDetailsByDocumentType(documentType, candidateFullDetails) {
       ],
     };
   }
+
   if (normalizedType.includes("education")) {
     const educationRecords = Array.isArray(candidateFullDetails?.education)
       ? candidateFullDetails.education
@@ -1110,12 +1130,14 @@ function Info({ label, value }) {
 function getDocumentLabel(type) {
   return DOCUMENT_LABELS[type] || formatDocumentType(type) || "Document";
 }
+
 function formatDocumentType(type) {
   if (!type) return "";
   return String(type)
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
+
 function StatusBadge({ status }) {
   const normalizedStatus = String(status || "").toLowerCase();
   let styles = "bg-gray-100 text-gray-600 border-gray-200";
@@ -1146,6 +1168,7 @@ function formatDate(date) {
     year: "numeric",
   });
 }
+
 function formatFileSize(size) {
   const bytes = Number(size);
   if (!Number.isFinite(bytes) || bytes <= 0) return "-";
