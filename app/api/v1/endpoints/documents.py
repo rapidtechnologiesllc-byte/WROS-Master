@@ -4,7 +4,8 @@ Uses service layer for better separation of concerns and scalability.
 Uses service account authentication - candidates don't need Microsoft accounts.
 """
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -288,8 +289,9 @@ async def get_my_documents(
         "candidate_name": candidate_full_name,
         "candidate_email": candidate.candidateEmail,
         "total_documents": len(visible_docs),
-        "verified_count": sum(1 for doc in visible_docs if doc.is_verified),
-        "pending_count": sum(1 for doc in visible_docs if not doc.is_verified),
+        "verified_count": sum(1 for doc in visible_docs if doc.is_verified == "Verified"),
+        "pending_count": sum(1 for doc in visible_docs if doc.is_verified == "Pending"),
+        "rejected_count": sum(1 for doc in visible_docs if doc.is_verified == "Rejected"),
         "documents": list(grouped.values()),
     }
 
@@ -304,23 +306,35 @@ async def get_my_documents(
 )
 async def get_candidate_documents(
     candidate_id: str,
+    verification_status: Optional[str] = Query(
+        default=None,
+        description="Filter by verification status. Accepted values: Pending, Verified, Rejected",
+    ),
     current_user = Depends(get_current_hr_or_admin),
     db: Session = Depends(get_db)
 ):
     """
     Get all documents for a specific candidate.
     Only accessible by HR and Admin users.
-    
+
     Args:
         candidate_id: Candidate ID to fetch documents for
+        verification_status: Optional filter — one of Pending, Verified, Rejected
         current_user: Authenticated HR/Admin user
         db: Database session
-        
+
     Returns:
         List of all documents for the candidate with verification status
     """
     from app.models.document import CandidateDocument
     from app.models.candidate import Candidate
+
+    VALID_STATUSES = {"Pending", "Verified", "Rejected"}
+    if verification_status and verification_status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid verification_status '{verification_status}'. Must be one of: {', '.join(sorted(VALID_STATUSES))}",
+        )
 
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
@@ -344,6 +358,15 @@ async def get_candidate_documents(
         doc for doc in all_docs
         if doc.document_type in MULTI_UPLOAD_TYPES or doc.is_latest
     ]
+
+    # Summary counts are always over ALL visible documents (before filtering)
+    verified_count  = sum(1 for doc in visible_docs if doc.is_verified == "Verified")
+    pending_count   = sum(1 for doc in visible_docs if doc.is_verified == "Pending")
+    rejected_count  = sum(1 for doc in visible_docs if doc.is_verified == "Rejected")
+
+    # Apply optional verification_status filter AFTER counting
+    if verification_status:
+        visible_docs = [doc for doc in visible_docs if doc.is_verified == verification_status]
 
     candidate_full_name = f"{candidate.candidateFirstName or ''} {candidate.candidateMiddleName or ''} {candidate.candidateLastName or ''}".strip()
 
@@ -374,14 +397,19 @@ async def get_candidate_documents(
         else:
             grouped[dtype] = _doc_dict(doc)
 
-    logger.info(f"HR user {current_user.UserEmail} accessed documents for candidate {candidate_id}")
+    logger.info(
+        f"HR user {current_user.UserEmail} accessed documents for candidate {candidate_id}"
+        + (f" [filter: {verification_status}]" if verification_status else "")
+    )
     return {
         "candidate_id": candidate_id,
         "candidate_name": candidate_full_name,
         "candidate_email": candidate.candidateEmail,
         "total_documents": len(visible_docs),
-        "verified_count": sum(1 for doc in visible_docs if doc.is_verified),
-        "pending_count": sum(1 for doc in visible_docs if not doc.is_verified),
+        "verified_count": verified_count,
+        "pending_count": pending_count,
+        "rejected_count": rejected_count,
+        "applied_filter": verification_status,
         "documents": list(grouped.values()),
     }
 
@@ -471,7 +499,7 @@ async def view_document(
 )
 async def update_document_verification(
     document_id: int,
-    is_verified: bool,
+    verification_status: str,
     notes: str = None,
     current_user = Depends(get_current_hr_or_admin),
     db: Session = Depends(get_db)
@@ -485,11 +513,18 @@ async def update_document_verification(
 
     Args:
         document_id: ID of the specific document record to verify
-        is_verified: True to mark as verified, False to un-verify
+        verification_status: Verification status — must be one of: Pending, Verified, Rejected
         notes: Optional HR notes about the verification decision
     """
     from app.models.document import CandidateDocument
     from datetime import datetime
+
+    VALID_STATUSES = {"Pending", "Verified", "Rejected"}
+    if verification_status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid verification_status '{verification_status}'. Must be one of: {', '.join(sorted(VALID_STATUSES))}",
+        )
 
     document = db.query(CandidateDocument).filter(
         CandidateDocument.id == document_id,
@@ -502,9 +537,14 @@ async def update_document_verification(
             detail=f"Document {document_id} not found."
         )
 
-    document.is_verified = is_verified
-    document.verified_by = current_user.UserID
-    document.verified_at = datetime.utcnow()
+    document.is_verified = verification_status
+    if verification_status in ("Verified", "Rejected"):
+        document.verified_by = current_user.UserID
+        document.verified_at = datetime.utcnow()
+    else:
+        # Reset auditing fields when re-setting to Pending
+        document.verified_by = None
+        document.verified_at = None
     if notes:
         document.notes = notes
 
@@ -512,22 +552,161 @@ async def update_document_verification(
     db.refresh(document)
 
     logger.info(
-        f"HR user {current_user.UserEmail} "
-        f"{'verified' if is_verified else 'un-verified'} document {document_id} "
-        f"({document.document_type}) for candidate {document.candidate_id}"
+        f"HR user {current_user.UserEmail} set document {document_id} "
+        f"({document.document_type}) for candidate {document.candidate_id} "
+        f"to '{verification_status}'."
     )
 
     return {
         "status": "success",
-        "message": f"Document {'verified' if is_verified else 'marked as unverified'} successfully",
+        "message": f"Document marked as '{verification_status}' successfully",
         "document": {
             "id": document.id,
             "candidate_id": document.candidate_id,
             "document_type": document.document_type,
             "original_filename": document.original_filename,
-            "is_verified": document.is_verified,
+            "verification_status": document.is_verified,
             "verified_by": document.verified_by,
             "verified_at": document.verified_at.isoformat() if document.verified_at else None,
             "notes": document.notes,
         }
+    }
+
+
+# ============================================
+# Delete All Candidate Documents
+# ============================================
+
+@router.delete(
+    "/candidate/{candidate_id}/all",
+    dependencies=[Depends(require_permission("document.manage"))],
+    summary="Delete ALL documents for a candidate (DB + SharePoint)",
+)
+async def delete_all_candidate_documents(
+    candidate_id: str,
+    current_user=Depends(get_current_hr_or_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Permanently delete **every** document belonging to a candidate.
+
+    Steps:
+    1. Fetch all document records for the candidate (including soft-deleted ones).
+    2. For each record that has a SharePoint file ID, delete the file via the
+       Microsoft Graph API using the service account token.
+    3. Hard-delete all document rows from the database.
+
+    SharePoint deletion failures are collected and returned in the response but
+    do **not** block the database cleanup — the DB records are always removed.
+
+    Only accessible by HR/Admin users with the `document.manage` permission.
+    """
+    import requests as req
+    from app.models.document import CandidateDocument
+    from app.models.candidate import Candidate
+
+    # Verify candidate exists
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate with ID {candidate_id} not found",
+        )
+
+    # Fetch ALL document records (including soft-deleted) so nothing is left behind
+    docs = (
+        db.query(CandidateDocument)
+        .filter(CandidateDocument.candidate_id == candidate_id)
+        .all()
+    )
+
+    if not docs:
+        return {
+            "status": "success",
+            "message": "No documents found for this candidate — nothing to delete.",
+            "candidate_id": candidate_id,
+            "deleted_count": 0,
+            "sharepoint_failures": [],
+        }
+
+    # Get a fresh service-account token for SharePoint calls
+    try:
+        access_token = get_graph_token()
+    except Exception as exc:
+        logger.error(f"[DeleteAllDocs] Failed to get Graph token: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to authenticate with SharePoint. DB records were NOT deleted.",
+        )
+
+    # ── Delete each file from SharePoint ────────────────────────────────────
+    sharepoint_failures: list[dict] = []
+
+    for doc in docs:
+        if not doc.sharepoint_file_id:
+            # No SharePoint record — nothing to delete remotely
+            continue
+
+        delete_url = (
+            f"https://graph.microsoft.com/v1.0/sites/{SHAREPOINT_SITE_ID}"
+            f"/drives/{SHAREPOINT_DRIVE_ID}/items/{doc.sharepoint_file_id}"
+        )
+        try:
+            sp_resp = req.delete(
+                delete_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=30,
+            )
+            if sp_resp.status_code == 404:
+                # Already gone — treat as success
+                logger.info(
+                    f"[DeleteAllDocs] SharePoint item {doc.sharepoint_file_id} "
+                    f"already absent (doc id={doc.id})."
+                )
+            elif not sp_resp.ok:
+                raise RuntimeError(f"HTTP {sp_resp.status_code}: {sp_resp.text[:200]}")
+            else:
+                logger.info(
+                    f"[DeleteAllDocs] Deleted SharePoint item {doc.sharepoint_file_id} "
+                    f"(doc id={doc.id}, type={doc.document_type})."
+                )
+        except Exception as exc:
+            logger.warning(
+                f"[DeleteAllDocs] Could not delete SharePoint item "
+                f"{doc.sharepoint_file_id} (doc id={doc.id}): {exc}"
+            )
+            sharepoint_failures.append({
+                "document_id": doc.id,
+                "document_type": doc.document_type,
+                "sharepoint_file_id": doc.sharepoint_file_id,
+                "error": str(exc),
+            })
+
+    # ── Hard-delete all DB records ───────────────────────────────────────────
+    deleted_count = (
+        db.query(CandidateDocument)
+        .filter(CandidateDocument.candidate_id == candidate_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+
+    logger.info(
+        f"[DeleteAllDocs] HR user {current_user.UserEmail} deleted "
+        f"{deleted_count} document record(s) for candidate {candidate_id}. "
+        f"SharePoint failures: {len(sharepoint_failures)}."
+    )
+
+    return {
+        "status": "success" if not sharepoint_failures else "partial",
+        "message": (
+            f"Deleted {deleted_count} document record(s) from the database. "
+            + (
+                f"{len(sharepoint_failures)} SharePoint file(s) could not be removed — see 'sharepoint_failures'."
+                if sharepoint_failures
+                else "All SharePoint files removed successfully."
+            )
+        ),
+        "candidate_id": candidate_id,
+        "deleted_count": deleted_count,
+        "sharepoint_failures": sharepoint_failures,
     }

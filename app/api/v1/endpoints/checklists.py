@@ -69,6 +69,7 @@ def _build_checklist_response(checklist: CandidateChecklist) -> CandidateCheckli
             status=item.status,
             due_date=item.due_date,
             activated_at=item.activated_at,
+            submitted_at=item.submitted_at,
             completed_at=item.completed_at,
         )
         for item in checklist.items
@@ -76,6 +77,7 @@ def _build_checklist_response(checklist: CandidateChecklist) -> CandidateCheckli
 
     total = len(item_responses)
     completed = sum(1 for i in item_responses if i.status == "completed")
+    submitted = sum(1 for i in item_responses if i.status == "submitted")
     todo_count = sum(1 for i in item_responses if i.item_type == "todo")
     queue_count = sum(1 for i in item_responses if i.item_type == "queue")
     active_queue = next(
@@ -95,6 +97,7 @@ def _build_checklist_response(checklist: CandidateChecklist) -> CandidateCheckli
         items=item_responses,
         total_items=total,
         completed_items=completed,
+        submitted_items=submitted,
         todo_items=todo_count,
         queue_items=queue_count,
         active_queue_item=active_queue,
@@ -122,11 +125,11 @@ def _complete_item_logic(
     db: Session, item: CandidateChecklistItem
 ) -> Optional[CandidateChecklistItem]:
     """
-    Core completion logic shared by HR and Candidate routes.
+    HR-only completion logic: moves an item from any non-completed status
+    to 'completed' and triggers queue auto-advance.
 
     Returns the next activated queue item (or None).
-    Raises HTTPException if item is already completed or
-    if a queue item is not yet 'active'.
+    Raises HTTPException if item is already completed.
     """
     if item.status == "completed":
         raise HTTPException(
@@ -134,16 +137,7 @@ def _complete_item_logic(
             detail="Item is already completed.",
         )
 
-    if item.item_type == "queue" and item.status != "active":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Queue item cannot be completed yet — "
-                "it is not the current active queue item."
-            ),
-        )
-
-    # Mark as completed
+    # Mark as completed (HR can complete from any state)
     item.status = "completed"
     item.completed_at = datetime.now()
 
@@ -165,7 +159,8 @@ def _complete_item_logic(
             next_item.status = "active"
             next_item.activated_at = datetime.now()
 
-    # Check if every item on the checklist is now done
+    # Mark checklist as completed only when ALL items are 'completed'
+    # (items in 'submitted' state are still pending HR review)
     pending_count = (
         db.query(CandidateChecklistItem)
         .filter(
@@ -588,6 +583,7 @@ def hr_complete_item(
             status=item.status,
             due_date=item.due_date,
             activated_at=item.activated_at,
+            submitted_at=item.submitted_at,
             completed_at=item.completed_at,
         ),
         next_active_item=(
@@ -602,6 +598,7 @@ def hr_complete_item(
                 status=next_item.status,
                 due_date=next_item.due_date,
                 activated_at=next_item.activated_at,
+                submitted_at=next_item.submitted_at,
                 completed_at=next_item.completed_at,
             )
             if next_item
@@ -638,13 +635,13 @@ def get_my_checklists(
 
 
 # ===========================================================================
-# CANDIDATE — COMPLETE AN ITEM
+# CANDIDATE — SUBMIT AN ITEM (marks done from candidate side)
 # ===========================================================================
 
 @router.put(
     "/candidate/item/{item_id}/complete",
     response_model=CompleteItemResponse,
-    summary="Candidate marks a checklist item as complete",
+    summary="Candidate submits a checklist item (awaiting HR verification)",
 )
 def candidate_complete_item(
     item_id: int,
@@ -652,11 +649,14 @@ def candidate_complete_item(
     user=Depends(get_current_candidate),
 ):
     """
-    Candidate can complete:
-    - Any 'todo' item (status 'pending') on their checklist.
-    - A 'queue' item only if it is the currently 'active' queue item.
+    Candidate signals they have finished a task.
 
-    On queue-item completion, the next queue item is automatically activated.
+    - Moves the item status from 'pending'/'active' → 'submitted'.
+    - Does NOT mark the item as 'completed' — HR must verify and complete it.
+    - For queue items, the next queue item is NOT activated yet; it becomes
+      active only after HR marks this item as 'completed'.
+    - Raises 400 if the item is already submitted or completed.
+    - Raises 400 if a queue item is not yet the active queue item.
     """
     # Verify item belongs to this candidate
     item = (
@@ -674,16 +674,40 @@ def candidate_complete_item(
             detail=f"Checklist item {item_id} not found or does not belong to you.",
         )
 
-    next_item = _complete_item_logic(db, item)
+    if item.status in ("submitted", "completed"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Item is already submitted and awaiting HR verification."
+                if item.status == "submitted"
+                else "Item is already completed."
+            ),
+        )
 
+    if item.item_type == "queue" and item.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This queue item is not yet unlocked — "
+                "complete the previous queue item first."
+            ),
+        )
+
+    # Move to 'submitted' — awaiting HR review
+    item.status = "submitted"
+    item.submitted_at = datetime.now()
+    db.commit()
     db.refresh(item)
-    checklist = db.query(CandidateChecklist).filter(CandidateChecklist.id == item.checklist_id).first()
+
+    checklist = db.query(CandidateChecklist).filter(
+        CandidateChecklist.id == item.checklist_id
+    ).first()
 
     return CompleteItemResponse(
         status="success",
         message=(
-            f"Item '{item.title}' marked complete."
-            + (f" Next queue item '{next_item.title}' is now active." if next_item else "")
+            f"Item '{item.title}' submitted successfully. "
+            "It will be marked complete after HR verification."
         ),
         completed_item=CandidateChecklistItemResponse(
             id=item.id,
@@ -696,24 +720,10 @@ def candidate_complete_item(
             status=item.status,
             due_date=item.due_date,
             activated_at=item.activated_at,
+            submitted_at=item.submitted_at,
             completed_at=item.completed_at,
         ),
-        next_active_item=(
-            CandidateChecklistItemResponse(
-                id=next_item.id,
-                checklist_id=next_item.checklist_id,
-                template_item_id=next_item.template_item_id,
-                title=next_item.title,
-                description=next_item.description,
-                item_type=next_item.item_type,
-                order_index=next_item.order_index,
-                status=next_item.status,
-                due_date=next_item.due_date,
-                activated_at=next_item.activated_at,
-                completed_at=next_item.completed_at,
-            )
-            if next_item
-            else None
-        ),
-        checklist_completed=(checklist.status == "completed") if checklist else False,
+        next_active_item=None,   # queue does not advance until HR verifies
+        checklist_completed=False,
     )
+
