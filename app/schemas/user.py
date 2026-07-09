@@ -150,10 +150,10 @@ class JobResponse(BaseModel):
     job_experience: str
     job_location: str
     job_created_at: datetime
-    company_type: str
-    company_name: str
+    company_type: Optional[str] = None
+    company_name: Optional[str] = None
     contact_person: Optional[str] = None
-    job_status: str
+    job_status: Optional[str] = None
     no_of_positions: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
