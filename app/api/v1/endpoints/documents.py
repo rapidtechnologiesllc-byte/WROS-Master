@@ -99,6 +99,7 @@ async def _upload_document_helper(
         return DocumentUploadResponse(
             status="Success",
             message=f"{document_type.replace('_', ' ').title()} uploaded successfully",
+            document_id=document.id,
             document_type=document_type,
             file_name=file.filename,
             sharepoint_url=sharepoint_data.get("webUrl"),
@@ -414,6 +415,65 @@ async def get_candidate_documents(
     }
 
 
+
+
+
+
+@router.get(
+    "/{document_id}",
+    summary="Get a single document's metadata by its ID",
+)
+async def get_document_by_id(
+    document_id: int,
+    current_user=Depends(get_current_hr_or_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve the full metadata record for a specific document by its **document_id**.
+
+    Returns SharePoint URL, verification status, upload details, and all other
+    stored metadata.  The actual file content is served separately via
+    `GET /documents/{document_id}/view`.
+
+    Only accessible by HR/Admin users.
+    """
+    from app.models.document import CandidateDocument
+
+    doc = db.query(CandidateDocument).filter(
+        CandidateDocument.id == document_id,
+        CandidateDocument.is_deleted == False,
+    ).first()
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {document_id} not found.")
+
+    logger.info(
+        f"HR user {current_user.UserEmail} fetched metadata for document {document_id} "
+        f"({doc.document_type}) of candidate {doc.candidate_id}."
+    )
+
+    return {
+        "id": doc.id,
+        "candidate_id": doc.candidate_id,
+        "document_type": doc.document_type,
+        "original_filename": doc.original_filename,
+        "stored_filename": doc.stored_filename,
+        "file_size": doc.file_size,
+        "file_extension": doc.file_extension,
+        "mime_type": doc.mime_type,
+        "sharepoint_url": doc.sharepoint_url,
+        "sharepoint_file_id": doc.sharepoint_file_id,
+        "is_verified": doc.is_verified,
+        "verified_by": doc.verified_by,
+        "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
+        "version": doc.version,
+        "is_latest": doc.is_latest,
+        "uploaded_by": doc.uploaded_by,
+        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+        "notes": doc.notes,
+        "tags": doc.tags,
+    }
 
 
 @router.get(

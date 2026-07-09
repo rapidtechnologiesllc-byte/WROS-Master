@@ -362,7 +362,8 @@ def candidate_education(request: CandidateEducationForm, db: Session = Depends(g
             year_of_passing=edu_record.year_of_passing,
             percentage=edu_record.percentage,
             submittedAt=edu_record.submitted_at,
-            document_is_submitted=edu_record.document_is_submitted
+            document_is_submitted=edu_record.document_is_submitted,
+            document_id=edu_record.document_id,
         )
         db.add(new_form)
         records_created += 1
@@ -421,7 +422,8 @@ def candidate_experience(request: CandidateExperienceForm, db: Session = Depends
             end_date=exp_record.end_date,
             year_of_experience=exp_record.year_of_experience,
             submittedAt=exp_record.submitted_at,
-            document_is_submitted=exp_record.document_is_submitted
+            document_is_submitted=exp_record.document_is_submitted,
+            document_id=exp_record.document_id,
         )
         db.add(new_form)
         records_created += 1
@@ -471,6 +473,7 @@ def candidate_aadhar(request: CandidateAadharForm, db: Session = Depends(get_db)
         existing_form.aadhar_is_submitted = request.aadhar_is_submitted
         existing_form.submittedAt = request.submitted_at
         existing_form.is_verified = request.is_verified
+        existing_form.document_id = request.document_id
         
         db.commit()
         db.refresh(existing_form)
@@ -488,7 +491,8 @@ def candidate_aadhar(request: CandidateAadharForm, db: Session = Depends(get_db)
             enrollment_number=request.enrollment_number,
             aadhar_is_submitted=request.aadhar_is_submitted,
             submittedAt=request.submitted_at,
-            is_verified=request.is_verified
+            is_verified=request.is_verified,
+            document_id=request.document_id,
         )
         
         db.add(new_form)
@@ -538,6 +542,7 @@ def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user
         existing_form.pan_is_submitted = request.pan_is_submitted
         existing_form.submittedAt = request.submitted_at
         existing_form.is_verified = request.is_verified
+        existing_form.document_id = request.document_id
         
         db.commit()
         db.refresh(existing_form)
@@ -555,7 +560,8 @@ def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user
             father_name_in_pan=request.father_name_in_pan,
             pan_is_submitted=request.pan_is_submitted,
             submittedAt=request.submitted_at,
-            is_verified=request.is_verified
+            is_verified=request.is_verified,
+            document_id=request.document_id,
         )
         
         db.add(new_form)
@@ -599,7 +605,8 @@ def add_education_record(
         year_of_passing=request.year_of_passing,
         percentage=request.percentage,
         submittedAt=request.submitted_at,
-        document_is_submitted=request.document_is_submitted
+        document_is_submitted=request.document_is_submitted,
+        document_id=request.document_id,
     )
     
     db.add(new_education)
@@ -654,6 +661,7 @@ def update_education_record(
     education_record.percentage = request.percentage
     education_record.submittedAt = request.submitted_at
     education_record.document_is_submitted = request.document_is_submitted
+    education_record.document_id = request.document_id
     
     db.commit()
     db.refresh(education_record)
@@ -732,6 +740,7 @@ def list_education_records(
                 "year_of_passing": edu.year_of_passing,
                 "percentage": edu.percentage,
                 "document_is_submitted": edu.document_is_submitted,
+                "document_id": edu.document_id,
                 "submitted_at": edu.submittedAt
             }
             for edu in education_records
@@ -765,7 +774,8 @@ def add_experience_record(
         end_date=request.end_date,
         year_of_experience=request.year_of_experience,
         submittedAt=request.submitted_at,
-        document_is_submitted=request.document_is_submitted
+        document_is_submitted=request.document_is_submitted,
+        document_id=request.document_id,
     )
     
     db.add(new_experience)
@@ -819,6 +829,7 @@ def update_experience_record(
     experience_record.year_of_experience = request.year_of_experience
     experience_record.submittedAt = request.submitted_at
     experience_record.document_is_submitted = request.document_is_submitted
+    experience_record.document_id = request.document_id
     
     db.commit()
     db.refresh(experience_record)
@@ -896,6 +907,7 @@ def list_experience_records(
                 "end_date": exp.end_date,
                 "year_of_experience": exp.year_of_experience,
                 "document_is_submitted": exp.document_is_submitted,
+                "document_id": exp.document_id,
                 "submitted_at": exp.submittedAt
             }
             for exp in experience_records

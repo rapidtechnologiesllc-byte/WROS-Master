@@ -7,6 +7,7 @@ class DocumentUploadResponse(BaseModel):
     """Response for document upload"""
     status: str
     message: str
+    document_id: int           # ID of the created CandidateDocument record
     document_type: str
     file_name: str
     sharepoint_url: Optional[str] = None
