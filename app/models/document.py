@@ -33,7 +33,7 @@ class CandidateDocument(Base):
     # Security and validation
     is_virus_scanned = Column(Boolean, default=False)
     virus_scan_result = Column(String(50), nullable=True)  # clean, infected, error
-    is_verified = Column(Boolean, default=False)  # HR verification status
+    is_verified = Column(String(20), default="Pending")  # HR verification status: Pending, Verified, Rejected
     verified_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     verified_at = Column(DateTime, nullable=True)
     
