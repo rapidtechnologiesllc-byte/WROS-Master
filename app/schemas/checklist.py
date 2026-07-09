@@ -113,10 +113,11 @@ class CandidateChecklistItemResponse(BaseModel):
     description: Optional[str]
     item_type: str           # 'todo' | 'queue'
     order_index: int
-    status: str              # 'pending' | 'active' | 'completed'
+    status: str              # 'pending' | 'active' | 'submitted' | 'completed'
     due_date: Optional[datetime]
     activated_at: Optional[datetime]
-    completed_at: Optional[datetime]
+    submitted_at: Optional[datetime]   # set when candidate marks done
+    completed_at: Optional[datetime]   # set when HR verifies
 
     class Config:
         from_attributes = True
@@ -140,6 +141,7 @@ class CandidateChecklistResponse(BaseModel):
     # Computed summary fields
     total_items: int = 0
     completed_items: int = 0
+    submitted_items: int = 0   # candidate submitted, awaiting HR verification
     todo_items: int = 0
     queue_items: int = 0
     active_queue_item: Optional[CandidateChecklistItemResponse] = None
