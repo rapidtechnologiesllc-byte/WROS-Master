@@ -130,13 +130,14 @@ class CandidateChecklistItem(Base):
     order_index = Column(Integer, nullable=False, default=0)
 
     # Status lifecycle:
-    #   todo  items:  'pending' → 'completed'
-    #   queue items:  'pending' → 'active' → 'completed'
+    #   todo  items:  'pending' → 'submitted' (candidate) → 'completed' (HR)
+    #   queue items:  'pending' → 'active' → 'submitted' (candidate) → 'completed' (HR)
     status = Column(String(20), nullable=False, default="pending")
 
     due_date = Column(DateTime(timezone=False), nullable=True)
     activated_at = Column(DateTime(timezone=False), nullable=True)
-    completed_at = Column(DateTime(timezone=False), nullable=True)
+    submitted_at = Column(DateTime(timezone=False), nullable=True)   # candidate marks done
+    completed_at = Column(DateTime(timezone=False), nullable=True)   # HR verifies & completes
 
     # Relationships
     checklist = relationship("CandidateChecklist", back_populates="items")
