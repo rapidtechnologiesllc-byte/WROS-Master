@@ -53,6 +53,7 @@ class CandidateCreateResponse(BaseModel):
 
 # GET candidate schemas
 class CandidateEducationResponse(BaseModel):
+    formID: int | None = None
     education_institute: str | None = None
     degree: str | None = None
     field_of_study: str | None = None
@@ -60,28 +61,35 @@ class CandidateEducationResponse(BaseModel):
     year_of_passing: str | None = None
     percentage: str | None = None
     document_is_submitted: bool | None = None
+    document_id: int | None = None   # linked CandidateDocument.id
 
 class CandidateExperienceResponse(BaseModel):
+    formID: int | None = None
     company_name: str | None = None
     job_title: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     year_of_experience: str | None = None
     document_is_submitted: bool | None = None
+    document_id: int | None = None   # linked CandidateDocument.id
 
 class CandidateAadharResponse(BaseModel):
+    formID: int | None = None
     aadhar: str | None = None
     name_in_aadhar: str | None = None
     enrollment_number: str | None = None
     aadhar_is_submitted: bool | None = None
     is_verified: bool | None = None
+    document_id: int | None = None   # linked CandidateDocument.id
 
 class CandidatePanResponse(BaseModel):
+    formID: int | None = None
     pan: str | None = None
     name_in_pan: str | None = None
     father_name_in_pan: str | None = None
     pan_is_submitted: bool | None = None
     is_verified: bool | None = None
+    document_id: int | None = None   # linked CandidateDocument.id
 
 class CandidateInfoResponse(BaseModel):
     position: str | None = None
@@ -189,6 +197,7 @@ class EducationRecord(BaseModel):
     percentage: str
     submitted_at: date
     document_is_submitted: bool | None = None
+    document_id: Optional[int] = None   # optional link to CandidateDocument.id
 
 # Bulk education submission request
 class CandidateEducationForm(BaseModel):
@@ -203,6 +212,7 @@ class ExperienceRecord(BaseModel):
     year_of_experience: str
     submitted_at: date
     document_is_submitted: bool | None = None
+    document_id: Optional[int] = None   # optional link to CandidateDocument.id
 
 # Bulk experience submission request
 class CandidateExperienceForm(BaseModel):
@@ -215,6 +225,7 @@ class CandidateAadharForm(BaseModel):
     aadhar_is_submitted: bool | None = None
     submitted_at: date
     is_verified: bool | None = None
+    document_id: Optional[int] = None   # optional link to CandidateDocument.id
 
 class CandidatePanForm(BaseModel):
     pan: str
@@ -222,7 +233,8 @@ class CandidatePanForm(BaseModel):
     father_name_in_pan: str
     pan_is_submitted: bool | None = None
     submitted_at: date
-    is_verified: bool | None = None   
+    is_verified: bool | None = None
+    document_id: Optional[int] = None   # optional link to CandidateDocument.id
 
 class candidateFormResponse(BaseModel):
     status: str = "Success"

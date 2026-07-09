@@ -30,10 +30,10 @@ class Jobs(Base):
     jobLocation = Column(String(50), nullable=False)
     salaryRange = Column(String(50), nullable=True)
     jobCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    companyType = Column(String(50), nullable=False)#full time, part time, contract, temporary, internship
-    companyName = Column(String(50), nullable=False)
+    companyType = Column(String(50), nullable=True)#full time, part time, contract, temporary, internship
+    companyName = Column(String(50), nullable=True)
     contactPerson = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    jobStatus = Column(String(50), nullable=False)
+    jobStatus = Column(String(50), nullable=True)
     noOfPositions = Column(Integer, nullable=True)
     startDate = Column(Date, nullable=True)
     endDate = Column(Date, nullable=True)
