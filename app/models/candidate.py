@@ -67,6 +67,8 @@ class CandidateEducationForm(Base):
     percentage = Column(String(10), nullable=True)
     submittedAt = Column(Date, nullable=True)
     document_is_submitted = Column(Boolean, nullable=True)
+    # Optional link to the uploaded document in candidate_documents
+    document_id = Column(Integer, ForeignKey("candidate_documents.id", ondelete="SET NULL"), nullable=True)
     formCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
@@ -82,6 +84,8 @@ class CandidateExperienceForm(Base):
     year_of_experience = Column(String(50), nullable=True)
     document_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
+    # Optional link to the uploaded document in candidate_documents
+    document_id = Column(Integer, ForeignKey("candidate_documents.id", ondelete="SET NULL"), nullable=True)
     formCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
@@ -96,6 +100,8 @@ class CandidateAadharForm(Base):
     aadhar_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
     is_verified = Column(Boolean, nullable=True)
+    # Optional link to the uploaded document in candidate_documents
+    document_id = Column(Integer, ForeignKey("candidate_documents.id", ondelete="SET NULL"), nullable=True)
     formCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
@@ -110,9 +116,11 @@ class CandidatePanForm(Base):
     pan_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
     is_verified = Column(Boolean, nullable=True)
+    # Optional link to the uploaded document in candidate_documents
+    document_id = Column(Integer, ForeignKey("candidate_documents.id", ondelete="SET NULL"), nullable=True)
     formCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
-    # candidate = relationship("Candidate")   
+    # candidate = relationship("Candidate")
 
 
 class CandidateStatus(Base):
