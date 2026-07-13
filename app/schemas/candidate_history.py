@@ -4,6 +4,8 @@ Candidate History Schemas
 Pydantic request / response models for the candidate history (timeline) API.
 """
 
+from app.models.user import Interview
+from docx import Document
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
@@ -21,6 +23,13 @@ VALID_EVENT_TYPES = {
     "Interview Scheduled",
     "Feedback Submitted",
     "Interview Completed",
+    "Interview Rescheduled",
+    "Interview Cancelled",
+    "Candidate No Show",
+    "Preonboarding Document Rejected",
+    "Candidate Archived",
+    "Candidate Restored",
+    "Offer Updated",
     "Preonboarding Approval",
     "Preonboarding",
     "Preonboarding document verifiy",

@@ -85,9 +85,23 @@ def create_candidate_history(
 
     **event_type** must be one of:
     - `Applied` — candidate applied for a job
+    - `Candidate Added` — candidate was added to the platform
+    - `Candidate Edited` — candidate profile details were edited
     - `Screening` — HR screened the candidate
+    - `Job Assigned` — candidate was assigned to a job
     - `Interview Scheduled` — interview has been scheduled
+    - `Feedback Submitted` — interviewer feedback was submitted
     - `Interview Completed` — interview was conducted
+    - `Interview Rescheduled` — interview was rescheduled
+    - `Interview Cancelled` — interview was cancelled
+    - `Candidate No Show` — candidate did not show up for the interview
+    - `Preonboarding Document Rejected` — a pre-onboarding document was rejected
+    - `Candidate Archived` — candidate was archived
+    - `Candidate Restored` — candidate was restored from archive
+    - `Offer Updated` — offer letter details were updated
+    - `Preonboarding Approval` — pre-onboarding approval event
+    - `Preonboarding` — general pre-onboarding action
+    - `Preonboarding document verifiy` — a pre-onboarding document was verified
     - `Offer Released` — offer letter was generated & sent
     - `Offer Accepted` — candidate accepted the offer
     - `Offer Rejected` — candidate rejected the offer
