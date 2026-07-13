@@ -148,13 +148,15 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
     
     education = [
         CandidateEducationResponse(
+            formID=edu.formID,
             education_institute=edu.education_institute,
             degree=edu.degree,
             field_of_study=edu.field_of_study,
             starting_year=edu.starting_year,
             year_of_passing=edu.year_of_passing,
             percentage=edu.percentage,
-            document_is_submitted=edu.document_is_submitted
+            document_is_submitted=edu.document_is_submitted,
+            document_id=edu.document_id
         )
         for edu in education_records
     ]
@@ -166,12 +168,14 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
     
     experience = [
         CandidateExperienceResponse(
+            formID=exp.formID,
             company_name=exp.company_name,
             job_title=exp.job_title,
             start_date=exp.start_date,
             end_date=exp.end_date,
             year_of_experience=exp.year_of_experience,
-            document_is_submitted=exp.document_is_submitted
+            document_is_submitted=exp.document_is_submitted,
+            document_id=exp.document_id
         )
         for exp in experience_records
     ]
@@ -184,11 +188,13 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
     aadhar = None
     if aadhar_form:
         aadhar = CandidateAadharResponse(
+            formID=aadhar_form.formID,
             aadhar=aadhar_form.aadhar,
             name_in_aadhar=aadhar_form.name_in_aadhar,
             enrollment_number=aadhar_form.enrollment_number,
             aadhar_is_submitted=aadhar_form.aadhar_is_submitted,
-            is_verified=aadhar_form.is_verified
+            is_verified=aadhar_form.is_verified,
+            document_id=aadhar_form.document_id
         )
     
     # Get PAN details
@@ -199,11 +205,13 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
     pan = None
     if pan_form:
         pan = CandidatePanResponse(
+            formID=pan_form.formID,
             pan=pan_form.pan,
             name_in_pan=pan_form.name_in_pan,
             father_name_in_pan=pan_form.father_name_in_pan,
             pan_is_submitted=pan_form.pan_is_submitted,
-            is_verified=pan_form.is_verified
+            is_verified=pan_form.is_verified,
+            document_id=pan_form.document_id
         )
     
     # Build and return complete response
