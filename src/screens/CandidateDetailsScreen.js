@@ -82,14 +82,7 @@ const timezoneOptions = [
   "Asia/Singapore",
 ];
 
-const meetingPlatformOptions = [
-  "Microsoft Teams",
-  "Google Meet",
-  "Zoom",
-  "Phone Call",
-  "In Person",
-  "Other",
-];
+const meetingPlatformOptions = ["Microsoft Teams", "Other"];
 
 const emailTemplateOptions = [
   "Online Interview",
@@ -476,13 +469,14 @@ export default function CandidateDetailsScreen({
 
   const recomputeDuration = (dateValue, startTimeValue, endTimeValue) => {
     if (!dateValue || !startTimeValue || !endTimeValue) return "";
-
     const start = new Date(`${dateValue}T${startTimeValue}`);
     const end = new Date(`${dateValue}T${endTimeValue}`);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
-    if (end <= start) return "";
-
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return "";
+    }
+    if (end.getTime() <= start.getTime()) {
+      end.setDate(end.getDate() + 1);
+    }
     const diffMinutes = Math.round(
       (end.getTime() - start.getTime()) / (60 * 1000),
     );
@@ -608,10 +602,27 @@ export default function CandidateDetailsScreen({
     ) {
       return { startDateTime: "", endDateTime: "" };
     }
+    const start = new Date(
+      `${scheduleForm.interviewDate}T${scheduleForm.startTime}`,
+    );
+    const end = new Date(
+      `${scheduleForm.interviewDate}T${scheduleForm.endTime}`,
+    );
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return { startDateTime: "", endDateTime: "" };
+    }
+    if (end.getTime() <= start.getTime()) {
+      end.setDate(end.getDate() + 1);
+    }
+    const endDate = [
+      end.getFullYear(),
+      String(end.getMonth() + 1).padStart(2, "0"),
+      String(end.getDate()).padStart(2, "0"),
+    ].join("-");
 
     return {
-      startDateTime: `${scheduleForm.interviewDate}T${scheduleForm.startTime}`,
-      endDateTime: `${scheduleForm.interviewDate}T${scheduleForm.endTime}`,
+      startDateTime: `${scheduleForm.interviewDate}T${scheduleForm.startTime}:00`,
+      endDateTime: `${endDate}T${scheduleForm.endTime}:00`,
     };
   }, [
     scheduleForm.interviewDate,
@@ -662,11 +673,6 @@ export default function CandidateDetailsScreen({
 
     if (!computedDateTime.startDateTime || !computedDateTime.endDateTime) {
       errors.startTime = "Please provide valid interview timing";
-    } else if (
-      new Date(computedDateTime.endDateTime) <=
-      new Date(computedDateTime.startDateTime)
-    ) {
-      errors.endTime = "End time must be after start time";
     }
 
     if (scheduleType === "faceToFace" && !scheduleForm.location.trim()) {

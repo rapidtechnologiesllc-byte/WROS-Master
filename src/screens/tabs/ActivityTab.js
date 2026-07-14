@@ -323,25 +323,21 @@ export default function ActivityTab({ candidateId }) {
       errors.status = "Status is required";
     }
 
-    const start = buildLocalDateTime(
-      rescheduleForm.interviewDate,
-      rescheduleForm.startTime,
+    const start = new Date(
+      `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}`,
     );
-    const end = buildLocalDateTime(
-      rescheduleForm.interviewDate,
-      rescheduleForm.endTime,
+    const end = new Date(
+      `${rescheduleForm.interviewDate}T${rescheduleForm.endTime}`,
     );
-
-    if (!start) {
-      errors.startTime = "Invalid start time";
+    if (
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      end.getTime() <= start.getTime()
+    ) {
+      end.setDate(end.getDate() + 1);
     }
-
-    if (!end) {
-      errors.endTime = "Invalid end time";
-    }
-
-    if (start && end && end <= start) {
-      errors.endTime = "End time must be after start time";
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      errors.startTime = "Please provide valid interview timing";
     }
 
     setRescheduleErrors(errors);
@@ -371,15 +367,28 @@ export default function ActivityTab({ candidateId }) {
         selectedInterviewIdForEdit,
         rescheduleForm?.reason,
       );
-      const updatedStart = buildLocalDateTime(
-        rescheduleForm.interviewDate,
-        rescheduleForm.startTime,
+      const start = new Date(
+        `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}`,
       );
-      const updatedEnd = buildLocalDateTime(
-        rescheduleForm.interviewDate,
-        rescheduleForm.endTime,
+      const end = new Date(
+        `${rescheduleForm.interviewDate}T${rescheduleForm.endTime}`,
       );
+      if (end.getTime() <= start.getTime()) {
+        end.setDate(end.getDate() + 1);
+      }
+      const updatedStart = `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}:00`;
 
+      if (end.getTime() <= start.getTime()) {
+        end.setDate(end.getDate() + 1);
+      }
+
+      const endDate = [
+        end.getFullYear(),
+        String(end.getMonth() + 1).padStart(2, "0"),
+        String(end.getDate()).padStart(2, "0"),
+      ].join("-");
+
+      const updatedEnd = `${endDate}T${rescheduleForm.endTime}:00`;
       const payload = {
         panel_id: selectedInterview.panel_id,
         candidate_id: selectedInterview.candidate_id,
