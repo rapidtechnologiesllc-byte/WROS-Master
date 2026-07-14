@@ -177,7 +177,6 @@ export default function CandidateDetailsScreen({
       setActiveTab("feedback");
       return;
     }
-
     setActiveTab(defaultTab || "profile");
   }, [defaultTab, limitedMode]);
 
@@ -196,13 +195,11 @@ export default function CandidateDetailsScreen({
         console.error("Failed to fetch candidate status", err);
       }
     };
-
     fetchStatus();
   }, [candidate?.id, updatedStatus, limitedMode]);
 
   useEffect(() => {
     if (limitedMode || !candidate?.id) return;
-
     const checkChecklist = async () => {
       try {
         const res = await getCandidateChecklists(candidate.id);
@@ -211,7 +208,6 @@ export default function CandidateDetailsScreen({
         console.error("Failed to check checklist", err);
       }
     };
-
     checkChecklist();
   }, [candidate?.id, limitedMode]);
 
@@ -233,7 +229,6 @@ export default function CandidateDetailsScreen({
 
   useEffect(() => {
     if (!showAssignModal) return;
-
     const fetchTemplates = async () => {
       try {
         setLoadingTemplates(true);
@@ -245,7 +240,6 @@ export default function CandidateDetailsScreen({
         setLoadingTemplates(false);
       }
     };
-
     fetchTemplates();
   }, [showAssignModal]);
 
@@ -258,11 +252,9 @@ export default function CandidateDetailsScreen({
         setShowScheduleMenu(false);
       }
     };
-
     if (showScheduleMenu) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -293,11 +285,9 @@ export default function CandidateDetailsScreen({
         setShowPanelMemberDropdown(false);
       }
     };
-
     if (showPanelMemberDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -305,12 +295,10 @@ export default function CandidateDetailsScreen({
 
   useEffect(() => {
     if (!showScheduleModal) return;
-
     const fetchUsers = async () => {
       try {
         setLoadingUsers(true);
         const res = await getAllUsers();
-
         const userList = Array.isArray(res)
           ? res
           : Array.isArray(res?.users)
@@ -320,7 +308,6 @@ export default function CandidateDetailsScreen({
               : Array.isArray(res?.data)
                 ? res.data
                 : [];
-
         setUsers(userList);
       } catch (err) {
         console.error("Failed to fetch users", err);
@@ -329,13 +316,11 @@ export default function CandidateDetailsScreen({
         setLoadingUsers(false);
       }
     };
-
     fetchUsers();
   }, [showScheduleModal]);
 
   const interviewerOptions = useMemo(() => {
     if (!Array.isArray(users)) return [];
-
     return users
       .filter((user) => user?.user_id)
       .map((user) => ({
@@ -352,7 +337,6 @@ export default function CandidateDetailsScreen({
 
   const filteredPanelMembers = useMemo(() => {
     if (!panelSearch.trim()) return interviewerOptions;
-
     return interviewerOptions.filter((member) =>
       member.label.toLowerCase().includes(panelSearch.toLowerCase()),
     );
@@ -374,11 +358,9 @@ export default function CandidateDetailsScreen({
   const showNotice = (message, type = "success", duration = 3000) => {
     setNotice(message);
     setNoticeType(type);
-
     if (noticeTimerRef.current) {
       clearTimeout(noticeTimerRef.current);
     }
-
     noticeTimerRef.current = setTimeout(() => {
       setNotice("");
     }, duration);
@@ -412,15 +394,12 @@ export default function CandidateDetailsScreen({
 
   const handleAssignChecklist = async () => {
     if (!selectedTemplate) return;
-
     try {
       setAssigning(true);
-
       await assignChecklistToCandidate({
         candidateId: candidate?.id,
         templateId: selectedTemplate,
       });
-
       showNotice("Checklist assigned successfully");
       setActiveTab("tasks");
       setIsChecklistAssigned(true);
@@ -438,32 +417,25 @@ export default function CandidateDetailsScreen({
   const buildTemplateValues = (templateName, type) => {
     const candidateName = candidate?.name || "Candidate";
     const jobTitle = candidate?.jobTitle || "Interview";
-
     if (templateName === "Face to Face Interview") {
       return getFaceToFaceInterviewEmailTemplate({ candidateName, jobTitle });
     }
-
     if (templateName === "Online Interview") {
       return getOnlineInterviewEmailTemplate({ candidateName, jobTitle });
     }
-
     if (type === "faceToFace") {
       return getFaceToFaceInterviewEmailTemplate({ candidateName, jobTitle });
     }
-
     return getOnlineInterviewEmailTemplate({ candidateName, jobTitle });
   };
 
   const recomputeEndTime = (dateValue, startTimeValue, durationValue) => {
     if (!dateValue || !startTimeValue || !durationValue) return "";
-
     const start = new Date(`${dateValue}T${startTimeValue}`);
     if (Number.isNaN(start.getTime())) return "";
-
     const end = new Date(start.getTime() + Number(durationValue) * 60 * 1000);
     const hours = String(end.getHours()).padStart(2, "0");
     const minutes = String(end.getMinutes()).padStart(2, "0");
-
     return `${hours}:${minutes}`;
   };
 
@@ -488,12 +460,10 @@ export default function CandidateDetailsScreen({
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, "0");
     const day = String(today.getDate()).padStart(2, "0");
-
     const defaultDate = `${year}-${month}-${day}`;
     const defaultTemplate =
       type === "online" ? "Online Interview" : "Face to Face Interview";
     const defaults = buildTemplateValues(defaultTemplate, type);
-
     setShowScheduleMenu(false);
     setScheduleType(type);
     setScheduleErrors({});
@@ -543,13 +513,11 @@ export default function CandidateDetailsScreen({
         ...prev,
         [field]: value,
       };
-
       if (field === "emailTemplate") {
         const templateValues = buildTemplateValues(value, scheduleType);
         updated.emailSubject = templateValues.subject;
         updated.emailBody = templateValues.body;
       }
-
       if (
         field === "interviewDate" ||
         field === "startTime" ||
@@ -561,7 +529,6 @@ export default function CandidateDetailsScreen({
           field === "durationMinutes" ? value : updated.durationMinutes,
         );
       }
-
       return updated;
     });
 
@@ -586,7 +553,6 @@ export default function CandidateDetailsScreen({
       }));
       return;
     }
-
     const updatedIds = isAlreadySelected
       ? currentIds.filter((id) => id !== memberId)
       : [...currentIds, memberId];
@@ -632,11 +598,9 @@ export default function CandidateDetailsScreen({
 
   const validateScheduleForm = () => {
     const errors = {};
-
     if (!scheduleForm.roundName.trim()) {
       errors.roundName = "Round name is required";
     }
-
     if (
       !Array.isArray(scheduleForm.interviewerIds) ||
       !scheduleForm.interviewerIds.length
@@ -650,39 +614,30 @@ export default function CandidateDetailsScreen({
     if (isMoreThanFourMembers) {
       errors.interviewerIds = "Maximum 4 panel members allowed";
     }
-
     if (!scheduleForm.interviewDate) {
       errors.interviewDate = "Interview date is required";
     }
-
     if (!scheduleForm.startTime) {
       errors.startTime = "Start time is required";
     }
-
     if (!scheduleForm.endTime) {
       errors.endTime = "End time is required";
     }
-
     if (!scheduleForm.durationMinutes) {
       errors.durationMinutes = "Duration is required";
     }
-
     if (!scheduleForm.timezone) {
       errors.timezone = "Timezone is required";
     }
-
     if (!computedDateTime.startDateTime || !computedDateTime.endDateTime) {
       errors.startTime = "Please provide valid interview timing";
     }
-
     if (scheduleType === "faceToFace" && !scheduleForm.location.trim()) {
       errors.location = "Location is required";
     }
-
     if (!scheduleForm.emailSubject.trim()) {
       errors.emailSubject = "Email subject is required";
     }
-
     if (!scheduleForm.emailBody.trim()) {
       errors.emailBody = "Email body is required";
     }
@@ -721,16 +676,13 @@ ${jobDescription}
       showNotice("Candidate details are missing", "error");
       return;
     }
-
     if (!validateScheduleForm()) {
       return;
     }
-
     if (!candidate?.email) {
       showNotice("Candidate email is missing", "error");
       return;
     }
-
     try {
       setScheduling(true);
       let selectedApplication = null;
@@ -743,18 +695,15 @@ ${jobDescription}
           (application) =>
             String(application?.job_id) === String(selectedJobId),
         ) ?? null;
-
       const panelRes = await createInterviewPanel({
         candidateId: candidate.id,
         roundName: scheduleForm.roundName.trim(),
         jobId: selectedApplication?.job_id,
       });
-
       const panelId = panelRes?.id;
       if (!panelId) {
         throw new Error("Panel created but panel ID was not returned");
       }
-
       await Promise.all(
         scheduleForm.interviewerIds.map((interviewerId) =>
           assignPanelMember({
@@ -809,7 +758,6 @@ ${jobDescription}
         }
         if (selectedApplication?.job_id) {
           const activeJobsRes = await getActiveJobs();
-
           const matchedJob =
             activeJobsRes?.jobs?.find?.(
               (job) =>
@@ -817,7 +765,6 @@ ${jobDescription}
             ) || null;
           jobDescription =
             matchedJob?.job_description || matchedJob?.description || "";
-
           if (jobDescription?.trim()) {
             formattedJD = renderToStaticMarkup(
               <ReactMarkdown>{jobDescription}</ReactMarkdown>,
@@ -979,7 +926,6 @@ ${formattedJD}
 
       return;
     }
-
     try {
       setSavingNote(true);
 
@@ -987,7 +933,6 @@ ${formattedJD}
         content: noteText?.trim(),
         category: "General",
       });
-
       const updatedNotes = await getCandidateNotes(candidate?.id);
       setNotes(updatedNotes?.notes || []);
       setNoteText("");
@@ -1031,7 +976,6 @@ ${formattedJD}
   const handlePreOnboardingAction = async (record, action) => {
     try {
       const res = await managerReviewApprove(record, action);
-
       if (res?.status === "success") {
         const updatedCandidate = res?.data;
         if (action === "Approve") {
@@ -1041,7 +985,6 @@ ${formattedJD}
             bodyContent: getEmailBodyHTML(candidate?.name),
             isHtml: false,
           });
-
           if (emailSend?.status === "success") {
             toast.success(
               `Candidate ${candidate?.name} approved for Pre-Onboarding`,
@@ -1096,11 +1039,9 @@ ${formattedJD}
                   <h2 className="text-lg font-semibold text-gray-900 truncate">
                     {fullName}
                   </h2>
-
                   {statusData?.status && (
                     <StatusBadge type="account" value={statusData.status} />
                   )}
-
                   {preonboardingModal && (
                     <PreonboardingModal
                       fullName={fullName}
@@ -1121,12 +1062,10 @@ ${formattedJD}
                       previousOffer={previousOffer}
                     />
                   ) : null}
-
                   {statusData?.pipeline_status && (
                     <StatusDropdown statusData={statusData} />
                   )}
                 </div>
-
                 <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-gray-500">
                   {candidate?.email ? (
                     <a
@@ -1138,7 +1077,6 @@ ${formattedJD}
                   ) : (
                     <span>-</span>
                   )}
-
                   {candidate?.phone ? (
                     <a
                       href={`tel:${candidate.phone}`}
@@ -1149,7 +1087,6 @@ ${formattedJD}
                   ) : (
                     <span>-</span>
                   )}
-
                   <span className="truncate">{candidate?.jobTitle || "-"}</span>
                 </div>
               </div>
@@ -1168,7 +1105,6 @@ ${formattedJD}
                   Show Previous Offers
                 </Button>
               ) : null}
-
               {currentRole === "HIRING MANAGER" &&
               candidate?.pipelineStatus == "Pre-onboarding-Approval" ? (
                 <AcceptButton
@@ -1178,7 +1114,6 @@ ${formattedJD}
                   {isApproved ? "Approved" : "Accept"}
                 </AcceptButton>
               ) : null}
-
               {(currentRole === "HR Manager" ||
                 currentRole === "HR Operations") &&
                 candidateDocCount?.total_documents > 0 &&
@@ -1226,7 +1161,6 @@ ${formattedJD}
                         >
                           Online Interview
                         </button>
-
                         <button
                           type="button"
                           className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
@@ -1244,27 +1178,22 @@ ${formattedJD}
                     title="Send Email"
                     onClick={() => {
                       const email = candidate?.email?.trim();
-
                       if (!email) {
                         showNotice("Candidate email is not available", "error");
                         return;
                       }
-
                       const subject = encodeURIComponent(
                         "Regarding your application",
                       );
                       const body = encodeURIComponent(`Hi ${fullName},\n\n`);
                       const to = encodeURIComponent(email);
-
                       const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
                       const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
-
                       const openedWindow = window.open(
                         gmailUrl,
                         "_blank",
                         "noopener,noreferrer",
                       );
-
                       if (!openedWindow) {
                         window.location.href = mailtoUrl;
                       }
@@ -1272,7 +1201,6 @@ ${formattedJD}
                   >
                     <Mail className="w-5 h-5 text-gray-600" />
                   </button>
-
                   <button
                     type="button"
                     className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1280,21 +1208,17 @@ ${formattedJD}
                     disabled={!candidate?.phone}
                     onClick={() => {
                       if (!candidate?.phone) return;
-
                       const cleanedPhone = candidate.phone.replace(/\D/g, "");
-
                       if (!cleanedPhone) {
                         showNotice("Invalid phone number", "error");
                         return;
                       }
-
                       window.open(`https://wa.me/${cleanedPhone}`, "_blank");
                     }}
                   >
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </button>
                   <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
-
                   <Button
                     disabled={isChecklistAssigned}
                     onClick={() => setShowAssignModal(true)}
@@ -1374,11 +1298,9 @@ ${formattedJD}
             {activeTab === "tasks" && !limitedMode && (
               <TasksTab candidateId={candidate?.id} />
             )}
-
             {activeTab === "messages" && !limitedMode && (
               <div className="text-gray-500">Messages Coming Soon</div>
             )}
-
             {activeTab === "interview" && !limitedMode && (
               <ActivityTab candidateId={candidate?.id} />
             )}
@@ -1414,7 +1336,6 @@ ${formattedJD}
                               : ""}
                           </span>
                         </div>
-
                         <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap break-words">
                           {note?.content || "-"}
                         </p>
@@ -1549,7 +1470,6 @@ ${formattedJD}
                         }
                         readOnly
                       />
-
                       <FormField
                         label="Candidate ID"
                         value={candidate?.id || ""}
@@ -1567,14 +1487,12 @@ ${formattedJD}
                             ? "Loading jobs..."
                             : "Select Job"}
                         </option>
-
                         {candidateJobs?.map((job) => (
                           <option key={job?.job_id} value={job?.job_id}>
                             {job?.job_title ?? `Job ${job?.job_id}`}
                           </option>
                         ))}
                       </SelectField>
-
                       <SelectField
                         label="Round Name"
                         value={scheduleForm.roundName || ""}
@@ -1599,7 +1517,6 @@ ${formattedJD}
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           Panel Members
                         </label>
-
                         <button
                           type="button"
                           onClick={() =>
@@ -1623,7 +1540,6 @@ ${formattedJD}
                               ? "Loading panel members..."
                               : "Select panel members"}
                         </button>
-
                         {showPanelMemberDropdown && !loadingUsers && (
                           <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-lg max-h-72 overflow-auto p-2">
                             <div className="px-2 pb-2">
@@ -1635,7 +1551,6 @@ ${formattedJD}
                                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400"
                               />
                             </div>
-
                             {filteredPanelMembers.length > 0 ? (
                               filteredPanelMembers.map((option) => {
                                 const isChecked =
@@ -1675,7 +1590,6 @@ ${formattedJD}
                             <div className="text-sm font-medium text-gray-700 mb-2">
                               Selected Panel Members
                             </div>
-
                             <div className="flex flex-wrap gap-2">
                               {selectedPanelMembers.map((member) => (
                                 <div
@@ -1704,7 +1618,6 @@ ${formattedJD}
                           </p>
                         ) : null}
                       </div>
-
                       <FormField
                         label="Interview Date"
                         type="date"
@@ -1717,7 +1630,6 @@ ${formattedJD}
                         }
                         error={scheduleErrors.interviewDate}
                       />
-
                       <SelectField
                         label="Meeting Platform"
                         value={scheduleForm.meetingPlatform}
@@ -1749,7 +1661,6 @@ ${formattedJD}
                           </option>
                         ))}
                       </SelectField>
-
                       <SelectField
                         label="Duration"
                         value={scheduleForm.durationMinutes}
@@ -1767,7 +1678,6 @@ ${formattedJD}
                           </option>
                         ))}
                       </SelectField>
-
                       <FormField
                         label="Start Time"
                         type="time"
@@ -1777,7 +1687,6 @@ ${formattedJD}
                         }
                         error={scheduleErrors.startTime}
                       />
-
                       <FormField
                         label="End Time"
                         type="time"
@@ -1786,7 +1695,6 @@ ${formattedJD}
                         error={scheduleErrors.endTime}
                       />
                     </div>
-
                     {scheduleType === "faceToFace" && (
                       <div className="mt-5">
                         <FormField
@@ -1804,7 +1712,6 @@ ${formattedJD}
                       </div>
                     )}
                   </CardBlock>
-
                   <CardBlock
                     title="Notes"
                     subtitle="Optional notes for current phase."
@@ -1855,7 +1762,6 @@ function CardBlock({ title, subtitle, children }) {
     </div>
   );
 }
-
 function Info({ label, value }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
@@ -1868,21 +1774,17 @@ function Info({ label, value }) {
     </div>
   );
 }
-
 function StatusBadge({ type, value }) {
   let styles = "bg-gray-100 text-gray-600";
-
   if (type === "account") {
     if (value === "Active") styles = "bg-green-100 text-green-700";
     if (value === "Inactive") styles = "bg-red-100 text-red-700";
   }
-
   if (type === "pipeline") {
     if (value === "Applied") styles = "bg-blue-100 text-blue-700";
     if (value === "Interview") styles = "bg-purple-100 text-purple-700";
     if (value === "Hired") styles = "bg-green-200 text-green-800";
   }
-
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles}`}>
       {value}
@@ -1986,7 +1888,6 @@ function TextAreaField({
     </div>
   );
 }
-
 function formatDurationLabel(value) {
   const map = {
     30: "30 min",
@@ -1995,6 +1896,5 @@ function formatDurationLabel(value) {
     90: "1.5 hour",
     120: "2 hour",
   };
-
   return map[value] || `${value} min`;
 }

@@ -11,7 +11,6 @@ export const formatApiErrorMessage = (payload) => {
   }
   const rawDetail = payload.detail;
   const rawMessage = payload.message;
-
   const formatDetail = (detail) => {
     if (detail == null) return "";
     if (typeof detail === "string") return detail;
