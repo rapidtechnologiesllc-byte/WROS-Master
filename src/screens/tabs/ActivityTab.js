@@ -18,13 +18,11 @@ export default function ActivityTab({ candidateId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [panelMembersMap, setPanelMembersMap] = useState({});
-
   const [selectedInterviewId, setSelectedInterviewId] = useState(null);
   const [selectedInterviewDetails, setSelectedInterviewDetails] =
     useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
-
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [selectedInterviewIdForEdit, setSelectedInterviewIdForEdit] =
@@ -41,7 +39,6 @@ export default function ActivityTab({ candidateId }) {
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleNotice, setRescheduleNotice] = useState("");
   const [rescheduleNoticeType, setRescheduleNoticeType] = useState("success");
-
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedInterviewForCancel, setSelectedInterviewForCancel] =
     useState(null);
@@ -50,14 +47,11 @@ export default function ActivityTab({ candidateId }) {
   const [cancelNoticeType, setCancelNoticeType] = useState("success");
   const fetchInterviewHistory = useCallback(async () => {
     if (!candidateId) return;
-
     try {
       setLoading(true);
       setError("");
       setPanelMembersMap({});
-
       const res = await getCandidateInterviewHistory(candidateId);
-
       const list = Array.isArray(res)
         ? res
         : Array.isArray(res?.interviews)
@@ -65,13 +59,11 @@ export default function ActivityTab({ candidateId }) {
           : Array.isArray(res?.data)
             ? res.data
             : [];
-
       const sorted = [...list].sort((a, b) => {
         const aTime = new Date(a?.start_time || 0).getTime();
         const bTime = new Date(b?.start_time || 0).getTime();
         return bTime - aTime;
       });
-
       setHistorySummary(
         Array.isArray(res)
           ? {
@@ -92,7 +84,6 @@ export default function ActivityTab({ candidateId }) {
             }
           : res,
       );
-
       setInterviews(sorted);
     } catch (err) {
       console.error("Failed to fetch candidate interview history", err);
@@ -108,19 +99,15 @@ export default function ActivityTab({ candidateId }) {
 
   useEffect(() => {
     if (!interviews.length) return;
-
     let isMounted = true;
-
     const fetchPanelMembersForInterviews = async () => {
       try {
         const uniquePanelIds = [
           ...new Set(interviews.map((item) => item?.panel_id).filter(Boolean)),
         ];
-
         const results = await Promise.all(
           uniquePanelIds.map(async (panelId) => {
             const res = await getPanelMembers(panelId);
-
             const members = Array.isArray(res)
               ? res
               : Array.isArray(res?.members)
@@ -128,26 +115,20 @@ export default function ActivityTab({ candidateId }) {
                 : Array.isArray(res?.panel_members)
                   ? res.panel_members
                   : [];
-
             return { panelId, members };
           }),
         );
-
         if (!isMounted) return;
-
         const nextMap = {};
         results.forEach(({ panelId, members }) => {
           nextMap[panelId] = members;
         });
-
         setPanelMembersMap(nextMap);
       } catch (err) {
         console.error("Failed to fetch panel members", err);
       }
     };
-
     fetchPanelMembersForInterviews();
-
     return () => {
       isMounted = false;
     };
@@ -155,17 +136,13 @@ export default function ActivityTab({ candidateId }) {
 
   useEffect(() => {
     if (!selectedInterviewId) return;
-
     let isMounted = true;
-
     const fetchInterviewDetails = async () => {
       try {
         setDetailsLoading(true);
         setDetailsError("");
         setSelectedInterviewDetails(null);
-
         const res = await getInterviewById(selectedInterviewId);
-
         if (!isMounted) return;
         setSelectedInterviewDetails(res);
       } catch (err) {
@@ -178,9 +155,7 @@ export default function ActivityTab({ candidateId }) {
         }
       }
     };
-
     fetchInterviewDetails();
-
     return () => {
       isMounted = false;
     };
@@ -188,12 +163,10 @@ export default function ActivityTab({ candidateId }) {
   useEffect(() => {
     if (!showRescheduleModal) return;
     if (!rescheduleForm.startTime || !rescheduleForm.durationMinutes) return;
-
     const calculatedEndTime = addMinutesToTime(
       rescheduleForm.startTime,
       Number(rescheduleForm.durationMinutes),
     );
-
     setRescheduleForm((prev) => {
       if (prev.endTime === calculatedEndTime) return prev;
       return {
@@ -211,7 +184,6 @@ export default function ActivityTab({ candidateId }) {
     const upcoming = [];
     const past = [];
     const now = Date.now();
-
     interviews.forEach((interview) => {
       const start = new Date(interview?.start_time || 0).getTime();
       if (start >= now) {
@@ -220,7 +192,6 @@ export default function ActivityTab({ candidateId }) {
         past.push(interview);
       }
     });
-
     return { upcoming, past };
   }, [interviews]);
 
@@ -238,7 +209,6 @@ export default function ActivityTab({ candidateId }) {
   const openRescheduleModal = (interview) => {
     const start = safeDate(interview?.start_time);
     const end = safeDate(interview?.end_time);
-
     setSelectedInterview(interview);
     setSelectedInterviewIdForEdit(interview?.id ?? null);
     setRescheduleErrors({});
@@ -259,7 +229,6 @@ export default function ActivityTab({ candidateId }) {
 
   const closeRescheduleModal = () => {
     if (rescheduling) return;
-
     setShowRescheduleModal(false);
     setSelectedInterview(null);
     setSelectedInterviewIdForEdit(null);
@@ -281,7 +250,6 @@ export default function ActivityTab({ candidateId }) {
         ...prev,
         [field]: value,
       };
-
       if (
         field === "interviewDate" ||
         field === "startTime" ||
@@ -292,7 +260,6 @@ export default function ActivityTab({ candidateId }) {
           Number(field === "durationMinutes" ? value : updated.durationMinutes),
         );
       }
-
       return updated;
     });
 
@@ -306,44 +273,34 @@ export default function ActivityTab({ candidateId }) {
 
   const validateRescheduleForm = () => {
     const errors = {};
-
     if (!rescheduleForm.interviewDate) {
       errors.interviewDate = "Interview date is required";
     }
-
     if (!rescheduleForm.startTime) {
       errors.startTime = "Start time is required";
     }
-
     if (!rescheduleForm.endTime) {
       errors.endTime = "End time is required";
     }
-
     if (!rescheduleForm.status) {
       errors.status = "Status is required";
     }
-
-    const start = buildLocalDateTime(
-      rescheduleForm.interviewDate,
-      rescheduleForm.startTime,
+    const start = new Date(
+      `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}`,
     );
-    const end = buildLocalDateTime(
-      rescheduleForm.interviewDate,
-      rescheduleForm.endTime,
+    const end = new Date(
+      `${rescheduleForm.interviewDate}T${rescheduleForm.endTime}`,
     );
-
-    if (!start) {
-      errors.startTime = "Invalid start time";
+    if (
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      end.getTime() <= start.getTime()
+    ) {
+      end.setDate(end.getDate() + 1);
     }
-
-    if (!end) {
-      errors.endTime = "Invalid end time";
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      errors.startTime = "Please provide valid interview timing";
     }
-
-    if (start && end && end <= start) {
-      errors.endTime = "End time must be after start time";
-    }
-
     setRescheduleErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -354,15 +311,12 @@ export default function ActivityTab({ candidateId }) {
       setRescheduleNoticeType("error");
       return;
     }
-
     if (!selectedInterview?.panel_id || !selectedInterview?.candidate_id) {
       setRescheduleNotice("Interview data is incomplete");
       setRescheduleNoticeType("error");
       return;
     }
-
     if (!validateRescheduleForm()) return;
-
     try {
       setRescheduling(true);
       setRescheduleNotice("");
@@ -371,15 +325,23 @@ export default function ActivityTab({ candidateId }) {
         selectedInterviewIdForEdit,
         rescheduleForm?.reason,
       );
-      const updatedStart = buildLocalDateTime(
-        rescheduleForm.interviewDate,
-        rescheduleForm.startTime,
+      const start = new Date(
+        `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}`,
       );
-      const updatedEnd = buildLocalDateTime(
-        rescheduleForm.interviewDate,
-        rescheduleForm.endTime,
+      const end = new Date(
+        `${rescheduleForm.interviewDate}T${rescheduleForm.endTime}`,
       );
+      if (end.getTime() <= start.getTime()) {
+        end.setDate(end.getDate() + 1);
+      }
+      const updatedStart = `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}:00`;
+      const endDate = [
+        end.getFullYear(),
+        String(end.getMonth() + 1).padStart(2, "0"),
+        String(end.getDate()).padStart(2, "0"),
+      ].join("-");
 
+      const updatedEnd = `${endDate}T${rescheduleForm.endTime}:00`;
       const payload = {
         panel_id: selectedInterview.panel_id,
         candidate_id: selectedInterview.candidate_id,
@@ -436,7 +398,6 @@ export default function ActivityTab({ candidateId }) {
       setCancelNoticeType("error");
       return;
     }
-
     try {
       setCancelling(true);
       setCancelNotice("");
@@ -477,7 +438,6 @@ export default function ActivityTab({ candidateId }) {
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="space-y-4">
@@ -491,7 +451,6 @@ export default function ActivityTab({ candidateId }) {
       </div>
     );
   }
-
   if (!interviews.length) {
     return (
       <div className="space-y-4">
@@ -503,7 +462,6 @@ export default function ActivityTab({ candidateId }) {
       </div>
     );
   }
-
   return (
     <>
       <div className="space-y-8">
@@ -679,33 +637,28 @@ function InterviewCard({
               <span className="font-medium text-gray-800">Date:</span>
               <span>{dateLabel}</span>
             </div>
-
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-800">Time:</span>
               <span>
                 {startLabel} - {endLabel}
               </span>
             </div>
-
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-800">Duration:</span>
               <span>
                 {calculateDuration(interview?.start_time, interview?.end_time)}
               </span>
             </div>
-
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-800">Mode:</span>
               <span>{isOnline ? "Online Interview" : "Offline / TBD"}</span>
             </div>
-
             {interview?.feedback_count != null && (
               <div className="flex items-center gap-2">
                 <span className="font-medium text-gray-800">Feedback:</span>
                 <span>{interview.feedback_count}</span>
               </div>
             )}
-
             {interview?.panel_id != null && (
               <div className="flex items-center gap-2">
                 <span className="font-medium text-gray-800">Panel ID:</span>
@@ -713,7 +666,6 @@ function InterviewCard({
               </div>
             )}
           </div>
-
           <PanelMembers members={panelMembers} />
         </div>
 
@@ -733,7 +685,6 @@ function InterviewCard({
           >
             Reschedule
           </button>
-
           <button
             type="button"
             onClick={onCancel}
@@ -741,7 +692,6 @@ function InterviewCard({
           >
             Cancel
           </button>
-
           {meetingLink ? (
             <a
               href={meetingLink}
@@ -786,7 +736,6 @@ function PanelMembers({ members }) {
             member?.user_name ||
             member?.name ||
             `Member ${index + 1}`;
-
           return (
             <span
               key={member?.id || member?.interviewer_id || `${label}-${index}`}
@@ -840,13 +789,11 @@ function InterviewDetailsModal({
               <SkeletonCard />
             </div>
           )}
-
           {!loading && error && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
-
           {!loading && !error && interview && (
             <div className="space-y-6">
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -856,7 +803,6 @@ function InterviewDetailsModal({
                   </h4>
                   <StatusBadge value={interview?.status || "Scheduled"} />
                 </div>
-
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   <DetailRow label="Interview ID" value={interview?.id} />
                   <DetailRow label="Panel ID" value={interview?.panel_id} />
@@ -899,12 +845,10 @@ function InterviewDetailsModal({
                 </div>
                 <PanelMembers members={panelMembers} />
               </div>
-
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
                 <div className="text-sm font-semibold text-gray-900">
                   Meeting Information
                 </div>
-
                 <DetailRow
                   label="Meeting Link"
                   value={
@@ -922,7 +866,6 @@ function InterviewDetailsModal({
                     )
                   }
                 />
-
                 <DetailRow
                   label="Outlook Event ID"
                   value={interview?.outlook_event_id || "Not available"}
@@ -931,7 +874,6 @@ function InterviewDetailsModal({
             </div>
           )}
         </div>
-
         <div className="border-t bg-white px-6 py-4 flex justify-end">
           <button
             type="button"
@@ -1001,7 +943,6 @@ function RescheduleModal({
               label="Round Name"
               value={interview?.panel_round_name || "-"}
             />
-
             <FormField
               label="Interview Date"
               type="date"
@@ -1009,9 +950,7 @@ function RescheduleModal({
               onChange={(e) => onChange("interviewDate", e.target.value)}
               error={errors.interviewDate}
             />
-
             <ReadOnlyField label="Status" value={form.status || "-"} />
-
             <SelectField
               label="Duration"
               value={form.durationMinutes}
@@ -1031,7 +970,6 @@ function RescheduleModal({
               onChange={(e) => onChange("startTime", e.target.value)}
               error={errors.startTime}
             />
-
             <FormField
               label="End Time"
               type="time"
@@ -1039,7 +977,6 @@ function RescheduleModal({
               readOnly
               error={errors.endTime}
             />
-
             <FormField
               label="Add reason"
               type="textarea"
@@ -1059,7 +996,6 @@ function RescheduleModal({
           >
             Close
           </button>
-
           <button
             type="button"
             onClick={onSubmit}
@@ -1094,7 +1030,6 @@ function CancelInterviewModal({
               This will remove the interview from the current interview flow.
             </p>
           </div>
-
           <button
             type="button"
             onClick={onClose}
@@ -1104,7 +1039,6 @@ function CancelInterviewModal({
             ×
           </button>
         </div>
-
         <div className="px-6 py-6 space-y-5">
           {notice && (
             <div
@@ -1117,12 +1051,10 @@ function CancelInterviewModal({
               {notice}
             </div>
           )}
-
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
             <div className="text-sm text-gray-700">
               Are you sure you want to cancel this interview?
             </div>
-
             <div className="mt-4 grid gap-3">
               <DetailRow label="Interview ID" value={interview?.id || "-"} />
               <DetailRow
@@ -1152,7 +1084,6 @@ function CancelInterviewModal({
           >
             Close
           </button>
-
           <button
             type="button"
             onClick={onConfirm}
@@ -1235,9 +1166,7 @@ function ReadOnlyField({ label, value }) {
 
 function StatusBadge({ value }) {
   const normalized = String(value || "").toLowerCase();
-
   let styles = "bg-gray-100 text-gray-700 border-gray-200";
-
   if (normalized.includes("scheduled")) {
     styles = "bg-blue-50 text-blue-700 border-blue-200";
   } else if (normalized.includes("completed")) {
@@ -1247,7 +1176,6 @@ function StatusBadge({ value }) {
   } else if (normalized.includes("resched")) {
     styles = "bg-amber-50 text-amber-700 border-amber-200";
   }
-
   return (
     <span
       className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${styles}`}
@@ -1351,25 +1279,19 @@ function formatTimeInput(date) {
 }
 function addMinutesToTime(timeValue, minutesToAdd) {
   if (!timeValue || !Number.isFinite(Number(minutesToAdd))) return "";
-
   const [hours, minutes] = String(timeValue).split(":").map(Number);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return "";
-
   const totalMinutes = hours * 60 + minutes + Number(minutesToAdd);
   const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
-
   const nextHours = Math.floor(normalizedMinutes / 60);
   const nextMinutes = normalizedMinutes % 60;
-
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
 function getDurationMinutes(startValue, endValue) {
   const start = safeDate(startValue);
   const end = safeDate(endValue);
-
   if (!start || !end) return "60";
-
   const diff = Math.round((end.getTime() - start.getTime()) / 60000);
   return String(diff > 0 ? diff : 60);
 }
@@ -1387,17 +1309,13 @@ function formatDurationLabel(value) {
 }
 function calculateDuration(start, end) {
   if (!start || !end) return "-";
-
   const s = new Date(start);
   const e = new Date(end);
-
   const diff = Math.round((e - s) / 60000);
-
   if (diff === 30) return "30 min";
   if (diff === 45) return "45 min";
   if (diff === 60) return "1 hour";
   if (diff === 90) return "1.5 hour";
   if (diff === 120) return "2 hour";
-
   return `${diff} min`;
 }

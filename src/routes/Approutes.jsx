@@ -63,6 +63,7 @@ import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
 import { ROUTES } from "../utils/Routes";
+import OfferLettersScreen from "../screens/OfferLettersScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -400,7 +401,16 @@ export default function AppRoutes() {
         <Routes>
           <Route
             path="/"
-            element={<Shell role={storedRole} onLogout={handleLogout} />}
+            element={
+              <Shell
+                role={storedRole}
+                onLogout={handleLogout}
+                candidates={candidates}
+                jobs={jobs}
+                setSelectedCandidateData={setSelectedCandidateData}
+                setSelectedJobId={setSelectedJobId}
+              />
+            }
           >
             <Route index element={<MyWorkspace onLogout={handleLogout} />} />
 
@@ -713,6 +723,7 @@ export default function AppRoutes() {
               />
             }
           />
+          <Route path="/offers" element={<OfferLettersScreen />} />
           <Route path="hr-users" element={<HrUserManagement />} />
           <Route path="rbac" element={<RbacSettingsScreen />} />
         </Route>
