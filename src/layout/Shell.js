@@ -72,6 +72,7 @@ export default function Shell({
           label: "HR Users",
           icon: Users,
         },
+        { path: ROUTES.OFFERS, label: "Offer Letters", icon: FileTextIcon },
       ];
     }
     if (isAdmin) {

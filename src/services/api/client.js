@@ -1,9 +1,6 @@
 // Shared API client helpers (base URL + auth headers).
 const API_BASE_URL =
-  //process.env.REACT_APP_API_BASE_URL || "http://46.224.149.7:8080";
   process.env.REACT_APP_API_BASE_URL || "https://hrms-backend.blitzenx.com";
-  //process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
-
 
 export const getApiBaseUrl = () => API_BASE_URL;
 
@@ -14,7 +11,6 @@ export const formatApiErrorMessage = (payload) => {
   }
   const rawDetail = payload.detail;
   const rawMessage = payload.message;
-
   const formatDetail = (detail) => {
     if (detail == null) return "";
     if (typeof detail === "string") return detail;
@@ -115,7 +111,10 @@ export const apiRequest = async (path, options = {}) => {
     if (allow404 && response.status === 404) {
       return { data: null, response };
     }
-    if (Array.isArray(allowStatuses) && allowStatuses.includes(response.status)) {
+    if (
+      Array.isArray(allowStatuses) &&
+      allowStatuses.includes(response.status)
+    ) {
       return { data: null, response };
     }
     // Expired or invalid JWT: redirect to login instead of surfacing "Invalid token" in the UI.
