@@ -155,6 +155,9 @@ def require_permission(permission: str):
             )
         return user
 
+    # HRMS-0114 — marks this closure as a permission declaration so
+    # app.core.route_security_audit can find it on a route at startup.
+    _check.__wros_permission__ = permission
     return _check
 
 
@@ -196,4 +199,6 @@ def require_attribute(attribute: str, expected: bool = True):
             )
         return user
 
+    # HRMS-0114 — see require_permission's matching comment above.
+    _check.__wros_attribute__ = attribute
     return _check
