@@ -4,6 +4,7 @@ Exports all models for easy importing.
 """
 
 from app.models.base import Base
+from app.models.tenant import Tenant
 from app.models.user import (
     Users,
     Jobs,
@@ -47,6 +48,8 @@ from app.models.candidate_ai import (
 __all__ = [
     # Base
     "Base",
+    # Tenant (HRMS-0109)
+    "Tenant",
     # User models
     "Users",
     "Jobs",

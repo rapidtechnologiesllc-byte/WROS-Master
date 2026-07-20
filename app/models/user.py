@@ -15,6 +15,11 @@ class Users(Base):
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
+    # HRMS-0109 — nullable for the same reason: existing rows get backfilled
+    # in a follow-up step, not broken by this migration. Every tenant-scoped
+    # query must filter on this column via app.core.tenant_context, never
+    # trust a tenant id supplied by the caller.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
