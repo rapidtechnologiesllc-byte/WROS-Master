@@ -5,6 +5,8 @@ Exports all models for easy importing.
 
 from app.models.base import Base
 from app.models.tenant import Tenant
+from app.models.audit_log import AuditLog
+from app.models.consent import ConsentRecord
 from app.models.user import (
     Users,
     Jobs,
@@ -50,6 +52,10 @@ __all__ = [
     "Base",
     # Tenant (HRMS-0109)
     "Tenant",
+    # Audit Log (HRMS-0110)
+    "AuditLog",
+    # Consent (Phase 1 B6)
+    "ConsentRecord",
     # User models
     "Users",
     "Jobs",
