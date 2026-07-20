@@ -18,16 +18,22 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     Validates tokens and attaches user information to request state.
     """
     
-    # Routes that don't require authentication
+    # Routes that don't require authentication. Kept in sync with the
+    # ACTUAL registered paths in app/api/v1/endpoints/ -- these had
+    # drifted (e.g. "/auth/v1/login" and "/auth/candidate/login" listed
+    # here didn't match any real route; login is now the single unified
+    # POST /auth/login). Found and fixed while building HRMS-0114's
+    # route-permission audit tool; verify against app.api.v1.routes
+    # again if endpoints move.
     PUBLIC_ROUTES = [
         "/",
+        "/health",
         "/docs",
         "/redoc",
         "/openapi.json",
         "/static",
         "/auth/v1/signup",
-        "/auth/v1/login",
-        "/auth/candidate/login",
+        "/auth/login",
         "/msgraph/auth/signin",
     ]
     
@@ -124,25 +130,35 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Internal authentication error"}
             )
     
+    # Routes eligible for prefix matching (e.g. "/static/logo.png" under
+    # "/static"). Deliberately excludes "/" -- see the bug this replaced:
+    # "/" is a valid PREFIX_ROUTE... no wait, "/" is only ever an exact
+    # match (below), never a prefix, because every path starts with "/"
+    # and a prefix match on it would make every route public.
+    PREFIX_ROUTES = ["/static", "/docs", "/redoc"]
+
     def _is_public_route(self, path: str) -> bool:
         """
         Check if the route is public and doesn't require authentication.
-        
+
         Args:
             path: Request path
-            
+
         Returns:
             True if route is public, False otherwise
         """
-        # Exact match
+        # Exact match against the full list (covers "/", "/docs", login
+        # endpoints, etc. -- these must NOT be prefix-matched, since "/"
+        # as a prefix would match every path in the app).
         if path in self.PUBLIC_ROUTES:
             return True
-        
-        # Prefix match for routes like /static/*
-        for public_route in self.PUBLIC_ROUTES:
-            if path.startswith(public_route):
+
+        # Prefix match only for routes explicitly meant to cover a
+        # subtree, like static assets.
+        for prefix in self.PREFIX_ROUTES:
+            if path.startswith(prefix):
                 return True
-        
+
         return False
 
 
