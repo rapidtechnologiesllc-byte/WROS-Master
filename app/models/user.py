@@ -46,6 +46,8 @@ class Jobs(Base):
     hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
+    # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
