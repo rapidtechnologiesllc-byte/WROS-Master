@@ -8,6 +8,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import os
 
+from app.core.log_redaction import RedactingFilter
+
 
 # Create logs directory if it doesn't exist
 LOGS_DIR = Path("logs")
@@ -17,31 +19,35 @@ LOGS_DIR.mkdir(exist_ok=True)
 LOG_RETENTION_DAYS = 7
 
 
-def cleanup_old_logs(retention_days: int = LOG_RETENTION_DAYS):
+def cleanup_old_logs(retention_days: int = LOG_RETENTION_DAYS, logger: "logging.Logger | None" = None):
     """
     Delete log files older than the specified retention period.
-    
+
     Args:
         retention_days: Number of days to keep log files
+        logger: logger to report through -- HRMS-0117 requires no raw
+            console logging anywhere, this function included. Falls back
+            to the module-level logger if none is passed.
     """
+    log = logger or logging.getLogger("onboarding_app")
     try:
         cutoff_date = datetime.now() - timedelta(days=retention_days)
         deleted_count = 0
-        
+
         for log_file in LOGS_DIR.glob("*.log"):
             # Get file modification time
             file_mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
-            
+
             if file_mtime < cutoff_date:
                 log_file.unlink()
                 deleted_count += 1
-                print(f"Deleted old log file: {log_file.name}")
-        
+                log.info(f"Deleted old log file: {log_file.name}")
+
         if deleted_count > 0:
-            print(f"✓ Cleaned up {deleted_count} old log file(s) older than {retention_days} days")
-        
+            log.info(f"Cleaned up {deleted_count} old log file(s) older than {retention_days} days")
+
     except Exception as e:
-        print(f"Warning: Error cleaning up old logs: {str(e)}")
+        log.warning(f"Error cleaning up old logs: {str(e)}")
 
 
 class ColoredFormatter(logging.Formatter):
@@ -80,16 +86,19 @@ def setup_logging(
     Returns:
         Configured logger instance
     """
-    # Cleanup old log files on startup
-    cleanup_old_logs()
-    
     # Create logger
     logger = logging.getLogger("onboarding_app")
     logger.setLevel(getattr(logging, level.upper()))
-    
+
     # Clear existing handlers
     logger.handlers.clear()
-    
+
+    # HRMS-0117 / B1 -- redact known secret patterns before any record
+    # reaches a handler. Filter lives on the logger itself so it applies
+    # no matter which handlers get added below (or later).
+    logger.filters.clear()
+    logger.addFilter(RedactingFilter())
+
     # Create formatters
     file_formatter = logging.Formatter(
         fmt='%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s',
@@ -122,7 +131,11 @@ def setup_logging(
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(file_formatter)
         logger.addHandler(error_handler)
-    
+
+    # Cleanup old log files -- now that the logger has handlers, so this
+    # itself goes through the structured/redacted path instead of print().
+    cleanup_old_logs(logger=logger)
+
     return logger
 
 
