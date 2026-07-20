@@ -31,6 +31,10 @@ class Candidate(Base):
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
+    # HRMS-0109 — nullable for the same reason as Users.tenant_id: existing rows
+    # get backfilled in a follow-up step. Scope every candidate query through
+    # app.core.tenant_context, never filter on this column by hand.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
