@@ -35,6 +35,12 @@ class Users(Base):
     # BlitzenX's primary timezone, same default already hardcoded for
     # interview reminders in app/api/v1/endpoints/interviews.py.
     timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata", default="Asia/Kolkata")
+    # Per-staff WhatsApp Business number for candidate-facing conversations
+    # (extends HRMS-0410's owner_type/owner_id ownership model -- see
+    # app.services.whatsapp_routing_service). Nullable: not every staff
+    # member has one registered; conversations they own fall back to the
+    # tenant's shared/Thunder number. E.164 format (e.g. "+14155550100").
+    whatsapp_number = Column(String(20), nullable=True, unique=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
