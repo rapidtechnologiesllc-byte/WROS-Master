@@ -21,6 +21,11 @@ class Candidate(Base):
     candidateLastName = Column(String(150), nullable=True)
     candidateEmail = Column(String(200), unique=True, nullable=False, index=True)
     candidateMobile = Column(String(20), nullable=True)
+    # R-07 -- the Dev Review Standard's own example of the dedup gap:
+    # "missing phone/LinkedIn" matching. See app.services.candidate_service
+    # .create_candidate_safe() -- this field lets LinkedIn dedup run for
+    # the first time in this codebase.
+    linkedin_url = Column(String(500), nullable=True)
     candidateGender = Column(String(10), nullable=True)
     candidateDateOfBirth = Column(Date, nullable=True)
     candidateSource = Column(String(50), nullable=True)
