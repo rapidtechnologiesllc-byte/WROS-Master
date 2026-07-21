@@ -8,6 +8,24 @@ from app.models.user import Users
 from app.models.candidate import Candidate
 
 
+def _reject_if_mfa_pending(payload: dict) -> None:
+    """
+    Phase 1 B3 -- a token issued mid-MFA-challenge (mfa_pending: true)
+    must never work as a normal access token anywhere else. Without
+    this check, the MFA gate in the login endpoint would be
+    decorative: a caller could take the "pending" token and use it on
+    any other route exactly like a real one, since every dependency
+    below only checks `type`/`sub`, not this claim. Call this
+    immediately after decode_access_token() in every dependency that
+    resolves a user from a token.
+    """
+    if payload.get("mfa_pending"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="MFA verification required before this token can be used",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Base user resolution
 # ---------------------------------------------------------------------------
@@ -21,6 +39,7 @@ async def get_current_user(
     """
     token = credentials.credentials
     payload = decode_access_token(token)
+    _reject_if_mfa_pending(payload)
 
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type", "candidate")
@@ -48,6 +67,7 @@ async def get_current_candidate(
     """
     token = credentials.credentials
     payload = decode_access_token(token)
+    _reject_if_mfa_pending(payload)
 
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type")
@@ -72,6 +92,7 @@ async def get_current_hr_or_admin(
     """
     token = credentials.credentials
     payload = decode_access_token(token)
+    _reject_if_mfa_pending(payload)
 
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type", "").lower()
@@ -97,6 +118,7 @@ async def get_current_internal_user(
     """
     token = credentials.credentials
     payload = decode_access_token(token)
+    _reject_if_mfa_pending(payload)
 
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type", "").lower()
@@ -108,6 +130,31 @@ async def get_current_internal_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+    return user
+
+
+async def get_current_mfa_pending_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> Users:
+    """
+    The inverse of _reject_if_mfa_pending: ONLY accepts a token with
+    mfa_pending=true, resolved to the Users row it names. Used
+    exclusively by the MFA setup/verify endpoints -- a normal full
+    access token must not work here either, so a user can't skip
+    straight to "verify" without having actually gone through login's
+    password check first in the current session.
+    """
+    token = credentials.credentials
+    payload = decode_access_token(token)
+
+    if not payload.get("mfa_pending"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not an MFA-pending session")
+
+    user_email: str = payload.get("sub", "")
+    user = db.query(Users).filter(Users.UserEmail == user_email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
 
 
@@ -123,6 +170,7 @@ get_current_user.__wros_authn__ = "any_authenticated_user_or_candidate"
 get_current_candidate.__wros_authn__ = "candidate_self_service"
 get_current_hr_or_admin.__wros_authn__ = "any_internal_user"
 get_current_internal_user.__wros_authn__ = "any_internal_user"
+get_current_mfa_pending_user.__wros_authn__ = "mfa_pending_session"
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +195,7 @@ def require_permission(permission: str):
 
         token = credentials.credentials
         payload = decode_access_token(token)
+        _reject_if_mfa_pending(payload)
         user_email: str = payload.get("sub", "")
 
         user = db.query(Users).filter(Users.UserEmail == user_email).first()
@@ -192,6 +241,7 @@ def require_attribute(attribute: str, expected: bool = True):
 
         token = credentials.credentials
         payload = decode_access_token(token)
+        _reject_if_mfa_pending(payload)
         user_email: str = payload.get("sub", "")
 
         user = db.query(Users).filter(Users.UserEmail == user_email).first()

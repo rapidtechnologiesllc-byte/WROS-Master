@@ -21,6 +21,7 @@ from app.api.v1.endpoints.preonboarding import router as preonboarding_router
 from app.api.v1.endpoints.internal import router as internal_router
 from app.api.v1.endpoints.hr_assignments import router as hr_assignments_router
 from app.api.v1.endpoints.ai_agent import router as ai_agent_router
+from app.api.v1.endpoints.mfa import router as mfa_router
 
 router = fastapi.APIRouter()
 
@@ -44,4 +45,5 @@ router.include_router(router=candidate_ownership_router)
 router.include_router(router=preonboarding_router)
 router.include_router(router=internal_router)
 router.include_router(router=hr_assignments_router)
-router.include_router(router=ai_agent_router)
+router.include_router(router=ai_agent_router)
+router.include_router(router=mfa_router)
