@@ -20,6 +20,14 @@ class Users(Base):
     # query must filter on this column via app.core.tenant_context, never
     # trust a tenant id supplied by the caller.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    # Phase 1 B3 — MFA. mfa_enabled starts False for every existing row;
+    # mfa_secret is populated at enrollment, never before. See
+    # app.core.mfa -- enforcement itself is behind a separate,
+    # off-by-default feature flag, so adding these columns changes no
+    # existing behavior on its own.
+    mfa_enabled = Column(Boolean, nullable=False, default=False)
+    mfa_secret = Column(String(64), nullable=True)
+    mfa_backup_codes = Column(Text, nullable=True)  # JSON-encoded list of hashed codes
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

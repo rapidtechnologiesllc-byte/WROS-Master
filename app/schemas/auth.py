@@ -52,6 +52,15 @@ class UnifiedLoginResponse(BaseModel):
     access_token: str
     is_first_time: bool
 
+    # Phase 1 B3 -- both default False so existing non-MFA callers see
+    # zero change. When either is True, access_token is a short-lived
+    # mfa_pending token (5 min) that ONLY works against POST
+    # /auth/mfa/setup or /auth/mfa/verify -- it is deliberately rejected
+    # by every other authenticated route (see
+    # app.core.dependencies._reject_if_mfa_pending).
+    mfa_required: bool = False        # MFA already enabled -> call /auth/mfa/verify
+    mfa_setup_required: bool = False  # MFA never enrolled -> call /auth/mfa/setup
+
     # User-specific (None for candidates)
     user_role: Optional[str] = None
     user_name: Optional[str] = None
