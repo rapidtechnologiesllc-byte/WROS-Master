@@ -38,7 +38,12 @@ class Settings:
     AUTHORITY: str = os.getenv("AUTHORITY", "") or f"https://login.microsoftonline.com/{TENANT_ID}"
     REDIRECT_URI: str = os.getenv("REDIRECT_URI", "")
     SCOPES: list = os.getenv("SCOPES", "").split() if os.getenv("SCOPES") else []
-    
+
+    # Webhook Settings (HRMS-0114) -- shared secret for endpoints that
+    # must accept calls from non-interactive external callers, e.g.
+    # POST /ai-agent/webhook/email-reply. See app.core.webhook_auth.
+    WEBHOOK_SHARED_SECRET: str = os.getenv("WEBHOOK_SHARED_SECRET", "")
+
     # CORS Settings
     CORS_ORIGINS: list = [
         "http://localhost:3000",

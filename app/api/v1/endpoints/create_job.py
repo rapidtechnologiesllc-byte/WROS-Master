@@ -151,6 +151,7 @@ def get_all_jobs(
 @router.get(
     "/active-jobs",
     response_model=AllJobsResponse,
+    dependencies=[Depends(require_permission("job.view"))],
 )
 def get_active_jobs(
     db: Session = Depends(get_db),

@@ -15,24 +15,18 @@ Tiers:
   loudly if that protection is ever removed, so this exception can't
   silently go stale.
 
-  The remaining 2 are genuine open questions, not gaps I should have
-  guessed at -- see docs/build-package/HRMS-0114-route-gap.md:
-    - GET /jobs/active-jobs: docstring claims "Authenticated HR/Admin
-      user" but has none. Could be an oversight (fix: add
-      get_current_hr_or_admin) OR this could be meant as a public job
-      board listing (fix: add to PUBLIC_ROUTES instead) -- the job
-      model has a "public" status value suggesting the latter is a real
-      possibility. Wrong guess either leaks internal jobs publicly or
-      breaks an intended public job board -- needs a product decision.
-    - POST /ai-agent/webhook/email-reply: explicitly documented as
-      "No auth required" in its own description, with a comment
-      acknowledging it needs hardening ("add bearer token via
-      dependencies as needed in production") that was never done. It's
-      meant to be called by both external services (a mail webhook,
-      a scheduler) AND manually from the HR portal -- a user-auth
-      Depends() would break the external-caller use case, so this needs
-      a shared-secret/webhook-signature style check instead, which is a
-      design decision, not a mechanical fix.
+  The other 2 that showed up were genuine open questions, resolved
+  2026-07-20 after confirming intent (not guessed at):
+    - GET /jobs/active-jobs: its query returns BOTH "active" and
+      "public" status jobs mixed together, so making it public would
+      leak internal not-yet-published jobs. Confirmed internal-only --
+      now has require_permission("job.view").
+    - POST /ai-agent/webhook/email-reply: now requires either a shared
+      secret (X-Webhook-Secret header, WEBHOOK_SHARED_SECRET in .env)
+      or a valid internal-user bearer token -- see
+      app.core.webhook_auth.require_webhook_secret_or_internal_user,
+      which supports both since this endpoint has both external
+      (scheduler/webhook) and internal (HR portal) legitimate callers.
 
 - "coarse auth only" -- routes with SOME identity check but no
   fine-grained RBAC permission. Reported (xfail, non-blocking) as a
@@ -58,10 +52,9 @@ MANUALLY_VERIFIED_EXCEPTIONS = {
     "POST /msgraph/mail/send",
 }
 
-GENUINE_OPEN_QUESTIONS = {
-    "GET /jobs/active-jobs",
-    "POST /ai-agent/webhook/email-reply",
-}
+GENUINE_OPEN_QUESTIONS = set()  # both resolved 2026-07-20: active-jobs kept
+# internal (require_permission("job.view")), webhook now requires either
+# a shared secret or an internal-user token (require_webhook_secret_or_internal_user)
 
 
 def _all_public_paths():
