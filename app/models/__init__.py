@@ -44,6 +44,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.notification import Notification
 from app.models.opportunity import Opportunity
+from app.models.timesheet_dispute import TimesheetDispute
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -127,6 +128,8 @@ __all__ = [
     "Notification",
     # Opportunity (HRMS-0207, Phase 2 Domain 4)
     "Opportunity",
+    # Timesheet Dispute (HRMS-0904, Phase 2 Domain 4)
+    "TimesheetDispute",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",
