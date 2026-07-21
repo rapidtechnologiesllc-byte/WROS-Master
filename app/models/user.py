@@ -28,6 +28,13 @@ class Users(Base):
     mfa_enabled = Column(Boolean, nullable=False, default=False)
     mfa_secret = Column(String(64), nullable=True)
     mfa_backup_codes = Column(Text, nullable=True)  # JSON-encoded list of hashed codes
+    # HRMS-0113 BR-0113-03 -- business-hours notification gating needs each
+    # recipient's local timezone. HRMS-0121 (Locale & Currency Config), the
+    # story this was supposed to come from, doesn't exist in this codebase.
+    # IANA tz name (e.g. "Asia/Kolkata"); every existing row backfills to
+    # BlitzenX's primary timezone, same default already hardcoded for
+    # interview reminders in app/api/v1/endpoints/interviews.py.
+    timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata", default="Asia/Kolkata")
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
