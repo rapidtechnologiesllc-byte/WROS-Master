@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.tenant_context import get_tenant_scoped_query
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
@@ -91,8 +92,8 @@ def get_all_users(
     Returns:
         AllUsersResponse with list of all users and total count
     """
-    # Query all users from the Users table
-    users = db.query(Users).all()
+    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
+    users = get_tenant_scoped_query(db, Users, current_user=user).all()
     
     # Build response
     users_data = []
@@ -165,7 +166,9 @@ def search_users(
     """
     from sqlalchemy import or_, func as sql_func
 
-    query = db.query(Users)
+    # HRMS-0109 -- scope to the caller's tenant before any of the
+    # optional filters below narrow it further.
+    query = get_tenant_scoped_query(db, Users, current_user=user)
 
     # ── name filter — partial match on UserName OR UserEmail ─────────────────
     if name:

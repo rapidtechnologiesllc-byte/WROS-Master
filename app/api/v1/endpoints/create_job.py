@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_candidate
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.security import get_password_hash
+from app.core.tenant_context import get_tenant_scoped_query
 from app.models.user import Jobs
 from app.models.candidate import (
     Candidate,
@@ -114,8 +115,8 @@ def get_all_jobs(
     Returns:
         AllJobsResponse with list of all jobs and total count
     """
-    # Query all jobs from the Jobs table
-    jobs = db.query(Jobs).all()
+    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' jobs.
+    jobs = get_tenant_scoped_query(db, Jobs, current_user=user).all()
     
     # Build response
     jobs_data = []
@@ -229,7 +230,9 @@ def filter_jobs(
     - **company_name**: partial / exact match on company name
     - **job_location**: partial / exact match on job location
     """
-    query = db.query(Jobs)
+    # HRMS-0109 -- scope to the caller's tenant before any of the
+    # optional filters below narrow it further.
+    query = get_tenant_scoped_query(db, Jobs, current_user=user)
 
     if business_unit is not None:
         query = query.filter(Jobs.business_unit_id == business_unit)
