@@ -35,6 +35,24 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/auth/v1/signup",
         "/auth/login",
         "/msgraph/auth/signin",
+        # OAuth redirect target -- called by Microsoft's servers before any
+        # app-level session exists. Structurally cannot require a bearer
+        # token; its security is the OAuth state parameter, not this list.
+        "/msgraph/auth/callback",
+    ]
+
+    # Route TEMPLATES (FastAPI's {param} syntax) that are public, for
+    # paths with a variable segment. Matched segment-by-segment against
+    # the real incoming path in _is_public_route -- NOT a plain string
+    # match, since request.url.path is the resolved path (e.g.
+    # "/jobs/abc123/apply"), never the literal "{job_id}" placeholder.
+    PUBLIC_ROUTE_TEMPLATES = [
+        # Explicitly documented as public in its own route summary --
+        # external candidates applying from a public job board. Per Phase 1
+        # B4 this needs rate limiting (not yet enabled anywhere in this
+        # app -- see the developer handoff), since it's exactly the kind
+        # of public candidate-facing intake B4 calls out by name.
+        "/jobs/{job_id}/apply",
     ]
     
     async def dispatch(self, request: Request, call_next: Callable):
@@ -159,7 +177,33 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             if path.startswith(prefix):
                 return True
 
+        # Template match for public routes with a variable segment
+        # (e.g. "/jobs/{job_id}/apply" matching "/jobs/abc123/apply").
+        for template in self.PUBLIC_ROUTE_TEMPLATES:
+            if self._matches_template(path, template):
+                return True
+
         return False
+
+    @staticmethod
+    def _matches_template(path: str, template: str) -> bool:
+        """
+        Segment-by-segment match: a "{...}" segment in the template
+        matches exactly one real path segment, anything else must match
+        literally. Deliberately not a prefix/substring match -- "/jobs"
+        alone must not become public just because "/jobs/{job_id}/apply"
+        is public.
+        """
+        path_parts = path.strip("/").split("/")
+        template_parts = template.strip("/").split("/")
+        if len(path_parts) != len(template_parts):
+            return False
+        for p, t in zip(path_parts, template_parts):
+            if t.startswith("{") and t.endswith("}"):
+                continue
+            if p != t:
+                return False
+        return True
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

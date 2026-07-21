@@ -192,6 +192,7 @@ def get_my_candidates(
 @router.get(
     "/by-candidate/{candidate_id}",
     response_model=HRAssignmentResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
     summary="Get HR assignment for a specific candidate",
 )
 def get_hr_by_candidate(
