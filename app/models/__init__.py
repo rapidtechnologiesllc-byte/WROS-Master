@@ -43,6 +43,7 @@ from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterv
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.notification import Notification
+from app.models.opportunity import Opportunity
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -124,6 +125,8 @@ __all__ = [
     "TimesheetEntry",
     # Notification Engine (HRMS-0113)
     "Notification",
+    # Opportunity (HRMS-0207, Phase 2 Domain 4)
+    "Opportunity",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",
