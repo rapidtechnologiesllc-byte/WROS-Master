@@ -27,7 +27,9 @@ from typing import Iterable, List
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-_MARKER_ATTRS = ("__wros_permission__", "__wros_attribute__")
+_RBAC_MARKER_ATTRS = ("__wros_permission__", "__wros_attribute__")
+_COARSE_AUTHN_MARKER_ATTRS = ("__wros_authn__",)
+_ALL_MARKER_ATTRS = _RBAC_MARKER_ATTRS + _COARSE_AUTHN_MARKER_ATTRS
 
 
 def _is_public(path: str, public_routes: Iterable[str]) -> bool:
@@ -43,20 +45,25 @@ def _is_public(path: str, public_routes: Iterable[str]) -> bool:
     return path in public_routes
 
 
-def _route_has_permission_declaration(route: APIRoute) -> bool:
+def _route_marker_attrs_present(route: APIRoute) -> set:
+    """Returns the set of marker attribute names found anywhere in this
+    route's dependency tree (e.g. {"__wros_permission__"})."""
     dependant = route.dependant
     stack = [dependant]
     seen = set()
+    found = set()
     while stack:
         current = stack.pop()
         if id(current) in seen:
             continue
         seen.add(id(current))
         call = getattr(current, "call", None)
-        if call is not None and any(hasattr(call, attr) for attr in _MARKER_ATTRS):
-            return True
+        if call is not None:
+            for attr in _ALL_MARKER_ATTRS:
+                if hasattr(call, attr):
+                    found.add(attr)
         stack.extend(getattr(current, "dependencies", []) or [])
-    return False
+    return found
 
 
 def _iter_leaf_routes(routes) -> Iterable[APIRoute]:
@@ -80,27 +87,55 @@ def _iter_leaf_routes(routes) -> Iterable[APIRoute]:
             yield from _iter_leaf_routes(route.routes)
 
 
-def find_routes_missing_permission_declaration(app: FastAPI, public_routes: Iterable[str]) -> List[str]:
-    """Returns a sorted list of "METHOD path" strings for every non-public
-    route that has no require_permission()/require_attribute() dependency
-    anywhere in its dependency tree."""
-    missing = []
+def _non_public_routes_by_methods(app: FastAPI, public_routes: Iterable[str]):
     for route in _iter_leaf_routes(app.routes):
         if _is_public(route.path, public_routes):
             continue
-        if not _route_has_permission_declaration(route):
-            for method in sorted(route.methods or []):
-                if method == "HEAD":
-                    continue
-                missing.append(f"{method} {route.path}")
+        for method in sorted(route.methods or []):
+            if method == "HEAD":
+                continue
+            yield f"{method} {route.path}", route
+
+
+def find_routes_missing_permission_declaration(app: FastAPI, public_routes: Iterable[str]) -> List[str]:
+    """
+    Returns a sorted list of "METHOD path" strings for every non-public
+    route with NO explicit identity/permission declaration at all --
+    the genuinely dangerous category HRMS-0114 exists to catch. This
+    counts require_permission()/require_attribute() (fine-grained RBAC)
+    AND get_current_candidate()/get_current_hr_or_admin()/
+    get_current_internal_user() (coarse but real identity checks) as
+    satisfying the requirement -- see find_routes_with_only_coarse_auth()
+    for the separate, lower-urgency list of routes that only have the
+    coarse check and could be tightened to a specific permission later.
+    """
+    missing = []
+    for label, route in _non_public_routes_by_methods(app, public_routes):
+        if not _route_marker_attrs_present(route):
+            missing.append(label)
     return sorted(set(missing))
+
+
+def find_routes_with_only_coarse_auth(app: FastAPI, public_routes: Iterable[str]) -> List[str]:
+    """
+    Routes that have SOME identity check (candidate-self-service, or
+    any-authenticated-internal-user) but no fine-grained RBAC
+    permission. Not a startup-blocking gap -- these are legitimately
+    protected today -- but worth tightening to a specific
+    require_permission() as this codebase's RBAC coverage matures.
+    """
+    coarse = []
+    for label, route in _non_public_routes_by_methods(app, public_routes):
+        markers = _route_marker_attrs_present(route)
+        if markers and not (markers & set(_RBAC_MARKER_ATTRS)):
+            coarse.append(label)
+    return sorted(set(coarse))
 
 
 def assert_all_routes_have_permission_declarations(app: FastAPI, public_routes: Iterable[str]) -> None:
     missing = find_routes_missing_permission_declaration(app, public_routes)
     if missing:
         raise RuntimeError(
-            "HRMS-0114: the following routes have no permission declaration "
-            f"(require_permission()/require_attribute()) and are not listed as "
-            f"public: {missing}"
+            "HRMS-0114: the following routes have no explicit identity/permission "
+            f"declaration at all and are not listed as public: {missing}"
         )

@@ -66,3 +66,27 @@ def test_public_routes_matches_the_real_apps_actual_auth_paths():
     assert "/auth/v1/signup" in real_paths
     assert "/auth/login" in AuthenticationMiddleware.PUBLIC_ROUTES
     assert "/auth/v1/signup" in AuthenticationMiddleware.PUBLIC_ROUTES
+
+
+def test_templated_public_route_matches_a_real_resolved_path():
+    """
+    request.url.path is the RESOLVED path (e.g. "/jobs/abc123/apply"),
+    never the literal "{job_id}" placeholder -- a plain string/prefix
+    match against the template would never match a real request. This
+    is the specific bug the segment matcher exists to avoid.
+    """
+    mw = _mw()
+    assert mw._is_public_route("/jobs/abc123/apply") is True
+    assert mw._is_public_route("/jobs/JOB-2026-0042/apply") is True
+
+
+def test_templated_public_route_does_not_over_match():
+    """
+    "/jobs/{job_id}/apply" must not make the rest of /jobs/* public --
+    only that exact shape, and only a single path segment for {job_id}.
+    """
+    mw = _mw()
+    assert mw._is_public_route("/jobs/active-jobs") is False
+    assert mw._is_public_route("/jobs/abc123") is False
+    assert mw._is_public_route("/jobs/abc123/apply/extra") is False
+    assert mw._is_public_route("/jobs/abc123/edit") is False

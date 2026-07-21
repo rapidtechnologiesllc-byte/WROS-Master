@@ -111,6 +111,20 @@ async def get_current_internal_user(
     return user
 
 
+# HRMS-0114 — these three establish a real, explicit identity boundary
+# (candidate-self-service-only, or any-authenticated-internal-user)
+# even though they're not fine-grained RBAC permissions. Marked so
+# route_security_audit.py counts them as a deliberate declaration
+# rather than "no auth at all" -- the audit still separately reports
+# which routes only have one of these coarse checks vs a specific
+# require_permission()/require_attribute(), since the latter is the
+# tighter, preferred pattern for anything beyond pure self-service.
+get_current_user.__wros_authn__ = "any_authenticated_user_or_candidate"
+get_current_candidate.__wros_authn__ = "candidate_self_service"
+get_current_hr_or_admin.__wros_authn__ = "any_internal_user"
+get_current_internal_user.__wros_authn__ = "any_internal_user"
+
+
 # ---------------------------------------------------------------------------
 # RBAC — permission and attribute guards
 # ---------------------------------------------------------------------------
