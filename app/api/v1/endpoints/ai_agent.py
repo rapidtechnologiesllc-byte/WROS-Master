@@ -42,6 +42,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.webhook_auth import require_webhook_secret_or_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
     CandidateAIAssignment,
@@ -171,17 +172,20 @@ def preview_missing_fields(
     "/webhook/email-reply",
     response_model=ProcessReplyResponse,
     summary="Process an incoming candidate reply email",
+    dependencies=[Depends(require_webhook_secret_or_internal_user)],
     description=(
         "Accepts a candidate reply (either raw text passed directly, or triggers "
         "a live Graph inbox poll if `raw_reply_text` is omitted). "
         "Gemini extracts field values from the reply, merges them into the candidate "
         "record, and sends a follow-up email if fields are still missing.\n\n"
         "This endpoint can be called:\n"
-        "- By a scheduler polling the Graph inbox periodically.\n"
-        "- By an external webhook when a new email arrives.\n"
-        "- Directly from the HR portal for manual testing.\n\n"
-        "**No auth required** — secured by the candidate_id + internal caller "
-        "(or add bearer token via dependencies as needed in production)."
+        "- By a scheduler polling the Graph inbox periodically, sending the shared "
+        "secret in an X-Webhook-Secret header (WEBHOOK_SHARED_SECRET in .env).\n"
+        "- By an external webhook when a new email arrives, same header.\n"
+        "- Directly from the HR portal for manual testing, using a normal internal "
+        "user's bearer token instead.\n\n"
+        "Requires EITHER a valid X-Webhook-Secret header OR a valid internal-user "
+        "bearer token -- see app.core.webhook_auth.require_webhook_secret_or_internal_user."
     ),
 )
 def webhook_email_reply(
