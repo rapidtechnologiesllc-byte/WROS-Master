@@ -38,6 +38,8 @@ from app.models.employee import (
 )
 from app.models.client import Client, ClientContact, ClientHistory
 from app.models.demand import Demand, DemandHistory
+from app.models.submission import Submission, SubmissionViolation
+from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -106,6 +108,12 @@ __all__ = [
     # Demand (HRMS-0103, Phase 2 Domain 2/4)
     "Demand",
     "DemandHistory",
+    # Submission (HRMS-0711, Phase 2 Domain 2)
+    "Submission",
+    "SubmissionViolation",
+    # Interview pipeline (HRMS-0706, Phase 2 Domain 2)
+    "DemandInterviewPanel",
+    "SubmissionInterview",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",

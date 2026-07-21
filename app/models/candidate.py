@@ -1,7 +1,12 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
 from sqlalchemy.orm import relationship
 from app.models.base import Base
+
+# HRMS-P606 (R-03): only W2_FULLTIME may ever be submitted. UNKNOWN is the
+# safe-upgrade default for every existing row -- fails closed, same as C2C/1099,
+# until someone explicitly confirms the candidate is W2 full-time.
+CANDIDATE_EMPLOYMENT_TYPES = ("W2_FULLTIME", "C2C", "1099", "UNKNOWN")
 
 
 class Candidate(Base):
@@ -29,6 +34,19 @@ class Candidate(Base):
     candidateTempPassword = Column(String(200), nullable=True)  # plain-text password for credential emails
     candidateIsVerified = Column(Boolean, nullable=True)
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
+    # HRMS-P601 (R-01) -- the 5-year experience gate. Populated by resume
+    # parsing (HRMS-0428, not yet built in this codebase); NULL means
+    # "not yet verified" and is treated as ineligible, per the spec's own
+    # rule, not as an exemption from the check.
+    total_experience_months = Column(Integer, nullable=True)
+    # HRMS-P606 (R-03) -- fails closed to UNKNOWN for every existing row
+    # (see CANDIDATE_EMPLOYMENT_TYPES above); direct WROS-sourced candidates
+    # should be set to W2_FULLTIME explicitly by whichever story owns
+    # candidate creation/intake -- not assumed here.
+    employment_type = Column(
+        Enum(*CANDIDATE_EMPLOYMENT_TYPES, name="candidate_employment_type", native_enum=False, create_constraint=True),
+        nullable=False, server_default="UNKNOWN", default="UNKNOWN",
+    )
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason as Users.tenant_id: existing rows
