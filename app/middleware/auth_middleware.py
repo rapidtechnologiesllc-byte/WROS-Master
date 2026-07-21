@@ -248,8 +248,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Simple rate limiting middleware to prevent abuse.
+    Simple rate limiting middleware to prevent abuse (Phase 1 B4).
     Tracks requests per IP address.
+
+    KNOWN LIMITATION: state is in-process memory. VPS_DEPLOYMENT.md's
+    gunicorn config runs multiple worker processes (-w 4), each with
+    its OWN independent request_counts dict -- so the effective limit
+    in production is roughly max_requests * worker_count, not
+    max_requests. A single attacker's requests get distributed across
+    workers, each of which only sees a fraction and throttles
+    independently. Correct fix is a shared store (Redis) keyed the same
+    way; not implemented here since Redis isn't otherwise in this
+    stack. Tracked as a known gap, not silently pretended away.
     """
     
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):

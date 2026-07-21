@@ -26,9 +26,10 @@ setup_cors(app)
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
-# Optional: Add rate limiting middleware
-# from app.middleware import RateLimitMiddleware
-# app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+# Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
+# docstring for the known in-memory/multi-worker limitation.
+from app.middleware import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 
 
 @app.on_event("startup")
@@ -120,6 +121,34 @@ async def shutdown_event():
 
 # Include API routes
 app.include_router(router)
+
+# HRMS-0114 -- fail startup if any route has no explicit identity/
+# permission declaration at all. Runs synchronously at import time
+# (not inside the async startup event) so an offending route fails the
+# app immediately and loudly, the same moment `app` becomes importable,
+# rather than only surfacing once uvicorn's startup event fires.
+#
+# known_exceptions: the msgraph mail/calendar routes check a session
+# cookie inside their function body (_require_account in msgraph.py),
+# not via FastAPI's Depends() -- real protection this scanner
+# structurally can't see. Each is guarded by
+# tests/test_route_permission_audit_real_app.py::test_msgraph_manual_exception_guard_still_has_real_protection
+# so this exception list can't silently go stale if that function is
+# ever removed. See docs/build-package/HRMS-0114-route-gap.md for the
+# full history of how every other route reached 0 unexplained gaps.
+from app.core.route_security_audit import assert_all_routes_have_permission_declarations
+from app.middleware.auth_middleware import AuthenticationMiddleware
+
+assert_all_routes_have_permission_declarations(
+    app,
+    AuthenticationMiddleware.PUBLIC_ROUTES + AuthenticationMiddleware.PUBLIC_ROUTE_TEMPLATES,
+    known_exceptions=[
+        "GET /msgraph/calendar/meetings",
+        "POST /msgraph/calendar/schedule",
+        "POST /msgraph/mail/send",
+    ],
+)
+logger.info("[OK] HRMS-0114 route permission audit passed")
 
 # Mount static files directory
 static_dir = Path("static")
