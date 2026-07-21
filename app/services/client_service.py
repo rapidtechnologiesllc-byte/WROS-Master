@@ -14,7 +14,8 @@ from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
-from app.services.email_service import EmailService
+from app.models.user import Users
+from app.services.notification_service import send_notification
 
 # BR-02: roles allowed to see markup_rate_pct. CS and recruiters are
 # deliberately excluded -- margin data is not their business to see.
@@ -93,13 +94,14 @@ def assign_account_manager(
     HRMS-0709 BR-01: notifies the newly assigned AM with their current
     active-demand and open-submission counts for this client.
 
-    Uses EmailService.send_notification() directly -- the same ad hoc
-    notification path already used elsewhere in this codebase (see
-    app.api.v1.endpoints.interviews). The requirements docs describe a
-    dedicated HRMS-0113 Notification Engine as the one sanctioned
-    dispatch point for every internal notification, but nothing under
-    that name is actually built in this codebase yet -- swap this call
-    for that dispatcher once it exists, don't reimplement it here.
+    Routes through app.services.notification_service.send_notification()
+    (HRMS-0113) -- the sanctioned single dispatch point, not a direct
+    EmailService call. Requires the employee to have a linked WROS user
+    account (employee.wros_user_id) since HRMS-0113's recipient is a
+    Users row (needed for tenant scoping and business-hours gating); an
+    AM with no WROS login is logged and skipped rather than emailed
+    directly, since there's no "notify a bare Employee" path in the
+    notification engine as specified.
     """
     old_am_id = client.account_manager_employee_id
     if old_am_id == employee.id:
@@ -115,26 +117,38 @@ def assign_account_manager(
     db.add(client)
     db.add(history)
 
-    if notify and employee.email:
-        active_demands = db.query(Demand).filter(
-            Demand.client_id == client.id, Demand.status.in_(("OPEN", "IN_PROGRESS")),
-        ).count()
-        open_submissions = db.query(Submission).filter(
-            Submission.client_id == client.id,
-            Submission.status.in_(("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED")),
-        ).count()
-        try:
-            EmailService.send_notification(
-                to_email=employee.email,
-                heading=f"You have been assigned as account manager for {client.company_name}",
-                message=(
-                    f"You have been assigned as account manager for "
-                    f"<strong>{client.company_name}</strong>.<br><br>"
-                    f"{active_demands} active demand(s), {open_submissions} open submission(s)."
-                ),
+    if notify:
+        recipient = db.query(Users).filter(Users.UserID == employee.wros_user_id).first() \
+            if employee.wros_user_id else None
+
+        if recipient is None:
+            logger.warning(
+                f"[ClientService] Cannot notify AM {employee.id} of assignment to "
+                f"client {client.id} -- no linked WROS user account."
             )
-        except Exception as exc:
-            logger.warning(f"[ClientService] Could not send AM assignment notification: {exc}")
+        else:
+            active_demands = db.query(Demand).filter(
+                Demand.client_id == client.id, Demand.status.in_(("OPEN", "IN_PROGRESS")),
+            ).count()
+            open_submissions = db.query(Submission).filter(
+                Submission.client_id == client.id,
+                Submission.status.in_(("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED")),
+            ).count()
+            try:
+                send_notification(
+                    db,
+                    calling_context_tenant_id=client.tenant_id,
+                    recipient=recipient,
+                    priority_tier="P1",
+                    channel_preference="EMAIL",
+                    message=(
+                        f"You have been assigned as account manager for "
+                        f"<strong>{client.company_name}</strong>.<br><br>"
+                        f"{active_demands} active demand(s), {open_submissions} open submission(s)."
+                    ),
+                )
+            except Exception as exc:
+                logger.warning(f"[ClientService] Could not send AM assignment notification: {exc}")
 
     return client
 

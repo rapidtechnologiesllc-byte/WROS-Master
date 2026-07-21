@@ -21,6 +21,8 @@ from app.models.demand import Demand, DemandHistory
 from app.models.candidate import Candidate
 from app.models.submission import Submission, SubmissionViolation
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
+from app.models.user import Users
+from app.models.notification import Notification
 from app.services.client_service import assign_account_manager, get_client_activity_timeline
 from app.services.submission_service import create_submission, update_client_response
 
@@ -35,6 +37,7 @@ def db_session():
         Employee.__table__, Demand.__table__, DemandHistory.__table__, Candidate.__table__,
         Submission.__table__, SubmissionViolation.__table__,
         DemandInterviewPanel.__table__, SubmissionInterview.__table__,
+        Users.__table__, Notification.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -66,10 +69,17 @@ def base_fixtures(db_session):
     return tenant, client, demand
 
 
-def _make_am(db, tenant, email="am@blitzenx.com"):
+def _make_am(db, tenant, email="am@blitzenx.com", with_wros_login=True):
+    wros_user_id = None
+    if with_wros_login:
+        wros_user_id = f"U-{email}"
+        user = Users(UserID=wros_user_id, UserRole="RM", UserEmail=email, UserPassword="h", tenant_id=tenant.id)
+        db.add(user)
+        db.commit()
+
     emp = Employee(
         tenant_id=tenant.id, first_name="Priya", last_name="Rao", email=email,
-        joining_date=date(2025, 1, 1), status="ACTIVE",
+        joining_date=date(2025, 1, 1), status="ACTIVE", wros_user_id=wros_user_id,
     )
     db.add(emp)
     db.commit()
@@ -84,7 +94,7 @@ def test_assign_account_manager_updates_field_and_logs_history(db_session, base_
     tenant, client, demand = base_fixtures
     am = _make_am(db_session, tenant)
 
-    with patch("app.services.client_service.EmailService.send_notification") as mock_send:
+    with patch("app.services.client_service.send_notification") as mock_send:
         assign_account_manager(db_session, client, am, changed_by="U1")
         db_session.commit()
 
@@ -101,7 +111,7 @@ def test_assign_account_manager_notification_includes_counts(db_session, base_fi
     tenant, client, demand = base_fixtures
     am = _make_am(db_session, tenant)
 
-    with patch("app.services.client_service.EmailService.send_notification") as mock_send:
+    with patch("app.services.client_service.send_notification") as mock_send:
         assign_account_manager(db_session, client, am)
         db_session.commit()
 
@@ -114,7 +124,7 @@ def test_assign_same_am_is_a_noop(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     am = _make_am(db_session, tenant)
 
-    with patch("app.services.client_service.EmailService.send_notification") as mock_send:
+    with patch("app.services.client_service.send_notification") as mock_send:
         assign_account_manager(db_session, client, am)
         db_session.commit()
         mock_send.reset_mock()
@@ -132,11 +142,50 @@ def test_notification_failure_does_not_block_assignment(db_session, base_fixture
     tenant, client, demand = base_fixtures
     am = _make_am(db_session, tenant)
 
-    with patch("app.services.client_service.EmailService.send_notification", side_effect=Exception("SMTP down")):
+    with patch("app.services.client_service.send_notification", side_effect=Exception("SMTP down")):
         assign_account_manager(db_session, client, am)
         db_session.commit()
 
     assert client.account_manager_employee_id == am.id
+
+
+def test_am_with_no_wros_login_is_skipped_not_emailed(db_session, base_fixtures):
+    tenant, client, demand = base_fixtures
+    am = _make_am(db_session, tenant, email="no-login@blitzenx.com", with_wros_login=False)
+
+    with patch("app.services.client_service.send_notification") as mock_send:
+        assign_account_manager(db_session, client, am)
+        db_session.commit()
+
+    mock_send.assert_not_called()
+    assert client.account_manager_employee_id == am.id
+
+
+def test_assign_account_manager_creates_real_notification_row(db_session, base_fixtures):
+    """
+    Proves the retrofit actually routes through the HRMS-0113 engine
+    end-to-end (real send_notification(), real business-hours/tenant
+    logic) -- only the EmailService network boundary is mocked, same
+    as every other test in this codebase that would otherwise make a
+    real Microsoft Graph call. Whether the real dispatch lands as SENT
+    (in business hours) or PENDING (held) legitimately depends on
+    wall-clock time when the suite runs -- both are correct outcomes of
+    HRMS-0113's own BR-0113-03, so the assertion accepts either rather
+    than mocking time to pin one.
+    """
+    tenant, client, demand = base_fixtures
+    am = _make_am(db_session, tenant)
+
+    with patch("app.services.notification_service.EmailService.send_notification", return_value={"status": "ok"}):
+        assign_account_manager(db_session, client, am)
+        db_session.commit()
+
+    notification = db_session.query(Notification).filter(
+        Notification.recipient_id == am.wros_user_id
+    ).first()
+    assert notification is not None
+    assert notification.priority_tier == "P1"
+    assert notification.delivery_status in ("SENT", "PENDING")  # PENDING if outside business hours
 
 
 # ---------------------------------------------------------------------------
