@@ -1,6 +1,8 @@
 """
 HRMS-0102 — client status transition + markup-rate visibility guard.
 HRMS-0709 — account manager assignment + client activity timeline.
+HRMS-0201 — exactly-one-primary-contact rule (see app.models.client's
+module docstring for why this extends HRMS-0102 rather than forking it).
 """
 import json
 from datetime import datetime
@@ -80,6 +82,27 @@ def serialize_client_for_role(client: Client, role_name: str) -> dict:
     if role_name in MARKUP_VISIBLE_ROLES:
         data["markup_rate_pct"] = float(client.markup_rate_pct) if client.markup_rate_pct is not None else None
     return data
+
+
+def set_primary_contact(db: Session, client: Client, contact: ClientContact) -> ClientContact:
+    """
+    HRMS-0201 BR-0201-02: exactly one contact per client is Primary at
+    any time. Setting a new Primary auto-unsets whichever contact
+    previously held it, in the same transaction -- never two Primary
+    contacts, even briefly.
+    """
+    if contact.client_id != client.id:
+        raise ValueError(f"Contact {contact.id} does not belong to client {client.id}.")
+
+    db.query(ClientContact).filter(
+        ClientContact.client_id == client.id,
+        ClientContact.id != contact.id,
+        ClientContact.is_primary == True,  # noqa: E712
+    ).update({"is_primary": False})
+
+    contact.is_primary = True
+    db.add(contact)
+    return contact
 
 
 def assign_account_manager(

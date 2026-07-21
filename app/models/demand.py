@@ -33,6 +33,10 @@ EMPLOYMENT_TYPES = ("W2_FULLTIME",)  # BR-01: the only allowed value, R-03
 INTERVIEW_TYPES = ("L1_ONLY", "L1_AND_L2")
 URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
 DEMAND_STATUSES = ("DRAFT", "OPEN", "IN_PROGRESS", "FILLED", "CANCELLED", "ON_HOLD")
+# HRMS-0210 BR-0210-01: a tag, not a schema branch -- opportunity-
+# originated demands get identical sourcing/bench-first/allocation
+# treatment to any other demand.
+DEMAND_SOURCE_TYPES = ("DIRECT", "OPPORTUNITY")
 
 # HRMS-0103 step 3 -- allowed status transitions.
 ALLOWED_DEMAND_TRANSITIONS = {
@@ -90,6 +94,23 @@ class Demand(Base):
 
     assigned_recruiter_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
     assigned_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+
+    # HRMS-0210/0211 -- opportunity-originated role demands. opportunity_id
+    # is nullable: most demands aren't opportunity-sourced.
+    opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
+    source_type = Column(
+        Enum(*DEMAND_SOURCE_TYPES, name="demand_source_type", native_enum=False, create_constraint=True),
+        nullable=False, default="DIRECT",
+    )
+    # Total engagement length this role represents, in hours -- feeds
+    # revenue_potential_usd_cents below (HRMS-0211: bill_rate * duration * quantity,
+    # quantity mapping to the existing `headcount` field rather than a
+    # separate column, since headcount already means exactly that).
+    duration_hours = Column(Integer, nullable=True)
+    # HRMS-0211 BR-0211-01: recomputed on every write to billing_rate_usd_cents,
+    # duration_hours, or headcount -- never a stale one-time snapshot. See
+    # app.services.opportunity_service.recalculate_revenue_potential().
+    revenue_potential_usd_cents = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     created_by = Column(String(50), nullable=True)

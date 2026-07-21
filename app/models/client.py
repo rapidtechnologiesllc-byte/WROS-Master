@@ -3,6 +3,29 @@ HRMS-0102 — Client Entity Model, Phase 2 Domain 4.
 
 Same SQL-Server/SQLite-portable translation conventions as
 app.models.employee: UUID as String(36), Enum(native_enum=False, create_constraint=True).
+
+HRMS-0201 ("Client Entity Management v2") is a genuine architectural
+fork of this same concept -- same pattern as the earlier EPIC-01-vs-
+EPIC-07 Submission Pipeline fork. It depends only on HRMS-0109, never
+mentions HRMS-0102, and specifies a differently-shaped clients table
+(name/industry/country/default_currency/account_manager only -- no
+client_type/tier/status/billing fields/markup_rate/nda, notes routed
+through a shared Activity Timeline table instead of the client_history
+audit table below). Since this model is already load-bearing (Demand,
+Submission, EmployeeAllocation, etc. all FK to it), this session
+extends it rather than forking: added `country` (genuinely new, HRMS-
+0201 introduces it), reused `billing_currency` for HRMS-0201's
+"default_currency" concept (same idea, don't duplicate), and added
+HRMS-0201's one real new business rule -- exactly one primary contact,
+enforced transactionally, see set_primary_contact() in
+app.services.client_service. Kept `client_history`/`notes` as-is rather
+than migrating to HRMS-0118's Activity Timeline (which doesn't exist in
+this codebase) -- and kept ClientContact.role_type's existing, more
+specific enum (HIRING_MANAGER/TECHNICAL_PANEL/PROCUREMENT/ACCOUNTS/
+PRIMARY) rather than adopting HRMS-0201's coarser vocabulary
+(Decision Maker/Day-to-Day/Finance), since the two don't map 1:1 and
+picking one is a product call, not an engineering one -- flagged here,
+not silently resolved.
 """
 import uuid
 
@@ -38,6 +61,10 @@ class Client(Base):
     company_name = Column(String(300), nullable=False)
     company_short_name = Column(String(50), nullable=True)
     industry = Column(String(100), nullable=True)
+    # HRMS-0201 -- genuinely new field this story adds; HRMS-0102 had no
+    # country column (only free-text billing_address). See module-level
+    # note below on why this extends HRMS-0102 rather than forking it.
+    country = Column(String(100), nullable=True)
     client_type = Column(Enum(*CLIENT_TYPES, name="client_type", native_enum=False, create_constraint=True), nullable=False, default="DIRECT")
     tier = Column(Enum(*CLIENT_TIERS, name="client_tier", native_enum=False, create_constraint=True), nullable=False, default="STANDARD")
     status = Column(Enum(*CLIENT_STATUSES, name="client_status", native_enum=False, create_constraint=True), nullable=False, default="PROSPECT")
