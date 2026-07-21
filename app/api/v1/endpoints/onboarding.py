@@ -6,8 +6,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 import app.schemas as schema
-from app.core.database import check_candidate, get_db
-from app.core.security import get_password_hash
+from app.core.database import get_db
+from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
 from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import (
     Candidate,
@@ -39,7 +39,7 @@ CandidateAadharResponse, DeleteResponse,
 AllCandidatesResponse)
 from app.schemas.user import CandidateUpdateRequest
 
-from app.utils.uniq_id_generator import candidate_id_generator, generate_password
+from app.utils.uniq_id_generator import generate_password
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -66,48 +66,39 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
     Raises:
         HTTPException: If candidate with email already exists
     """
-    # Check if candidate already exists
-    existing = check_candidate(db, request.candidate_email)
-    if existing:
+    # R-07: createCandidateSafe() is the only sanctioned creation path --
+    # runs email/phone/LinkedIn dedup (each independently) before any insert.
+    password = generate_password()
+    try:
+        candidate = create_candidate_safe(
+            db,
+            email=request.candidate_email,
+            mobile=request.candidate_mobile,
+            plain_password=password,
+            candidateRole=request.candidate_role,
+            candidateEmployeeType=request.candidate_employee_type,
+            candidateJobTitle=request.candidate_job_title,
+            candidateFirstName=request.candidate_first_name,
+            candidateMiddleName=request.candidate_middle_name,
+            candidateLastName=request.candidate_last_name,
+            candidateGender=request.candidate_gender,
+            candidateDateOfBirth=request.candidate_date_of_birth,
+            candidateSource=request.candidate_source,
+            candidateExperience=request.candidate_experience,
+            candidateSkills=request.candidate_skills,
+            candidateJoiningDate=request.candidate_joining_date,
+            candidateExpectedSalary=request.candidate_expected_salary,
+            candidateCurrentSalary=request.candidate_current_salary,
+            candidateCurrentLocation=request.candidate_current_location,
+            candidateCreatedAt=datetime.now(),
+        )
+    except DuplicateCandidateError:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Account already exists with email {request.candidate_email}"
         )
-    
-    # Generate unique ID and password
-    candidate_id = candidate_id_generator()
-    password = generate_password()
-    
-    # Hash the password before storing
-    hashed_password = get_password_hash(password)
-    
-    # Create new candidate with all available fields
-    candidate = Candidate(
-        candidateID=candidate_id,
-        candidateRole=request.candidate_role,
-        candidateEmployeeType=request.candidate_employee_type,
-        candidateJobTitle=request.candidate_job_title,
-        candidateFirstName=request.candidate_first_name,
-        candidateMiddleName=request.candidate_middle_name,
-        candidateLastName=request.candidate_last_name,
-        candidateEmail=request.candidate_email,
-        candidateMobile=request.candidate_mobile,
-        candidateGender=request.candidate_gender,
-        candidateDateOfBirth=request.candidate_date_of_birth,
-        candidateSource=request.candidate_source,
-        candidateExperience=request.candidate_experience,
-        candidateSkills=request.candidate_skills,
-        candidateJoiningDate=request.candidate_joining_date,
-        candidateExpectedSalary=request.candidate_expected_salary,
-        candidateCurrentSalary=request.candidate_current_salary,
-        candidateCurrentLocation=request.candidate_current_location,
-        candidatePassword=hashed_password,  # Store hashed password
-        candidateTempPassword=password,       # Store plain password for credential emails
-        candidateIsVerified=False,
-        candidateCreatedAt=datetime.now()
-    )
-    
-    db.add(candidate)
+    candidate_id = candidate.candidateID
+
     db.commit()
     db.refresh(candidate)
     # Create candidate status

@@ -6,10 +6,10 @@ from typing import Optional, List
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db, check_candidate
+from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.core.security import get_password_hash
 from app.core.tenant_context import get_tenant_scoped_query
+from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.models.user import Jobs
 from app.models.candidate import (
     Candidate,
@@ -32,7 +32,7 @@ from app.schemas.candidate import (
 from app.models.candidate import Candidate
 from app.models.user import Users
 
-from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator, job_id_generator
+from app.utils.uniq_id_generator import user_id_generator, job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
 from app.api.v1.endpoints.documents import _upload_document_helper
@@ -806,8 +806,10 @@ async def apply_for_job(
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     if job.jobStatus.lower() not in ("active", "public"):
         raise HTTPException(status_code=400, detail="This job is not open for applications")
-    # 2. Duplicate-application check — by email
-    existing = check_candidate(db, email)
+    # 2. Duplicate-application check — R-07: email/phone/LinkedIn each
+    # checked independently (createCandidateSafe()'s dedup runs again,
+    # redundantly but harmlessly, at actual creation time below).
+    existing, _matched_on = find_duplicate_candidate(db, email=email, mobile=phone)
     if existing:
         return JobApplicationResponse(
             status="Already Applied",
@@ -839,35 +841,34 @@ async def apply_for_job(
                 detail="'experience' must be a valid JSON array of experience objects.",
             )
 
-    # 5. Generate candidate ID and a random password
-    candidate_id = candidate_id_generator()
-    plain_password = generate_password()
-    hashed_password = get_password_hash(plain_password)
-
-    # 6. Split full_name into first / last
+    # 5. Split full_name into first / last
     name_parts = full_name.strip().split(" ", 1)
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else None
 
-    # 7. Create the Candidate row first (CandidateStatus has FK → candidates)
-    candidate = Candidate(
-        candidateID=candidate_id,
-        candidateRole=job.jobTitle,
-        candidateFirstName=first_name,
-        candidateLastName=last_name,
-        candidateEmail=email,
-        candidateMobile=phone,
-        candidateExperience=total_experience_years,
-        candidateCurrentLocation=current_location,
-        candidateCurrentSalary=current_lpa,
-        candidateExpectedSalary=expected_lpa,
-        candidateSource="public_application",
-        candidatePassword=hashed_password,
-        candidateTempPassword=plain_password,  # Store plain password for credential emails
-        candidateIsVerified=False,
-        candidateCreatedAt=datetime.now(),
-    )
-    db.add(candidate)
+    # 6/7. R-07: createCandidateSafe() is the only sanctioned creation path.
+    try:
+        candidate = create_candidate_safe(
+            db,
+            email=email,
+            mobile=phone,
+            candidateRole=job.jobTitle,
+            candidateFirstName=first_name,
+            candidateLastName=last_name,
+            candidateExperience=total_experience_years,
+            candidateCurrentLocation=current_location,
+            candidateCurrentSalary=current_lpa,
+            candidateExpectedSalary=expected_lpa,
+            candidateSource="public_application",
+            candidateCreatedAt=datetime.now(),
+        )
+    except DuplicateCandidateError as exc:
+        return JobApplicationResponse(
+            status="Already Applied",
+            message="An application with this email address already exists.",
+            candidate_id=exc.existing.candidateID,
+        )
+    candidate_id = candidate.candidateID
     db.flush()  # persist candidate so FK is satisfied
 
     # 8. Create CandidateStatus row (after candidate row exists)
