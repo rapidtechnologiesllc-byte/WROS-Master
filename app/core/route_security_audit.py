@@ -2,25 +2,21 @@
 HRMS-0114 -- "every route has an explicit permission declaration or the
 application fails to start."
 
-This module provides the MECHANISM (find_routes_missing_permission_declaration
-/ assert_all_routes_have_permission_declarations). It is deliberately NOT
-wired into app.main's startup event yet: this codebase has existing
-routes that predate RBAC and don't carry a require_permission()/
-require_attribute() declaration. Flipping the hard-fail-at-startup switch
-on before those are reviewed and fixed would crash the app in production
-rather than catch a future regression, which is the opposite of the
-intent.
+This module provides the mechanism
+(find_routes_missing_permission_declaration /
+assert_all_routes_have_permission_declarations), and as of 2026-07-20
+IS wired into app.main's startup event -- the real-app audit reached 0
+unexplained zero-identity-check routes (see
+docs/build-package/HRMS-0114-route-gap.md for the full history of how
+it got there), so a future route shipping with no auth at all now
+fails the app at startup instead of silently going live.
 
-Path to actually enabling it:
-1. Run assert_all_routes_have_permission_declarations(app, PUBLIC_ROUTES)
-   (or the reporting test in tests/test_route_permission_audit.py) to get
-   the current list of non-compliant routes.
-2. Add an explicit require_permission(...) or require_attribute(...)
-   dependency to each one (or add it to PUBLIC_ROUTES if it's genuinely
-   meant to be public).
-3. Once the list is empty, call assert_all_routes_have_permission_declarations
-   from app.main's startup_event so a future route that forgets its
-   declaration fails startup immediately, per HRMS-0114.
+find_routes_with_only_coarse_auth() is a SEPARATE, non-blocking list --
+routes with a real but coarse identity check (any-logged-in-candidate
+or any-logged-in-staff-member) rather than a specific
+require_permission(). That list does not need to be empty for the
+startup gate to be safely enabled; it's a lower-urgency tightening
+effort tracked in tests/test_route_permission_audit_real_app.py.
 """
 from typing import Iterable, List
 
@@ -132,10 +128,22 @@ def find_routes_with_only_coarse_auth(app: FastAPI, public_routes: Iterable[str]
     return sorted(set(coarse))
 
 
-def assert_all_routes_have_permission_declarations(app: FastAPI, public_routes: Iterable[str]) -> None:
-    missing = find_routes_missing_permission_declaration(app, public_routes)
+def assert_all_routes_have_permission_declarations(
+    app: FastAPI,
+    public_routes: Iterable[str],
+    known_exceptions: Iterable[str] = (),
+) -> None:
+    """
+    `known_exceptions` is for routes manually verified to have real
+    protection this scanner structurally can't see (e.g. an in-function-
+    body cookie check rather than a FastAPI Depends()) -- see
+    app.main's call site for the current list and why each is there.
+    Every exception here should have its own regression test guarding
+    that the underlying protection hasn't quietly been removed.
+    """
+    missing = set(find_routes_missing_permission_declaration(app, public_routes)) - set(known_exceptions)
     if missing:
         raise RuntimeError(
             "HRMS-0114: the following routes have no explicit identity/permission "
-            f"declaration at all and are not listed as public: {missing}"
+            f"declaration at all and are not listed as public or a known exception: {sorted(missing)}"
         )
