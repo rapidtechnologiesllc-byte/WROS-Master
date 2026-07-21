@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 import app.schemas as schema
 from app.core.database import check_candidate, get_db
 from app.core.security import get_password_hash
+from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import (
     Candidate,
     CandidateInfoForm,
@@ -175,8 +176,10 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     Returns:
         AllCandidatesResponse with list of all candidates and their forms
     """
-    # Get all candidates
-    candidates = db.query(Candidate).all()
+    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants'
+    # candidates. See app.core.tenant_context; fails closed (403) if
+    # `user` has no tenant assigned rather than silently showing everyone's.
+    candidates = get_tenant_scoped_query(db, Candidate, current_user=user).all()
 
     candidates_data = []
     for candidate in candidates:
