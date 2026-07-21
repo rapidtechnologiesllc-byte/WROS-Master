@@ -30,6 +30,14 @@ from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit, Department
+from app.models.employee import (
+    Employee,
+    EmployeeEmploymentHistory,
+    EmployeeDocuments,
+    EmployeeEngineHistory,
+)
+from app.models.client import Client, ClientContact, ClientHistory
+from app.models.demand import Demand, DemandHistory
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -86,6 +94,18 @@ __all__ = [
     "RolePermission",
     "BusinessUnit",
     "Department",
+    # Employee (HRMS-0101 / 0101-REV, Phase 2 Domain 3)
+    "Employee",
+    "EmployeeEmploymentHistory",
+    "EmployeeDocuments",
+    "EmployeeEngineHistory",
+    # Client (HRMS-0102, Phase 2 Domain 4)
+    "Client",
+    "ClientContact",
+    "ClientHistory",
+    # Demand (HRMS-0103, Phase 2 Domain 2/4)
+    "Demand",
+    "DemandHistory",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",

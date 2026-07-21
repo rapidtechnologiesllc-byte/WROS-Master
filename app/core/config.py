@@ -44,6 +44,11 @@ class Settings:
     # POST /ai-agent/webhook/email-reply. See app.core.webhook_auth.
     WEBHOOK_SHARED_SECRET: str = os.getenv("WEBHOOK_SHARED_SECRET", "")
 
+    # Field-level encryption (HRMS-0101 BR-01) -- AES-256 key (32 raw
+    # bytes, base64-encoded) for employee bank account/routing fields.
+    # See app.core.field_encryption.
+    FIELD_ENCRYPTION_KEY: str = os.getenv("FIELD_ENCRYPTION_KEY", "")
+
     # CORS Settings
     CORS_ORIGINS: list = [
         "http://localhost:3000",

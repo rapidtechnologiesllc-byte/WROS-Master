@@ -1,0 +1,123 @@
+"""
+HRMS-0103 — Demand / Job Requisition Management, Phase 2 Domain 2/4.
+
+Same SQL-Server/SQLite-portable translation conventions as
+app.models.employee/client.
+
+Note: this is a genuinely new entity, distinct from the existing `Jobs`
+table (app.models.user.Jobs) -- Jobs was built for the onboarding
+module's own recruiting flow and doesn't have a client_id FK, a demand
+state machine, or the bench-first/sourcing gating fields this spec
+calls for. Per this session's confirmed direction, `demands` is built
+as its own table rather than retrofitting Jobs -- reconciling the two
+(or migrating Jobs data into demands) is a separate decision, flagged
+in the developer handoff, not resolved by silently picking one here.
+"""
+import uuid
+
+from sqlalchemy import (
+    Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer,
+    Numeric, String, Text, UniqueConstraint, func,
+)
+from sqlalchemy.orm import relationship
+
+from app.models.base import Base
+
+
+def _new_uuid() -> str:
+    return str(uuid.uuid4())
+
+
+WORK_LOCATIONS = ("REMOTE", "ONSITE", "HYBRID")
+EMPLOYMENT_TYPES = ("W2_FULLTIME",)  # BR-01: the only allowed value, R-03
+INTERVIEW_TYPES = ("L1_ONLY", "L1_AND_L2")
+URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
+DEMAND_STATUSES = ("DRAFT", "OPEN", "IN_PROGRESS", "FILLED", "CANCELLED", "ON_HOLD")
+
+# HRMS-0103 step 3 -- allowed status transitions.
+ALLOWED_DEMAND_TRANSITIONS = {
+    "DRAFT": {"OPEN"},
+    "OPEN": {"IN_PROGRESS", "ON_HOLD", "CANCELLED"},
+    "IN_PROGRESS": {"FILLED", "ON_HOLD", "CANCELLED"},
+    "ON_HOLD": {"OPEN", "IN_PROGRESS", "CANCELLED"},
+    "FILLED": set(),      # terminal
+    "CANCELLED": set(),   # terminal
+}
+
+
+class Demand(Base):
+    __tablename__ = "demands"
+
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+
+    job_title = Column(String(300), nullable=False)
+    job_description = Column(Text, nullable=True)
+    required_skills = Column(Text, nullable=False)      # JSON-encoded array
+    nice_to_have_skills = Column(Text, nullable=True)   # JSON-encoded array, default '[]'
+    min_experience_years = Column(Numeric(4, 1), nullable=False)
+    max_experience_years = Column(Numeric(4, 1), nullable=True)
+
+    work_location = Column(Enum(*WORK_LOCATIONS, name="demand_work_location", native_enum=False, create_constraint=True), nullable=False)
+    job_location = Column(String(200), nullable=True)
+    domain = Column(String(100), nullable=True)
+
+    # BR-01 / R-03: hardcoded, no other value ever allowed -- see also
+    # the CHECK constraint added in the migration for a DB-level guard
+    # independent of application code, same discipline as delivery_engine.
+    employment_type = Column(Enum(*EMPLOYMENT_TYPES, name="demand_employment_type", native_enum=False, create_constraint=True), nullable=False, default="W2_FULLTIME")
+    interview_type_required = Column(Enum(*INTERVIEW_TYPES, name="demand_interview_type", native_enum=False, create_constraint=True), nullable=False, default="L1_AND_L2")
+
+    headcount = Column(Integer, nullable=False, default=1)
+    positions_filled = Column(Integer, nullable=False, default=0)
+
+    billing_rate_usd_cents = Column(Integer, nullable=True)
+    budget_min_usd_cents = Column(Integer, nullable=True)
+    budget_max_usd_cents = Column(Integer, nullable=True)
+
+    required_start_date = Column(Date, nullable=True)
+    urgency = Column(Enum(*URGENCY_LEVELS, name="demand_urgency", native_enum=False, create_constraint=True), nullable=False, default="NORMAL")
+    status = Column(Enum(*DEMAND_STATUSES, name="demand_status", native_enum=False, create_constraint=True), nullable=False, default="DRAFT")
+
+    # BR-02 / R-04: sourcing_enabled (LinkedIn) cannot be set True unless
+    # bench_first_checked is already True -- enforced in
+    # app.services.demand_service.enable_sourcing(), not by hand-setting
+    # the column, the same one-sanctioned-path discipline as everywhere
+    # else in this codebase.
+    sourcing_enabled = Column(Boolean, nullable=False, default=False)
+    bench_first_checked = Column(Boolean, nullable=False, default=False)
+
+    assigned_recruiter_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    assigned_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    created_by = Column(String(50), nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    closed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # Spec says UNIQUE on (tenant_id, client_id, job_title, status='OPEN')
+        # -- a partial/conditional unique index isn't portable across
+        # SQLite/SQL Server the same way; enforced instead in
+        # app.services.demand_service.create_demand() at the application
+        # layer, checked before insert.
+    )
+
+
+class DemandHistory(Base):
+    """Insert-only, same immutable pattern as employee/client history."""
+    __tablename__ = "demand_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
+    change_type = Column(
+        Enum("STATUS", "RECRUITER", "URGENCY", "HEADCOUNT", name="demand_change_type", native_enum=False, create_constraint=True),
+        nullable=False,
+    )
+    old_value = Column(Text, nullable=True)
+    new_value = Column(Text, nullable=True)
+    reason = Column(Text, nullable=True)
+    changed_by = Column(String(50), nullable=True)
+    changed_at = Column(DateTime, server_default=func.now())
