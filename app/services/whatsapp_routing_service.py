@@ -116,6 +116,7 @@ def send_whatsapp_message(
     sender_type: str,
     sender_id: Optional[str] = None,
     whatsapp_client: Optional[Callable[[str, str, str], bool]] = None,
+    auto_generated: bool = False,
 ) -> ConversationEvent:
     """
     The one sanctioned send path for candidate-facing WhatsApp messages,
@@ -123,6 +124,15 @@ def send_whatsapp_message(
     HRMS-0409's auto-transfer-on-manual-send rule (for human sends).
 
     sender_type: 'ai_agent' or 'hr_user'. sender_id required for 'hr_user'.
+
+    auto_generated: set by app.services.conversation_inactivity_service
+    when this send is a system-triggered nudge attributed to a recruiter
+    (sender_type='hr_user') rather than something they actually typed --
+    the event is still recorded with sender_type='hr_user' (it goes out
+    under their number, as their message, per Avinash's explicit call),
+    but this flag keeps R-06/HRMS-P612's human-dependency tracking honest
+    about which sends were genuinely manual versus automated on a
+    recruiter's behalf.
     """
     if sender_type == "ai_agent":
         if not is_ai_owner(conversation):
@@ -162,6 +172,7 @@ def send_whatsapp_message(
             "to_number": to_number,
             "body": message_body,
             "delivered": delivered,
+            "auto_generated": auto_generated,
         },
         triggered_by=sender_type,
     )

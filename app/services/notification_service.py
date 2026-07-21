@@ -78,20 +78,30 @@ DEFAULT_CHANNEL_SENDERS: Dict[str, Callable[[Users, str], bool]] = {
 }
 
 
-def _is_within_business_hours(now_utc: dt.datetime, tz_name: str) -> bool:
+def _is_within_business_hours(
+    now_utc: dt.datetime, tz_name: str,
+    *, start_hour: int = BUSINESS_HOURS_START, end_hour: int = BUSINESS_HOURS_END,
+) -> bool:
+    """Generalized so callers with a different window (e.g.
+    app.services.conversation_inactivity_service's 9am-9pm candidate
+    send-window) can reuse this same tested timezone-conversion logic
+    instead of duplicating it."""
     tz = ZoneInfo(tz_name or DEFAULT_TIMEZONE)
     local_now = now_utc.replace(tzinfo=dt.timezone.utc).astimezone(tz)
-    return BUSINESS_HOURS_START <= local_now.hour < BUSINESS_HOURS_END
+    return start_hour <= local_now.hour < end_hour
 
 
-def _next_business_hours_release(now_utc: dt.datetime, tz_name: str) -> dt.datetime:
+def _next_business_hours_release(
+    now_utc: dt.datetime, tz_name: str,
+    *, start_hour: int = BUSINESS_HOURS_START, end_hour: int = BUSINESS_HOURS_END,
+) -> dt.datetime:
     """Next moment (naive UTC, matching this codebase's DateTime
     convention elsewhere) the recipient's local time enters the
-    business-hours window."""
+    [start_hour, end_hour) window."""
     tz = ZoneInfo(tz_name or DEFAULT_TIMEZONE)
     local_now = now_utc.replace(tzinfo=dt.timezone.utc).astimezone(tz)
-    candidate = local_now.replace(hour=BUSINESS_HOURS_START, minute=0, second=0, microsecond=0)
-    if local_now.hour >= BUSINESS_HOURS_END:
+    candidate = local_now.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    if local_now.hour >= end_hour:
         candidate += dt.timedelta(days=1)
     return candidate.astimezone(dt.timezone.utc).replace(tzinfo=None)
 

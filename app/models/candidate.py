@@ -47,6 +47,13 @@ class Candidate(Base):
         Enum(*CANDIDATE_EMPLOYMENT_TYPES, name="candidate_employment_type", native_enum=False, create_constraint=True),
         nullable=False, server_default="UNKNOWN", default="UNKNOWN",
     )
+    # app.services.conversation_inactivity_service -- candidate-local
+    # timezone, used only to decide whether it's a reasonable hour
+    # (9am-9pm) to auto-message the candidate. Every existing row
+    # backfills to BlitzenX's default (same as Users.timezone); real
+    # per-candidate values would come from whichever intake flow
+    # eventually captures location -- not resolved here.
+    timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata", default="Asia/Kolkata")
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason as Users.tenant_id: existing rows
