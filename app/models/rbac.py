@@ -95,9 +95,18 @@ class BusinessUnit(Base):
     name = Column(String(100), unique=True, nullable=False, index=True)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    # HRMS-0109 — nullable for the same safe-upgrade reason as elsewhere.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    # HRMS-0101 — extends the existing table rather than creating a second
+    # business_units table (the requirements doc specced one fresh, but
+    # this one already exists and is in active use by RBAC).
+    bu_code = Column(String(50), nullable=True)
+    parent_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_head_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
 
     # Back-reference: all departments that belong to this BU
     departments = relationship("Department", back_populates="business_unit", lazy="select")
+    parent_bu = relationship("BusinessUnit", remote_side=[id], foreign_keys=[parent_bu_id])
 
     def __repr__(self) -> str:
         return f"<BusinessUnit id={self.id} name={self.name!r}>"
