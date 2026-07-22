@@ -39,3 +39,12 @@ export const rejectRecommendation = async (recommendationId) => {
   );
   return data;
 };
+
+// S-253 -- top bench candidates for a demand, by skill match.
+export const getMatchingBenchResources = async (demandId) => {
+  const { data } = await apiRequest(
+    `/resource-management/demands/${demandId}/matching-bench-resources`,
+    { method: "GET" },
+  );
+  return data;
+};
