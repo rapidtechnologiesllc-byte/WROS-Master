@@ -40,7 +40,7 @@ from app.services.thunder_service import (
     ConsentNotGiven,
     DuplicateMessageSuppressed,
     ThunderReplyGenerationFailed,
-    TEST_CANDIDATE_ID,
+    test_candidate_id_for,
     get_test_chat_history,
     reset_test_chat,
     run_test_chat_turn,
@@ -70,7 +70,7 @@ def send_test_chat_message(
 ):
     try:
         result = run_test_chat_turn(
-            db, tenant_id=current_user.UserID, message_body=body.message,
+            db, current_user=current_user, message_body=body.message,
         )
     except ConversationOwnedByHuman as exc:
         raise HTTPException(
@@ -102,7 +102,7 @@ def get_test_chat_history_endpoint(
 ):
     messages = get_test_chat_history(db, tenant_id=current_user.UserID)
     return TestChatHistoryResponse(
-        conversation_candidate_id=TEST_CANDIDATE_ID,
+        conversation_candidate_id=test_candidate_id_for(current_user.UserID),
         messages=[TestChatHistoryItem(**m) for m in messages],
     )
 
