@@ -14,11 +14,16 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.models.audit_log import AuditLog
 from app.models.base import Base
 from app.models.candidate import Candidate
+from app.models.user import Users
 from app.services.candidate_service import (
+    InsufficientExperienceError,
     create_candidate_safe,
+    enforce_experience_gate_at_creation,
     find_duplicate_candidate,
+    parse_experience_to_months,
     DuplicateCandidateError,
 )
 
@@ -28,7 +33,7 @@ def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[Candidate.__table__])
+    Base.metadata.create_all(engine, tables=[Candidate.__table__, Users.__table__, AuditLog.__table__])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -148,3 +153,92 @@ def test_create_candidate_safe_accepts_arbitrary_extra_fields(db_session):
     db_session.commit()
     assert candidate.candidateRole == "Recruiter Sourced"
     assert candidate.candidateSource == "referral"
+
+
+# ---------------------------------------------------------------------------
+# R-01 (HRMS-P601) -- 5-year experience gate at creation time.
+# Reuses app.services.submission_service.check_experience_eligibility(),
+# not a second implementation -- these tests exercise the creation-time
+# wrapper (parsing + gate + override), not the eligibility math itself
+# (already covered by tests/test_submission_interview_pipeline.py).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("raw,expected_months", [
+    ("5", 60),
+    ("3.5", 42),
+    ("10+ years", 120),
+    ("7 years", 84),
+    ("Fresher", None),
+    ("Intern", None),
+    ("", None),
+    (None, None),
+])
+def test_parse_experience_to_months(raw, expected_months):
+    assert parse_experience_to_months(raw) == expected_months
+
+
+def _make_candidate(db, *, months, candidate_id="C-GATE"):
+    candidate = Candidate(
+        candidateID=candidate_id, candidateEmail=f"{candidate_id}@example.com",
+        candidatePassword="h", total_experience_months=months,
+    )
+    db.add(candidate)
+    db.commit()
+    return candidate
+
+
+def test_experience_gate_passes_when_eligible(db_session):
+    candidate = _make_candidate(db_session, months=72)
+    enforce_experience_gate_at_creation(db_session, candidate=candidate)  # must not raise
+
+
+def test_experience_gate_blocks_when_below_floor(db_session):
+    candidate = _make_candidate(db_session, months=24)
+    with pytest.raises(InsufficientExperienceError):
+        enforce_experience_gate_at_creation(db_session, candidate=candidate)
+
+
+def test_experience_gate_blocks_when_unverified(db_session):
+    candidate = _make_candidate(db_session, months=None)
+    with pytest.raises(InsufficientExperienceError):
+        enforce_experience_gate_at_creation(db_session, candidate=candidate)
+
+
+def test_experience_gate_rejects_override_from_wrong_role(db_session):
+    candidate = _make_candidate(db_session, months=24)
+    recruiter = Users(UserID="U-REC", UserRole="Recruiter", UserEmail="rec@blitzenx.com", UserPassword="h")
+    db_session.add(recruiter)
+    db_session.commit()
+
+    with pytest.raises(InsufficientExperienceError):
+        enforce_experience_gate_at_creation(
+            db_session, candidate=candidate, bu_head_override=recruiter, override_reason="trust me",
+        )
+
+
+def test_experience_gate_rejects_override_missing_reason(db_session):
+    candidate = _make_candidate(db_session, months=24)
+    bu_head = Users(UserID="U-BUH", UserRole="BU Head", UserEmail="buh@blitzenx.com", UserPassword="h")
+    db_session.add(bu_head)
+    db_session.commit()
+
+    with pytest.raises(InsufficientExperienceError):
+        enforce_experience_gate_at_creation(db_session, candidate=candidate, bu_head_override=bu_head)
+
+
+def test_experience_gate_allows_valid_bu_head_override_and_logs_it(db_session):
+    candidate = _make_candidate(db_session, months=24)
+    bu_head = Users(UserID="U-BUH", UserRole="BU Head", UserEmail="buh@blitzenx.com", UserPassword="h")
+    db_session.add(bu_head)
+    db_session.commit()
+
+    enforce_experience_gate_at_creation(
+        db_session, candidate=candidate, bu_head_override=bu_head,
+        override_reason="Exceptional domain expertise confirmed via panel interview.",
+    )
+    db_session.commit()
+
+    log = db_session.query(AuditLog).filter(AuditLog.entity_id == candidate.candidateID).first()
+    assert log is not None
+    assert log.action == "hard_rule_override"
+    assert log.user_id == "U-BUH"

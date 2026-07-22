@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 
 import app.schemas as schema
 from app.core.database import get_db
-from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
+from app.services.candidate_service import (
+    create_candidate_safe,
+    DuplicateCandidateError,
+    enforce_experience_gate_at_creation,
+    InsufficientExperienceError,
+    parse_experience_to_months,
+)
 from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import (
     Candidate,
@@ -85,6 +91,9 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
             candidateDateOfBirth=request.candidate_date_of_birth,
             candidateSource=request.candidate_source,
             candidateExperience=request.candidate_experience,
+            # R-01 (HRMS-P601): interim substitute for HRMS-0428's
+            # not-yet-built resume parsing -- see candidate_service.py.
+            total_experience_months=parse_experience_to_months(request.candidate_experience),
             candidateSkills=request.candidate_skills,
             candidateJoiningDate=request.candidate_joining_date,
             candidateExpectedSalary=request.candidate_expected_salary,
@@ -97,6 +106,22 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
             status_code=400,
             detail=f"Account already exists with email {request.candidate_email}"
         )
+
+    # R-01 (HRMS-P601): fail closed before anything commits -- no
+    # exceptions without a logged BU Head override, verified server-side
+    # against the Users table, never trusted as a client-supplied claim.
+    bu_head_override = None
+    if request.bu_head_override_user_id:
+        bu_head_override = db.query(Users).filter(Users.UserID == request.bu_head_override_user_id).first()
+    try:
+        enforce_experience_gate_at_creation(
+            db, candidate=candidate, bu_head_override=bu_head_override,
+            override_reason=request.override_reason,
+        )
+    except InsufficientExperienceError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=exc.eligibility["message"])
+
     candidate_id = candidate.candidateID
 
     db.commit()
