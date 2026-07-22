@@ -30,6 +30,17 @@ PHASE 3.5: Data Import & Live Data Flow          (added 2026-07-22, no detail do
          3's own subject). See memory file
          `resume_intake_agent_backlog.md`.
       3. Importing current data via Excel -- scope not yet given.
+      4. Candidate relationship/behavioral profile layer (flagged
+         2026-07-22, to brainstorm) -- HRMS-1104 (built this session)
+         has no concept of gathering relationship-building data
+         (birthday, favorite food, city, personal topics) for
+         behavioral analysis and automated personalized touches.
+         Verified genuinely new: none of HRMS-1106-1110 (Revenue/
+         Project/Integration Health monitoring, Learning Optimisation,
+         Daily Activity Report) touch this, and it's distinct from
+         candidate_desire_profiles (hiring-intent scoring, not
+         personal/relationship data). See memory file
+         `phase_3_5_data_import.md`.
               ↓
 PHASE 4: Resource Management                    (see 04-RESOURCE-MANAGEMENT.md)
     (also unlocked in parallel by Phase 3, detailed separately given its scope)
