@@ -44,6 +44,8 @@ EMPLOYMENT_TYPES = ("PERMANENT", "CONTRACT", "FIXED_TERM")
 EMPLOYEE_STATUSES = (
     "PRE_JOINING", "ACTIVE", "ON_LEAVE", "BENCH", "ALLOCATED",
     "NOTICE_PERIOD", "EXITED",
+    # S-365/HRMS-0521 -- Buddy Program Graduation Gate outcomes.
+    "SPECIALITY_READY", "PERFORMANCE_MANAGED",
 )
 BILLING_CLASSIFICATIONS = ("BENCH", "ALLOCATED", "NON_BILLABLE")
 WORK_LOCATIONS = ("REMOTE", "ONSITE", "HYBRID")
@@ -54,12 +56,24 @@ HTD_PHASES = ("INDUCTION", "SHADOW_DELIVERY", "CONTROLLED_OWNERSHIP", "CORE_ELIG
 # Allowed status transitions -- BR from HRMS-0101 step 4.
 ALLOWED_STATUS_TRANSITIONS = {
     "PRE_JOINING": {"ACTIVE"},
-    "ACTIVE": {"BENCH", "ALLOCATED", "ON_LEAVE", "NOTICE_PERIOD"},
+    # S-365: a BU Head's GRADUATE/EXIT decision moves an ACTIVE employee
+    # to SPECIALITY_READY/PERFORMANCE_MANAGED -- both reachable from
+    # ACTIVE, since that's the status a new hire sits in throughout
+    # their Buddy Program run (buddy_program_status is a separate field).
+    "ACTIVE": {"BENCH", "ALLOCATED", "ON_LEAVE", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED"},
     "ON_LEAVE": {"ACTIVE"},
     "BENCH": {"ALLOCATED", "NOTICE_PERIOD"},
     "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD"},
     "NOTICE_PERIOD": {"EXITED"},
     "EXITED": set(),  # terminal
+    # Cleared for Specialty deployment -- resumes the normal ACTIVE-style
+    # lifecycle (bench/allocate/leave/exit), just without re-entering
+    # SPECIALITY_READY a second time.
+    "SPECIALITY_READY": {"BENCH", "ALLOCATED", "ON_LEAVE", "NOTICE_PERIOD"},
+    # Not specified beyond "HR notified to initiate performance
+    # process" -- this session's reasonable default, not confirmed:
+    # a PM process either resolves (back to ACTIVE) or ends in exit.
+    "PERFORMANCE_MANAGED": {"ACTIVE", "NOTICE_PERIOD"},
 }
 
 
