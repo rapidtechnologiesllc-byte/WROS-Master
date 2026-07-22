@@ -28,6 +28,7 @@ from app.models.notification import Notification
 from app.models.orchestration import ConflictRule, OrchestrationEvent
 from app.models.resource_management import (
     AllocationConflictLogEntry,
+    BenchPeriod,
     BenchPoolEntry,
     EmployeeUtilizationMetric,
 )
@@ -62,7 +63,7 @@ def db_session():
         EmployeeAllocation.__table__, Notification.__table__,
         ConflictRule.__table__, OrchestrationEvent.__table__,
         CorePullEvent.__table__, SpecialtyPoolReplacementPlan.__table__,
-        BenchPoolEntry.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

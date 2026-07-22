@@ -22,6 +22,10 @@ from app.models.employee import (
 )
 
 
+class DuplicateEmployeeEmail(Exception):
+    pass
+
+
 class InvalidStatusTransition(Exception):
     pass
 
@@ -178,6 +182,68 @@ def set_core_delivery_engine(
         tenant_id=employee.tenant_id, employee_id=employee.id,
         from_engine=previous_engine, to_engine="CORE",
         changed_by=changed_by, approval_reference=approval_reference, reason=reason,
+    ))
+
+    return employee
+
+
+# ---------------------------------------------------------------------------
+# S-245/HRMS-0501 (canonical) -- Create Employee Profile, direct-hire path.
+#
+# convert_candidate_to_employee() above is the ATS-pipeline path (a real
+# candidate got hired). This is the other legitimate entry point this
+# codebase's Employee.candidate_id being nullable already anticipates --
+# a direct hire never in the candidate pipeline. Reuses the exact same
+# "all new hires enter SPECIALITY, engine history starts at creation"
+# discipline rather than a second, divergent creation path.
+#
+# Canonical sheet's own description mentions "country, currency, work
+# auth, FT only enforced" -- no requirements doc for this exact story
+# was locatable in the corpus (the closest content matches under
+# HRMS-0501 in the doc corpus are actually about bench tracking, a
+# separate, confirmed ID-drift case -- see BenchPeriod's docstring), and
+# this model has no country/currency columns to begin with (billing is
+# uniformly USD-cents across this whole codebase, an existing
+# convention, not something this story should fork). Built against what
+# the model actually supports; "FT only enforced" is not implemented
+# since no concrete rule for it could be grounded in a real doc --
+# flagged rather than guessed.
+# ---------------------------------------------------------------------------
+
+def create_employee_profile(
+    db: Session,
+    *,
+    tenant_id: Optional[int],
+    first_name: str,
+    last_name: str,
+    email: str,
+    joining_date: date,
+    changed_by: Optional[str] = None,
+    **employee_fields,
+) -> Employee:
+    if db.query(Employee).filter(Employee.tenant_id == tenant_id, Employee.email == email).first():
+        raise DuplicateEmployeeEmail(f"An employee with email '{email}' already exists for this tenant.")
+
+    if employee_fields.get("delivery_engine") not in (None, "SPECIALITY"):
+        raise CoreAssignmentNotAllowed(
+            "New hires must enter SPECIALITY delivery engine. Core assignment "
+            "requires the Core Eligibility Gate (HRMS-0513) via set_core_delivery_engine()."
+        )
+    employee_fields.pop("delivery_engine", None)
+
+    employee = Employee(
+        tenant_id=tenant_id, first_name=first_name, last_name=last_name, email=email,
+        joining_date=joining_date, delivery_engine="SPECIALITY", engine_entry_date=joining_date,
+        employee_number=generate_employee_number(db, tenant_id, "BLX"),
+        **employee_fields,
+    )
+    db.add(employee)
+    db.flush()
+
+    db.add(EmployeeEngineHistory(
+        tenant_id=tenant_id, employee_id=employee.id,
+        from_engine=None, to_engine="SPECIALITY",
+        changed_by=changed_by, reason="Initial hire -- all new hires enter SPECIALITY.",
     ))
 
     return employee

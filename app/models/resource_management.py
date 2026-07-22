@@ -66,6 +66,44 @@ class BenchPoolEntry(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+BENCH_PERIOD_REASONS = ("PROJECT_ENDED", "PROJECT_DELAYED", "NEWLY_JOINED", "BETWEEN_PROJECTS", "OTHER")
+
+
+class BenchPeriod(Base):
+    """S-246/HRMS-0502 (canonical) -- persistent, append-only history of
+    every bench episode, one row per stint, kept forever. Deliberately
+    separate from BenchPoolEntry above, not a replacement for it:
+    bench_pool answers "who is on bench right now" (HRMS-1105's scan
+    depends on this staying a fast current-state table) while this
+    table answers "what is this employee's/tenant's bench history"
+    (aging-alert trend data, cumulative cost reporting -- S-248/S-255).
+    mark_employee_on_bench()/remove_employee_from_bench() write both
+    tables together so they can never drift out of sync.
+
+    BR-02 (source doc): only one open period (bench_end_date IS NULL)
+    per employee at a time -- enforced in the service layer, not a DB
+    constraint, matching this codebase's existing convention for
+    business-rule enforcement (e.g. AllocationOverCapacity).
+    """
+
+    __tablename__ = "bench_periods"
+
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+
+    bench_start_date = Column(Date, nullable=False)
+    bench_end_date = Column(Date, nullable=True)  # NULL while still on bench
+    reason_for_bench = Column(String(30), nullable=False)  # one of BENCH_PERIOD_REASONS
+    # BR-01: base_salary_usd_cents / 30 * days_on_bench -- computed and
+    # frozen once the period closes; NULL while still open (use
+    # BenchPoolEntry.bench_cost_usd_cents + get_bench_duration_days() for
+    # a live in-progress estimate).
+    bench_cost_usd_cents = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class EmployeeUtilizationMetric(Base):
     """Per-employee-per-week utilization snapshot, computed from real
     Timesheet data. See record_weekly_utilization_metric()."""
