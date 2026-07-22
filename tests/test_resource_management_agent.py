@@ -318,6 +318,24 @@ def test_run_bench_scan_triggers_core_pull_and_ranks_separately(db_session, fixt
 # RM review queue -- approve/reject
 # ---------------------------------------------------------------------------
 
+def test_approve_recommendation_requires_in_progress_first(db_session, fixtures):
+    tenant, client = fixtures
+    employee = _make_employee(db_session, tenant, status="BENCH")
+    mark_employee_on_bench(db_session, employee)
+    demand = _make_demand(db_session, tenant, client)
+    db_session.commit()
+
+    rec = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=demand.id,
+        confidence_pct=90, rationale="great fit", status="PENDING_RM_REVIEW",
+    )
+    db_session.add(rec)
+    db_session.commit()
+
+    with pytest.raises(svc.RecommendationNotPending):
+        svc.approve_bench_recommendation(db_session, rec, actor_user_id="U-RM")
+
+
 def test_approve_recommendation_creates_allocation_via_real_gate(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, status="BENCH")
@@ -332,6 +350,8 @@ def test_approve_recommendation_creates_allocation_via_real_gate(db_session, fix
     db_session.add(rec)
     db_session.commit()
 
+    svc.start_pursuing_recommendation(db_session, rec, actor_user_id="U-RM")
+    db_session.commit()
     allocation = svc.approve_bench_recommendation(db_session, rec, actor_user_id="U-RM")
     db_session.commit()
 
@@ -397,3 +417,124 @@ def test_get_recommendation_queue_sorted_by_confidence_desc(db_session, fixtures
 
     queue = svc.get_recommendation_queue(db_session, tenant_id=tenant.id)
     assert [float(r.confidence_pct) for r in queue] == [90, 40]
+
+
+# ---------------------------------------------------------------------------
+# Exclusivity: "never pushed to 2 clients at once" -- Avinash's explicit
+# business call, 2026-07-22. An employee IN_PROGRESS on one recommendation
+# must be hard-blocked from being pursued on a second, and excluded from
+# new scan suggestions entirely while active.
+# ---------------------------------------------------------------------------
+
+def test_is_employee_actively_engaged_false_by_default(db_session, fixtures):
+    tenant, client = fixtures
+    employee = _make_employee(db_session, tenant, status="BENCH")
+    db_session.commit()
+
+    assert svc.is_employee_actively_engaged(db_session, employee.id) is False
+
+
+def test_is_employee_actively_engaged_true_once_pursuing(db_session, fixtures):
+    tenant, client = fixtures
+    employee = _make_employee(db_session, tenant, status="BENCH")
+    demand = _make_demand(db_session, tenant, client)
+    db_session.commit()
+
+    rec = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=demand.id,
+        confidence_pct=80, status="PENDING_RM_REVIEW",
+    )
+    db_session.add(rec)
+    db_session.commit()
+    svc.start_pursuing_recommendation(db_session, rec, actor_user_id="U-RM")
+    db_session.commit()
+
+    assert svc.is_employee_actively_engaged(db_session, employee.id) is True
+
+
+def test_start_pursuing_hard_blocks_second_recommendation(db_session, fixtures):
+    """The exact scenario Avinash described: a Guidewire developer already
+    in interview stage at one client cannot be simultaneously pushed to a
+    second."""
+    tenant, client = fixtures
+    employee = _make_employee(db_session, tenant, status="BENCH")
+    demand_a = _make_demand(db_session, tenant, client, suffix="clientA")
+    demand_b = _make_demand(db_session, tenant, client, suffix="clientB")
+    db_session.commit()
+
+    rec_a = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=demand_a.id,
+        confidence_pct=85, status="PENDING_RM_REVIEW",
+    )
+    rec_b = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=demand_b.id,
+        confidence_pct=75, status="PENDING_RM_REVIEW",
+    )
+    db_session.add_all([rec_a, rec_b])
+    db_session.commit()
+
+    svc.start_pursuing_recommendation(db_session, rec_a, actor_user_id="U-RM")
+    db_session.commit()
+
+    with pytest.raises(svc.EmployeeAlreadyActivelyEngaged):
+        svc.start_pursuing_recommendation(db_session, rec_b, actor_user_id="U-RM")
+
+    assert rec_a.status == "IN_PROGRESS"
+    assert rec_b.status == "PENDING_RM_REVIEW"  # untouched
+
+
+def test_rejecting_first_recommendation_releases_the_hold(db_session, fixtures):
+    tenant, client = fixtures
+    employee = _make_employee(db_session, tenant, status="BENCH")
+    demand_a = _make_demand(db_session, tenant, client, suffix="clientA")
+    demand_b = _make_demand(db_session, tenant, client, suffix="clientB")
+    db_session.commit()
+
+    rec_a = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=demand_a.id,
+        confidence_pct=85, status="PENDING_RM_REVIEW",
+    )
+    rec_b = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=demand_b.id,
+        confidence_pct=75, status="PENDING_RM_REVIEW",
+    )
+    db_session.add_all([rec_a, rec_b])
+    db_session.commit()
+
+    svc.start_pursuing_recommendation(db_session, rec_a, actor_user_id="U-RM")
+    db_session.commit()
+    svc.reject_bench_recommendation(db_session, rec_a, actor_user_id="U-RM")
+    db_session.commit()
+
+    # Now rec_b can be pursued -- the hold from rec_a is released.
+    svc.start_pursuing_recommendation(db_session, rec_b, actor_user_id="U-RM")
+    assert rec_b.status == "IN_PROGRESS"
+
+
+def test_bench_scan_skips_actively_engaged_employee(db_session, fixtures):
+    """The scan itself shouldn't even surface new options for someone
+    already being actively pursued elsewhere -- not just block at the
+    pursue step."""
+    tenant, client = fixtures
+    employee = _make_employee(db_session, tenant, status="BENCH", skills='["Java", "Guidewire PolicyCenter"]')
+    mark_employee_on_bench(db_session, employee)
+    already_pursuing_demand = _make_demand(db_session, tenant, client, suffix="pursuing")
+    new_demand = _make_demand(db_session, tenant, client, suffix="new")
+    db_session.commit()
+
+    rec = BenchAllocationRecommendation(
+        tenant_id=tenant.id, employee_id=employee.id, demand_id=already_pursuing_demand.id,
+        confidence_pct=80, status="PENDING_RM_REVIEW",
+    )
+    db_session.add(rec)
+    db_session.commit()
+    svc.start_pursuing_recommendation(db_session, rec, actor_user_id="U-RM")
+    db_session.commit()
+
+    result = svc.run_bench_scan(db_session, tenant_id=tenant.id)
+    db_session.commit()
+
+    assert result["recommendations_created"] == 0
+    assert db_session.query(BenchAllocationRecommendation).filter(
+        BenchAllocationRecommendation.demand_id == new_demand.id
+    ).count() == 0

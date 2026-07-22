@@ -243,3 +243,17 @@ Built as one round, not two, since S-373's guard has no meaningful existence sep
 17 new tests, 610/610 passing (1 xfailed). Marked S-372 Done in the canonical sheet.
 
 **This closes out all four of Phase 4 Part A's stories** (S-353 Core-Pull Engine, S-373 Specialty Pool Guard, S-320/HRMS-1105 Resource Management Agent, S-372 Confirmed vs Potential Demand Workflow) plus the Part B foundation (bench_pool, utilization metrics, conflict log, Staffing Eligibility Engine) built earlier this session. **Phase 4 (Resource Management) is functionally complete** per `04-RESOURCE-MANAGEMENT.md`'s acceptance gate — worth a dedicated pass against that gate's checklist before considering it fully closed out, not assumed here.
+
+## Session log — 2026-07-22 (continued): Resource Management Agent exclusivity hard-block
+
+Avinash's explicit business call, not in HRMS-1105's story doc (that doc only describes a 2-step suggest-then-allocate flow): a bench employee already being actively pursued for one client ("in interview stage") must never be simultaneously pursued for a second. Confirmed scope directly rather than guessing — internal bench employees only (not the external Submission pipeline, which has the same class of gap but is explicitly out of scope for now), hard block not a warning.
+
+- **New `IN_PROGRESS` stage** on `BenchAllocationRecommendation` (migration `ba6522085601`, widens the status CHECK constraint, adds `pursued_by`/`pursued_at`): `PENDING_RM_REVIEW` (suggestion) → `IN_PROGRESS` (RM is actively presenting this candidate — `start_pursuing_recommendation()`) → `APPROVED` (offer/placement, real allocation created) or `REJECTED` (from either PENDING or IN_PROGRESS).
+- **`is_employee_actively_engaged()`**: true the moment any of an employee's recommendations is `IN_PROGRESS`, regardless of which demand.
+- **`start_pursuing_recommendation()`** is the real enforcement point — hard-blocks (`EmployeeAlreadyActivelyEngaged`) if the employee is already `IN_PROGRESS` elsewhere. `approve_bench_recommendation()` now requires `IN_PROGRESS` as a precondition (was `PENDING_RM_REVIEW`) — you can no longer allocate straight from a raw suggestion, matching the real world (interview happens before offer).
+- **`run_bench_scan()` skips actively-engaged employees entirely** — no new recommendations are even generated for someone already being pursued elsewhere, not just blocked at the pursue step. More conservative than strictly necessary, deliberately — presenting new options to an RM already committed to one client is noise at best.
+- Existing `PENDING_RM_REVIEW` suggestions for *other* demands are left untouched when one is pursued — visibility into alternatives is preserved (in case the active one falls through), only the act of *pursuing* a second one is blocked.
+
+6 new tests (the direct scenario: an employee `start_pursuing`'d for Client A, blocked from being pursued for Client B until A is rejected/resolved) + 1 existing test updated for the new precondition. 616/616 passing (1 xfailed).
+
+**No UI or API exists for Core-Pull/Specialty Pool Guard/Resource Management Agent yet** (Avinash asked how to validate S-353/S-373 in the UI — same answer for this: none of Phase 4 has REST endpoints or a screen, only Thunder does, since that was built explicitly as a clickable demo). Flagged as open, not started this round.
