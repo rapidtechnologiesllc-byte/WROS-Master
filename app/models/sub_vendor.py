@@ -98,6 +98,29 @@ class SubVendorRequest(Base):
     )
 
 
+class ClarificationQA(Base):
+    """
+    HRMS-P814 -- vendor asks a question against a specific request;
+    visible to every vendor viewing that request, not just the asker
+    (BR-0814-01) -- a clarification answered once shouldn't need
+    re-asking. Min length: question >= 10 chars, answer >= 10 chars,
+    enforced in app.services.sub_vendor_qa_service.
+    """
+    __tablename__ = "clarification_qa"
+
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    request_id = Column(String(36), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
+    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+
+    question = Column(String(2000), nullable=False)
+    asked_at = Column(DateTime, server_default=func.now())
+
+    answer = Column(String(2000), nullable=True)
+    answered_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    answered_at = Column(DateTime, nullable=True)
+
+
 class SubVendorUser(Base):
     __tablename__ = "sub_vendor_users"
 
