@@ -13,6 +13,14 @@ Broken into rules:
 3. **Definition of Done, unchanged from the standing correction**: every story needs **UI + API/Integration + Business rules + Tests**, all four, before it can be marked `Done`. Backend-only is `In Progress`, never `Done`. See "Definition of Done" at the top of `C:\Users\AvinashMukund\Documents\Claude\CLAUDE.md`.
 4. **New for this pass — explicit human approval gate**: *"every story requiring to be done end to end and approved by Avinash."* A story does not get marked `Done` in the canonical sheet on its own recognizance. After it's built, verified in-browser, tested, committed, and pushed — **stop and present it to Avinash for explicit sign-off before starting the next story.** Do not batch approvals; do not proceed past a pending approval to start the next story's build work.
 
+## Finalized sequencing decision (confirmed with Avinash, 2026-07-22)
+
+Strict Story-ID order would bury the Resource Management Agent (S-320) — Avinash's own stated "most important bread and butter" story — roughly 140 stories deep, even though its backend is already built. Recommended and confirmed: a **small, bounded carve-out**, not a departure from the discipline —
+
+1. **Finish Resource Management first**: S-320 (HRMS-1105 Resource Management Agent) → S-353 (Core-Pull Engine) + S-373 (Specialty Pool Guard, surfaced together) → S-372 (Confirmed vs Potential Demand Workflow). Backend/service/migration/tests already exist for all four (this program, same session) — this phase is **API + UI + API-tests only**, per story, each individually verified in-browser and approved before the next.
+2. **Then resume strict Story-ID numeric order** (S-002 → S-401, skipping S-320/S-353/S-372/S-373 since already done) for the remaining ~201 backend-tagged stories.
+3. **Vertical slices stay mandatory throughout, including for RM and for the strict-order phase** — backend (if missing) + API + UI + tests together per story, never "all backends first, then all UIs" across a batch of stories. That horizontal-layering pattern is the exact mistake the Definition-of-Done correction exists to prevent; it applies to this build order too, not just to the original four Phase 4 stories.
+
 ## A finding to surface before starting, not bury in a table
 
 Cross-referencing this 205-story list against the canonical sheet's own `Status` column: **148 of the 205 show `Planned`**, only ~23 show `Ready for Build`, and just 4 show `Done`. That undercounts real progress — this program has already built substantial backend work (e.g. the entire Agentic Operations Layer cluster, HRMS-1101–1110; Core-Pull/Specialty Guard; Resource Management Agent; Demand Confirmation Workflow) that the sheet still lists as `Planned`, because the Status column has never been reconciled against actual git history (a known, deliberately-deferred gap — see `wros_project_status` memory / CLAUDE.md).
