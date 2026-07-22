@@ -49,7 +49,7 @@ from app.services.notification_service import (
     _next_business_hours_release,
     send_notification,
 )
-from app.services.whatsapp_routing_service import send_whatsapp_message
+from app.services.thunder_service import send_thunder_message
 
 INACTIVITY_THRESHOLD_HOURS = 30
 SEND_WINDOW_START_HOUR = 9
@@ -202,7 +202,7 @@ def _reclaim(
             except Exception:
                 pass  # best-effort -- never blocks the reclaim itself
 
-    checkin_event = send_whatsapp_message(
+    checkin_event = send_thunder_message(
         db, conversation, candidate, DEFAULT_RECLAIM_CHECKIN_MESSAGE,
         sender_type="ai_agent", whatsapp_client=whatsapp_client, auto_generated=True,
     )
@@ -215,13 +215,13 @@ def _nudge(
     *, elapsed_hours: float, whatsapp_client: Optional[Callable[[str, str, str], bool]],
 ) -> dict:
     if conversation.owner_type == "hr_user" and conversation.owner_id:
-        event = send_whatsapp_message(
+        event = send_thunder_message(
             db, conversation, candidate, DEFAULT_NUDGE_MESSAGE,
             sender_type="hr_user", sender_id=conversation.owner_id,
             whatsapp_client=whatsapp_client, auto_generated=True,
         )
     else:
-        event = send_whatsapp_message(
+        event = send_thunder_message(
             db, conversation, candidate, DEFAULT_NUDGE_MESSAGE,
             sender_type="ai_agent", whatsapp_client=whatsapp_client, auto_generated=True,
         )
