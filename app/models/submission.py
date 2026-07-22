@@ -89,9 +89,9 @@ class Submission(Base):
         Enum(*SUBMISSION_SOURCES, name="submission_source", native_enum=False, create_constraint=True),
         nullable=False, default="INTERNAL",
     )
-    # sub_vendors table doesn't exist yet (EPIC-P8, not built) -- nullable,
-    # no FK constraint until that table lands.
-    subvendor_id = Column(String(36), nullable=True)
+    # EPIC-P8 Sub-Vendor Portal is now built (see app.models.sub_vendor) --
+    # FK completed, still nullable since most submissions aren't sub-vendor-sourced.
+    subvendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
