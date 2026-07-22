@@ -2,12 +2,19 @@
 HRMS-0507 -- allocate/end-allocation, the one write path that moves an
 employee off (or back onto) the bench. Per 04-RESOURCE-MANAGEMENT.md's
 own framing, this is always a distinct human decision, never automatic
--- there is no agent or ranking logic here (that's Phase 4).
+-- there is no agent or ranking logic here (that's Phase 4 Part A).
 
 Reuses app.services.employee_service.transition_employee_status() for
 the actual status change rather than setting Employee.status directly,
 so the transition-validity + history-logging guarantee stays in the one
 place it already lives.
+
+Phase 4 Part B wiring: mark_employee_on_bench()/remove_employee_from_
+bench() keep app.models.resource_management.BenchPoolEntry in sync with
+every BENCH/ALLOCATED transition this module already makes -- not a
+separate scheduled job, so bench_pool can never drift out of sync with
+Employee.status. log_allocation_conflict() records a permanent audit
+row the moment AllocationOverCapacity is about to be raised.
 """
 from datetime import date
 from typing import Optional
@@ -18,6 +25,11 @@ from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.services.employee_service import transition_employee_status
+from app.services.resource_management_service import (
+    log_allocation_conflict,
+    mark_employee_on_bench,
+    remove_employee_from_bench,
+)
 
 
 class EmployeeAlreadyAllocated(Exception):
@@ -105,6 +117,12 @@ def allocate_employee_to_project(
         )
         new_pct = float(utilization_pct or 100)
         if overlapping_total + new_pct > 100:
+            log_allocation_conflict(
+                db, employee,
+                conflicting_allocation_ids=[a.id for a in overlapping],
+                attempted_utilization_pct=new_pct,
+                existing_utilization_pct=overlapping_total,
+            )
             raise AllocationOverCapacity(
                 f"Employee {employee.id} already has {overlapping_total:.0f}% overlapping "
                 f"allocation -- adding {new_pct:.0f}% would exceed 100%."
@@ -121,10 +139,13 @@ def allocate_employee_to_project(
     db.add(allocation)
 
     if employee.status in ("BENCH", "ACTIVE"):
+        was_on_bench = employee.status == "BENCH"
         transition_employee_status(
             db, employee, "ALLOCATED",
             reason=f"Allocated to demand {demand.id}", changed_by=changed_by,
         )
+        if was_on_bench:
+            remove_employee_from_bench(db, employee)
 
     return allocation
 
@@ -142,9 +163,20 @@ def end_allocation(
     db.add(allocation)
 
     if employee.status == "ALLOCATED":
-        transition_employee_status(
-            db, employee, "BENCH",
-            reason=f"Allocation {allocation.id} ended", changed_by=changed_by,
-        )
+        # Part B item 1: bench only when there's genuinely no immediate
+        # next allocation -- relevant when allow_concurrent=True let this
+        # employee hold more than one ACTIVE allocation at once; ending
+        # just one of several shouldn't bench them (status OR bench_pool)
+        # while another is still live.
+        still_has_active = db.query(EmployeeAllocation).filter(
+            EmployeeAllocation.employee_id == employee.id,
+            EmployeeAllocation.status == "ACTIVE",
+        ).first()
+        if not still_has_active:
+            transition_employee_status(
+                db, employee, "BENCH",
+                reason=f"Allocation {allocation.id} ended", changed_by=changed_by,
+            )
+            mark_employee_on_bench(db, employee)
 
     return allocation
