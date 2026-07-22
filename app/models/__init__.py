@@ -45,7 +45,7 @@ from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.notification import Notification
 from app.models.opportunity import Opportunity
 from app.models.timesheet_dispute import TimesheetDispute
-from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser
+from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser, ClarificationQA
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
 from app.models.project import Project, ProjectMilestone
 from app.models.checklist import (
@@ -137,6 +137,7 @@ __all__ = [
     "SubVendorAccount",
     "SubVendorRequest",
     "SubVendorUser",
+    "ClarificationQA",
     "SubVendorSubmission",
     "SubVendorViolation",
     "SubVendorDedupRejection",
