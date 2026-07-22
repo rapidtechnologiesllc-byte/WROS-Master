@@ -21,6 +21,7 @@ from app.models.client import Client
 from app.models.demand import Demand, DemandHistory
 from app.models.employee import Employee, EmployeeEmploymentHistory
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.resource_management import AllocationConflictLogEntry, BenchPoolEntry, EmployeeUtilizationMetric
 from app.models.project import Project, ProjectMilestone
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.timesheet_dispute import TimesheetDispute
@@ -55,6 +56,7 @@ def db_session():
         Timesheet.__table__, TimesheetEntry.__table__, TimesheetDispute.__table__,
         Invoice.__table__, InvoiceLineItem.__table__,
         RevenueLeakageFlag.__table__, ReconciliationAlert.__table__,
+        BenchPoolEntry.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
