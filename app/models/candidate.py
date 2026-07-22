@@ -8,6 +8,13 @@ from app.models.base import Base
 # until someone explicitly confirms the candidate is W2 full-time.
 CANDIDATE_EMPLOYMENT_TYPES = ("W2_FULLTIME", "C2C", "1099", "UNKNOWN")
 
+# HRMS-P816: sourcing attribution. Immutable once set (BR-0816-01) --
+# enforced at the service layer (only set at creation time, in
+# app.services.sub_vendor_submission_service.accept_submission() for
+# SUBVENDOR, never exposed as an updatable field elsewhere), not by a
+# DB trigger.
+CANDIDATE_SOURCE_CHANNELS = ("DIRECT", "SUBVENDOR")
+
 
 class Candidate(Base):
     __tablename__ = "candidates"
@@ -59,6 +66,13 @@ class Candidate(Base):
     # per-candidate values would come from whichever intake flow
     # eventually captures location -- not resolved here.
     timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata", default="Asia/Kolkata")
+    # HRMS-P816 -- internal-analytics-only, BR-0816-02: never exposed to
+    # any candidate- or client-facing view/API response.
+    source_channel = Column(
+        Enum(*CANDIDATE_SOURCE_CHANNELS, name="candidate_source_channel", native_enum=False, create_constraint=True),
+        nullable=False, server_default="DIRECT", default="DIRECT",
+    )
+    vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=True)
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason as Users.tenant_id: existing rows
