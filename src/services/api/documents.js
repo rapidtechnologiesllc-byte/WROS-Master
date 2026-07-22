@@ -128,7 +128,9 @@ export const viewDocument = async (documentId) => {
       data = null;
     }
     const message = data?.detail || data?.message || "Document view failed.";
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
   const blob = await response.blob();
   const contentType =

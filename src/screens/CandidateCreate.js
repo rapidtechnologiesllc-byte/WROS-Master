@@ -44,6 +44,14 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [sendLoginEmail, setSendLoginEmail] = useState(true);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  // R-01 (HRMS-P601): the backend blocks creation when experience is
+  // below the 5-year floor unless a BU Head override is supplied. When
+  // that happens the form stays populated and this panel appears
+  // instead of losing the candidate's entered data.
+  const [experienceGateBlocked, setExperienceGateBlocked] = useState(false);
+  const [experienceGateMessage, setExperienceGateMessage] = useState("");
+  const [buHeadOverrideId, setBuHeadOverrideId] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
   const [educationRows, setEducationRows] = useState([]);
   const [experienceRows, setExperienceRows] = useState([]);
   const [errors, setErrors] = useState({});
@@ -434,6 +442,8 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     setErrors({});
     setActionNotice("");
+    setExperienceGateBlocked(false);
+    setExperienceGateMessage("");
     setIsSaving(true);
 
     try {
@@ -458,6 +468,11 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_current_location: currentLocation || null,
         assigned_hr_manager_id: assignedHrManagerId || null,
         assigned_report_manager_id: assignedReportManagerId || null,
+        // R-01: only meaningful when the candidate is below the 5-year
+        // floor -- harmless no-op otherwise, the backend only reads
+        // these when the eligibility check actually fails.
+        bu_head_override_user_id: buHeadOverrideId || null,
+        override_reason: overrideReason || null,
         education_records: filledEducationRows.length
           ? filledEducationRows.map((row) => ({
               education_institute: row.education_institute.trim(),
@@ -527,7 +542,18 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice(nextNotice);
       return createdCandidate;
     } catch (err) {
-      toast.error(err.message || "Failed to create candidate.");
+      // R-01: the backend's experience-floor rejection is a plain-string
+      // 400 detail (no distinct error code, matching how the pre-existing
+      // duplicate-email 400 is surfaced too) -- detected here by content
+      // rather than a code, since the backend doesn't expose one.
+      const isExperienceGateError =
+        err?.status === 400 && /experience/i.test(err.message || "");
+      if (isExperienceGateError) {
+        setExperienceGateBlocked(true);
+        setExperienceGateMessage(err.message);
+      } else {
+        toast.error(err.message || "Failed to create candidate.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -977,12 +1003,44 @@ export default function CandidateCreate({ onBack, onSave }) {
           </div>
         </div>
 
+        {experienceGateBlocked ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="mb-1 text-sm font-semibold text-amber-900">
+              Blocked: below the 5-year experience floor (R-01)
+            </div>
+            <p className="mb-3 text-xs text-amber-800">{experienceGateMessage}</p>
+            <p className="mb-3 text-xs text-amber-800">
+              This candidate can only be created with a logged BU Head
+              override. Enter the BU Head's user ID and a reason, then
+              retry.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                label="BU Head User ID"
+                value={buHeadOverrideId}
+                onChange={(value) => setBuHeadOverrideId(value)}
+                placeholder="e.g. U-1042"
+              />
+              <Input
+                label="Override Reason"
+                value={overrideReason}
+                onChange={(value) => setOverrideReason(value)}
+                placeholder="Why this candidate is being approved anyway"
+              />
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-4 flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onBack}>
             Cancel
           </Button>
           <Button onClick={handleSaveOnly} disabled={isSaving}>
-            {isSaving ? "Adding..." : "Add Candidate"}
+            {isSaving
+              ? "Adding..."
+              : experienceGateBlocked
+                ? "Retry with Override"
+                : "Add Candidate"}
           </Button>
         </div>
 
