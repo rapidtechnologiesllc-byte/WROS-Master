@@ -71,6 +71,7 @@ import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import EmployeeDirectoryScreen from "../screens/EmployeeDirectoryScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
+import UtilizationDashboardScreen from "../screens/UtilizationDashboardScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -433,6 +434,7 @@ export default function AppRoutes() {
             <Route path="employees" element={<EmployeeDirectoryScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
+            <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
 
             <Route
               path="candidates"
@@ -625,6 +627,7 @@ export default function AppRoutes() {
             <Route path="employees" element={<EmployeeDirectoryScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
+            <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
           <Route
             path="candidates"
             element={
