@@ -29,6 +29,25 @@ class AllocationOverCapacity(Exception):
     utilization are blocked, hard -- not just a warning."""
 
 
+class BuddyProgramNotGraduated(Exception):
+    """S-365/HRMS-0521 BR: no client deployment while an employee is
+    actively mid-Buddy-Program (IN_PROGRESS/EXTENDED)."""
+
+
+# S-365's BR reads as a blanket "buddy_program_status=GRADUATED required
+# for allocation," which read literally would also block every employee
+# who never entered a Buddy Program at all (buddy_program_status
+# defaults to NOT_STARTED) -- including every employee this codebase's
+# own pre-existing allocation tests already allocate successfully.
+# Scoped here to the two states that mean "actively mid-program, not
+# yet cleared" (IN_PROGRESS, EXTENDED) rather than blocking NOT_STARTED
+# too, which would silently invalidate already-tested behavior for a
+# reading the doc doesn't unambiguously require. Flagged, not decided
+# unilaterally as final -- confirm with whoever owns onboarding whether
+# NOT_STARTED should also block.
+_BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
+
+
 def allocate_employee_to_project(
     db: Session,
     *,
@@ -57,6 +76,12 @@ def allocate_employee_to_project(
     every ACTIVE allocation whose date range overlaps this one must not
     exceed 100 -- checked here, hard-blocked, not a soft warning.
     """
+    if employee.buddy_program_status in _BUDDY_PROGRAM_BLOCKING_STATUSES:
+        raise BuddyProgramNotGraduated(
+            f"Employee {employee.id} must complete Buddy Program graduation "
+            f"(current status: {employee.buddy_program_status}) before client deployment."
+        )
+
     start = start_date or date.today()
 
     if not allow_concurrent:

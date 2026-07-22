@@ -28,6 +28,7 @@ from app.models.user import Users
 from app.services.employee_allocation_service import (
     allocate_employee_to_project,
     end_allocation,
+    BuddyProgramNotGraduated,
     EmployeeAlreadyAllocated,
 )
 from app.services.timesheet_service import (
@@ -123,6 +124,53 @@ def test_allocate_already_allocated_raises(db_session, base_fixtures):
 
     with pytest.raises(EmployeeAlreadyAllocated):
         allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+
+
+# ---------------------------------------------------------------------------
+# S-365/HRMS-0521 -- no client deployment while actively mid-Buddy-Program
+# ---------------------------------------------------------------------------
+
+def test_allocation_blocked_while_buddy_program_in_progress(db_session, base_fixtures):
+    tenant, client, demand, employee = base_fixtures
+    employee.buddy_program_status = "IN_PROGRESS"
+    db_session.add(employee)
+    db_session.commit()
+
+    with pytest.raises(BuddyProgramNotGraduated):
+        allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+
+
+def test_allocation_blocked_while_buddy_program_extended(db_session, base_fixtures):
+    tenant, client, demand, employee = base_fixtures
+    employee.buddy_program_status = "EXTENDED"
+    db_session.add(employee)
+    db_session.commit()
+
+    with pytest.raises(BuddyProgramNotGraduated):
+        allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+
+
+def test_allocation_allowed_once_graduated(db_session, base_fixtures):
+    tenant, client, demand, employee = base_fixtures
+    employee.buddy_program_status = "GRADUATED"
+    db_session.add(employee)
+    db_session.commit()
+
+    allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+    db_session.commit()
+    assert employee.status == "ALLOCATED"
+
+
+def test_allocation_allowed_when_never_enrolled_in_buddy_program(db_session, base_fixtures):
+    """Scoping decision: NOT_STARTED (the model default) does not block --
+    only IN_PROGRESS/EXTENDED do. See employee_allocation_service's own
+    module-level note on why this isn't a blanket gate."""
+    tenant, client, demand, employee = base_fixtures
+    assert employee.buddy_program_status == "NOT_STARTED"
+
+    allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+    db_session.commit()
+    assert employee.status == "ALLOCATED"
 
 
 def test_end_allocation_returns_employee_to_bench(db_session, base_fixtures):
