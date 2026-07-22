@@ -14,6 +14,13 @@ This module follows the BR's own plain-language restatement instead:
 "Buddy cannot self-score" -- enforced at record creation, rejecting a
 buddy_engineer_user_id that matches the employee's own linked
 Users account, not at score-submission time.
+
+Per the story's own Step 3 ("All scores write to buddy_kpi_scores AND
+via PerformanceStoreWriter to employee_performance_events with
+event_type=BUDDY_KPI"), submit_weekly_scores() now also writes to the
+performance store (HRMS-0515, built alongside S-360 in the same
+session) -- this wiring was originally deferred when the Buddy Program
+was first built, since that table didn't exist yet.
 """
 import json
 from datetime import date
@@ -23,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.models.buddy_program import BuddyKPIScore, BuddyProgramRecord
 from app.models.employee import Employee
+from app.services.performance_store_service import write_performance_event
 
 # kpi_number -> (category, name), per S-364's Step 2 seed data.
 KPI_DEFINITIONS: Dict[int, tuple] = {
@@ -156,6 +164,15 @@ def submit_weekly_scores(
             )
             db.add(row)
             rows.append(row)
+
+        write_performance_event(
+            db, employee_id=record.employee_id, tenant_id=record.tenant_id,
+            event_type="BUDDY_KPI",
+            event_data={
+                "buddy_record_id": record.id, "kpi_number": kpi_number, "kpi_name": name,
+                "kpi_category": category, "score": score, "week_number": week_number, "scored_by": scored_by,
+            },
+        )
 
     return rows
 
