@@ -39,7 +39,12 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-ALLOCATION_STATUSES = ("ACTIVE", "ENDED")
+# CORE_PULLED (S-353/HRMS-0514): distinct from a normal ENDED -- a Specialty
+# allocation that was cut short by a same-day Core-Pull transfer, not a
+# regular project end. Kept separate so reporting can tell the two apart
+# without inferring intent from end_date proximity to another allocation's
+# start_date.
+ALLOCATION_STATUSES = ("ACTIVE", "ENDED", "CORE_PULLED")
 
 
 class EmployeeAllocation(Base):

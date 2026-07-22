@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
+from app.models.employee import DELIVERY_ENGINES
 
 
 def _new_uuid() -> str:
@@ -94,6 +95,17 @@ class Demand(Base):
 
     assigned_recruiter_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
     assigned_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+
+    # S-353/HRMS-0514 (Core-Pull) + S-372/HRMS-0528 (Confirmed vs Potential)
+    # both need to know which engine a demand belongs to -- reuses
+    # Employee.DELIVERY_ENGINES rather than a second enum, same "one
+    # vocabulary" discipline as the rest of this codebase. Defaults to
+    # SPECIALITY, matching Employee's own default and this platform's
+    # "Core is the exception, not the default" posture.
+    delivery_engine = Column(
+        Enum(*DELIVERY_ENGINES, name="demand_delivery_engine", native_enum=False, create_constraint=True),
+        nullable=False, default="SPECIALITY",
+    )
 
     # HRMS-0210/0211 -- opportunity-originated role demands. opportunity_id
     # is nullable: most demands aren't opportunity-sourced.
