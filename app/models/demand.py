@@ -98,6 +98,11 @@ class Demand(Base):
     # HRMS-0210/0211 -- opportunity-originated role demands. opportunity_id
     # is nullable: most demands aren't opportunity-sourced.
     opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
+    # HRMS-0805 -- links this demand's role requirement to the project
+    # it's being staffed for, so unfilled-role gaps can be computed by
+    # joining this demand against EmployeeAllocation.project_id. Nullable:
+    # most demands aren't tied to a specific tracked project.
+    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
     source_type = Column(
         Enum(*DEMAND_SOURCE_TYPES, name="demand_source_type", native_enum=False, create_constraint=True),
         nullable=False, default="DIRECT",
