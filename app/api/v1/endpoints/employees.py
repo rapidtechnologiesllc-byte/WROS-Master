@@ -46,6 +46,7 @@ from app.schemas.employee import (
     EmployeeItem,
     EmployeeListResponse,
     MarkBenchRequest,
+    StaffingEligibilityResponse,
 )
 from app.services.employee_service import DuplicateEmployeeEmail, create_employee_profile
 from app.services.resource_management_service import (
@@ -53,6 +54,7 @@ from app.services.resource_management_service import (
     get_bench_duration_days,
     get_bench_period_history,
     get_current_bench_pool,
+    is_staffing_eligible,
     mark_employee_on_bench,
     remove_employee_from_bench,
 )
@@ -192,6 +194,23 @@ def get_employee(
 ):
     employee = _get_employee_or_404(db, employee_id)
     return _to_item(db, employee)
+
+
+@router.get(
+    "/{employee_id}/staffing-eligibility", response_model=StaffingEligibilityResponse,
+    summary="Staffing Eligibility Engine (S-250) -- can this employee appear in ranking for a delivery engine?",
+)
+def staffing_eligibility(
+    employee_id: str,
+    delivery_engine: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    employee = _get_employee_or_404(db, employee_id)
+    eligible, reason = is_staffing_eligible(employee, delivery_engine)
+    return StaffingEligibilityResponse(
+        employee_id=employee_id, delivery_engine=delivery_engine, eligible=eligible, reason=reason,
+    )
 
 
 @router.post(
