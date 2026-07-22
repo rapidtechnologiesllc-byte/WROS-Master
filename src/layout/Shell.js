@@ -15,6 +15,7 @@ import {
   Users,
   FileTextIcon,
   Zap,
+  Users2,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -49,6 +50,16 @@ export default function Shell({
     // Thunder must be reachable by every role, first item in the list --
     // prepended to every branch below rather than gated behind a role check.
     const THUNDER_NAV_ITEM = { path: ROUTES.THUNDER, label: "Test Thunder", icon: Zap };
+    // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
+    // Partner/Resource Manager role exists in this codebase's role set
+    // yet, so this is scoped to the roles that already get HR/oversight
+    // nav items (SUPER_USER, ADMIN, HR Manager) as the closest proxy --
+    // flagged for Avinash to confirm/adjust during story review.
+    const RESOURCE_MANAGEMENT_NAV_ITEM = {
+      path: ROUTES.RESOURCE_MANAGEMENT,
+      label: "Resource Management",
+      icon: Users2,
+    };
 
     if (isSuperUser) {
       return [
@@ -58,6 +69,7 @@ export default function Shell({
           label: "Dashboard",
           icon: LayoutDashboard,
         },
+        RESOURCE_MANAGEMENT_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -89,6 +101,7 @@ export default function Shell({
           label: "Dashboard",
           icon: LayoutDashboard,
         },
+        RESOURCE_MANAGEMENT_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -114,6 +127,7 @@ export default function Shell({
     if (isHR_Manager) {
       return [
         THUNDER_NAV_ITEM,
+        RESOURCE_MANAGEMENT_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
