@@ -66,6 +66,7 @@ import { ROUTES } from "../utils/Routes";
 import OfferLettersScreen from "../screens/OfferLettersScreen";
 import ThunderChatScreen from "../screens/ThunderChatScreen";
 import ResourceManagementScreen from "../screens/ResourceManagementScreen";
+import CorePullScreen from "../screens/CorePullScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -423,6 +424,8 @@ export default function AppRoutes() {
               element={<ResourceManagementScreen />}
             />
 
+            <Route path="core-pull" element={<CorePullScreen />} />
+
             <Route
               path="candidates"
               element={
@@ -609,6 +612,7 @@ export default function AppRoutes() {
             path="resource-management"
             element={<ResourceManagementScreen />}
           />
+          <Route path="core-pull" element={<CorePullScreen />} />
           <Route
             path="candidates"
             element={

@@ -16,6 +16,7 @@ import {
   FileTextIcon,
   Zap,
   Users2,
+  ShieldAlert,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -60,6 +61,14 @@ export default function Shell({
       label: "Resource Management",
       icon: Users2,
     };
+    // S-353/HRMS-0514 + S-373/HRMS-0529 -- same role scoping rationale
+    // as RESOURCE_MANAGEMENT_NAV_ITEM above (no dedicated BU Head role
+    // distinction exists in this nav yet).
+    const CORE_PULL_NAV_ITEM = {
+      path: ROUTES.CORE_PULL,
+      label: "Core-Pull & Pool Guard",
+      icon: ShieldAlert,
+    };
 
     if (isSuperUser) {
       return [
@@ -70,6 +79,7 @@ export default function Shell({
           icon: LayoutDashboard,
         },
         RESOURCE_MANAGEMENT_NAV_ITEM,
+        CORE_PULL_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -102,6 +112,7 @@ export default function Shell({
           icon: LayoutDashboard,
         },
         RESOURCE_MANAGEMENT_NAV_ITEM,
+        CORE_PULL_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -128,6 +139,7 @@ export default function Shell({
       return [
         THUNDER_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
+        CORE_PULL_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
