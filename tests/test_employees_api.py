@@ -220,3 +220,23 @@ def test_bench_aging_alerts_reflect_current_bench_pool(client):
 def test_get_employee_404_for_unknown_id(client):
     resp = client.get("/employees/does-not-exist", headers=_auth())
     assert resp.status_code == 404
+
+
+def test_staffing_eligibility_true_for_speciality_by_default(client):
+    employee = _create_employee(client)
+    resp = client.get(
+        f"/employees/{employee['id']}/staffing-eligibility?delivery_engine=SPECIALITY", headers=_auth(),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["eligible"] is True
+
+
+def test_staffing_eligibility_false_for_core_without_certification(client):
+    employee = _create_employee(client)
+    resp = client.get(
+        f"/employees/{employee['id']}/staffing-eligibility?delivery_engine=CORE", headers=_auth(),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["eligible"] is False
+    assert "Core-certified" in body["reason"]

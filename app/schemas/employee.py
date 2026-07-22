@@ -73,3 +73,10 @@ class BenchAgingAlertItem(BaseModel):
 
 class BenchAgingAlertsResponse(BaseModel):
     alerts: List[BenchAgingAlertItem]
+
+
+class StaffingEligibilityResponse(BaseModel):
+    employee_id: str
+    delivery_engine: str
+    eligible: bool
+    reason: Optional[str] = None
