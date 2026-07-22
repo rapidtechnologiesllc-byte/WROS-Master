@@ -18,6 +18,7 @@ import {
   Users2,
   ShieldAlert,
   CalendarCheck2,
+  UserPlus,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -77,6 +78,13 @@ export default function Shell({
       label: "Demand Confirmation",
       icon: CalendarCheck2,
     };
+    // S-245/HRMS-0501 + S-246/HRMS-0502 -- Employee Directory. Same role
+    // scoping rationale as the three nav items above.
+    const EMPLOYEES_NAV_ITEM = {
+      path: ROUTES.EMPLOYEES,
+      label: "Employees",
+      icon: UserPlus,
+    };
 
     if (isSuperUser) {
       return [
@@ -86,6 +94,7 @@ export default function Shell({
           label: "Dashboard",
           icon: LayoutDashboard,
         },
+        EMPLOYEES_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -120,6 +129,7 @@ export default function Shell({
           label: "Dashboard",
           icon: LayoutDashboard,
         },
+        EMPLOYEES_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -148,6 +158,7 @@ export default function Shell({
     if (isHR_Manager) {
       return [
         THUNDER_NAV_ITEM,
+        EMPLOYEES_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,

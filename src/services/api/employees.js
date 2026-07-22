@@ -1,0 +1,53 @@
+// S-245 (Create Employee Profile) + S-246 (Mark Employee as Bench) +
+// S-247 (View Bench Pool) + S-248 (Bench Aging Report).
+import { apiRequest } from "./client";
+
+export const createEmployee = async (payload) => {
+  const { data } = await apiRequest("/employees", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data;
+};
+
+export const getAllEmployees = async () => {
+  const { data } = await apiRequest("/employees", { method: "GET" });
+  return data;
+};
+
+export const getBenchPool = async () => {
+  const { data } = await apiRequest("/employees/bench-pool", { method: "GET" });
+  return data;
+};
+
+export const getBenchAgingAlerts = async () => {
+  const { data } = await apiRequest("/employees/bench-aging-alerts", { method: "GET" });
+  return data;
+};
+
+export const getEmployeeById = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}`, { method: "GET" });
+  return data;
+};
+
+export const markEmployeeOnBench = async (employeeId, reason) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/mark-bench`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+  return data;
+};
+
+export const removeEmployeeFromBench = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/remove-from-bench`, {
+    method: "POST",
+  });
+  return data;
+};
+
+export const getEmployeeBenchHistory = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/bench-history`, {
+    method: "GET",
+  });
+  return data;
+};
