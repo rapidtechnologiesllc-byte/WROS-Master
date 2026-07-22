@@ -315,8 +315,17 @@ Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation
         model=THUNDER_REPLY_MODEL,
         google_api_key=GEMINI_API_KEY,
         temperature=0.4,
+        # No timeout at all is this client's own default (None) -- a
+        # slow/stuck Gemini call then hangs the whole request instead of
+        # failing. Real bug, reported live: "I need a Guidewire
+        # developer" timed out with no bound. A WhatsApp-style 2-4
+        # sentence reply doesn't need more than this to generate.
+        timeout=30,
     )
-    response = llm.invoke(prompt)
+    try:
+        response = llm.invoke(prompt)
+    except Exception as exc:
+        raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
         reply_text = " ".join(
