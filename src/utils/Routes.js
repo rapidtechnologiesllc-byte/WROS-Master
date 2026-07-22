@@ -2,6 +2,7 @@ export const ROUTES = {
   DASHBOARD: "/",
   THUNDER: "/thunder",
   RESOURCE_MANAGEMENT: "/resource-management",
+  CORE_PULL: "/core-pull",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",
