@@ -155,11 +155,11 @@ export default function Shell({
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <div className="flex w-full gap-6 px-4 py-6">
         <aside className="hidden w-64 shrink-0 md:block">
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
+          <div className="rounded-2xl bg-bx-navy p-4 shadow-sm">
             <div className="mb-3">
-              <div className="text-xs font-semibold text-gray-500">HRMS</div>
-              <div className="text-lg font-extrabold tracking-tight">
-                Recruitment
+              <div className="text-xs font-semibold text-white/60">BlitzenX</div>
+              <div className="text-lg font-extrabold tracking-tight text-white">
+                WROS
               </div>
             </div>
 
@@ -173,7 +173,9 @@ export default function Shell({
                     onClick={() => navigate(n?.path)}
                     className={cx(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
-                      active ? "bg-gray-900 text-white" : "hover:bg-gray-100",
+                      active
+                        ? "bg-bx-orange text-white"
+                        : "text-white/80 hover:bg-white/10 hover:text-white",
                     )}
                   >
                     <Icon className="h-4 w-4" />

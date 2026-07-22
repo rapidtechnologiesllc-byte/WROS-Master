@@ -11,8 +11,9 @@ export default function Button({
   const base =
     "inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2";
   const styles = {
+    // BlitzenX Brand Kit v3.0 -- primary is the one CTA/action color.
     primary:
-      "bg-gray-900 text-white hover:bg-gray-800 focus:ring-gray-900 disabled:bg-gray-400",
+      "bg-bx-orange text-white hover:bg-bx-orange-hover focus:ring-bx-orange disabled:bg-gray-400",
     secondary:
       "bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-300 disabled:opacity-60",
     ghost:

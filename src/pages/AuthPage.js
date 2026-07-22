@@ -107,20 +107,24 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#eceef3]">
-      <div className="pointer-events-none absolute bottom-0 left-1/3 h-52 w-52 rotate-12 rounded-2xl bg-blue-200/60" />
-      <div className="pointer-events-none absolute bottom-0 right-14 h-56 w-56 -rotate-12 rounded-3xl bg-pink-300/60" />
+    <div className="relative min-h-screen overflow-hidden bg-bx-navy">
+      <div className="pointer-events-none absolute bottom-0 left-1/3 h-52 w-52 rotate-12 rounded-2xl bg-bx-orange/20" />
+      <div className="pointer-events-none absolute bottom-0 right-14 h-56 w-56 -rotate-12 rounded-3xl bg-bx-orange/10" />
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-4 py-8">
         <img
           src="/blitzenx-logo.svg"
           alt="Blitzenx"
-          className="mb-8 h-10 w-auto"
+          className="mb-6 h-12 w-auto rounded-bx shadow-lg"
         />
-        <h1 className="mb-8 text-center text-4xl font-bold text-slate-800">
+        <p className="mb-8 max-w-xl text-center text-sm font-medium italic text-white/70">
+          Behind you to keep the business moving. Beside you to execute &amp;
+          deliver. In front of you when accountability matters.
+        </p>
+        <h1 className="mb-8 text-center text-4xl font-extrabold text-white">
           Sign In to Your Account
         </h1>
 
-        <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white/90 p-7 shadow-sm">
+        <div className="w-full max-w-xl rounded-bx-lg border border-bx-border bg-white/95 p-7 shadow-xl">
           {error ? (
             <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
@@ -136,7 +140,7 @@ export default function AuthPage() {
                 <input
                   type="email"
                   required
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-bx-orange"
                   value={loginForm.UserEmail}
                   onChange={(event) =>
                     setLoginForm((prev) => ({
@@ -148,7 +152,7 @@ export default function AuthPage() {
               </div>
               <button
                 type="submit"
-                className="w-full rounded-md bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-70"
+                className="w-full rounded-md bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
                 disabled={loading}
               >
                 Next
@@ -172,7 +176,7 @@ export default function AuthPage() {
                   <span>Password</span>
                   <button
                     type="button"
-                    className="text-sm font-semibold text-blue-600 hover:underline"
+                    className="text-sm font-semibold text-bx-orange hover:underline"
                     onClick={() =>
                       setError("Please contact admin to reset your password.")
                     }
@@ -184,7 +188,7 @@ export default function AuthPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm outline-none focus:border-blue-500"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm outline-none focus:border-bx-orange"
                     value={loginForm.UserPassword}
                     onChange={(event) =>
                       setLoginForm((prev) => ({
@@ -208,14 +212,14 @@ export default function AuthPage() {
               </div>
               <button
                 type="submit"
-                className="w-full rounded-md bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-70"
+                className="w-full rounded-md bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
                 disabled={loading}
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
               <button
                 type="button"
-                className="w-full rounded-md bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-70"
+                className="w-full rounded-md bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
                 onClick={() => {
                   setError("");
                   window.location.href = getAzureSigninUrl();

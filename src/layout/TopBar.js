@@ -262,7 +262,7 @@ export default function TopBar({
                   onClick={toggleProfile}
                   className="flex items-center gap-2 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-bx-navy text-white flex items-center justify-center">
                     {localStorage.getItem("hrms_user_name")?.[0] || "U"}
                   </div>
 
@@ -335,7 +335,7 @@ export default function TopBar({
 
             <button
               onClick={() => setShowProfileModal(false)}
-              className="mt-6 w-full bg-gray-900 text-white py-2 rounded-xl hover:bg-gray-800 transition"
+              className="mt-6 w-full bg-bx-orange text-white py-2 rounded-xl hover:bg-bx-orange-hover transition"
             >
               Close
             </button>
@@ -427,7 +427,7 @@ export default function TopBar({
                     setPasswordSuccess("");
                   }
                 }}
-                className="w-1/2 bg-gray-900 text-white py-2 rounded-xl hover:bg-gray-800"
+                className="w-1/2 bg-bx-orange text-white py-2 rounded-xl hover:bg-bx-orange-hover"
               >
                 Update
               </button>
