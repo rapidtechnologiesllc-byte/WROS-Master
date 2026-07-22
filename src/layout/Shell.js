@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   CalendarCheck2,
   UserPlus,
+  Send,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -85,6 +86,13 @@ export default function Shell({
       label: "Employees",
       icon: UserPlus,
     };
+    // HRMS-0711 -- Client Submission Pipeline (also closes canonical
+    // S-249). Same role scoping rationale as the four nav items above.
+    const SUBMISSIONS_NAV_ITEM = {
+      path: ROUTES.SUBMISSIONS,
+      label: "Submissions",
+      icon: Send,
+    };
 
     if (isSuperUser) {
       return [
@@ -95,6 +103,7 @@ export default function Shell({
           icon: LayoutDashboard,
         },
         EMPLOYEES_NAV_ITEM,
+        SUBMISSIONS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -130,6 +139,7 @@ export default function Shell({
           icon: LayoutDashboard,
         },
         EMPLOYEES_NAV_ITEM,
+        SUBMISSIONS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -159,6 +169,7 @@ export default function Shell({
       return [
         THUNDER_NAV_ITEM,
         EMPLOYEES_NAV_ITEM,
+        SUBMISSIONS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
