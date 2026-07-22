@@ -216,3 +216,16 @@ Built as one round, not two, since S-373's guard has no meaningful existence sep
 22 new tests, 575/575 passing (1 xfailed).
 
 **Next**: HRMS-1105 Resource Management Agent (S-320 in the canonical sheet, not S-274 as its `.docx` filename says — ties bench_pool + this engine + LLM ranking together), then S-372/HRMS-0528 Confirmed vs Potential Demand Workflow.
+
+## Session log — 2026-07-22 (continued): HRMS-1105 Resource Management Agent (canonical S-320)
+
+`app/models/resource_agent.py` (`BenchAllocationRecommendation`), `app/services/resource_management_agent_service.py`, migration `cf4c36d9b053`. Built from `Requirements/S-274_HRMS-1105.docx` — its filename says S-274, its own prerequisite line says "HRMS-0312", both wrong; canonical is S-320/HRMS-1105, confirmed against `WROS_Canonical_Backlog_S001-401.xlsx`.
+
+- **Scope call, flagged rather than silently narrowed**: the story doc frames Core-vs-Speciality detection purely in terms of the bench pool ("for each bench employee..."), but `detect_core_pull_conflict()` (S-353) only ever fires for an employee who currently *holds* an active Speciality allocation — which a bench employee, by definition, never does. Scanning literally only the bench pool would make the doc's own AC-1 structurally unreachable. `detect_core_pull_triggers()` therefore also checks every Core-Certified employee who **does** hold an active Speciality allocation against open CORE demands — the real Core-Pull scenario — via the exact same `detect_core_pull_conflict()` call S-353 already exposes, never a second "Core wins" conditional. Bench employees still only ever get ranked, never pulled (nothing active to pull them from).
+- **`run_bench_scan()`**: one idempotent, directly-callable function (the 30-minute cadence is scheduling wiring this codebase defers everywhere, not built here) that (1) runs `detect_core_pull_triggers()`, (2) for the current bench pool, ranks non-conflicting matches via Gemini (same substitution as Thunder — no Claude API client wired in this codebase, the doc's own "claude-sonnet-4-6" isn't available) and stores `PENDING_RM_REVIEW` rows in `bench_allocation_recommendations`. BR-1105-02 (never creates `employee_allocations` directly) is structural, not just tested: `run_bench_scan()` has no code path that touches that table at all — only `approve_bench_recommendation()` does, and it routes through the existing `allocate_employee_to_project()`, not a direct insert.
+- **LLM ranking degrades gracefully**: unlike Thunder's reply generation (no LLM = no reply, since a reply *is* the deliverable), a ranking is advisory — `rank_bench_candidate()` falls back to the raw skill-match score (no rationale) if `GEMINI_API_KEY` is unset or the call fails, rather than blocking the whole scan on an LLM outage.
+- **Skill matching**: no requirements doc defines an exact threshold ("skill match score exceeds threshold" is the doc's own phrasing) — 0.5 (at least half the demand's required skills present) is this session's plain default, flagged in code rather than silently baked in.
+
+18 new tests, 593/593 passing (1 xfailed). Marked S-320 Done in the canonical sheet.
+
+**Next**: S-372/HRMS-0528 Confirmed vs Potential Demand Workflow — the last of Phase 4 Part A's four stories.

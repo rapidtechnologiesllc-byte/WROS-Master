@@ -1,0 +1,357 @@
+"""
+HRMS-1105 (canonical S-320 -- not S-274 as its `.docx` filename says, and
+NOT "HRMS-0312" as that same doc's own prerequisite line and
+04-RESOURCE-MANAGEMENT.md both say; both corrected against
+`WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource Management Agent.
+
+Built from `Requirements/S-274_HRMS-1105.docx` directly.
+
+The 30-minute cadence is scheduling wiring this codebase defers everywhere
+(same "idempotent function exists, wiring is follow-up" posture as every
+other cron-shaped story here, e.g. HRMS-0901's weekly draft job) --
+run_bench_scan() is a plain, directly-callable, idempotent function, not a
+self-scheduling loop.
+
+Scope decision on "Core-vs-Speciality simultaneous eligibility", flagged
+rather than silently narrowed: the story doc frames this purely in terms
+of the *bench* pool ("query current bench pool... for each bench
+employee..."), but detect_core_pull_conflict() (S-353) only ever finds a
+conflict for an employee who currently HOLDS an active Speciality
+allocation -- which a bench employee, by definition, does not. Scanning
+literally only the bench pool would make AC-1 ("a bench employee matching
+both a CORE and SPECIALITY demand triggers HRMS-0514") structurally
+unreachable. This module therefore also checks every Core-Certified
+employee who *does* hold an active Speciality allocation against open
+CORE demands -- the real Core-Pull scenario -- using the exact same
+detect_core_pull_conflict() call, never a second copy of "Core wins".
+Bench employees still only ever get ranked, never pulled (there is
+nothing active to pull them from).
+"""
+import json
+import os
+from datetime import datetime
+from decimal import Decimal
+from typing import Dict, List, Optional, Tuple
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from sqlalchemy.orm import Session
+
+from app.core.llm_prompt_safety import build_safe_prompt
+from app.core.logging import logger
+from app.models.core_pull import CorePullEvent
+from app.models.demand import Demand
+from app.models.employee import Employee
+from app.models.employee_allocation import EmployeeAllocation
+from app.models.resource_agent import BenchAllocationRecommendation
+from app.models.user import Users
+from app.services.core_pull_service import detect_core_pull_conflict
+from app.services.employee_allocation_service import allocate_employee_to_project
+from app.services.notification_service import send_notification
+from app.services.resource_management_service import get_current_bench_pool, is_staffing_eligible
+
+# Reuses the same Gemini pattern as every other LLM call in this codebase
+# (thunder_service.py, ai_conversation_service.py) rather than the story
+# doc's "claude-sonnet-4-6" -- no Claude API client is wired in this
+# codebase, same substitution already made and confirmed for Thunder.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+RANKER_MODEL = "gemini-3-flash-preview"
+
+# No requirements doc specifies an exact skill-match threshold ("skill
+# match score exceeds threshold" is the doc's own phrasing) -- 0.5 (at
+# least half the demand's required skills present) is this session's
+# plain default, flagged rather than silently baked in with no comment.
+SKILL_MATCH_THRESHOLD = 0.5
+
+RESOURCE_AGENT_ID = "resource_management_agent"
+
+
+class RecommendationNotPending(Exception):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Skill matching
+# ---------------------------------------------------------------------------
+
+def _parse_skills(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(s).strip().lower() for s in parsed if str(s).strip()]
+
+
+def skill_match_score(employee_skills_raw: Optional[str], demand_required_skills_raw: Optional[str]) -> float:
+    """Fraction of the demand's required skills the employee has. 0.0 if
+    the demand lists no required skills (nothing to match against)."""
+    employee_skills = set(_parse_skills(employee_skills_raw))
+    required_skills = set(_parse_skills(demand_required_skills_raw))
+    if not required_skills:
+        return 0.0
+    return len(employee_skills & required_skills) / len(required_skills)
+
+
+def find_open_demand_matches(
+    db: Session, employee: Employee, *, min_score: float = SKILL_MATCH_THRESHOLD,
+) -> List[Tuple[Demand, float]]:
+    """Every OPEN/IN_PROGRESS demand this employee is skill-eligible for
+    (per SKILL_MATCH_THRESHOLD) and staffing-eligible for (per
+    is_staffing_eligible() -- buddy-program/core-certification gates),
+    scored, tenant-scoped, highest match first."""
+    candidate_demands = (
+        db.query(Demand)
+        .filter(
+            Demand.tenant_id == employee.tenant_id,
+            Demand.status.in_(("OPEN", "IN_PROGRESS")),
+        )
+        .all()
+    )
+    matches = []
+    for demand in candidate_demands:
+        eligible, _reason = is_staffing_eligible(employee, demand.delivery_engine)
+        if not eligible:
+            continue
+        score = skill_match_score(employee.current_skills, demand.required_skills)
+        if score >= min_score:
+            matches.append((demand, score))
+    matches.sort(key=lambda pair: pair[1], reverse=True)
+    return matches
+
+
+# ---------------------------------------------------------------------------
+# Step 3/BR-1105-01/AC-1/AC-3 -- Core-vs-Speciality detection, delegated
+# ---------------------------------------------------------------------------
+
+def _speciality_deployed_core_certified_employees(db: Session, tenant_id: Optional[int]) -> List[Employee]:
+    return (
+        db.query(Employee)
+        .join(EmployeeAllocation, EmployeeAllocation.employee_id == Employee.id)
+        .join(Demand, EmployeeAllocation.demand_id == Demand.id)
+        .filter(
+            Employee.tenant_id == tenant_id,
+            Employee.core_certified.is_(True),
+            EmployeeAllocation.status == "ACTIVE",
+            Demand.delivery_engine == "SPECIALITY",
+        )
+        .distinct()
+        .all()
+    )
+
+
+def detect_core_pull_triggers(
+    db: Session, *, tenant_id: Optional[int] = None, bu_head: Optional[Users] = None,
+) -> List[CorePullEvent]:
+    """
+    BR-1105-01/AC-1: for every Core-Certified employee currently deployed
+    in Speciality, checks every open CORE demand via the SAME
+    detect_core_pull_conflict() S-353 already exposes -- never a local
+    "Core wins" conditional. AC-6: a detection failure for one employee
+    alerts bu_head (if given) and does not abort the rest of the scan.
+    """
+    triggered: List[CorePullEvent] = []
+    core_demands = (
+        db.query(Demand)
+        .filter(
+            Demand.tenant_id == tenant_id,
+            Demand.delivery_engine == "CORE",
+            Demand.status.in_(("OPEN", "IN_PROGRESS")),
+        )
+        .all()
+    )
+    if not core_demands:
+        return triggered
+
+    for employee in _speciality_deployed_core_certified_employees(db, tenant_id):
+        for core_demand in core_demands:
+            try:
+                event = detect_core_pull_conflict(db, employee, core_demand)
+            except Exception as exc:
+                logger.error(f"[ResourceAgent] Core-Pull detection failed for employee {employee.id}: {exc}")
+                if bu_head is not None:
+                    try:
+                        send_notification(
+                            db, calling_context_tenant_id=tenant_id, recipient=bu_head, priority_tier="P0",
+                            message=(
+                                f"Resource Management Agent: Core-Pull detection failed for employee "
+                                f"{employee.id} -- {exc}"
+                            ),
+                        )
+                    except Exception:
+                        pass
+                continue
+            if event is not None:
+                triggered.append(event)
+                break  # one active Speciality allocation can only be pulled once per scan
+    return triggered
+
+
+# ---------------------------------------------------------------------------
+# Step 4 -- LLM ranking for non-conflicting (bench) matches, advisory only
+# ---------------------------------------------------------------------------
+
+def rank_bench_candidate(employee: Employee, matches: List[Tuple[Demand, float]]) -> List[Dict]:
+    """
+    LLM call, advisory only (BR-1105-02) -- never called for Core-Pull
+    detection, only for ranking a bench employee's non-conflicting
+    matches. Returns [{demand_id, confidence_pct, rationale}, ...],
+    highest confidence first. Falls back to the raw skill-match score
+    (no rationale) if the LLM is unavailable or fails -- a ranking
+    recommendation is advisory, so degrading gracefully beats blocking
+    the scan on an LLM outage (unlike Thunder's reply generation, which
+    has no non-LLM fallback because a reply IS the deliverable).
+    """
+    if not matches:
+        return []
+
+    if not GEMINI_API_KEY:
+        logger.warning("[ResourceAgent] GEMINI_API_KEY not configured -- falling back to raw skill-match scores.")
+        return [
+            {"demand_id": d.id, "confidence_pct": round(score * 100, 2), "rationale": None}
+            for d, score in matches
+        ]
+
+    employee_name = f"{employee.first_name} {employee.last_name}".strip()
+    employee_skills = ", ".join(_parse_skills(employee.current_skills)) or "(none recorded)"
+    demand_lines = "\n".join(
+        f"- demand_id: {d.id} | title: {d.job_title} | required_skills: {d.required_skills} | "
+        f"skill_match: {score:.0%}"
+        for d, score in matches
+    )
+
+    instruction = f"""You are ranking open role demands for a bench employee at a staffing firm, for a Resource Manager's review.
+
+Employee: {employee_name}
+Employee skills: {employee_skills}
+
+Candidate open demands (already pre-filtered for eligibility):
+{demand_lines}
+
+For each demand_id listed above, return a confidence_pct (0-100, how strong a fit this employee is) and a one-sentence rationale.
+Return ONLY a JSON array, most confident first: [{{"demand_id": "...", "confidence_pct": 82, "rationale": "..."}}, ...]
+No markdown, no code fences, no explanation outside the JSON array."""
+
+    prompt = build_safe_prompt(
+        instruction=instruction, untrusted_label="EMPLOYEE_SKILLS", untrusted_content=employee_skills,
+    )
+
+    try:
+        llm = ChatGoogleGenerativeAI(model=RANKER_MODEL, google_api_key=GEMINI_API_KEY, temperature=0.2)
+        response = llm.invoke(prompt)
+        content = response.content
+        text = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block) for block in content
+        ) if isinstance(content, list) else str(content)
+        text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        ranked = json.loads(text)
+        if not isinstance(ranked, list):
+            raise ValueError("LLM ranking response was not a JSON array")
+        return ranked
+    except Exception as exc:
+        logger.error(f"[ResourceAgent] LLM ranking failed, falling back to raw skill-match scores: {exc}")
+        return [
+            {"demand_id": d.id, "confidence_pct": round(score * 100, 2), "rationale": None}
+            for d, score in matches
+        ]
+
+
+def run_bench_scan(
+    db: Session, *, tenant_id: Optional[int] = None, bu_head: Optional[Users] = None,
+) -> Dict:
+    """
+    One full HRMS-1105 scan cycle:
+      1. detect_core_pull_triggers() -- Speciality-deployed Core-Certified
+         employees vs open CORE demands, delegated entirely to S-353.
+      2. For the current bench pool, rank non-conflicting matches via the
+         LLM and store PENDING_RM_REVIEW recommendations (BR-1105-02: this
+         never creates an employee_allocations row itself).
+    """
+    core_pull_events = detect_core_pull_triggers(db, tenant_id=tenant_id, bu_head=bu_head)
+
+    recommendations: List[BenchAllocationRecommendation] = []
+    for entry in get_current_bench_pool(db, tenant_id=tenant_id):
+        employee = db.query(Employee).filter(Employee.id == entry.employee_id).first()
+        if employee is None:
+            continue
+        matches = find_open_demand_matches(db, employee)
+        if not matches:
+            continue
+
+        ranked = rank_bench_candidate(employee, matches)
+        for item in ranked:
+            try:
+                confidence_pct = Decimal(str(item["confidence_pct"]))
+            except (KeyError, ValueError, TypeError):
+                continue
+            recommendation = BenchAllocationRecommendation(
+                tenant_id=tenant_id,
+                employee_id=employee.id,
+                demand_id=item["demand_id"],
+                confidence_pct=confidence_pct,
+                rationale=item.get("rationale"),
+                status="PENDING_RM_REVIEW",
+            )
+            db.add(recommendation)
+            recommendations.append(recommendation)
+    db.flush()
+
+    return {
+        "core_pull_events_triggered": len(core_pull_events),
+        "recommendations_created": len(recommendations),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Step 5 -- RM review queue, the only path to an actual allocation
+# ---------------------------------------------------------------------------
+
+def get_recommendation_queue(db: Session, *, tenant_id: Optional[int] = None) -> List[BenchAllocationRecommendation]:
+    query = db.query(BenchAllocationRecommendation).filter(
+        BenchAllocationRecommendation.status == "PENDING_RM_REVIEW"
+    )
+    if tenant_id is not None:
+        query = query.filter(BenchAllocationRecommendation.tenant_id == tenant_id)
+    return query.order_by(BenchAllocationRecommendation.confidence_pct.desc()).all()
+
+
+def approve_bench_recommendation(
+    db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
+) -> EmployeeAllocation:
+    """BR-1105-02: the ONLY path from a recommendation to a real
+    employee_allocations row -- routes through the existing, already-
+    gated allocate_employee_to_project(), never inserts directly."""
+    if recommendation.status != "PENDING_RM_REVIEW":
+        raise RecommendationNotPending(
+            f"Recommendation {recommendation.id} is not PENDING_RM_REVIEW (status={recommendation.status})."
+        )
+
+    employee = db.query(Employee).filter(Employee.id == recommendation.employee_id).first()
+    demand = db.query(Demand).filter(Demand.id == recommendation.demand_id).first()
+
+    allocation = allocate_employee_to_project(
+        db, tenant_id=recommendation.tenant_id, employee=employee, demand=demand, changed_by=actor_user_id,
+    )
+
+    recommendation.status = "APPROVED"
+    recommendation.reviewed_by = actor_user_id
+    recommendation.reviewed_at = datetime.utcnow()
+    db.add(recommendation)
+
+    return allocation
+
+
+def reject_bench_recommendation(
+    db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
+) -> BenchAllocationRecommendation:
+    if recommendation.status != "PENDING_RM_REVIEW":
+        raise RecommendationNotPending(
+            f"Recommendation {recommendation.id} is not PENDING_RM_REVIEW (status={recommendation.status})."
+        )
+    recommendation.status = "REJECTED"
+    recommendation.reviewed_by = actor_user_id
+    recommendation.reviewed_at = datetime.utcnow()
+    db.add(recommendation)
+    return recommendation
