@@ -71,6 +71,7 @@ from app.models.orchestration import ConflictRule, OrchestrationEvent
 from app.models.sourcing import DemandGapScore, SourcingAlert, SourcingSearchRun, StagedCandidate
 from app.models.outreach import OutreachSequence
 from app.models.partner_intent import PartnerIntentProfile
+from app.models.buddy_program import BuddyProgramRecord, BuddyKPIScore
 
 __all__ = [
     # Base
@@ -186,5 +187,7 @@ __all__ = [
     "StagedCandidate",
     "OutreachSequence",
     "PartnerIntentProfile",
+    "BuddyProgramRecord",
+    "BuddyKPIScore",
 ]
 
