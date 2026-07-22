@@ -242,7 +242,9 @@ Built as one round, not two, since S-373's guard has no meaningful existence sep
 
 17 new tests, 610/610 passing (1 xfailed). Marked S-372 Done in the canonical sheet.
 
-**This closes out all four of Phase 4 Part A's stories** (S-353 Core-Pull Engine, S-373 Specialty Pool Guard, S-320/HRMS-1105 Resource Management Agent, S-372 Confirmed vs Potential Demand Workflow) plus the Part B foundation (bench_pool, utilization metrics, conflict log, Staffing Eligibility Engine) built earlier this session. **Phase 4 (Resource Management) is functionally complete** per `04-RESOURCE-MANAGEMENT.md`'s acceptance gate — worth a dedicated pass against that gate's checklist before considering it fully closed out, not assumed here.
+**This closes out the backend for all four of Phase 4 Part A's stories** (S-353 Core-Pull Engine, S-373 Specialty Pool Guard, S-320/HRMS-1105 Resource Management Agent, S-372 Confirmed vs Potential Demand Workflow) plus the Part B foundation (bench_pool, utilization metrics, conflict log, Staffing Eligibility Engine) built earlier this session.
+
+**CORRECTION (2026-07-22, same day)**: the line that used to be here said "Phase 4 is functionally complete" — wrong, and Avinash caught it. Backend-only (models/services/migrations/tests, no REST endpoint, no screen) is **In Progress**, not Done — see the new "Definition of Done" section at the top of `C:\Users\AvinashMukund\Documents\Claude\CLAUDE.md`. All four stories above were reverted from `Done` to `In Progress` in the canonical sheet. None of Phase 4 (or most of Phase 3) has an API or UI yet — that's the actual remaining work, not a follow-up nice-to-have.
 
 ## Session log — 2026-07-22 (continued): Resource Management Agent exclusivity hard-block
 
