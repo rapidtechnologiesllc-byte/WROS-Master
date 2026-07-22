@@ -1,7 +1,7 @@
 // S-245 (Create Employee Profile) + S-246 (Mark Employee as Bench) +
 // S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report).
 import { useEffect, useState } from "react";
-import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn } from "lucide-react";
+import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft } from "lucide-react";
 import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
 import {
@@ -10,6 +10,7 @@ import {
   getBenchAgingAlerts,
   markEmployeeOnBench,
   removeEmployeeFromBench,
+  convertCandidateToEmployee,
 } from "../services/api/employees";
 
 const BENCH_REASONS = [
@@ -90,6 +91,70 @@ function CreateEmployeeForm({ onCreated }) {
       <div className="mt-3 flex gap-2">
         <Button variant="primary" disabled={saving} onClick={handleSubmit}>
           {saving ? "Saving…" : "Create Profile"}
+        </Button>
+        <Button variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ConvertCandidateForm({ onConverted }) {
+  const [open, setOpen] = useState(false);
+  const [candidateId, setCandidateId] = useState("");
+  const [joiningDate, setJoiningDate] = useState("");
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!candidateId.trim() || !joiningDate) {
+      setError("Candidate ID and joining date are both required.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await convertCandidateToEmployee(candidateId.trim(), {
+        joining_date: joiningDate,
+        current_title: title.trim() || undefined,
+      });
+      setCandidateId("");
+      setJoiningDate("");
+      setTitle("");
+      setOpen(false);
+      onConverted();
+    } catch (err) {
+      setError(err.message || "Failed to convert candidate to employee.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <ArrowRightLeft className="h-4 w-4" /> Convert Candidate to Employee
+      </Button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border p-4">
+      {error ? (
+        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Input label="Candidate ID" value={candidateId} onChange={setCandidateId} placeholder="candidate ID" />
+        <Input label="Joining date" type="date" value={joiningDate} onChange={setJoiningDate} />
+        <Input label="Current title" value={title} onChange={setTitle} placeholder="Guidewire Developer" />
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button variant="primary" disabled={saving} onClick={handleSubmit}>
+          {saving ? "Converting…" : "Convert"}
         </Button>
         <Button variant="ghost" onClick={() => setOpen(false)}>
           Cancel
@@ -193,7 +258,10 @@ export default function EmployeeDirectoryScreen() {
           </div>
         ) : null}
 
-        <CreateEmployeeForm onCreated={load} />
+        <div className="flex flex-wrap gap-2">
+          <CreateEmployeeForm onCreated={load} />
+          <ConvertCandidateForm onConverted={load} />
+        </div>
 
         {alerts.length > 0 ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">

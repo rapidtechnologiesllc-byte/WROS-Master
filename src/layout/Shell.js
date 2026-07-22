@@ -100,6 +100,13 @@ export default function Shell({
       label: "Allocations",
       icon: Briefcase,
     };
+    // S-254/HRMS-0510 + S-255/HRMS-0511 -- same role scoping rationale
+    // as the six nav items above.
+    const UTILIZATION_DASHBOARD_NAV_ITEM = {
+      path: ROUTES.UTILIZATION_DASHBOARD,
+      label: "Utilization & Bench Cost",
+      icon: BarChart3,
+    };
 
     if (isSuperUser) {
       return [
@@ -112,6 +119,7 @@ export default function Shell({
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
+        UTILIZATION_DASHBOARD_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -149,6 +157,7 @@ export default function Shell({
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
+        UTILIZATION_DASHBOARD_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -180,6 +189,7 @@ export default function Shell({
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
+        UTILIZATION_DASHBOARD_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
