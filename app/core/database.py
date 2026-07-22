@@ -4,7 +4,14 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-load_dotenv()
+# Bare load_dotenv() resolves .env via the process's current working
+# directory, not this file's location -- some launchers (e.g. this repo's
+# dev-server preview registration) start uvicorn with an unrelated CWD,
+# which silently produces DATABASE_URL=None here instead of a clear
+# "file not found" error. Resolve relative to this file instead so the
+# repo's own .env is always found regardless of launch CWD.
+_ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+load_dotenv(_ENV_PATH)
 # Build the SQL Server connection string
 DATABASE_URL = os.getenv("DATABASE_URL")
 

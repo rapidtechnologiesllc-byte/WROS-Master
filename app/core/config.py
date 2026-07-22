@@ -6,8 +6,12 @@ import os
 from typing import Optional
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Bare load_dotenv() resolves .env via the process's current working
+# directory, not this file's location -- some launchers (e.g. this repo's
+# dev-server preview registration) start uvicorn with an unrelated CWD,
+# which silently leaves every setting below at its "" default instead of
+# a clear "file not found" error. Resolve relative to this file instead.
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
 
 
 class Settings:
