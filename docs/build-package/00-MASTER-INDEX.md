@@ -15,6 +15,22 @@ PHASE 3: Thunder + Agentic Layer                (see 03-THUNDER-AGENTIC-LAYER.md
     → unlocks 4 parallel workstreams:
       Recruit | Interview | Onboarding | Resource Management
               ↓
+PHASE 3.5: Data Import & Live Data Flow          (added 2026-07-22, no detail doc yet)
+    Three pieces, per Avinash's direction -- ask him for the specifics
+    once Phase 3 (Part A + all four Part B workstreams) is actually
+    complete, do not scope or start this before then:
+      1. Real data flowing through from JobDiva (100K+ candidate
+         records, notes, interview history, candidate history) --
+         blocked today on real JobDiva API docs/credentials, see the
+         Claude Code memory file `jobdiva_migration_backlog.md`.
+      2. Email-read resume intake -- an agent reading `ir@blitzenx.com`
+         (currently auto-forwarded to JobDiva) and auto-creating WROS
+         candidates. Explicitly NOT to be named "Thunder" (that name is
+         reserved for EPIC-04's WhatsApp conversation engine, Phase
+         3's own subject). See memory file
+         `resume_intake_agent_backlog.md`.
+      3. Importing current data via Excel -- scope not yet given.
+              ↓
 PHASE 4: Resource Management                    (see 04-RESOURCE-MANAGEMENT.md)
     (also unlocked in parallel by Phase 3, detailed separately given its scope)
               ↓
