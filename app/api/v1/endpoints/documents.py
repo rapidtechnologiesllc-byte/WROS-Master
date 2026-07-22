@@ -13,6 +13,7 @@ from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
 from app.core.graph_auth import get_graph_token
 from app.schemas.document import DocumentUploadResponse
 from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID, MULTI_UPLOAD_TYPES
+from app.services.virus_scan_service import document_is_accessible, scan_document_content
 from app.core.logging import logger
 
 
@@ -94,8 +95,18 @@ async def _upload_document_helper(
             uploaded_by=user.candidateID
         )
         
-        logger.info(f"Document uploaded successfully: {document.id} - {document_type} for {user.candidateID}")
-        
+        # HRMS-0118: the scan gate -- runs once, right after the file is
+        # actually stored, so is_virus_scanned/virus_scan_result reflect
+        # this specific upload's content rather than staying permanently
+        # declared-but-unset (the exact gap this schema had before).
+        scan_document_content(document, file_content)
+        db.commit()
+
+        logger.info(
+            f"Document uploaded successfully: {document.id} - {document_type} for {user.candidateID} "
+            f"(virus_scan_result={document.virus_scan_result})"
+        )
+
         return DocumentUploadResponse(
             status="Success",
             message=f"{document_type.replace('_', ' ').title()} uploaded successfully",
@@ -273,6 +284,11 @@ async def get_my_documents(
             "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
             "notes": doc.notes,
             "version": doc.version,
+            # HRMS-0118: expose the scan gate's actual state -- the
+            # frontend uses this to disable "View" until it's "clean",
+            # matching document_is_accessible()'s fail-closed check.
+            "is_virus_scanned": doc.is_virus_scanned,
+            "virus_scan_result": doc.virus_scan_result,
         }
 
     # Build a grouped structure: single-upload types as flat entries,
@@ -387,6 +403,8 @@ async def get_candidate_documents(
             "is_deleted": doc.is_deleted,
             "notes": doc.notes,
             "version": doc.version,
+            "is_virus_scanned": doc.is_virus_scanned,
+            "virus_scan_result": doc.virus_scan_result,
         }
 
     # Group: multi-upload types get a "files" list; single-upload types are flat.
@@ -463,6 +481,8 @@ async def get_document_by_id(
         "mime_type": doc.mime_type,
         "sharepoint_url": doc.sharepoint_url,
         "sharepoint_file_id": doc.sharepoint_file_id,
+        "is_virus_scanned": doc.is_virus_scanned,
+        "virus_scan_result": doc.virus_scan_result,
         "is_verified": doc.is_verified,
         "verified_by": doc.verified_by,
         "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
@@ -507,6 +527,18 @@ async def view_document(
 
     if not doc.sharepoint_file_id:
         raise HTTPException(status_code=404, detail="No SharePoint file ID stored for this document")
+
+    # HRMS-0118: fail closed -- anything other than an explicit "clean"
+    # result blocks viewing, including "no scan has run yet" (legacy
+    # rows uploaded before this gate existed) and "the scanner errored."
+    if not document_is_accessible(doc):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"This document has not passed virus scanning "
+                f"(status: {doc.virus_scan_result or 'not scanned'}) and cannot be viewed."
+            ),
+        )
 
     # Get a fresh service account token
     try:

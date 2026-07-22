@@ -16,6 +16,10 @@ from app.models import (
 )
 from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
+from app.services.interview_sequencing_service import (
+    PriorRoundNotPassed,
+    enforce_interview_sequencing_gate,
+)
 from app.core.scheduler import scheduler
 from app.core.logging import logger
 from app.schemas.interview import (
@@ -796,6 +800,14 @@ def create_interview_panel(
                 status_code=404,
                 detail=f"Job with ID {request.job_id} not found"
             )
+
+    # R-05: this candidate's next round cannot be created until their
+    # most recent prior round has actually passed. First round is
+    # always allowed (nothing to sequence against yet).
+    try:
+        enforce_interview_sequencing_gate(db, request.candidate_id)
+    except PriorRoundNotPassed as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     # Create panel
     panel = InterviewPanel(
