@@ -67,6 +67,8 @@ from app.models.candidate_ai import (
     CandidateAIAssignment,
     ConversationEvent,
 )
+from app.models.orchestration import ConflictRule, OrchestrationEvent
+from app.models.sourcing import DemandGapScore, SourcingAlert, SourcingSearchRun, StagedCandidate
 
 __all__ = [
     # Base
@@ -174,5 +176,11 @@ __all__ = [
     "CandidateConversation",
     "CandidateAIAssignment",
     "ConversationEvent",
+    "ConflictRule",
+    "OrchestrationEvent",
+    "DemandGapScore",
+    "SourcingAlert",
+    "SourcingSearchRun",
+    "StagedCandidate",
 ]
 
