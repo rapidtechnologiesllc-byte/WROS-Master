@@ -15,11 +15,14 @@ genuinely can't exist without it (timesheets are always tied to an
 active allocation).
 
 FK note: 02-DATA-MODEL.md's Domain 3 sketch names the column
-`project_id`, but this codebase has no `projects` table yet (Domain 4,
-EPIC-08, not built). Linked to `demands.id` instead -- the closest
-already-built anchor for "what this person is now staffed against" --
-same flagged-not-resolved posture as the pre-existing Demand vs. Jobs
-note in app.models.demand.
+`project_id`, but this codebase had no `projects` table when this model
+was first built (Domain 4, EPIC-08). Linked to `demands.id` at the time
+-- kept, since it's still meaningful history (what sourcing decision
+led here) -- and now ALSO linked to `projects.id` (nullable, since an
+allocation predating HRMS-0801 or made outside a tracked project has
+none) once HRMS-0801 landed. `role`/`utilization_pct` double as HRMS-
+0803's "role"/"allocation_pct" fields -- same concept, no new column
+needed for the latter.
 """
 import uuid
 from datetime import date as date_type
@@ -48,6 +51,9 @@ class EmployeeAllocation(Base):
     employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
     demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    # HRMS-0803 -- nullable: not every allocation is tied to a tracked project.
+    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
+    role = Column(String(200), nullable=True)
 
     status = Column(
         Enum(*ALLOCATION_STATUSES, name="employee_allocation_status", native_enum=False, create_constraint=True),

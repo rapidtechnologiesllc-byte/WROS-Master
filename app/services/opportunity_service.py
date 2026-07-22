@@ -12,10 +12,9 @@ entity this session -- no REST endpoints/UI yet for anything), but this
 underlying calculation is real and tested so whichever screen gets
 built later has one correct source to call.
 
-Stage transition to WON is meant to auto-create a Project (HRMS-0801
-BR-0801-01) -- that wiring isn't added here since the Project model
-doesn't exist yet in this codebase; it's the first thing the Projects
-build round adds once Project exists, not reimplemented ad hoc here.
+Stage transition to WON auto-creates a Project (HRMS-0801 BR-0801-01,
+completing the hook this module's own docstring used to defer -- Project
+now exists as of the Projects build round).
 """
 from datetime import datetime
 from typing import Iterable, List, Optional
@@ -25,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.models.demand import Demand
 from app.models.opportunity import CLOSED_STAGES, OPPORTUNITY_STAGES, Opportunity
 from app.services.demand_service import create_demand
+from app.services.project_service import create_project_from_won_opportunity
 
 
 class OpportunityValidationError(Exception):
@@ -63,7 +63,17 @@ def create_opportunity(
     return opportunity
 
 
-def transition_stage(db: Session, opportunity: Opportunity, new_stage: str) -> Opportunity:
+def transition_stage(
+    db: Session, opportunity: Opportunity, new_stage: str,
+    *, project_name: Optional[str] = None, billing_type: str = "TIME_AND_MATERIALS",
+    continent: Optional[str] = None, changed_by: Optional[str] = None,
+):
+    """
+    Returns the Opportunity, unless new_stage='WON', in which case
+    returns (opportunity, project) -- HRMS-0801 BR-0801-01: winning an
+    opportunity auto-creates a Project inheriting client_id/currency,
+    no manual re-entry.
+    """
     if opportunity.stage in CLOSED_STAGES:
         raise InvalidStageTransition(
             f"Opportunity {opportunity.id} is already closed ({opportunity.stage}) -- cannot change stage."
@@ -74,6 +84,15 @@ def transition_stage(db: Session, opportunity: Opportunity, new_stage: str) -> O
     opportunity.stage = new_stage
     opportunity.updated_at = datetime.utcnow()
     db.add(opportunity)
+
+    if new_stage == "WON":
+        project = create_project_from_won_opportunity(
+            db, opportunity,
+            name=project_name or f"Project for Opportunity {opportunity.id}",
+            billing_type=billing_type, continent=continent, created_by=changed_by,
+        )
+        return opportunity, project
+
     return opportunity
 
 

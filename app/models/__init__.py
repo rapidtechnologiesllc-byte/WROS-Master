@@ -47,6 +47,7 @@ from app.models.opportunity import Opportunity
 from app.models.timesheet_dispute import TimesheetDispute
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
+from app.models.project import Project, ProjectMilestone
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -139,6 +140,9 @@ __all__ = [
     "SubVendorSubmission",
     "SubVendorViolation",
     "SubVendorDedupRejection",
+    # Project (HRMS-0801/0804, Phase 2 Domain 4)
+    "Project",
+    "ProjectMilestone",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",
