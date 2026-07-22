@@ -32,19 +32,33 @@ this codebase -- it's EPIC-11 scope (HRMS-1101-1110, Phase 3 Workstream
 desire_profile=None rather than fabricating one, so a caller can tell
 "not built yet" apart from "built and empty."
 """
+import os
+import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
 
+from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
+from app.core.logging import logger
+from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
+from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA
 from app.services.whatsapp_routing_service import send_whatsapp_message  # noqa: F401 -- re-exported gate
 
 WHATSAPP_OUTREACH_CONSENT_TYPE = "whatsapp_outreach"
 DEBOUNCE_SECONDS = 60
+
+# Reply-generation -- reuses the exact Gemini pattern already wired for
+# candidate-facing AI in app.services.ai_conversation_service (same env
+# var, same model family) rather than standing up a second LLM client
+# for this codebase. See that module for the established convention.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+THUNDER_REPLY_MODEL = "gemini-3-flash-preview"
 
 
 class ConsentNotGiven(Exception):
@@ -211,3 +225,308 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
         "current_owner_type": active_conversation.owner_type if active_conversation else None,
         "current_owner_id": active_conversation.owner_id if active_conversation else None,
     }
+
+
+# ===========================================================================
+# Reply generation -- the piece that was missing: turning
+# build_candidate_context() + a new inbound message into Thunder's
+# actual reply text, ready to hand to send_thunder_message().
+# ===========================================================================
+
+class ThunderReplyGenerationFailed(Exception):
+    """Raised when Gemini can't be called (no API key) or returns nothing
+    usable -- callers must not fall back to a fabricated reply."""
+
+
+def _display_name(candidate: Candidate) -> str:
+    parts = [candidate.candidateFirstName, candidate.candidateLastName]
+    name = " ".join(p for p in parts if p).strip()
+    return name or candidate.candidateEmail
+
+
+def generate_thunder_reply(db: Session, candidate: Candidate, inbound_message: str) -> str:
+    """
+    Turns a candidate's new inbound message into Thunder's reply text.
+
+    Always calls build_candidate_context() first (per that function's
+    own docstring) so Thunder never re-asks something already answered
+    on a different channel and never contradicts an HR-left internal
+    note.
+
+    Persona: reuses AI_AGENT_PERSONA ("friendly-hr") -- the same
+    warm/professional BlitzenX HR voice already established in
+    ai_conversation_service.py's candidate emails, per Avinash's
+    explicit choice (2026-07-22) rather than inventing a separate
+    "Thunder" voice from scratch.
+
+    inbound_message is candidate-supplied, untrusted content -- routed
+    through app.core.llm_prompt_safety.build_safe_prompt(), this
+    codebase's non-negotiable for every LLM call (same discipline
+    ai_conversation_service.py's extract_fields_from_reply() applies to
+    email replies).
+    """
+    if not GEMINI_API_KEY:
+        raise ThunderReplyGenerationFailed(
+            "GEMINI_API_KEY not configured -- cannot generate a Thunder reply."
+        )
+
+    context = build_candidate_context(db, candidate)
+
+    history_lines = "\n".join(
+        f"[{item['channel'] or 'system'}] {item['event_type']} ({item['triggered_by']}): {item['body']}"
+        for item in context["message_history"][-20:]
+        if item.get("body")
+    ) or "(no prior messages)"
+
+    notes_lines = "\n".join(
+        f"- {note['content']}" for note in context["internal_notes"]
+    ) or "(none)"
+
+    suspicious = flag_suspicious_patterns(inbound_message)
+    if suspicious:
+        logger.warning(f"[Thunder] Inbound message contains injection-shaped phrasing: {suspicious}")
+
+    instruction = f"""You are Thunder, {_display_name(candidate)}'s AI hiring assistant at BlitzenX, replying over WhatsApp.
+Persona: {AI_AGENT_PERSONA} -- warm, professional, concise. Same voice BlitzenX HR uses in candidate emails.
+
+Conversation history so far (oldest to newest):
+{history_lines}
+
+Internal HR notes (context only -- never repeat these verbatim to the candidate):
+{notes_lines}
+
+Rules:
+- Reply directly to the candidate's newest message, given below as data.
+- Keep it to 2-4 short sentences, WhatsApp-appropriate (no email-style formatting, no subject line).
+- Never invent facts about job offers, salary, or start dates that aren't already in the history or notes above.
+- Do not re-ask for information the candidate already provided earlier in the history.
+- If you don't have enough information to answer, say so plainly and offer to loop in an HR team member.
+
+Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation."""
+
+    prompt = build_safe_prompt(
+        instruction=instruction,
+        untrusted_label="CANDIDATE_MESSAGE",
+        untrusted_content=inbound_message,
+    )
+
+    llm = ChatGoogleGenerativeAI(
+        model=THUNDER_REPLY_MODEL,
+        google_api_key=GEMINI_API_KEY,
+        temperature=0.4,
+    )
+    response = llm.invoke(prompt)
+    content = response.content
+    if isinstance(content, list):
+        reply_text = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    else:
+        reply_text = str(content).strip()
+
+    if not reply_text:
+        raise ThunderReplyGenerationFailed("Gemini returned an empty reply.")
+
+    return reply_text
+
+
+# ===========================================================================
+# "Test Thunder" mode -- lets a real internal user chat with Thunder
+# without a live WhatsApp Business API (none is provisioned in this
+# codebase -- see whatsapp_routing_service's module docstring). The
+# mock transport below is injected as send_thunder_message()'s
+# whatsapp_client, so R-08, consent, and the debounce guard all run
+# exactly as they would for a real send; only the wire transport at
+# the very bottom is fake, and it says so.
+# ===========================================================================
+
+# The ID stays obviously synthetic ("THUNDER-TEST-CANDIDATE") so this
+# row can never be mistaken for a real candidate intake -- but per
+# Avinash's explicit request (2026-07-22) the name/email/mobile are his
+# own real contact info, so he's testing Thunder as himself rather than
+# against a placeholder identity. The consent record below is still
+# captured_by="thunder_test_chat_demo_setup", i.e. explicitly logged as
+# a demo/test bootstrap action, not a real candidate opt-in flow.
+TEST_CANDIDATE_ID = "THUNDER-TEST-CANDIDATE"
+TEST_CANDIDATE_FIRST_NAME = "Mukund"
+TEST_CANDIDATE_LAST_NAME = "A."
+TEST_CANDIDATE_EMAIL = "avin307@gmail.com"
+TEST_CANDIDATE_MOBILE = "+19499430199"
+
+
+def mock_whatsapp_client(to_number: str, from_number: str, body: str) -> bool:
+    """
+    Honest mock transport for 'Test Thunder' mode: records the send to
+    the log and reports it delivered, but never calls a real WhatsApp
+    API -- none is provisioned in this codebase. Do not use this
+    outside test-chat mode.
+    """
+    logger.info(f"[ThunderTestChat] MOCK send | to={to_number} from={from_number} | {body[:120]!r}")
+    return True
+
+
+def get_or_create_test_candidate(db: Session) -> Candidate:
+    """
+    send_thunder_message() hard-blocks without an active
+    whatsapp_outreach ConsentRecord (A1) -- this creates that consent
+    for an obviously-labeled test/demo candidate, explicitly, rather
+    than bypassing the real gate to make testing convenient.
+    """
+    candidate = db.query(Candidate).filter(Candidate.candidateID == TEST_CANDIDATE_ID).first()
+    if candidate:
+        return candidate
+
+    candidate = Candidate(
+        candidateID=TEST_CANDIDATE_ID,
+        candidateFirstName=TEST_CANDIDATE_FIRST_NAME,
+        candidateLastName=TEST_CANDIDATE_LAST_NAME,
+        candidateEmail=TEST_CANDIDATE_EMAIL,
+        candidateMobile=TEST_CANDIDATE_MOBILE,
+        candidatePassword=get_password_hash(secrets.token_urlsafe(24)),
+    )
+    db.add(candidate)
+    db.flush()
+
+    db.add(ConsentRecord(
+        subject_type="candidate", subject_id=TEST_CANDIDATE_ID,
+        consent_type=WHATSAPP_OUTREACH_CONSENT_TYPE, consent_given=True,
+        captured_by="thunder_test_chat_demo_setup",
+    ))
+    db.flush()
+    return candidate
+
+
+def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateConversation:
+    """One test conversation per internal tester (scoped by tenant_id),
+    so different staff testing Thunder don't share a thread."""
+    conversation = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == TEST_CANDIDATE_ID,
+            CandidateConversation.tenant_id == tenant_id,
+            CandidateConversation.status != "closed",
+        )
+        .order_by(CandidateConversation.id.desc())
+        .first()
+    )
+    if conversation:
+        return conversation
+
+    conversation = CandidateConversation(
+        tenant_id=tenant_id,
+        candidate_id=TEST_CANDIDATE_ID,
+        status="open",
+        ai_agent_name=AI_AGENT_NAME,
+        channel_preference="whatsapp",
+        owner_type="ai_agent",
+        owner_id=AI_AGENT_NAME,
+        escalation_state="none",
+        summary="Test Thunder demo conversation.",
+    )
+    db.add(conversation)
+    db.flush()
+    return conversation
+
+
+def run_test_chat_turn(db: Session, *, tenant_id: str, message_body: str) -> Dict:
+    """
+    One full 'Test Thunder' turn: log the tester's message as if it
+    came from the candidate, generate Thunder's reply with the real
+    LLM (build_candidate_context() -> generate_thunder_reply()), then
+    send it back through the real send_thunder_message() gate -- R-08,
+    consent, and the 60s debounce all still apply; only the outbound
+    WhatsApp transport is mocked.
+
+    Raises ConsentNotGiven / DuplicateMessageSuppressed /
+    ConversationOwnedByHuman exactly as a real send would (e.g. if a
+    recruiter takes over this test conversation, Thunder is blocked
+    here too -- that's the governance working, not a bug to swallow).
+    """
+    candidate = get_or_create_test_candidate(db)
+    conversation = get_or_create_test_conversation(db, tenant_id)
+
+    inbound_event = ConversationEvent(
+        conversation_id=conversation.id,
+        event_type="candidate_reply",
+        event_data={"channel": "whatsapp", "body": message_body},
+        triggered_by="candidate",
+    )
+    db.add(inbound_event)
+    db.flush()
+
+    reply_text = generate_thunder_reply(db, candidate, message_body)
+
+    reply_event = send_thunder_message(
+        db, conversation, candidate, reply_text,
+        sender_type="ai_agent",
+        whatsapp_client=mock_whatsapp_client,
+        auto_generated=True,
+    )
+
+    db.commit()
+
+    return {
+        "conversation_id": conversation.id,
+        "candidate_message": message_body,
+        "thunder_reply": reply_text,
+        "mock_send": True,
+        "delivered": bool(reply_event.event_data.get("delivered")),
+        "event_id": reply_event.id,
+        "created_at": reply_event.created_at,
+    }
+
+
+def get_test_chat_history(db: Session, tenant_id: str) -> List[Dict]:
+    """Full message history for this tester's current (non-closed) test
+    conversation, in display order. Empty list if none exists yet or
+    the last one was reset_test_chat()'d."""
+    conversation = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == TEST_CANDIDATE_ID,
+            CandidateConversation.tenant_id == tenant_id,
+            CandidateConversation.status != "closed",
+        )
+        .order_by(CandidateConversation.id.desc())
+        .first()
+    )
+    if not conversation:
+        return []
+
+    events = (
+        db.query(ConversationEvent)
+        .filter(
+            ConversationEvent.conversation_id == conversation.id,
+            ConversationEvent.event_type.in_(("candidate_reply", "ai_message_sent", "hr_message_sent")),
+        )
+        .order_by(ConversationEvent.created_at.asc(), ConversationEvent.id.asc())
+        .all()
+    )
+    return [
+        {
+            "sender": (
+                "candidate" if event.event_type == "candidate_reply"
+                else "thunder" if event.event_type == "ai_message_sent"
+                else "hr"
+            ),
+            "body": (event.event_data or {}).get("body", ""),
+            "created_at": event.created_at,
+        }
+        for event in events
+    ]
+
+
+def reset_test_chat(db: Session, tenant_id: str) -> None:
+    """Closes this tester's current test conversation so the next
+    message starts a fresh thread. Non-destructive -- the closed
+    conversation and its events stay in the DB (same 'deactivate, never
+    delete' convention as the rest of this codebase), just excluded
+    from get_or_create_test_conversation()'s and
+    get_test_chat_history()'s active-conversation lookups."""
+    db.query(CandidateConversation).filter(
+        CandidateConversation.candidate_id == TEST_CANDIDATE_ID,
+        CandidateConversation.tenant_id == tenant_id,
+        CandidateConversation.status != "closed",
+    ).update({"status": "closed"})
+    db.commit()
