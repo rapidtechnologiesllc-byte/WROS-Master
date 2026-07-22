@@ -41,6 +41,15 @@ PHASE 3.5: Data Import & Live Data Flow          (added 2026-07-22, no detail do
          candidate_desire_profiles (hiring-intent scoring, not
          personal/relationship data). See memory file
          `phase_3_5_data_import.md`.
+      5. HRMS-1501 (Interview Integrity Analysis Engine) and HRMS-1502
+         (Panel Feedback Cross-Validation & Clarification Routing)
+         (added 2026-07-22) -- Workstream 2 named both "full doc
+         exists," verified neither has any requirements doc, catalog
+         entry, or [GAP-SPEC] stub anywhere in the corpus. Avinash
+         deferred describing the functional scope to Phase 3.5 rather
+         than specifying it inline -- do not invent scoring/consistency
+         logic for either without a real spec; both touch sensitive
+         territory (candidate integrity signals, panel judgment).
               ↓
 PHASE 4: Resource Management                    (see 04-RESOURCE-MANAGEMENT.md)
     (also unlocked in parallel by Phase 3, detailed separately given its scope)
