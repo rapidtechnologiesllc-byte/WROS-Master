@@ -47,3 +47,16 @@ class ApproveRecommendationResponse(BaseModel):
     message: str
     recommendation: RecommendationItem
     allocation_id: str
+
+
+class MatchedBenchCandidate(BaseModel):
+    employee_id: str
+    employee_name: str
+    employee_current_title: Optional[str] = None
+    score_pct: float
+
+
+class MatchBenchResourcesResponse(BaseModel):
+    demand_id: str
+    demand_job_title: str
+    candidates: List[MatchedBenchCandidate]
