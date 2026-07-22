@@ -69,6 +69,13 @@ class RecommendationNotPending(Exception):
     pass
 
 
+class EmployeeAlreadyActivelyEngaged(Exception):
+    """Avinash's explicit business call (2026-07-22): an employee already
+    IN_PROGRESS on one client engagement must never be simultaneously
+    pursued for a second. Hard block, not a warning -- see
+    start_pursuing_recommendation()."""
+
+
 # ---------------------------------------------------------------------------
 # Skill matching
 # ---------------------------------------------------------------------------
@@ -258,6 +265,28 @@ No markdown, no code fences, no explanation outside the JSON array."""
         ]
 
 
+def is_employee_actively_engaged(
+    db: Session, employee_id: str, *, exclude_recommendation_id: Optional[str] = None,
+) -> bool:
+    """
+    Avinash's explicit business call, 2026-07-22: "if a candidate is in
+    interview stage at a client we shouldn't let them be pushed to 2
+    clients at once." HRMS-1105's own story doc has no concept of an
+    interview-stage hold -- it describes only suggest-then-allocate --
+    but that's not how this actually plays out: an RM presents a bench
+    employee to one client and that employee must be off the table for
+    everyone else until it resolves. True the moment ANY of this
+    employee's recommendations is IN_PROGRESS, regardless of demand.
+    """
+    query = db.query(BenchAllocationRecommendation).filter(
+        BenchAllocationRecommendation.employee_id == employee_id,
+        BenchAllocationRecommendation.status == "IN_PROGRESS",
+    )
+    if exclude_recommendation_id is not None:
+        query = query.filter(BenchAllocationRecommendation.id != exclude_recommendation_id)
+    return query.first() is not None
+
+
 def run_bench_scan(
     db: Session, *, tenant_id: Optional[int] = None, bu_head: Optional[Users] = None,
 ) -> Dict:
@@ -268,6 +297,11 @@ def run_bench_scan(
       2. For the current bench pool, rank non-conflicting matches via the
          LLM and store PENDING_RM_REVIEW recommendations (BR-1105-02: this
          never creates an employee_allocations row itself).
+
+    Employees already IN_PROGRESS on another engagement (see
+    is_employee_actively_engaged()) are skipped entirely -- no new
+    recommendations are generated for someone already being actively
+    pursued elsewhere, not just blocked at approval time.
     """
     core_pull_events = detect_core_pull_triggers(db, tenant_id=tenant_id, bu_head=bu_head)
 
@@ -275,6 +309,8 @@ def run_bench_scan(
     for entry in get_current_bench_pool(db, tenant_id=tenant_id):
         employee = db.query(Employee).filter(Employee.id == entry.employee_id).first()
         if employee is None:
+            continue
+        if is_employee_actively_engaged(db, employee.id):
             continue
         matches = find_open_demand_matches(db, employee)
         if not matches:
@@ -317,15 +353,49 @@ def get_recommendation_queue(db: Session, *, tenant_id: Optional[int] = None) ->
     return query.order_by(BenchAllocationRecommendation.confidence_pct.desc()).all()
 
 
+def start_pursuing_recommendation(
+    db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
+) -> BenchAllocationRecommendation:
+    """
+    PENDING_RM_REVIEW -> IN_PROGRESS: the RM's explicit decision to
+    actually present this employee to this client (interview stage).
+    Hard-blocks (EmployeeAlreadyActivelyEngaged) if this employee is
+    already IN_PROGRESS on a different recommendation -- this is the
+    real enforcement point for "never pushed to 2 clients at once".
+    Reject or approve the existing one first.
+    """
+    if recommendation.status != "PENDING_RM_REVIEW":
+        raise RecommendationNotPending(
+            f"Recommendation {recommendation.id} is not PENDING_RM_REVIEW (status={recommendation.status})."
+        )
+    if is_employee_actively_engaged(db, recommendation.employee_id, exclude_recommendation_id=recommendation.id):
+        raise EmployeeAlreadyActivelyEngaged(
+            f"Employee {recommendation.employee_id} is already IN_PROGRESS on another recommendation -- "
+            f"reject or approve that one before pursuing this one."
+        )
+
+    recommendation.status = "IN_PROGRESS"
+    recommendation.pursued_by = actor_user_id
+    recommendation.pursued_at = datetime.utcnow()
+    db.add(recommendation)
+    return recommendation
+
+
 def approve_bench_recommendation(
     db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
 ) -> EmployeeAllocation:
     """BR-1105-02: the ONLY path from a recommendation to a real
     employee_allocations row -- routes through the existing, already-
-    gated allocate_employee_to_project(), never inserts directly."""
-    if recommendation.status != "PENDING_RM_REVIEW":
+    gated allocate_employee_to_project(), never inserts directly.
+
+    Requires IN_PROGRESS (the candidate must have actually gone through
+    start_pursuing_recommendation()'s exclusivity gate first) -- approval
+    is the offer/placement step, not the "let's consider this" step.
+    """
+    if recommendation.status != "IN_PROGRESS":
         raise RecommendationNotPending(
-            f"Recommendation {recommendation.id} is not PENDING_RM_REVIEW (status={recommendation.status})."
+            f"Recommendation {recommendation.id} is not IN_PROGRESS (status={recommendation.status}) -- "
+            f"call start_pursuing_recommendation() first."
         )
 
     employee = db.query(Employee).filter(Employee.id == recommendation.employee_id).first()
@@ -346,9 +416,12 @@ def approve_bench_recommendation(
 def reject_bench_recommendation(
     db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
 ) -> BenchAllocationRecommendation:
-    if recommendation.status != "PENDING_RM_REVIEW":
+    """Reachable from PENDING_RM_REVIEW (never pursued) or IN_PROGRESS
+    (was being pursued, fell through) -- either way, releases the
+    exclusivity hold from is_employee_actively_engaged()."""
+    if recommendation.status not in ("PENDING_RM_REVIEW", "IN_PROGRESS"):
         raise RecommendationNotPending(
-            f"Recommendation {recommendation.id} is not PENDING_RM_REVIEW (status={recommendation.status})."
+            f"Recommendation {recommendation.id} is not PENDING_RM_REVIEW or IN_PROGRESS (status={recommendation.status})."
         )
     recommendation.status = "REJECTED"
     recommendation.reviewed_by = actor_user_id
