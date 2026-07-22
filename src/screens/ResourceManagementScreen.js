@@ -6,8 +6,8 @@
 // resolves -- the error banner below surfaces that block clearly rather
 // than as a generic failure.
 import { useEffect, useState } from "react";
-import { Users2, RefreshCw, CheckCircle2, XCircle, PlayCircle } from "lucide-react";
-import { Card, Button } from "../components/ui";
+import { Users2, RefreshCw, CheckCircle2, XCircle, PlayCircle, Search } from "lucide-react";
+import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
 import {
   triggerBenchScan,
@@ -15,7 +15,78 @@ import {
   pursueRecommendation,
   approveRecommendation,
   rejectRecommendation,
+  getMatchingBenchResources,
 } from "../services/api/resourceManagement";
+
+function MatchBenchResourcesCard() {
+  const [demandId, setDemandId] = useState("");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSearch = async () => {
+    if (!demandId.trim()) {
+      setError("Demand ID is required.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const res = await getMatchingBenchResources(demandId.trim());
+      setResult(res);
+    } catch (err) {
+      setError(err.message || "Failed to find matching bench resources.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card
+      title="Match Bench Resources to Opportunity"
+      subtitle="Top 5 current bench employees for a demand, ranked by skill match. Read-only preview -- doesn't create a recommendation."
+      icon={<Search className="h-4 w-4" />}
+    >
+      {error ? (
+        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <Input label="Demand ID" value={demandId} onChange={setDemandId} placeholder="demand UUID" />
+        </div>
+        <Button variant="primary" disabled={loading} onClick={handleSearch}>
+          {loading ? "Searching…" : "Find Matches"}
+        </Button>
+      </div>
+
+      {result ? (
+        <div className="mt-4">
+          <div className="mb-2 text-xs font-semibold text-gray-700">
+            Candidates for: {result.demand_job_title}
+          </div>
+          {result.candidates.length === 0 ? (
+            <div className="text-sm text-gray-500">No matching bench candidates found.</div>
+          ) : (
+            <ul className="space-y-2">
+              {result.candidates.map((c) => (
+                <li key={c.employee_id} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm">
+                  <div>
+                    <div className="font-semibold text-gray-900">{c.employee_name}</div>
+                    <div className="text-xs text-gray-500">{c.employee_current_title || "—"}</div>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">{c.score_pct}%</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
 
 const STATUS_STYLES = {
   PENDING_RM_REVIEW: "border-amber-200 bg-amber-50 text-amber-800",
@@ -214,6 +285,8 @@ export default function ResourceManagementScreen() {
           )}
         </div>
       </Card>
+
+      <MatchBenchResourcesCard />
     </div>
   );
 }
