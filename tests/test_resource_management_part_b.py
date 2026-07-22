@@ -20,6 +20,7 @@ from app.models.employee import Employee, EmployeeEmploymentHistory
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.resource_management import (
     AllocationConflictLogEntry,
+    BenchPeriod,
     BenchPoolEntry,
     EmployeeUtilizationMetric,
 )
@@ -32,7 +33,9 @@ from app.services.employee_allocation_service import (
     end_allocation,
 )
 from app.services.resource_management_service import (
+    check_bench_aging_alerts,
     get_bench_duration_days,
+    get_bench_period_history,
     get_current_bench_pool,
     is_staffing_eligible,
     log_allocation_conflict,
@@ -51,7 +54,7 @@ def db_session():
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
         Employee.__table__, EmployeeEmploymentHistory.__table__,
         EmployeeAllocation.__table__, Timesheet.__table__, TimesheetEntry.__table__,
-        BenchPoolEntry.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -123,6 +126,84 @@ def test_end_allocation_creates_bench_pool_entry(db_session, fixtures):
     db_session.commit()
 
     assert db_session.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).count() == 1
+
+
+def test_mark_employee_on_bench_opens_one_history_period(db_session, fixtures):
+    _, _, _, employee = fixtures
+    mark_employee_on_bench(db_session, employee, reason="NEWLY_JOINED")
+    db_session.commit()
+    mark_employee_on_bench(db_session, employee, reason="NEWLY_JOINED")  # idempotent, no second period
+    db_session.commit()
+
+    periods = get_bench_period_history(db_session, employee.id)
+    assert len(periods) == 1
+    assert periods[0].bench_end_date is None
+    assert periods[0].reason_for_bench == "NEWLY_JOINED"
+
+
+def test_mark_employee_on_bench_rejects_invalid_reason(db_session, fixtures):
+    _, _, _, employee = fixtures
+    with pytest.raises(ValueError):
+        mark_employee_on_bench(db_session, employee, reason="NOT_A_REAL_REASON")
+
+
+def test_remove_from_bench_closes_the_open_period_and_computes_cost(db_session, fixtures):
+    _, _, _, employee = fixtures
+    mark_employee_on_bench(db_session, employee)
+    db_session.commit()
+
+    period = get_bench_period_history(db_session, employee.id)[0]
+    period.bench_start_date = date.today() - timedelta(days=10)
+    db_session.commit()
+
+    remove_employee_from_bench(db_session, employee)
+    db_session.commit()
+
+    periods = get_bench_period_history(db_session, employee.id)
+    assert len(periods) == 1
+    assert periods[0].bench_end_date == date.today()
+    assert periods[0].bench_cost_usd_cents == round(900000 / 30 * 10)
+
+
+def test_bench_period_history_survives_multiple_stints(db_session, fixtures):
+    tenant, client, demand, employee = fixtures
+    mark_employee_on_bench(db_session, employee, reason="NEWLY_JOINED")
+    db_session.commit()
+    remove_employee_from_bench(db_session, employee)
+    db_session.commit()
+
+    mark_employee_on_bench(db_session, employee, reason="PROJECT_ENDED")
+    db_session.commit()
+
+    periods = get_bench_period_history(db_session, employee.id)
+    assert len(periods) == 2
+    closed = [p for p in periods if p.bench_end_date is not None]
+    open_ = [p for p in periods if p.bench_end_date is None]
+    assert len(closed) == 1 and len(open_) == 1
+    assert open_[0].reason_for_bench == "PROJECT_ENDED"
+
+
+def test_bench_aging_alerts_fire_at_30_60_90_days(db_session, fixtures):
+    _, _, _, employee = fixtures
+    entry = mark_employee_on_bench(db_session, employee)
+    db_session.commit()
+
+    entry.available_from = date.today() - timedelta(days=30)
+    db_session.commit()
+    alerts = check_bench_aging_alerts(db_session, tenant_id=employee.tenant_id)
+    assert len(alerts) == 1
+    assert alerts[0]["days_on_bench"] == 30
+    assert alerts[0]["employee_id"] == employee.id
+
+
+def test_bench_aging_alerts_silent_between_milestones(db_session, fixtures):
+    _, _, _, employee = fixtures
+    entry = mark_employee_on_bench(db_session, employee)
+    db_session.commit()
+
+    entry.available_from = date.today() - timedelta(days=45)
+    db_session.commit()
+    assert check_bench_aging_alerts(db_session, tenant_id=employee.tenant_id) == []
 
 
 def test_allocate_removes_bench_pool_entry(db_session, fixtures):

@@ -22,7 +22,7 @@ from app.models.client import Client
 from app.models.demand import Demand, DemandHistory
 from app.models.employee import Employee, EmployeeEmploymentHistory
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.resource_management import AllocationConflictLogEntry, BenchPoolEntry, EmployeeUtilizationMetric
+from app.models.resource_management import AllocationConflictLogEntry, BenchPeriod, BenchPoolEntry, EmployeeUtilizationMetric
 from app.models.opportunity import Opportunity
 from app.models.project import Project, ProjectMilestone
 from app.models.timesheet import Timesheet, TimesheetEntry
@@ -49,7 +49,7 @@ def db_session():
         EmployeeAllocation.__table__, Opportunity.__table__, Project.__table__, ProjectMilestone.__table__,
         Timesheet.__table__, TimesheetEntry.__table__, TimesheetAnomalyFlag.__table__,
         TimesheetDispute.__table__, Invoice.__table__, InvoiceLineItem.__table__,
-        BenchPoolEntry.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

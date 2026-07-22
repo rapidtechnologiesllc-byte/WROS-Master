@@ -17,10 +17,17 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.resource_management import (
     AllocationConflictLogEntry,
+    BENCH_PERIOD_REASONS,
+    BenchPeriod,
     BenchPoolEntry,
     EmployeeUtilizationMetric,
 )
 from app.models.timesheet import Timesheet
+
+# S-248/HRMS-0504 doc's own alert milestones. Canonical sheet also names
+# 90 days; included here too even though the source doc only specifies
+# 30/60.
+BENCH_AGING_ALERT_DAYS = (30, 60, 90)
 
 # No requirements doc specifies a standard work week for utilization
 # math (Part B has none at all) -- 40h/week is this session's plain
@@ -40,37 +47,116 @@ _BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
 # Bench pool -- "Mark Employee as Bench" + "Bench Duration & Aging"
 # ---------------------------------------------------------------------------
 
-def mark_employee_on_bench(db: Session, employee: Employee) -> BenchPoolEntry:
+def mark_employee_on_bench(
+    db: Session, employee: Employee, *, reason: str = "PROJECT_ENDED",
+) -> BenchPoolEntry:
     """
-    Upserts this employee's bench_pool row. Idempotent -- calling this
-    for an employee who's already on the bench just returns the
-    existing entry rather than resetting available_from, so a redundant
-    call doesn't silently reset their bench-aging clock.
-    """
-    existing = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
-    if existing:
-        return existing
+    Upserts this employee's bench_pool row AND opens a bench_periods
+    history row (S-246, extended per the real requirement doc found
+    this round -- see BenchPeriod's docstring). Idempotent on the
+    bench_pool side -- calling this for an employee who's already on
+    the bench just returns the existing entry rather than resetting
+    available_from, so a redundant call doesn't silently reset their
+    bench-aging clock. Idempotent on the bench_periods side too (BR-02:
+    only one open period per employee) -- a redundant call does not
+    open a second history row.
 
-    monthly_cost = employee.base_salary_usd_cents or 0
-    entry = BenchPoolEntry(
-        tenant_id=employee.tenant_id,
-        employee_id=employee.id,
-        available_from=date.today(),
-        skill_tags=employee.current_skills,
-        bench_cost_usd_cents=round(monthly_cost / 30) if monthly_cost else None,
+    reason defaults to PROJECT_ENDED (the existing caller,
+    end_allocation(), only ever benches someone because their
+    allocation just ended); pass an explicit reason for other entry
+    paths (e.g. NEWLY_JOINED for a fresh hire who's never been
+    allocated).
+    """
+    if reason not in BENCH_PERIOD_REASONS:
+        raise ValueError(f"reason must be one of {BENCH_PERIOD_REASONS}, got '{reason}'.")
+
+    existing = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
+    if not existing:
+        monthly_cost = employee.base_salary_usd_cents or 0
+        existing = BenchPoolEntry(
+            tenant_id=employee.tenant_id,
+            employee_id=employee.id,
+            available_from=date.today(),
+            skill_tags=employee.current_skills,
+            bench_cost_usd_cents=round(monthly_cost / 30) if monthly_cost else None,
+        )
+        db.add(existing)
+        db.flush()
+
+    open_period = (
+        db.query(BenchPeriod)
+        .filter(BenchPeriod.employee_id == employee.id, BenchPeriod.bench_end_date.is_(None))
+        .first()
     )
-    db.add(entry)
-    db.flush()
-    return entry
+    if not open_period:
+        db.add(BenchPeriod(
+            tenant_id=employee.tenant_id, employee_id=employee.id,
+            bench_start_date=date.today(), reason_for_bench=reason,
+        ))
+        db.flush()
+
+    return existing
 
 
 def remove_employee_from_bench(db: Session, employee: Employee) -> None:
-    """Called the moment an employee is allocated off the bench. The row
-    is deleted, not soft-closed -- bench_pool only ever represents WHO
-    IS on the bench right now; historical bench stints are reconstructed
-    from EmployeeEmploymentHistory's STATUS change log if ever needed,
-    not duplicated here."""
+    """Called the moment an employee is allocated off the bench. The
+    bench_pool row is deleted, not soft-closed -- it only ever
+    represents WHO IS on the bench right now (see BenchPoolEntry's own
+    docstring). The bench_periods history row (if one is open) is
+    closed instead -- end_date set, cost frozen per BR-01 -- so the
+    full episode survives for reporting even though bench_pool itself
+    doesn't keep history."""
     db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).delete()
+
+    open_period = (
+        db.query(BenchPeriod)
+        .filter(BenchPeriod.employee_id == employee.id, BenchPeriod.bench_end_date.is_(None))
+        .first()
+    )
+    if open_period:
+        today = date.today()
+        days_on_bench = max((today - open_period.bench_start_date).days, 0)
+        monthly_cost = employee.base_salary_usd_cents or 0
+        open_period.bench_end_date = today
+        open_period.bench_cost_usd_cents = (
+            round(monthly_cost / 30 * days_on_bench) if monthly_cost else None
+        )
+        db.add(open_period)
+
+
+def get_bench_period_history(db: Session, employee_id: str) -> List[BenchPeriod]:
+    """Every bench episode for this employee, most recent first --
+    S-248's aging/trend reporting and S-255's cumulative cost reporting
+    both read this rather than bench_pool (which only ever has the
+    current stint, if any)."""
+    return (
+        db.query(BenchPeriod)
+        .filter(BenchPeriod.employee_id == employee_id)
+        .order_by(BenchPeriod.bench_start_date.desc())
+        .all()
+    )
+
+
+def check_bench_aging_alerts(db: Session, *, tenant_id: Optional[int] = None) -> List[dict]:
+    """S-248 BR: idempotent, directly-callable function (same "real
+    function, scheduler wiring deferred" posture as every other cron-
+    shaped story in this codebase, e.g. HRMS-0901's weekly draft job) --
+    not a self-scheduling daily job. Returns one entry per currently-
+    open bench period that has crossed a 30/60/90-day milestone,
+    computed from BenchPoolEntry.available_from (bench_periods.
+    bench_start_date is the same value for the currently-open period,
+    but the pool entry is the one HRMS-1105's scan already trusts as
+    the live source, so this reads from there for consistency)."""
+    alerts = []
+    for entry in get_current_bench_pool(db, tenant_id=tenant_id):
+        days = get_bench_duration_days(entry)
+        if days in BENCH_AGING_ALERT_DAYS:
+            alerts.append({
+                "employee_id": entry.employee_id,
+                "days_on_bench": days,
+                "bench_cost_usd_cents": entry.bench_cost_usd_cents,
+            })
+    return alerts
 
 
 def get_bench_duration_days(entry: BenchPoolEntry, *, as_of: Optional[date] = None) -> int:

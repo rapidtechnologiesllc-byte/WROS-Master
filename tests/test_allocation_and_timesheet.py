@@ -24,6 +24,7 @@ from app.models.employee import Employee, EmployeeEmploymentHistory
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.resource_management import (
     AllocationConflictLogEntry,
+    BenchPeriod,
     BenchPoolEntry,
     EmployeeUtilizationMetric,
 )
@@ -61,7 +62,7 @@ def db_session():
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
         Employee.__table__, EmployeeEmploymentHistory.__table__, Users.__table__,
         EmployeeAllocation.__table__, Timesheet.__table__, TimesheetEntry.__table__,
-        BenchPoolEntry.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
