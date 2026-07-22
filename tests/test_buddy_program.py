@@ -20,6 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.buddy_program import BuddyKPIScore, BuddyProgramRecord
 from app.models.employee import Employee
+from app.models.performance_store import EmployeePerformanceEvent
 from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services.buddy_program_service import (
@@ -41,7 +42,7 @@ def db_session():
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
         Tenant.__table__, Users.__table__, Employee.__table__,
-        BuddyProgramRecord.__table__, BuddyKPIScore.__table__,
+        BuddyProgramRecord.__table__, BuddyKPIScore.__table__, EmployeePerformanceEvent.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -291,3 +292,26 @@ def test_scorecard_flags_lowest_scoring_kpis(db_session, setup):
     scorecard = compute_day30_scorecard(db_session, record)
     lowest_numbers = {item["kpi_number"] for item in scorecard["lowest_scoring_kpis"]}
     assert {1, 2}.issubset(lowest_numbers)
+
+
+# ---------------------------------------------------------------------------
+# HRMS-0515 performance store wiring
+# ---------------------------------------------------------------------------
+
+def test_submitting_scores_writes_performance_events(db_session, setup):
+    employee, tenant = setup
+    record = create_buddy_program_record(
+        db_session, employee, buddy_engineer_user_id="U-BUDDY",
+        program_start_date=date(2026, 1, 1), expected_end_date=date(2026, 1, 30),
+    )
+    db_session.commit()
+
+    submit_weekly_scores(db_session, record, scores={1: 4, 2: 3}, scored_by="U-BUDDY", week_number=1)
+    db_session.commit()
+
+    events = (
+        db_session.query(EmployeePerformanceEvent)
+        .filter(EmployeePerformanceEvent.employee_id == employee.id, EmployeePerformanceEvent.event_type == "BUDDY_KPI")
+        .all()
+    )
+    assert len(events) == 2

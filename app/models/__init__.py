@@ -72,6 +72,8 @@ from app.models.sourcing import DemandGapScore, SourcingAlert, SourcingSearchRun
 from app.models.outreach import OutreachSequence
 from app.models.partner_intent import PartnerIntentProfile
 from app.models.buddy_program import BuddyProgramRecord, BuddyKPIScore
+from app.models.performance_store import EmployeePerformanceEvent
+from app.models.htd_phase_gate import HTDPhaseGate
 
 __all__ = [
     # Base
@@ -189,5 +191,7 @@ __all__ = [
     "PartnerIntentProfile",
     "BuddyProgramRecord",
     "BuddyKPIScore",
+    "EmployeePerformanceEvent",
+    "HTDPhaseGate",
 ]
 
