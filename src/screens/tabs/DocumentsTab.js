@@ -162,6 +162,19 @@ export default function DocumentsTab({
       showNotice("Document preview is not available.", "error");
       return;
     }
+    // HRMS-0118: mirror the backend's fail-closed gate client-side too,
+    // so HR sees why a document can't open instead of a round-trip 403.
+    // The backend remains the authority -- this is a UX short-circuit,
+    // not a replacement for document_is_accessible().
+    if (documentToPreview?.virus_scan_result !== "clean") {
+      showNotice(
+        `This document has not passed virus scanning (status: ${
+          documentToPreview?.virus_scan_result || "not scanned"
+        }) and cannot be viewed.`,
+        "error",
+      );
+      return;
+    }
     try {
       setPreviewLoadingId(documentToPreview?.id);
       const { blob } = await viewDocument(documentToPreview?.id);
@@ -383,15 +396,18 @@ HR Team`;
                             Uploaded: {formatDate(doc?.uploaded_at)}
                           </div>
                         </div>
-                        <StatusBadge
-                          status={
-                            isVerified
-                              ? "verified"
-                              : showRejectReason
-                                ? "rejected"
-                                : "pending"
-                          }
-                        />
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <StatusBadge
+                            status={
+                              isVerified
+                                ? "verified"
+                                : showRejectReason
+                                  ? "rejected"
+                                  : "pending"
+                            }
+                          />
+                          <ScanStatusBadge result={currentDoc?.virus_scan_result} />
+                        </div>
                       </div>
                       {isPreviewLoading ? (
                         <div
@@ -553,6 +569,7 @@ function DocumentDetailsPanel({
                   isVerified ? "verified" : isRejected ? "rejected" : "pending"
                 }
               />
+              <ScanStatusBadge result={doc?.virus_scan_result} />
             </div>
             <p className="mt-1 text-sm text-gray-500">
               Review the document details and approve or reject it.
@@ -562,7 +579,12 @@ function DocumentDetailsPanel({
             <button
               type="button"
               onClick={onPreview}
-              disabled={isPreviewLoading}
+              disabled={isPreviewLoading || doc?.virus_scan_result !== "clean"}
+              title={
+                doc?.virus_scan_result !== "clean"
+                  ? "This document has not passed virus scanning and cannot be viewed."
+                  : undefined
+              }
               className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPreviewLoading ? "Opening..." : "Open Preview"}
@@ -1154,6 +1176,32 @@ function StatusBadge({ status }) {
       className={`rounded-full border px-3 py-1 text-xs font-semibold ${styles}`}
     >
       {formatDocumentType(normalizedStatus) || "Unknown"}
+    </span>
+  );
+}
+
+// HRMS-0118: separate from StatusBadge (which is verification, a
+// different concept) -- "clean" is the only state that unlocks
+// viewing, matching the backend's fail-closed document_is_accessible().
+function ScanStatusBadge({ result }) {
+  const normalized = String(result || "").toLowerCase();
+  let styles = "bg-gray-100 text-gray-500 border-gray-200";
+  let label = "Not Scanned";
+  if (normalized === "clean") {
+    styles = "bg-green-100 text-green-700 border-green-200";
+    label = "Scan: Clean";
+  } else if (normalized === "infected") {
+    styles = "bg-red-100 text-red-700 border-red-200";
+    label = "Scan: Infected";
+  } else if (normalized === "error") {
+    styles = "bg-amber-100 text-amber-700 border-amber-200";
+    label = "Scan: Error";
+  }
+  return (
+    <span
+      className={`rounded-full border px-3 py-1 text-xs font-semibold ${styles}`}
+    >
+      {label}
     </span>
   );
 }
