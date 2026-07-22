@@ -48,6 +48,8 @@ from app.models.timesheet_dispute import TimesheetDispute
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser, ClarificationQA
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
 from app.models.project import Project, ProjectMilestone
+from app.models.invoice import Invoice, InvoiceLineItem
+from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -144,6 +146,12 @@ __all__ = [
     # Project (HRMS-0801/0804, Phase 2 Domain 4)
     "Project",
     "ProjectMilestone",
+    # Invoice (HRMS-0907, Phase 2 Domain 4)
+    "Invoice",
+    "InvoiceLineItem",
+    # Revenue Leakage + Reconciliation (HRMS-0906/0903, Phase 2 Domain 4)
+    "RevenueLeakageFlag",
+    "ReconciliationAlert",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",
