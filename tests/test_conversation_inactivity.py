@@ -28,6 +28,7 @@ from app.models.base import Base
 from app.models.user import Users
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent, CandidateAIAssignment
+from app.models.consent import ConsentRecord
 from app.models.notification import Notification
 
 from app.services.ai_conversation_service import AI_AGENT_NAME
@@ -53,7 +54,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
-        Notification.__table__,
+        Notification.__table__, ConsentRecord.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -118,6 +119,15 @@ def fixtures(db_session):
         owner_type="ai_agent", owner_id=AI_AGENT_NAME,
     )
     db_session.add(conversation)
+    db_session.commit()
+
+    # Thunder's send gate (app.services.thunder_service.send_thunder_message)
+    # requires an active whatsapp_outreach consent record for every send,
+    # including this safety net's automated reclaim/nudge sends.
+    db_session.add(ConsentRecord(
+        subject_type="candidate", subject_id=candidate.candidateID,
+        consent_type="whatsapp_outreach", consent_given=True,
+    ))
     db_session.commit()
 
     return org_owner, recruiter, candidate, conversation
