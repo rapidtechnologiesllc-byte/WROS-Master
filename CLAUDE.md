@@ -287,3 +287,18 @@ Avinash's explicit business call, not in HRMS-1105's story doc (that doc only de
 - 12 new API-level tests (`tests/test_core_pull_api.py`), including execute-blocked-then-unblocked-by-plan, override-forbidden-for-non-BU-Head, and override-succeeds-for-BU-Head. Full suite: 637 passed, 1 xfailed (was 625).
 
 **Live click-through still blocked by the same ODBC driver gap** — not re-attempted this round since the blocker hasn't changed; presented for approval on the same API-test-level basis as S-320.
+
+**S-353/S-373 approved by Avinash.**
+
+## Session log — 2026-07-22 (continued): Live bug fixed — Thunder hung indefinitely on a slow Gemini call; S-372 Confirmed vs Potential Demand Workflow API + UI built (third and final story in the RM carve-out)
+
+**Live bug, reported directly by Avinash mid-session**: "I typed in thunder 'I need a Guidewire developer' thunder timed out." Root cause: `generate_thunder_reply()`'s `ChatGoogleGenerativeAI` call had no `timeout` set at all — this client's own default is `None`, so a slow/stuck Gemini response hangs the whole request indefinitely, no bound. Not specific to that message's content — Thunder has no special handling that would choke on an odd phrase, it just passes it straight to the LLM. Fixed in `app/services/thunder_service.py` (commit `b6f24b8`): `timeout=30` (a WhatsApp-style 2-4 sentence reply doesn't need more), and the `llm.invoke()` call is now wrapped so any failure raises the existing `ThunderReplyGenerationFailed` (→ 502 from the API) instead of hanging or propagating an unhandled exception. All 33 existing Thunder tests still pass. **If this still times out after the fix, that would point to something else (Gemini API key/quota) — dig into that specifically rather than re-assuming it's the same bug.**
+
+**S-372/HRMS-0528 Confirmed vs Potential Demand Workflow — API + UI built** (last story in the RM carve-out):
+- `app/api/v1/endpoints/demand_confirmation.py` (new) — confirm-sow / schedule-call / calls / confirm-fit / trigger-release. Same `get_current_hr_or_admin` auth posture.
+- **Scope note, flagged not silently narrowed**: this codebase has no employee self-service login path at all (no `get_current_employee` dependency exists anywhere). Both EMPLOYEE and BU_HEAD fit confirmations are recorded by an internal user explicitly selecting which participant they're recording on behalf of — `confirm_fit()`'s own signature already takes `participant` as a parameter, not an inferred caller identity, so this doesn't change the service contract. A genuine employee self-service portal for this is a separate, unscoped story.
+- `app/schemas/demand_confirmation.py` (new).
+- Frontend: `src/screens/DemandConfirmationScreen.js`, `src/services/api/demandConfirmation.js`, registered at `/demand-confirmation`, nav item alongside the other two RM-carve-out screens. **No Demand/Employee browse screen exists yet in this app** (separate, later story), so this screen takes a Demand ID + Employee ID directly rather than a picker — consistent with the rest of the app's current state, not a shortcut specific to this story.
+- 11 new API-level tests (`tests/test_demand_confirmation_api.py`), including the full release-gate sequence (blocked until both fits True AND confirmation_status==CONFIRMED with an SOW). Full suite: 648 passed, 1 xfailed (was 637).
+
+**Live click-through still blocked by the same ODBC driver gap.** This closes out the Resource Management carve-out (S-320, S-353, S-373, S-372 all API+UI built). **Next: resume strict Story-ID numeric order for the remaining ~201 backend-tagged stories**, per `docs/build-package/BACKEND-205-SEQUENTIAL-BUILD-PROMPT.md`.
