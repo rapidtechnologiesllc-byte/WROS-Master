@@ -34,6 +34,11 @@ BENCH_AGING_ALERT_DAYS = (30, 60, 90)
 # assumption, flagged rather than silently baked in with no comment.
 STANDARD_WEEKLY_HOURS = 40
 
+# S-254/HRMS-0510 (canonical) "low utilization alerts" -- no requirements
+# doc specifies a threshold; 50% is this session's plain default, same
+# flagged-not-silent posture as STANDARD_WEEKLY_HOURS above.
+LOW_UTILIZATION_THRESHOLD_PCT = 50
+
 # S-365/HRMS-0521's gate, per 04-RESOURCE-MANAGEMENT.md Part B item 5.
 # Reuses the SAME interpretation employee_allocation_service.py already
 # established (blocks only IN_PROGRESS/EXTENDED, not NOT_STARTED) rather
@@ -221,6 +226,36 @@ def record_weekly_utilization_metric(
     db.add(metric)
     db.flush()
     return metric
+
+
+def get_utilization_history(db: Session, employee_id: str) -> List[EmployeeUtilizationMetric]:
+    """S-254: every weekly snapshot for one employee, most recent first."""
+    return (
+        db.query(EmployeeUtilizationMetric)
+        .filter(EmployeeUtilizationMetric.employee_id == employee_id)
+        .order_by(EmployeeUtilizationMetric.period_start.desc())
+        .all()
+    )
+
+
+def get_latest_utilization_by_employee(
+    db: Session, *, tenant_id: Optional[int] = None,
+) -> dict:
+    """S-254: this tenant's most recent EmployeeUtilizationMetric per
+    employee, keyed by employee_id. Small write volume (weekly
+    snapshots, one org's worth of employees) -- a Python-side latest-per-
+    group pass is simpler and just as correct as a window-function
+    query here, same trade-off this codebase already makes elsewhere
+    (e.g. generate_employee_number()'s plain count)."""
+    query = db.query(EmployeeUtilizationMetric).order_by(EmployeeUtilizationMetric.period_start.desc())
+    if tenant_id is not None:
+        query = query.filter(EmployeeUtilizationMetric.tenant_id == tenant_id)
+
+    latest: dict = {}
+    for metric in query.all():
+        if metric.employee_id not in latest:
+            latest[metric.employee_id] = metric
+    return latest
 
 
 def get_current_bench_pool(db: Session, tenant_id: Optional[int] = None) -> List[BenchPoolEntry]:

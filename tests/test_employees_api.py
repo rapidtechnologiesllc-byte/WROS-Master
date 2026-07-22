@@ -222,6 +222,138 @@ def test_get_employee_404_for_unknown_id(client):
     assert resp.status_code == 404
 
 
+def test_utilization_history_and_summary(client):
+    employee = _create_employee(client)
+
+    from app.models.resource_management import EmployeeUtilizationMetric
+
+    engine = create_engine(client.db_url)
+    session = sessionmaker(bind=engine)()
+    session.add(EmployeeUtilizationMetric(
+        tenant_id=client.wros_ids["tenant_id"], employee_id=employee["id"],
+        period_start=date.today() - timedelta(days=7),
+        utilization_pct=30, billable_hours=12, bench_hours=28,
+    ))
+    session.add(EmployeeUtilizationMetric(
+        tenant_id=client.wros_ids["tenant_id"], employee_id=employee["id"],
+        period_start=date.today(),
+        utilization_pct=80, billable_hours=32, bench_hours=8,
+    ))
+    session.commit()
+    session.close()
+    engine.dispose()
+
+    history_resp = client.get(f"/employees/{employee['id']}/utilization-history", headers=_auth())
+    assert history_resp.status_code == 200
+    history = history_resp.json()["history"]
+    assert len(history) == 2
+    assert history[0]["utilization_pct"] == 80.0  # most recent first
+
+    summary_resp = client.get("/employees/utilization-summary", headers=_auth())
+    assert summary_resp.status_code == 200
+    body = summary_resp.json()
+    assert len(body["employees"]) == 1
+    assert body["employees"][0]["latest_utilization_pct"] == 80.0  # latest period wins
+    assert body["employees"][0]["is_low_utilization"] is False
+    assert body["low_utilization_count"] == 0
+
+
+def test_utilization_summary_flags_low_utilization(client):
+    employee = _create_employee(client)
+
+    from app.models.resource_management import EmployeeUtilizationMetric
+
+    engine = create_engine(client.db_url)
+    session = sessionmaker(bind=engine)()
+    session.add(EmployeeUtilizationMetric(
+        tenant_id=client.wros_ids["tenant_id"], employee_id=employee["id"],
+        period_start=date.today(), utilization_pct=20, billable_hours=8, bench_hours=32,
+    ))
+    session.commit()
+    session.close()
+    engine.dispose()
+
+    resp = client.get("/employees/utilization-summary", headers=_auth())
+    body = resp.json()
+    assert body["employees"][0]["is_low_utilization"] is True
+    assert body["low_utilization_count"] == 1
+
+
+def test_bench_cost_summary(client):
+    employee = _create_employee(client, base_salary_usd_cents=900000)
+    client.post(f"/employees/{employee['id']}/mark-bench", json={"reason": "NEWLY_JOINED"}, headers=_auth())
+
+    engine = create_engine(client.db_url)
+    session = sessionmaker(bind=engine)()
+    entry = session.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee["id"]).first()
+    entry.available_from = date.today() - timedelta(days=10)
+    session.commit()
+    session.close()
+    engine.dispose()
+
+    resp = client.get("/employees/bench-cost-summary", headers=_auth())
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["employees"]) == 1
+    item = body["employees"][0]
+    assert item["days_on_bench"] == 10
+    assert item["daily_cost_usd_cents"] == round(900000 / 30)
+    assert item["running_total_usd_cents"] == round(900000 / 30) * 10
+    assert body["total_running_cost_usd_cents"] == item["running_total_usd_cents"]
+
+
+def _create_candidate(client, candidate_id="CAND-1"):
+    from app.models.candidate import Candidate
+
+    engine = create_engine(client.db_url)
+    session = sessionmaker(bind=engine)()
+    session.add(Candidate(
+        candidateID=candidate_id, candidateFirstName="Jamie", candidateLastName="Fox",
+        candidateEmail=f"{candidate_id.lower()}@candidate.com", candidatePassword="x",
+    ))
+    session.commit()
+    session.close()
+    engine.dispose()
+    return candidate_id
+
+
+def test_convert_candidate_to_employee(client):
+    candidate_id = _create_candidate(client)
+    resp = client.post(
+        f"/employees/convert-candidate/{candidate_id}",
+        json={"joining_date": "2026-08-01", "current_title": "Guidewire Developer"},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["first_name"] == "Jamie"
+    assert body["last_name"] == "Fox"
+    assert body["delivery_engine"] == "SPECIALITY"
+    assert body["status"] == "PRE_JOINING"
+    assert body["employee_number"]
+
+
+def test_convert_candidate_twice_is_rejected(client):
+    candidate_id = _create_candidate(client)
+    client.post(
+        f"/employees/convert-candidate/{candidate_id}",
+        json={"joining_date": "2026-08-01"}, headers=_auth(),
+    )
+    resp = client.post(
+        f"/employees/convert-candidate/{candidate_id}",
+        json={"joining_date": "2026-08-01"}, headers=_auth(),
+    )
+    assert resp.status_code == 409
+
+
+def test_convert_unknown_candidate_is_404(client):
+    resp = client.post(
+        "/employees/convert-candidate/does-not-exist",
+        json={"joining_date": "2026-08-01"}, headers=_auth(),
+    )
+    assert resp.status_code == 404
+
+
 def test_staffing_eligibility_true_for_speciality_by_default(client):
     employee = _create_employee(client)
     resp = client.get(
