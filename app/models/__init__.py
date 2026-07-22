@@ -70,6 +70,7 @@ from app.models.candidate_ai import (
 from app.models.orchestration import ConflictRule, OrchestrationEvent
 from app.models.sourcing import DemandGapScore, SourcingAlert, SourcingSearchRun, StagedCandidate
 from app.models.outreach import OutreachSequence
+from app.models.partner_intent import PartnerIntentProfile
 
 __all__ = [
     # Base
@@ -184,5 +185,6 @@ __all__ = [
     "SourcingSearchRun",
     "StagedCandidate",
     "OutreachSequence",
+    "PartnerIntentProfile",
 ]
 
