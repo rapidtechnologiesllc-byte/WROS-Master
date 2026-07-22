@@ -92,6 +92,29 @@ def check_specialty_pool_guard(db: Session, employee_being_moved: Employee) -> D
     }
 
 
+def get_specialty_pool_status(db: Session, *, tenant_id: Optional[int] = None) -> Dict:
+    """Read-only current pool size for a dashboard view -- no specific
+    employee being moved, so no 'after move' simulation (that's
+    check_specialty_pool_guard()'s job, called per-move by
+    execute_core_pull()). Same count query, same exclusions."""
+    count = (
+        db.query(Employee)
+        .filter(
+            Employee.tenant_id == tenant_id,
+            Employee.delivery_engine == "SPECIALITY",
+            Employee.core_certified.is_(True),
+            Employee.status != "EXITED",
+        )
+        .count()
+    )
+    return {
+        "pool_size": count,
+        "below_minimum": count < SPECIALTY_POOL_MINIMUM,
+        "at_edge": count == SPECIALTY_POOL_MINIMUM + 1,  # one more loss would breach
+        "gap": max(0, SPECIALTY_POOL_MINIMUM - count),
+    }
+
+
 def log_replacement_plan(
     db: Session,
     *,
