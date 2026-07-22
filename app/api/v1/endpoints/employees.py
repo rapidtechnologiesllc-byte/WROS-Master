@@ -34,26 +34,42 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
+from app.models.candidate import Candidate
 from app.models.employee import Employee
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
 from app.schemas.employee import (
     BenchAgingAlertItem,
     BenchAgingAlertsResponse,
+    BenchCostSummaryItem,
+    BenchCostSummaryResponse,
     BenchPeriodHistoryResponse,
     BenchPeriodItem,
+    ConvertCandidateRequest,
     EmployeeCreateRequest,
     EmployeeItem,
     EmployeeListResponse,
     MarkBenchRequest,
     StaffingEligibilityResponse,
+    UtilizationHistoryItem,
+    UtilizationHistoryResponse,
+    UtilizationSummaryItem,
+    UtilizationSummaryResponse,
 )
-from app.services.employee_service import DuplicateEmployeeEmail, create_employee_profile
+from app.services.employee_service import (
+    DuplicateEmployeeEmail,
+    convert_candidate_to_employee,
+    create_employee_profile,
+    generate_employee_number,
+)
 from app.services.resource_management_service import (
+    LOW_UTILIZATION_THRESHOLD_PCT,
     check_bench_aging_alerts,
     get_bench_duration_days,
     get_bench_period_history,
     get_current_bench_pool,
+    get_latest_utilization_by_employee,
+    get_utilization_history,
     is_staffing_eligible,
     mark_employee_on_bench,
     remove_employee_from_bench,
@@ -138,6 +154,47 @@ def create_employee(
     return _to_item(db, employee)
 
 
+@router.post(
+    "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
+    summary="Convert a candidate to an employee (HRMS-0708 minimal slice)",
+)
+def convert_candidate(
+    candidate_id: str,
+    body: ConvertCandidateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+    if db.query(Employee).filter(Employee.candidate_id == candidate_id).first():
+        raise HTTPException(status_code=409, detail=f"Candidate {candidate_id} has already been converted to an employee.")
+
+    fields = {"employee_number": generate_employee_number(db, current_user.tenant_id, "BLX")}
+    if body.current_title is not None:
+        fields["current_title"] = body.current_title
+    if body.current_skills is not None:
+        fields["current_skills"] = json.dumps(body.current_skills)
+    if body.employment_type is not None:
+        fields["employment_type"] = body.employment_type
+    if body.work_location is not None:
+        fields["work_location"] = body.work_location
+    if body.base_salary_usd_cents is not None:
+        fields["base_salary_usd_cents"] = body.base_salary_usd_cents
+    if body.billing_rate_usd_cents is not None:
+        fields["billing_rate_usd_cents"] = body.billing_rate_usd_cents
+    if body.nationality is not None:
+        fields["nationality"] = body.nationality
+
+    employee = convert_candidate_to_employee(
+        db, candidate, joining_date=body.joining_date, tenant_id=current_user.tenant_id,
+        changed_by=current_user.UserID, **fields,
+    )
+    db.commit()
+    db.refresh(employee)
+    return _to_item(db, employee)
+
+
 @router.get("", response_model=EmployeeListResponse, summary="List employees")
 def list_employees(
     db: Session = Depends(get_db),
@@ -186,6 +243,72 @@ def bench_aging_alerts(
     return BenchAgingAlertsResponse(alerts=items)
 
 
+@router.get(
+    "/utilization-summary", response_model=UtilizationSummaryResponse,
+    summary="Employee Utilization Dashboard (S-254) -- latest utilization per employee + low-utilization alerts",
+)
+def utilization_summary(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    latest_by_employee = get_latest_utilization_by_employee(db, tenant_id=current_user.tenant_id)
+    items = []
+    pct_values = []
+    low_count = 0
+    for employee_id, metric in latest_by_employee.items():
+        employee = db.query(Employee).filter(Employee.id == employee_id).first()
+        if employee is None:
+            continue
+        pct = float(metric.utilization_pct)
+        pct_values.append(pct)
+        is_low = pct < LOW_UTILIZATION_THRESHOLD_PCT
+        if is_low:
+            low_count += 1
+        items.append(UtilizationSummaryItem(
+            employee_id=employee_id,
+            employee_name=f"{employee.first_name} {employee.last_name}".strip(),
+            bu_id=employee.bu_id,
+            latest_utilization_pct=pct,
+            latest_period_start=metric.period_start,
+            is_low_utilization=is_low,
+        ))
+    average = round(sum(pct_values) / len(pct_values), 2) if pct_values else None
+    return UtilizationSummaryResponse(
+        employees=items, average_utilization_pct=average, low_utilization_count=low_count,
+    )
+
+
+@router.get(
+    "/bench-cost-summary", response_model=BenchCostSummaryResponse,
+    summary="Bench Cost Visibility (S-255) -- daily/monthly/running bench cost per employee + total",
+)
+def bench_cost_summary(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
+    items = []
+    total_running = 0
+    for entry in entries:
+        employee = db.query(Employee).filter(Employee.id == entry.employee_id).first()
+        if employee is None:
+            continue
+        days = get_bench_duration_days(entry)
+        daily = entry.bench_cost_usd_cents
+        running = (daily * days) if daily is not None else None
+        if running is not None:
+            total_running += running
+        items.append(BenchCostSummaryItem(
+            employee_id=entry.employee_id,
+            employee_name=f"{employee.first_name} {employee.last_name}".strip(),
+            days_on_bench=days,
+            daily_cost_usd_cents=daily,
+            monthly_cost_usd_cents=(daily * 30) if daily is not None else None,
+            running_total_usd_cents=running,
+        ))
+    return BenchCostSummaryResponse(employees=items, total_running_cost_usd_cents=total_running)
+
+
 @router.get("/{employee_id}", response_model=EmployeeItem, summary="Get one employee")
 def get_employee(
     employee_id: str,
@@ -210,6 +333,29 @@ def staffing_eligibility(
     eligible, reason = is_staffing_eligible(employee, delivery_engine)
     return StaffingEligibilityResponse(
         employee_id=employee_id, delivery_engine=delivery_engine, eligible=eligible, reason=reason,
+    )
+
+
+@router.get(
+    "/{employee_id}/utilization-history", response_model=UtilizationHistoryResponse,
+    summary="Weekly utilization history for one employee (S-254)",
+)
+def utilization_history(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    _get_employee_or_404(db, employee_id)
+    metrics = get_utilization_history(db, employee_id)
+    return UtilizationHistoryResponse(
+        employee_id=employee_id,
+        history=[
+            UtilizationHistoryItem(
+                period_start=m.period_start, utilization_pct=float(m.utilization_pct),
+                billable_hours=float(m.billable_hours), bench_hours=float(m.bench_hours),
+            )
+            for m in metrics
+        ],
     )
 
 

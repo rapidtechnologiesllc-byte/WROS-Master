@@ -24,6 +24,17 @@ class EmployeeCreateRequest(BaseModel):
     nationality: Optional[str] = None
 
 
+class ConvertCandidateRequest(BaseModel):
+    joining_date: date
+    current_title: Optional[str] = None
+    current_skills: Optional[List[str]] = None
+    employment_type: Optional[str] = None
+    work_location: Optional[str] = None
+    base_salary_usd_cents: Optional[int] = None
+    billing_rate_usd_cents: Optional[int] = None
+    nationality: Optional[str] = None
+
+
 class EmployeeItem(BaseModel):
     id: str
     employee_number: Optional[str] = None
@@ -80,3 +91,44 @@ class StaffingEligibilityResponse(BaseModel):
     delivery_engine: str
     eligible: bool
     reason: Optional[str] = None
+
+
+class UtilizationHistoryItem(BaseModel):
+    period_start: date
+    utilization_pct: float
+    billable_hours: float
+    bench_hours: float
+
+
+class UtilizationHistoryResponse(BaseModel):
+    employee_id: str
+    history: List[UtilizationHistoryItem]
+
+
+class UtilizationSummaryItem(BaseModel):
+    employee_id: str
+    employee_name: str
+    bu_id: Optional[int] = None
+    latest_utilization_pct: Optional[float] = None
+    latest_period_start: Optional[date] = None
+    is_low_utilization: bool = False
+
+
+class UtilizationSummaryResponse(BaseModel):
+    employees: List[UtilizationSummaryItem]
+    average_utilization_pct: Optional[float] = None
+    low_utilization_count: int = 0
+
+
+class BenchCostSummaryItem(BaseModel):
+    employee_id: str
+    employee_name: str
+    days_on_bench: int
+    daily_cost_usd_cents: Optional[int] = None
+    monthly_cost_usd_cents: Optional[int] = None
+    running_total_usd_cents: Optional[int] = None
+
+
+class BenchCostSummaryResponse(BaseModel):
+    employees: List[BenchCostSummaryItem]
+    total_running_cost_usd_cents: int
