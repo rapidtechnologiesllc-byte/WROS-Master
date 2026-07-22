@@ -229,3 +229,17 @@ Built as one round, not two, since S-373's guard has no meaningful existence sep
 18 new tests, 593/593 passing (1 xfailed). Marked S-320 Done in the canonical sheet.
 
 **Next**: S-372/HRMS-0528 Confirmed vs Potential Demand Workflow — the last of Phase 4 Part A's four stories.
+
+## Session log — 2026-07-22 (continued): S-372 Confirmed vs Potential Demand Workflow — Phase 4 Part A complete
+
+`app/models/demand_confirmation.py` (`DemandAlignmentCall`), `Demand.confirmation_status`/`sow_reference`/`sow_received_date`, `app/services/demand_confirmation_service.py`, migration `73c1aca4119d`. Built from `Requirements/S-372_HRMS-0528.docx` directly (this one's filename/prerequisite IDs matched the canonical sheet correctly, no correction needed).
+
+- **One status field, not two**: the doc describes "Confirmed" (SOW already signed) and "Potential" (interview-first, SOW later) as if they were different workflow types, but its own Step 1 schema only adds one `confirmation_status` column — both paths converge on `CONFIRMED` the moment a real `sow_reference` is recorded (`confirm_demand_with_sow()`, AC-6: rejects an empty/whitespace-only reference).
+- **`DemandAlignmentCall` is per-candidate, not folded into `Demand`** — a demand can have more than one candidate considered over its lifetime; the 3-way call and both fit confirmations are scoped to a specific employee being proposed for a specific demand.
+- **`schedule_alignment_call()`**: no calendar integration (HRMS-1306) exists in this codebase — same "real function signature, transport deferred" posture as WhatsApp/virus-scan. Takes an injectable `scheduler` callable, defaults to "right now" (correct for the CONFIRMED path's own same-day BR).
+- **Employee's decision is final, structurally**: `confirm_fit()` has no code path that lets a BU Head set the employee's confirmation (or vice versa), and once either participant's confirmation is recorded it can never be silently overwritten by a second call — matching the BR that an employee who declines a Core move "is not penalised" and can't be overridden without a formal HR process this codebase doesn't build.
+- **`trigger_specialty_client_release()`** (HRMS-0534): the hard sequence gate is real — `confirmation_status=CONFIRMED` AND both fit confirmations are exactly `True`, checked together, no partial sequence. WROS still does not notify Specialty clients directly (same posture as S-353's Core-Pull notifications) — this notifies the Speciality RM, who coordinates the actual client handover.
+
+17 new tests, 610/610 passing (1 xfailed). Marked S-372 Done in the canonical sheet.
+
+**This closes out all four of Phase 4 Part A's stories** (S-353 Core-Pull Engine, S-373 Specialty Pool Guard, S-320/HRMS-1105 Resource Management Agent, S-372 Confirmed vs Potential Demand Workflow) plus the Part B foundation (bench_pool, utilization metrics, conflict log, Staffing Eligibility Engine) built earlier this session. **Phase 4 (Resource Management) is functionally complete** per `04-RESOURCE-MANAGEMENT.md`'s acceptance gate — worth a dedicated pass against that gate's checklist before considering it fully closed out, not assumed here.
