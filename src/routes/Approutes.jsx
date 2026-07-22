@@ -64,6 +64,7 @@ import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
 import { ROUTES } from "../utils/Routes";
 import OfferLettersScreen from "../screens/OfferLettersScreen";
+import ThunderChatScreen from "../screens/ThunderChatScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -414,6 +415,8 @@ export default function AppRoutes() {
           >
             <Route index element={<MyWorkspace onLogout={handleLogout} />} />
 
+            <Route path="thunder" element={<ThunderChatScreen />} />
+
             <Route
               path="candidates"
               element={
@@ -595,6 +598,7 @@ export default function AppRoutes() {
               />
             }
           />
+          <Route path="thunder" element={<ThunderChatScreen />} />
           <Route
             path="candidates"
             element={
