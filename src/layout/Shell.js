@@ -17,6 +17,7 @@ import {
   Zap,
   Users2,
   ShieldAlert,
+  CalendarCheck2,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -69,6 +70,13 @@ export default function Shell({
       label: "Core-Pull & Pool Guard",
       icon: ShieldAlert,
     };
+    // S-372/HRMS-0528 -- same role scoping rationale as the two nav
+    // items above.
+    const DEMAND_CONFIRMATION_NAV_ITEM = {
+      path: ROUTES.DEMAND_CONFIRMATION,
+      label: "Demand Confirmation",
+      icon: CalendarCheck2,
+    };
 
     if (isSuperUser) {
       return [
@@ -80,6 +88,7 @@ export default function Shell({
         },
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
+        DEMAND_CONFIRMATION_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -113,6 +122,7 @@ export default function Shell({
         },
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
+        DEMAND_CONFIRMATION_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -140,6 +150,7 @@ export default function Shell({
         THUNDER_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
+        DEMAND_CONFIRMATION_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
