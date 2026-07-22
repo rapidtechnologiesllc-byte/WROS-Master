@@ -35,7 +35,7 @@ desire_profile=None rather than fabricating one, so a caller can tell
 import os
 import secrets
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
@@ -47,6 +47,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
+from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA
 from app.services.whatsapp_routing_service import send_whatsapp_message  # noqa: F401 -- re-exported gate
 
@@ -341,18 +342,44 @@ Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation
 # the very bottom is fake, and it says so.
 # ===========================================================================
 
-# The ID stays obviously synthetic ("THUNDER-TEST-CANDIDATE") so this
-# row can never be mistaken for a real candidate intake -- but per
-# Avinash's explicit request (2026-07-22) the name/email/mobile are his
-# own real contact info, so he's testing Thunder as himself rather than
-# against a placeholder identity. The consent record below is still
+# The candidate ID stays obviously synthetic ("THUNDER-TEST-<UserID>")
+# so this row can never be mistaken for a real candidate intake. But
+# the rest of the identity (name/email/WhatsApp number) is derived from
+# WHICHEVER internal user is actually logged in and testing -- not one
+# shared hardcoded identity. Two different staff members testing
+# Thunder each get addressed as themselves, not as whoever happened to
+# test first (that was a real bug: an earlier version of this hardcoded
+# one person's real contact info as a single global test candidate, so
+# every tester saw Thunder reply to that same identity regardless of
+# who was actually logged in). The consent record is still
 # captured_by="thunder_test_chat_demo_setup", i.e. explicitly logged as
 # a demo/test bootstrap action, not a real candidate opt-in flow.
-TEST_CANDIDATE_ID = "THUNDER-TEST-CANDIDATE"
-TEST_CANDIDATE_FIRST_NAME = "Mukund"
-TEST_CANDIDATE_LAST_NAME = "A."
-TEST_CANDIDATE_EMAIL = "avin307@gmail.com"
-TEST_CANDIDATE_MOBILE = "+19499430199"
+TEST_CANDIDATE_ID_PREFIX = "THUNDER-TEST-"
+DEFAULT_TEST_MOBILE = "+10005559999"  # used only if the tester has no whatsapp_number registered -- never dialed
+
+
+def test_candidate_id_for(tenant_id: str) -> str:
+    return f"{TEST_CANDIDATE_ID_PREFIX}{tenant_id}"[:50]
+
+
+def _split_display_name(name: Optional[str], fallback: str) -> Tuple[str, str]:
+    parts = (name or "").split()
+    if not parts:
+        return fallback, ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
+
+
+def _unique_test_email(db: Session, current_user: Users, candidate_id: str) -> str:
+    """Prefer the tester's own real email, so Thunder addresses them as
+    themselves. candidateEmail is unique, so fall back to an obviously-
+    test alias only in the unlikely event that email is already taken
+    by a different candidate row."""
+    existing = db.query(Candidate).filter(Candidate.candidateEmail == current_user.UserEmail).first()
+    if existing is None or existing.candidateID == candidate_id:
+        return current_user.UserEmail
+    return f"thunder-test+{current_user.UserID}@blitzenx-internal-test.invalid"
 
 
 def mock_whatsapp_client(to_number: str, from_number: str, body: str) -> bool:
@@ -366,30 +393,39 @@ def mock_whatsapp_client(to_number: str, from_number: str, body: str) -> bool:
     return True
 
 
-def get_or_create_test_candidate(db: Session) -> Candidate:
+def get_or_create_test_candidate(db: Session, current_user: Users) -> Candidate:
     """
     send_thunder_message() hard-blocks without an active
     whatsapp_outreach ConsentRecord (A1) -- this creates that consent
     for an obviously-labeled test/demo candidate, explicitly, rather
     than bypassing the real gate to make testing convenient.
+
+    One test candidate per internal tester (keyed off current_user.
+    UserID), with that tester's own name/email/WhatsApp number -- see
+    the module note above on why this isn't a single shared identity.
     """
-    candidate = db.query(Candidate).filter(Candidate.candidateID == TEST_CANDIDATE_ID).first()
+    candidate_id = test_candidate_id_for(current_user.UserID)
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if candidate:
         return candidate
 
+    first_name, last_name = _split_display_name(
+        current_user.UserName, fallback=current_user.UserEmail.split("@")[0],
+    )
+
     candidate = Candidate(
-        candidateID=TEST_CANDIDATE_ID,
-        candidateFirstName=TEST_CANDIDATE_FIRST_NAME,
-        candidateLastName=TEST_CANDIDATE_LAST_NAME,
-        candidateEmail=TEST_CANDIDATE_EMAIL,
-        candidateMobile=TEST_CANDIDATE_MOBILE,
+        candidateID=candidate_id,
+        candidateFirstName=first_name,
+        candidateLastName=last_name,
+        candidateEmail=_unique_test_email(db, current_user, candidate_id),
+        candidateMobile=current_user.whatsapp_number or DEFAULT_TEST_MOBILE,
         candidatePassword=get_password_hash(secrets.token_urlsafe(24)),
     )
     db.add(candidate)
     db.flush()
 
     db.add(ConsentRecord(
-        subject_type="candidate", subject_id=TEST_CANDIDATE_ID,
+        subject_type="candidate", subject_id=candidate_id,
         consent_type=WHATSAPP_OUTREACH_CONSENT_TYPE, consent_given=True,
         captured_by="thunder_test_chat_demo_setup",
     ))
@@ -400,10 +436,11 @@ def get_or_create_test_candidate(db: Session) -> Candidate:
 def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateConversation:
     """One test conversation per internal tester (scoped by tenant_id),
     so different staff testing Thunder don't share a thread."""
+    candidate_id = test_candidate_id_for(tenant_id)
     conversation = (
         db.query(CandidateConversation)
         .filter(
-            CandidateConversation.candidate_id == TEST_CANDIDATE_ID,
+            CandidateConversation.candidate_id == candidate_id,
             CandidateConversation.tenant_id == tenant_id,
             CandidateConversation.status != "closed",
         )
@@ -415,7 +452,7 @@ def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateCon
 
     conversation = CandidateConversation(
         tenant_id=tenant_id,
-        candidate_id=TEST_CANDIDATE_ID,
+        candidate_id=candidate_id,
         status="open",
         ai_agent_name=AI_AGENT_NAME,
         channel_preference="whatsapp",
@@ -429,7 +466,7 @@ def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateCon
     return conversation
 
 
-def run_test_chat_turn(db: Session, *, tenant_id: str, message_body: str) -> Dict:
+def run_test_chat_turn(db: Session, *, current_user: Users, message_body: str) -> Dict:
     """
     One full 'Test Thunder' turn: log the tester's message as if it
     came from the candidate, generate Thunder's reply with the real
@@ -443,8 +480,8 @@ def run_test_chat_turn(db: Session, *, tenant_id: str, message_body: str) -> Dic
     recruiter takes over this test conversation, Thunder is blocked
     here too -- that's the governance working, not a bug to swallow).
     """
-    candidate = get_or_create_test_candidate(db)
-    conversation = get_or_create_test_conversation(db, tenant_id)
+    candidate = get_or_create_test_candidate(db, current_user)
+    conversation = get_or_create_test_conversation(db, current_user.UserID)
 
     inbound_event = ConversationEvent(
         conversation_id=conversation.id,
@@ -484,7 +521,7 @@ def get_test_chat_history(db: Session, tenant_id: str) -> List[Dict]:
     conversation = (
         db.query(CandidateConversation)
         .filter(
-            CandidateConversation.candidate_id == TEST_CANDIDATE_ID,
+            CandidateConversation.candidate_id == test_candidate_id_for(tenant_id),
             CandidateConversation.tenant_id == tenant_id,
             CandidateConversation.status != "closed",
         )
@@ -525,7 +562,7 @@ def reset_test_chat(db: Session, tenant_id: str) -> None:
     from get_or_create_test_conversation()'s and
     get_test_chat_history()'s active-conversation lookups."""
     db.query(CandidateConversation).filter(
-        CandidateConversation.candidate_id == TEST_CANDIDATE_ID,
+        CandidateConversation.candidate_id == test_candidate_id_for(tenant_id),
         CandidateConversation.tenant_id == tenant_id,
         CandidateConversation.status != "closed",
     ).update({"status": "closed"})
