@@ -5,6 +5,7 @@ export const ROUTES = {
   CORE_PULL: "/core-pull",
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
+  SUBMISSIONS: "/submissions",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",
