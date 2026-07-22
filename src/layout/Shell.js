@@ -93,6 +93,13 @@ export default function Shell({
       label: "Submissions",
       icon: Send,
     };
+    // S-251/HRMS-0507 + S-252/HRMS-0508 -- same role scoping rationale
+    // as the five nav items above.
+    const ALLOCATIONS_NAV_ITEM = {
+      path: ROUTES.ALLOCATIONS,
+      label: "Allocations",
+      icon: Briefcase,
+    };
 
     if (isSuperUser) {
       return [
@@ -104,6 +111,7 @@ export default function Shell({
         },
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
+        ALLOCATIONS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -140,6 +148,7 @@ export default function Shell({
         },
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
+        ALLOCATIONS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -170,6 +179,7 @@ export default function Shell({
         THUNDER_NAV_ITEM,
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
+        ALLOCATIONS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,

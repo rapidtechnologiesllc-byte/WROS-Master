@@ -6,6 +6,7 @@ export const ROUTES = {
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
   SUBMISSIONS: "/submissions",
+  ALLOCATIONS: "/allocations",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",
