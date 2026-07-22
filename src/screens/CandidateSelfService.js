@@ -701,7 +701,7 @@ export default function CandidateSelfService({ onLogout }) {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border bg-white p-5 shadow-sm">
                 <div className="text-sm text-slate-500">Documents Uploaded</div>
-                <div className="mt-2 text-3xl font-bold text-[#1F3766]">
+                <div className="mt-2 text-3xl font-bold text-bx-navy">
                   {myDocuments?.documents?.length || 0} / 8
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
@@ -712,13 +712,13 @@ export default function CandidateSelfService({ onLogout }) {
                 <div className="text-sm text-slate-500">
                   Onboarding Progress
                 </div>
-                <div className="mt-2 text-3xl font-bold text-[#1F3766]">
+                <div className="mt-2 text-3xl font-bold text-bx-navy">
                   {Number(onboardingStatus?.overall_completion || 0).toFixed(0)}
                   %
                 </div>
                 <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
                   <div
-                    className="h-full rounded-full bg-[#1F3766]"
+                    className="h-full rounded-full bg-bx-navy"
                     style={{
                       width: `${Number(onboardingStatus?.overall_completion || 0)}%`,
                     }}
@@ -764,7 +764,7 @@ export default function CandidateSelfService({ onLogout }) {
           <aside className="rounded-2xl border bg-white p-4 shadow-sm h-fit">
             <div className="mb-6 border-b border-slate-200 pb-5">
               <div className="flex flex-col items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1F3766] text-2xl font-extrabold text-white shadow-md">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-bx-navy text-2xl font-extrabold text-white shadow-md">
                   BX
                 </div>
                 <p className="mt-3 text-sm font-semibold uppercase tracking-[0.em] text-slate-500">
@@ -779,7 +779,7 @@ export default function CandidateSelfService({ onLogout }) {
                   onClick={() => setActiveSection(item.key)}
                   className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
                     activeSection === item.key
-                      ? "bg-[#1F3766] text-white"
+                      ? "bg-bx-navy text-white"
                       : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
@@ -792,12 +792,12 @@ export default function CandidateSelfService({ onLogout }) {
             </div>
           </aside>
           <div className="space-y-6 ">
-            <div className="flex items-center justify-between gap-4 rounded-2xl border bg-[#1F3766] px-5 py-4 shadow-sm">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border bg-bx-navy px-5 py-4 shadow-sm">
               <div className="flex-1 min-w-0">
                 <h2 className="truncate text-2xl font-bold text-white">
                   Welcome back, {candidateName}
                 </h2>
-                <p className="mt-1 text-sm text-blue-100">
+                <p className="mt-1 text-sm text-white/70">
                   Track your onboarding progress and complete pending documents.
                 </p>
               </div>
@@ -854,6 +854,27 @@ export default function CandidateSelfService({ onLogout }) {
                 ) : null}
               </div>
             </div>
+
+            {/* BlitzenX Brand Kit v3.0 -- helps a new hire/candidate understand
+                what BlitzenX actually does, right from their first login. */}
+            <div className="rounded-2xl border border-bx-border bg-white px-5 py-4 shadow-sm">
+              <p className="text-sm font-semibold text-bx-navy">
+                Behind you to keep the business moving. Beside you to execute
+                &amp; deliver. In front of you when accountability matters.
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                BlitzenX is a technology execution partner for P&amp;C
+                insurers and MGAs. We help carriers build, modernize,
+                integrate, and operate mission-critical insurance platforms
+                through disciplined execution, technical excellence, and
+                accountability &mdash; because technology should never be the
+                reason a carrier misses an opportunity or a policyholder's
+                promise goes unmet. You're joining a team that's accountable,
+                reliable, consistent, quality-driven, execution-focused, and
+                fast to market.
+              </p>
+            </div>
+
             {renderSection()}
 
             {activeSection === "offers" &&
