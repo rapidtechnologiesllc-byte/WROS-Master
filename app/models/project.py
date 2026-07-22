@@ -19,7 +19,7 @@ import uuid
 from datetime import date as date_type, datetime
 
 from sqlalchemy import (
-    Column, Date, DateTime, Enum, ForeignKey, Integer,
+    Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer,
     String, Text, func,
 )
 
@@ -61,6 +61,9 @@ class Project(Base):
         nullable=False, default="USD",
     )
     continent = Column(String(50), nullable=True)
+    # HRMS-0910 BR-0910-02: weekend timesheet entries are only flagged as
+    # an anomaly when the project does NOT opt in to weekend billing.
+    allow_weekend_billing = Column(Boolean, nullable=False, default=False)
 
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)

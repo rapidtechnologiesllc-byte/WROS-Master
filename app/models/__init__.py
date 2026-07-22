@@ -50,6 +50,7 @@ from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViola
 from app.models.project import Project, ProjectMilestone
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
+from app.models.timesheet_anomaly import TimesheetAnomalyFlag
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -152,6 +153,8 @@ __all__ = [
     # Revenue Leakage + Reconciliation (HRMS-0906/0903, Phase 2 Domain 4)
     "RevenueLeakageFlag",
     "ReconciliationAlert",
+    # Timesheet Anomaly Detection (HRMS-0910, Phase 2 Domain 4)
+    "TimesheetAnomalyFlag",
     # Checklist
     "ChecklistTemplate",
     "ChecklistTemplateItem",
