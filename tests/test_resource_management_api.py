@@ -271,3 +271,26 @@ def test_actively_engaged_check_reflects_pursue_state(client):
         f"/resource-management/employees/{ids['employee_id']}/actively-engaged", headers=_auth(client),
     )
     assert after.json()["actively_engaged"] is True
+
+
+def test_matching_bench_resources_finds_skill_matched_employee(client):
+    """S-253: fixture employee (Guidewire PolicyCenter + Java skills, on
+    the bench) should surface as a top match for demand_a (same required
+    skills)."""
+    ids = client.wros_ids
+    resp = client.get(
+        f"/resource-management/demands/{ids['demand_a_id']}/matching-bench-resources", headers=_auth(client),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["demand_job_title"] == "Guidewire Dev - Acme"
+    assert len(body["candidates"]) == 1
+    assert body["candidates"][0]["employee_id"] == ids["employee_id"]
+    assert body["candidates"][0]["score_pct"] == 100.0
+
+
+def test_matching_bench_resources_404_for_unknown_demand(client):
+    resp = client.get(
+        "/resource-management/demands/does-not-exist/matching-bench-resources", headers=_auth(client),
+    )
+    assert resp.status_code == 404

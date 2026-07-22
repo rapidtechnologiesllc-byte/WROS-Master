@@ -130,6 +130,42 @@ def find_open_demand_matches(
 
 
 # ---------------------------------------------------------------------------
+# S-253/HRMS-0509 (canonical) -- Match Bench Resources to Opportunity.
+#
+# The reverse direction of find_open_demand_matches() above (one demand
+# -> ranked bench candidates, rather than one employee -> ranked
+# demands) -- reuses the exact same skill_match_score()/
+# is_staffing_eligible() pair, not a second scoring implementation.
+# Deliberately does not touch bench_allocation_recommendations or call
+# the LLM ranker: this is a read-only "who fits this opportunity"
+# preview a demand owner can check anytime, distinct from HRMS-1105's
+# own scan-and-write recommendation workflow (rank_bench_candidate()),
+# which stays the only thing that ever writes a recommendation row.
+# ---------------------------------------------------------------------------
+
+def match_bench_resources_to_demand(
+    db: Session, demand: Demand, *, top_n: int = 5, min_score: float = SKILL_MATCH_THRESHOLD,
+) -> List[Dict]:
+    """Top `top_n` current bench employees for this demand, by skill
+    match score, staffing-eligibility-filtered. Returns
+    [{employee, score}, ...], highest match first."""
+    ranked: List[Tuple[Employee, float]] = []
+    for entry in get_current_bench_pool(db, tenant_id=demand.tenant_id):
+        employee = db.query(Employee).filter(Employee.id == entry.employee_id).first()
+        if employee is None:
+            continue
+        eligible, _reason = is_staffing_eligible(employee, demand.delivery_engine)
+        if not eligible:
+            continue
+        score = skill_match_score(employee.current_skills, demand.required_skills)
+        if score >= min_score:
+            ranked.append((employee, score))
+
+    ranked.sort(key=lambda pair: pair[1], reverse=True)
+    return [{"employee": employee, "score": score} for employee, score in ranked[:top_n]]
+
+
+# ---------------------------------------------------------------------------
 # Step 3/BR-1105-01/AC-1/AC-3 -- Core-vs-Speciality detection, delegated
 # ---------------------------------------------------------------------------
 

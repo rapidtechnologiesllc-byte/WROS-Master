@@ -55,6 +55,8 @@ from app.models.user import Users
 from app.services.employee_allocation_service import AllocationOverCapacity
 from app.schemas.resource_management import (
     ApproveRecommendationResponse,
+    MatchBenchResourcesResponse,
+    MatchedBenchCandidate,
     RecommendationActionResponse,
     RecommendationItem,
     RecommendationQueueResponse,
@@ -66,6 +68,7 @@ from app.services.resource_management_agent_service import (
     approve_bench_recommendation,
     get_recommendation_queue,
     is_employee_actively_engaged,
+    match_bench_resources_to_demand,
     reject_bench_recommendation,
     run_bench_scan,
     start_pursuing_recommendation,
@@ -231,3 +234,32 @@ def check_actively_engaged(
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
     return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
+
+
+@router.get(
+    "/demands/{demand_id}/matching-bench-resources",
+    response_model=MatchBenchResourcesResponse,
+    summary="Top bench candidates for a demand, by skill match (S-253)",
+)
+def matching_bench_resources(
+    demand_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    demand = db.query(Demand).filter(Demand.id == demand_id).first()
+    if demand is None:
+        raise HTTPException(status_code=404, detail="Demand not found.")
+
+    matches = match_bench_resources_to_demand(db, demand)
+    candidates = [
+        MatchedBenchCandidate(
+            employee_id=m["employee"].id,
+            employee_name=f"{m['employee'].first_name} {m['employee'].last_name}".strip(),
+            employee_current_title=m["employee"].current_title,
+            score_pct=round(m["score"] * 100, 2),
+        )
+        for m in matches
+    ]
+    return MatchBenchResourcesResponse(
+        demand_id=demand.id, demand_job_title=demand.job_title, candidates=candidates,
+    )
