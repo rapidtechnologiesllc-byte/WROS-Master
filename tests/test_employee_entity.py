@@ -12,13 +12,18 @@ from datetime import date
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
+from app.models.candidate import Candidate
 from app.models.tenant import Tenant
-from app.models.employee import Employee, EmployeeEmploymentHistory
+from app.models.employee import Employee, EmployeeEmploymentHistory, EmployeeEngineHistory
 from app.services.employee_service import (
+    CoreAssignmentNotAllowed,
+    convert_candidate_to_employee,
     generate_employee_number,
+    set_core_delivery_engine,
     transition_employee_status,
     InvalidStatusTransition,
 )
@@ -30,7 +35,10 @@ def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[Tenant.__table__, Employee.__table__, EmployeeEmploymentHistory.__table__])
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Candidate.__table__, Employee.__table__,
+        EmployeeEmploymentHistory.__table__, EmployeeEngineHistory.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -160,6 +168,139 @@ def test_new_employee_defaults_to_speciality_engine(db_session):
     emp = _make_employee(db_session, tenant.id)
     assert emp.delivery_engine == "SPECIALITY"
     assert emp.core_certified is False
+
+
+# ---------------------------------------------------------------------------
+# S-351/HRMS-0512 AC-3 -- DB CHECK constraint independently blocks CORE
+# without core_certified=TRUE, even bypassing application code entirely.
+# ---------------------------------------------------------------------------
+
+def test_db_check_constraint_rejects_core_without_certification(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+
+    with pytest.raises(IntegrityError):
+        _make_employee(db_session, tenant.id, delivery_engine="CORE", core_certified=False)
+    db_session.rollback()
+
+
+def test_db_check_constraint_allows_core_when_certified(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+
+    emp = _make_employee(db_session, tenant.id, delivery_engine="CORE", core_certified=True)
+    assert emp.delivery_engine == "CORE"  # commit inside _make_employee didn't raise
+
+
+# ---------------------------------------------------------------------------
+# convert_candidate_to_employee -- BR: all new hires enter SPECIALITY
+# ---------------------------------------------------------------------------
+
+def _make_candidate(db, candidate_id="C-CONVERT"):
+    candidate = Candidate(
+        candidateID=candidate_id, candidateEmail=f"{candidate_id}@example.com", candidatePassword="h",
+        candidateFirstName="Arjun", candidateLastName="Rao",
+    )
+    db.add(candidate)
+    db.commit()
+    return candidate
+
+
+def test_convert_candidate_to_employee_always_enters_speciality(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+    candidate = _make_candidate(db_session)
+
+    employee = convert_candidate_to_employee(
+        db_session, candidate, joining_date=date(2026, 2, 1), tenant_id=tenant.id, changed_by="U-HR",
+    )
+    db_session.commit()
+
+    assert employee.delivery_engine == "SPECIALITY"
+    assert employee.core_certified is False
+    assert employee.candidate_id == candidate.candidateID
+
+
+def test_convert_rejects_explicit_core_request(db_session):
+    """AC-2: an attempt to set CORE on a new hire is rejected, even via
+    a caller-supplied field, not just silently downgraded to SPECIALITY."""
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+    candidate = _make_candidate(db_session)
+
+    with pytest.raises(CoreAssignmentNotAllowed):
+        convert_candidate_to_employee(
+            db_session, candidate, joining_date=date(2026, 2, 1), tenant_id=tenant.id,
+            delivery_engine="CORE",
+        )
+
+
+def test_convert_writes_initial_engine_history(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+    candidate = _make_candidate(db_session)
+
+    employee = convert_candidate_to_employee(
+        db_session, candidate, joining_date=date(2026, 2, 1), tenant_id=tenant.id, changed_by="U-HR",
+    )
+    db_session.commit()
+
+    history = db_session.query(EmployeeEngineHistory).filter(EmployeeEngineHistory.employee_id == employee.id).all()
+    assert len(history) == 1
+    assert history[0].from_engine is None
+    assert history[0].to_engine == "SPECIALITY"
+
+
+# ---------------------------------------------------------------------------
+# set_core_delivery_engine -- the ONLY path to CORE
+# ---------------------------------------------------------------------------
+
+def test_set_core_requires_certification_first(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+    emp = _make_employee(db_session, tenant.id, core_certified=False)
+
+    with pytest.raises(CoreAssignmentNotAllowed):
+        set_core_delivery_engine(
+            db_session, emp, approval_reference="CEG-0847", changed_by="U-BUH", reason="Approved",
+        )
+    assert emp.delivery_engine == "SPECIALITY"
+
+
+def test_set_core_requires_approval_reference(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+    emp = _make_employee(db_session, tenant.id, core_certified=True)
+
+    with pytest.raises(CoreAssignmentNotAllowed):
+        set_core_delivery_engine(db_session, emp, approval_reference="", changed_by="U-BUH", reason="Approved")
+
+
+def test_set_core_succeeds_when_certified_with_approval(db_session):
+    tenant = Tenant(name="BlitzenX")
+    db_session.add(tenant)
+    db_session.commit()
+    emp = _make_employee(db_session, tenant.id, core_certified=True)
+
+    set_core_delivery_engine(
+        db_session, emp, approval_reference="CEG-0847", changed_by="U-BUH",
+        reason="Core Eligibility Gate approved.",
+    )
+    db_session.commit()
+
+    assert emp.delivery_engine == "CORE"
+    history = db_session.query(EmployeeEngineHistory).filter(EmployeeEngineHistory.employee_id == emp.id).all()
+    assert len(history) == 1
+    assert history[0].from_engine == "SPECIALITY"
+    assert history[0].to_engine == "CORE"
+    assert history[0].approval_reference == "CEG-0847"
 
 
 # ---------------------------------------------------------------------------
