@@ -28,7 +28,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer,
+    Boolean, CheckConstraint, Column, Date, DateTime, Enum, ForeignKey, Integer,
     String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
@@ -147,6 +147,13 @@ class Employee(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "employee_number", name="uq_employee_number_per_tenant"),
+        # S-351/HRMS-0512 AC-3: DB-level guard independent of application
+        # code -- delivery_engine can never be CORE unless core_certified
+        # is already TRUE, even via a raw SQL UPDATE bypassing the ORM.
+        CheckConstraint(
+            "delivery_engine != 'CORE' OR core_certified = 1",
+            name="ck_core_requires_certification",
+        ),
     )
 
 
