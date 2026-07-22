@@ -107,6 +107,18 @@ class Demand(Base):
         nullable=False, default="SPECIALITY",
     )
 
+    # S-372/HRMS-0528 -- unifies the doc's "Confirmed" (SOW already signed)
+    # and "Potential" (interview first, SOW later) paths into one status:
+    # both converge on CONFIRMED the moment a real sow_reference is
+    # recorded. See app.models.demand_confirmation for the per-candidate
+    # alignment-call/fit-confirmation state this status gates.
+    confirmation_status = Column(
+        Enum("POTENTIAL", "CONFIRMED", "CANCELLED", name="demand_confirmation_status", native_enum=False, create_constraint=True),
+        nullable=False, default="POTENTIAL",
+    )
+    sow_reference = Column(String(200), nullable=True)
+    sow_received_date = Column(Date, nullable=True)
+
     # HRMS-0210/0211 -- opportunity-originated role demands. opportunity_id
     # is nullable: most demands aren't opportunity-sourced.
     opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
