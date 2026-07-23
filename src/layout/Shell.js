@@ -23,6 +23,7 @@ import {
   Clock,
   TrendingUp,
   LineChart,
+  Globe2,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -139,6 +140,14 @@ export default function Shell({
       label: "Revenue",
       icon: LineChart,
     };
+    // S-219/HRMS-0121 -- Multi-Continent Locale & Currency Config.
+    // Tenant-wide setting, scoped alongside RBAC Settings (Admin/
+    // SuperUser only) rather than the RM-proxy roles above.
+    const TENANT_LOCALE_NAV_ITEM = {
+      path: ROUTES.TENANT_LOCALE,
+      label: "Locale & Currency",
+      icon: Globe2,
+    };
 
     if (isSuperUser) {
       return [
@@ -174,6 +183,7 @@ export default function Shell({
           label: "RBAC Settings",
           icon: Shield,
         },
+        TENANT_LOCALE_NAV_ITEM,
         {
           path: ROUTES.HR_USERS,
           label: "HR Users",
@@ -216,6 +226,7 @@ export default function Shell({
           label: "RBAC Settings",
           icon: Shield,
         },
+        TENANT_LOCALE_NAV_ITEM,
         {
           path: ROUTES.HR_USERS,
           label: "HR Users",

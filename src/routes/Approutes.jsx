@@ -76,6 +76,7 @@ import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
 import InvoicesScreen from "../screens/InvoicesScreen";
 import RevenueScreen from "../screens/RevenueScreen";
+import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -443,6 +444,7 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
+            <Route path="settings/locale" element={<TenantLocaleScreen />} />
 
             <Route
               path="candidates"
@@ -640,6 +642,7 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
+            <Route path="settings/locale" element={<TenantLocaleScreen />} />
           <Route
             path="candidates"
             element={

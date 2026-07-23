@@ -1,11 +1,69 @@
 // S-254 (Employee Utilization Dashboard) + S-255 (Bench Cost Visibility).
 import { useEffect, useState } from "react";
-import { BarChart3, RefreshCw, AlertTriangle, DollarSign } from "lucide-react";
-import { Card, Button } from "../components/ui";
+import { BarChart3, RefreshCw, AlertTriangle, DollarSign, Calculator } from "lucide-react";
+import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
-import { getUtilizationSummary, getBenchCostSummary } from "../services/api/utilization";
+import { getUtilizationSummary, getBenchCostSummary, recordUtilization } from "../services/api/utilization";
 
 const usd = (cents) => (cents == null ? "—" : `$${(cents / 100).toFixed(2)}`);
+
+function RecordUtilizationForm({ onRecorded }) {
+  const [open, setOpen] = useState(false);
+  const [employeeId, setEmployeeId] = useState("");
+  const [weekStartingDate, setWeekStartingDate] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!employeeId.trim() || !weekStartingDate) {
+      setError("Employee ID and week-starting date are both required.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await recordUtilization(employeeId.trim(), weekStartingDate);
+      setEmployeeId("");
+      setWeekStartingDate("");
+      setOpen(false);
+      onRecorded();
+    } catch (err) {
+      setError(err.message || "Failed to record utilization.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Calculator className="h-4 w-4" /> Record Utilization
+      </Button>
+    );
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border p-4">
+      {error ? (
+        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input label="Employee ID" value={employeeId} onChange={setEmployeeId} placeholder="employee UUID" />
+        <Input label="Week starting" type="date" value={weekStartingDate} onChange={setWeekStartingDate} />
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button variant="primary" disabled={busy} onClick={handleSubmit}>
+          {busy ? "Calculating…" : "Calculate & Save"}
+        </Button>
+        <Button variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function UtilizationDashboardScreen() {
   const [utilization, setUtilization] = useState(null);
@@ -48,6 +106,10 @@ export default function UtilizationDashboardScreen() {
             {error}
           </div>
         ) : null}
+
+        <div className="mb-4">
+          <RecordUtilizationForm onRecorded={load} />
+        </div>
 
         {utilization ? (
           <div className="mb-4 flex flex-wrap gap-4 text-sm text-gray-700">
