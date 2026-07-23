@@ -3,7 +3,7 @@
 // Avinash's stated MVP chain (candidate -> ... -> assign project ->
 // time tracking -> resource management).
 import { useEffect, useState } from "react";
-import { Clock, RefreshCw, Send, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import { Clock, RefreshCw, Send, CheckCircle2, XCircle, RotateCcw, AlertTriangle, MessageSquareWarning } from "lucide-react";
 import { Card, Button, Input, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import {
@@ -14,7 +14,29 @@ import {
   rejectTimesheet,
   reopenTimesheet,
   getTimesheets,
+  scanTimesheetAnomalies,
+  getTimesheetAnomalies,
+  raiseTimesheetDispute,
+  getTimesheetDisputes,
+  resolveTimesheetDispute,
 } from "../services/api/timesheets";
+
+const ANOMALY_LABELS = {
+  WEEKEND: "Weekend hours",
+  OVER_12H: "12+ hours in a day",
+  COMPLETED_PROJECT: "Logged against a completed project",
+  DUPLICATE: "Duplicate entry across allocations",
+};
+
+const DISPUTE_STATUS_STYLES = {
+  OPEN: "border-purple-200 bg-purple-50 text-purple-800",
+  UNDER_REVIEW: "border-purple-200 bg-purple-50 text-purple-800",
+  RESOLVED_ADJUSTED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  RESOLVED_CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  CANCELLED: "border-gray-200 bg-gray-50 text-gray-700",
+};
+
+const OPEN_DISPUTE_STATUSES = ["OPEN", "UNDER_REVIEW"];
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -90,6 +112,162 @@ function CreateTimesheetForm({ onCreated }) {
   );
 }
 
+function DisputeResolveForm({ dispute, onResolved }) {
+  const [resolution, setResolution] = useState("CONFIRMED");
+  const [notes, setNotes] = useState("");
+  const [adjustedHours, setAdjustedHours] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleResolve = async () => {
+    if (resolution === "ADJUSTED" && adjustedHours === "") {
+      setError("Adjusted hours is required when resolving as Adjusted.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await resolveTimesheetDispute(dispute.id, {
+        resolution,
+        resolution_notes: notes,
+        adjusted_hours: resolution === "ADJUSTED" ? Number(adjustedHours) : undefined,
+      });
+      onResolved();
+    } catch (err) {
+      setError(err.message || "Failed to resolve dispute.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 rounded-lg border bg-gray-50 p-2">
+      {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={resolution}
+          onChange={(e) => setResolution(e.target.value)}
+          className="rounded-lg border bg-white px-2 py-1 text-xs outline-none"
+        >
+          <option value="CONFIRMED">Confirmed (no change)</option>
+          <option value="ADJUSTED">Adjusted</option>
+        </select>
+        {resolution === "ADJUSTED" ? (
+          <input
+            type="number"
+            min="0"
+            max="24"
+            placeholder="Adjusted hours"
+            value={adjustedHours}
+            onChange={(e) => setAdjustedHours(e.target.value)}
+            className="w-28 rounded-lg border px-2 py-1 text-xs outline-none"
+          />
+        ) : null}
+      </div>
+      <TextArea value={notes} onChange={setNotes} placeholder="Resolution notes" rows={2} className="mt-2" />
+      <Button variant="primary" disabled={busy} onClick={handleResolve} className="mt-2">
+        {busy ? "Resolving…" : "Resolve Dispute"}
+      </Button>
+    </div>
+  );
+}
+
+function DisputeRow({ dispute, onResolved }) {
+  const [showResolve, setShowResolve] = useState(false);
+  const isOpen = OPEN_DISPUTE_STATUSES.includes(dispute.status);
+
+  return (
+    <div className="rounded-lg border px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", DISPUTE_STATUS_STYLES[dispute.status])}>
+          {dispute.status}
+        </span>
+        <span className="text-[11px] text-gray-500">
+          Raised by {dispute.raised_by} · original {dispute.original_hours}h
+          {dispute.disputed_hours != null ? ` · disputed to ${dispute.disputed_hours}h` : ""}
+          {dispute.adjusted_hours != null ? ` · adjusted to ${dispute.adjusted_hours}h` : ""}
+        </span>
+      </div>
+      <div className="mt-1 text-xs text-gray-700">{dispute.reason}</div>
+      {dispute.resolution_notes ? (
+        <div className="mt-1 text-xs text-gray-500">Resolution: {dispute.resolution_notes}</div>
+      ) : null}
+      {isOpen ? (
+        <div className="mt-2">
+          <Button variant="ghost" onClick={() => setShowResolve((v) => !v)}>
+            {showResolve ? "Cancel" : "Resolve"}
+          </Button>
+          {showResolve ? <DisputeResolveForm dispute={dispute} onResolved={() => { setShowResolve(false); onResolved(); }} /> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RaiseDisputeForm({ timesheetId, onRaised, onCancel }) {
+  const [raisedBy, setRaisedBy] = useState("RM");
+  const [reason, setReason] = useState("");
+  const [disputedHours, setDisputedHours] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async () => {
+    if (reason.trim().length < 50) {
+      setError("Reason must be at least 50 characters.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await raiseTimesheetDispute(timesheetId, {
+        raised_by: raisedBy,
+        reason: reason.trim(),
+        disputed_hours: disputedHours === "" ? undefined : Number(disputedHours),
+      });
+      onRaised();
+    } catch (err) {
+      setError(err.message || "Failed to raise dispute.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 rounded-lg border bg-gray-50 p-2">
+      {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={raisedBy}
+          onChange={(e) => setRaisedBy(e.target.value)}
+          className="rounded-lg border bg-white px-2 py-1 text-xs outline-none"
+        >
+          <option value="RM">Raised by RM</option>
+          <option value="EMPLOYEE">Raised by Employee</option>
+          <option value="CLIENT">Raised by Client</option>
+        </select>
+        <input
+          type="number"
+          min="0"
+          max="24"
+          placeholder="Disputed hours (optional)"
+          value={disputedHours}
+          onChange={(e) => setDisputedHours(e.target.value)}
+          className="w-40 rounded-lg border px-2 py-1 text-xs outline-none"
+        />
+      </div>
+      <TextArea value={reason} onChange={setReason} placeholder="Reason (50+ characters)" rows={2} className="mt-2" />
+      <div className="mt-2 flex gap-2">
+        <Button variant="primary" disabled={busy} onClick={handleSubmit}>
+          {busy ? "Submitting…" : "Submit Dispute"}
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function TimesheetCard({ timesheet, onChanged }) {
   const [hours, setHours] = useState(() => {
     const byDate = {};
@@ -102,6 +280,9 @@ function TimesheetCard({ timesheet, onChanged }) {
   const [showReject, setShowReject] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [anomalies, setAnomalies] = useState(null);
+  const [disputes, setDisputes] = useState(null);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
 
   const handleSaveEntries = async () => {
     setBusy(true);
@@ -180,6 +361,28 @@ function TimesheetCard({ timesheet, onChanged }) {
     }
   };
 
+  const handleScanAnomalies = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await scanTimesheetAnomalies(timesheet.id);
+      setAnomalies(res.flags || []);
+    } catch (err) {
+      setError(err.message || "Failed to scan anomalies.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadDisputes = async () => {
+    try {
+      const res = await getTimesheetDisputes(timesheet.id);
+      setDisputes(res.disputes || []);
+    } catch (err) {
+      setError(err.message || "Failed to load disputes.");
+    }
+  };
+
   const editable = timesheet.status === "DRAFT";
 
   return (
@@ -231,7 +434,30 @@ function TimesheetCard({ timesheet, onChanged }) {
         </div>
       ) : null}
 
+      {anomalies && anomalies.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {anomalies.map((a) => (
+            <span
+              key={a.id}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800"
+            >
+              <AlertTriangle className="h-3 w-3" /> {ANOMALY_LABELS[a.anomaly_type] || a.anomaly_type}
+            </span>
+          ))}
+        </div>
+      ) : anomalies && anomalies.length === 0 ? (
+        <div className="mt-2 text-[11px] text-gray-500">No anomalies found.</div>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="ghost" disabled={busy} onClick={handleScanAnomalies}>
+          <AlertTriangle className="h-4 w-4" /> Scan for Anomalies
+        </Button>
+        {timesheet.status === "APPROVED" ? (
+          <Button variant="ghost" disabled={busy} onClick={loadDisputes}>
+            <MessageSquareWarning className="h-4 w-4" /> {disputes ? "Refresh Disputes" : "View Disputes"}
+          </Button>
+        ) : null}
         {editable ? (
           <>
             <Button variant="secondary" disabled={busy} onClick={handleSaveEntries}>
@@ -267,6 +493,34 @@ function TimesheetCard({ timesheet, onChanged }) {
           </Button>
         </div>
       ) : null}
+
+      {timesheet.status === "APPROVED" && disputes ? (
+        <div className="mt-3 border-t pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-xs font-semibold text-gray-700">Disputes</div>
+            <Button variant="ghost" onClick={() => setShowDisputeForm((v) => !v)}>
+              {showDisputeForm ? "Cancel" : "Raise Dispute"}
+            </Button>
+          </div>
+          {showDisputeForm ? (
+            <RaiseDisputeForm
+              timesheetId={timesheet.id}
+              onCancel={() => setShowDisputeForm(false)}
+              onRaised={() => {
+                setShowDisputeForm(false);
+                loadDisputes();
+              }}
+            />
+          ) : null}
+          <div className="mt-2 grid gap-2">
+            {disputes.length === 0 ? (
+              <div className="text-xs text-gray-500">No disputes raised.</div>
+            ) : (
+              disputes.map((d) => <DisputeRow key={d.id} dispute={d} onResolved={loadDisputes} />)
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -292,7 +546,6 @@ export default function TimesheetsScreen() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   return (
