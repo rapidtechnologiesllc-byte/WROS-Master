@@ -1,0 +1,68 @@
+"""
+S-256/HRMS-0506 (canonical) — Resource Demand Planning / Future Demand
+vs Bench Forecast — API Endpoints
+=========================================================================
+Prefix: /resource-forecast
+Tag:    resource-forecast
+
+Wires app.services.resource_forecast_service (new this round -- no
+existing backend for this story, unlike almost everything else in
+EPIC-05) to real HTTP routes. Read-only reporting: BR-01 (source doc)
+says allocation end dates are planning estimates, not contractual
+commitments -- nothing here writes anything or treats them as actuals.
+
+Auth: get_current_hr_or_admin, same posture as every endpoint this
+program.
+
+Routes:
+  GET /resource-forecast/expiring        Allocations ending in the next
+                                          90 days, bucketed 30/30-60/60-90.
+  GET /resource-forecast/gap-analysis    Per-skill projected bench supply
+                                          vs open demand.
+"""
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.dependencies import get_current_hr_or_admin
+from app.models.user import Users
+from app.schemas.resource_forecast import (
+    ExpiringAllocationItem,
+    ExpiringAllocationsResponse,
+    SkillGapAnalysisResponse,
+    SkillGapRow,
+)
+from app.services.resource_forecast_service import (
+    get_expiring_allocations,
+    get_skill_gap_analysis,
+)
+
+router = APIRouter(prefix="/resource-forecast", tags=["resource-forecast"])
+
+
+@router.get(
+    "/expiring", response_model=ExpiringAllocationsResponse,
+    summary="Employees whose allocation ends within 90 days, bucketed by horizon",
+)
+def expiring_allocations(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    buckets = get_expiring_allocations(db, tenant_id=current_user.tenant_id)
+    return ExpiringAllocationsResponse(
+        under_30_days=[ExpiringAllocationItem(**e) for e in buckets["under_30_days"]],
+        thirty_to_60_days=[ExpiringAllocationItem(**e) for e in buckets["30_to_60_days"]],
+        sixty_to_90_days=[ExpiringAllocationItem(**e) for e in buckets["60_to_90_days"]],
+    )
+
+
+@router.get(
+    "/gap-analysis", response_model=SkillGapAnalysisResponse,
+    summary="Per-skill projected bench supply vs open demand",
+)
+def gap_analysis(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    rows = get_skill_gap_analysis(db, tenant_id=current_user.tenant_id)
+    return SkillGapAnalysisResponse(rows=[SkillGapRow(**r) for r in rows])
