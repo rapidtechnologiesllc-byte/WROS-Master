@@ -36,9 +36,19 @@ confirmed product decision** -- flagged for whoever owns the interview
 process to confirm or override, same posture as the MFA role-mapping
 and Client v2 contact-role-vocabulary calls made earlier this session.
 """
+from typing import List
+
 from sqlalchemy.orm import Session
 
-from app.models.user import Interview, InterviewFeedback, InterviewPanel
+from app.models.candidate import Candidate, CandidateStatus
+from app.models.user import (
+    CandidateAssignment,
+    Interview,
+    InterviewFeedback,
+    InterviewPanel,
+    Jobs,
+    Users,
+)
 
 
 class PriorRoundNotPassed(Exception):
@@ -88,3 +98,124 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
             f"been recorded as passed -- a new round cannot be scheduled "
             f"until it is."
         )
+
+
+# ---------------------------------------------------------------------------
+# S-102/HRMS-P207 -- Hiring Manager Candidate Review. app.schemas.interview's
+# HMFeedbackDetail/HMInterviewRound/HMCandidateReviewItem/HMCandidateReview
+# ListResponse were already fully defined but imported into interviews.py
+# and wired to no route -- this is the real, missing aggregation behind
+# them, using the exact same round-level Hire/Reject vocabulary
+# _round_has_passed() above already established for this legacy interview
+# system, not a second competing definition.
+#
+# "Must Hire" is a valid value in the schema's own comment but no doc read
+# this session defines what earns it (a score threshold would be guessed,
+# not grounded) -- this function never emits it, only Hire/Mixed/No
+# Feedback. The BR "HM must view all feedback before approving" is NOT
+# enforced here or at the existing PUT /status/{candidate_id} approval
+# endpoint (out of scope for this gap-fill -- that's a pre-existing,
+# separately-owned, tested endpoint); flagged, not silently added.
+# ---------------------------------------------------------------------------
+
+def _round_overall_recommendation(feedbacks: List[InterviewFeedback]) -> str:
+    if not feedbacks:
+        return "No Feedback"
+    recommendations = {f.recommendation for f in feedbacks}
+    if recommendations == {"Hire"}:
+        return "Hire"
+    return "Mixed"
+
+
+def get_hm_candidate_review_list(db: Session, hiring_manager: Users) -> dict:
+    """Every candidate assigned to this hiring manager (CandidateAssignment.
+    hiring_manager_id), with their full interview-round + feedback history.
+    Returns a plain dict shaped exactly like HMCandidateReviewListResponse
+    -- the API layer wraps it, this stays framework-agnostic."""
+    assignments = (
+        db.query(CandidateAssignment)
+        .filter(CandidateAssignment.hiring_manager_id == hiring_manager.UserID)
+        .all()
+    )
+
+    candidates = []
+    for assignment in assignments:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == assignment.candidate_id).first()
+        if candidate is None:
+            continue
+
+        status = (
+            db.query(CandidateStatus)
+            .filter(CandidateStatus.candidateID == candidate.candidateID)
+            .order_by(CandidateStatus.updatedAt.desc())
+            .first()
+        )
+
+        panels = (
+            db.query(InterviewPanel)
+            .filter(InterviewPanel.candidate_id == candidate.candidateID)
+            .order_by(InterviewPanel.created_at.asc())
+            .all()
+        )
+
+        job_title = None
+        job_id = None
+        completed_count = 0
+        rounds = []
+        for panel in panels:
+            if panel.job_id and job_id is None:
+                job_id = panel.job_id
+                job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+                job_title = job.jobTitle if job else None
+
+            interviews = db.query(Interview).filter(Interview.panel_id == panel.id).all()
+            for interview in interviews:
+                if interview.status == "Completed":
+                    completed_count += 1
+
+                feedback_rows = (
+                    db.query(InterviewFeedback)
+                    .filter(InterviewFeedback.interview_id == interview.id)
+                    .all()
+                )
+                feedback_details = []
+                for f in feedback_rows:
+                    interviewer = db.query(Users).filter(Users.UserID == f.interviewer_id).first()
+                    scores = [f.technical_score, f.communication_score, f.problem_solving_score, f.culture_fit_score]
+                    valid_scores = [s for s in scores if s is not None]
+                    feedback_details.append({
+                        "feedback_id": f.id, "interviewer_id": f.interviewer_id,
+                        "interviewer_name": interviewer.UserName if interviewer else "(unknown)",
+                        "technical_score": f.technical_score, "communication_score": f.communication_score,
+                        "problem_solving_score": f.problem_solving_score, "culture_fit_score": f.culture_fit_score,
+                        "average_score": round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else 0.0,
+                        "comments": f.comments, "recommendation": f.recommendation, "submitted_at": f.submitted_at,
+                    })
+
+                rounds.append({
+                    "interview_id": interview.id, "round_name": panel.round_name,
+                    "start_time": interview.start_time, "end_time": interview.end_time,
+                    "status": interview.status, "panel_id": panel.id,
+                    "feedbacks": feedback_details,
+                    "overall_recommendation": _round_overall_recommendation(feedback_rows),
+                })
+
+        candidates.append({
+            "candidate_id": candidate.candidateID,
+            "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+            "candidate_email": candidate.candidateEmail,
+            "candidate_mobile": candidate.candidateMobile,
+            "candidate_experience": candidate.candidateExperience,
+            "job_id": job_id, "job_title": job_title,
+            "pipeline_status": status.piplineStatus if status else "Applied",
+            "completed_interview_count": completed_count,
+            "approval_endpoint": f"/status/{candidate.candidateID}",
+            "interviews": rounds,
+        })
+
+    return {
+        "hiring_manager_id": hiring_manager.UserID,
+        "hiring_manager_name": hiring_manager.UserName or hiring_manager.UserID,
+        "total_candidates": len(candidates),
+        "candidates": candidates,
+    }
