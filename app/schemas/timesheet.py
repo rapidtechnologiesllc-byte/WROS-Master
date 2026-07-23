@@ -71,3 +71,55 @@ class BulkApproveFailure(BaseModel):
 class BulkApproveResponse(BaseModel):
     approved: int
     failed: List[BulkApproveFailure]
+
+
+# ---------------------------------------------------------------------------
+# S-229/HRMS-0910 -- AI Time Entry Anomaly Detection
+# ---------------------------------------------------------------------------
+
+class AnomalyFlagItem(BaseModel):
+    id: str
+    timesheet_entry_id: str
+    anomaly_type: str  # WEEKEND | OVER_12H | COMPLETED_PROJECT | DUPLICATE
+    detected_at: Optional[datetime] = None
+
+
+class AnomalyFlagsResponse(BaseModel):
+    flags: List[AnomalyFlagItem]
+
+
+# ---------------------------------------------------------------------------
+# Timesheet Dispute Resolution
+# ---------------------------------------------------------------------------
+
+class RaiseDisputeRequest(BaseModel):
+    raised_by: str  # RM | EMPLOYEE | CLIENT -- matches DISPUTE_RAISED_BY
+    reason: str = Field(..., min_length=50)
+    disputed_date: Optional[date] = None
+    disputed_hours: Optional[float] = None
+
+
+class ResolveDisputeRequest(BaseModel):
+    resolution: str  # ADJUSTED | CONFIRMED
+    resolution_notes: str
+    adjusted_hours: Optional[float] = None
+
+
+class DisputeItem(BaseModel):
+    id: str
+    timesheet_id: str
+    raised_by: str
+    raised_by_user_id: Optional[str] = None
+    disputed_date: Optional[date] = None
+    disputed_hours: Optional[float] = None
+    original_hours: float
+    reason: str
+    status: str
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    resolution_notes: Optional[str] = None
+    adjusted_hours: Optional[float] = None
+
+
+class DisputeListResponse(BaseModel):
+    disputes: List[DisputeItem]

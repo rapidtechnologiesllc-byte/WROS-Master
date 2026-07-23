@@ -21,6 +21,20 @@ role list has BU Head, HR Manager, Recruitment Manager, etc. -- no
 clean match), so approve/reject/bulk-approve are NOT restricted beyond
 "any internal user" here. Flagged, not guessed at.
 
+Also wires two closely-related domains into the same file, since both
+operate on a Timesheet and have no REST layer of their own yet:
+  - S-229/HRMS-0910 AI Time Entry Anomaly Detection (timesheet_anomaly_
+    service.py) -- advisory-only flags, never blocks submission/approval.
+  - Timesheet Dispute Resolution (timesheet_dispute_service.py). NOTE:
+    that service's own docstring cites "HRMS-0904" for itself, but the
+    canonical sheet's real HRMS-0904/S-223 is "Employee Utilization
+    Calculation" -- a genuine ID collision (same drift pattern already
+    documented elsewhere in this codebase, e.g. BenchPeriod's
+    docstring), flagged here rather than silently resolved. Built and
+    exposed regardless of the exact canonical number, since the feature
+    itself is real and invoice_service.py already depends on it
+    (has_open_dispute() gates invoice generation).
+
 Routes:
   POST   /timesheets/weekly-draft            Create (or return existing) a weekly draft.
   PUT    /timesheets/{id}/entries             Upsert daily entries.
@@ -31,6 +45,11 @@ Routes:
   POST   /timesheets/bulk-approve             Approve many at once.
   GET    /timesheets                          List (optional employee_id/status filter).
   GET    /timesheets/{id}                     One timesheet with entries.
+  POST   /timesheets/{id}/scan-anomalies       Run anomaly detection (idempotent).
+  GET    /timesheets/{id}/anomalies            Existing anomaly flags.
+  POST   /timesheets/{id}/disputes             Raise a dispute (APPROVED timesheets only).
+  GET    /timesheets/{id}/disputes             List disputes for a timesheet.
+  POST   /timesheets/disputes/{dispute_id}/resolve   Resolve a dispute.
 """
 from typing import Optional
 
@@ -42,17 +61,35 @@ from app.core.dependencies import get_current_hr_or_admin
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
+from app.models.timesheet_anomaly import TimesheetAnomalyFlag
+from app.models.timesheet_dispute import TimesheetDispute
 from app.models.user import Users
 from app.schemas.timesheet import (
+    AnomalyFlagItem,
+    AnomalyFlagsResponse,
     BulkApproveFailure,
     BulkApproveRequest,
     BulkApproveResponse,
     CreateWeeklyDraftRequest,
+    DisputeItem,
+    DisputeListResponse,
+    RaiseDisputeRequest,
     RejectTimesheetRequest,
+    ResolveDisputeRequest,
     TimesheetEntryItem,
     TimesheetItem,
     TimesheetListResponse,
     UpsertEntriesRequest,
+)
+from app.services.timesheet_anomaly_service import (
+    get_anomaly_flags_for_timesheet,
+    scan_timesheet_anomalies,
+)
+from app.services.timesheet_dispute_service import (
+    DisputeValidationError,
+    InvalidDisputeTransition,
+    raise_dispute,
+    resolve_dispute,
 )
 from app.services.timesheet_service import (
     AllocationNotActive,
@@ -267,3 +304,131 @@ def get_timesheet(
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     return _to_item(db, timesheet)
+
+
+# ---------------------------------------------------------------------------
+# S-229/HRMS-0910 -- Anomaly Detection (advisory only, never blocks anything)
+# ---------------------------------------------------------------------------
+
+def _flag_to_item(flag: TimesheetAnomalyFlag) -> AnomalyFlagItem:
+    return AnomalyFlagItem(
+        id=flag.id, timesheet_entry_id=flag.timesheet_entry_id,
+        anomaly_type=flag.anomaly_type, detected_at=flag.detected_at,
+    )
+
+
+@router.post(
+    "/{timesheet_id}/scan-anomalies", response_model=AnomalyFlagsResponse,
+    summary="Run anomaly detection for a timesheet (advisory only, idempotent)",
+)
+def scan_anomalies(
+    timesheet_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    flags = scan_timesheet_anomalies(db, timesheet)
+    db.commit()
+    return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
+
+
+@router.get(
+    "/{timesheet_id}/anomalies", response_model=AnomalyFlagsResponse,
+    summary="Get existing anomaly flags for a timesheet",
+)
+def get_anomalies(
+    timesheet_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    flags = get_anomaly_flags_for_timesheet(db, timesheet)
+    return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
+
+
+# ---------------------------------------------------------------------------
+# Timesheet Dispute Resolution (canonical ID collision -- see module docstring)
+# ---------------------------------------------------------------------------
+
+def _dispute_to_item(dispute: TimesheetDispute) -> DisputeItem:
+    return DisputeItem(
+        id=dispute.id, timesheet_id=dispute.timesheet_id, raised_by=dispute.raised_by,
+        raised_by_user_id=dispute.raised_by_user_id, disputed_date=dispute.disputed_date,
+        disputed_hours=float(dispute.disputed_hours) if dispute.disputed_hours is not None else None,
+        original_hours=float(dispute.original_hours), reason=dispute.reason, status=dispute.status,
+        resolved_by=dispute.resolved_by, resolved_at=dispute.resolved_at,
+        resolution_notes=dispute.resolution_notes,
+        adjusted_hours=float(dispute.adjusted_hours) if dispute.adjusted_hours is not None else None,
+    )
+
+
+@router.post(
+    "/{timesheet_id}/disputes", response_model=DisputeItem,
+    summary="Raise a dispute against an approved timesheet",
+)
+def create_dispute(
+    timesheet_id: str,
+    body: RaiseDisputeRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    try:
+        dispute = raise_dispute(
+            db, timesheet, raised_by=body.raised_by, reason=body.reason,
+            raised_by_user_id=current_user.UserID, disputed_date=body.disputed_date,
+            disputed_hours=body.disputed_hours, tenant_id=current_user.tenant_id,
+        )
+    except DisputeValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    db.commit()
+    db.refresh(dispute)
+    return _dispute_to_item(dispute)
+
+
+@router.get(
+    "/{timesheet_id}/disputes", response_model=DisputeListResponse,
+    summary="List disputes for a timesheet",
+)
+def list_disputes(
+    timesheet_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    _get_timesheet_or_404(db, timesheet_id)
+    disputes = (
+        db.query(TimesheetDispute)
+        .filter(TimesheetDispute.timesheet_id == timesheet_id)
+        .order_by(TimesheetDispute.created_at.desc())
+        .all()
+    )
+    return DisputeListResponse(disputes=[_dispute_to_item(d) for d in disputes])
+
+
+@router.post(
+    "/disputes/{dispute_id}/resolve", response_model=DisputeItem,
+    summary="Resolve a dispute (ADJUSTED or CONFIRMED) -- never mutates the original timesheet",
+)
+def resolve_dispute_endpoint(
+    dispute_id: str,
+    body: ResolveDisputeRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    dispute = db.query(TimesheetDispute).filter(TimesheetDispute.id == dispute_id).first()
+    if dispute is None:
+        raise HTTPException(status_code=404, detail="Dispute not found.")
+    try:
+        dispute = resolve_dispute(
+            db, dispute, resolution=body.resolution, resolved_by=current_user.UserID,
+            resolution_notes=body.resolution_notes, adjusted_hours=body.adjusted_hours,
+        )
+    except InvalidDisputeTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except DisputeValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    db.commit()
+    db.refresh(dispute)
+    return _dispute_to_item(dispute)

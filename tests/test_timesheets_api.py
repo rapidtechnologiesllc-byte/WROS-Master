@@ -27,6 +27,7 @@ from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.project import Project
 from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
@@ -113,20 +114,28 @@ def client(throwaway_jwt_keys):
     db.add(employee)
     db.commit()
 
+    # allow_weekend_billing defaults False, status defaults ACTIVE -- exactly
+    # the "flag the weekend entry" case for the S-229 anomaly-detection tests.
+    project = Project(tenant_id=tenant.id, client_id=acme.id, name="WROS Rollout")
+    db.add(project)
+    db.commit()
+
     allocation = EmployeeAllocation(
         tenant_id=tenant.id, employee_id=employee.id, demand_id=demand.id, client_id=acme.id,
-        status="ACTIVE", start_date=date(2025, 1, 1),
+        project_id=project.id, status="ACTIVE", start_date=date(2025, 1, 1),
     )
     db.add(allocation)
     db.commit()
 
     ids = {
         "tenant_id": tenant.id, "employee_id": employee.id, "allocation_id": allocation.id,
+        "project_id": project.id, "client_id": acme.id, "demand_id": demand.id,
     }
     db.close()
 
     test_client = TestClient(app)
     test_client.wros_ids = ids
+    test_client.SessionLocal = TestSessionLocal
     try:
         yield test_client
     finally:
@@ -294,4 +303,260 @@ def test_list_timesheets_filtered_by_status(client):
 
 def test_get_timesheet_404_for_unknown_id(client):
     resp = client.get("/timesheets/does-not-exist", headers=_auth())
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# S-229/HRMS-0910 -- Anomaly Detection
+# ---------------------------------------------------------------------------
+
+def _approved_timesheet(client, entries=None):
+    timesheet_id = _create_draft(client)
+    if entries is None:
+        _log_valid_hours(client, timesheet_id)
+    else:
+        resp = client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
+        assert resp.status_code == 200, resp.text
+    client.post(f"/timesheets/{timesheet_id}/submit", headers=_auth())
+    approve_resp = client.post(f"/timesheets/{timesheet_id}/approve", headers=_auth())
+    assert approve_resp.status_code == 200, approve_resp.text
+    return timesheet_id
+
+
+def test_scan_anomalies_flags_weekend_entry(client):
+    timesheet_id = _create_draft(client)
+    entries = [
+        {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
+        for i in range(5)
+    ] + [{"entry_date": (THIS_MONDAY + timedelta(days=5)).isoformat(), "hours": 4, "entry_type": "BILLABLE"}]
+    resp = client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
+    assert resp.status_code == 200, resp.text
+
+    scan_resp = client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
+    assert scan_resp.status_code == 200, scan_resp.text
+    types = {f["anomaly_type"] for f in scan_resp.json()["flags"]}
+    assert "WEEKEND" in types
+
+
+def test_scan_anomalies_flags_over_12_hour_day(client):
+    timesheet_id = _create_draft(client)
+    entries = [{"entry_date": THIS_MONDAY.isoformat(), "hours": 13, "entry_type": "BILLABLE"}] + [
+        {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
+        for i in range(1, 5)
+    ]
+    resp = client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
+    assert resp.status_code == 200, resp.text
+
+    scan_resp = client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
+    assert scan_resp.status_code == 200, scan_resp.text
+    types = {f["anomaly_type"] for f in scan_resp.json()["flags"]}
+    assert "OVER_12H" in types
+
+
+def test_scan_anomalies_flags_completed_project(client):
+    ids = client.wros_ids
+    db = client.SessionLocal()
+    completed_project = Project(
+        tenant_id=ids["tenant_id"], client_id=ids["client_id"], name="Sunset Migration", status="COMPLETED",
+    )
+    db.add(completed_project)
+    db.commit()
+    completed_allocation = EmployeeAllocation(
+        tenant_id=ids["tenant_id"], employee_id=ids["employee_id"], demand_id=ids["demand_id"],
+        client_id=ids["client_id"], project_id=completed_project.id, status="ACTIVE",
+        start_date=date(2025, 1, 1),
+    )
+    db.add(completed_allocation)
+    db.commit()
+    allocation_id = completed_allocation.id
+    db.close()
+
+    resp = client.post(
+        "/timesheets/weekly-draft",
+        json={"allocation_id": allocation_id, "week_starting_date": THIS_MONDAY.isoformat()},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    timesheet_id = resp.json()["id"]
+    _log_valid_hours(client, timesheet_id)
+
+    scan_resp = client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
+    assert scan_resp.status_code == 200, scan_resp.text
+    types = {f["anomaly_type"] for f in scan_resp.json()["flags"]}
+    assert "COMPLETED_PROJECT" in types
+
+
+def test_scan_anomalies_is_idempotent(client):
+    timesheet_id = _create_draft(client)
+    entries = [
+        {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
+        for i in range(5)
+    ] + [{"entry_date": (THIS_MONDAY + timedelta(days=5)).isoformat(), "hours": 4, "entry_type": "BILLABLE"}]
+    client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
+
+    first = client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
+    second = client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
+    assert len(first.json()["flags"]) == len(second.json()["flags"])
+
+
+def test_get_anomalies_before_scan_is_empty(client):
+    timesheet_id = _create_draft(client)
+    entries = [
+        {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
+        for i in range(5)
+    ] + [{"entry_date": (THIS_MONDAY + timedelta(days=5)).isoformat(), "hours": 4, "entry_type": "BILLABLE"}]
+    client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
+
+    resp = client.get(f"/timesheets/{timesheet_id}/anomalies", headers=_auth())
+    assert resp.status_code == 200
+    assert resp.json()["flags"] == []
+
+
+def test_get_anomalies_after_scan_returns_flags(client):
+    timesheet_id = _create_draft(client)
+    entries = [
+        {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
+        for i in range(5)
+    ] + [{"entry_date": (THIS_MONDAY + timedelta(days=5)).isoformat(), "hours": 4, "entry_type": "BILLABLE"}]
+    client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
+    client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
+
+    resp = client.get(f"/timesheets/{timesheet_id}/anomalies", headers=_auth())
+    assert resp.status_code == 200
+    assert len(resp.json()["flags"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Timesheet Dispute Resolution
+# ---------------------------------------------------------------------------
+
+_LONG_REASON = "The client's approver disputes hours logged on Thursday as incorrect for this week."
+
+
+def test_raise_dispute_requires_approved_timesheet(client):
+    timesheet_id = _create_draft(client)
+    _log_valid_hours(client, timesheet_id)
+
+    resp = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": _LONG_REASON},
+        headers=_auth(),
+    )
+    assert resp.status_code == 422
+
+
+def test_raise_dispute_requires_50_char_reason(client):
+    timesheet_id = _approved_timesheet(client)
+
+    resp = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": "too short"},
+        headers=_auth(),
+    )
+    assert resp.status_code == 422
+
+
+def test_raise_and_list_dispute(client):
+    timesheet_id = _approved_timesheet(client)
+
+    resp = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": _LONG_REASON, "disputed_hours": 35.0},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "OPEN"
+    assert body["original_hours"] == 40.0
+    assert body["disputed_hours"] == 35.0
+
+    list_resp = client.get(f"/timesheets/{timesheet_id}/disputes", headers=_auth())
+    assert list_resp.status_code == 200
+    assert len(list_resp.json()["disputes"]) == 1
+
+
+def test_resolve_dispute_adjusted_requires_adjusted_hours(client):
+    timesheet_id = _approved_timesheet(client)
+    dispute_id = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": _LONG_REASON},
+        headers=_auth(),
+    ).json()["id"]
+
+    resp = client.post(
+        f"/timesheets/disputes/{dispute_id}/resolve",
+        json={"resolution": "ADJUSTED", "resolution_notes": "Client confirmed correct hours after review."},
+        headers=_auth(),
+    )
+    assert resp.status_code == 422
+
+
+def test_resolve_dispute_adjusted_does_not_mutate_original_timesheet(client):
+    timesheet_id = _approved_timesheet(client)
+    dispute_id = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": _LONG_REASON},
+        headers=_auth(),
+    ).json()["id"]
+
+    resp = client.post(
+        f"/timesheets/disputes/{dispute_id}/resolve",
+        json={
+            "resolution": "ADJUSTED", "adjusted_hours": 35.0,
+            "resolution_notes": "Client confirmed correct hours were 35, not 40.",
+        },
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "RESOLVED_ADJUSTED"
+    assert resp.json()["adjusted_hours"] == 35.0
+
+    timesheet_resp = client.get(f"/timesheets/{timesheet_id}", headers=_auth())
+    assert timesheet_resp.json()["total_hours"] == 40.0
+
+
+def test_resolve_dispute_confirmed(client):
+    timesheet_id = _approved_timesheet(client)
+    dispute_id = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": _LONG_REASON},
+        headers=_auth(),
+    ).json()["id"]
+
+    resp = client.post(
+        f"/timesheets/disputes/{dispute_id}/resolve",
+        json={"resolution": "CONFIRMED", "resolution_notes": "Confirmed accurate after review."},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "RESOLVED_CONFIRMED"
+
+
+def test_resolve_already_resolved_dispute_is_409(client):
+    timesheet_id = _approved_timesheet(client)
+    dispute_id = client.post(
+        f"/timesheets/{timesheet_id}/disputes",
+        json={"raised_by": "EMPLOYEE", "reason": _LONG_REASON},
+        headers=_auth(),
+    ).json()["id"]
+    client.post(
+        f"/timesheets/disputes/{dispute_id}/resolve",
+        json={"resolution": "CONFIRMED", "resolution_notes": "Confirmed accurate after review."},
+        headers=_auth(),
+    )
+
+    resp = client.post(
+        f"/timesheets/disputes/{dispute_id}/resolve",
+        json={"resolution": "CONFIRMED", "resolution_notes": "Second resolution attempt should fail."},
+        headers=_auth(),
+    )
+    assert resp.status_code == 409
+
+
+def test_resolve_dispute_404_for_unknown_id(client):
+    resp = client.post(
+        "/timesheets/disputes/does-not-exist/resolve",
+        json={"resolution": "CONFIRMED", "resolution_notes": "N/A"},
+        headers=_auth(),
+    )
     assert resp.status_code == 404
