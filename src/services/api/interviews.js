@@ -270,3 +270,11 @@ export const getAssignedInterviews = async () => {
 
   return data;
 };
+
+// S-102/HRMS-P207 -- Hiring Manager Candidate Review.
+export const getHmCandidateReview = async (hiringManagerId) => {
+  const { data } = await apiRequest(`/interviews/hm-review/${hiringManagerId}`, {
+    method: "GET",
+  });
+  return data;
+};

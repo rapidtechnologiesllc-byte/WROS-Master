@@ -9,6 +9,7 @@ export const ROUTES = {
   ALLOCATIONS: "/allocations",
   PROJECTS: "/projects",
   HTD_INTAKE: "/htd-intake",
+  HM_CANDIDATE_REVIEW: "/hm-candidate-review",
   UTILIZATION_DASHBOARD: "/utilization-dashboard",
   TIMESHEETS: "/timesheets",
   FORECAST: "/forecast",
