@@ -60,6 +60,15 @@ export const getEngineHistory = async (employeeId) => {
   return data;
 };
 
+// S-354/HRMS-0515 -- performance event timeline + score averages.
+// Never visible to the employee themselves (BU Head/RM/HR only).
+export const getEmployeePerformance = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/performance`, {
+    method: "GET",
+  });
+  return data;
+};
+
 // HRMS-0708 minimal slice -- the MVP bridge from candidate to employee.
 export const convertCandidateToEmployee = async (candidateId, payload) => {
   const { data } = await apiRequest(`/employees/convert-candidate/${candidateId}`, {

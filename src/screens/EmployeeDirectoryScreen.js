@@ -1,8 +1,8 @@
 // S-245 (Create Employee Profile) + S-246 (Mark Employee as Bench) +
 // S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report).
 import { useEffect, useRef, useState } from "react";
-import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft, Upload, History, Award } from "lucide-react";
-import { Card, Button, Input } from "../components/ui";
+import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft, Upload, History, Award, LineChart, Flag, CheckCircle2 } from "lucide-react";
+import { Card, Button, Input, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import {
   createEmployee,
@@ -13,7 +13,13 @@ import {
   convertCandidateToEmployee,
   bulkImportEmployees,
   getEngineHistory,
+  getEmployeePerformance,
 } from "../services/api/employees";
+import {
+  createEmployeeMilestone,
+  getEmployeeMilestones,
+  completeEmployeeMilestone,
+} from "../services/api/employeeMilestones";
 
 const BENCH_REASONS = [
   { value: "PROJECT_ENDED", label: "Project Ended" },
@@ -365,6 +371,197 @@ function EngineHistoryPanel({ employeeId }) {
   );
 }
 
+// S-356/HRMS-0517 -- create a PERSONAL/ORG milestone for this employee.
+// No PROJECT milestones here -- those are set on the project itself
+// (Projects screen), per this story's own project_id/employee_id
+// mutual-exclusivity rule.
+function AddMilestoneForm({ employeeId, onAdded, onCancel }) {
+  const [milestoneType, setMilestoneType] = useState("PERSONAL");
+  const [title, setTitle] = useState("");
+  const [targetDate, setTargetDate] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !targetDate) {
+      setError("Title and target date are required.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await createEmployeeMilestone({
+        milestone_type: milestoneType, title: title.trim(), target_date: targetDate, employee_id: employeeId,
+      });
+      onAdded();
+    } catch (err) {
+      setError(err.message || "Failed to create milestone.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 rounded-lg border bg-gray-50 p-2">
+      {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={milestoneType}
+          onChange={(e) => setMilestoneType(e.target.value)}
+          className="rounded-lg border bg-white px-2 py-1 text-xs outline-none"
+        >
+          <option value="PERSONAL">Personal</option>
+          <option value="ORG">Org</option>
+        </select>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Milestone title"
+          className="rounded-lg border px-2 py-1 text-xs outline-none"
+        />
+        <input
+          type="date"
+          value={targetDate}
+          onChange={(e) => setTargetDate(e.target.value)}
+          className="rounded-lg border px-2 py-1 text-xs outline-none"
+        />
+      </div>
+      <div className="mt-2 flex gap-2">
+        <Button variant="secondary" disabled={busy} onClick={handleSubmit}>
+          Save
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// S-354/HRMS-0515 (performance event timeline + score averages) +
+// S-356/HRMS-0517 (personal/org milestones, completion auto-writes to
+// the performance store above). Combined into one expandable panel
+// since they're read together on an employee's profile per both docs'
+// own UI Fields sketches.
+function PerformanceMilestonesPanel({ employeeId }) {
+  const [open, setOpen] = useState(false);
+  const [performance, setPerformance] = useState(null);
+  const [milestones, setMilestones] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    try {
+      const [perfRes, milestoneRes] = await Promise.all([
+        getEmployeePerformance(employeeId),
+        getEmployeeMilestones(employeeId),
+      ]);
+      setPerformance(perfRes);
+      setMilestones(milestoneRes.milestones || []);
+    } catch (err) {
+      setError(err.message || "Failed to load performance/milestones.");
+    }
+  };
+
+  const handleToggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    if (!performance) load();
+  };
+
+  const handleComplete = async (milestoneId) => {
+    try {
+      await completeEmployeeMilestone(milestoneId);
+      load();
+    } catch (err) {
+      setError(err.message || "Failed to complete milestone.");
+    }
+  };
+
+  return (
+    <div>
+      <Button variant="ghost" onClick={handleToggle}>
+        <LineChart className="h-4 w-4" /> {open ? "Hide" : "View"} Performance & Milestones
+      </Button>
+      {open ? (
+        <div className="mt-2 max-w-lg rounded-lg border bg-gray-50 p-2 text-xs">
+          {error ? <div className="mb-2 text-rose-700">{error}</div> : null}
+
+          <div className="mb-2 flex items-center gap-1 font-semibold text-gray-700">
+            <LineChart className="h-3 w-3" /> Performance (BU Head / RM / HR only)
+          </div>
+          {!performance ? (
+            <div className="text-gray-500">Loading…</div>
+          ) : (
+            <>
+              {Object.keys(performance.score_averages_by_event_type).length > 0 ? (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {Object.entries(performance.score_averages_by_event_type).map(([type, avg]) => (
+                    <span key={type} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-800">
+                      {type}: {avg}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {performance.events.length === 0 ? (
+                <div className="mb-3 text-gray-500">No performance events recorded.</div>
+              ) : (
+                <ul className="mb-3 space-y-1">
+                  {performance.events.slice(0, 10).map((e) => (
+                    <li key={e.id} className="border-b pb-1 last:border-b-0">
+                      <span className="font-semibold text-gray-900">{e.event_type}</span>
+                      <span className="text-gray-500"> · {e.occurred_at ? new Date(e.occurred_at).toLocaleDateString() : "—"}</span>
+                      {e.event_data ? <div className="text-gray-600">{JSON.stringify(e.event_data)}</div> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-1 font-semibold text-gray-700">
+              <Flag className="h-3 w-3" /> Milestones
+            </div>
+            <Button variant="ghost" onClick={() => setShowAddForm((v) => !v)}>
+              {showAddForm ? "Cancel" : "Add"}
+            </Button>
+          </div>
+          {showAddForm ? (
+            <AddMilestoneForm employeeId={employeeId} onAdded={() => { setShowAddForm(false); load(); }} onCancel={() => setShowAddForm(false)} />
+          ) : null}
+          {!milestones ? (
+            <div className="text-gray-500">Loading…</div>
+          ) : milestones.length === 0 ? (
+            <div className="text-gray-500">No milestones yet.</div>
+          ) : (
+            <ul className="space-y-1">
+              {milestones.map((m) => (
+                <li key={m.id} className="flex items-center justify-between rounded-lg border px-2 py-1">
+                  <span>
+                    [{m.milestone_type}] {m.title} · target {m.target_date}
+                    {m.status === "COMPLETED" ? ` · completed ${m.completed_date}` : m.status === "OVERDUE" ? " · OVERDUE" : ""}
+                  </span>
+                  {m.status === "PENDING" || m.status === "IN_PROGRESS" ? (
+                    <Button variant="ghost" onClick={() => handleComplete(m.id)}>
+                      <CheckCircle2 className="h-3 w-3" /> Complete
+                    </Button>
+                  ) : (
+                    <span className={m.status === "OVERDUE" ? "text-rose-700" : "text-emerald-700"}>{m.status}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function EmployeeDirectoryScreen() {
   const [employees, setEmployees] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -473,8 +670,9 @@ export default function EmployeeDirectoryScreen() {
                     <td className="px-4 py-3 text-xs text-gray-700">{e.status}</td>
                     <td className="px-4 py-3">
                       <EngineBadge employee={e} />
-                      <div className="mt-1">
+                      <div className="mt-1 flex flex-col items-start gap-1">
                         <EngineHistoryPanel employeeId={e.id} />
+                        <PerformanceMilestonesPanel employeeId={e.id} />
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-700">
