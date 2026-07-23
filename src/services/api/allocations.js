@@ -6,6 +6,7 @@ import { apiRequest } from "./client";
 export const createAllocation = async ({
   employeeId,
   demandId,
+  projectId,
   startDate,
   endDate,
   utilizationPct,
@@ -17,6 +18,7 @@ export const createAllocation = async ({
     body: JSON.stringify({
       employee_id: employeeId,
       demand_id: demandId,
+      project_id: projectId || undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
       utilization_pct: utilizationPct != null ? Number(utilizationPct) : undefined,

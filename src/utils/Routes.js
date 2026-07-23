@@ -7,6 +7,7 @@ export const ROUTES = {
   EMPLOYEES: "/employees",
   SUBMISSIONS: "/submissions",
   ALLOCATIONS: "/allocations",
+  PROJECTS: "/projects",
   UTILIZATION_DASHBOARD: "/utilization-dashboard",
   TIMESHEETS: "/timesheets",
   FORECAST: "/forecast",
