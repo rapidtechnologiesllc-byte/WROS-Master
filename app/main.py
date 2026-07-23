@@ -12,12 +12,18 @@ from app.middleware import setup_cors, RequestLoggingMiddleware
 
 
 # Create FastAPI application
+# Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
+# API explorers against this HR system's real PII (employee bank details,
+# salaries, PAN numbers, candidate resumes) -- gated behind DEBUG (already
+# False by default, see app.core.config) so they're not reachable on the
+# open internet in production. Pre-launch security hardening.
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="HRMS Onboarding and Authentication API",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
 # Setup CORS middleware

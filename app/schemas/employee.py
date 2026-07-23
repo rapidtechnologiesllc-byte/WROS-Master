@@ -24,6 +24,18 @@ class EmployeeCreateRequest(BaseModel):
     nationality: Optional[str] = None
 
 
+class BulkImportRowError(BaseModel):
+    row: int
+    email: Optional[str] = None
+    reason: str
+
+
+class BulkImportResponse(BaseModel):
+    created: int
+    skipped: int
+    errors: List[BulkImportRowError]
+
+
 class ConvertCandidateRequest(BaseModel):
     joining_date: date
     current_title: Optional[str] = None
