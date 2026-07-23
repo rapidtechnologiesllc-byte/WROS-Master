@@ -1,15 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeDollarSign,
   Briefcase,
   BarChart3,
-  Calendar,
-  CheckCircle2,
-  ClipboardCheck,
-  ListChecks,
-  FileText,
+  ChevronDown,
   LayoutDashboard,
-  Mail,
   Shield,
   UserCheck,
   Users,
@@ -32,6 +27,80 @@ import { ROUTES } from "../utils/Routes";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 
+// Nav reorganized 2026-07-24 -- Avinash's direct feedback: the sidebar
+// was a flat list of up to 21 items for Super User/Admin, which reads
+// as unplanned rather than "feature driven." Grouped into four
+// feature-oriented sections (Recruitment/Workforce/Finance/Admin) plus
+// Dashboard standalone, collapsible so the common case (a handful of
+// items you actually use) stays short, with the group containing your
+// current screen auto-expanded.
+const NAV_ITEMS = {
+  dashboard: { path: ROUTES.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
+  candidates: { path: ROUTES.CANDIDATES, label: "Candidates", icon: Users },
+  jobs: { path: ROUTES.JOBS, label: "Jobs", icon: Briefcase },
+  candidateReview: { path: ROUTES.HM_CANDIDATE_REVIEW, label: "Candidate Review", icon: UserCheck },
+  offerLetters: { path: ROUTES.OFFERS, label: "Offer Letters", icon: FileTextIcon },
+  offerLettersListing: { path: ROUTES.OFFERS_LISTING, label: "Offer Letters", icon: FileTextIcon },
+  submissions: { path: ROUTES.SUBMISSIONS, label: "Submissions", icon: Send },
+  employees: { path: ROUTES.EMPLOYEES, label: "Employees", icon: UserPlus },
+  // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
+  // Partner/Resource Manager role exists in this codebase's role set
+  // yet, so this is scoped to the roles that already get HR/oversight
+  // nav items (SUPER_USER, ADMIN, HR Manager) as the closest proxy --
+  // flagged for Avinash to confirm/adjust during story review.
+  resourceManagement: { path: ROUTES.RESOURCE_MANAGEMENT, label: "Resource Management", icon: Users2 },
+  allocations: { path: ROUTES.ALLOCATIONS, label: "Allocations", icon: Briefcase },
+  // S-353/HRMS-0514 + S-373/HRMS-0529 -- same role scoping rationale.
+  corePull: { path: ROUTES.CORE_PULL, label: "Core-Pull & Pool Guard", icon: ShieldAlert },
+  // S-372/HRMS-0528 -- same role scoping rationale.
+  demandConfirmation: { path: ROUTES.DEMAND_CONFIRMATION, label: "Demand Confirmation", icon: CalendarCheck2 },
+  utilization: { path: ROUTES.UTILIZATION_DASHBOARD, label: "Utilization & Bench Cost", icon: BarChart3 },
+  forecast: { path: ROUTES.FORECAST, label: "Resource Forecast", icon: TrendingUp },
+  htdIntake: { path: ROUTES.HTD_INTAKE, label: "HTD Intake", icon: AlertOctagon },
+  projects: { path: ROUTES.PROJECTS, label: "Projects", icon: FolderKanban },
+  timesheets: { path: ROUTES.TIMESHEETS, label: "Timesheets", icon: Clock },
+  invoices: { path: ROUTES.INVOICES, label: "Invoices", icon: BadgeDollarSign },
+  revenue: { path: ROUTES.REVENUE, label: "Revenue", icon: LineChart },
+  rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
+  hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
+  // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
+  tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
+};
+
+const GROUP_DEFS = [
+  {
+    label: "Recruitment",
+    icon: Users,
+    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions"],
+  },
+  {
+    label: "Workforce",
+    icon: Users2,
+    keys: [
+      "employees", "resourceManagement", "allocations", "corePull",
+      "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+    ],
+  },
+  {
+    label: "Finance",
+    icon: BadgeDollarSign,
+    keys: ["timesheets", "invoices", "revenue"],
+  },
+  {
+    label: "Admin",
+    icon: Shield,
+    keys: ["rbac", "hrUsers", "tenantLocale"],
+  },
+];
+
+function buildGroups(includedKeys) {
+  const included = new Set(includedKeys);
+  return GROUP_DEFS.map((g) => ({
+    ...g,
+    items: g.keys.filter((k) => included.has(k)).map((k) => NAV_ITEMS[k]),
+  })).filter((g) => g.items.length > 0);
+}
+
 export default function Shell({
   role,
   screen,
@@ -51,272 +120,98 @@ export default function Shell({
     normalizedRole,
   );
   const isAdmin = normalizedRole === "ADMIN";
-  const isHr = normalizedRole === "HR";
   const isHR_Manager = normalizedRole === "HR MANAGER";
   const isHiringManager = normalizedRole === "HIRING MANAGER";
   const isHrOperations = normalizedRole === "HR OPERATIONS";
-  const nav = useMemo(() => {
-    // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
-    // Partner/Resource Manager role exists in this codebase's role set
-    // yet, so this is scoped to the roles that already get HR/oversight
-    // nav items (SUPER_USER, ADMIN, HR Manager) as the closest proxy --
-    // flagged for Avinash to confirm/adjust during story review.
-    const RESOURCE_MANAGEMENT_NAV_ITEM = {
-      path: ROUTES.RESOURCE_MANAGEMENT,
-      label: "Resource Management",
-      icon: Users2,
-    };
-    // S-353/HRMS-0514 + S-373/HRMS-0529 -- same role scoping rationale
-    // as RESOURCE_MANAGEMENT_NAV_ITEM above (no dedicated BU Head role
-    // distinction exists in this nav yet).
-    const CORE_PULL_NAV_ITEM = {
-      path: ROUTES.CORE_PULL,
-      label: "Core-Pull & Pool Guard",
-      icon: ShieldAlert,
-    };
-    // S-372/HRMS-0528 -- same role scoping rationale as the two nav
-    // items above.
-    const DEMAND_CONFIRMATION_NAV_ITEM = {
-      path: ROUTES.DEMAND_CONFIRMATION,
-      label: "Demand Confirmation",
-      icon: CalendarCheck2,
-    };
-    // S-245/HRMS-0501 + S-246/HRMS-0502 -- Employee Directory. Same role
-    // scoping rationale as the three nav items above.
-    const EMPLOYEES_NAV_ITEM = {
-      path: ROUTES.EMPLOYEES,
-      label: "Employees",
-      icon: UserPlus,
-    };
-    // HRMS-0711 -- Client Submission Pipeline (also closes canonical
-    // S-249). Same role scoping rationale as the four nav items above.
-    const SUBMISSIONS_NAV_ITEM = {
-      path: ROUTES.SUBMISSIONS,
-      label: "Submissions",
-      icon: Send,
-    };
-    // S-251/HRMS-0507 + S-252/HRMS-0508 -- same role scoping rationale
-    // as the five nav items above.
-    const ALLOCATIONS_NAV_ITEM = {
-      path: ROUTES.ALLOCATIONS,
-      label: "Allocations",
-      icon: Briefcase,
-    };
-    // HRMS-0801/0804/0805/0806 + S-358/HRMS-0519 -- same role scoping
-    // rationale as the nav items above.
-    const PROJECTS_NAV_ITEM = {
-      path: ROUTES.PROJECTS,
-      label: "Projects",
-      icon: FolderKanban,
-    };
-    // S-359/HRMS-P511 -- same role scoping rationale as the nav items
-    // above.
-    const HTD_INTAKE_NAV_ITEM = {
-      path: ROUTES.HTD_INTAKE,
-      label: "HTD Intake",
-      icon: AlertOctagon,
-    };
-    // S-102/HRMS-P207 -- same role scoping rationale as the nav items
-    // above.
-    const HM_CANDIDATE_REVIEW_NAV_ITEM = {
-      path: ROUTES.HM_CANDIDATE_REVIEW,
-      label: "Candidate Review",
-      icon: UserCheck,
-    };
-    // S-254/HRMS-0510 + S-255/HRMS-0511 -- same role scoping rationale
-    // as the six nav items above.
-    const UTILIZATION_DASHBOARD_NAV_ITEM = {
-      path: ROUTES.UTILIZATION_DASHBOARD,
-      label: "Utilization & Bench Cost",
-      icon: BarChart3,
-    };
-    // S-220/HRMS-0901 + S-222/HRMS-0902 -- "time tracking" in Avinash's
-    // MVP chain. Same role scoping rationale as the seven nav items above.
-    const TIMESHEETS_NAV_ITEM = {
-      path: ROUTES.TIMESHEETS,
-      label: "Timesheets",
-      icon: Clock,
-    };
-    // S-256/HRMS-0506 -- same role scoping rationale as the eight nav
-    // items above.
-    const FORECAST_NAV_ITEM = {
-      path: ROUTES.FORECAST,
-      label: "Resource Forecast",
-      icon: TrendingUp,
-    };
-    // HRMS-0907/S-226 -- Invoicing. Same role scoping rationale as the
-    // nav items above (no dedicated Finance role in this codebase yet).
-    const INVOICES_NAV_ITEM = {
-      path: ROUTES.INVOICES,
-      label: "Invoices",
-      icon: BadgeDollarSign,
-    };
-    // HRMS-0906/S-225 (Revenue Leakage) + HRMS-0903 (Reconciliation) +
-    // HRMS-0909/S-228 (Client Revenue Dashboard). Same role scoping
-    // rationale as the nav items above.
-    const REVENUE_NAV_ITEM = {
-      path: ROUTES.REVENUE,
-      label: "Revenue",
-      icon: LineChart,
-    };
-    // S-219/HRMS-0121 -- Multi-Continent Locale & Currency Config.
-    // Tenant-wide setting, scoped alongside RBAC Settings (Admin/
-    // SuperUser only) rather than the RM-proxy roles above.
-    const TENANT_LOCALE_NAV_ITEM = {
-      path: ROUTES.TENANT_LOCALE,
-      label: "Locale & Currency",
-      icon: Globe2,
-    };
 
+  const nav = useMemo(() => {
     if (isSuperUser) {
-      return [
-        {
-          path: ROUTES.DASHBOARD,
-          label: "Dashboard",
-          icon: LayoutDashboard,
-        },
-        EMPLOYEES_NAV_ITEM,
-        SUBMISSIONS_NAV_ITEM,
-        ALLOCATIONS_NAV_ITEM,
-        PROJECTS_NAV_ITEM,
-        HTD_INTAKE_NAV_ITEM,
-        HM_CANDIDATE_REVIEW_NAV_ITEM,
-        UTILIZATION_DASHBOARD_NAV_ITEM,
-        TIMESHEETS_NAV_ITEM,
-        FORECAST_NAV_ITEM,
-        INVOICES_NAV_ITEM,
-        REVENUE_NAV_ITEM,
-        RESOURCE_MANAGEMENT_NAV_ITEM,
-        CORE_PULL_NAV_ITEM,
-        DEMAND_CONFIRMATION_NAV_ITEM,
-        {
-          path: ROUTES.CANDIDATES,
-          label: "Candidates",
-          icon: Users,
-        },
-        {
-          path: ROUTES.JOBS,
-          label: "Jobs",
-          icon: Briefcase,
-        },
-        {
-          path: ROUTES.RBAC,
-          label: "RBAC Settings",
-          icon: Shield,
-        },
-        TENANT_LOCALE_NAV_ITEM,
-        {
-          path: ROUTES.HR_USERS,
-          label: "HR Users",
-          icon: Users,
-        },
-        { path: ROUTES.OFFERS, label: "Offer Letters", icon: FileTextIcon },
-      ];
+      return {
+        standalone: [NAV_ITEMS.dashboard],
+        groups: buildGroups([
+          "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
+          "employees", "resourceManagement", "allocations", "corePull",
+          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+          "timesheets", "invoices", "revenue",
+          "rbac", "hrUsers", "tenantLocale",
+        ]),
+      };
     }
     if (isAdmin) {
-      return [
-        {
-          path: ROUTES.DASHBOARD,
-          label: "Dashboard",
-          icon: LayoutDashboard,
-        },
-        EMPLOYEES_NAV_ITEM,
-        SUBMISSIONS_NAV_ITEM,
-        ALLOCATIONS_NAV_ITEM,
-        PROJECTS_NAV_ITEM,
-        HTD_INTAKE_NAV_ITEM,
-        HM_CANDIDATE_REVIEW_NAV_ITEM,
-        UTILIZATION_DASHBOARD_NAV_ITEM,
-        TIMESHEETS_NAV_ITEM,
-        FORECAST_NAV_ITEM,
-        INVOICES_NAV_ITEM,
-        REVENUE_NAV_ITEM,
-        RESOURCE_MANAGEMENT_NAV_ITEM,
-        CORE_PULL_NAV_ITEM,
-        DEMAND_CONFIRMATION_NAV_ITEM,
-        {
-          path: ROUTES.CANDIDATES,
-          label: "Candidates",
-          icon: Users,
-        },
-        {
-          path: ROUTES.JOBS,
-          label: "Jobs",
-          icon: Briefcase,
-        },
-        {
-          path: ROUTES.RBAC,
-          label: "RBAC Settings",
-          icon: Shield,
-        },
-        TENANT_LOCALE_NAV_ITEM,
-        {
-          path: ROUTES.HR_USERS,
-          label: "HR Users",
-          icon: Users,
-        },
-      ];
+      return {
+        standalone: [NAV_ITEMS.dashboard],
+        groups: buildGroups([
+          "candidates", "jobs",
+          "employees", "resourceManagement", "allocations", "corePull",
+          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+          "timesheets", "invoices", "revenue",
+          "rbac", "hrUsers", "tenantLocale",
+        ]),
+      };
     }
     if (isHR_Manager) {
-      return [
-        EMPLOYEES_NAV_ITEM,
-        SUBMISSIONS_NAV_ITEM,
-        ALLOCATIONS_NAV_ITEM,
-        PROJECTS_NAV_ITEM,
-        HTD_INTAKE_NAV_ITEM,
-        HM_CANDIDATE_REVIEW_NAV_ITEM,
-        UTILIZATION_DASHBOARD_NAV_ITEM,
-        TIMESHEETS_NAV_ITEM,
-        FORECAST_NAV_ITEM,
-        INVOICES_NAV_ITEM,
-        REVENUE_NAV_ITEM,
-        RESOURCE_MANAGEMENT_NAV_ITEM,
-        CORE_PULL_NAV_ITEM,
-        DEMAND_CONFIRMATION_NAV_ITEM,
-        {
-          path: ROUTES.CANDIDATES,
-          label: "Candidates",
-          icon: Users,
-        },
-        {
-          path: ROUTES.OFFERS_LISTING,
-          label: "Offer Letters",
-          icon: FileTextIcon,
-        },
-      ];
+      return {
+        standalone: [],
+        groups: buildGroups([
+          "candidates", "offerLettersListing",
+          "employees", "resourceManagement", "allocations", "corePull",
+          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+          "timesheets", "invoices", "revenue",
+        ]),
+      };
     }
     if (isHiringManager) {
-      return [
-        {
-          path: ROUTES.CANDIDATES,
-          label: "Candidates",
-          icon: Users,
-        },
-      ];
+      return { standalone: [NAV_ITEMS.candidates], groups: [] };
     }
     if (isHrOperations) {
-      return [
-        {
-          path: ROUTES.CANDIDATES,
-          label: "Candidates",
-          icon: Users,
-        },
-        {
-          path: ROUTES.JOBS,
-          label: "Jobs",
-          icon: Briefcase,
-        },
-      ];
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs], groups: [] };
     }
-
-    return [
-      {
-        path: ROUTES.DASHBOARD,
-        label: "Dashboard",
-        icon: LayoutDashboard,
-      },
-    ];
+    return { standalone: [NAV_ITEMS.dashboard], groups: [] };
   }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
+
+  const [openGroups, setOpenGroups] = useState(() => new Set());
+
+  // Auto-expand whichever group contains the current route -- so
+  // navigating in (e.g. a deep link, or a redirect after an action)
+  // never leaves you looking at a collapsed group with no indication
+  // of where you are.
+  useEffect(() => {
+    const activeGroup = nav.groups.find((g) =>
+      g.items.some((item) => item.path === location.pathname),
+    );
+    if (activeGroup) {
+      setOpenGroups((prev) => new Set(prev).add(activeGroup.label));
+    }
+  }, [location.pathname, nav.groups]);
+
+  const toggleGroup = (label) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
+
+  const renderLink = (n) => {
+    const Icon = n.icon;
+    const active = location.pathname === n.path;
+    return (
+      <button
+        key={n.path}
+        onClick={() => navigate(n?.path)}
+        className={cx(
+          "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
+          active
+            ? "bg-bx-orange text-white"
+            : "text-white/80 hover:bg-white/10 hover:text-white",
+        )}
+      >
+        <Icon className="h-4 w-4" />
+        {n.label}
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -331,23 +226,58 @@ export default function Shell({
             </div>
 
             <nav className="space-y-1">
-              {nav.map((n) => {
-                const Icon = n.icon;
-                const active = location.pathname === n.path;
+              {nav.standalone.map((n) => renderLink(n))}
+
+              {nav.groups.map((group) => {
+                const GroupIcon = group.icon;
+                const isOpen = openGroups.has(group.label);
+                const hasActiveItem = group.items.some(
+                  (item) => item.path === location.pathname,
+                );
                 return (
-                  <button
-                    key={n.path}
-                    onClick={() => navigate(n?.path)}
-                    className={cx(
-                      "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
-                      active
-                        ? "bg-bx-orange text-white"
-                        : "text-white/80 hover:bg-white/10 hover:text-white",
+                  <div key={group.label}>
+                    <button
+                      onClick={() => toggleGroup(group.label)}
+                      className={cx(
+                        "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
+                        hasActiveItem && !isOpen
+                          ? "text-white"
+                          : "text-white/80 hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      <GroupIcon className="h-4 w-4" />
+                      <span className="flex-1 text-left">{group.label}</span>
+                      <ChevronDown
+                        className={cx(
+                          "h-3.5 w-3.5 text-white/50 transition-transform",
+                          isOpen ? "rotate-180" : "",
+                        )}
+                      />
+                    </button>
+                    {isOpen && (
+                      <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
+                        {group.items.map((item) => {
+                          const ItemIcon = item.icon;
+                          const active = location.pathname === item.path;
+                          return (
+                            <button
+                              key={item.path}
+                              onClick={() => navigate(item.path)}
+                              className={cx(
+                                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition",
+                                active
+                                  ? "bg-bx-orange text-white"
+                                  : "text-white/70 hover:bg-white/10 hover:text-white",
+                              )}
+                            >
+                              <ItemIcon className="h-3.5 w-3.5" />
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {n.label}
-                  </button>
+                  </div>
                 );
               })}
             </nav>
