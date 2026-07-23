@@ -27,11 +27,8 @@ from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.core.audit import write_audit_log
 from app.core.security import get_password_hash
 from app.models.candidate import Candidate
-from app.models.user import Users
-from app.services.submission_service import check_experience_eligibility
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password
 
 
@@ -117,33 +114,22 @@ def create_candidate_safe(
 
 
 # ---------------------------------------------------------------------------
-# R-01 (HRMS-P601) -- 5-year experience gate at creation time.
+# R-01 (HRMS-P601) -- 5-year experience floor.
 #
-# app.services.submission_service.check_experience_eligibility() already
-# implements this exact rule for real, against candidates.
-# total_experience_months -- reused here, not reimplemented, per this
-# codebase's own lesson on building the same rule twice (LinkedIn
-# sourcing was independently specified three separate times before being
-# caught). That field's model docstring is explicit that NULL means
-# "not yet verified" and is treated as ineligible, pending HRMS-0428's
-# not-yet-built resume parsing -- parse_experience_to_months() below is
-# an interim substitute for the one path this codebase actually has
-# today (HR typing free text into candidateExperience), not a
-# replacement for that future story.
+# REMOVED 2026-07-23 as a creation-time BLOCK, direct instruction from
+# Avinash: "we should still gather all resumes not stop building our
+# DB." A candidate below the floor (or not yet experience-verified) is
+# now created exactly like any other candidate -- no BU Head override
+# mechanism needed anymore since nothing blocks. The rule itself is
+# still enforced for real at the point it actually matters --
+# submission/matching to a role requiring 5+ years -- via
+# app.services.submission_service.check_experience_eligibility(),
+# unaffected by this change. parse_experience_to_months() below is kept:
+# total_experience_months is still computed and stored at creation time
+# so that submission-time gate has real data to check against.
 # ---------------------------------------------------------------------------
 
 _EXPERIENCE_YEARS_PATTERN = re.compile(r"(\d+(?:\.\d+)?)")
-
-
-class InsufficientExperienceError(Exception):
-    """R-01: candidate is below the 5-year experience floor and no valid
-    BU Head override was supplied. Carries the same eligibility dict
-    check_experience_eligibility() already produces for the submission-
-    time gate, so callers get one consistent shape either way."""
-
-    def __init__(self, eligibility: dict):
-        self.eligibility = eligibility
-        super().__init__(eligibility["message"])
 
 
 def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
@@ -160,35 +146,3 @@ def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
     if not match:
         return None
     return round(float(match.group(1)) * 12)
-
-
-def enforce_experience_gate_at_creation(
-    db: Session,
-    *,
-    candidate: Candidate,
-    bu_head_override: Optional[Users] = None,
-    override_reason: Optional[str] = None,
-) -> None:
-    """
-    R-01, fail closed: blocks unless already eligible or a real BU Head
-    (role verified server-side against the Users row, never trusted from
-    a client-supplied role claim) supplies a logged override reason.
-    Raises InsufficientExperienceError otherwise -- callers must not
-    catch this and proceed, per "no exceptions without a logged
-    override."
-    """
-    eligibility = check_experience_eligibility(candidate)
-    if eligibility["is_eligible"]:
-        return
-
-    if bu_head_override is not None and bu_head_override.UserRole == "BU Head" and override_reason:
-        write_audit_log(
-            db, tenant_id=getattr(bu_head_override, "tenant_id", None),
-            entity_type="candidate", entity_id=candidate.candidateID,
-            action="hard_rule_override", user_id=bu_head_override.UserID,
-            old_value=f"total_experience_months={candidate.total_experience_months}",
-            new_value=f"R-01 override approved by BU Head {bu_head_override.UserID}: {override_reason}",
-        )
-        return
-
-    raise InsufficientExperienceError(eligibility)

@@ -4,9 +4,18 @@
 Prefix: /thunder
 Tag:    thunder
 
-Lets any logged-in internal user (any role — see get_current_hr_or_admin)
-chat with Thunder as if they were a candidate, without a live WhatsApp
-Business API (none is provisioned in this codebase). The real send path
+Internal QA harness, gated behind the "thunder.test" RBAC permission
+(Super User only by default as of 2026-07-23 -- see rbac_service.py's
+PERMISSIONS_SEED/ROLE_PERMISSIONS_SEED) rather than the coarse
+get_current_hr_or_admin check every other internal role used to satisfy.
+Tightened after this tool's frontend nav entry ("Test Thunder", first
+item for every role) caused real confusion about account identity --
+removed from Shell.js's nav entirely; this backend gate is defense in
+depth for anyone still hitting the route directly by URL.
+
+Lets a permitted internal user chat with Thunder as if they were a
+candidate, without a live WhatsApp Business API (none is provisioned in
+this codebase). The real send path
 (app.services.thunder_service.send_thunder_message) still runs underneath —
 R-08 ownership lock, consent, and the 60s debounce are all live — only the
 outbound WhatsApp transport is mocked.
@@ -28,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import require_permission
 from app.models.user import Users
 from app.schemas.thunder import (
     TestChatHistoryItem,
@@ -66,7 +75,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
 def send_test_chat_message(
     body: TestChatMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(require_permission("thunder.test")),
 ):
     try:
         result = run_test_chat_turn(
@@ -98,7 +107,7 @@ def send_test_chat_message(
 )
 def get_test_chat_history_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(require_permission("thunder.test")),
 ):
     messages = get_test_chat_history(db, tenant_id=current_user.UserID)
     return TestChatHistoryResponse(
@@ -119,7 +128,7 @@ def get_test_chat_history_endpoint(
 )
 def reset_test_chat_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(require_permission("thunder.test")),
 ):
     reset_test_chat(db, tenant_id=current_user.UserID)
     return {"message": "Test Thunder conversation reset."}

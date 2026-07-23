@@ -40,7 +40,12 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-EMPLOYMENT_TYPES = ("PERMANENT", "CONTRACT", "FIXED_TERM")
+# INTERN added 2026-07-23: Employment Type collection moved from candidate
+# intake to employee conversion (Avinash's direct instruction -- it's a
+# conversion-time decision, not something to ask a candidate about before
+# they're even hired). PERMANENT/CONTRACT/FIXED_TERM predate this and are
+# unaffected.
+EMPLOYMENT_TYPES = ("PERMANENT", "CONTRACT", "FIXED_TERM", "INTERN")
 EMPLOYEE_STATUSES = (
     "PRE_JOINING", "ACTIVE", "ON_LEAVE", "BENCH", "ALLOCATED",
     "NOTICE_PERIOD", "EXITED",

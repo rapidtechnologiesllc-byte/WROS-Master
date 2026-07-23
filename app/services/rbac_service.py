@@ -144,6 +144,7 @@ PERMISSIONS_SEED = [
     {"name": "user.manage",          "description": "Create, edit, and deactivate users"},
     {"name": "rbac.manage",          "description": "Manage RBAC roles and permissions"},
     {"name":"newsletter.view",       "description":"View newsletters"},
+    {"name": "thunder.test",         "description": "Access the internal Test Thunder QA chat harness"},
 ]
 
 # role_name → list of permission names it should have

@@ -6,7 +6,7 @@ Create Date: 2026-07-20 02:00:00.000000
 
 IMPORTANT -- manual step required after running this migration:
 The DENY statement below assumes the application's SQL Server login is
-named [hrms_app]. Before running against a real database, replace that
+named [onboard_user]. Before running against a real database, replace that
 name with whatever login DATABASE_URL actually authenticates as (check
 .env on the VPS). Without this step, audit_log is append-only only at
 the application/ORM layer (see app/models/audit_log.py's event
@@ -48,21 +48,21 @@ def upgrade() -> None:
     op.create_index(op.f('ix_audit_log_user_id'), 'audit_log', ['user_id'], unique=False)
 
     # --- Database-grant-level append-only enforcement (SQL Server) ---
-    # MANUAL STEP: confirm/replace 'hrms_app' with the real login name
+    # MANUAL STEP: confirm/replace 'onboard_user' with the real login name
     # from DATABASE_URL before running this against any real database.
     # This intentionally has no equivalent effect on SQLite -- it's a
     # no-op there, which is fine since local/CI tests only exercise the
     # ORM-level guard in app/models/audit_log.py.
     bind = op.get_bind()
     if bind.dialect.name == "mssql":
-        op.execute("DENY UPDATE, DELETE ON audit_log TO [hrms_app];")
+        op.execute("DENY UPDATE, DELETE ON audit_log TO [onboard_user];")
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     bind = op.get_bind()
     if bind.dialect.name == "mssql":
-        op.execute("REVOKE DENY UPDATE, DELETE ON audit_log FROM [hrms_app];")
+        op.execute("REVOKE DENY UPDATE, DELETE ON audit_log FROM [onboard_user];")
 
     op.drop_index(op.f('ix_audit_log_user_id'), table_name='audit_log')
     op.drop_index(op.f('ix_audit_log_entity_id'), table_name='audit_log')

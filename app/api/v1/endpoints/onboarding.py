@@ -11,8 +11,6 @@ from app.services.ai_conversation_service import auto_assign_ai_agent_on_creatio
 from app.services.candidate_service import (
     create_candidate_safe,
     DuplicateCandidateError,
-    enforce_experience_gate_at_creation,
-    InsufficientExperienceError,
     parse_experience_to_months,
 )
 from app.core.tenant_context import get_tenant_scoped_query
@@ -113,21 +111,16 @@ def create_candidate(
             detail=f"Account already exists with email {request.candidate_email}"
         )
 
-    # R-01 (HRMS-P601): fail closed before anything commits -- no
-    # exceptions without a logged BU Head override, verified server-side
-    # against the Users table, never trusted as a client-supplied claim.
-    bu_head_override = None
-    if request.bu_head_override_user_id:
-        bu_head_override = db.query(Users).filter(Users.UserID == request.bu_head_override_user_id).first()
-    try:
-        enforce_experience_gate_at_creation(
-            db, candidate=candidate, bu_head_override=bu_head_override,
-            override_reason=request.override_reason,
-        )
-    except InsufficientExperienceError as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=exc.eligibility["message"])
-
+    # R-01 (HRMS-P601): REMOVED as a creation-time block, 2026-07-23 --
+    # direct instruction from Avinash: "we should still gather all
+    # resumes not stop building our DB." A candidate below the 5-year
+    # floor (or not yet experience-verified) is now created exactly like
+    # any other candidate; total_experience_months above is still
+    # computed and stored so the rule can be enforced for real at the
+    # point it actually matters -- submission/matching to a role
+    # requiring 5+ years -- via
+    # app.services.submission_service.check_experience_eligibility(),
+    # unaffected by this change.
     candidate_id = candidate.candidateID
 
     db.commit()

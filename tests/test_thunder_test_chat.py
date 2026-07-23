@@ -23,7 +23,7 @@ from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.notification import Notification
-from app.models.user import Users
+from app.models.user import Jobs, Users
 
 import app.services.thunder_service as svc
 import app.services.whatsapp_routing_service as routing
@@ -46,7 +46,7 @@ def db_session():
     os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
-        Users.__table__, Candidate.__table__,
+        Users.__table__, Candidate.__table__, Jobs.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
         Notification.__table__, ConsentRecord.__table__, InternalNote.__table__,
     ])

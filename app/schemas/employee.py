@@ -45,6 +45,12 @@ class ConvertCandidateRequest(BaseModel):
     base_salary_usd_cents: Optional[int] = None
     billing_rate_usd_cents: Optional[int] = None
     nationality: Optional[str] = None
+    # Added 2026-07-23: Avinash's instruction -- full street-level address
+    # is collected at conversion time, not during candidate intake (which
+    # only ever captures city/state/country). Employee.current_address/
+    # permanent_address already existed on the model, unexposed here.
+    current_address: Optional[str] = None
+    permanent_address: Optional[str] = None
 
 
 class EmployeeItem(BaseModel):

@@ -19,9 +19,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.services.candidate_service import (
-    InsufficientExperienceError,
     create_candidate_safe,
-    enforce_experience_gate_at_creation,
     find_duplicate_candidate,
     parse_experience_to_months,
     DuplicateCandidateError,
@@ -177,68 +175,15 @@ def test_parse_experience_to_months(raw, expected_months):
     assert parse_experience_to_months(raw) == expected_months
 
 
-def _make_candidate(db, *, months, candidate_id="C-GATE"):
-    candidate = Candidate(
-        candidateID=candidate_id, candidateEmail=f"{candidate_id}@example.com",
-        candidatePassword="h", total_experience_months=months,
-    )
-    db.add(candidate)
-    db.commit()
-    return candidate
-
-
-def test_experience_gate_passes_when_eligible(db_session):
-    candidate = _make_candidate(db_session, months=72)
-    enforce_experience_gate_at_creation(db_session, candidate=candidate)  # must not raise
-
-
-def test_experience_gate_blocks_when_below_floor(db_session):
-    candidate = _make_candidate(db_session, months=24)
-    with pytest.raises(InsufficientExperienceError):
-        enforce_experience_gate_at_creation(db_session, candidate=candidate)
-
-
-def test_experience_gate_blocks_when_unverified(db_session):
-    candidate = _make_candidate(db_session, months=None)
-    with pytest.raises(InsufficientExperienceError):
-        enforce_experience_gate_at_creation(db_session, candidate=candidate)
-
-
-def test_experience_gate_rejects_override_from_wrong_role(db_session):
-    candidate = _make_candidate(db_session, months=24)
-    recruiter = Users(UserID="U-REC", UserRole="Recruiter", UserEmail="rec@blitzenx.com", UserPassword="h")
-    db_session.add(recruiter)
-    db_session.commit()
-
-    with pytest.raises(InsufficientExperienceError):
-        enforce_experience_gate_at_creation(
-            db_session, candidate=candidate, bu_head_override=recruiter, override_reason="trust me",
-        )
-
-
-def test_experience_gate_rejects_override_missing_reason(db_session):
-    candidate = _make_candidate(db_session, months=24)
-    bu_head = Users(UserID="U-BUH", UserRole="BU Head", UserEmail="buh@blitzenx.com", UserPassword="h")
-    db_session.add(bu_head)
-    db_session.commit()
-
-    with pytest.raises(InsufficientExperienceError):
-        enforce_experience_gate_at_creation(db_session, candidate=candidate, bu_head_override=bu_head)
-
-
-def test_experience_gate_allows_valid_bu_head_override_and_logs_it(db_session):
-    candidate = _make_candidate(db_session, months=24)
-    bu_head = Users(UserID="U-BUH", UserRole="BU Head", UserEmail="buh@blitzenx.com", UserPassword="h")
-    db_session.add(bu_head)
-    db_session.commit()
-
-    enforce_experience_gate_at_creation(
-        db_session, candidate=candidate, bu_head_override=bu_head,
-        override_reason="Exceptional domain expertise confirmed via panel interview.",
-    )
-    db_session.commit()
-
-    log = db_session.query(AuditLog).filter(AuditLog.entity_id == candidate.candidateID).first()
-    assert log is not None
-    assert log.action == "hard_rule_override"
-    assert log.user_id == "U-BUH"
+# REMOVED 2026-07-23, direct instruction from Avinash: R-01 must never
+# block candidate creation/DB capture ("we should still gather all
+# resumes not stop building our DB") -- enforce_experience_gate_at_creation()
+# and its dedicated call site in onboarding.py's create_candidate were
+# deleted entirely. R-01 still applies for real at the point it actually
+# matters -- submission/matching to a role requiring 5+ years -- via
+# app.services.submission_service.check_experience_eligibility(), fully
+# unaffected by this change and covered by
+# tests/test_submission_interview_pipeline.py. total_experience_months
+# is still computed and stored at creation time (see
+# test_parse_experience_to_months above) so that later submission-time
+# gate has real data to check -- only the creation-time BLOCK is gone.

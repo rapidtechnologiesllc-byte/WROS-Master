@@ -35,11 +35,19 @@ def upgrade() -> None:
     """Upgrade schema."""
     conn = op.get_bind()
 
-    tenants = sa.table(
+    # Full sa.Table (not the lightweight sa.table()/sa.column()) is required
+    # here, not cosmetic -- inserted_primary_key only fires the mssql+pyodbc
+    # dialect's SCOPE_IDENTITY() follow-up query when the PK column is
+    # properly flagged via a real Column(primary_key=True). The lightweight
+    # form has no such metadata, so inserted_primary_key comes back empty on
+    # SQL Server; SQLite's own lastrowid fallback masked this in the
+    # original throwaway-SQLite verification.
+    tenants = sa.Table(
         'tenants',
-        sa.column('id', sa.Integer),
-        sa.column('name', sa.String),
-        sa.column('is_active', sa.Boolean),
+        sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column('name', sa.String(255)),
+        sa.Column('is_active', sa.Boolean),
     )
 
     existing = conn.execute(sa.text("SELECT id FROM tenants WHERE name = :name"), {"name": "BlitzenX"}).fetchone()

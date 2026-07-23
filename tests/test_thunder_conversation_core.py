@@ -24,7 +24,7 @@ from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.notification import Notification
-from app.models.user import Users
+from app.models.user import Jobs, Users
 
 from app.services.ai_conversation_service import AI_AGENT_NAME
 import app.services.whatsapp_routing_service as routing
@@ -49,7 +49,7 @@ def db_session():
     os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
-        Users.__table__, Candidate.__table__,
+        Users.__table__, Candidate.__table__, Jobs.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
         Notification.__table__, ConsentRecord.__table__, InternalNote.__table__,
     ])
@@ -308,3 +308,59 @@ def test_context_reflects_current_owner_after_takeover(db_session, fixtures):
     context = build_candidate_context(db_session, candidate)
     assert context["current_owner_type"] == "hr_user"
     assert context["current_owner_id"] == recruiter.UserID
+
+
+def test_context_includes_real_open_jobs_and_excludes_closed(db_session, fixtures):
+    """Real bug fix, 2026-07-23: Thunder deflected "what roles do you
+    have" to HR because build_candidate_context() never included any
+    job data. Only jobStatus != "Closed" should surface."""
+    _, _, candidate, _ = fixtures
+
+    db_session.add_all([
+        Jobs(
+            jobID="J-OPEN", jobTitle="Lead Guidewire Business Analyst",
+            jobDescription="...", jobSkills="Guidewire, BA, PolicyCenter",
+            jobExperience="5-8 years", jobLocation="Remote",
+            jobStatus="Open", noOfPositions=2,
+        ),
+        Jobs(
+            jobID="J-LEAN", jobTitle="Java Developer",
+            jobDescription="...", jobSkills="Java, Spring",
+            jobExperience="3-5 years", jobLocation="Bangalore",
+            jobStatus="Lean", noOfPositions=1,
+        ),
+        Jobs(
+            jobID="J-CLOSED", jobTitle="Should Not Appear",
+            jobDescription="...", jobSkills="N/A",
+            jobExperience="0-1 years", jobLocation="Remote",
+            jobStatus="Closed", noOfPositions=0,
+        ),
+    ])
+    db_session.commit()
+
+    context = build_candidate_context(db_session, candidate)
+
+    job_ids = {job["job_id"] for job in context["open_jobs"]}
+    assert job_ids == {"J-OPEN", "J-LEAN"}
+    guidewire_job = next(j for j in context["open_jobs"] if j["job_id"] == "J-OPEN")
+    assert guidewire_job["title"] == "Lead Guidewire Business Analyst"
+    assert guidewire_job["experience_required"] == "5-8 years"
+
+
+def test_context_includes_candidate_own_profile_for_matching(db_session, fixtures):
+    """Without the candidate's own skills/experience/title in context,
+    Thunder has nothing concrete to compare open jobs against."""
+    _, _, candidate, _ = fixtures
+    candidate.candidateJobTitle = "Guidewire Business Analyst"
+    candidate.candidateSkills = "Guidewire, PolicyCenter, BillingCenter"
+    candidate.candidateExperience = "6 years"
+    candidate.total_experience_months = 72
+    db_session.add(candidate)
+    db_session.commit()
+
+    context = build_candidate_context(db_session, candidate)
+
+    profile = context["candidate_profile"]
+    assert profile["job_title"] == "Guidewire Business Analyst"
+    assert profile["skills"] == "Guidewire, PolicyCenter, BillingCenter"
+    assert profile["total_experience_months"] == 72

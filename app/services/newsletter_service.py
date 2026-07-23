@@ -1,7 +1,7 @@
-import asyncio
 from datetime import datetime
 from typing import List, Optional
 
+import requests
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,35 @@ from app.utils.uniq_id_generator import newsletter_id_generator
 def _now_utc() -> datetime:
     """Return current UTC time as a naive datetime (compatible with SQL Server DATETIME)."""
     return datetime.utcnow()
+
+
+def _send_via_graph(access_token: str, to_email: str, subject: str, body_html: str) -> None:
+    """
+    Send one real email via Microsoft Graph's /me/sendMail, on behalf of
+    whichever staff member's delegated OAuth session supplied
+    access_token -- same pattern as
+    app.api.v1.endpoints.msgraph.send_mail, duplicated at the HTTP-call
+    level (not imported) to keep this service module independent of the
+    endpoints layer. Raises requests.HTTPError on failure; callers count
+    that as a per-recipient failure rather than letting one bad address
+    kill the whole send.
+    """
+    response = requests.post(
+        "https://graph.microsoft.com/v1.0/me/sendMail",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "message": {
+                "subject": subject,
+                "body": {"contentType": "HTML", "content": body_html},
+                "toRecipients": [{"emailAddress": {"address": to_email}}],
+            }
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
 
 
 # ---------------------------------------------------------------------------
@@ -250,8 +279,18 @@ class NewsletterService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def send_newsletter_now(db: Session, newsletter_id: str) -> NewsletterSendResult:
-        """Send a newsletter immediately to all active subscribers (sync wrapper)."""
+    def send_newsletter_now(
+        db: Session, newsletter_id: str, graph_access_token: str
+    ) -> NewsletterSendResult:
+        """
+        Send a newsletter immediately to all active subscribers via real
+        Microsoft Graph mail (see _send_via_graph). graph_access_token
+        comes from the calling HR/Admin user's own delegated MS Graph
+        session (app.api.v1.endpoints.newsletter's send_newsletter_now
+        resolves it from their sign-in cookie before calling this) --
+        there is no mock fallback; a caller with no Graph session gets a
+        401 at the endpoint layer before ever reaching this function.
+        """
         newsletter = NewsletterService.get_newsletter_or_404(db, newsletter_id)
 
         if newsletter.status == "sent":
@@ -270,12 +309,12 @@ class NewsletterService:
             f"Sending newsletter {newsletter_id} immediately to {len(subscribers)} subscriber(s)"
         )
 
-        # --- Email sending logic (extend with real MS Graph call here) ---
         failed = 0
         for sub in subscribers:
             try:
-                # TODO: replace mock with actual send_email(sub.email, newsletter.subject, newsletter.content)
-                logger.info(f"[mock] Sending to {sub.email}")
+                _send_via_graph(
+                    graph_access_token, sub.email, newsletter.subject, newsletter.content,
+                )
             except Exception as exc:
                 logger.error(f"Failed to send to {sub.email}: {exc}")
                 failed += 1
@@ -306,7 +345,25 @@ class NewsletterService:
 
     @staticmethod
     async def _send_newsletter_job(newsletter_id: str) -> None:
-        """Async background job executed by APScheduler for scheduled sends."""
+        """
+        Async background job executed by APScheduler for scheduled sends.
+
+        KNOWN LIMITATION, not silently mocked: real sending (see
+        send_newsletter_now/_send_via_graph) needs a live MS Graph
+        delegated-permission access token, which only exists tied to a
+        signed-in user's in-memory session cookie (app.api.v1.endpoints.
+        msgraph.user_tokens) at request time. This job fires later, on a
+        timer, with no HTTP request or cookie in scope -- there is no
+        token available here to send with, whether the newsletter was
+        scheduled 5 minutes or 5 days ago. Sending real email from a
+        scheduled job would need either an app-only Graph permission
+        (Mail.Send, application-level, admin-consented in Azure AD -- not
+        confirmed to exist for this app registration) or persisting a
+        refreshable token at schedule time, neither of which this round
+        implements. Marks the newsletter 'failed' with a clear reason
+        instead of falsely marking 'sent' -- same principle as the
+        LinkedIn mock fix: no fake success, ever.
+        """
         from app.core.database import SessionLocal  # late import to avoid circular deps
 
         db: Session = SessionLocal()
@@ -321,29 +378,15 @@ class NewsletterService:
                 )
                 return
 
-            subscribers = (
-                db.query(NewsletterSubscriber)
-                .filter(NewsletterSubscriber.is_active == True)  # noqa: E712
-                .all()
+            logger.error(
+                f"[scheduler] Newsletter {newsletter_id} cannot be sent: scheduled sends "
+                "have no live MS Graph session to send through yet (see docstring). "
+                "Marking 'failed' rather than falsely marking 'sent' -- use 'Send Now' "
+                "instead, signed in via MS Graph, until scheduled sending is built for real."
             )
-            logger.info(
-                f"[scheduler] Sending '{newsletter.subject}' to {len(subscribers)} subscriber(s)"
-            )
-
-            failed = 0
-            for sub in subscribers:
-                try:
-                    # TODO: replace mock with actual email call
-                    logger.info(f"[scheduler/mock] → {sub.email}")
-                    await asyncio.sleep(0)  # yield to event loop; remove mock delay
-                except Exception as exc:
-                    logger.error(f"[scheduler] Failed to send to {sub.email}: {exc}")
-                    failed += 1
-
-            newsletter.status = "sent"
-            newsletter.sent_at = _now_utc()
+            newsletter.status = "failed"
             db.commit()
-            logger.info(f"[scheduler] Newsletter {newsletter_id} done — {len(subscribers) - failed} ok, {failed} failed")
+            return
 
         except Exception as exc:
             logger.error(f"[scheduler] Unhandled error for newsletter {newsletter_id}: {exc}")

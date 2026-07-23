@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -15,6 +15,7 @@ from app.schemas.newsletter import (
 from app.services.newsletter_service import NewsletterService
 from app.core.logging import logger
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.api.v1.endpoints.msgraph import _require_account, _graph_client_for
 
 router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
 
@@ -235,15 +236,36 @@ def schedule_newsletter(
 )
 def send_newsletter_now(
     newsletter_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Immediately send a newsletter to all active subscribers.
-    Returns 400 if the newsletter has already been sent.
+    Immediately send a newsletter to all active subscribers via the
+    caller's own signed-in Microsoft Graph session (same delegated-
+    permission /me/sendMail pattern used for interview scheduling mail).
+    Requires having signed in at GET /msgraph/auth/signin first.
+
+    Deliberately re-raised as 403, not the 401 _require_account/
+    _graph_client_for themselves raise: the frontend's apiRequest
+    treats ANY 401 as "your JWT expired" and wipes the whole app
+    session + redirects to login, which would silently log the caller
+    out of the entire app instead of showing this specific, actionable
+    message -- a real bug that would have shipped if this used 401.
     """
     try:
-        return NewsletterService.send_newsletter_now(db, newsletter_id)
+        account_id = _require_account(request)
+        access_token = _graph_client_for(account_id)["access_token"]
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Sending a newsletter requires a signed-in Microsoft Graph "
+                "session. Sign in at GET /msgraph/auth/signin, then try again."
+            ),
+        )
+    try:
+        return NewsletterService.send_newsletter_now(db, newsletter_id, access_token)
     except HTTPException:
         raise
     except Exception as exc:

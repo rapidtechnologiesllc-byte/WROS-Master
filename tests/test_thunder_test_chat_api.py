@@ -1,9 +1,16 @@
 """
 POST /thunder/test-chat, GET /thunder/test-chat/history, POST
 /thunder/test-chat/reset -- proves the "Test Thunder" flow end-to-end
-on real routes: any logged-in internal user (any role) can chat with
-Thunder without a live WhatsApp Business API, and the real governance
-(R-08, consent, debounce) stays in front of the mocked transport.
+on real routes.
+
+UPDATED 2026-07-23: access is now gated behind the "thunder.test" RBAC
+permission (Super User only by default -- see rbac_service.py's
+PERMISSIONS_SEED/ROLE_PERMISSIONS_SEED and require_permission()'s
+Super User bypass), not "any logged-in internal user, any role" as
+before. Tightened after the frontend nav entry that surfaced this QA
+tool to every role (including the CEO's own Super User account) caused
+real account-identity confusion -- see the nav removal in Shell.js.
+Real governance underneath (R-08, consent, debounce) is unchanged.
 
 No real Gemini call -- ChatGoogleGenerativeAI is mocked.
 Throwaway SQLite app, throwaway JWT keys -- never the real database or
@@ -79,8 +86,15 @@ def client(throwaway_jwt_keys, monkeypatch):
 
     db = TestSessionLocal()
     from app.core.security import get_password_hash
+    # "Super User" is the only role thunder.test's require_permission()
+    # bypass grants by default -- matches Avinash's real account's
+    # UserRole value exactly (case-insensitive check).
     db.add(Users(
-        UserID="U-CEO", UserRole="Admin", UserEmail="ceo@blitzenx.com",
+        UserID="U-CEO", UserRole="Super User", UserEmail="ceo@blitzenx.com",
+        UserPassword=get_password_hash("x"),
+    ))
+    db.add(Users(
+        UserID="U-CEO2", UserRole="Super User", UserEmail="ceo2@blitzenx.com",
         UserPassword=get_password_hash("x"),
     ))
     db.add(Users(
@@ -132,17 +146,16 @@ def test_unauthenticated_request_is_rejected(client):
     assert resp.status_code in (401, 403)
 
 
-def test_any_internal_role_can_use_test_chat(client):
-    """Available to all internal users regardless of role -- not gated
-    behind a specific granular permission."""
+def test_non_super_user_role_is_rejected(client):
+    """thunder.test is Super-User-only by default -- a Recruiter (or any
+    other non-Super-User role) must get 403, not a real Thunder reply."""
     token = _token_for("recruiter@blitzenx.com", role="Recruiter")
-    with _mock_gemini("Sure, happy to help!"):
-        resp = client.post(
-            "/thunder/test-chat",
-            json={"message": "Hello"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    assert resp.status_code == 200
+    resp = client.post(
+        "/thunder/test-chat",
+        json={"message": "Hello"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
 
 
 def test_history_reflects_prior_turn(client):
@@ -178,8 +191,10 @@ def test_reset_clears_history_for_next_message(client):
 
 
 def test_testers_do_not_share_a_conversation(client):
+    """Two different Super User accounts testing Thunder each get their
+    own isolated conversation, keyed off UserID -- not a shared identity."""
     ceo_token = _token_for("ceo@blitzenx.com")
-    rec_token = _token_for("recruiter@blitzenx.com", role="Recruiter")
+    ceo2_token = _token_for("ceo2@blitzenx.com")
 
     with _mock_gemini("Reply to CEO"):
         client.post(
@@ -187,7 +202,7 @@ def test_testers_do_not_share_a_conversation(client):
             headers={"Authorization": f"Bearer {ceo_token}"},
         )
 
-    rec_history = client.get(
-        "/thunder/test-chat/history", headers={"Authorization": f"Bearer {rec_token}"}
+    ceo2_history = client.get(
+        "/thunder/test-chat/history", headers={"Authorization": f"Bearer {ceo2_token}"}
     ).json()["messages"]
-    assert rec_history == []
+    assert ceo2_history == []
