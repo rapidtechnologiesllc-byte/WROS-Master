@@ -30,6 +30,7 @@ from app.api.v1.endpoints.employees import router as employees_router
 from app.api.v1.endpoints.submissions import router as submissions_router
 from app.api.v1.endpoints.allocations import router as allocations_router
 from app.api.v1.endpoints.timesheets import router as timesheets_router
+from app.api.v1.endpoints.resource_forecast import router as resource_forecast_router
 
 router = fastapi.APIRouter()
 
@@ -62,4 +63,5 @@ router.include_router(router=demand_confirmation_router)
 router.include_router(router=employees_router)
 router.include_router(router=submissions_router)
 router.include_router(router=allocations_router)
-router.include_router(router=timesheets_router)
+router.include_router(router=timesheets_router)
+router.include_router(router=resource_forecast_router)
