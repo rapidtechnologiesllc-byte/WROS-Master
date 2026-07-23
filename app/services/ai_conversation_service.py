@@ -65,10 +65,15 @@ CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
 ]
 
 # Fields from the CandidateInfoForm (personal details form)
+# permanent_address stays a single Text column (used elsewhere -- employee
+# records, onboarding, candidate self-service -- as a full address field);
+# the AI recruiter specifically only needs City/State/Country, not a full
+# street address, so the label and extraction prompt below are scoped down
+# for this flow without touching the shared column/schema.
 INFO_FORM_FIELDS: List[Tuple[str, str]] = [
     ("marital_status",   "Marital Status"),
     ("nationality",      "Nationality"),
-    ("permanent_address","Permanent Address"),
+    ("permanent_address","Permanent Address (City, State, Country only — no street address needed)"),
 ]
 
 
@@ -797,8 +802,12 @@ Rules:
   Map "unmarried" or "single" -> "Single".
 - For dates, use YYYY-MM-DD format.
 - For Gender: Male, Female, Other.
+- For permanent_address: extract ONLY City, State, Country as "City, State, Country".
+  If the candidate gives a full street address, drop the street/building/pincode
+  details and keep just city, state, and country. Never include house/flat
+  numbers or street names in this field.
 - If a field is absent, omit it.
-- Example: {{"candidateEmployeeType": "Intern", "marital_status": "Single"}}
+- Example: {{"candidateEmployeeType": "Intern", "marital_status": "Single", "permanent_address": "Pune, Maharashtra, India"}}
 
 JSON output:"""
 
@@ -1070,9 +1079,14 @@ def process_candidate_reply(
         {
             "message_id": message_id,
             "reply_preview": raw_reply_text[:300],
+            "channel": "email",
         },
         triggered_by="candidate",
     )
+
+    # S-069/HRMS-0469 -- re-detect channel preference on every inbound reply.
+    from app.services.channel_preference_service import detect_channel_preference
+    detect_channel_preference(db, conversation)
 
     # ── Step 3: Check if anything is still missing before running pipeline ─
     missing = get_missing_fields(candidate, db)

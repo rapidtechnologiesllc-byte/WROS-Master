@@ -33,6 +33,7 @@ desire_profile=None rather than fabricating one, so a caller can tell
 "not built yet" apart from "built and empty."
 """
 import os
+import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -342,6 +343,68 @@ Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation
 
 
 # ===========================================================================
+# S-034/HRMS-0434 -- response validation + safe fallback.
+#
+# The doc's own literal spec (thunder_response_log table, prompt_type
+# framework, explainability panel) depends on HRMS-0431/0433, which
+# don't exist in this codebase -- generate_thunder_reply() above already
+# IS this codebase's real response-generation path (context-aware via
+# build_candidate_context(), ownership-gated via send_thunder_message()).
+# What was genuinely missing, and is real business value on its own:
+# validating the LLM's output before it reaches a candidate, and never
+# leaving a candidate with no reply at all when generation fails.
+#
+# Deliberately NOT used by run_test_chat_turn() -- that internal demo
+# tool surfaces ThunderReplyGenerationFailed as a real error so the HR
+# tester sees what actually broke (e.g. a missing GEMINI_API_KEY),
+# rather than silently swallowing it behind the fallback message.
+# ===========================================================================
+
+SAFE_FALLBACK_MESSAGE = "Thank you for your message. Our recruiting team will be in touch shortly."
+MIN_REPLY_LENGTH = 10
+MAX_REPLY_LENGTH = 4096
+_TEMPLATE_VAR_RE = re.compile(r"\{\{.*?\}\}")
+
+
+def validate_thunder_reply(text: Optional[str]) -> bool:
+    """AC: minimum 10 chars, maximum 4096 (WhatsApp limit), no un-replaced
+    {{...}} template variables."""
+    if not text:
+        return False
+    if not (MIN_REPLY_LENGTH <= len(text) <= MAX_REPLY_LENGTH):
+        return False
+    if _TEMPLATE_VAR_RE.search(text):
+        return False
+    return True
+
+
+def generate_thunder_reply_with_fallback(
+    db: Session, candidate: Candidate, inbound_message: str,
+) -> Tuple[str, bool]:
+    """
+    Generates a validated Thunder reply, regenerating once on a failed
+    or invalid attempt. Returns (reply_text, used_fallback).
+
+    A candidate must never receive no response due to a technical
+    failure -- if both attempts fail or fail validation, returns the
+    hardcoded SAFE_FALLBACK_MESSAGE (never LLM-generated, never fails).
+    """
+    for attempt in range(2):
+        try:
+            reply = generate_thunder_reply(db, candidate, inbound_message)
+        except ThunderReplyGenerationFailed as exc:
+            logger.error(f"[Thunder] reply generation failed (attempt {attempt + 1}): {exc}")
+            continue
+        if validate_thunder_reply(reply):
+            return reply, False
+        logger.warning(
+            f"[Thunder] generated reply failed validation (attempt {attempt + 1}): {reply!r}"
+        )
+
+    return SAFE_FALLBACK_MESSAGE, True
+
+
+# ===========================================================================
 # "Test Thunder" mode -- lets a real internal user chat with Thunder
 # without a live WhatsApp Business API (none is provisioned in this
 # codebase -- see whatsapp_routing_service's module docstring). The
@@ -500,6 +563,10 @@ def run_test_chat_turn(db: Session, *, current_user: Users, message_body: str) -
     )
     db.add(inbound_event)
     db.flush()
+
+    # S-069/HRMS-0469 -- re-detect channel preference on every inbound reply.
+    from app.services.channel_preference_service import detect_channel_preference
+    detect_channel_preference(db, conversation)
 
     reply_text = generate_thunder_reply(db, candidate, message_body)
 
