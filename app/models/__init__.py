@@ -74,6 +74,7 @@ from app.models.partner_intent import PartnerIntentProfile
 from app.models.buddy_program import BuddyProgramRecord, BuddyKPIScore
 from app.models.performance_store import EmployeePerformanceEvent
 from app.models.employee_milestone import EmployeeMilestone
+from app.models.htd_intake_pause import HtdIntakeStatus, HtdMonthlyMetric, HtdPauseLogEntry
 from app.models.htd_phase_gate import HTDPhaseGate
 
 __all__ = [
