@@ -38,7 +38,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
 from app.models.candidate import Candidate
-from app.models.employee import Employee
+from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
 from app.schemas.employee import (
@@ -54,6 +54,8 @@ from app.schemas.employee import (
     EmployeeCreateRequest,
     EmployeeItem,
     EmployeeListResponse,
+    EngineHistoryItem,
+    EngineHistoryResponse,
     MarkBenchRequest,
     RecordUtilizationRequest,
     StaffingEligibilityResponse,
@@ -109,7 +111,9 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         current_skills=_skills_list(employee.current_skills),
         work_location=employee.work_location,
         delivery_engine=employee.delivery_engine,
+        engine_entry_date=employee.engine_entry_date,
         core_certified=employee.core_certified,
+        core_certified_date=employee.core_certified_date,
         joining_date=employee.joining_date,
         base_salary_usd_cents=employee.base_salary_usd_cents,
         billing_rate_usd_cents=employee.billing_rate_usd_cents,
@@ -462,6 +466,39 @@ def staffing_eligibility(
     eligible, reason = is_staffing_eligible(employee, delivery_engine)
     return StaffingEligibilityResponse(
         employee_id=employee_id, delivery_engine=delivery_engine, eligible=eligible, reason=reason,
+    )
+
+
+@router.get(
+    "/{employee_id}/engine-history", response_model=EngineHistoryResponse,
+    summary="S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail",
+)
+def engine_history(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """Read-only per the source doc's own 'Not In Scope: do NOT build any
+    UI bypass for delivery engine assignment' -- CORE can only ever be
+    set via set_core_delivery_engine() (employee_service.py), not through
+    this endpoint."""
+    _get_employee_or_404(db, employee_id)
+    rows = (
+        db.query(EmployeeEngineHistory)
+        .filter(EmployeeEngineHistory.employee_id == employee_id)
+        .order_by(EmployeeEngineHistory.changed_at.asc())
+        .all()
+    )
+    return EngineHistoryResponse(
+        employee_id=employee_id,
+        history=[
+            EngineHistoryItem(
+                id=h.id, from_engine=h.from_engine, to_engine=h.to_engine,
+                changed_at=h.changed_at, changed_by=h.changed_by,
+                approval_reference=h.approval_reference, reason=h.reason,
+            )
+            for h in rows
+        ],
     )
 
 

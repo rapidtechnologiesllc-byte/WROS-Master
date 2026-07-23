@@ -326,6 +326,36 @@ def test_record_utilization_404_for_unknown_employee(client):
     assert resp.status_code == 404
 
 
+def test_engine_history_shows_initial_speciality_assignment(client):
+    """S-351/HRMS-0512: every new hire's engine_history starts at
+    creation with from_engine=None -> SPECIALITY -- proves
+    convert_candidate_to_employee()/create_employee_profile()'s audit
+    trail write is actually reachable through the API, not just
+    exercised by a service-layer test."""
+    employee = _create_employee(client)
+
+    resp = client.get(f"/employees/{employee['id']}/engine-history", headers=_auth())
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["history"]) == 1
+    assert body["history"][0]["from_engine"] is None
+    assert body["history"][0]["to_engine"] == "SPECIALITY"
+    assert body["history"][0]["reason"]
+
+
+def test_engine_history_404_for_unknown_employee(client):
+    resp = client.get("/employees/does-not-exist/engine-history", headers=_auth())
+    assert resp.status_code == 404
+
+
+def test_employee_item_exposes_engine_and_certification_fields(client):
+    employee = _create_employee(client)
+    assert employee["delivery_engine"] == "SPECIALITY"
+    assert employee["core_certified"] is False
+    assert employee["core_certified_date"] is None
+    assert employee["engine_entry_date"]
+
+
 def test_utilization_summary_flags_low_utilization(client):
     employee = _create_employee(client)
 
