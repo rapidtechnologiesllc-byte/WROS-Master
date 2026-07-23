@@ -120,6 +120,13 @@ export default function Shell({
       label: "HTD Intake",
       icon: AlertOctagon,
     };
+    // S-102/HRMS-P207 -- same role scoping rationale as the nav items
+    // above.
+    const HM_CANDIDATE_REVIEW_NAV_ITEM = {
+      path: ROUTES.HM_CANDIDATE_REVIEW,
+      label: "Candidate Review",
+      icon: UserCheck,
+    };
     // S-254/HRMS-0510 + S-255/HRMS-0511 -- same role scoping rationale
     // as the six nav items above.
     const UTILIZATION_DASHBOARD_NAV_ITEM = {
@@ -178,6 +185,7 @@ export default function Shell({
         ALLOCATIONS_NAV_ITEM,
         PROJECTS_NAV_ITEM,
         HTD_INTAKE_NAV_ITEM,
+        HM_CANDIDATE_REVIEW_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
@@ -223,6 +231,7 @@ export default function Shell({
         ALLOCATIONS_NAV_ITEM,
         PROJECTS_NAV_ITEM,
         HTD_INTAKE_NAV_ITEM,
+        HM_CANDIDATE_REVIEW_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
@@ -262,6 +271,7 @@ export default function Shell({
         ALLOCATIONS_NAV_ITEM,
         PROJECTS_NAV_ITEM,
         HTD_INTAKE_NAV_ITEM,
+        HM_CANDIDATE_REVIEW_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,

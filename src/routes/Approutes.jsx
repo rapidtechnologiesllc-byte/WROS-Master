@@ -73,6 +73,7 @@ import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
 import HtdIntakeScreen from "../screens/HtdIntakeScreen";
+import HmCandidateReviewScreen from "../screens/HmCandidateReviewScreen";
 import UtilizationDashboardScreen from "../screens/UtilizationDashboardScreen";
 import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
@@ -443,6 +444,7 @@ export default function AppRoutes() {
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
             <Route path="htd-intake" element={<HtdIntakeScreen />} />
+            <Route path="hm-candidate-review" element={<HmCandidateReviewScreen />} />
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
             <Route path="forecast" element={<ForecastScreen />} />
@@ -643,6 +645,7 @@ export default function AppRoutes() {
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
             <Route path="htd-intake" element={<HtdIntakeScreen />} />
+            <Route path="hm-candidate-review" element={<HmCandidateReviewScreen />} />
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
             <Route path="forecast" element={<ForecastScreen />} />
