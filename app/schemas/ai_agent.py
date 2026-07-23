@@ -106,6 +106,28 @@ class ConversationThreadResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Manual send / ownership (S-009 / S-010)
+# ---------------------------------------------------------------------------
+
+class SendMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Message body to send to the candidate")
+
+
+class SendMessageResponse(BaseModel):
+    conversation_id: int
+    event_id: int
+    delivered: bool
+    owner_type: Optional[str]
+    owner_id: Optional[str]
+
+
+class ConversationOwnershipResponse(BaseModel):
+    conversation_id: int
+    owner_type: Optional[str]
+    owner_id: Optional[str]
+
+
+# ---------------------------------------------------------------------------
 # AI Assignment list
 # ---------------------------------------------------------------------------
 

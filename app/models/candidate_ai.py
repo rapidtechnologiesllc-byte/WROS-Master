@@ -190,12 +190,14 @@ class ConversationEvent(Base):
 
     event_type examples:
         'ai_message_sent'       – AI sent an email / message to candidate
+        'hr_message_sent'       – HR user manually sent a message (S-009)
         'candidate_reply'       – Candidate replied
         'field_check'           – AI identified missing fields
         'reminder_sent'         – Follow-up reminder dispatched
         'escalation_triggered'  – AI escalated to HR
         'hr_note_added'         – HR left a note inside the conversation
         'status_changed'        – Conversation status changed
+        'ownership_changed'     – Conversation owner switched hr_user <-> ai_agent (S-010)
         'ai_assigned'           – AI agent was assigned
         'ai_deassigned'         – AI agent was removed
 
