@@ -41,6 +41,7 @@ from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
+from app.schemas.performance import PerformanceEventItem, PerformanceStoreResponse
 from app.schemas.employee import (
     BenchAgingAlertItem,
     BenchAgingAlertsResponse,
@@ -69,6 +70,10 @@ from app.services.employee_service import (
     convert_candidate_to_employee,
     create_employee_profile,
     generate_employee_number,
+)
+from app.services.performance_store_service import (
+    get_performance_events,
+    get_score_averages_by_event_type,
 )
 from app.services.resource_management_service import (
     LOW_UTILIZATION_THRESHOLD_PCT,
@@ -519,6 +524,37 @@ def record_utilization(
     return UtilizationHistoryItem(
         period_start=metric.period_start, utilization_pct=float(metric.utilization_pct),
         billable_hours=float(metric.billable_hours), bench_hours=float(metric.bench_hours),
+    )
+
+
+@router.get(
+    "/{employee_id}/performance", response_model=PerformanceStoreResponse,
+    summary="HRMS-0515 -- performance event timeline + score averages (BU Head/RM/HR only, never the employee)",
+)
+def get_employee_performance(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """No dedicated 'employee self-service' login role exists in this
+    codebase (only candidates get self-service; employees have no
+    portal login yet), so the doc's 'never visible to the employee' BR
+    is naturally satisfied by get_current_hr_or_admin's existing
+    posture -- flagged, not a new gate invented for this story."""
+    _get_employee_or_404(db, employee_id)
+    events = get_performance_events(db, employee_id)
+    averages = get_score_averages_by_event_type(db, employee_id)
+    return PerformanceStoreResponse(
+        employee_id=employee_id,
+        events=[
+            PerformanceEventItem(
+                id=e.id, event_type=e.event_type,
+                event_data=json.loads(e.event_data) if e.event_data else None,
+                occurred_at=e.occurred_at,
+            )
+            for e in events
+        ],
+        score_averages_by_event_type=averages,
     )
 
 

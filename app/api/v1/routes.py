@@ -35,6 +35,7 @@ from app.api.v1.endpoints.invoices import router as invoices_router
 from app.api.v1.endpoints.revenue import router as revenue_router
 from app.api.v1.endpoints.tenants import router as tenants_router
 from app.api.v1.endpoints.projects import router as projects_router
+from app.api.v1.endpoints.employee_milestones import router as employee_milestones_router
 
 router = fastapi.APIRouter()
 
@@ -72,4 +73,5 @@ router.include_router(router=resource_forecast_router)
 router.include_router(router=invoices_router)
 router.include_router(router=revenue_router)
 router.include_router(router=tenants_router)
-router.include_router(router=projects_router)
+router.include_router(router=projects_router)
+router.include_router(router=employee_milestones_router)
