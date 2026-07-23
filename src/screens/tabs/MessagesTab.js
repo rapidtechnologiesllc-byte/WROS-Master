@@ -10,6 +10,7 @@ import {
   sendManualMessage,
   takeOverConversation,
   handBackConversation,
+  pollForReply,
 } from "../../services/api/aiAgent";
 import { toast } from "react-toastify";
 
@@ -32,6 +33,7 @@ export default function MessagesTab({ candidateId }) {
   const [missingFields, setMissingFields] = useState(null);
   const [missingLoading, setMissingLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const fetchThread = useCallback(async () => {
     if (!candidateId) return;
@@ -83,6 +85,28 @@ export default function MessagesTab({ candidateId }) {
       toast.error(err?.message || "Failed to assign AI agent");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleCheckReply = async () => {
+    if (!candidateId) return;
+    try {
+      setPolling(true);
+      const res = await pollForReply(candidateId);
+      if (res?.status === "no_reply_found") {
+        toast.info("No new reply found yet.");
+      } else if (res?.updated_fields?.length) {
+        toast.success(`Updated: ${res.updated_fields.join(", ")}`);
+      } else {
+        toast.success("Reply processed.");
+      }
+      await fetchThread();
+      await fetchMissingFields();
+    } catch (err) {
+      console.error("Failed to check for reply", err);
+      toast.error(err?.message || "Failed to check for reply");
+    } finally {
+      setPolling(false);
     }
   };
 
@@ -149,7 +173,18 @@ export default function MessagesTab({ candidateId }) {
         />
       ) : (
         <div className="space-y-6">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2">
+            {conversations.some((c) => c.status === "awaiting_candidate") && (
+              <button
+                type="button"
+                onClick={handleCheckReply}
+                disabled={polling}
+                title="Poll the AI recruiter's mailbox for a new candidate reply and process it"
+                className="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+              >
+                {polling ? "Checking..." : "Check for Reply"}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleAssignAgent}

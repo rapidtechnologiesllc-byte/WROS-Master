@@ -23,6 +23,13 @@ export const assignAgent = async (candidateId, body) => {
   return data;
 };
 
+export const pollForReply = async (candidateId) => {
+  const { data } = await apiRequest(`/ai-agent/poll/${candidateId}`, {
+    method: "POST",
+  });
+  return data;
+};
+
 export const getAssignments = async (candidateId) => {
   const { data } = await apiRequest(`/ai-agent/assignments/${candidateId}`, {
     method: "GET",
