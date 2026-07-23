@@ -60,3 +60,14 @@ export const convertCandidateToEmployee = async (candidateId, payload) => {
   });
   return data;
 };
+
+// One-time bulk employee load from an .xlsx file.
+export const bulkImportEmployees = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await apiRequest("/employees/bulk-import", {
+    method: "POST",
+    body: formData,
+  });
+  return data;
+};
