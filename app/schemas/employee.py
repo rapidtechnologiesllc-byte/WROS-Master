@@ -105,6 +105,10 @@ class StaffingEligibilityResponse(BaseModel):
     reason: Optional[str] = None
 
 
+class RecordUtilizationRequest(BaseModel):
+    week_starting_date: date
+
+
 class UtilizationHistoryItem(BaseModel):
     period_start: date
     utilization_pct: float

@@ -260,6 +260,72 @@ def test_utilization_history_and_summary(client):
     assert body["low_utilization_count"] == 0
 
 
+def test_record_utilization_computes_from_approved_timesheet(client):
+    """S-223/HRMS-0904: utilization = approved billable hours / available
+    (standard weekly) hours -- the compute step that populates
+    EmployeeUtilizationMetric was real, tested backend with zero caller
+    anywhere (record_weekly_utilization_metric() was dead code); this
+    proves the endpoint that actually triggers it."""
+    employee = _create_employee(client)
+
+    from app.models.client import Client
+    from app.models.demand import Demand
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.timesheet import Timesheet
+
+    week = date.today() - timedelta(days=date.today().weekday())
+
+    engine = create_engine(client.db_url)
+    session = sessionmaker(bind=engine)()
+    acme = Client(tenant_id=client.wros_ids["tenant_id"], company_name="Acme Insurance")
+    session.add(acme)
+    session.commit()
+    demand = Demand(
+        tenant_id=client.wros_ids["tenant_id"], client_id=acme.id, job_title="Guidewire Dev",
+        required_skills="[]", min_experience_years=3.0, work_location="REMOTE",
+        status="OPEN", billing_rate_usd_cents=15000,
+    )
+    session.add(demand)
+    session.commit()
+    allocation = EmployeeAllocation(
+        tenant_id=client.wros_ids["tenant_id"], employee_id=employee["id"], demand_id=demand.id,
+        client_id=acme.id, status="ACTIVE", start_date=date(2025, 1, 1),
+    )
+    session.add(allocation)
+    session.commit()
+    session.add(Timesheet(
+        tenant_id=client.wros_ids["tenant_id"], employee_id=employee["id"], allocation_id=allocation.id,
+        week_starting_date=week, total_hours=32, billable_hours=32, non_billable_hours=0,
+        status="APPROVED", approved_by="U-ADMIN",
+    ))
+    session.commit()
+    session.close()
+    engine.dispose()
+
+    resp = client.post(
+        f"/employees/{employee['id']}/record-utilization",
+        json={"week_starting_date": week.isoformat()},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["billable_hours"] == 32.0
+    assert body["bench_hours"] == 8.0
+    assert body["utilization_pct"] == 80.0
+
+    history_resp = client.get(f"/employees/{employee['id']}/utilization-history", headers=_auth())
+    assert len(history_resp.json()["history"]) == 1
+
+
+def test_record_utilization_404_for_unknown_employee(client):
+    resp = client.post(
+        "/employees/does-not-exist/record-utilization",
+        json={"week_starting_date": date.today().isoformat()},
+        headers=_auth(),
+    )
+    assert resp.status_code == 404
+
+
 def test_utilization_summary_flags_low_utilization(client):
     employee = _create_employee(client)
 
