@@ -59,7 +59,9 @@ class EmployeeItem(BaseModel):
     current_skills: List[str] = []
     work_location: str
     delivery_engine: str
+    engine_entry_date: date
     core_certified: bool
+    core_certified_date: Optional[date] = None
     joining_date: date
     base_salary_usd_cents: Optional[int] = None
     billing_rate_usd_cents: Optional[int] = None
@@ -103,6 +105,29 @@ class StaffingEligibilityResponse(BaseModel):
     delivery_engine: str
     eligible: bool
     reason: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# S-351/HRMS-0512 -- Delivery Engine Assignment: Speciality vs Core.
+# Read-only per the source doc's "Not In Scope: do NOT build any UI bypass
+# for delivery engine assignment" -- CORE can only ever be set via
+# set_core_delivery_engine() (the future HRMS-0513 Core Eligibility Gate's
+# real mutation point), never through this history endpoint.
+# ---------------------------------------------------------------------------
+
+class EngineHistoryItem(BaseModel):
+    id: int
+    from_engine: Optional[str] = None
+    to_engine: str
+    changed_at: Optional[datetime] = None
+    changed_by: Optional[str] = None
+    approval_reference: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class EngineHistoryResponse(BaseModel):
+    employee_id: str
+    history: List[EngineHistoryItem]
 
 
 class RecordUtilizationRequest(BaseModel):
