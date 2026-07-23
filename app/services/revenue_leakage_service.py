@@ -97,7 +97,8 @@ def get_active_leakage_flags(db: Session, *, tenant_id: Optional[int] = None) ->
 
 
 def find_reconciliation_gaps(
-    db: Session, *, grace_days: int = DEFAULT_RECONCILIATION_GRACE_DAYS, now: Optional[datetime] = None,
+    db: Session, *, tenant_id: Optional[int] = None,
+    grace_days: int = DEFAULT_RECONCILIATION_GRACE_DAYS, now: Optional[datetime] = None,
 ) -> List[Timesheet]:
     """
     HRMS-0903: every APPROVED timesheet past the grace period must have
@@ -105,15 +106,24 @@ def find_reconciliation_gaps(
     reconciliation gap. No automatic re-processing attempt (HRMS-0605's
     TimesheetRevenueProcessor doesn't exist) -- goes straight to
     detection.
+
+    tenant_id is optional (None = scan every tenant) so any pre-existing
+    caller that scanned globally keeps working -- the REST endpoint
+    always passes the caller's own tenant_id, since attributing another
+    tenant's timesheet to a ReconciliationAlert row scoped to the
+    caller's tenant would otherwise leak cross-tenant data.
     """
     now = now or datetime.utcnow()
     cutoff = now - timedelta(days=grace_days)
 
-    approved = db.query(Timesheet).filter(
+    query = db.query(Timesheet).filter(
         Timesheet.status == "APPROVED",
         Timesheet.approved_at.isnot(None),
         Timesheet.approved_at <= cutoff,
-    ).all()
+    )
+    if tenant_id is not None:
+        query = query.filter(Timesheet.tenant_id == tenant_id)
+    approved = query.all()
 
     gaps = []
     for ts in approved:
