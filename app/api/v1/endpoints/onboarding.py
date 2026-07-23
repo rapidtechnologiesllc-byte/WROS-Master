@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 import app.schemas as schema
 from app.core.database import get_db
+from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
 from app.services.candidate_service import (
     create_candidate_safe,
     DuplicateCandidateError,
@@ -56,7 +57,12 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_permission("candidate.create"))],
 )
-def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def create_candidate(
+    request: CandidateCreateRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin),
+):
     """
     Create a new candidate account with comprehensive information.
     
@@ -172,6 +178,10 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
 
     if request.education_records or request.experience_records:
         db.commit()
+
+    # HRMS-0401: assign the AI recruiter automatically -- doesn't block
+    # this response, doesn't fail candidate creation if it errors.
+    background_tasks.add_task(auto_assign_ai_agent_on_creation, candidate_id, user.UserID, db)
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(

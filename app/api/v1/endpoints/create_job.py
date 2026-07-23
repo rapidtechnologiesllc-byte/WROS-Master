@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.tenant_context import get_tenant_scoped_query
+from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.models.user import Jobs
 from app.models.candidate import (
@@ -928,6 +929,14 @@ async def apply_for_job(
         background_tasks.add_task(_run_and_persist_ats, candidate, job, db)
     except Exception:
         pass  # ATS failure must never block an application submission
+
+    # 14. HRMS-0401: assign the AI recruiter automatically. No logged-in
+    # user on this public endpoint, so tenant_id is derived from the job's
+    # own recruiter/contact person -- both are real users.UserID values
+    # already, same convention app.services.ai_conversation_service uses
+    # elsewhere. Skips gracefully (logged, not raised) if neither is set.
+    auto_assign_tenant_id = job.recuriterID or job.contactPerson
+    background_tasks.add_task(auto_assign_ai_agent_on_creation, candidate_id, auto_assign_tenant_id, db)
 
     return JobApplicationResponse(
         status="Success",
