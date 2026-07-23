@@ -12,6 +12,7 @@ export const ROUTES = {
   FORECAST: "/forecast",
   INVOICES: "/invoices",
   REVENUE: "/revenue",
+  TENANT_LOCALE: "/settings/locale",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",
