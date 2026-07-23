@@ -1,7 +1,7 @@
 // S-245 (Create Employee Profile) + S-246 (Mark Employee as Bench) +
 // S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report).
-import { useEffect, useState } from "react";
-import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft, Upload } from "lucide-react";
 import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
 import {
@@ -11,6 +11,7 @@ import {
   markEmployeeOnBench,
   removeEmployeeFromBench,
   convertCandidateToEmployee,
+  bulkImportEmployees,
 } from "../services/api/employees";
 
 const BENCH_REASONS = [
@@ -164,6 +165,71 @@ function ConvertCandidateForm({ onConverted }) {
   );
 }
 
+function BulkImportForm({ onImported }) {
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    setResult(null);
+    try {
+      const res = await bulkImportEmployees(file);
+      setResult(res);
+      onImported();
+    } catch (err) {
+      setError(err.message || "Bulk import failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <Button variant="secondary" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+        <Upload className="h-4 w-4" /> {uploading ? "Importing…" : "Bulk Import (.xlsx)"}
+      </Button>
+      {error ? (
+        <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      ) : null}
+      {result ? (
+        <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          <div className="font-semibold">
+            {result.created} created, {result.skipped} skipped.
+          </div>
+          {result.errors?.length > 0 ? (
+            <ul className="mt-1 list-disc pl-4 text-rose-700">
+              {result.errors.map((e, i) => (
+                <li key={i}>
+                  Row {e.row}{e.email ? ` (${e.email})` : ""}: {e.reason}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="mt-1 text-[11px] text-gray-400">
+        Header row: first_name, last_name, email, joining_date (YYYY-MM-DD) required; current_title, current_skills
+        (comma-separated), employment_type, work_location, base_salary_usd_cents, billing_rate_usd_cents, nationality optional.
+      </div>
+    </div>
+  );
+}
+
 function BenchActionCell({ employee, onChanged }) {
   const [reason, setReason] = useState("PROJECT_ENDED");
   const [busy, setBusy] = useState(false);
@@ -258,9 +324,10 @@ export default function EmployeeDirectoryScreen() {
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           <CreateEmployeeForm onCreated={load} />
           <ConvertCandidateForm onConverted={load} />
+          <BulkImportForm onImported={load} />
         </div>
 
         {alerts.length > 0 ? (
