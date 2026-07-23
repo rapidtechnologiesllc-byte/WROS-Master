@@ -28,6 +28,16 @@ Routes:
   GET    /ai-agent/conversations/{candidate_id}/active
       Return only the single active (open / awaiting) conversation + events.
 
+  POST   /ai-agent/conversations/{conversation_id}/send
+      Manually send a message to the candidate; transfers ownership to
+      the sending HR user (S-009).
+
+  POST   /ai-agent/conversations/{conversation_id}/take-over
+      Take over a conversation from the AI agent or another HR user (S-010).
+
+  POST   /ai-agent/conversations/{conversation_id}/hand-back
+      Hand a conversation back to the AI agent (S-010).
+
   GET    /ai-agent/assignments/{candidate_id}
       Return all AI agent assignments for a candidate.
 
@@ -54,6 +64,7 @@ from app.schemas.ai_agent import (
     AIAgentAssignRequest,
     AIAgentAssignResponse,
     AIAssignmentOut,
+    ConversationOwnershipResponse,
     ConversationThreadResponse,
     ConversationThreadItem,
     ConversationEventOut,
@@ -63,6 +74,8 @@ from app.schemas.ai_agent import (
     ProcessReplyResponse,
     InboxMessageItem,
     InboxResponse,
+    SendMessageRequest,
+    SendMessageResponse,
 )
 from app.services.ai_conversation_service import (
     assign_ai_agent,
@@ -72,6 +85,12 @@ from app.services.ai_conversation_service import (
     read_all_inbox,
     read_inbox_by_email,
     SERVICE_MAILBOX,
+)
+from app.services.whatsapp_routing_service import (
+    hand_back_conversation,
+    NoWhatsAppNumberAvailable,
+    send_whatsapp_message,
+    take_over_conversation,
 )
 
 router = APIRouter(prefix="/ai-agent", tags=["ai-agent"])
@@ -91,6 +110,18 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
             detail=f"Candidate '{candidate_id}' not found.",
         )
     return candidate
+
+
+def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConversation:
+    conversation = db.query(CandidateConversation).filter(
+        CandidateConversation.id == conversation_id
+    ).first()
+    if not conversation:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Conversation '{conversation_id}' not found.",
+        )
+    return conversation
 
 
 # ===========================================================================
@@ -331,6 +362,131 @@ def get_active_conversation(
             )
             for ev in events
         ],
+    )
+
+
+# ===========================================================================
+# POST /ai-agent/conversations/{conversation_id}/send
+# ===========================================================================
+
+@router.post(
+    "/conversations/{conversation_id}/send",
+    response_model=SendMessageResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Manually send a message to the candidate on this conversation (S-009)",
+    description=(
+        "Sends a WhatsApp message from the current HR user to the candidate. "
+        "Per HRMS-0409 BR-01, this unconditionally transfers ownership of the "
+        "conversation to the sending HR user — Thunder will not send again "
+        "until the conversation is handed back."
+    ),
+)
+def send_manual_message(
+    conversation_id: int,
+    body: SendMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    conversation = _get_conversation_or_404(conversation_id, db)
+    candidate = _get_candidate_or_404(conversation.candidate_id, db)
+
+    try:
+        event = send_whatsapp_message(
+            db,
+            conversation,
+            candidate,
+            body.message,
+            sender_type="hr_user",
+            sender_id=current_user.UserID,
+        )
+    except NoWhatsAppNumberAvailable as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    db.commit()
+    db.refresh(event)
+    db.refresh(conversation)
+
+    return SendMessageResponse(
+        conversation_id=conversation.id,
+        event_id=event.id,
+        delivered=bool(event.event_data.get("delivered")) if event.event_data else False,
+        owner_type=conversation.owner_type,
+        owner_id=conversation.owner_id,
+    )
+
+
+# ===========================================================================
+# POST /ai-agent/conversations/{conversation_id}/take-over
+# ===========================================================================
+
+@router.post(
+    "/conversations/{conversation_id}/take-over",
+    response_model=ConversationOwnershipResponse,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Take over a conversation from the AI agent or another HR user (S-010)",
+    description=(
+        "HRMS-0410 BR-03: any HR user can take over a conversation from "
+        "anyone else (or from the AI), no permission check beyond "
+        "candidate.edit, no lock."
+    ),
+)
+def take_over(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    conversation = _get_conversation_or_404(conversation_id, db)
+    take_over_conversation(db, conversation, current_user.UserID)
+    db.add(
+        ConversationEvent(
+            conversation_id=conversation.id,
+            event_type="ownership_changed",
+            event_data={"new_owner_type": "hr_user", "new_owner_id": current_user.UserID},
+            triggered_by="hr_user",
+        )
+    )
+    db.commit()
+    db.refresh(conversation)
+    return ConversationOwnershipResponse(
+        conversation_id=conversation.id,
+        owner_type=conversation.owner_type,
+        owner_id=conversation.owner_id,
+    )
+
+
+# ===========================================================================
+# POST /ai-agent/conversations/{conversation_id}/hand-back
+# ===========================================================================
+
+@router.post(
+    "/conversations/{conversation_id}/hand-back",
+    response_model=ConversationOwnershipResponse,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Hand a conversation back to the AI agent (S-010)",
+    description="HRMS-0410 HAND_BACK: returns the conversation to Thunder.",
+)
+def hand_back(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    conversation = _get_conversation_or_404(conversation_id, db)
+    hand_back_conversation(db, conversation)
+    db.add(
+        ConversationEvent(
+            conversation_id=conversation.id,
+            event_type="ownership_changed",
+            event_data={"new_owner_type": "ai_agent", "new_owner_id": conversation.owner_id},
+            triggered_by="hr_user",
+        )
+    )
+    db.commit()
+    db.refresh(conversation)
+    return ConversationOwnershipResponse(
+        conversation_id=conversation.id,
+        owner_type=conversation.owner_type,
+        owner_id=conversation.owner_id,
     )
 
 
