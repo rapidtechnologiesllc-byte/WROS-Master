@@ -53,7 +53,6 @@ import OfferListing from "../screens/OfferListing";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import AuthPage from "../pages/AuthPage";
 import Shell from "../layout/Shell";
-import Approval from "../screens/Approval";
 import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
@@ -708,13 +707,14 @@ export default function AppRoutes() {
                   try {
                     const res = await postJobOnLinkedIn(jobId);
                     notify(
-                      "LinkedIn",
-                      res?.message || "Job posted to LinkedIn.",
+                      "LinkedIn (Simulated -- not yet integrated)",
+                      res?.message ||
+                        "Simulated only. No LinkedIn integration is connected yet, so nothing was actually posted.",
                     );
                   } catch (err) {
                     notify(
-                      "LinkedIn",
-                      err.message || "Failed to post to LinkedIn.",
+                      "LinkedIn (Simulated -- not yet integrated)",
+                      err.message || "Failed to simulate LinkedIn post.",
                     );
                   }
                 }}

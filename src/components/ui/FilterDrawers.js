@@ -1,18 +1,71 @@
+import { useEffect, useState } from "react";
 import { Drawer, Select, Button, Space } from "antd";
 import {
   agingOptions,
-  buOptions,
-  clientOptions,
-  deptOptions,
   jobTypeOptions,
   locationOptions,
-  managerOptions,
   priorityOptions,
-  recruiterOptions,
   statusOptions,
 } from "../../utils/mockData";
+import { getAllUsers } from "../../services/api/users";
+import { listBusinessUnits, departmentList } from "../../services/api/rbac";
+import { listClients } from "../../services/api/clients";
+
+const MANAGER_ROLES = ["Hiring Manager"];
+const RECRUITER_ROLES = ["Recruiter", "Recruitment Manager", "Recruitment Team Lead"];
 
 const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
+  const [buOptions, setBuOptions] = useState([]);
+  const [deptOptions, setDeptOptions] = useState([]);
+  const [clientOptions, setClientOptions] = useState([]);
+  const [managerOptions, setManagerOptions] = useState([]);
+  const [recruiterOptions, setRecruiterOptions] = useState([]);
+
+  useEffect(() => {
+    // Real entity lists, not hardcoded fake names -- some (BU/Department)
+    // are permission-gated (rbac.manage) so may come back empty for
+    // roles that don't hold that permission; fails gracefully to an
+    // empty dropdown rather than showing fabricated options.
+    listBusinessUnits()
+      .then((data) =>
+        setBuOptions((data || []).map((bu) => ({ label: bu.name, value: bu.id }))),
+      )
+      .catch(() => setBuOptions([]));
+
+    departmentList()
+      .then((data) =>
+        setDeptOptions((data || []).map((d) => ({ label: d.name, value: d.id }))),
+      )
+      .catch(() => setDeptOptions([]));
+
+    listClients()
+      .then((data) =>
+        setClientOptions(
+          (data?.clients || []).map((c) => ({ label: c.company_name, value: c.id })),
+        ),
+      )
+      .catch(() => setClientOptions([]));
+
+    getAllUsers()
+      .then((data) => {
+        const users = data?.users || [];
+        setManagerOptions(
+          users
+            .filter((u) => MANAGER_ROLES.includes(u.user_role))
+            .map((u) => ({ label: u.user_name, value: u.user_id })),
+        );
+        setRecruiterOptions(
+          users
+            .filter((u) => RECRUITER_ROLES.includes(u.user_role))
+            .map((u) => ({ label: u.user_name, value: u.user_id })),
+        );
+      })
+      .catch(() => {
+        setManagerOptions([]);
+        setRecruiterOptions([]);
+      });
+  }, []);
+
   const handleChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };

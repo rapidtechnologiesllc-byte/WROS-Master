@@ -128,8 +128,12 @@ export default function ActiveJobs({ onCreate, onOpenJob, onViewJob, onDeleteJob
               </Button>
             ),
             linkedin: onPostToLinkedIn ? (
-              <Button variant="secondary" onClick={() => onPostToLinkedIn(j.id)}>
-                Post to LinkedIn
+              <Button
+                variant="secondary"
+                onClick={() => onPostToLinkedIn(j.id)}
+                title="LinkedIn integration is not yet connected -- this only simulates a post, nothing goes live on LinkedIn."
+              >
+                Simulate LinkedIn Post
               </Button>
             ) : null,
             delete: canDelete ? (

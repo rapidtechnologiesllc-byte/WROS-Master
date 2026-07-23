@@ -1,29 +1,9 @@
-const mockData = [
-  {
-    id: '1023',
-    title: 'Azure DevOps Engineer',
-    type: 'Internal',
-    clientDept: 'PRISM',
-    bu: '-',
-    location: 'Remote',
-    hiringManager: 'Riya',
-    recruiter: 2,
-    openPositions: 2,
-    status: 'Open'
-  },
-  {
-    id: '1024',
-    title: 'Azure DevOps Engineer',
-    type: 'Internal',
-    clientDept: 'PRISM',
-    bu: '-',
-    location: 'Remote',
-    hiringManager: 'Unassigned',
-    recruiter: 1,
-    openPositions: 1,
-    status: 'Lean'
-  }
-];
+// Static enum-style filter options only -- real entity lists (business
+// units, departments, clients, managers, recruiters) are fetched live
+// from the API in FilterDrawers.js, not hardcoded here. This file used
+// to also export a fake `mockData` job array and fake entity option
+// lists (real names like "Riya"/"PRISM" that don't correspond to any
+// actual person/client) -- removed 2026-07-23, see FilterDrawers.js.
 
 export const statusOptions = [
     { label: 'Open', value: 'Open' },
@@ -34,31 +14,6 @@ export const statusOptions = [
   export const jobTypeOptions = [
     { label: 'Internal', value: 'Internal' },
     { label: 'External', value: 'External' }
-  ];
-
-  export const buOptions = [
-    { label: 'Engineering', value: 'Engineering' },
-    { label: 'Sales', value: 'Sales' }
-  ];
-
-  export const deptOptions = [
-    { label: 'IT', value: 'IT' },
-    { label: 'HR', value: 'HR' }
-  ];
-
-  export const clientOptions = [
-    { label: 'PRISM', value: 'PRISM' },
-    { label: 'ABC Corp', value: 'ABC' }
-  ];
-
-  export const managerOptions = [
-    { label: 'Riya', value: 'Riya' },
-    { label: 'A.M', value: 'AM' }
-  ];
-
-  export const recruiterOptions = [
-    { label: 'John', value: 'John' },
-    { label: 'Sara', value: 'Sara' }
   ];
 
   export const locationOptions = [
@@ -77,5 +32,3 @@ export const statusOptions = [
     { label: '10-30 days', value: '10-30' },
     { label: '30+ days', value: '30+' }
   ];
-
-export default mockData;

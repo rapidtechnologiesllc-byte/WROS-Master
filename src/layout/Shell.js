@@ -14,7 +14,6 @@ import {
   UserCheck,
   Users,
   FileTextIcon,
-  Zap,
   Users2,
   ShieldAlert,
   CalendarCheck2,
@@ -57,9 +56,6 @@ export default function Shell({
   const isHiringManager = normalizedRole === "HIRING MANAGER";
   const isHrOperations = normalizedRole === "HR OPERATIONS";
   const nav = useMemo(() => {
-    // Thunder must be reachable by every role, first item in the list --
-    // prepended to every branch below rather than gated behind a role check.
-    const THUNDER_NAV_ITEM = { path: ROUTES.THUNDER, label: "Test Thunder", icon: Zap };
     // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
     // Partner/Resource Manager role exists in this codebase's role set
     // yet, so this is scoped to the roles that already get HR/oversight
@@ -174,7 +170,6 @@ export default function Shell({
 
     if (isSuperUser) {
       return [
-        THUNDER_NAV_ITEM,
         {
           path: ROUTES.DASHBOARD,
           label: "Dashboard",
@@ -220,7 +215,6 @@ export default function Shell({
     }
     if (isAdmin) {
       return [
-        THUNDER_NAV_ITEM,
         {
           path: ROUTES.DASHBOARD,
           label: "Dashboard",
@@ -265,7 +259,6 @@ export default function Shell({
     }
     if (isHR_Manager) {
       return [
-        THUNDER_NAV_ITEM,
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
@@ -294,7 +287,6 @@ export default function Shell({
     }
     if (isHiringManager) {
       return [
-        THUNDER_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -304,7 +296,6 @@ export default function Shell({
     }
     if (isHrOperations) {
       return [
-        THUNDER_NAV_ITEM,
         {
           path: ROUTES.CANDIDATES,
           label: "Candidates",
@@ -319,7 +310,6 @@ export default function Shell({
     }
 
     return [
-      THUNDER_NAV_ITEM,
       {
         path: ROUTES.DASHBOARD,
         label: "Dashboard",

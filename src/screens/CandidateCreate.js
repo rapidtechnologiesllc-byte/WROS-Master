@@ -5,7 +5,15 @@ import { createCandidate } from "../services/api/candidates";
 import { uploadResume } from "../services/api/documents";
 import { getMicrosoftSigninUrl } from "../services/api/msgraph";
 import { sendPlainEmail } from "../services/api/email";
-import { Button, Card, Input, Select } from "../components/ui";
+import {
+  Button,
+  Card,
+  Input,
+  Select,
+  LocationCascadeSelect,
+  formatLocation,
+  parseLocation,
+} from "../components/ui";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -20,6 +28,25 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useNavigate } from "react-router-dom";
 
+// Added 2026-07-23 -- real bug: the Mobile input used to strip any
+// country code the candidate typed (removed a leading "91", hard-capped
+// to 10 digits) and candidateMobile was sent to WhatsApp as-is with no
+// prepended code (app.services.whatsapp_routing_service.send_whatsapp_
+// message uses candidate.candidateMobile directly as the "to" number),
+// so a non-Indian number was silently unreachable over WhatsApp. Not an
+// exhaustive ISO list -- the common countries this platform actually
+// recruits in/for, easy to extend.
+const COUNTRY_CODES = [
+  { value: "+91", label: "+91 (India)" },
+  { value: "+1", label: "+1 (US/Canada)" },
+  { value: "+44", label: "+44 (UK)" },
+  { value: "+61", label: "+61 (Australia)" },
+  { value: "+971", label: "+971 (UAE)" },
+  { value: "+65", label: "+65 (Singapore)" },
+  { value: "+49", label: "+49 (Germany)" },
+  { value: "+63", label: "+63 (Philippines)" },
+];
+
 export default function CandidateCreate({ onBack, onSave }) {
   const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState("");
@@ -28,6 +55,7 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
+  const [countryCode, setCountryCode] = useState("+91");
   const [gender, setGender] = useState("");
   const [dob, setDob] = useState("");
   const [source, setSource] = useState("");
@@ -36,7 +64,11 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [joiningDate, setJoiningDate] = useState("");
   const [expectedSalary, setExpectedSalary] = useState("");
   const [currentSalary, setCurrentSalary] = useState("");
-  const [currentLocation, setCurrentLocation] = useState("");
+  const [locationValue, setLocationValue] = useState({
+    countryCode: "",
+    stateCode: "",
+    city: "",
+  });
   const [assignedHrManagerId, setAssignedHrManagerId] = useState("");
   const [assignedReportManagerId, setAssignedReportManagerId] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
@@ -44,14 +76,6 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [sendLoginEmail, setSendLoginEmail] = useState(true);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  // R-01 (HRMS-P601): the backend blocks creation when experience is
-  // below the 5-year floor unless a BU Head override is supplied. When
-  // that happens the form stays populated and this panel appears
-  // instead of losing the candidate's entered data.
-  const [experienceGateBlocked, setExperienceGateBlocked] = useState(false);
-  const [experienceGateMessage, setExperienceGateMessage] = useState("");
-  const [buHeadOverrideId, setBuHeadOverrideId] = useState("");
-  const [overrideReason, setOverrideReason] = useState("");
   const [educationRows, setEducationRows] = useState([]);
   const [experienceRows, setExperienceRows] = useState([]);
   const [errors, setErrors] = useState({});
@@ -60,7 +84,6 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
-  const [employeeType, setEmployeeType] = useState("");
   const navigate = useNavigate();
 
   const clearFieldError = (field) => {
@@ -356,7 +379,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       }
       if (fields.skills) setSkills(fields.skills);
       if (fields.experience) setExperience(fields.experience);
-      if (fields.currentLocation) setCurrentLocation(fields.currentLocation);
+      if (fields.currentLocation) setLocationValue(parseLocation(fields.currentLocation));
       if (fields?.jobTitle) setJobName(fields?.jobTitle);
       const inferredEducation = inferEducationRows(text);
       if (inferredEducation.length) setEducationRows(inferredEducation);
@@ -442,8 +465,6 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     setErrors({});
     setActionNotice("");
-    setExperienceGateBlocked(false);
-    setExperienceGateMessage("");
     setIsSaving(true);
 
     try {
@@ -452,11 +473,10 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_email: email.trim(),
         candidate_role: "Candidate",
         candidate_job_title: candidateJobTitle || null,
-        candidate_employee_type: employeeType || null,
         candidate_first_name: firstName || null,
         candidate_middle_name: middleName || null,
         candidate_last_name: lastName || null,
-        candidate_mobile: mobile || null,
+        candidate_mobile: mobile ? `${countryCode}${mobile}` : null,
         candidate_gender: gender || null,
         candidate_date_of_birth: dob || null,
         candidate_source: source || null,
@@ -465,14 +485,9 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_joining_date: joiningDate || null,
         candidate_expected_salary: expectedSalary || null,
         candidate_current_salary: currentSalary || null,
-        candidate_current_location: currentLocation || null,
+        candidate_current_location: formatLocation(locationValue) || null,
         assigned_hr_manager_id: assignedHrManagerId || null,
         assigned_report_manager_id: assignedReportManagerId || null,
-        // R-01: only meaningful when the candidate is below the 5-year
-        // floor -- harmless no-op otherwise, the backend only reads
-        // these when the eligibility check actually fails.
-        bu_head_override_user_id: buHeadOverrideId || null,
-        override_reason: overrideReason || null,
         education_records: filledEducationRows.length
           ? filledEducationRows.map((row) => ({
               education_institute: row.education_institute.trim(),
@@ -511,7 +526,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         id: createdCandidateId,
         name: candidateName || "New Candidate",
         email: candidateEmail,
-        phone: mobile,
+        phone: mobile ? `${countryCode}${mobile}` : mobile,
         jobTitle: candidateJobTitle || jobName || "",
         skills: String(skills || "")
           .split(",")
@@ -542,18 +557,7 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice(nextNotice);
       return createdCandidate;
     } catch (err) {
-      // R-01: the backend's experience-floor rejection is a plain-string
-      // 400 detail (no distinct error code, matching how the pre-existing
-      // duplicate-email 400 is surfaced too) -- detected here by content
-      // rather than a code, since the backend doesn't expose one.
-      const isExperienceGateError =
-        err?.status === 400 && /experience/i.test(err.message || "");
-      if (isExperienceGateError) {
-        setExperienceGateBlocked(true);
-        setExperienceGateMessage(err.message);
-      } else {
-        toast.error(err.message || "Failed to create candidate.");
-      }
+      toast.error(err.message || "Failed to create candidate.");
     } finally {
       setIsSaving(false);
     }
@@ -640,17 +644,6 @@ export default function CandidateCreate({ onBack, onSave }) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Select
-            label="Employee Type"
-            value={employeeType}
-            onChange={setEmployeeType}
-            options={[
-              { label: "Please select your option", value: "", disabled: true },
-              { label: "Full time employee", value: "Full Time Employee" },
-              { label: "Intern", value: "Intern" },
-              { label: "Guidewire Employee", value: "Guidewire" },
-            ]}
-          />
           <Input label="Job Title" value={jobName} onChange={setJobName} />
           <div>
             <Input
@@ -708,16 +701,23 @@ export default function CandidateCreate({ onBack, onSave }) {
             ) : null}
           </div>
 
-          <div>
+          <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
+            <Select
+              label="Code"
+              value={countryCode}
+              onChange={setCountryCode}
+              options={COUNTRY_CODES}
+            />
             <Input
               label="Mobile *"
               value={mobile}
               onChange={(value) => {
-                let cleanedValue = value.replace(/\D/g, "");
-                if (cleanedValue.startsWith("91") && cleanedValue.length > 10) {
-                  cleanedValue = cleanedValue.slice(2);
-                }
-                cleanedValue = cleanedValue.slice(0, 10);
+                // Country code lives in its own field now -- just strip
+                // non-digits, no destructive stripping/hard-capping to
+                // 10 (real bug: this used to silently discard any
+                // country code the candidate typed, and always cap at
+                // exactly 10 digits regardless of the country).
+                const cleanedValue = value.replace(/\D/g, "").slice(0, 15);
                 setMobile(cleanedValue);
                 clearFieldError("mobile");
               }}
@@ -773,11 +773,12 @@ export default function CandidateCreate({ onBack, onSave }) {
             onChange={setExpectedSalary}
           />
 
-          <Input
-            label="Current Location"
-            value={currentLocation}
-            onChange={setCurrentLocation}
-          />
+          <div className="md:col-span-2">
+            <div className="mb-1 text-xs font-semibold text-gray-700">
+              Current Location
+            </div>
+            <LocationCascadeSelect value={locationValue} onChange={setLocationValue} />
+          </div>
 
           <Input
             label="Availability Date"
@@ -1003,44 +1004,12 @@ export default function CandidateCreate({ onBack, onSave }) {
           </div>
         </div>
 
-        {experienceGateBlocked ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div className="mb-1 text-sm font-semibold text-amber-900">
-              Blocked: below the 5-year experience floor (R-01)
-            </div>
-            <p className="mb-3 text-xs text-amber-800">{experienceGateMessage}</p>
-            <p className="mb-3 text-xs text-amber-800">
-              This candidate can only be created with a logged BU Head
-              override. Enter the BU Head's user ID and a reason, then
-              retry.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                label="BU Head User ID"
-                value={buHeadOverrideId}
-                onChange={(value) => setBuHeadOverrideId(value)}
-                placeholder="e.g. U-1042"
-              />
-              <Input
-                label="Override Reason"
-                value={overrideReason}
-                onChange={(value) => setOverrideReason(value)}
-                placeholder="Why this candidate is being approved anyway"
-              />
-            </div>
-          </div>
-        ) : null}
-
         <div className="mt-4 flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onBack}>
             Cancel
           </Button>
           <Button onClick={handleSaveOnly} disabled={isSaving}>
-            {isSaving
-              ? "Adding..."
-              : experienceGateBlocked
-                ? "Retry with Override"
-                : "Add Candidate"}
+            {isSaving ? "Adding..." : "Add Candidate"}
           </Button>
         </div>
 

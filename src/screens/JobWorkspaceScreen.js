@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Input, StatusBadge, Table } from "../components/ui";
-import FilterDrawers from "../components/ui/FilterDrawers";
 import Toolbar from "../components/ui/Toolbar";
-import mockData from "../utils/mockData";
-import TableView from "../components/ui/TableView";
 import ReactMarkdown from "react-markdown";
 import { candidateAppendedJob, removeCandidateApi } from "../services/api/jobs";
 import CandidateEditModal from "./CandidateEditModal";
@@ -74,10 +71,6 @@ export default function JobWorkspaceScreen({
   const [salaryFilter, setSalaryFilter] = useState("");
   const [joinDaysFilter, setJoinDaysFilter] = useState("");
   const [selectedStage, setSelectedStage] = useState("All");
-  const [view, setView] = useState("table");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [filters, setFilters] = useState({});
-  const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [finalCandidates, setFinalCandidates] = useState([]);
   const [assignModal, setAssignModal] = useState(false);
@@ -234,27 +227,6 @@ export default function JobWorkspaceScreen({
     salaryFilter,
     joinDaysFilter,
   ]);
-
-  const filteredData = mockData.filter((item) => {
-    const matchSearch =
-      item.title.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.id.includes(searchText);
-
-    const matchStatus = !filters.status || item.status === filters.status;
-
-    const matchType = !filters.type || item.type === filters.type;
-
-    return matchSearch && matchStatus && matchType;
-  });
-
-  const handleSearch = (value) => {
-    setSearchText(value);
-  };
-
-  const handleReset = () => {
-    setFilters({});
-    setSearchText("");
-  };
 
   const handleAssignedCandidate = (candidate) => {
     setFinalCandidates((prev) => {
