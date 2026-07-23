@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Settings, Eye, EyeOff, Search } from "lucide-react";
-import { Button } from "../components/ui";
+import { Bell, Settings, Eye, EyeOff, Search, User, KeyRound, LogOut } from "lucide-react";
+import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +23,8 @@ export default function TopBar({
   const [profileData, setProfileData] = useState(null);
 
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -120,6 +122,9 @@ export default function TopBar({
   const handleChangePassword = () => {
     setPasswordError("");
     setPasswordSuccess("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setShowNewPassword(false);
     setShowPasswordModal(true);
   };
   const getSearchableText = (item, fields) =>
@@ -348,48 +353,64 @@ export default function TopBar({
                 ) : null}
               </div>
 
-              <Settings className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
+              <button
+                type="button"
+                aria-label="Settings"
+                className="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
 
               <div className="relative" ref={dropdownRef}>
-                <div
+                <button
+                  type="button"
                   onClick={toggleProfile}
-                  className="flex items-center gap-2 cursor-pointer"
+                  className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-gray-100"
                 >
-                  <div className="w-8 h-8 rounded-full bg-bx-navy text-white flex items-center justify-center">
-                    {localStorage.getItem("hrms_user_name")?.[0] || "U"}
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-bx-navy text-sm font-semibold text-white">
+                    {localStorage.getItem("hrms_user_name")?.[0]?.toUpperCase() || "U"}
                   </div>
-
-                  <span>{localStorage.getItem("hrms_user_name")}</span>
-                </div>
+                  <span className="text-sm font-medium text-gray-800">
+                    {localStorage.getItem("hrms_user_name")}
+                  </span>
+                </button>
 
                 {isOpen && (
-                  <div className="absolute right-0 top-10 z-[9999] bg-white border rounded-lg shadow-md w-48">
-                    <p
+                  <div className="absolute right-0 top-11 z-[9999] w-52 overflow-hidden rounded-2xl border bg-white py-1.5 shadow-xl">
+                    <button
+                      type="button"
                       onClick={() => {
                         handleViewProfile();
                         setIsOpen(false);
                       }}
-                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
                     >
+                      <User className="h-4 w-4 text-gray-400" />
                       View Profile
-                    </p>
+                    </button>
 
-                    <p
+                    <button
+                      type="button"
                       onClick={() => {
                         handleChangePassword();
                         setIsOpen(false);
                       }}
-                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
                     >
+                      <KeyRound className="h-4 w-4 text-gray-400" />
                       Change Password
-                    </p>
+                    </button>
 
-                    <p
+                    <div className="my-1 border-t" />
+
+                    <button
+                      type="button"
                       onClick={onLogout}
-                      className="p-2 text-red-500 hover:bg-gray-100 cursor-pointer"
+                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50"
                     >
+                      <LogOut className="h-4 w-4" />
                       Logout
-                    </p>
+                    </button>
                   </div>
                 )}
               </div>
@@ -401,37 +422,48 @@ export default function TopBar({
       {showProfileModal && (
         <div
           onClick={() => setShowProfileModal(false)}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white p-6 rounded-2xl w-96 shadow-2xl"
+            className="w-96 rounded-2xl border bg-white p-6 shadow-2xl"
           >
-            <h2 className="text-xl font-semibold mb-5">User Profile</h2>
-
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Name</span>
-                <span className="font-medium">{profileData?.user_name}</span>
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-bx-navy text-lg font-semibold text-white">
+                {profileData?.user_name?.[0]?.toUpperCase() || "U"}
               </div>
-
-              <div className="flex justify-between">
-                <span className="text-gray-500">Email</span>
-                <span className="font-medium">{profileData?.user_email}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-gray-500">Role</span>
-                <span className="font-medium">{profileData?.user_role}</span>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {profileData?.user_name || "User Profile"}
+                </h2>
+                <p className="text-xs text-gray-500">{profileData?.user_role}</p>
               </div>
             </div>
 
-            <button
+            <div className="space-y-2.5 rounded-xl border bg-gray-50 p-3.5 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500">Name</span>
+                <span className="font-medium text-gray-900">{profileData?.user_name}</span>
+              </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500">Email</span>
+                <span className="font-medium text-gray-900">{profileData?.user_email}</span>
+              </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500">Role</span>
+                <span className="font-medium text-gray-900">{profileData?.user_role}</span>
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              className="mt-5 w-full"
               onClick={() => setShowProfileModal(false)}
-              className="mt-6 w-full bg-bx-orange text-white py-2 rounded-xl hover:bg-bx-orange-hover transition"
             >
               Close
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -439,71 +471,82 @@ export default function TopBar({
       {showPasswordModal && (
         <div
           onClick={() => setShowPasswordModal(false)}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white p-6 rounded-2xl w-96 shadow-2xl"
+            className="w-96 rounded-2xl border bg-white p-6 shadow-2xl"
           >
-            <h2 className="text-xl font-semibold mb-5">Change Password</h2>
+            <h2 className="mb-5 text-base font-semibold text-gray-900">
+              Change Password
+            </h2>
 
-            <input
-              id="current"
-              type="text"
-              placeholder="Current Password"
-              className="w-full border border-gray-200 px-3 py-2 rounded-lg mb-3"
-            />
-
-            <div className="relative mb-3">
-              <input
-                id="new"
-                type={showNewPassword ? "text" : "password"}
-                placeholder="New Password"
-                className="w-full border border-gray-200 px-3 py-2 rounded-lg pr-10"
+            <div className="space-y-3">
+              <Input
+                label="Current Password"
+                type="password"
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                placeholder="Enter current password"
               />
 
-              <span
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-2.5 cursor-pointer text-gray-500"
-              >
-                {showNewPassword ? (
-                  <EyeOff className="h-5 w-5" />
-                ) : (
-                  <Eye className="h-5 w-5" />
-                )}
-              </span>
+              <div className="relative">
+                <Input
+                  label="New Password"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="Enter new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="absolute right-3 top-[30px] text-gray-400 transition hover:text-gray-600"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {passwordError && (
-              <p className="text-red-500 text-sm mb-2">{passwordError}</p>
+              <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {passwordError}
+              </p>
             )}
 
             {passwordSuccess && (
-              <p className="text-green-600 text-sm mb-2">{passwordSuccess}</p>
+              <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {passwordSuccess}
+              </p>
             )}
 
-            <div className="flex gap-2">
-              <button
+            <div className="mt-5 flex gap-2">
+              <Button
+                variant="secondary"
+                className="w-1/2"
                 onClick={() => setShowPasswordModal(false)}
-                className="w-1/2 border border-gray-300 py-2 rounded-xl hover:bg-gray-100"
               >
                 Cancel
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="primary"
+                className="w-1/2"
                 onClick={async () => {
-                  const current = document.getElementById("current").value;
-                  const newPass = document.getElementById("new").value;
-
-                  if (!current || !newPass) {
+                  if (!currentPassword || !newPassword) {
                     setPasswordError("Please fill all fields");
                     return;
                   }
 
                   try {
                     await changeHrMePassword({
-                      current_password: current,
-                      new_password: newPass,
+                      current_password: currentPassword,
+                      new_password: newPassword,
                     });
 
                     setPasswordError("");
@@ -520,10 +563,9 @@ export default function TopBar({
                     setPasswordSuccess("");
                   }
                 }}
-                className="w-1/2 bg-bx-orange text-white py-2 rounded-xl hover:bg-bx-orange-hover"
               >
                 Update
-              </button>
+              </Button>
             </div>
           </div>
         </div>
