@@ -2,7 +2,7 @@
 // S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report).
 import { useEffect, useRef, useState } from "react";
 import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft, Upload, History, Award, LineChart, Flag, CheckCircle2 } from "lucide-react";
-import { Card, Button, Input, TextArea } from "../components/ui";
+import { Card, Button, Input, Select, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import {
   createEmployee,
@@ -182,20 +182,12 @@ function ConvertCandidateForm({ onConverted }) {
         <Input label="Candidate ID" value={candidateId} onChange={setCandidateId} placeholder="candidate ID" />
         <Input label="Joining date" type="date" value={joiningDate} onChange={setJoiningDate} />
         <Input label="Current title" value={title} onChange={setTitle} placeholder="Guidewire Developer" />
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Employment Type</label>
-          <select
-            value={employmentType}
-            onChange={(e) => setEmploymentType(e.target.value)}
-            className="w-full rounded-lg border bg-white px-2 py-1.5 text-sm outline-none focus:border-gray-900"
-          >
-            {EMPLOYMENT_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Employment Type"
+          value={employmentType}
+          onChange={setEmploymentType}
+          options={EMPLOYMENT_TYPES}
+        />
       </div>
       <div className="mt-3">
         <TextArea
@@ -317,17 +309,9 @@ function BenchActionCell({ employee, onChanged }) {
 
   return (
     <div className="flex items-center gap-2">
-      <select
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        className="rounded-lg border bg-white px-2 py-1.5 text-xs outline-none focus:border-gray-900"
-      >
-        {BENCH_REASONS.map((r) => (
-          <option key={r.value} value={r.value}>
-            {r.label}
-          </option>
-        ))}
-      </select>
+      <div className="w-40 shrink-0">
+        <Select value={reason} onChange={setReason} options={BENCH_REASONS} />
+      </div>
       <Button variant="secondary" disabled={busy} onClick={handleMark}>
         <LogOut className="h-4 w-4" /> Mark Bench
       </Button>
@@ -450,27 +434,23 @@ function AddMilestoneForm({ employeeId, onAdded, onCancel }) {
   return (
     <div className="mt-2 rounded-lg border bg-gray-50 p-2">
       {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
-      <div className="flex flex-wrap gap-2">
-        <select
-          value={milestoneType}
-          onChange={(e) => setMilestoneType(e.target.value)}
-          className="rounded-lg border bg-white px-2 py-1 text-xs outline-none"
-        >
-          <option value="PERSONAL">Personal</option>
-          <option value="ORG">Org</option>
-        </select>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Milestone title"
-          className="rounded-lg border px-2 py-1 text-xs outline-none"
-        />
-        <input
-          type="date"
-          value={targetDate}
-          onChange={(e) => setTargetDate(e.target.value)}
-          className="rounded-lg border px-2 py-1 text-xs outline-none"
-        />
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-28">
+          <Select
+            value={milestoneType}
+            onChange={setMilestoneType}
+            options={[
+              { value: "PERSONAL", label: "Personal" },
+              { value: "ORG", label: "Org" },
+            ]}
+          />
+        </div>
+        <div className="w-44">
+          <Input value={title} onChange={setTitle} placeholder="Milestone title" />
+        </div>
+        <div className="w-40">
+          <Input type="date" value={targetDate} onChange={setTargetDate} />
+        </div>
       </div>
       <div className="mt-2 flex gap-2">
         <Button variant="secondary" disabled={busy} onClick={handleSubmit}>
