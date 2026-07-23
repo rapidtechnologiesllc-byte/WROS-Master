@@ -19,6 +19,7 @@ from app.services.email_service import EmailService
 from app.services.interview_sequencing_service import (
     PriorRoundNotPassed,
     enforce_interview_sequencing_gate,
+    get_hm_candidate_review_list,
 )
 from app.core.scheduler import scheduler
 from app.core.logging import logger
@@ -2328,3 +2329,30 @@ def get_interviewer_workload(
         feedback_submitted=feedback_submitted,
         upcoming_interviews=upcoming_details
     )
+
+
+@router.get(
+    "/hm-review/{hiring_manager_id}", response_model=HMCandidateReviewListResponse,
+    summary="S-102/HRMS-P207 -- Hiring Manager candidate review list: profile + all interview feedback per candidate",
+)
+def get_hiring_manager_candidate_review(
+    hiring_manager_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Wires app.schemas.interview's HMCandidateReviewListResponse and its
+    nested schemas -- already fully defined, imported here, but never
+    attached to a route until now. See interview_sequencing_service.
+    get_hm_candidate_review_list()'s own docstring for what's
+    deliberately not derived here (a "Must Hire" tier with no defined
+    threshold; the "must view all feedback before approving" BR, which
+    belongs to the existing, separate PUT /status/{candidate_id}
+    approval endpoint, not this read-only list).
+    """
+    hiring_manager = db.query(Users).filter(Users.UserID == hiring_manager_id).first()
+    if hiring_manager is None:
+        raise HTTPException(status_code=404, detail=f"User {hiring_manager_id} not found.")
+
+    result = get_hm_candidate_review_list(db, hiring_manager)
+    return HMCandidateReviewListResponse(**result)
