@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Settings, Eye, EyeOff, Search } from "lucide-react";
 import { Button } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
+import { getNotifications, markNotificationRead } from "../services/api/notifications";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
+import cx from "../utils/cx";
 
 export default function TopBar({
   role,
@@ -28,6 +30,48 @@ export default function TopBar({
   const dropdownRef = useRef(null);
   const searchRef = useRef(null);
   const navigate = useNavigate();
+
+  // S-105/HRMS-P210 -- Portal Notification Center.
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationsRef = useRef(null);
+
+  const loadNotifications = async () => {
+    try {
+      const res = await getNotifications();
+      setNotifications(res?.notifications || []);
+      setUnreadCount(res?.unread_count || 0);
+    } catch {
+      // Notification bell failures shouldn't block the rest of the shell.
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!showNotifications) return;
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showNotifications]);
+
+  const handleMarkRead = async (notificationId) => {
+    try {
+      await markNotificationRead(notificationId);
+      loadNotifications();
+    } catch {
+      // Best-effort -- the bell will just show the unread badge again next poll.
+    }
+  };
 
   const toggleProfile = () => setIsOpen(!isOpen);
   useEffect(() => {
@@ -253,7 +297,56 @@ export default function TopBar({
             </div>
 
             <div className="ml-auto flex items-center gap-3">
-              <Bell className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
+              <div className="relative" ref={notificationsRef}>
+                <button
+                  onClick={() => setShowNotifications((v) => !v)}
+                  className="relative"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {showNotifications ? (
+                  <div className="absolute right-0 top-10 z-[9999] max-h-96 w-80 overflow-y-auto rounded-2xl border bg-white shadow-xl">
+                    <div className="border-b px-4 py-2 text-xs font-semibold text-gray-500">
+                      NOTIFICATIONS {unreadCount > 0 ? `(${unreadCount} unread)` : ""}
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-gray-500">No notifications.</div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={cx(
+                            "border-b px-4 py-2.5 text-sm last:border-b-0",
+                            n.read_at ? "bg-white" : "bg-blue-50",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-gray-800">{n.message}</span>
+                            {!n.read_at ? (
+                              <button
+                                onClick={() => handleMarkRead(n.id)}
+                                className="shrink-0 text-xs font-semibold text-blue-600 hover:underline"
+                              >
+                                Mark read
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-gray-400">
+                            {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
 
               <Settings className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
 
