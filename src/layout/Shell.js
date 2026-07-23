@@ -25,6 +25,7 @@ import {
   LineChart,
   Globe2,
   FolderKanban,
+  AlertOctagon,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -112,6 +113,13 @@ export default function Shell({
       label: "Projects",
       icon: FolderKanban,
     };
+    // S-359/HRMS-P511 -- same role scoping rationale as the nav items
+    // above.
+    const HTD_INTAKE_NAV_ITEM = {
+      path: ROUTES.HTD_INTAKE,
+      label: "HTD Intake",
+      icon: AlertOctagon,
+    };
     // S-254/HRMS-0510 + S-255/HRMS-0511 -- same role scoping rationale
     // as the six nav items above.
     const UTILIZATION_DASHBOARD_NAV_ITEM = {
@@ -169,6 +177,7 @@ export default function Shell({
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
         PROJECTS_NAV_ITEM,
+        HTD_INTAKE_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
@@ -213,6 +222,7 @@ export default function Shell({
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
         PROJECTS_NAV_ITEM,
+        HTD_INTAKE_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
@@ -251,6 +261,7 @@ export default function Shell({
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
         PROJECTS_NAV_ITEM,
+        HTD_INTAKE_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
