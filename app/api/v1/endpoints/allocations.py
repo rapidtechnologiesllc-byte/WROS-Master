@@ -31,6 +31,7 @@ from app.core.dependencies import get_current_hr_or_admin
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.project import Project
 from app.models.user import Users
 from app.schemas.allocation import (
     AllocationItem,
@@ -62,6 +63,8 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
         demand_id=allocation.demand_id,
         demand_job_title=demand.job_title if demand else "(unknown demand)",
         client_id=allocation.client_id,
+        project_id=allocation.project_id,
+        si_partner=allocation.si_partner,
         status=allocation.status,
         utilization_pct=float(allocation.utilization_pct) if allocation.utilization_pct is not None else None,
         start_date=allocation.start_date,
@@ -83,12 +86,17 @@ def create_allocation(
     demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
     if demand is None:
         raise HTTPException(status_code=404, detail="Demand not found.")
+    project = None
+    if body.project_id:
+        project = db.query(Project).filter(Project.id == body.project_id).first()
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found.")
 
     try:
         allocation = allocate_employee_to_project(
             db, tenant_id=current_user.tenant_id, employee=employee, demand=demand,
             start_date=body.start_date, end_date=body.end_date,
-            utilization_pct=body.utilization_pct, role=body.role,
+            utilization_pct=body.utilization_pct, role=body.role, project=project,
             allow_concurrent=body.allow_concurrent, changed_by=current_user.UserID,
         )
     except EmployeeAlreadyAllocated as exc:

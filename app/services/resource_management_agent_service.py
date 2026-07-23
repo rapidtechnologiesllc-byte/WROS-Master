@@ -26,6 +26,18 @@ CORE demands -- the real Core-Pull scenario -- using the exact same
 detect_core_pull_conflict() call, never a second copy of "Core wins".
 Bench employees still only ever get ranked, never pulled (there is
 nothing active to pull them from).
+
+DEFERRED, not silently dropped: S-358/HRMS-0519's AC-3 ("+5 continuity
+bonus when an employee's current SI partner matches the new demand's")
+is not wired into skill_match_score() or the LLM ranking pass below.
+That AC assumes a flat point-bonus scoring model; this module's actual
+scoring is a 0-1 skill-match float plus an independent LLM confidence
+score, and match_bench_resources_to_demand() only ever considers
+already-unallocated bench employees, who by definition have no
+"current SI partner" a continuity bonus could apply to -- the doc's
+scenario (someone already deployed at PwC) is really about
+find_open_demand_matches() territory instead. Flagging rather than
+forcing an ad-hoc fit onto a scoring model that wasn't built for it.
 """
 import json
 import os

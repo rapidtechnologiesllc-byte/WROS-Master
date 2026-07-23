@@ -135,6 +135,9 @@ def allocate_employee_to_project(
         client_reporting_manager_contact_id=client_reporting_manager_contact_id,
         timesheet_approver_email=timesheet_approver_email,
         billing_rate_usd_cents=billing_rate_usd_cents or demand.billing_rate_usd_cents,
+        # S-358/HRMS-0519: denormalized from the project at allocation-
+        # creation time -- "who is at PwC right now" without a join.
+        si_partner=project.si_partner if project else None,
     )
     db.add(allocation)
 

@@ -36,9 +36,23 @@ class MilestoneValidationError(Exception):
     pass
 
 
+class SiPartnerRequired(Exception):
+    """S-358/HRMS-0519 BR: SI Partner Mandatory for SPECIALITY Projects.
+    Raised by the REST layer (app.api.v1.endpoints.projects), not here --
+    create_project()/create_project_from_won_opportunity() are reused as
+    plain fixture helpers by many other stories' tests (invoices,
+    milestones, anomaly detection) that have nothing to do with SI
+    partner tagging and never supply one; forcing this BR into the
+    shared service function would break every one of those callers for
+    a rule the doc's own AC-1 phrases as an API-call behavior
+    ("API call with delivery_engine=CORE... returns HTTP 400"), not a
+    service-layer invariant every caller must satisfy."""
+
+
 def create_project_from_won_opportunity(
     db: Session, opportunity: Opportunity, *, name: str, tenant_id: Optional[int] = None,
     billing_type: str = "TIME_AND_MATERIALS", continent: Optional[str] = None,
+    delivery_engine: str = "SPECIALITY", si_partner: Optional[str] = None,
     created_by: Optional[str] = None,
 ) -> Project:
     """HRMS-0801 BR-0801-01: inherits client_id/currency directly from
@@ -50,6 +64,7 @@ def create_project_from_won_opportunity(
         tenant_id=tenant_id or opportunity.tenant_id, client_id=opportunity.client_id,
         opportunity_id=opportunity.id, name=name, status="ACTIVE",
         billing_type=billing_type, currency=opportunity.currency, continent=continent,
+        delivery_engine=delivery_engine, si_partner=si_partner,
         created_by=created_by,
     )
     db.add(project)
@@ -59,13 +74,15 @@ def create_project_from_won_opportunity(
 def create_project(
     db: Session, *, tenant_id: Optional[int], client_id: str, name: str,
     billing_type: str = "TIME_AND_MATERIALS", currency: str = "USD",
-    continent: Optional[str] = None, created_by: Optional[str] = None,
+    continent: Optional[str] = None, delivery_engine: str = "SPECIALITY",
+    si_partner: Optional[str] = None, created_by: Optional[str] = None,
 ) -> Project:
     """Manual creation path for non-opportunity-originated work (e.g. an
     existing client's direct follow-on request)."""
     project = Project(
         tenant_id=tenant_id, client_id=client_id, name=name, status="ACTIVE",
-        billing_type=billing_type, currency=currency, continent=continent, created_by=created_by,
+        billing_type=billing_type, currency=currency, continent=continent,
+        delivery_engine=delivery_engine, si_partner=si_partner, created_by=created_by,
     )
     db.add(project)
     return project
