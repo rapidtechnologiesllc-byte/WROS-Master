@@ -241,7 +241,7 @@ def _candidate_display_name(candidate: Candidate) -> str:
 def assign_ai_agent(
     candidate_id: str,
     tenant_id: str,
-    assigned_by: str,
+    assigned_by: Optional[str],
     db: Session,
 ) -> Dict[str, Any]:
     """
@@ -250,6 +250,13 @@ def assign_ai_agent(
       2. Create a new CandidateAIAssignment row.
       3. Open a new CandidateConversation.
       4. Detect missing fields → send email → log events.
+
+    assigned_by is None for system-triggered assignments (HRMS-0401's own
+    spec: assignment should happen automatically when a candidate is
+    created, not only when an HR user clicks "Assign" -- see
+    auto_assign_ai_agent_on_creation() below, called from both real
+    candidate-creation entry points). CandidateAIAssignment.assigned_by
+    is already nullable for exactly this reason.
 
     Returns a summary dict.
     """
@@ -301,7 +308,7 @@ def assign_ai_agent(
             "assigned_by": assigned_by,
             "assignment_id": assignment.id,
         },
-        triggered_by="hr_user",
+        triggered_by="hr_user" if assigned_by else "system",
     )
 
     # Detect missing fields
@@ -343,6 +350,38 @@ def assign_ai_agent(
         "email_sent": email_sent,
         "conversation_status": conversation.status,
     }
+
+
+def auto_assign_ai_agent_on_creation(
+    candidate_id: str,
+    tenant_id: Optional[str],
+    db: Session,
+) -> None:
+    """
+    HRMS-0401's own spec: the AI recruiter should assign itself and start
+    collecting missing fields the moment a candidate is created -- not
+    only when an HR user clicks "Assign AI Recruiter" (that manual path,
+    the only one built until now, is still available for reassignment).
+
+    Meant to be run as a FastAPI BackgroundTask from a real candidate-
+    creation call site (see app.api.v1.endpoints.onboarding.create_candidate
+    and app.api.v1.endpoints.create_job's public application endpoint --
+    the two R-07-sanctioned creation paths), so it never delays the
+    candidate-creation response and never fails the creation itself if
+    something goes wrong (a missing tenant_id, an unreachable mailbox,
+    etc.) -- errors are logged, not raised, matching this codebase's
+    established pattern for the ATS-scoring background task.
+    """
+    if not tenant_id:
+        logger.warning(
+            f"[AutoAssign] No tenant_id resolvable for candidate '{candidate_id}' -- "
+            f"skipping automatic AI recruiter assignment (manual assignment still available)."
+        )
+        return
+    try:
+        assign_ai_agent(candidate_id=candidate_id, tenant_id=tenant_id, assigned_by=None, db=db)
+    except Exception as exc:
+        logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
 
 
 def _send_missing_fields_email(
@@ -1194,6 +1233,62 @@ def process_candidate_reply(
         "still_missing": still_missing_fields,
         "followup_sent": pipeline_result.get("followup_sent", False),
     }
+
+
+# ===========================================================================
+# 8b. Automatic reply polling -- the real fix for a candidate's reply
+# never getting processed.
+#
+# POST /ai-agent/webhook/email-reply's own docstring already documented
+# "by a scheduler polling the Graph inbox periodically" as an intended
+# caller -- no scheduler job was ever actually registered to do that.
+# Every candidate reply has been sitting unprocessed in the mailbox
+# until someone manually hit /ai-agent/poll/{candidate_id}, which had no
+# UI either. This closes that loop for real: a scheduled job (see
+# app.core.scheduler) calls this on a fixed interval; a "Check for
+# Reply" button in the frontend Messages tab also calls the existing
+# per-candidate poll endpoint for on-demand use.
+# ===========================================================================
+
+def poll_all_awaiting_candidates(db: Session) -> Dict[str, Any]:
+    """
+    Runs process_candidate_reply() for every candidate whose conversation
+    is currently 'awaiting_candidate'. Each candidate is processed
+    independently -- one candidate's Graph/Gemini failure never blocks
+    the rest of the batch.
+    """
+    awaiting = (
+        db.query(CandidateConversation)
+        .filter(CandidateConversation.status == "awaiting_candidate")
+        .all()
+    )
+
+    processed = 0
+    updated = 0
+    errors: List[str] = []
+
+    for conversation in awaiting:
+        try:
+            result = process_candidate_reply(candidate_id=conversation.candidate_id, db=db)
+            processed += 1
+            if result.get("status") in ("completed", "partial") and result.get("updated_fields"):
+                updated += 1
+        except Exception as exc:
+            errors.append(f"{conversation.candidate_id}: {exc}")
+            logger.error(f"[AutoPoll] Failed processing candidate '{conversation.candidate_id}': {exc}")
+
+    logger.info(
+        f"[AutoPoll] Checked {len(awaiting)} awaiting conversation(s): "
+        f"{processed} polled, {updated} had field updates, {len(errors)} error(s)."
+    )
+    return {
+        "checked": len(awaiting),
+        "processed": processed,
+        "updated": updated,
+        "errors": errors,
+    }
+
+
 # ===========================================================================
 # 9. Get full conversation thread (for UI display)
 # ===========================================================================

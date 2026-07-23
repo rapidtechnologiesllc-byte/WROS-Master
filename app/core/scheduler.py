@@ -47,6 +47,37 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register BU ownership expiry scheduler: {exc}")
 
+        # ── Every 15 min: poll for candidate email replies ─────────────────
+        # HRMS-0401/0409 bug fix -- a candidate's reply to the AI recruiter's
+        # missing-fields email was never actually processed by anything;
+        # see app.services.ai_conversation_service.poll_all_awaiting_candidates()
+        # for the full explanation.
+        try:
+            from app.core.database import SessionLocal
+            from app.services.ai_conversation_service import poll_all_awaiting_candidates
+
+            async def _run_reply_poll():
+                db = SessionLocal()
+                try:
+                    result = poll_all_awaiting_candidates(db)
+                    if result["checked"]:
+                        logger.info(f"[scheduler] Candidate reply poll: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Candidate reply poll error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_reply_poll,
+                trigger="interval",
+                minutes=15,
+                id="poll_candidate_replies",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled candidate reply poll job (every 15 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register candidate reply poll scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
