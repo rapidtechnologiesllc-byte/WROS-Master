@@ -10,6 +10,8 @@ export const ROUTES = {
   UTILIZATION_DASHBOARD: "/utilization-dashboard",
   TIMESHEETS: "/timesheets",
   FORECAST: "/forecast",
+  INVOICES: "/invoices",
+  REVENUE: "/revenue",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",

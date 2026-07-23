@@ -74,6 +74,8 @@ import AllocationsScreen from "../screens/AllocationsScreen";
 import UtilizationDashboardScreen from "../screens/UtilizationDashboardScreen";
 import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
+import InvoicesScreen from "../screens/InvoicesScreen";
+import RevenueScreen from "../screens/RevenueScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -439,6 +441,8 @@ export default function AppRoutes() {
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
             <Route path="forecast" element={<ForecastScreen />} />
+            <Route path="invoices" element={<InvoicesScreen />} />
+            <Route path="revenue" element={<RevenueScreen />} />
 
             <Route
               path="candidates"
@@ -634,6 +638,8 @@ export default function AppRoutes() {
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
             <Route path="forecast" element={<ForecastScreen />} />
+            <Route path="invoices" element={<InvoicesScreen />} />
+            <Route path="revenue" element={<RevenueScreen />} />
           <Route
             path="candidates"
             element={

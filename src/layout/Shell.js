@@ -22,6 +22,7 @@ import {
   Send,
   Clock,
   TrendingUp,
+  LineChart,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -123,6 +124,21 @@ export default function Shell({
       label: "Resource Forecast",
       icon: TrendingUp,
     };
+    // HRMS-0907/S-226 -- Invoicing. Same role scoping rationale as the
+    // nav items above (no dedicated Finance role in this codebase yet).
+    const INVOICES_NAV_ITEM = {
+      path: ROUTES.INVOICES,
+      label: "Invoices",
+      icon: BadgeDollarSign,
+    };
+    // HRMS-0906/S-225 (Revenue Leakage) + HRMS-0903 (Reconciliation) +
+    // HRMS-0909/S-228 (Client Revenue Dashboard). Same role scoping
+    // rationale as the nav items above.
+    const REVENUE_NAV_ITEM = {
+      path: ROUTES.REVENUE,
+      label: "Revenue",
+      icon: LineChart,
+    };
 
     if (isSuperUser) {
       return [
@@ -138,6 +154,8 @@ export default function Shell({
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
+        INVOICES_NAV_ITEM,
+        REVENUE_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -178,6 +196,8 @@ export default function Shell({
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
+        INVOICES_NAV_ITEM,
+        REVENUE_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -212,6 +232,8 @@ export default function Shell({
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
+        INVOICES_NAV_ITEM,
+        REVENUE_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
