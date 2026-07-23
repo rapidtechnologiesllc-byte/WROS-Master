@@ -11,6 +11,7 @@ import { createAllocation, getAllocations, endAllocation } from "../services/api
 export default function AllocationsScreen() {
   const [employeeId, setEmployeeId] = useState("");
   const [demandId, setDemandId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [utilizationPct, setUtilizationPct] = useState("100");
   const [allowConcurrent, setAllowConcurrent] = useState(false);
   const [allocations, setAllocations] = useState([]);
@@ -46,11 +47,13 @@ export default function AllocationsScreen() {
       await createAllocation({
         employeeId: employeeId.trim(),
         demandId: demandId.trim(),
+        projectId: projectId.trim() || undefined,
         utilizationPct: utilizationPct ? Number(utilizationPct) : undefined,
         allowConcurrent,
       });
       setNotice("Employee allocated.");
       setDemandId("");
+      setProjectId("");
       await load();
     } catch (err) {
       setError(err.message || "Allocation blocked.");
@@ -90,9 +93,10 @@ export default function AllocationsScreen() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-4">
           <Input label="Employee ID" value={employeeId} onChange={setEmployeeId} placeholder="employee UUID" />
           <Input label="Demand ID" value={demandId} onChange={setDemandId} placeholder="demand UUID" />
+          <Input label="Project ID (optional)" value={projectId} onChange={setProjectId} placeholder="project UUID" />
           <Input label="Utilization %" value={utilizationPct} onChange={setUtilizationPct} placeholder="100" />
         </div>
         <label className="mt-3 flex items-center gap-2 text-xs text-gray-700">
@@ -134,6 +138,11 @@ export default function AllocationsScreen() {
                     <td className="px-4 py-3 text-gray-900">
                       <div className="font-semibold">{a.employee_name}</div>
                       <div className="text-xs text-gray-500">→ {a.demand_job_title}</div>
+                      {a.si_partner ? (
+                        <span className="mt-1 inline-flex w-fit items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-800">
+                          {a.si_partner}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-700">{a.status}</td>
                     <td className="px-4 py-3 text-xs text-gray-700">

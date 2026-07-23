@@ -24,6 +24,7 @@ import {
   TrendingUp,
   LineChart,
   Globe2,
+  FolderKanban,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -104,6 +105,13 @@ export default function Shell({
       label: "Allocations",
       icon: Briefcase,
     };
+    // HRMS-0801/0804/0805/0806 + S-358/HRMS-0519 -- same role scoping
+    // rationale as the nav items above.
+    const PROJECTS_NAV_ITEM = {
+      path: ROUTES.PROJECTS,
+      label: "Projects",
+      icon: FolderKanban,
+    };
     // S-254/HRMS-0510 + S-255/HRMS-0511 -- same role scoping rationale
     // as the six nav items above.
     const UTILIZATION_DASHBOARD_NAV_ITEM = {
@@ -160,6 +168,7 @@ export default function Shell({
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
+        PROJECTS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
@@ -203,6 +212,7 @@ export default function Shell({
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
+        PROJECTS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
@@ -240,6 +250,7 @@ export default function Shell({
         EMPLOYEES_NAV_ITEM,
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
+        PROJECTS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
         FORECAST_NAV_ITEM,
