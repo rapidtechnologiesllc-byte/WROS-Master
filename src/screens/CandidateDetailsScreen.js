@@ -6,6 +6,7 @@ import DocumentsTab from "./tabs/DocumentsTab";
 import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import HistoryTab from "./tabs/HistoryTab";
+import MessagesTab from "./tabs/MessagesTab";
 import CandidateEditModal from "./CandidateEditModal";
 import {
   getCandidateStatus,
@@ -33,7 +34,7 @@ import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate,
 } from "../utils/interviewEmailTemplates";
-import { Mail, MessageCircle } from "lucide-react";
+import { Mail, MessageCircle, Phone } from "lucide-react";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import StatusDropdown from "../components/ui/StatusDropdown";
 import PreonboardingModal from "./PreonboardingModal";
@@ -1201,6 +1202,18 @@ ${formattedJD}
                   >
                     <Mail className="w-5 h-5 text-gray-600" />
                   </button>
+                  <a
+                    href={candidate?.phone ? `tel:${candidate.phone}` : undefined}
+                    className={`p-2 rounded-xl border border-gray-200 transition ${
+                      candidate?.phone
+                        ? "hover:bg-gray-100"
+                        : "opacity-50 pointer-events-none"
+                    }`}
+                    title={`Call ${candidate?.name || "candidate"}`}
+                    aria-disabled={!candidate?.phone}
+                  >
+                    <Phone className="w-5 h-5 text-gray-600" />
+                  </a>
                   <button
                     type="button"
                     className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1299,7 +1312,7 @@ ${formattedJD}
               <TasksTab candidateId={candidate?.id} />
             )}
             {activeTab === "messages" && !limitedMode && (
-              <div className="text-gray-500">Messages Coming Soon</div>
+              <MessagesTab candidateId={candidate?.id} />
             )}
             {activeTab === "interview" && !limitedMode && (
               <ActivityTab candidateId={candidate?.id} />
