@@ -55,6 +55,7 @@ from app.schemas.employee import (
     EmployeeItem,
     EmployeeListResponse,
     MarkBenchRequest,
+    RecordUtilizationRequest,
     StaffingEligibilityResponse,
     UtilizationHistoryItem,
     UtilizationHistoryResponse,
@@ -77,6 +78,7 @@ from app.services.resource_management_service import (
     get_utilization_history,
     is_staffing_eligible,
     mark_employee_on_bench,
+    record_weekly_utilization_metric,
     remove_employee_from_bench,
 )
 
@@ -460,6 +462,26 @@ def staffing_eligibility(
     eligible, reason = is_staffing_eligible(employee, delivery_engine)
     return StaffingEligibilityResponse(
         employee_id=employee_id, delivery_engine=delivery_engine, eligible=eligible, reason=reason,
+    )
+
+
+@router.post(
+    "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
+    summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
+)
+def record_utilization(
+    employee_id: str,
+    body: RecordUtilizationRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    employee = _get_employee_or_404(db, employee_id)
+    metric = record_weekly_utilization_metric(db, employee, body.week_starting_date)
+    db.commit()
+    db.refresh(metric)
+    return UtilizationHistoryItem(
+        period_start=metric.period_start, utilization_pct=float(metric.utilization_pct),
+        billable_hours=float(metric.billable_hours), bench_hours=float(metric.bench_hours),
     )
 
 
