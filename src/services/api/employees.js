@@ -52,6 +52,14 @@ export const getEmployeeBenchHistory = async (employeeId) => {
   return data;
 };
 
+// S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail.
+export const getEngineHistory = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/engine-history`, {
+    method: "GET",
+  });
+  return data;
+};
+
 // HRMS-0708 minimal slice -- the MVP bridge from candidate to employee.
 export const convertCandidateToEmployee = async (candidateId, payload) => {
   const { data } = await apiRequest(`/employees/convert-candidate/${candidateId}`, {
