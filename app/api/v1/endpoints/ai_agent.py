@@ -43,6 +43,9 @@ Routes:
 
   DELETE /ai-agent/assign/{candidate_id}
       Deactivate the AI agent assignment for a candidate.
+
+  GET    /ai-agent/candidates/{candidate_id}/audit-log
+      Compliance-grade audit trail of conversation actions (S-076).
 """
 
 from typing import List, Optional
@@ -59,11 +62,14 @@ from app.models.candidate_ai import (
     CandidateConversation,
     ConversationEvent,
 )
+from app.models.conversation_audit_log import ConversationAuditLog
 from app.models.user import Users
 from app.schemas.ai_agent import (
     AIAgentAssignRequest,
     AIAgentAssignResponse,
     AIAssignmentOut,
+    AuditLogEntryOut,
+    AuditLogResponse,
     ConversationOwnershipResponse,
     ConversationThreadResponse,
     ConversationThreadItem,
@@ -86,6 +92,7 @@ from app.services.ai_conversation_service import (
     read_inbox_by_email,
     SERVICE_MAILBOX,
 )
+from app.services.audit_log_service import log_audit_event
 from app.services.whatsapp_routing_service import (
     hand_back_conversation,
     NoWhatsAppNumberAvailable,
@@ -403,6 +410,18 @@ def send_manual_message(
     except NoWhatsAppNumberAvailable as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+    log_audit_event(
+        db,
+        tenant_id=conversation.tenant_id,
+        candidate_id=conversation.candidate_id,
+        conversation_id=conversation.id,
+        audit_event_type="MANUAL_MESSAGE_SENT",
+        description=f"HR user {current_user.UserID} manually sent a message on conversation {conversation.id}.",
+        actor_type="HR",
+        actor_id=current_user.UserID,
+        after_state={"channel": "whatsapp", "body": body.message},
+    )
+
     db.commit()
     db.refresh(event)
     db.refresh(conversation)
@@ -437,6 +456,7 @@ def take_over(
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
+    before_state = {"owner_type": conversation.owner_type, "owner_id": conversation.owner_id}
     take_over_conversation(db, conversation, current_user.UserID)
     db.add(
         ConversationEvent(
@@ -445,6 +465,18 @@ def take_over(
             event_data={"new_owner_type": "hr_user", "new_owner_id": current_user.UserID},
             triggered_by="hr_user",
         )
+    )
+    log_audit_event(
+        db,
+        tenant_id=conversation.tenant_id,
+        candidate_id=conversation.candidate_id,
+        conversation_id=conversation.id,
+        audit_event_type="OWNERSHIP_CHANGED",
+        description=f"HR user {current_user.UserID} took over conversation {conversation.id}.",
+        actor_type="HR",
+        actor_id=current_user.UserID,
+        before_state=before_state,
+        after_state={"owner_type": "hr_user", "owner_id": current_user.UserID},
     )
     db.commit()
     db.refresh(conversation)
@@ -472,6 +504,7 @@ def hand_back(
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
+    before_state = {"owner_type": conversation.owner_type, "owner_id": conversation.owner_id}
     hand_back_conversation(db, conversation)
     db.add(
         ConversationEvent(
@@ -480,6 +513,18 @@ def hand_back(
             event_data={"new_owner_type": "ai_agent", "new_owner_id": conversation.owner_id},
             triggered_by="hr_user",
         )
+    )
+    log_audit_event(
+        db,
+        tenant_id=conversation.tenant_id,
+        candidate_id=conversation.candidate_id,
+        conversation_id=conversation.id,
+        audit_event_type="OWNERSHIP_CHANGED",
+        description=f"HR user {current_user.UserID} handed conversation {conversation.id} back to the AI agent.",
+        actor_type="HR",
+        actor_id=current_user.UserID,
+        before_state=before_state,
+        after_state={"owner_type": conversation.owner_type, "owner_id": conversation.owner_id},
     )
     db.commit()
     db.refresh(conversation)
@@ -646,4 +691,54 @@ def list_inbox_by_email(
         mailbox=SERVICE_MAILBOX,
         total_returned=len(messages),
         messages=[InboxMessageItem(**m) for m in messages],
+    )
+
+
+# ===========================================================================
+# GET /ai-agent/candidates/{candidate_id}/audit-log
+# ===========================================================================
+
+@router.get(
+    "/candidates/{candidate_id}/audit-log",
+    response_model=AuditLogResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Compliance-grade audit trail for a candidate's conversation actions (S-076)",
+    description=(
+        "Returns every ConversationAuditLog entry for this candidate, ordered "
+        "chronologically. Insert-only at the application level — no endpoint "
+        "in this API ever updates or deletes an audit record.\n\n"
+        "NOTE: strict Recruiter-excluded (HR/Admin only) enforcement is not "
+        "wired here — this codebase's RBAC permissions aren't seeded at that "
+        "granularity yet. Gated on `candidate.view` like the rest of this "
+        "router, same as `/missing-fields`."
+    ),
+)
+def get_audit_log(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    _get_candidate_or_404(candidate_id, db)
+    entries = (
+        db.query(ConversationAuditLog)
+        .filter(ConversationAuditLog.candidate_id == candidate_id)
+        .order_by(ConversationAuditLog.created_at.asc())
+        .all()
+    )
+    return AuditLogResponse(
+        candidate_id=candidate_id,
+        total_count=len(entries),
+        audit_entries=[
+            AuditLogEntryOut(
+                id=e.id,
+                audit_event_type=e.audit_event_type,
+                audit_event_description=e.audit_event_description,
+                actor_type=e.actor_type,
+                actor_id=e.actor_id,
+                before_state=e.before_state,
+                after_state=e.after_state,
+                created_at=e.created_at.isoformat() if e.created_at else None,
+            )
+            for e in entries
+        ],
     )

@@ -128,6 +128,30 @@ class ConversationOwnershipResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Audit log (S-076)
+# ---------------------------------------------------------------------------
+
+class AuditLogEntryOut(BaseModel):
+    id: int
+    audit_event_type: str
+    audit_event_description: str
+    actor_type: str
+    actor_id: str
+    before_state: Optional[Dict[str, Any]]
+    after_state: Optional[Dict[str, Any]]
+    created_at: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class AuditLogResponse(BaseModel):
+    candidate_id: str
+    total_count: int
+    audit_entries: List[AuditLogEntryOut]
+
+
+# ---------------------------------------------------------------------------
 # AI Assignment list
 # ---------------------------------------------------------------------------
 
