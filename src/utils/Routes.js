@@ -8,6 +8,7 @@ export const ROUTES = {
   SUBMISSIONS: "/submissions",
   ALLOCATIONS: "/allocations",
   UTILIZATION_DASHBOARD: "/utilization-dashboard",
+  TIMESHEETS: "/timesheets",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",

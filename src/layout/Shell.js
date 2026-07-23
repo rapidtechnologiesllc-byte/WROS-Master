@@ -20,6 +20,7 @@ import {
   CalendarCheck2,
   UserPlus,
   Send,
+  Clock,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -107,6 +108,13 @@ export default function Shell({
       label: "Utilization & Bench Cost",
       icon: BarChart3,
     };
+    // S-220/HRMS-0901 + S-222/HRMS-0902 -- "time tracking" in Avinash's
+    // MVP chain. Same role scoping rationale as the seven nav items above.
+    const TIMESHEETS_NAV_ITEM = {
+      path: ROUTES.TIMESHEETS,
+      label: "Timesheets",
+      icon: Clock,
+    };
 
     if (isSuperUser) {
       return [
@@ -120,6 +128,7 @@ export default function Shell({
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
+        TIMESHEETS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -158,6 +167,7 @@ export default function Shell({
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
+        TIMESHEETS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -190,6 +200,7 @@ export default function Shell({
         SUBMISSIONS_NAV_ITEM,
         ALLOCATIONS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
+        TIMESHEETS_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
