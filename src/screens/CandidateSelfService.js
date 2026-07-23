@@ -17,6 +17,9 @@ import {
   Select,
   StatusBadge,
   TextArea,
+  LocationCascadeSelect,
+  formatLocation,
+  parseLocation,
 } from "../components/ui";
 import {
   addCandidateEducation,
@@ -469,6 +472,11 @@ export default function CandidateSelfService({ onLogout }) {
     permanent_address: "",
     submitted_at: today(),
   });
+  const [permanentLocationValue, setPermanentLocationValue] = useState({
+    countryCode: "",
+    stateCode: "",
+    city: "",
+  });
 
   const [education, setEducation] = useState([
     {
@@ -569,6 +577,9 @@ export default function CandidateSelfService({ onLogout }) {
             dob: myInfoResult.value.dob || prev.dob,
             submitted_at: today(),
           }));
+          setPermanentLocationValue(
+            parseLocation(personalInfo.permanent_address || ""),
+          );
         }
         if (
           educationResult.status === "fulfilled" &&
@@ -1010,14 +1021,25 @@ export default function CandidateSelfService({ onLogout }) {
                     }
                     rows={3}
                   />
-                  <TextArea
-                    label="Permanent Address"
-                    value={personal.permanent_address}
-                    onChange={(v) =>
-                      setPersonal((p) => ({ ...p, permanent_address: v }))
-                    }
-                    rows={3}
-                  />
+                  <div className="md:col-span-2">
+                    <div className="mb-1 text-xs font-semibold text-gray-700">
+                      Permanent Address
+                    </div>
+                    <LocationCascadeSelect
+                      value={permanentLocationValue}
+                      onChange={(next) => {
+                        setPermanentLocationValue(next);
+                        setPersonal((p) => ({
+                          ...p,
+                          permanent_address: formatLocation(next),
+                        }));
+                      }}
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      Full street address is collected separately during
+                      onboarding.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex justify-end">

@@ -29,6 +29,18 @@ const BENCH_REASONS = [
   { value: "OTHER", label: "Other" },
 ];
 
+// Moved here from candidate intake, 2026-07-23 -- Employment Type is a
+// decision made at conversion time (when someone is actually hired),
+// not something to ask a candidate before that. Maps to
+// app.models.employee.EMPLOYMENT_TYPES; FIXED_TERM exists in that enum
+// for other flows but isn't offered here since it's not one of the
+// three options Avinash asked for.
+const EMPLOYMENT_TYPES = [
+  { value: "INTERN", label: "Intern" },
+  { value: "PERMANENT", label: "Full Time" },
+  { value: "CONTRACT", label: "Contract" },
+];
+
 function CreateEmployeeForm({ onCreated }) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -113,6 +125,12 @@ function ConvertCandidateForm({ onConverted }) {
   const [candidateId, setCandidateId] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
   const [title, setTitle] = useState("");
+  const [employmentType, setEmploymentType] = useState("PERMANENT");
+  // Added 2026-07-23: full street-level address is collected here, at
+  // conversion time -- not during candidate intake, which only ever
+  // captures city/state/country (see LocationCascadeSelect usage in
+  // CandidateCreate.js / CandidateSelfService.js).
+  const [fullAddress, setFullAddress] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -127,10 +145,15 @@ function ConvertCandidateForm({ onConverted }) {
       await convertCandidateToEmployee(candidateId.trim(), {
         joining_date: joiningDate,
         current_title: title.trim() || undefined,
+        employment_type: employmentType,
+        current_address: fullAddress.trim() || undefined,
+        permanent_address: fullAddress.trim() || undefined,
       });
       setCandidateId("");
       setJoiningDate("");
       setTitle("");
+      setEmploymentType("PERMANENT");
+      setFullAddress("");
       setOpen(false);
       onConverted();
     } catch (err) {
@@ -155,10 +178,33 @@ function ConvertCandidateForm({ onConverted }) {
           {error}
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <Input label="Candidate ID" value={candidateId} onChange={setCandidateId} placeholder="candidate ID" />
         <Input label="Joining date" type="date" value={joiningDate} onChange={setJoiningDate} />
         <Input label="Current title" value={title} onChange={setTitle} placeholder="Guidewire Developer" />
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Employment Type</label>
+          <select
+            value={employmentType}
+            onChange={(e) => setEmploymentType(e.target.value)}
+            className="w-full rounded-lg border bg-white px-2 py-1.5 text-sm outline-none focus:border-gray-900"
+          >
+            {EMPLOYMENT_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="mt-3">
+        <TextArea
+          label="Full Address"
+          value={fullAddress}
+          onChange={setFullAddress}
+          rows={2}
+          placeholder="Full street address, apartment/unit, postal code..."
+        />
       </div>
       <div className="mt-3 flex gap-2">
         <Button variant="primary" disabled={saving} onClick={handleSubmit}>

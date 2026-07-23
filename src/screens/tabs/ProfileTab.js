@@ -233,7 +233,10 @@ export default function ProfileTab({
 
           <Info
             label="Experience"
-            value={profile?.experience?.[0]?.year_of_experience || "-"}
+            value={
+              profile?.candidate_experience ||
+              profile?.experience?.[0]?.year_of_experience
+            }
           />
           <Info
             label="Location"
@@ -323,8 +326,16 @@ export default function ProfileTab({
             value={profile?.candidate_mobile || profile?.phone}
           />
           <Info
+            label="Job Title"
+            value={profile?.candidate_job_title}
+          />
+          <Info
+            label="Employee Type"
+            value={profile?.candidate_employee_type}
+          />
+          <Info
             label="Role"
-            value={profile?.candidate_role || profile?.jobTitle}
+            value={profile?.candidate_role}
           />
           <Info
             label="Verified"
@@ -337,9 +348,16 @@ export default function ProfileTab({
         <SectionTitle title="Personal Information" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Info label="DOB" value={profile?.personal_info?.dob} />
-          <Info label="Gender" value={profile?.personal_info?.gender} />
+          <Info
+            label="DOB"
+            value={profile?.candidate_date_of_birth || profile?.personal_info?.dob}
+          />
+          <Info label="Gender" value={profile?.candidate_gender || profile?.personal_info?.gender} />
           <Info label="Department" value={profile?.personal_info?.department} />
+          <Info
+            label="Marital Status"
+            value={profile?.personal_info?.marital_status}
+          />
           <Info
             label="Nationality"
             value={profile?.personal_info?.nationality}
