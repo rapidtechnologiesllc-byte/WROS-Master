@@ -50,3 +50,38 @@ export const getTimesheets = async (filters = {}) => {
   const { data } = await apiRequest(`/timesheets${qs ? `?${qs}` : ""}`, { method: "GET" });
   return data;
 };
+
+// S-229/HRMS-0910 -- AI Time Entry Anomaly Detection. Advisory only, never
+// blocks submit/approve.
+export const scanTimesheetAnomalies = async (timesheetId) => {
+  const { data } = await apiRequest(`/timesheets/${timesheetId}/scan-anomalies`, { method: "POST" });
+  return data;
+};
+
+export const getTimesheetAnomalies = async (timesheetId) => {
+  const { data } = await apiRequest(`/timesheets/${timesheetId}/anomalies`, { method: "GET" });
+  return data;
+};
+
+// Timesheet Dispute Resolution -- only APPROVED timesheets can be disputed;
+// resolving never mutates the original timesheet/entries.
+export const raiseTimesheetDispute = async (timesheetId, body) => {
+  const { data } = await apiRequest(`/timesheets/${timesheetId}/disputes`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data;
+};
+
+export const getTimesheetDisputes = async (timesheetId) => {
+  const { data } = await apiRequest(`/timesheets/${timesheetId}/disputes`, { method: "GET" });
+  return data;
+};
+
+export const resolveTimesheetDispute = async (disputeId, body) => {
+  const { data } = await apiRequest(`/timesheets/disputes/${disputeId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data;
+};
