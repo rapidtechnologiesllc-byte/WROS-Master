@@ -356,6 +356,48 @@ def test_employee_item_exposes_engine_and_certification_fields(client):
     assert employee["engine_entry_date"]
 
 
+def test_employee_performance_returns_events_and_score_averages(client):
+    """S-354/HRMS-0515: proves the read side reads from the SAME
+    employee_performance_events store buddy_program_service.py and
+    htd_phase_gate_service.py already write real events into -- events
+    with a numeric "score" key in their JSON blob (BUDDY_KPI-shaped)
+    average correctly; events without one (CERTIFICATION_GATE-shaped)
+    are excluded, not zero-filled."""
+    employee = _create_employee(client)
+
+    from app.services.performance_store_service import write_performance_event
+
+    engine = create_engine(client.db_url)
+    session = sessionmaker(bind=engine)()
+    write_performance_event(
+        session, employee_id=employee["id"], event_type="BUDDY_KPI",
+        event_data={"kpi_name": "Requirements Gathering", "score": 80},
+    )
+    write_performance_event(
+        session, employee_id=employee["id"], event_type="BUDDY_KPI",
+        event_data={"kpi_name": "Communication", "score": 90},
+    )
+    write_performance_event(
+        session, employee_id=employee["id"], event_type="CERTIFICATION_GATE",
+        event_data={"phase": "INDUCTION", "decision": "PASS"},
+    )
+    session.commit()
+    session.close()
+    engine.dispose()
+
+    resp = client.get(f"/employees/{employee['id']}/performance", headers=_auth())
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["events"]) == 3
+    assert body["score_averages_by_event_type"]["BUDDY_KPI"] == 85.0
+    assert "CERTIFICATION_GATE" not in body["score_averages_by_event_type"]
+
+
+def test_employee_performance_404_for_unknown_employee(client):
+    resp = client.get("/employees/does-not-exist/performance", headers=_auth())
+    assert resp.status_code == 404
+
+
 def test_utilization_summary_flags_low_utilization(client):
     employee = _create_employee(client)
 
