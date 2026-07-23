@@ -25,6 +25,7 @@ from app.models.base import Base
 from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
+from app.models.project import Project
 from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
@@ -105,9 +106,16 @@ def client(throwaway_jwt_keys):
     db.add(employee)
     db.commit()
 
+    project = Project(
+        tenant_id=tenant.id, client_id=acme.id, name="PolicyCenter Rollout",
+        delivery_engine="SPECIALITY", si_partner="PWC",
+    )
+    db.add(project)
+    db.commit()
+
     ids = {
         "tenant_id": tenant.id, "employee_id": employee.id,
-        "demand_a_id": demand_a.id, "demand_b_id": demand_b.id,
+        "demand_a_id": demand_a.id, "demand_b_id": demand_b.id, "project_id": project.id,
     }
     db.close()
 
@@ -208,3 +216,39 @@ def test_allocate_nonexistent_employee_is_404(client):
         "/allocations", json={"employee_id": "does-not-exist", "demand_id": ids["demand_a_id"]}, headers=_auth(),
     )
     assert resp.status_code == 404
+
+
+def test_allocate_with_project_denormalizes_si_partner(client):
+    """S-358/HRMS-0519: si_partner is copied from the project onto the
+    allocation at creation time -- 'who is at PwC right now' without a
+    join back to projects."""
+    ids = client.wros_ids
+    resp = client.post(
+        "/allocations",
+        json={"employee_id": ids["employee_id"], "demand_id": ids["demand_a_id"], "project_id": ids["project_id"]},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["project_id"] == ids["project_id"]
+    assert body["si_partner"] == "PWC"
+
+
+def test_allocate_with_unknown_project_is_404(client):
+    ids = client.wros_ids
+    resp = client.post(
+        "/allocations",
+        json={"employee_id": ids["employee_id"], "demand_id": ids["demand_a_id"], "project_id": "does-not-exist"},
+        headers=_auth(),
+    )
+    assert resp.status_code == 404
+
+
+def test_allocate_without_project_leaves_si_partner_null(client):
+    ids = client.wros_ids
+    resp = client.post(
+        "/allocations", json={"employee_id": ids["employee_id"], "demand_id": ids["demand_a_id"]}, headers=_auth(),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["project_id"] is None
+    assert resp.json()["si_partner"] is None

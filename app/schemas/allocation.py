@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field
 class CreateAllocationRequest(BaseModel):
     employee_id: str
     demand_id: str
+    # HRMS-0803 -- no REST caller ever passed this through before S-358's
+    # Project API existed; nullable, since not every allocation traces
+    # to a tracked project.
+    project_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     utilization_pct: Optional[float] = None
@@ -26,6 +30,8 @@ class AllocationItem(BaseModel):
     demand_id: str
     demand_job_title: str
     client_id: str
+    project_id: Optional[str] = None
+    si_partner: Optional[str] = None
     status: str
     utilization_pct: Optional[float] = None
     start_date: date

@@ -33,6 +33,7 @@ from sqlalchemy import (
 )
 
 from app.models.base import Base
+from app.models.project import SI_PARTNERS
 
 
 def _new_uuid() -> str:
@@ -72,6 +73,15 @@ class EmployeeAllocation(Base):
     # HRMS-0902 -- the RM/Admin who approves this allocation's timesheets.
     timesheet_approver_email = Column(String(300), nullable=True)
     billing_rate_usd_cents = Column(Integer, nullable=True)
+    # S-358/HRMS-0519 -- denormalized copy of Project.si_partner at
+    # allocation-creation time (per the doc's own "enables fast 'who is
+    # at PwC right now' queries without project table joins" rationale).
+    # Nullable: allocations with no project, or a CORE-engine project
+    # with no si_partner, legitimately have none.
+    si_partner = Column(
+        Enum(*SI_PARTNERS, name="employee_allocation_si_partner", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

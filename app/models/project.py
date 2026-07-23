@@ -25,6 +25,7 @@ from sqlalchemy import (
 
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
+from app.models.employee import DELIVERY_ENGINES
 
 
 def _new_uuid() -> str:
@@ -33,6 +34,15 @@ def _new_uuid() -> str:
 
 PROJECT_STATUSES = ("PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CLOSED")
 BILLING_TYPES = ("TIME_AND_MATERIALS", "FIXED_BID")
+# S-358/HRMS-0519: Speciality Engine work is executed through these SI
+# partners. delivery_engine reuses Employee.DELIVERY_ENGINES (same "one
+# enum" discipline app.models.demand already follows) rather than a
+# third copy -- the source doc's own validation rule ("if delivery_
+# engine=SPECIALITY AND si_partner IS NULL") assumes Project carries
+# this field directly, and nothing in this codebase derives it any
+# other way (Project has no Demand link of its own; Demand points to
+# Project, not the reverse).
+SI_PARTNERS = ("PWC", "EY", "CASTLEBAY", "ZENSAR", "LTI_MINDTREE", "OTHER")
 
 
 class Project(Base):
@@ -64,6 +74,20 @@ class Project(Base):
     # HRMS-0910 BR-0910-02: weekend timesheet entries are only flagged as
     # an anomaly when the project does NOT opt in to weekend billing.
     allow_weekend_billing = Column(Boolean, nullable=False, default=False)
+
+    # S-358/HRMS-0519 -- delivery_engine defaults SPECIALITY (same
+    # discipline as Employee: no exceptions without explicit action).
+    # si_partner is DB-nullable (CORE-engine projects legitimately have
+    # none) but service-layer-required whenever delivery_engine=
+    # SPECIALITY, per BR "SI Partner Mandatory for SPECIALITY Projects".
+    delivery_engine = Column(
+        Enum(*DELIVERY_ENGINES, name="project_delivery_engine", native_enum=False, create_constraint=True),
+        nullable=False, default="SPECIALITY", server_default="SPECIALITY",
+    )
+    si_partner = Column(
+        Enum(*SI_PARTNERS, name="project_si_partner", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
 
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
