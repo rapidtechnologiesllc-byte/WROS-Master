@@ -37,6 +37,7 @@ from app.api.v1.endpoints.tenants import router as tenants_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.employee_milestones import router as employee_milestones_router
 from app.api.v1.endpoints.htd_intake_pause import router as htd_intake_pause_router
+from app.api.v1.endpoints.notifications import router as notifications_router
 
 router = fastapi.APIRouter()
 
@@ -76,4 +77,5 @@ router.include_router(router=revenue_router)
 router.include_router(router=tenants_router)
 router.include_router(router=projects_router)
 router.include_router(router=employee_milestones_router)
-router.include_router(router=htd_intake_pause_router)
+router.include_router(router=htd_intake_pause_router)
+router.include_router(router=notifications_router)

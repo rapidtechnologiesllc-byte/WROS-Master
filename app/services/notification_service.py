@@ -7,7 +7,7 @@ app.models.notification's docstring for what's genuinely out of scope
 built for real here (the full dispatch/fallback/gating state machine).
 """
 import datetime as dt
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -231,6 +231,28 @@ def mark_as_read(db: Session, notification: Notification) -> Notification:
     notification.read_at = dt.datetime.utcnow()
     db.add(notification)
     return notification
+
+
+def get_notifications_for_user(
+    db: Session, recipient_id: str, *, tenant_id: Optional[int] = None, limit: int = 50,
+) -> List[Notification]:
+    """S-105/HRMS-P210 Portal Notification Center: the in-app bell/feed
+    HRMS-0113's own docstring said would be a future UI's job -- this is
+    that future UI's read backend. IN_APP channel only (EMAIL/WHATSAPP/
+    SMS rows are outbound dispatch records, not feed items), most recent
+    first."""
+    return (
+        db.query(Notification)
+        .filter(
+            Notification.recipient_id == recipient_id,
+            Notification.tenant_id == tenant_id,
+            Notification.channel == "IN_APP",
+            Notification.delivery_status.in_(("SENT", "FALLBACK_SENT")),
+        )
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
 
 def get_unread_count(db: Session, recipient_id: str, tenant_id: Optional[int] = None) -> int:
