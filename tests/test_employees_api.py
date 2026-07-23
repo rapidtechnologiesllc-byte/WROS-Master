@@ -10,10 +10,12 @@ end-to-end on real routes.
 Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
+import io
 import os
 import tempfile
 from datetime import date, timedelta
 
+import openpyxl
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
@@ -352,6 +354,68 @@ def test_convert_unknown_candidate_is_404(client):
         json={"joining_date": "2026-08-01"}, headers=_auth(),
     )
     assert resp.status_code == 404
+
+
+def _make_xlsx(rows):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def test_bulk_import_creates_all_valid_rows(client):
+    xlsx = _make_xlsx([
+        ["first_name", "last_name", "email", "joining_date", "current_title", "current_skills"],
+        ["Amy", "Chen", "amy@blitzenx.com", "2026-01-05", "Guidewire Dev", "Guidewire, Java"],
+        ["Ravi", "Kumar", "ravi@blitzenx.com", "2026-01-06", "PolicyCenter Dev", "PolicyCenter"],
+    ])
+    resp = client.post(
+        "/employees/bulk-import",
+        files={"file": ("employees.xlsx", xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["created"] == 2
+    assert body["skipped"] == 0
+    assert body["errors"] == []
+
+    list_resp = client.get("/employees", headers=_auth())
+    assert len(list_resp.json()["employees"]) == 2
+
+
+def test_bulk_import_skips_duplicate_email_and_reports_it(client):
+    _create_employee(client, email="dup@blitzenx.com")
+    xlsx = _make_xlsx([
+        ["first_name", "last_name", "email", "joining_date"],
+        ["Someone", "Else", "dup@blitzenx.com", "2026-01-05"],
+        ["Fresh", "Hire", "fresh@blitzenx.com", "2026-01-06"],
+    ])
+    resp = client.post(
+        "/employees/bulk-import",
+        files={"file": ("employees.xlsx", xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=_auth(),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created"] == 1
+    assert body["skipped"] == 1
+    assert len(body["errors"]) == 1
+    assert body["errors"][0]["email"] == "dup@blitzenx.com"
+
+
+def test_bulk_import_rejects_missing_required_columns(client):
+    xlsx = _make_xlsx([["first_name", "last_name"], ["No", "Email"]])
+    resp = client.post(
+        "/employees/bulk-import",
+        files={"file": ("employees.xlsx", xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=_auth(),
+    )
+    assert resp.status_code == 422
 
 
 def test_staffing_eligibility_true_for_speciality_by_default(client):

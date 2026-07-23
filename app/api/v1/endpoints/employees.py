@@ -27,9 +27,12 @@ so "bench-pool"/"bench-aging-alerts" never get swallowed as an id):
   POST   /employees/{employee_id}/remove-from-bench
   GET    /employees/{employee_id}/bench-history
 """
+import io
 import json
+from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -45,6 +48,8 @@ from app.schemas.employee import (
     BenchCostSummaryResponse,
     BenchPeriodHistoryResponse,
     BenchPeriodItem,
+    BulkImportResponse,
+    BulkImportRowError,
     ConvertCandidateRequest,
     EmployeeCreateRequest,
     EmployeeItem,
@@ -193,6 +198,128 @@ def convert_candidate(
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)
+
+
+_BULK_IMPORT_COLUMNS = (
+    "first_name", "last_name", "email", "joining_date", "current_title",
+    "current_skills", "employment_type", "work_location",
+    "base_salary_usd_cents", "billing_rate_usd_cents", "nationality",
+)
+
+
+def _parse_bulk_import_date(raw) -> date:
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+    return datetime.strptime(str(raw).strip(), "%Y-%m-%d").date()
+
+
+@router.post(
+    "/bulk-import", response_model=BulkImportResponse,
+    summary="One-time bulk employee load from an .xlsx file",
+    description=(
+        "Header row (first row, any casing) must include first_name, last_name, "
+        "email, joining_date (YYYY-MM-DD) -- required -- plus optional current_title, "
+        "current_skills (comma-separated), employment_type, work_location, "
+        "base_salary_usd_cents, billing_rate_usd_cents, nationality. Each row is "
+        "created independently -- one bad row (duplicate email, missing required "
+        "field) is reported and skipped, it does not abort the rest of the file."
+    ),
+)
+async def bulk_import_employees(
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    raw = await file.read()
+    try:
+        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Could not read the uploaded file as .xlsx: {exc}")
+    ws = wb.active
+
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        raise HTTPException(status_code=422, detail="The uploaded file has no rows.")
+
+    header = [str(c).strip().lower() if c is not None else "" for c in rows[0]]
+    col_index = {name: header.index(name) for name in _BULK_IMPORT_COLUMNS if name in header}
+    missing_required = [c for c in ("first_name", "last_name", "email", "joining_date") if c not in col_index]
+    if missing_required:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Header row is missing required column(s): {', '.join(missing_required)}.",
+        )
+
+    def _cell(row, name):
+        idx = col_index.get(name)
+        if idx is None or idx >= len(row):
+            return None
+        value = row[idx]
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    for row_num, row in enumerate(rows[1:], start=2):
+        if row is None or all(v is None for v in row):
+            continue
+
+        email = _cell(row, "email")
+        try:
+            first_name = _cell(row, "first_name")
+            last_name = _cell(row, "last_name")
+            joining_date_raw = _cell(row, "joining_date")
+            if not first_name or not last_name or not email or not joining_date_raw:
+                raise ValueError("first_name, last_name, email, and joining_date are all required.")
+
+            fields = {}
+            current_title = _cell(row, "current_title")
+            if current_title:
+                fields["current_title"] = str(current_title).strip()
+            current_skills = _cell(row, "current_skills")
+            if current_skills:
+                fields["current_skills"] = json.dumps(
+                    [s.strip() for s in str(current_skills).split(",") if s.strip()]
+                )
+            employment_type = _cell(row, "employment_type")
+            if employment_type:
+                fields["employment_type"] = str(employment_type).strip().upper()
+            work_location = _cell(row, "work_location")
+            if work_location:
+                fields["work_location"] = str(work_location).strip().upper()
+            base_salary = _cell(row, "base_salary_usd_cents")
+            if base_salary is not None:
+                fields["base_salary_usd_cents"] = int(base_salary)
+            billing_rate = _cell(row, "billing_rate_usd_cents")
+            if billing_rate is not None:
+                fields["billing_rate_usd_cents"] = int(billing_rate)
+            nationality = _cell(row, "nationality")
+            if nationality:
+                fields["nationality"] = str(nationality).strip()
+
+            create_employee_profile(
+                db, tenant_id=current_user.tenant_id,
+                first_name=str(first_name).strip(), last_name=str(last_name).strip(),
+                email=str(email).strip(), joining_date=_parse_bulk_import_date(joining_date_raw),
+                changed_by=current_user.UserID, **fields,
+            )
+            db.commit()
+            created += 1
+        except DuplicateEmployeeEmail as exc:
+            db.rollback()
+            skipped += 1
+            errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))
+        except Exception as exc:
+            db.rollback()
+            skipped += 1
+            errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))
+
+    return BulkImportResponse(created=created, skipped=skipped, errors=errors)
 
 
 @router.get("", response_model=EmployeeListResponse, summary="List employees")

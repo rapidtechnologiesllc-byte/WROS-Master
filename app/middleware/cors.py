@@ -20,8 +20,16 @@ def setup_cors(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance
     """
-    # Get allowed origins from settings
-    allowed_origins = ["*"]#settings.CORS_ORIGINS
+    # Get allowed origins from settings. NOTE: this was hardcoded to ["*"]
+    # (wildcard) with allow_credentials=True below -- in combination,
+    # starlette's CORSMiddleware echoes back whatever Origin header the
+    # request sent whenever allow_origins is "*", so this let ANY website
+    # make authenticated (cookie/Authorization-header) requests to this
+    # API. Restored to the real, already-configured allowlist (includes
+    # the production server's own origins) -- found and fixed as part of
+    # pre-launch security hardening, not something that was ever supposed
+    # to ship this way.
+    allowed_origins = list(settings.CORS_ORIGINS)
     
     # Add additional origins from environment if specified
     import os
