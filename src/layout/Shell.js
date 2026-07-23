@@ -21,6 +21,7 @@ import {
   UserPlus,
   Send,
   Clock,
+  TrendingUp,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -115,6 +116,13 @@ export default function Shell({
       label: "Timesheets",
       icon: Clock,
     };
+    // S-256/HRMS-0506 -- same role scoping rationale as the eight nav
+    // items above.
+    const FORECAST_NAV_ITEM = {
+      path: ROUTES.FORECAST,
+      label: "Resource Forecast",
+      icon: TrendingUp,
+    };
 
     if (isSuperUser) {
       return [
@@ -129,6 +137,7 @@ export default function Shell({
         ALLOCATIONS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
+        FORECAST_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -168,6 +177,7 @@ export default function Shell({
         ALLOCATIONS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
+        FORECAST_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,
@@ -201,6 +211,7 @@ export default function Shell({
         ALLOCATIONS_NAV_ITEM,
         UTILIZATION_DASHBOARD_NAV_ITEM,
         TIMESHEETS_NAV_ITEM,
+        FORECAST_NAV_ITEM,
         RESOURCE_MANAGEMENT_NAV_ITEM,
         CORE_PULL_NAV_ITEM,
         DEMAND_CONFIRMATION_NAV_ITEM,

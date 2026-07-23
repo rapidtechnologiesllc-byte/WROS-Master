@@ -73,6 +73,7 @@ import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
 import UtilizationDashboardScreen from "../screens/UtilizationDashboardScreen";
 import TimesheetsScreen from "../screens/TimesheetsScreen";
+import ForecastScreen from "../screens/ForecastScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -437,6 +438,7 @@ export default function AppRoutes() {
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
+            <Route path="forecast" element={<ForecastScreen />} />
 
             <Route
               path="candidates"
@@ -631,6 +633,7 @@ export default function AppRoutes() {
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
+            <Route path="forecast" element={<ForecastScreen />} />
           <Route
             path="candidates"
             element={
