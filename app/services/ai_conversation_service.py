@@ -54,14 +54,26 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
     ("candidateFirstName",       "First Name"),
     ("candidateLastName",        "Last Name"),
-    ("candidateMobile",          "Mobile Number"),
+    # Label explicit about the country code since 2026-07-23: real bug
+    # found where WhatsApp sends silently failed because candidateMobile
+    # had no country code and app.services.whatsapp_routing_service uses
+    # it as-is for the "to" number -- asking explicitly here is the AI-
+    # collection-side fix, paired with the Add Candidate form fix
+    # (a Country Code selector, previously the mobile input actively
+    # stripped any code the user typed).
+    ("candidateMobile",          "Mobile Number (with country code, e.g. +91 98765 43210)"),
     ("candidateGender",          "Gender"),
     ("candidateDateOfBirth",     "Date of Birth (YYYY-MM-DD)"),
     ("candidateCurrentLocation", "Current Location"),
     ("candidateJoiningDate",     "Expected Joining Date (YYYY-MM-DD)"),
     ("candidateExperience",      "Years of Experience"),
     ("candidateJobTitle",        "Job Title / Role Applied For"),
-    ("candidateEmployeeType",    "Employment Type (Intern / Full Time / Contract)"),
+    # candidateEmployeeType REMOVED 2026-07-23, direct instruction from
+    # Avinash: Employment Type (Intern/Full Time/Contract) is a decision
+    # made at employee-conversion time, not something Thunder should ask
+    # a candidate about during intake. See app.models.employee.
+    # EMPLOYMENT_TYPES / the "Convert Candidate to Employee" form
+    # (EmployeeDirectoryScreen.js) for where it's now collected.
 ]
 
 # Fields from the CandidateInfoForm (personal details form)
@@ -914,6 +926,19 @@ def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session
             try:
                 if field in ("candidateDateOfBirth", "candidateJoiningDate"):
                     value = _date.fromisoformat(str(raw_value))
+                elif field == "candidateMobile":
+                    value = str(raw_value).strip()
+                    # Real bug, fixed 2026-07-23: a mobile number with no
+                    # country code is unreachable over WhatsApp (see
+                    # whatsapp_routing_service, which sends to this value
+                    # as-is). Don't fabricate a country code by guessing
+                    # one -- treat a code-less number as still incomplete
+                    # so it stays in still_missing and Thunder asks again
+                    # using the now-explicit "with country code" label,
+                    # rather than silently accepting an unreachable number.
+                    if not value.startswith("+"):
+                        skipped.append(field)
+                        continue
                 else:
                     value = str(raw_value).strip()
                 setattr(candidate, field, value)

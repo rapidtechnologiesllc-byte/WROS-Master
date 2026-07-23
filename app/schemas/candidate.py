@@ -42,13 +42,6 @@ class CandidateCreateRequest(BaseModel):
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
 
-    # R-01 (HRMS-P601): only used when candidate_experience is below the
-    # 5-year floor. bu_head_override_user_id is verified server-side
-    # against the Users table (UserRole == "BU Head") -- never trusted
-    # as a claim from the request alone.
-    bu_head_override_user_id: Optional[str] = None
-    override_reason: Optional[str] = None
-
     # Optional pre-filled education and experience details
     education_records: Optional[List["EducationRecord"]] = None
     experience_records: Optional[List["ExperienceRecord"]] = None

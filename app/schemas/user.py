@@ -344,6 +344,11 @@ class LinkedInPostRequest(BaseModel):
 class LinkedInPostResponse(BaseModel):
     status: str
     message: str
+    # No real LinkedIn API integration exists yet -- always True today.
+    # Added so any API consumer (not just this one screen's toast) can
+    # tell honestly that nothing actually went live on LinkedIn, rather
+    # than relying on parsing "(Mock)" out of the human-readable message.
+    is_simulated: bool = True
     linkedin_post_id: str
     posted_at: datetime
     job_details: JobResponse

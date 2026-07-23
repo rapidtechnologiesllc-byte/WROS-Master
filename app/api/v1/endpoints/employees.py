@@ -201,6 +201,10 @@ def convert_candidate(
         fields["billing_rate_usd_cents"] = body.billing_rate_usd_cents
     if body.nationality is not None:
         fields["nationality"] = body.nationality
+    if body.current_address is not None:
+        fields["current_address"] = body.current_address
+    if body.permanent_address is not None:
+        fields["permanent_address"] = body.permanent_address
 
     employee = convert_candidate_to_employee(
         db, candidate, joining_date=body.joining_date, tenant_id=current_user.tenant_id,

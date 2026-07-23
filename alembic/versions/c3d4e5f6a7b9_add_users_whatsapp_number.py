@@ -20,6 +20,18 @@ outside of Alembic's batch/copy-recreate mode). The real production
 target, SQL Server, supports ALTER TABLE ADD CONSTRAINT natively. Run
 this on a staging/dev SQL Server copy first, not production directly,
 same as every migration in this package.
+
+FIXED 2026-07-23 (first real run against SQL Server, never actually
+possible before this environment's ODBC driver got installed): a plain
+UNIQUE CONSTRAINT on SQL Server rejects more than one NULL -- unlike
+SQLite/Postgres, which treat NULL as distinct from itself for uniqueness.
+Every existing user has whatsapp_number = NULL today, so the constraint
+failed immediately on real data. Replaced with a filtered unique index
+(unique among non-NULL values only), the standard SQL Server idiom for
+"optional but unique when present." mssql_where is a dialect-specific
+kwarg other dialects silently ignore, and SQLite already tolerates
+multiple NULLs in a plain unique index on its own, so this stays a no-op
+change for the SQLite test path.
 """
 from typing import Sequence, Union
 
@@ -37,10 +49,14 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.add_column('users', sa.Column('whatsapp_number', sa.String(length=20), nullable=True))
-    op.create_unique_constraint('uq_users_whatsapp_number', 'users', ['whatsapp_number'])
+    op.create_index(
+        'uq_users_whatsapp_number', 'users', ['whatsapp_number'],
+        unique=True,
+        mssql_where=sa.text('whatsapp_number IS NOT NULL'),
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_constraint('uq_users_whatsapp_number', 'users', type_='unique')
+    op.drop_index('uq_users_whatsapp_number', 'users')
     op.drop_column('users', 'whatsapp_number')

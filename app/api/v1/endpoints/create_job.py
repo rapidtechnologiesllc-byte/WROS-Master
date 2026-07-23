@@ -704,19 +704,19 @@ def post_job_on_linkedin(
     user = Depends(get_current_hr_or_admin)
 ):
     """
-    Post a created job to LinkedIn (Pseudo API - Mock Implementation).
-    
-    This is a pseudo/mock implementation since LinkedIn API access is not available yet.
-    It simulates posting a job to LinkedIn and returns a mock response.
-    
+    SIMULATES posting a job to LinkedIn -- no real LinkedIn API integration
+    exists yet. Returns is_simulated=True and a message that leads with the
+    caveat rather than burying it, so nothing here can be read as a real
+    success by a hiring manager or by any other API consumer.
+
     Args:
         request: LinkedInPostRequest containing job_id
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         LinkedInPostResponse with status, message, mock LinkedIn post ID, and job details
-        
+
     Raises:
         HTTPException: If job not found
     """
@@ -758,10 +758,16 @@ def post_job_on_linkedin(
         salary_range=job.salaryRange
     )
     
-    # Return mock LinkedIn posting response
+    # Return simulated LinkedIn posting response -- status is deliberately
+    # NOT "Success" (would read as a real posting succeeded); is_simulated
+    # and the message both lead with the caveat.
     return LinkedInPostResponse(
-        status="Success",
-        message=f"Job '{job.jobTitle}' successfully posted to LinkedIn (Mock)",
+        status="Simulated",
+        message=(
+            f"Simulated only -- no LinkedIn integration is connected yet, so "
+            f"'{job.jobTitle}' was NOT actually posted to LinkedIn."
+        ),
+        is_simulated=True,
         linkedin_post_id=linkedin_post_id,
         posted_at=posted_at,
         job_details=job_details

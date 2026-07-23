@@ -48,7 +48,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
-from app.models.user import Users
+from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA
 from app.services.whatsapp_routing_service import send_whatsapp_message  # noqa: F401 -- re-exported gate
 
@@ -166,6 +166,43 @@ def send_thunder_message(
     )
 
 
+# Real-world bug, reported directly by Avinash: a candidate asked "what
+# roles do you have" for a Lead Guidewire Business Analyst-shaped
+# background, and Thunder deflected to "I'll loop in our HR team"
+# instead of actually looking at current openings -- because nothing
+# fed it any job data at all, so the LLM had nothing to match against
+# and correctly followed its own "say so plainly" fallback instruction.
+# This is the fix: real open jobs, capped and ordered by newest first so
+# the prompt stays a bounded size regardless of how many jobs exist.
+MAX_OPEN_JOBS_IN_CONTEXT = 40
+
+
+def _get_open_jobs_summary(db: Session) -> List[Dict]:
+    """Real currently-open jobs (jobStatus != Closed), for Thunder to
+    actually match a candidate against instead of deflecting to HR.
+    "Lean" is treated as open (reduced but still active staffing), only
+    "Closed" is excluded."""
+    jobs: List[Jobs] = (
+        db.query(Jobs)
+        .filter(Jobs.jobStatus != "Closed")
+        .order_by(Jobs.jobCreatedAt.desc())
+        .limit(MAX_OPEN_JOBS_IN_CONTEXT)
+        .all()
+    )
+    return [
+        {
+            "job_id": job.jobID,
+            "title": job.jobTitle,
+            "skills": job.jobSkills,
+            "experience_required": job.jobExperience,
+            "location": job.jobLocation,
+            "positions_open": job.noOfPositions,
+            "status": job.jobStatus,
+        }
+        for job in jobs
+    ]
+
+
 def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
     """
     A1's buildCandidateContext() -- must be called before any future
@@ -176,6 +213,12 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
     already log into the same conversation_events table keyed by
     conversation_id, but nothing previously read them back as one
     ordered timeline.
+
+    Also includes the candidate's own profile (title/skills/experience)
+    and real currently-open jobs (see _get_open_jobs_summary) -- without
+    both of these, Thunder has nothing concrete to match a candidate
+    against when asked about openings, and correctly (per its own
+    instructions) falls back to "I'll loop in HR" instead of answering.
     """
     conversations: List[CandidateConversation] = (
         db.query(CandidateConversation)
@@ -226,6 +269,14 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
         "active_conversation_id": active_conversation.id if active_conversation else None,
         "current_owner_type": active_conversation.owner_type if active_conversation else None,
         "current_owner_id": active_conversation.owner_id if active_conversation else None,
+        "candidate_profile": {
+            "job_title": candidate.candidateJobTitle,
+            "skills": candidate.candidateSkills,
+            "experience_text": candidate.candidateExperience,
+            "total_experience_months": candidate.total_experience_months,
+            "current_location": candidate.candidateCurrentLocation,
+        },
+        "open_jobs": _get_open_jobs_summary(db),
     }
 
 
@@ -284,6 +335,27 @@ def generate_thunder_reply(db: Session, candidate: Candidate, inbound_message: s
         f"- {note['content']}" for note in context["internal_notes"]
     ) or "(none)"
 
+    profile = context["candidate_profile"]
+    profile_lines = (
+        f"Current/last job title: {profile['job_title'] or 'not on file'}\n"
+        f"Skills: {profile['skills'] or 'not on file'}\n"
+        f"Experience: {profile['experience_text'] or 'not on file'}"
+        + (
+            f" ({profile['total_experience_months']} months verified)"
+            if profile["total_experience_months"] is not None
+            else ""
+        )
+        + f"\nLocation: {profile['current_location'] or 'not on file'}"
+    )
+
+    open_jobs = context["open_jobs"]
+    open_jobs_lines = "\n".join(
+        f"- [{job['job_id']}] {job['title']} | required skills: {job['skills']} | "
+        f"required experience: {job['experience_required']} | location: {job['location']} | "
+        f"positions open: {job['positions_open']}"
+        for job in open_jobs
+    ) or "(no roles currently open)"
+
     suspicious = flag_suspicious_patterns(inbound_message)
     if suspicious:
         logger.warning(f"[Thunder] Inbound message contains injection-shaped phrasing: {suspicious}")
@@ -297,12 +369,19 @@ Conversation history so far (oldest to newest):
 Internal HR notes (context only -- never repeat these verbatim to the candidate):
 {notes_lines}
 
+This candidate's own profile on file:
+{profile_lines}
+
+Currently open roles at BlitzenX (the ONLY roles you may reference -- never mention a role not in this list):
+{open_jobs_lines}
+
 Rules:
 - Reply directly to the candidate's newest message, given below as data.
 - Keep it to 2-4 short sentences, WhatsApp-appropriate (no email-style formatting, no subject line).
 - Never invent facts about job offers, salary, or start dates that aren't already in the history or notes above.
 - Do not re-ask for information the candidate already provided earlier in the history.
-- If you don't have enough information to answer, say so plainly and offer to loop in an HR team member.
+- When the candidate asks about open roles, or whether they're a fit for something, compare their profile above against the open-roles list above and answer directly and specifically -- name the matching role(s) by title if there's a real match on skills/experience/title, or say plainly that nothing currently open matches if there isn't. Do NOT deflect to "I'll loop in our HR team" for this kind of question when the open-roles list above already answers it -- only offer to loop in HR for things that list genuinely can't answer (e.g. compensation negotiation, an interview reschedule).
+- If you don't have enough information to answer something outside of role-matching, say so plainly and offer to loop in an HR team member.
 
 Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation."""
 

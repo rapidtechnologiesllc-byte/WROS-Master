@@ -41,8 +41,13 @@ class ConversationAuditLog(Base):
     candidate_id = Column(
         String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
     )
+    # NO ACTION, not SET NULL -- SQL Server rejects SET NULL here because
+    # candidates->candidate_conversations->conversation_id and
+    # candidates->candidate_id (CASCADE, direct) are two cascade paths
+    # reaching this table from the same root, which it refuses to order
+    # deterministically ("may cause cycles or multiple cascade paths").
     conversation_id = Column(
-        Integer, ForeignKey("candidate_conversations.id", ondelete="SET NULL"), nullable=True, index=True,
+        Integer, ForeignKey("candidate_conversations.id", ondelete="NO ACTION"), nullable=True, index=True,
     )
 
     audit_event_type = Column(String(100), nullable=False)

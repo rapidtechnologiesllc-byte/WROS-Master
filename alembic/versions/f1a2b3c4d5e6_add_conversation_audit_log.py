@@ -10,6 +10,13 @@ exists for this table anywhere in this codebase.
 
 VERIFICATION NOTE: single op.create_table() plus indexes, verified
 end-to-end against a throwaway SQLite database.
+
+FIXED 2026-07-23 (never successfully applied to any real target before this
+fix -- caught the first time this environment could actually reach SQL
+Server): conversation_id's ondelete was SET NULL, which SQL Server rejects
+as a multiple-cascade-path conflict against the direct CASCADE path from
+candidate_id -- SQLite's FK enforcement doesn't catch this, so the original
+SQLite verification never surfaced it. Changed to NO ACTION.
 """
 from typing import Sequence, Union
 
@@ -40,7 +47,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['tenant_id'], ['users.UserID'], ondelete='NO ACTION'),
         sa.ForeignKeyConstraint(['candidate_id'], ['candidates.candidateID'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['conversation_id'], ['candidate_conversations.id'], ondelete='SET NULL'),
+        sa.ForeignKeyConstraint(['conversation_id'], ['candidate_conversations.id'], ondelete='NO ACTION'),
     )
     op.create_index(op.f('ix_conversation_audit_log_tenant_id'), 'conversation_audit_log', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_conversation_audit_log_candidate_id'), 'conversation_audit_log', ['candidate_id'], unique=False)
