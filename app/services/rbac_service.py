@@ -146,6 +146,7 @@ PERMISSIONS_SEED = [
     {"name":"newsletter.view",       "description":"View newsletters"},
     {"name": "thunder.test",         "description": "Access the internal Test Thunder QA chat harness"},
     {"name": "tenant.ai_config",     "description": "View and update Thunder's per-tenant name and persona (S-011/HRMS-0411)"},
+    {"name": "template.manage",      "description": "Activate a message template version (S-014/HRMS-0414)"},
 ]
 
 # role_name → list of permission names it should have
