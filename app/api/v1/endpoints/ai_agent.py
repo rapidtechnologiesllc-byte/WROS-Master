@@ -693,6 +693,16 @@ def hand_back(
             triggered_by="hr_user",
         )
     )
+    # S-035/HRMS-0435 Step 4 (de-escalation): hand-back from an escalated
+    # conversation must also clear escalation_state, or it stays stuck at
+    # "escalated" forever -- a real gap this endpoint had before this
+    # story (hand_back_conversation() only ever touched ownership).
+    if conversation.escalation_state == "escalated":
+        from app.services.conversation_state_service import resolve_escalation
+        resolve_escalation(
+            db, conversation, reason=f"HR user {current_user.UserID} handed conversation back to the AI agent.",
+            triggered_by="hr_user",
+        )
     log_audit_event(
         db,
         tenant_id=conversation.tenant_id,

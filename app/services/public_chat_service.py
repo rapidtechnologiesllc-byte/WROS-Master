@@ -30,6 +30,7 @@ from app.models.consent import ConsentRecord
 from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import assign_ai_agent
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
+from app.services.escalation_detection_service import ESCALATION_EXIT_MESSAGE, check_escalation, execute_escalation
 from app.services.thunder_service import (
     WEB_CHAT_CONSENT_TYPE,
     generate_thunder_reply_with_fallback,
@@ -232,6 +233,13 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str) ->
     )
     db.add(inbound_event)
     db.flush()
+
+    # S-035/HRMS-0435 Step 1-3: checked before Thunder generates any
+    # reply, on every inbound message, per that story's own step order.
+    escalation = check_escalation(db, conversation.tenant_id, candidate_id, message)
+    if escalation["needs_escalation"]:
+        execute_escalation(db, conversation, candidate, reason=escalation["reason"], trigger_type=escalation["trigger_type"])
+        return {"reply": ESCALATION_EXIT_MESSAGE, "created_at": datetime.utcnow(), "escalated": True}
 
     reply_text, _used_fallback = generate_thunder_reply_with_fallback(
         db, candidate, message, channel="web_chat", conversation=conversation,

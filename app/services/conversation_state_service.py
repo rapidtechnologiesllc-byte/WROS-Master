@@ -177,6 +177,26 @@ def pause_for_recruiter(db: Session, conversation: CandidateConversation, *, rec
     return conversation
 
 
+def pause_for_recruiter_queue(db: Session, conversation: CandidateConversation, *, reason: str) -> CandidateConversation:
+    """S-035/HRMS-0435 escalation hand-off: unlike pause_for_recruiter()
+    (a specific HR user explicitly taking over), this clears AI
+    ownership to an UNASSIGNED recruiter -- "any recruiter can pick up"
+    is explicitly in scope per that story's own "what not to build"
+    list (no specific-recruiter routing). owner_id=None until someone
+    calls take_over_conversation()."""
+    conversation.owner_type = "hr_user"
+    conversation.owner_id = None
+    conversation.updated_at = datetime.utcnow()
+    db.add(conversation)
+    db.add(ConversationEvent(
+        conversation_id=conversation.id, event_type="ownership_changed",
+        event_data={"new_owner_type": "hr_user", "new_owner_id": None, "reason": reason},
+        triggered_by="ai_agent",
+    ))
+    db.flush()
+    return conversation
+
+
 def resume_to_thunder(db: Session, conversation: CandidateConversation, *, ai_agent_name: str, reason: str) -> CandidateConversation:
     conversation.owner_type = "ai_agent"
     conversation.owner_id = ai_agent_name
