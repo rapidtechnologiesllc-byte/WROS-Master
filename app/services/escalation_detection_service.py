@@ -23,12 +23,17 @@ Real architecture adaptations:
   decisions must see the message that was just logged this turn, not a
   snapshot from up to 30 seconds ago that might predate it.
 - Rule #3 (NEGATIVE sentiment for 3+ consecutive messages, "from
-  HRMS-0436") is a forward dependency on S-036/Sentiment Analysis,
-  which does not exist in this codebase yet -- deliberately NOT
-  implemented. check_escalation() only evaluates rules #1/#2/#4 (human-
-  request keywords, repeated question, legal/compliance keywords);
-  flagged here and in the canonical backlog as deferred pending S-036,
-  not silently faked with an invented heuristic.
+  HRMS-0436") reads sentiment_analysis_service.has_negative_sentiment_trend()
+  (S-036, built after this file -- a plain query against the real
+  candidate_sentiment_log table, not a fabricated
+  candidate.negative_sentiment_trend event/listener pair, since no
+  event bus exists anywhere in this codebase). Sentiment analysis
+  itself runs asynchronously (BackgroundTasks) relative to the message
+  that triggered it, so this rule honestly can't fire on the very
+  message that made the trend go negative -- it fires on the next
+  inbound message once that background analysis has landed. Same class
+  of honest lag sla_monitoring_service already accepts elsewhere in
+  this codebase, not a defect.
 - Rule #2 ("same question asked 3+ times") has no existing fuzzy-
   match/embeddings infrastructure in this codebase -- implemented as a
   cheap normalized-text near-duplicate check over the candidate's last
@@ -139,9 +144,13 @@ def check_escalation(
     if _is_repeated_question(context["recent_messages"], latest_message_body):
         return {"needs_escalation": True, "reason": "Candidate asked the same question 3+ times without resolution", "trigger_type": "RULE"}
 
-    # Rule #3 (NEGATIVE sentiment 3+ consecutive, "from HRMS-0436") is a
-    # forward dependency on S-036/Sentiment Analysis -- not built in this
-    # codebase yet. Deliberately skipped, not faked. See module docstring.
+    # Rule #3 (NEGATIVE sentiment 3+ consecutive, "from HRMS-0436"). A
+    # plain DB read against candidate_sentiment_log -- see
+    # sentiment_analysis_service.has_negative_sentiment_trend()'s own
+    # docstring for why this isn't a fabricated event/listener pair.
+    from app.services.sentiment_analysis_service import has_negative_sentiment_trend
+    if has_negative_sentiment_trend(db, candidate_id):
+        return {"needs_escalation": True, "reason": "Candidate sentiment has been negative for 3+ consecutive messages", "trigger_type": "RULE"}
 
     try:
         prompt = prompt_framework_service.build_prompt("ESCALATION_CHECK", {

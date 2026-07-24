@@ -26,7 +26,7 @@ Routes:
       This session's transcript so far.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -93,11 +93,11 @@ def start_chat(body: PublicChatStartRequest, db: Session = Depends(get_db)):
     response_model=PublicChatMessageResponse,
     summary="Send a message to Thunder in an existing public chat session — no auth required",
 )
-def send_message(body: PublicChatMessageRequest, db: Session = Depends(get_db)):
+def send_message(body: PublicChatMessageRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Same posture as /start above -- generic messages to the caller,
     # real detail logged server-side only.
     try:
-        result = send_public_chat_message(db, candidate_id=body.candidate_id, message=body.message)
+        result = send_public_chat_message(db, candidate_id=body.candidate_id, message=body.message, background_tasks=background_tasks)
     except PublicChatSessionNotFound:
         raise HTTPException(status_code=404, detail="We couldn't find that chat session. Please start a new chat.")
     except ConversationOwnedByHuman as exc:

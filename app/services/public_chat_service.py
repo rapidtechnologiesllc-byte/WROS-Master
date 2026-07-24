@@ -21,6 +21,7 @@ from it.
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
@@ -31,6 +32,7 @@ from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import assign_ai_agent
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
 from app.services.escalation_detection_service import ESCALATION_EXIT_MESSAGE, check_escalation, execute_escalation
+from app.services.sentiment_analysis_service import analyze_sentiment
 from app.services.thunder_service import (
     WEB_CHAT_CONSENT_TYPE,
     generate_thunder_reply_with_fallback,
@@ -208,7 +210,7 @@ def start_public_chat(
     }
 
 
-def send_public_chat_message(db: Session, *, candidate_id: str, message: str) -> Dict:
+def send_public_chat_message(db: Session, *, candidate_id: str, message: str, background_tasks: Optional[BackgroundTasks] = None) -> Dict:
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise PublicChatSessionNotFound(f"No chat session found for candidate_id={candidate_id!r}.")
@@ -233,6 +235,21 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str) ->
     )
     db.add(inbound_event)
     db.flush()
+
+    # S-036/HRMS-0436 BR-01: genuinely asynchronous -- scheduled via
+    # FastAPI BackgroundTasks (same real mechanism whatsapp_webhook.py/
+    # create_job.py/onboarding.py already use), so it runs after this
+    # response is sent and never delays Thunder's reply. Deliberately
+    # NOT run synchronously when background_tasks isn't supplied (e.g. a
+    # caller invoking this function directly, outside a request) --
+    # running it inline would violate BR-01's own "never blocks
+    # Thunder's response" requirement, so skipping is more correct here
+    # than a same-behavior-different-timing fallback would be.
+    if background_tasks is not None:
+        background_tasks.add_task(
+            analyze_sentiment, db, conversation.tenant_id, candidate_id, message,
+            conversation_id=conversation.id, message_event_id=inbound_event.id,
+        )
 
     # S-035/HRMS-0435 Step 1-3: checked before Thunder generates any
     # reply, on every inbound message, per that story's own step order.

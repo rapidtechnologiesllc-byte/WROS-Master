@@ -25,6 +25,7 @@ from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
 from app.models.candidate_field_skip import CandidateFieldSkip
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
+from app.models.candidate_sentiment_log import CandidateSentimentLog
 from app.models.consent import ConsentRecord
 from app.models.notification import Notification
 from app.models.prompt_execution_log import PromptExecutionLog
@@ -44,7 +45,7 @@ def db_session():
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
         CandidateMemory.__table__, CandidateMemoryFact.__table__, CandidateSLABreach.__table__,
         CandidateAIAssignment.__table__, Notification.__table__, PromptExecutionLog.__table__,
-        ConsentRecord.__table__,
+        ConsentRecord.__table__, CandidateSentimentLog.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -147,6 +148,33 @@ def test_different_questions_do_not_trigger_repeated_rule(db_session, seeded):
     db_session.commit()
 
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "When does it start?", llm_call=_llm_returning({"needs_escalation": False}))
+    assert result["needs_escalation"] is False
+
+
+# ── Rule #3 (S-036 wiring): negative sentiment trend ───────────────────
+
+def test_negative_sentiment_trend_escalates_via_rule(db_session, seeded):
+    candidate, conv = seeded
+    for _ in range(3):
+        db_session.add(CandidateSentimentLog(tenant_id="U-ORG", candidate_id="C-1", sentiment="NEGATIVE", confidence=0.8))
+    db_session.commit()
+
+    calls = []
+    llm = lambda sp, up, mt, t: calls.append(1) or json.dumps({"needs_escalation": False})
+    result = svc.check_escalation(db_session, "U-ORG", "C-1", "Fine I guess.", llm_call=llm)
+    assert result["needs_escalation"] is True
+    assert result["trigger_type"] == "RULE"
+    assert "sentiment" in result["reason"]
+    assert calls == []  # rule fired before any LLM call
+
+
+def test_two_negative_sentiments_do_not_trigger_rule3(db_session, seeded):
+    candidate, conv = seeded
+    for _ in range(2):
+        db_session.add(CandidateSentimentLog(tenant_id="U-ORG", candidate_id="C-1", sentiment="NEGATIVE", confidence=0.8))
+    db_session.commit()
+
+    result = svc.check_escalation(db_session, "U-ORG", "C-1", "Ok.", llm_call=_llm_returning({"needs_escalation": False}))
     assert result["needs_escalation"] is False
 
 
