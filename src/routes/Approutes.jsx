@@ -83,6 +83,7 @@ import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
+import SLABreachBanner from "../components/SLABreachBanner";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -479,6 +480,7 @@ export default function AppRoutes() {
               path="candidates"
               element={
                 <>
+                  <SLABreachBanner />
                   <ConversationSearchBar />
                   <CandidateSearch
                     candidates={candidates}
@@ -683,6 +685,7 @@ export default function AppRoutes() {
             path="candidates"
             element={
               <>
+                <SLABreachBanner />
                 <ConversationSearchBar />
                 <CandidateSearch
                   candidates={candidates}

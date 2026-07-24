@@ -296,6 +296,11 @@ function ConversationCard({ conversation, onChanged }) {
           Thunder's summary: {conversation.summary}
         </p>
       )}
+      {conversation.no_contact_breach_hours != null && (
+        <p className="mt-2 text-sm font-medium text-amber-600">
+          ⚠ No contact in {Math.round(conversation.no_contact_breach_hours)} hours
+        </p>
+      )}
       {conversation.next_action && (
         <p className="mt-1 text-xs font-medium text-indigo-600">
           Next: {conversation.next_action}
