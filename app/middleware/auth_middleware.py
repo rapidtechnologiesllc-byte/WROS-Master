@@ -39,6 +39,12 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # app-level session exists. Structurally cannot require a bearer
         # token; its security is the OAuth state parameter, not this list.
         "/msgraph/auth/callback",
+        # Public candidate-facing Thunder chat widget (careers page / job
+        # listing) -- a real intake channel, no auth possible since the
+        # visitor has no account yet. See app.services.public_chat_service.
+        "/public/thunder-chat/start",
+        "/public/thunder-chat/message",
+        "/public/thunder-chat/history",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for

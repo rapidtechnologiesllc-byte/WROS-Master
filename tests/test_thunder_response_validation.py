@@ -56,7 +56,7 @@ def test_validate_accepts_reply_at_min_length_boundary():
 def test_first_attempt_valid_returns_immediately(monkeypatch):
     monkeypatch.setattr(
         thunder_service, "generate_thunder_reply",
-        lambda db, candidate, msg: "This is a perfectly valid Thunder reply.",
+        lambda db, candidate, msg, **kwargs: "This is a perfectly valid Thunder reply.",
     )
     text, used_fallback = generate_thunder_reply_with_fallback(None, None, "hi")
     assert text == "This is a perfectly valid Thunder reply."
@@ -70,7 +70,7 @@ def test_invalid_first_attempt_regenerates_once(monkeypatch):
     ])
     monkeypatch.setattr(
         thunder_service, "generate_thunder_reply",
-        lambda db, candidate, msg: next(calls),
+        lambda db, candidate, msg, **kwargs: next(calls),
     )
     text, used_fallback = generate_thunder_reply_with_fallback(None, None, "hi")
     assert text == "This second attempt is a valid, properly formed reply."
@@ -78,7 +78,7 @@ def test_invalid_first_attempt_regenerates_once(monkeypatch):
 
 
 def test_both_attempts_fail_returns_safe_fallback(monkeypatch):
-    def _raise(db, candidate, msg):
+    def _raise(db, candidate, msg, **kwargs):
         raise ThunderReplyGenerationFailed("Gemini down")
 
     monkeypatch.setattr(thunder_service, "generate_thunder_reply", _raise)
@@ -90,7 +90,7 @@ def test_both_attempts_fail_returns_safe_fallback(monkeypatch):
 def test_both_attempts_invalid_returns_safe_fallback(monkeypatch):
     monkeypatch.setattr(
         thunder_service, "generate_thunder_reply",
-        lambda db, candidate, msg: "short",  # always invalid (< 10 chars)
+        lambda db, candidate, msg, **kwargs: "short",  # always invalid (< 10 chars)
     )
     text, used_fallback = generate_thunder_reply_with_fallback(None, None, "hi")
     assert text == SAFE_FALLBACK_MESSAGE

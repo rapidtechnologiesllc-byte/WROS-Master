@@ -29,19 +29,30 @@ from app.utils.uniq_id_generator import candidate_id_generator, generate_passwor
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# 2026-07-23 -- this endpoint is public (see auth_middleware.PUBLIC_ROUTES)
+# and previously trusted request.user_role verbatim, so any anonymous
+# caller could POST {"user_role": "Super User"} and get a fully
+# privileged account with zero approval. Every self-signup now gets
+# the lowest-privilege real role regardless of what the caller asked
+# for; a Super User/Admin promotes them afterward via the RBAC screen,
+# same as any other privilege grant in this system. The request schema
+# still accepts user_role for backward compatibility with existing
+# callers, it's just never trusted.
+SELF_SIGNUP_DEFAULT_ROLE = "Employee"
+
 
 @router.post("/v1/signup", response_model=SignupResponse)
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """
     Create a new user account
-    
+
     Args:
         request: SignupRequest containing user details
         db: Database session
-        
+
     Returns:
         SignupResponse with success message
-        
+
     Raises:
         HTTPException: If user with email already exists
     """
@@ -49,27 +60,29 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     existing = check_user(db, request.user_email)
     if existing:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Account already exists with email {request.user_email}"
         )
-    
+
     # Generate unique ID and hash password
     user_id = user_id_generator()
     hashed_password = get_password_hash(request.user_password)
-    
-    # Create new user with correct field names matching Users model
+
+    # Create new user with correct field names matching Users model.
+    # UserRole is deliberately NOT request.user_role -- see
+    # SELF_SIGNUP_DEFAULT_ROLE above.
     user = Users(
         UserID=user_id,
         UserName=request.user_name,
         UserEmail=request.user_email,
         UserPassword=hashed_password,
-        UserRole=request.user_role
+        UserRole=SELF_SIGNUP_DEFAULT_ROLE,
     )
-    
+
     db.add(user)
     db.commit()
     db.refresh(user)
-    
+
     return SignupResponse(response="User created successfully")
     
 

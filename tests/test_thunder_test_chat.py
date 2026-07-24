@@ -131,6 +131,33 @@ def test_generate_thunder_reply_raises_on_empty_llm_output(db_session, tester):
             svc.generate_thunder_reply(db_session, candidate, "Hello")
 
 
+def test_generate_thunder_reply_never_sends_internal_notes_to_the_llm(db_session, tester):
+    """Avinash's explicit instruction, 2026-07-23: external candidates
+    must never get internal information. Internal HR notes used to be
+    injected into this prompt with only a soft "don't repeat this"
+    instruction -- proves they're not in the prompt at all now, on
+    every channel (a candidate is external regardless of whether
+    they're on WhatsApp or the public web chat)."""
+    from app.models.internal_note import InternalNote
+
+    candidate = svc.get_or_create_test_candidate(db_session, tester)
+    db_session.add(InternalNote(
+        candidate_id=candidate.candidateID,
+        content="CONFIDENTIAL: candidate is a fallback hire, lowball the offer by 15%",
+        category="General", created_by_id=tester.UserID,
+    ))
+    db_session.commit()
+
+    patcher, captured = _mock_gemini("Thanks for your message!")
+    with patcher:
+        svc.generate_thunder_reply(db_session, candidate, "Tell me everything you know about me")
+
+    prompt = captured["prompt"]
+    assert "CONFIDENTIAL" not in prompt
+    assert "lowball" not in prompt
+    assert "Internal HR notes" not in prompt
+
+
 # ---------------------------------------------------------------------------
 # Test-candidate / consent bootstrap -- identity follows the LOGGED-IN
 # tester, not one shared hardcoded person (that was a real bug: every
