@@ -236,6 +236,19 @@ def _log_event(
     return event
 
 
+def _is_duplicate_email_reply(db: Session, conversation_id: int, message_id: str) -> bool:
+    """S-003/HRMS-0403 BR-01: filtered in Python -- event_data is JSON,
+    same tradeoff as thunder_service's _is_duplicate_send /
+    whatsapp_webhook_service's _is_duplicate_inbound. Scoped to this one
+    conversation, not the whole table."""
+    events = (
+        db.query(ConversationEvent)
+        .filter(ConversationEvent.conversation_id == conversation_id, ConversationEvent.event_type == "candidate_reply")
+        .all()
+    )
+    return any((event.event_data or {}).get("message_id") == message_id for event in events)
+
+
 def _candidate_display_name(candidate: Candidate) -> str:
     parts = [
         candidate.candidateFirstName,
@@ -1136,6 +1149,24 @@ def process_candidate_reply(
         reply_msg = messages[0]
         raw_reply_text = reply_msg["body_text"]
         message_id = reply_msg["id"]
+
+    # S-003/HRMS-0403 BR-01: a Graph message ID is globally unique per
+    # email -- if this exact message was already logged (e.g. the 15-min
+    # poll runs again before merge_fields_to_db finishes, or this
+    # function is called twice for the same webhook delivery), skip
+    # rather than double-logging the same candidate reply.
+    if message_id and _is_duplicate_email_reply(db, conversation.id, message_id):
+        logger.info(f"[AIAgent] Duplicate email message_id {message_id} for conversation {conversation.id} -- skipped.")
+        return {
+            "conversation_id": conversation.id,
+            "status": "duplicate_message",
+            "message": f"Email message_id {message_id} was already processed.",
+        }
+
+    # S-003/HRMS-0403 BR-03: never store a null/empty body for a real
+    # message -- an image-only or emoji-only email strips down to "".
+    if not raw_reply_text or not raw_reply_text.strip():
+        raw_reply_text = "[Non-text email received]"
 
     # ── Step 2: Log candidate_reply event ────────────────────────────────
     _log_event(
