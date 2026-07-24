@@ -64,6 +64,7 @@ from app.models.candidate_ai import (
 )
 from app.models.conversation_audit_log import ConversationAuditLog
 from app.models.user import Users
+from app.schemas.candidate_memory import CandidateMemoryResponse
 from app.schemas.ai_agent import (
     AIAgentAssignRequest,
     AIAgentAssignResponse,
@@ -226,6 +227,37 @@ def get_candidate_portal_link(
 
     _get_candidate_or_404(candidate_id, db)
     return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(candidate_id)}
+
+
+# ===========================================================================
+# GET /ai-agent/memory/{candidate_id}
+# ===========================================================================
+
+@router.get(
+    "/memory/{candidate_id}",
+    response_model=CandidateMemoryResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Candidate Memory Viewer (S-021/HRMS-0421)",
+    description=(
+        "Returns Thunder's rolling summary and categorized facts for this "
+        "candidate (salary, preferences, constraints, motivators, etc.). "
+        "Routed here rather than under /candidates/{id}/memory, matching "
+        "this round's convention of hosting every Thunder-intelligence "
+        "candidate-scoped read (missing-fields, portal-link) under /ai-agent."
+    ),
+)
+def get_candidate_memory(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    from app.services.ai_conversation_service import resolve_default_tenant_id
+    from app.services.candidate_memory_service import get_memory
+
+    _get_candidate_or_404(candidate_id, db)
+    tenant_id = resolve_default_tenant_id(db)
+    memory = get_memory(db, candidate_id, tenant_id)
+    return CandidateMemoryResponse(candidate_id=candidate_id, **memory)
 
 
 # ===========================================================================
