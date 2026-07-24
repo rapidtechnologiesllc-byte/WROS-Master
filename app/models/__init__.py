@@ -78,6 +78,7 @@ from app.models.htd_intake_pause import HtdIntakeStatus, HtdMonthlyMetric, HtdPa
 from app.models.htd_phase_gate import HTDPhaseGate
 from app.models.message_template import MessageTemplate
 from app.models.sla_breach import CandidateSLABreach
+from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
 
 __all__ = [
     # Base
@@ -199,5 +200,7 @@ __all__ = [
     "HTDPhaseGate",
     "MessageTemplate",
     "CandidateSLABreach",
+    "CandidateMemory",
+    "CandidateMemoryFact",
 ]
 
