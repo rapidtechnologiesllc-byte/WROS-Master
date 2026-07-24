@@ -46,11 +46,15 @@ class Candidate(Base):
     candidateTempPassword = Column(String(200), nullable=True)  # plain-text password for credential emails
     candidateIsVerified = Column(Boolean, nullable=True)
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    # HRMS-P601 (R-01) -- the 5-year experience gate. Populated by resume
-    # parsing (HRMS-0428, not yet built in this codebase); NULL means
-    # "not yet verified" and is treated as ineligible, per the spec's own
-    # rule, not as an exemption from the check.
+    # HRMS-P601 (R-01) -- the 5-year experience gate. Populated by real
+    # resume parsing (S-028/HRMS-0428, app.services.resume_parsing_service);
+    # NULL means "not yet verified" and is treated as ineligible, per the
+    # spec's own rule, not as an exemption from the check.
     total_experience_months = Column(Integer, nullable=True)
+    # S-030/HRMS-0430 -- denormalized copy of
+    # candidate_resume_parsed.resume_completeness_score for fast reads.
+    # Distinct from profile completeness (BR-01) -- never combine the two.
+    resume_completeness_score = Column(Integer, nullable=True)
     # HRMS-P606 (R-03) -- fails closed to UNKNOWN for every existing row
     # (see CANDIDATE_EMPLOYMENT_TYPES above); direct WROS-sourced candidates
     # should be set to W2_FULLTIME explicitly by whichever story owns
