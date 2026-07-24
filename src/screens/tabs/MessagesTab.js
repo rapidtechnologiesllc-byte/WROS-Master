@@ -13,6 +13,7 @@ import {
   pollForReply,
 } from "../../services/api/aiAgent";
 import { toast } from "react-toastify";
+import ThunderMemorySection from "../../components/ThunderMemorySection";
 
 const EVENT_LABELS = {
   ai_assigned: "AI Agent Assigned",
@@ -164,6 +165,8 @@ export default function MessagesTab({ candidateId }) {
           </div>
         </div>
       )}
+
+      {candidateId ? <ThunderMemorySection candidateId={candidateId} /> : null}
 
       {!conversations.length ? (
         <EmptyState
