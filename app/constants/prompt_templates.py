@@ -78,11 +78,12 @@ PROMPT_TEMPLATES: Dict[str, Dict] = {
         "max_tokens": 150, "temperature": 0.0,
     },
     "INTENT_DETECTION": {
-        "id": "INTENT_DETECTION", "version": "v1.0", "prompt_type": "INTENT_DETECTION",
+        "id": "INTENT_DETECTION", "version": "v1.1", "prompt_type": "INTENT_DETECTION",
         "system_prompt": (
             "Classify this message intent. Return JSON: "
             '{ "intent": one of [answering_question, asking_question, objecting, '
-            'scheduling_request, document_sharing, not_interested, unclear] }'
+            'scheduling_request, document_sharing, not_interested, unclear], '
+            '"confidence": a number between 0.0 and 1.0 }'
         ),
         "user_prompt_template": "Message: {{conversation_history}}",
         "required_context_fields": [],
