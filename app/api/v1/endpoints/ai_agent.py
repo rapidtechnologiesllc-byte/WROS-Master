@@ -629,8 +629,10 @@ def deactivate_agent(
         )
         .all()
     )
+    from app.services.conversation_state_service import transition_status
+
     for conv in open_convs:
-        conv.status = "closed"
+        transition_status(db, conv, "closed", reason="AI agent manually deactivated by HR", triggered_by="hr_user")
         conv.next_action = "none"
         conv.summary = (conv.summary or "") + " [Manually deactivated by HR]"
         # Log the deactivation event
