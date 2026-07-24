@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.audit_log import AuditLog
 from app.models.base import Base
 from app.models.candidate import Candidate
+from app.models.consent import ConsentRecord
 from app.models.user import Users
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -31,7 +32,7 @@ def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[Candidate.__table__, Users.__table__, AuditLog.__table__])
+    Base.metadata.create_all(engine, tables=[Candidate.__table__, Users.__table__, AuditLog.__table__, ConsentRecord.__table__])
     session = sessionmaker(bind=engine)()
     try:
         yield session

@@ -487,6 +487,19 @@ def auto_assign_ai_agent_on_creation(
         assign_ai_agent(candidate_id=candidate_id, tenant_id=tenant_id, assigned_by=None, db=db)
     except Exception as exc:
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
+        return
+
+    # S-012/HRMS-0412 -- 60-second-SLA first WhatsApp message. Runs right
+    # after assignment (this codebase's real CONVERSATION_INITIATED
+    # moment -- no message queue exists to "listen" on). Failures here
+    # (no phone, no consent, WhatsApp API down) are real, expected, and
+    # logged by the service itself -- never re-raised, so a WhatsApp
+    # hiccup can't undo the AI assignment that already succeeded above.
+    try:
+        from app.services.first_engagement_service import send_first_whatsapp_engagement
+        send_first_whatsapp_engagement(db, candidate_id, tenant_id)
+    except Exception as exc:
+        logger.warning(f"[AutoAssign] First WhatsApp engagement did not complete for candidate '{candidate_id}': {exc}")
 
 
 def _send_missing_fields_email(

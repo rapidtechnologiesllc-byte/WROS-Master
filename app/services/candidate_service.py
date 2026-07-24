@@ -110,6 +110,24 @@ def create_candidate_safe(
         **fields,
     )
     db.add(candidate)
+
+    # S-012/HRMS-0412 -- Thunder's WhatsApp send path (send_thunder_
+    # message) hard-requires a whatsapp_outreach ConsentRecord and fails
+    # closed without one. A phone number given at application time is
+    # this codebase's consent signal for WhatsApp outreach about THIS
+    # application -- every candidate-creation call site funnels through
+    # this one R-07-sanctioned function, so capturing it here (rather
+    # than per-call-site) means Thunder's first-engagement message can
+    # actually send for any real candidate, not just ones created
+    # through the public web chat's explicit checkbox.
+    if mobile:
+        from app.models.consent import ConsentRecord
+        db.add(ConsentRecord(
+            subject_type="candidate", subject_id=candidate_id,
+            consent_type="whatsapp_outreach", consent_given=True,
+            captured_by="candidate_creation",
+        ))
+
     return candidate
 
 
