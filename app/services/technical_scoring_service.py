@@ -189,7 +189,14 @@ def calculate_technical_score(db: Session, candidate_id: str, job_id: str, tenan
     )
     if existing:
         existing.technical_score = technical_score
-        existing.score_breakdown = breakdown
+        # Merge, not overwrite -- score_breakdown is a column SHARED with
+        # compensation_scoring_service (S-038); a full replace here would
+        # silently erase that service's keys on every technical rescore.
+        # Key sets don't collide (skill_match_pct/experience_score/
+        # certification_score/matched_skills/missing_skills vs
+        # expected_ctc_paise/budget_max_paise/pct_over_budget), so a flat
+        # merge is sufficient -- no namespacing needed.
+        existing.score_breakdown = {**(existing.score_breakdown or {}), **breakdown}
         existing.calculated_at = datetime.utcnow()
         db.add(existing)
         record = existing
@@ -209,7 +216,10 @@ def calculate_technical_score(db: Session, candidate_id: str, job_id: str, tenan
     }
 
 
-def _linked_job_ids(db: Session, candidate: Candidate) -> List[str]:
+def linked_job_ids(db: Session, candidate: Candidate) -> List[str]:
+    """Public (not underscore-prefixed) -- shared with
+    compensation_scoring_service (S-038), which scores the same real
+    candidate-job linkage rather than re-deriving it independently."""
     job_ids = set()
     if candidate.job_id:
         job_ids.add(candidate.job_id)
@@ -224,7 +234,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
     rows). Never raises -- a failure scoring one job is logged and
     skipped, never blocks the caller (the skill-extraction pipeline)."""
     results = []
-    for job_id in _linked_job_ids(db, candidate):
+    for job_id in linked_job_ids(db, candidate):
         try:
             results.append(calculate_technical_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:

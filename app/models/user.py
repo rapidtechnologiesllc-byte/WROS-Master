@@ -91,6 +91,15 @@ class Jobs(Base):
     min_experience_years = Column(Integer, nullable=True)
     domain = Column(String(100), nullable=True)
     certifications_preferred = Column(JSON, nullable=True)
+    # S-038/HRMS-0438 -- same lazy-parse posture as the S-037 columns
+    # above. The real recruiter-entered field is salaryRange (free text,
+    # e.g. "18-22 LPA"); budget_min/budget_max (paise -- this codebase's
+    # normalize_salary() default base unit, see compensation_scoring_service
+    # module docstring for the real, documented currency-convention
+    # caveat) are lazily parsed from it the first time a job's
+    # compensation fit is scored.
+    budget_min = Column(Integer, nullable=True)
+    budget_max = Column(Integer, nullable=True)
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
