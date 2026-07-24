@@ -352,6 +352,29 @@ def get_resume_completeness(
 
 
 # ===========================================================================
+# GET /ai-agent/prompt-templates
+# ===========================================================================
+
+@router.get(
+    "/prompt-templates",
+    dependencies=[Depends(require_permission("tenant.ai_config"))],
+    summary="AI prompt template catalog, admin-only (S-031/HRMS-0431)",
+    description=(
+        "Real equivalent of GET /api/admin/prompt-templates -- gated behind "
+        "tenant.ai_config (Super-User-only by default, same permission "
+        "HRMS-0411's Thunder identity config uses), since prompt templates "
+        "are the same class of BA-approved, admin-only product decision."
+    ),
+)
+def get_prompt_templates_endpoint(
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    from app.services.prompt_framework_service import get_prompt_templates
+
+    return {"templates": get_prompt_templates()}
+
+
+# ===========================================================================
 # POST /ai-agent/webhook/email-reply
 # ===========================================================================
 
