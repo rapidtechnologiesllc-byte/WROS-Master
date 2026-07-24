@@ -234,7 +234,7 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str) ->
     db.flush()
 
     reply_text, _used_fallback = generate_thunder_reply_with_fallback(
-        db, candidate, message, channel="web_chat",
+        db, candidate, message, channel="web_chat", conversation=conversation,
     )
 
     reply_event = send_thunder_message(

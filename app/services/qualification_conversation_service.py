@@ -174,7 +174,7 @@ def run_qualification_turn(
             answer = answer_question_fn(db, candidate, candidate_message)
         else:
             from app.services.thunder_service import generate_thunder_reply_with_fallback
-            answer, _used_fallback = generate_thunder_reply_with_fallback(db, candidate, candidate_message, channel="whatsapp")
+            answer, _used_fallback = generate_thunder_reply_with_fallback(db, candidate, candidate_message, channel="whatsapp", conversation=conversation)
         prefix = f"{answer} To continue getting to know your background, "
     else:
         prefix = "Great, thanks for sharing that! "
