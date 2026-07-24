@@ -300,6 +300,36 @@ def correct_candidate_memory_fact(
 
 
 # ===========================================================================
+# GET /ai-agent/skill-suggestions
+# ===========================================================================
+
+@router.get(
+    "/skill-suggestions",
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Skills not yet in the synonym library, for BA review (S-029/HRMS-0429)",
+    description=(
+        "Real equivalent of the spec's admin skill-suggestions report -- "
+        "distinct skills tagged with confidence < 1.0 (not found in "
+        "app.constants.skill_synonyms) in the last 7 days, so a Lead BA "
+        "can fold genuinely common ones into the synonym library (BR-02: "
+        "requires BA approval + code review, this endpoint is read-only)."
+    ),
+)
+def get_skill_suggestions(
+    since_days: int = 7,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    from app.services.ai_conversation_service import resolve_default_tenant_id
+    from app.services.skill_extraction_service import get_unknown_skill_suggestions
+
+    tenant_id = resolve_default_tenant_id(db)
+    if not tenant_id:
+        raise HTTPException(status_code=500, detail="No tenant available.")
+    return {"suggestions": get_unknown_skill_suggestions(db, tenant_id, since_days=since_days)}
+
+
+# ===========================================================================
 # POST /ai-agent/webhook/email-reply
 # ===========================================================================
 

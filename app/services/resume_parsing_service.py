@@ -310,9 +310,15 @@ def parse_resume(
 
     # Real Candidate columns this codebase actually has (see module docstring).
     candidate.total_experience_months = total_months
-    if skills:
-        candidate.candidateSkills = ", ".join(str(s) for s in skills)
     db.add(candidate)
+
+    # S-029/HRMS-0429 -- normalize and tag the raw skills array right
+    # after parsing, same posture as every other "candidate.resume_parsed
+    # consumer" in this story's own spec, just a direct call instead of
+    # an event-bus subscription (no event bus exists in this codebase).
+    if skills:
+        from app.services.skill_extraction_service import extract_and_tag_skills
+        extract_and_tag_skills(db, candidate, tenant_id, skills, conversation=conversation)
 
     _log_event(db, conversation, "candidate.resume_parsed", {
         "total_experience_months": total_months, "skills_count": len(skills), "parsing_success": True,
