@@ -37,6 +37,22 @@ export const getAssignments = async (candidateId) => {
   return data;
 };
 
+// S-021/S-023 -- Candidate Memory (Thunder's Memory Viewer).
+export const getCandidateMemory = async (candidateId) => {
+  const { data } = await apiRequest(`/ai-agent/memory/${candidateId}`, {
+    method: "GET",
+  });
+  return data;
+};
+
+export const correctMemoryFact = async (candidateId, factId, factValue) => {
+  const { data } = await apiRequest(`/ai-agent/memory/${candidateId}/facts/${factId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fact_value: factValue }),
+  });
+  return data;
+};
+
 export const deactivateAgent = async (candidateId) => {
   const { data } = await apiRequest(`/ai-agent/assign/${candidateId}`, {
     method: "DELETE",
