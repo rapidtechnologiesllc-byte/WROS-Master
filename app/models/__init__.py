@@ -79,6 +79,7 @@ from app.models.htd_phase_gate import HTDPhaseGate
 from app.models.message_template import MessageTemplate
 from app.models.sla_breach import CandidateSLABreach
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
+from app.models.candidate_field_skip import CandidateFieldSkip
 
 __all__ = [
     # Base
@@ -202,5 +203,6 @@ __all__ = [
     "CandidateSLABreach",
     "CandidateMemory",
     "CandidateMemoryFact",
+    "CandidateFieldSkip",
 ]
 
