@@ -116,6 +116,13 @@ def extract_and_tag_skills(
     from app.services.technical_scoring_service import recalculate_for_candidate
     recalculate_for_candidate(db, candidate, tenant_id)
 
+    # S-040/HRMS-0440 Step 4: technical_score just changed -- keep
+    # overall_score current. See overall_scoring_service's own module
+    # docstring for why this is wired at the producer rather than inside
+    # technical_scoring_service itself (avoids a circular import).
+    from app.services.overall_scoring_service import recalculate_for_candidate as recalculate_overall
+    recalculate_overall(db, candidate, tenant_id)
+
     return {"skills_count": len(canonical_skills), "canonical_skills": canonical_skills}
 
 

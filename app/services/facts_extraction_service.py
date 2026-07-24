@@ -211,4 +211,11 @@ def extract_facts(
         from app.services.availability_scoring_service import recalculate_for_candidate as recalculate_availability
         recalculate_availability(db, candidate, tenant_id)
 
+    # S-040/HRMS-0440 Step 4: keep overall_score current whenever either
+    # component above just changed. See overall_scoring_service's own
+    # module docstring for why this is wired at the producer.
+    if any(f["fact_key"] in ("expected_ctc", "notice_period_days") for f in facts):
+        from app.services.overall_scoring_service import recalculate_for_candidate as recalculate_overall
+        recalculate_overall(db, candidate, tenant_id)
+
     return facts
