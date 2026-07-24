@@ -89,6 +89,17 @@ PROMPT_TEMPLATES: Dict[str, Dict] = {
         "required_context_fields": [],
         "max_tokens": 100, "temperature": 0.0,
     },
+    "SENTIMENT_ANALYSIS": {
+        "id": "SENTIMENT_ANALYSIS", "version": "v1.0", "prompt_type": "SENTIMENT_ANALYSIS",
+        "system_prompt": (
+            "Classify the sentiment of this message from a job candidate in a single "
+            "word: POSITIVE, NEUTRAL, or NEGATIVE. Return JSON: "
+            '{ "sentiment": one of [POSITIVE, NEUTRAL, NEGATIVE], "confidence": a number between 0.0 and 1.0 }'
+        ),
+        "user_prompt_template": "Message: {{conversation_history}}",
+        "required_context_fields": [],
+        "max_tokens": 100, "temperature": 0.0,
+    },
 }
 
 PLACEHOLDER_FIELDS = {

@@ -168,5 +168,5 @@ def test_call_llm_without_candidate_id_still_logs(db_session, seeded):
 def test_get_prompt_templates_returns_all_with_versions():
     templates = svc.get_prompt_templates()
     prompt_types = {t["prompt_type"] for t in templates}
-    assert prompt_types == {"QUALIFICATION", "FOLLOW_UP", "OBJECTION_HANDLING", "ESCALATION_CHECK", "INTENT_DETECTION"}
+    assert prompt_types == {"QUALIFICATION", "FOLLOW_UP", "OBJECTION_HANDLING", "ESCALATION_CHECK", "INTENT_DETECTION", "SENTIMENT_ANALYSIS"}
     assert all(t["version"] for t in templates)  # INTENT_DETECTION bumped to v1.1 by S-033 (added confidence field)
