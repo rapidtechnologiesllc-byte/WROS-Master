@@ -48,6 +48,15 @@ class Settings:
     # POST /ai-agent/webhook/email-reply. See app.core.webhook_auth.
     WEBHOOK_SHARED_SECRET: str = os.getenv("WEBHOOK_SHARED_SECRET", "")
 
+    # S-002/HRMS-0402 -- WhatsApp Cloud API webhook (Meta). Empty by
+    # default since no WhatsApp Business API app is registered with Meta
+    # yet in this environment (same posture as whatsapp_routing_service's
+    # outbound send stub) -- the receiver endpoint is real, structurally
+    # correct code either way; these two values are what Avinash provides
+    # once a real Meta app + webhook subscription exist.
+    WHATSAPP_VERIFY_TOKEN: str = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+    WHATSAPP_APP_SECRET: str = os.getenv("WHATSAPP_APP_SECRET", "")
+
     # Field-level encryption (HRMS-0101 BR-01) -- AES-256 key (32 raw
     # bytes, base64-encoded) for employee bank account/routing fields.
     # See app.core.field_encryption.

@@ -45,6 +45,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/public/thunder-chat/start",
         "/public/thunder-chat/message",
         "/public/thunder-chat/history",
+        # S-002/HRMS-0402 -- Meta calls this directly, no bearer token
+        # possible. Security is Meta's own hub.verify_token handshake
+        # (GET) and X-Hub-Signature-256 HMAC (POST) -- see
+        # app.services.whatsapp_webhook_service.
+        "/webhooks/whatsapp",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for
