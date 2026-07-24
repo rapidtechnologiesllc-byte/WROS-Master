@@ -79,6 +79,7 @@ import ForecastScreen from "../screens/ForecastScreen";
 import InvoicesScreen from "../screens/InvoicesScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
+import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -195,6 +196,14 @@ const normalizeRole = (rawRole) => {
 };
 
 export default function AppRoutes() {
+  // Public, unauthenticated Thunder chat widget -- a real external
+  // visitor (careers page / job listing) has no account and never
+  // will just to talk to Thunder. Checked before the token gate below,
+  // same as /auth's special-casing.
+  if (window.location.pathname.startsWith("/careers-chat")) {
+    return <PublicThunderChatScreen />;
+  }
+
   const url = new URL(window.location.href);
   const tokenFromQuery = url.searchParams.get("token");
   if (tokenFromQuery) {
