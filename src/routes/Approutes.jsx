@@ -81,6 +81,7 @@ import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
+import ConversationSearchBar from "../components/ConversationSearchBar";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -465,13 +466,16 @@ export default function AppRoutes() {
             <Route
               path="candidates"
               element={
-                <CandidateSearch
-                  candidates={candidates}
-                  jobs={jobs}
-                  setAutoOpenSchedule={setAutoOpenSchedule}
-                  onRefreshCandidates={refreshCandidates}
-                  onCreateCandidate={() => navigate("/candidates/create")}
-                />
+                <>
+                  <ConversationSearchBar />
+                  <CandidateSearch
+                    candidates={candidates}
+                    jobs={jobs}
+                    setAutoOpenSchedule={setAutoOpenSchedule}
+                    onRefreshCandidates={refreshCandidates}
+                    onCreateCandidate={() => navigate("/candidates/create")}
+                  />
+                </>
               }
             />
 
@@ -666,13 +670,16 @@ export default function AppRoutes() {
           <Route
             path="candidates"
             element={
-              <CandidateSearch
-                candidates={candidates}
-                jobs={jobs}
-                setAutoOpenSchedule={setAutoOpenSchedule}
-                onRefreshCandidates={refreshCandidates}
-                onCreateCandidate={() => navigate("/candidates/create")}
-              />
+              <>
+                <ConversationSearchBar />
+                <CandidateSearch
+                  candidates={candidates}
+                  jobs={jobs}
+                  setAutoOpenSchedule={setAutoOpenSchedule}
+                  onRefreshCandidates={refreshCandidates}
+                  onCreateCandidate={() => navigate("/candidates/create")}
+                />
+              </>
             }
           />
 
