@@ -28,6 +28,7 @@ from app.core.security import decode_access_token
 from app.models.base import Base
 from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.models.sla_breach import CandidateSLABreach
 from app.models.user import Interview, Users
 
 import app.services.candidate_portal_service as svc
@@ -41,6 +42,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateInfoForm.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, Interview.__table__,
+        CandidateSLABreach.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

@@ -77,6 +77,7 @@ from app.models.employee_milestone import EmployeeMilestone
 from app.models.htd_intake_pause import HtdIntakeStatus, HtdMonthlyMetric, HtdPauseLogEntry
 from app.models.htd_phase_gate import HTDPhaseGate
 from app.models.message_template import MessageTemplate
+from app.models.sla_breach import CandidateSLABreach
 
 __all__ = [
     # Base
@@ -197,5 +198,6 @@ __all__ = [
     "EmployeePerformanceEvent",
     "HTDPhaseGate",
     "MessageTemplate",
+    "CandidateSLABreach",
 ]
 
