@@ -49,7 +49,7 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.user import Jobs, Users
-from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA
+from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA, resolve_thunder_config
 from app.services.whatsapp_routing_service import (  # noqa: F401 -- re-exported gate
     ConversationOwnedByHuman,
     is_ai_owner,
@@ -344,6 +344,7 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
         "active_conversation_id": active_conversation.id if active_conversation else None,
         "current_owner_type": active_conversation.owner_type if active_conversation else None,
         "current_owner_id": active_conversation.owner_id if active_conversation else None,
+        "tenant_id": active_conversation.tenant_id if active_conversation else None,
         "candidate_profile": {
             "job_title": candidate.candidateJobTitle,
             "skills": candidate.candidateSkills,
@@ -445,8 +446,13 @@ def generate_thunder_reply(
         logger.warning(f"[Thunder] Inbound message contains injection-shaped phrasing: {suspicious}")
 
     channel_label = CHANNEL_LABELS.get(channel, channel)
-    instruction = f"""You are Thunder, {_display_name(candidate)}'s AI hiring assistant at BlitzenX, replying over {channel_label}.
-Persona: {AI_AGENT_PERSONA} -- warm, professional, concise. Same voice BlitzenX HR uses in candidate emails.
+    # S-011/HRMS-0411 -- Thunder's name/persona are admin-configurable
+    # per tenant (GET/PATCH /admin/tenant/ai-config), not hardcoded.
+    # Falls back to "Thunder" + the default persona when unconfigured,
+    # so this is a no-op for every tenant that hasn't set anything.
+    agent_config = resolve_thunder_config(db, context.get("tenant_id"))
+    instruction = f"""You are {agent_config['name']}, {_display_name(candidate)}'s AI hiring assistant at BlitzenX, replying over {channel_label}.
+Persona: {agent_config['persona']}
 
 Conversation history so far (oldest to newest):
 {history_lines}

@@ -41,6 +41,17 @@ class Users(Base):
     # member has one registered; conversations they own fall back to the
     # tenant's shared/Thunder number. E.164 format (e.g. "+14155550100").
     whatsapp_number = Column(String(20), nullable=True, unique=True)
+    # S-011/HRMS-0411 -- per-tenant Thunder identity config. tenant_id
+    # throughout candidate_ai.py/whatsapp_routing_service is genuinely
+    # this table's UserID (the org owner), not app.models.tenant.Tenant
+    # -- see wros_build_conventions memory on this pre-existing
+    # inconsistency; these columns live where "tenant_id" actually
+    # resolves in this subsystem, not on the separate Tenant table.
+    # Nullable: assign_ai_agent() falls back to the hardcoded
+    # AI_AGENT_NAME/AI_AGENT_PERSONA defaults when unset (BR-02 -- an
+    # agent name must never reach a candidate blank).
+    ai_agent_name = Column(String(100), nullable=True)
+    ai_agent_persona = Column(Text, nullable=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
