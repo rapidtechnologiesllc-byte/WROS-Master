@@ -92,6 +92,7 @@ class ConversationThreadItem(BaseModel):
     channel_preference: Optional[str]
     summary: Optional[str]
     summary_generated_at: Optional[str]
+    no_contact_breach_hours: Optional[float]
     next_action: Optional[str]
     owner_type: Optional[str]
     escalation_state: Optional[str]

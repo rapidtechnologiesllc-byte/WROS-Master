@@ -78,6 +78,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register candidate reply poll scheduler: {exc}")
 
+        # ── Every 30 min: SLA_MONITORING_JOB (S-020/HRMS-0420) ──────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.sla_monitoring_service import detect_and_resolve_no_contact_breaches
+
+            async def _run_sla_monitoring():
+                db = SessionLocal()
+                try:
+                    result = detect_and_resolve_no_contact_breaches(db)
+                    if result["created"] or result["resolved"]:
+                        logger.info(f"[scheduler] SLA monitoring: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] SLA monitoring error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_sla_monitoring,
+                trigger="interval",
+                minutes=30,
+                id="sla_monitoring_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled SLA monitoring job (every 30 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register SLA monitoring scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

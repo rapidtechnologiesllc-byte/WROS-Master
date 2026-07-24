@@ -374,6 +374,11 @@ def get_active_conversation(
         .all()
     )
 
+    from datetime import datetime as _datetime
+    from app.services.sla_monitoring_service import get_active_no_contact_breach_for_conversation
+    breach = get_active_no_contact_breach_for_conversation(db, conv.id)
+    no_contact_hours = round((_datetime.utcnow() - breach.breached_at).total_seconds() / 3600.0, 1) if breach else None
+
     return ConversationThreadItem(
         conversation_id=conv.id,
         status=conv.status,
@@ -381,6 +386,7 @@ def get_active_conversation(
         channel_preference=conv.channel_preference,
         summary=conv.summary,
         summary_generated_at=conv.summary_generated_at.isoformat() if conv.summary_generated_at else None,
+        no_contact_breach_hours=no_contact_hours,
         next_action=conv.next_action,
         owner_type=conv.owner_type,
         escalation_state=conv.escalation_state,
