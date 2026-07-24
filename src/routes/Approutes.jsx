@@ -80,6 +80,7 @@ import InvoicesScreen from "../screens/InvoicesScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
+import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 
@@ -204,6 +205,17 @@ export default function AppRoutes() {
   // same as /auth's special-casing.
   if (window.location.pathname.startsWith("/careers-chat")) {
     return <PublicThunderChatScreen />;
+  }
+
+  // S-017/HRMS-0417 -- Candidate Self-Service Web Portal. The token in
+  // the path IS the candidate's auth (a long-lived candidate JWT, see
+  // candidate_portal_service's module docstring) -- checked before the
+  // internal login gate below, same precedent as /careers-chat, since
+  // a candidate arriving via a WhatsApp/Email link has no internal
+  // account and must never see the internal login screen.
+  if (window.location.pathname.startsWith("/candidate/")) {
+    const portalToken = window.location.pathname.split("/candidate/")[1]?.split("/")[0];
+    return <CandidatePortalScreen token={portalToken} />;
   }
 
   const url = new URL(window.location.href);
