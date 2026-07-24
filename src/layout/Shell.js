@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
+import AskThunderWidget from "../components/AskThunderWidget";
 import { ROUTES } from "../utils/Routes";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
@@ -300,6 +301,7 @@ export default function Shell({
           </div>
         </main>
       </div>
+      <AskThunderWidget />
     </div>
   );
 }
