@@ -193,4 +193,14 @@ def extract_facts(
         "source_message_id": source_message_id,
     })
     db.commit()
+
+    # S-038/HRMS-0438: recalculate compensation fit only when
+    # expected_ctc was actually part of this turn's extraction --
+    # unlike S-037's unconditional skill-update trigger, salary changes
+    # are comparatively rare within this broad fact stream. Never
+    # raises -- see compensation_scoring_service.recalculate_for_candidate().
+    if any(f["fact_key"] == "expected_ctc" for f in facts):
+        from app.services.compensation_scoring_service import recalculate_for_candidate
+        recalculate_for_candidate(db, candidate, tenant_id)
+
     return facts

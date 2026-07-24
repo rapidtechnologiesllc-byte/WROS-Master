@@ -18,10 +18,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
-from app.models.candidate import Candidate
+from app.models.candidate import Candidate, CandidateJobApplication
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.models.candidate_job_flag import CandidateJobFlag
+from app.models.candidate_job_score import CandidateJobScore
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
-from app.models.user import Users
+from app.models.user import Jobs, Users
 
 import app.services.facts_extraction_service as svc
 
@@ -33,7 +35,8 @@ def db_session():
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
-        CandidateMemory.__table__, CandidateMemoryFact.__table__,
+        CandidateMemory.__table__, CandidateMemoryFact.__table__, Jobs.__table__, CandidateJobApplication.__table__,
+        CandidateJobScore.__table__, CandidateJobFlag.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
