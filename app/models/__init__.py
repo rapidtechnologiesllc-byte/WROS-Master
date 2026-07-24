@@ -81,6 +81,7 @@ from app.models.sla_breach import CandidateSLABreach
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
 from app.models.candidate_field_skip import CandidateFieldSkip
 from app.models.candidate_resume_parsed import CandidateResumeParsed
+from app.models.candidate_skill_tag import CandidateSkillTag
 
 __all__ = [
     # Base
@@ -206,5 +207,6 @@ __all__ = [
     "CandidateMemoryFact",
     "CandidateFieldSkip",
     "CandidateResumeParsed",
+    "CandidateSkillTag",
 ]
 
