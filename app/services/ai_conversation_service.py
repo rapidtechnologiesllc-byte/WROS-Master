@@ -489,17 +489,23 @@ def auto_assign_ai_agent_on_creation(
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
 
-    # S-012/HRMS-0412 -- 60-second-SLA first WhatsApp message. Runs right
-    # after assignment (this codebase's real CONVERSATION_INITIATED
-    # moment -- no message queue exists to "listen" on). Failures here
-    # (no phone, no consent, WhatsApp API down) are real, expected, and
-    # logged by the service itself -- never re-raised, so a WhatsApp
-    # hiccup can't undo the AI assignment that already succeeded above.
+    # S-012/S-013 (HRMS-0412/0413) -- 60-second-SLA first-touch messages
+    # on both channels. Run back-to-back, each independently resilient
+    # (see email_first_engagement_service's module docstring on why this
+    # isn't literally Promise.all() concurrent in a synchronous-session
+    # codebase) -- a WhatsApp failure never blocks email or vice versa,
+    # and neither can undo the AI assignment that already succeeded above.
     try:
         from app.services.first_engagement_service import send_first_whatsapp_engagement
         send_first_whatsapp_engagement(db, candidate_id, tenant_id)
     except Exception as exc:
         logger.warning(f"[AutoAssign] First WhatsApp engagement did not complete for candidate '{candidate_id}': {exc}")
+
+    try:
+        from app.services.email_first_engagement_service import send_first_email_engagement
+        send_first_email_engagement(db, candidate_id, tenant_id)
+    except Exception as exc:
+        logger.warning(f"[AutoAssign] First email engagement did not complete for candidate '{candidate_id}': {exc}")
 
 
 def _send_missing_fields_email(
