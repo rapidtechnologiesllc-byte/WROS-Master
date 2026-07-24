@@ -414,12 +414,16 @@ def assign_ai_agent(
         },
     )
 
+    # S-018/HRMS-0418 -- all status changes go through transition_status(),
+    # never a direct assignment (BR-01).
+    from app.services.conversation_state_service import transition_status
+
     email_sent = False
     if missing:
         email_sent = _send_missing_fields_email(
             candidate, missing, conversation, db
         )
-        conversation.status = "awaiting_candidate"
+        transition_status(db, conversation, "awaiting_candidate", reason="Missing-fields email sent", triggered_by="ai_agent")
         conversation.next_action = "wait_for_reply"
         conversation.summary = (
             f"Sent initial missing-fields email. "
@@ -427,7 +431,7 @@ def assign_ai_agent(
             + ", ".join(m['label'] for m in missing)
         )
     else:
-        conversation.status = "closed"
+        transition_status(db, conversation, "closed", reason="All required fields already present", triggered_by="ai_agent")
         conversation.next_action = "none"
         conversation.summary = "All required fields are present. No email needed."
 
@@ -1308,7 +1312,8 @@ def process_candidate_reply(
     # ── Step 3: Check if anything is still missing before running pipeline ─
     missing = get_missing_fields(candidate, db)
     if not missing:
-        conversation.status = "closed"
+        from app.services.conversation_state_service import transition_status
+        transition_status(db, conversation, "closed", reason="All fields complete on inbound reply", triggered_by="candidate")
         conversation.summary = "All fields complete. Conversation closed."
         conversation.next_action = "none"
         db.commit()
@@ -1354,13 +1359,10 @@ def process_candidate_reply(
     still_missing_fields = pipeline_result["still_missing"]
 
     if not still_missing_fields:
-        conversation.status = "closed"
+        from app.services.conversation_state_service import transition_status
+        transition_status(db, conversation, "closed", reason="All fields complete after candidate reply", triggered_by="candidate")
         conversation.summary = "All fields complete after candidate reply. Conversation closed."
         conversation.next_action = "none"
-        _log_event(
-            db, conversation.id, "status_changed",
-            {"old_status": "awaiting_candidate", "new_status": "closed"},
-        )
         db.commit()
         return {
             "conversation_id": conversation.id,
@@ -1382,7 +1384,8 @@ def process_candidate_reply(
                 "message_type": "followup_request",
             },
         )
-        conversation.status = "awaiting_candidate"
+        from app.services.conversation_state_service import transition_status
+        transition_status(db, conversation, "awaiting_candidate", reason="Follow-up sent, fields still missing", triggered_by="ai_agent")
         conversation.summary = (
             f"Follow-up sent. {len(still_missing_fields)} field(s) still missing: "
             + ", ".join(still_missing_fields)
@@ -1395,7 +1398,8 @@ def process_candidate_reply(
             db, conversation.id, "followup_email_failed",
             {"reason": pipeline_result.get("followup_error", "unknown")},
         )
-        conversation.status = "awaiting_candidate"
+        from app.services.conversation_state_service import transition_status
+        transition_status(db, conversation, "awaiting_candidate", reason="Follow-up email failed to send", triggered_by="system")
         conversation.summary = (
             f"{len(still_missing_fields)} field(s) still missing, but follow-up email "
             f"failed to send: {pipeline_result.get('followup_error', 'unknown error')}"
