@@ -64,7 +64,7 @@ from app.models.candidate_ai import (
 )
 from app.models.conversation_audit_log import ConversationAuditLog
 from app.models.user import Users
-from app.schemas.candidate_memory import CandidateMemoryResponse
+from app.schemas.candidate_memory import CandidateMemoryResponse, MemoryFactCorrectionRequest, MemoryFactItem
 from app.schemas.ai_agent import (
     AIAgentAssignRequest,
     AIAgentAssignResponse,
@@ -258,6 +258,45 @@ def get_candidate_memory(
     tenant_id = resolve_default_tenant_id(db)
     memory = get_memory(db, candidate_id, tenant_id)
     return CandidateMemoryResponse(candidate_id=candidate_id, **memory)
+
+
+# ===========================================================================
+# PATCH /ai-agent/memory/{candidate_id}/facts/{fact_id}
+# ===========================================================================
+
+@router.patch(
+    "/memory/{candidate_id}/facts/{fact_id}",
+    response_model=MemoryFactItem,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Correct a Thunder memory fact (S-023/HRMS-0423)",
+    description=(
+        "A recruiter's manual correction is treated as verified ground "
+        "truth: confidence is always set to 1.0 (BR-01). If the fact_key "
+        "maps to a real candidate profile column, the correction also "
+        "updates the candidates table (BR-03)."
+    ),
+)
+def correct_candidate_memory_fact(
+    candidate_id: str,
+    fact_id: int,
+    body: MemoryFactCorrectionRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    from app.services.ai_conversation_service import resolve_default_tenant_id
+    from app.services.candidate_memory_service import FactNotFound, correct_fact
+
+    _get_candidate_or_404(candidate_id, db)
+    tenant_id = resolve_default_tenant_id(db)
+    try:
+        fact = correct_fact(db, candidate_id, tenant_id, fact_id, body.fact_value, corrected_by=current_user.UserID)
+    except FactNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    return MemoryFactItem(
+        id=fact.id, category=fact.fact_category, key=fact.fact_key, value=fact.fact_value,
+        confidence=fact.confidence, is_low_confidence=fact.confidence < 0.7, extracted_at=fact.extracted_at,
+    )
 
 
 # ===========================================================================

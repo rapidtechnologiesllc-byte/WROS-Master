@@ -102,3 +102,38 @@ def test_get_memory_requires_auth(client):
 def test_get_memory_unknown_candidate_404(client):
     resp = client.get("/ai-agent/memory/NOPE", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
     assert resp.status_code == 404
+
+
+def test_get_memory_includes_fact_id(client):
+    resp = client.get("/ai-agent/memory/C-1", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
+    fact = resp.json()["facts"][0]
+    assert "id" in fact
+
+
+def test_patch_fact_correction_updates_value_and_confidence(client):
+    get_resp = client.get("/ai-agent/memory/C-1", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
+    fact_id = get_resp.json()["facts"][0]["id"]
+
+    patch_resp = client.patch(
+        f"/ai-agent/memory/C-1/facts/{fact_id}",
+        json={"fact_value": "26 LPA"},
+        headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"},
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["value"] == "26 LPA"
+    assert body["confidence"] == 1.0
+
+
+def test_patch_fact_correction_unknown_fact_404(client):
+    resp = client.patch(
+        "/ai-agent/memory/C-1/facts/999999",
+        json={"fact_value": "x"},
+        headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_patch_fact_correction_requires_auth(client):
+    resp = client.patch("/ai-agent/memory/C-1/facts/1", json={"fact_value": "x"})
+    assert resp.status_code in (401, 403)

@@ -70,8 +70,9 @@ def get_memory(db: Session, candidate_id: str, tenant_id: str) -> Dict:
         "last_updated": memory.last_updated if memory else None,
         "facts": [
             {
-                "category": f.fact_category, "key": f.fact_key, "value": f.fact_value,
+                "id": f.id, "category": f.fact_category, "key": f.fact_key, "value": f.fact_value,
                 "confidence": f.confidence, "is_low_confidence": f.confidence < 0.7,  # BR-03
+                "extracted_at": f.extracted_at,
             }
             for f in facts
         ],
@@ -239,3 +240,46 @@ def update_memory_summary(
     _log_memory_event(db, candidate_id, "MEMORY_SUMMARY_GENERATED", {"word_count": word_count})
     db.commit()
     return raw
+
+
+class FactNotFound(Exception):
+    pass
+
+
+def correct_fact(
+    db: Session, candidate_id: str, tenant_id: str, fact_id: int, new_value: str, *, corrected_by: str,
+) -> CandidateMemoryFact:
+    """
+    S-023/HRMS-0423 -- recruiter manual correction. BR-01: a manual
+    correction is treated as verified ground truth (confidence=1.0).
+    BR-03: if the corrected fact_key maps to a real Candidate column,
+    the correction cascades to the profile too -- the same
+    PROFILE_FIELD_MAP facts_extraction_service already uses, imported
+    locally to avoid a module-level import cycle (facts_extraction_service
+    itself imports from this module).
+    """
+    fact = (
+        db.query(CandidateMemoryFact)
+        .filter(CandidateMemoryFact.id == fact_id, CandidateMemoryFact.candidate_id == candidate_id, CandidateMemoryFact.tenant_id == tenant_id)
+        .first()
+    )
+    if not fact:
+        raise FactNotFound(f"Fact {fact_id} not found for candidate {candidate_id}.")
+
+    fact.fact_value = new_value
+    fact.confidence = 1.0
+    fact.extracted_at = datetime.utcnow()
+    db.add(fact)
+
+    from app.services.facts_extraction_service import PROFILE_FIELD_MAP
+    column = PROFILE_FIELD_MAP.get(fact.fact_key)
+    if column:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if candidate:
+            setattr(candidate, column, new_value)
+            db.add(candidate)
+
+    _log_memory_event(db, candidate_id, "MEMORY_FACT_CORRECTED", {"fact_id": fact_id, "fact_key": fact.fact_key, "new_value": new_value, "corrected_by": corrected_by})
+    db.commit()
+    db.refresh(fact)
+    return fact
