@@ -38,6 +38,7 @@ from app.models.candidate_ai import (
     CandidateConversation,
     ConversationEvent,
 )
+from app.models.user import Users
 from app.services.email_service import EmailService
 
 # ---------------------------------------------------------------------------
@@ -48,6 +49,19 @@ AI_AGENT_NAME = "onboarding-ai"
 AI_AGENT_PERSONA = "friendly-hr"
 SERVICE_MAILBOX = "helpdesk_hrms@blitzenx.com"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# S-011/HRMS-0411 -- the candidate-facing identity ("Hi John, I'm
+# Thunder from BlitzenX"), distinct from AI_AGENT_NAME/AI_AGENT_PERSONA
+# above (those are CandidateAIAssignment's internal type/tone keys,
+# used elsewhere and left untouched to avoid regressing anything that
+# reads them). This is what resolve_thunder_config() below resolves
+# per-tenant, admin-configurable without a code deployment.
+DEFAULT_THUNDER_DISPLAY_NAME = "Thunder"
+DEFAULT_THUNDER_PERSONA_TEXT = (
+    "I am Thunder, Talent Scout at BlitzenX — Powering our global team at "
+    "lightning speed. I help candidates through the application process "
+    "with professionalism and speed."
+)
 
 # Ordered list of (candidate_field, friendly_label) tuples.
 # Only core `candidates` table fields — Aadhar / PAN are handled as documents.
@@ -236,6 +250,27 @@ def _log_event(
     return event
 
 
+def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, str]:
+    """
+    S-011/HRMS-0411: per-tenant Thunder identity, admin-configurable via
+    GET/PATCH /admin/tenant/ai-config without a code deployment.
+
+    BR-02: an agent name must never reach a candidate blank -- falls
+    back to DEFAULT_THUNDER_DISPLAY_NAME if the tenant has no config row
+    or an empty name, logging CONFIG_MISSING_USING_DEFAULT either way.
+    """
+    tenant_user = db.query(Users).filter(Users.UserID == tenant_id).first() if tenant_id else None
+
+    name = (tenant_user.ai_agent_name if tenant_user else None) or ""
+    name = name.strip()
+    if not name:
+        logger.info(f"[AIAgent] CONFIG_MISSING_USING_DEFAULT: tenant {tenant_id!r} has no ai_agent_name -- using default.")
+        name = DEFAULT_THUNDER_DISPLAY_NAME
+
+    persona = (tenant_user.ai_agent_persona if tenant_user else None) or DEFAULT_THUNDER_PERSONA_TEXT
+    return {"name": name, "persona": persona}
+
+
 def _is_duplicate_email_reply(db: Session, conversation_id: int, message_id: str) -> bool:
     """S-003/HRMS-0403 BR-01: filtered in Python -- event_data is JSON,
     same tradeoff as thunder_service's _is_duplicate_send /
@@ -297,12 +332,21 @@ def assign_ai_agent(
         CandidateAIAssignment.is_active == True,
     ).update({"is_active": False})
 
+    # S-011/HRMS-0411 -- point-in-time copy of the tenant's current
+    # Thunder config (name defaults to "Thunder", never blank -- BR-02).
+    # A later config change does NOT retroactively update this row
+    # (matches the story's own acceptance criteria); the internal
+    # AI_AGENT_NAME/AI_AGENT_PERSONA constants are a separate concern
+    # (CandidateConversation.owner_id's ownership-comparison token,
+    # untouched here to avoid regressing R-08 ownership logic).
+    thunder_config = resolve_thunder_config(db, tenant_id)
+
     # Create new assignment
     assignment = CandidateAIAssignment(
         tenant_id=tenant_id,
         candidate_id=candidate_id,
-        ai_agent_name=AI_AGENT_NAME,
-        ai_agent_persona=AI_AGENT_PERSONA,
+        ai_agent_name=thunder_config["name"],
+        ai_agent_persona=thunder_config["persona"],
         assigned_by=assigned_by,
         is_active=True,
     )
@@ -329,7 +373,7 @@ def assign_ai_agent(
     _log_event(
         db, conversation.id, "ai_assigned",
         {
-            "ai_agent_name": AI_AGENT_NAME,
+            "ai_agent_name": thunder_config["name"],
             "assigned_by": assigned_by,
             "assignment_id": assignment.id,
         },
@@ -375,6 +419,42 @@ def assign_ai_agent(
         "email_sent": email_sent,
         "conversation_status": conversation.status,
     }
+
+
+def reassign_ai_agent(
+    candidate_id: str,
+    tenant_id: str,
+    assigned_by: Optional[str],
+    db: Session,
+) -> Dict[str, Any]:
+    """
+    S-011/HRMS-0411 reassignAIRecruiter() -- named separately from
+    assign_ai_agent() to match the story's own API, though the real
+    logic is identical: assign_ai_agent() already deactivates any
+    existing active assignment before creating the new one every time
+    it's called, which IS reassignment. Used when a tenant updates
+    Thunder's config (resolve_thunder_config) and wants to push the new
+    name/persona to a candidate's assignment record -- note this does
+    NOT retroactively change conversation_ai_config passed to any
+    already-in-flight LLM call, only the point-in-time copy stored on
+    the new CandidateAIAssignment row and future replies (which
+    resolve fresh via resolve_thunder_config each time).
+    """
+    return assign_ai_agent(candidate_id, tenant_id, assigned_by, db)
+
+
+def get_active_ai_assignment(db: Session, candidate_id: str, tenant_id: str) -> Optional[CandidateAIAssignment]:
+    """S-011/HRMS-0411 -- backs GET /candidates/{id}/ai-assignment."""
+    return (
+        db.query(CandidateAIAssignment)
+        .filter(
+            CandidateAIAssignment.candidate_id == candidate_id,
+            CandidateAIAssignment.tenant_id == tenant_id,
+            CandidateAIAssignment.is_active == True,
+        )
+        .order_by(CandidateAIAssignment.assigned_at.desc())
+        .first()
+    )
 
 
 def auto_assign_ai_agent_on_creation(
