@@ -42,6 +42,7 @@ from app.api.v1.endpoints.clients import router as clients_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.internal_ask_thunder import router as internal_ask_thunder_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
+from app.api.v1.endpoints.portal_messages import router as portal_messages_router
 
 router = fastapi.APIRouter()
 
@@ -86,4 +87,5 @@ router.include_router(router=notifications_router)
 router.include_router(router=clients_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=internal_ask_thunder_router)
-router.include_router(router=whatsapp_webhook_router)
+router.include_router(router=whatsapp_webhook_router)
+router.include_router(router=portal_messages_router)
