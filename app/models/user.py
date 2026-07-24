@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -80,6 +80,17 @@ class Jobs(Base):
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    # S-037/HRMS-0437 -- structured requirements the spec assumes exist on
+    # the job record already (required_skills/min_experience_years/domain/
+    # certifications_preferred). The real jobSkills/jobExperience columns
+    # above are free text a recruiter typed, never structured -- these are
+    # lazily populated the first time technical_scoring_service parses
+    # them (see that module), not filled in at job-creation time, since no
+    # recruiter UI exists yet to enter them directly.
+    required_skills_canonical = Column(JSON, nullable=True)
+    min_experience_years = Column(Integer, nullable=True)
+    domain = Column(String(100), nullable=True)
+    certifications_preferred = Column(JSON, nullable=True)
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")

@@ -109,6 +109,13 @@ def extract_and_tag_skills(
 
     _log_event(db, conversation, "candidate.skills_extracted", {"skills_count": len(canonical_skills), "canonical_skills": canonical_skills})
     db.commit()
+
+    # S-037/HRMS-0437 BR-03: recalculate technical fit for every job this
+    # candidate is linked to. Never raises -- see
+    # technical_scoring_service.recalculate_for_candidate()'s own docstring.
+    from app.services.technical_scoring_service import recalculate_for_candidate
+    recalculate_for_candidate(db, candidate, tenant_id)
+
     return {"skills_count": len(canonical_skills), "canonical_skills": canonical_skills}
 
 

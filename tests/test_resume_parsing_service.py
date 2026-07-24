@@ -24,12 +24,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
-from app.models.candidate import Candidate
+from app.models.candidate import Candidate, CandidateJobApplication
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
+from app.models.candidate_job_score import CandidateJobScore
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 from app.models.candidate_skill_tag import CandidateSkillTag
 from app.models.notification import Notification
-from app.models.user import Users
+from app.models.user import Jobs, Users
 
 import app.services.resume_parsing_service as svc
 
@@ -42,7 +43,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
         CandidateResumeParsed.__table__, CandidateAIAssignment.__table__, Notification.__table__,
-        CandidateSkillTag.__table__,
+        CandidateSkillTag.__table__, Jobs.__table__, CandidateJobApplication.__table__, CandidateJobScore.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

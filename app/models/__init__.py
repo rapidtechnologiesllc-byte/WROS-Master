@@ -84,6 +84,7 @@ from app.models.candidate_resume_parsed import CandidateResumeParsed
 from app.models.candidate_skill_tag import CandidateSkillTag
 from app.models.prompt_execution_log import PromptExecutionLog
 from app.models.candidate_sentiment_log import CandidateSentimentLog
+from app.models.candidate_job_score import CandidateJobScore
 
 __all__ = [
     # Base
@@ -212,5 +213,6 @@ __all__ = [
     "CandidateSkillTag",
     "PromptExecutionLog",
     "CandidateSentimentLog",
+    "CandidateJobScore",
 ]
 
