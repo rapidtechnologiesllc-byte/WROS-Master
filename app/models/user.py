@@ -1,7 +1,12 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON, Enum
 from sqlalchemy.orm import relationship
 from app.models.base import Base
+
+# S-039/HRMS-0439 -- real values, no native DB enum (SQL Server, same
+# native_enum=False/create_constraint=True convention Candidate.employment_type
+# and app.models.client's enums already use).
+JOB_URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
 
 class Users(Base):
     __tablename__ = "users"
@@ -100,6 +105,16 @@ class Jobs(Base):
     # compensation fit is scored.
     budget_min = Column(Integer, nullable=True)
     budget_max = Column(Integer, nullable=True)
+    # S-039/HRMS-0439 -- no urgency/priority field existed on Jobs at all.
+    # Nullable: most jobs won't have this set until a real recruiter UI
+    # exists to enter it (same "genuinely new, no UI yet" posture as
+    # S-037's domain/certifications_preferred). startDate (already a real
+    # column, Date) is the real equivalent of the spec's required_start_date
+    # -- reused as-is, not duplicated.
+    urgency = Column(
+        Enum(*JOB_URGENCY_LEVELS, name="job_urgency", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
