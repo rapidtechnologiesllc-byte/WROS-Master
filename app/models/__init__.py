@@ -80,6 +80,7 @@ from app.models.message_template import MessageTemplate
 from app.models.sla_breach import CandidateSLABreach
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
 from app.models.candidate_field_skip import CandidateFieldSkip
+from app.models.candidate_resume_parsed import CandidateResumeParsed
 
 __all__ = [
     # Base
@@ -204,5 +205,6 @@ __all__ = [
     "CandidateMemory",
     "CandidateMemoryFact",
     "CandidateFieldSkip",
+    "CandidateResumeParsed",
 ]
 

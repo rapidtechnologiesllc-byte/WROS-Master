@@ -24,6 +24,7 @@ bcrypt>=4.0.0,<5.0.0             # Password hashing library
 cryptography>=42.0.0,<43.0.0     # Cryptographic recipes and primitives
 python-multipart>=0.0.6,<1.0.0   # Multipart form data parser (for file uploads)
 python-jose[cryptography]>=3.3.0,<4.0.0  # JOSE implementation for JWT
+pypdf>=4.0.0,<6.0.0              # PDF text extraction (S-028 Resume Parsing Engine)
 
 # Microsoft Integration
 # ----------------------------------------------------------------------------
