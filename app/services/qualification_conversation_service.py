@@ -84,10 +84,14 @@ def _looks_not_interested(message_body: str) -> bool:
     return any(phrase in lowered for phrase in NOT_INTERESTED_PHRASES)
 
 
-def _send_qualification_message(
+def send_channel_aware_message(
     db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str,
     *, whatsapp_client=None,
 ) -> None:
+    """Dispatches an outbound Thunder message via whichever channel this
+    conversation prefers. Public (no leading underscore) so other
+    modules -- e.g. resume_upload_service (S-027) -- can send a
+    channel-aware confirmation without duplicating this dispatch logic."""
     # channel_preference lives on the conversation (S-069), not Candidate.
     channel = conversation.channel_preference or "email"
 
@@ -146,7 +150,7 @@ def run_qualification_turn(
             conversation_id=conversation.id, event_type="CANDIDATE_NOT_INTERESTED",
             event_data={"message": candidate_message[:500]}, triggered_by="candidate",
         ))
-        _send_qualification_message(db, conversation, candidate, NOT_INTERESTED_MESSAGE, whatsapp_client=whatsapp_client)
+        send_channel_aware_message(db, conversation, candidate, NOT_INTERESTED_MESSAGE, whatsapp_client=whatsapp_client)
         db.commit()
         return {"action": "not_interested"}
 
@@ -159,7 +163,7 @@ def run_qualification_turn(
         transition_status(db, conversation, "closed", reason="Qualification complete", triggered_by="ai_agent")
         conversation.next_action = "ready_for_matching"
         message = COMPLETION_MESSAGE_TEMPLATE.format(name=_candidate_name(candidate))
-        _send_qualification_message(db, conversation, candidate, message, whatsapp_client=whatsapp_client)
+        send_channel_aware_message(db, conversation, candidate, message, whatsapp_client=whatsapp_client)
         db.commit()
         return {"action": "qualification_complete"}
 
@@ -176,6 +180,6 @@ def run_qualification_turn(
         prefix = "Great, thanks for sharing that! "
 
     message = f"{prefix}{plan['question']}"
-    _send_qualification_message(db, conversation, candidate, message, whatsapp_client=whatsapp_client)
+    send_channel_aware_message(db, conversation, candidate, message, whatsapp_client=whatsapp_client)
     db.commit()
     return {"action": "qualification_question_sent", "next_field": plan["next_field"], "message": message}
