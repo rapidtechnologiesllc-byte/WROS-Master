@@ -221,6 +221,15 @@ function ConversationCard({ conversation, onChanged }) {
 
   const isHumanOwned = conversation.owner_type === "hr_user";
 
+  // S-035/HRMS-0435 6A: "Escalation Reason" text, sourced from the latest
+  // escalation_triggered event already present in this conversation's own
+  // event log -- no separate backend field needed for this.
+  const escalationReason =
+    conversation.escalation_state === "escalated"
+      ? [...events].reverse().find((e) => e.event_type === "escalation_triggered")
+          ?.event_data?.reason
+      : null;
+
   const handleSend = async () => {
     if (!message.trim()) return;
     try {
@@ -285,7 +294,9 @@ function ConversationCard({ conversation, onChanged }) {
           {conversation.escalation_state &&
             conversation.escalation_state !== "none" && (
               <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
-                Escalation: {conversation.escalation_state}
+                {conversation.escalation_state === "escalated"
+                  ? "Needs human attention"
+                  : `Escalation: ${conversation.escalation_state}`}
               </span>
             )}
         </div>
@@ -293,6 +304,12 @@ function ConversationCard({ conversation, onChanged }) {
           Updated {formatDateTime(conversation.updated_at)}
         </span>
       </div>
+
+      {escalationReason && (
+        <p className="mt-2 text-sm text-red-700">
+          Escalation reason: {escalationReason}
+        </p>
+      )}
 
       {conversation.summary && (
         <p className="mt-3 text-sm italic text-gray-600">
