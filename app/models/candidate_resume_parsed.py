@@ -43,3 +43,8 @@ class CandidateResumeParsed(Base):
 
     parsed_at = Column(DateTime(timezone=False), server_default=func.now())
     parser_version = Column(String(20), nullable=False, server_default=PARSER_VERSION)
+
+    # S-030/HRMS-0430 -- resume completeness score (0-100), distinct
+    # from profile completeness (get_missing_fields()) per BR-01.
+    resume_completeness_score = Column(Integer, nullable=True)
+    score_calculated_at = Column(DateTime(timezone=False), nullable=True)

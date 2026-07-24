@@ -320,8 +320,17 @@ def parse_resume(
         from app.services.skill_extraction_service import extract_and_tag_skills
         extract_and_tag_skills(db, candidate, tenant_id, skills, conversation=conversation)
 
+    # S-030/HRMS-0430 -- BR-02: must run AFTER skill extraction above,
+    # or the skills component of the score would read 0.
+    from app.services.resume_completeness_service import update_resume_completeness_score
+    completeness = update_resume_completeness_score(db, candidate, tenant_id)
+
     _log_event(db, conversation, "candidate.resume_parsed", {
         "total_experience_months": total_months, "skills_count": len(skills), "parsing_success": True,
+        "resume_completeness_score": completeness["resume_completeness_score"],
     })
     db.commit()
-    return {"outcome": "parsed", "total_experience_months": total_months, "total_experience_years": total_years, "skills_count": len(skills)}
+    return {
+        "outcome": "parsed", "total_experience_months": total_months, "total_experience_years": total_years,
+        "skills_count": len(skills), "resume_completeness_score": completeness["resume_completeness_score"],
+    }

@@ -330,6 +330,28 @@ def get_skill_suggestions(
 
 
 # ===========================================================================
+# GET /ai-agent/resume-completeness/{candidate_id}
+# ===========================================================================
+
+@router.get(
+    "/resume-completeness/{candidate_id}",
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Resume completeness score (S-030/HRMS-0430)",
+    description=(
+        "BR-01: distinct from profile completeness (missing-fields) -- this "
+        "measures the quality of the parsed resume document itself."
+    ),
+)
+def get_resume_completeness(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    candidate = _get_candidate_or_404(candidate_id, db)
+    return {"candidate_id": candidate_id, "resume_completeness_score": candidate.resume_completeness_score}
+
+
+# ===========================================================================
 # POST /ai-agent/webhook/email-reply
 # ===========================================================================
 
