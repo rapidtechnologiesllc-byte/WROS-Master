@@ -50,6 +50,7 @@ from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA, resolve_thunder_config
+from app.services.conversation_state_service import escalate as escalate_conversation
 from app.services.whatsapp_routing_service import (  # noqa: F401 -- re-exported gate
     ConversationOwnedByHuman,
     is_ai_owner,
@@ -548,6 +549,7 @@ def validate_thunder_reply(text: Optional[str]) -> bool:
 
 def generate_thunder_reply_with_fallback(
     db: Session, candidate: Candidate, inbound_message: str, *, channel: str = "whatsapp",
+    conversation: Optional[CandidateConversation] = None,
 ) -> Tuple[str, bool]:
     """
     Generates a validated Thunder reply, regenerating once on a failed
@@ -556,18 +558,51 @@ def generate_thunder_reply_with_fallback(
     A candidate must never receive no response due to a technical
     failure -- if both attempts fail or fail validation, returns the
     hardcoded SAFE_FALLBACK_MESSAGE (never LLM-generated, never fails).
+
+    S-034/HRMS-0434 BR-01: when `conversation` is supplied, ownership is
+    checked FIRST -- before build_candidate_context() or any LLM call --
+    so a recruiter-owned conversation never burns a Gemini call. Raises
+    ConversationOwnedByHuman in that case (same exception
+    send_thunder_message() itself raises); callers should catch it and
+    skip sending, not treat it as a failure needing the safe fallback.
+    `conversation` is optional (default None, ownership unchecked here)
+    so existing callers that already gate ownership at their own
+    send_thunder_message() call -- or don't have a conversation object
+    yet -- are unaffected.
+
+    S-034's revised canonical spec ("Thunder never responds cold"): if
+    build_candidate_context() itself fails (generate_thunder_reply()
+    calls it as its very first step), that's not a retry-and-hope
+    situation -- escalate to the recruiter queue via
+    conversation_state_service.escalate() (when a conversation was
+    supplied) and go straight to the safe fallback, no second attempt.
     """
+    if conversation is not None and not is_ai_owner(conversation):
+        raise ConversationOwnedByHuman(
+            f"Conversation {conversation.id} is owned by {conversation.owner_type}:"
+            f"{conversation.owner_id} -- Thunder may not generate a reply."
+        )
+
+    context_build_failed = False
     for attempt in range(2):
         try:
             reply = generate_thunder_reply(db, candidate, inbound_message, channel=channel)
         except ThunderReplyGenerationFailed as exc:
             logger.error(f"[Thunder] reply generation failed (attempt {attempt + 1}): {exc}")
             continue
+        except Exception as exc:
+            logger.error(f"[Thunder] context build or unexpected failure (attempt {attempt + 1}): {exc}")
+            context_build_failed = True
+            break
         if validate_thunder_reply(reply):
             return reply, False
         logger.warning(
             f"[Thunder] generated reply failed validation (attempt {attempt + 1}): {reply!r}"
         )
+
+    if context_build_failed and conversation is not None:
+        escalate_conversation(db, conversation, reason="context_build_failed", triggered_by="ai_agent")
+        db.commit()
 
     return SAFE_FALLBACK_MESSAGE, True
 
