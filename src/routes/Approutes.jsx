@@ -80,6 +80,7 @@ import InvoicesScreen from "../screens/InvoicesScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
+import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -459,6 +460,7 @@ export default function AppRoutes() {
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
+            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
 
             <Route
               path="candidates"
@@ -660,6 +662,7 @@ export default function AppRoutes() {
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
+            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
           <Route
             path="candidates"
             element={
