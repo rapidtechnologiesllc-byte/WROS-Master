@@ -1,4 +1,8 @@
-"""Pydantic Schemas -- S-037/HRMS-0437 Technical Qualification Score."""
+"""
+Pydantic Schemas -- S-037/HRMS-0437 Technical Qualification Score,
+S-038/HRMS-0438 Compensation Fit Score, S-039/HRMS-0439 Availability
+Score, S-040/HRMS-0440 Overall Candidate Score & Ranking.
+"""
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -14,3 +18,22 @@ class TechnicalScoreResponse(BaseModel):
     overall_score: Optional[int]
     score_breakdown: Optional[Dict]
     calculated_at: Optional[datetime]
+
+
+class RankedCandidateItem(BaseModel):
+    rank: int
+    candidate_id: str
+    candidate_name: str
+    overall_score: Optional[int]
+    technical_score: Optional[int]
+    compensation_score: Optional[int]
+    availability_score: Optional[int]
+    resume_completeness_score: Optional[int]
+    score_breakdown: Optional[Dict]
+
+
+class RankedCandidatesResponse(BaseModel):
+    job_id: str
+    job_title: str
+    candidates: List[RankedCandidateItem]
+    total_count: int
