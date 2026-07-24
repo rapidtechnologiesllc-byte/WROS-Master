@@ -1,15 +1,21 @@
 """
-S-015/HRMS-0415 -- Conversation Search
-=========================================
+S-015/S-016 (HRMS-0415/0416) -- Conversation Search + Filters
+==================================================================
 Prefix: /conversations
 Tag:    conversation-search
 
 GET /conversations/search?q=&channel=&date_from=&date_to=&page=&per_page=
+    &status=&escalated=&has_missing_fields=&updated_after=&updated_before=
+
+status may repeat (?status=open&status=awaiting_candidate) for OR-within-
+type filtering (BR-01). See conversation_search_service's docstring for
+why `status`/`escalated` are two separate real fields, not the spec's
+single fictional status enum.
 """
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -30,6 +36,11 @@ def search_conversations_endpoint(
     date_to: Optional[datetime] = None,
     page: int = 1,
     per_page: int = 20,
+    status: Optional[List[str]] = Query(None),
+    escalated: Optional[bool] = None,
+    has_missing_fields: Optional[bool] = None,
+    updated_after: Optional[datetime] = None,
+    updated_before: Optional[datetime] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
@@ -40,6 +51,8 @@ def search_conversations_endpoint(
     try:
         result = search_conversations(
             db, tenant_id, q, channel=channel, date_from=date_from, date_to=date_to, page=page, per_page=per_page,
+            status=status, escalated=escalated, has_missing_fields=has_missing_fields,
+            updated_after=updated_after, updated_before=updated_before,
         )
     except SearchTermTooShort as exc:
         raise HTTPException(status_code=400, detail=str(exc))

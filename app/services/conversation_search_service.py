@@ -56,6 +56,21 @@ def search_conversations(
     db: Session, tenant_id: str, q: str, *,
     channel: Optional[str] = None, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None,
     page: int = 1, per_page: int = 20,
+    # S-016/HRMS-0416 -- additive filters on top of the S-015 search.
+    # Adapted to this codebase's real status vocabulary: the spec's
+    # single QUALIFYING/QUALIFIED/ESCALATED/PAUSED/COMPLETED status
+    # enum doesn't exist here -- CandidateConversation really has two
+    # orthogonal real fields, status ("open"/"awaiting_candidate"/
+    # "closed") and escalation_state ("none"/"pending"/"escalated"/
+    # "resolved"), so `status` filters the first and `escalated`
+    # filters the second rather than inventing a fictional mapping
+    # between them. has_missing_fields is computed live via the real
+    # get_missing_fields() (no candidate_missing_fields table exists).
+    status: Optional[List[str]] = None,
+    escalated: Optional[bool] = None,
+    has_missing_fields: Optional[bool] = None,
+    updated_after: Optional[datetime] = None,
+    updated_before: Optional[datetime] = None,
 ) -> Dict:
     """BR-01: minimum 2 characters. BR-02: absolute tenant isolation --
     every conversation/candidate looked up is filtered by tenant_id at
@@ -65,11 +80,19 @@ def search_conversations(
 
     q_lower = q.lower()
 
-    conversations = (
-        db.query(CandidateConversation)
-        .filter(CandidateConversation.tenant_id == tenant_id)
-        .all()
-    )
+    conv_query = db.query(CandidateConversation).filter(CandidateConversation.tenant_id == tenant_id)
+    if status:
+        conv_query = conv_query.filter(CandidateConversation.status.in_(status))
+    if escalated is True:
+        conv_query = conv_query.filter(CandidateConversation.escalation_state.in_(("pending", "escalated")))
+    elif escalated is False:
+        conv_query = conv_query.filter(CandidateConversation.escalation_state.in_((None, "none", "resolved")))
+    if updated_after:
+        conv_query = conv_query.filter(CandidateConversation.updated_at >= updated_after)
+    if updated_before:
+        conv_query = conv_query.filter(CandidateConversation.updated_at <= updated_before)
+
+    conversations = conv_query.all()
     conv_by_id = {c.id: c for c in conversations}
     if not conv_by_id:
         return {"results": [], "total_count": 0, "page": page, "per_page": per_page, "has_more": False}
@@ -79,6 +102,18 @@ def search_conversations(
         c.candidateID: c
         for c in db.query(Candidate).filter(Candidate.candidateID.in_(candidate_ids)).all()
     }
+
+    if has_missing_fields is not None:
+        from app.services.ai_conversation_service import get_missing_fields
+        keep_candidate_ids = set()
+        for candidate in candidates_by_id.values():
+            missing = get_missing_fields(candidate, db)
+            if bool(missing) == has_missing_fields:
+                keep_candidate_ids.add(candidate.candidateID)
+        candidates_by_id = {cid: c for cid, c in candidates_by_id.items() if cid in keep_candidate_ids}
+        conv_by_id = {cid: c for cid, c in conv_by_id.items() if c.candidate_id in keep_candidate_ids}
+        if not conv_by_id:
+            return {"results": [], "total_count": 0, "page": page, "per_page": per_page, "has_more": False}
 
     event_query = (
         db.query(ConversationEvent)
