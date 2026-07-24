@@ -1295,7 +1295,7 @@ def process_candidate_reply(
         raw_reply_text = "[Non-text email received]"
 
     # ── Step 2: Log candidate_reply event ────────────────────────────────
-    _log_event(
+    reply_event = _log_event(
         db, conversation.id, "candidate_reply",
         {
             "message_id": message_id,
@@ -1308,6 +1308,13 @@ def process_candidate_reply(
     # S-069/HRMS-0469 -- re-detect channel preference on every inbound reply.
     from app.services.channel_preference_service import detect_channel_preference
     detect_channel_preference(db, conversation)
+
+    # S-022/HRMS-0422 -- extract structured facts from every inbound
+    # message. Never raises (see facts_extraction_service module
+    # docstring) -- an LLM/parse failure logs FACTS_EXTRACTION_FAILED
+    # and returns [], the reply pipeline below is unaffected either way.
+    from app.services.facts_extraction_service import extract_facts
+    extract_facts(db, candidate, conversation.tenant_id, conversation.id, raw_reply_text, source_message_id=reply_event.id)
 
     # ── Step 3: Check if anything is still missing before running pipeline ─
     missing = get_missing_fields(candidate, db)
