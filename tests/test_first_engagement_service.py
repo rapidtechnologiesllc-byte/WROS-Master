@@ -28,6 +28,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
+from app.models.message_template import MessageTemplate
 from app.models.user import Users
 
 
@@ -44,6 +45,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__,
         ConversationEvent.__table__, CandidateAIAssignment.__table__, ConsentRecord.__table__,
+        MessageTemplate.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -174,6 +176,6 @@ def test_no_consent_raises_and_logs_send_blocked(db_session):
 
 def test_render_greeting_never_leaves_unreplaced_placeholder(db_session):
     candidate, _ = _make_candidate_and_conversation(db_session)
-    rendered = svc._render_greeting(candidate, "Thunder")
+    rendered = svc._render_greeting(db_session, candidate, "Thunder", "U-ORG")
     assert "{" not in rendered and "}" not in rendered
     assert len(rendered) < svc.MAX_MESSAGE_LENGTH

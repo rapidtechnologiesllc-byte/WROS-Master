@@ -51,7 +51,23 @@ def _first_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
 
 
-def _render_greeting(candidate: Candidate, agent_name: str) -> str:
+def _render_greeting(db: Session, candidate: Candidate, agent_name: str, tenant_id: str) -> str:
+    """
+    S-014/HRMS-0414 -- tries the real, admin-activated GREETING_WHATSAPP
+    template first; falls back to the hardcoded default (this module's
+    own pre-S-014 behavior) if no single active template exists yet, or
+    if it renders with something still un-replaced. A tenant that's
+    never touched /templates gets exactly the old behavior.
+    """
+    from app.services.message_template_service import TemplateNotFoundError, TemplateRenderError, render_template
+
+    variables = {"candidate_name": _first_name(candidate), "agent_name": agent_name, "company_name": COMPANY_NAME}
+    try:
+        result = render_template(db, "GREETING_WHATSAPP", "WHATSAPP", tenant_id, variables)
+        return result["rendered_body"]
+    except (TemplateNotFoundError, TemplateRenderError) as exc:
+        logger.info(f"[FirstEngagement] Using hardcoded GREETING_WHATSAPP fallback ({exc.__class__.__name__}): {exc}")
+
     rendered = FALLBACK_GREETING_TEMPLATE.format(
         candidate_name=_first_name(candidate), agent_name=agent_name, company_name=COMPANY_NAME,
     )
@@ -165,7 +181,7 @@ def send_first_whatsapp_engagement(
     thunder_config = resolve_thunder_config(db, tenant_id)
 
     try:
-        body = _render_greeting(candidate, thunder_config["name"])
+        body = _render_greeting(db, candidate, thunder_config["name"], tenant_id)
     except TemplateRenderFailure as exc:
         logger.error(f"[FirstEngagement] TEMPLATE_RENDER_FAILURE: {exc}")
         db.add(ConversationEvent(conversation_id=conversation.id, event_type="FIRST_ENGAGEMENT_FAILED", event_data={"reason": "TEMPLATE_RENDER_FAILURE", "detail": str(exc)}, triggered_by="system"))

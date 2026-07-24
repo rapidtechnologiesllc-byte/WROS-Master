@@ -62,7 +62,21 @@ def _first_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
 
 
-def _render_greeting_email(candidate: Candidate, agent_name: str) -> Dict[str, str]:
+def _render_greeting_email(db: Session, candidate: Candidate, agent_name: str, tenant_id: str) -> Dict[str, str]:
+    """S-014/HRMS-0414 -- tries the real, admin-activated GREETING_EMAIL
+    template first; falls back to the hardcoded default otherwise (no
+    active template, a render failure, or BR-03's signature missing)."""
+    from app.services.message_template_service import TemplateNotFoundError, TemplateRenderError, render_template
+
+    variables = {"candidate_name": _first_name(candidate), "agent_name": agent_name, "company_name": COMPANY_NAME}
+    try:
+        result = render_template(db, "GREETING_EMAIL", "EMAIL", tenant_id, variables)
+        if result["rendered_subject"] and THUNDER_SIGNATURE in result["rendered_body"]:
+            return {"subject": result["rendered_subject"], "body": result["rendered_body"]}
+        logger.warning("[EmailFirstEngagement] Active GREETING_EMAIL template is missing subject or signature -- using hardcoded fallback.")
+    except (TemplateNotFoundError, TemplateRenderError) as exc:
+        logger.info(f"[EmailFirstEngagement] Using hardcoded GREETING_EMAIL fallback ({exc.__class__.__name__}): {exc}")
+
     subject = FALLBACK_SUBJECT_TEMPLATE.format(candidate_name=_first_name(candidate))
     body = FALLBACK_BODY_TEMPLATE.format(candidate_name=_first_name(candidate), agent_name=agent_name, company_name=COMPANY_NAME)
 
@@ -127,7 +141,7 @@ def send_first_email_engagement(
     thunder_config = resolve_thunder_config(db, tenant_id)
 
     try:
-        rendered = _render_greeting_email(candidate, thunder_config["name"])
+        rendered = _render_greeting_email(db, candidate, thunder_config["name"], tenant_id)
     except EmailTemplateRenderFailure as exc:
         logger.error(f"[EmailFirstEngagement] TEMPLATE_RENDER_FAILURE: {exc}")
         db.add(ConversationEvent(conversation_id=conversation.id, event_type="FIRST_ENGAGEMENT_FAILED", event_data={"channel": "email", "reason": "TEMPLATE_RENDER_FAILURE", "detail": str(exc)}, triggered_by="system"))

@@ -20,6 +20,7 @@ import app.services.email_first_engagement_service as svc
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
+from app.models.message_template import MessageTemplate
 from app.models.user import Users
 
 
@@ -30,7 +31,7 @@ def db_session():
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__,
-        ConversationEvent.__table__, CandidateAIAssignment.__table__,
+        ConversationEvent.__table__, CandidateAIAssignment.__table__, MessageTemplate.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -130,7 +131,7 @@ def test_both_attempts_fail_emits_failure_no_crash(db_session):
 
 def test_render_greeting_email_contains_signature_and_no_placeholders(db_session):
     candidate, _ = _make_candidate_and_conversation(db_session)
-    rendered = svc._render_greeting_email(candidate, "Thunder")
+    rendered = svc._render_greeting_email(db_session, candidate, "Thunder", "U-ORG")
     assert svc.THUNDER_SIGNATURE in rendered["body"]
     assert "Jordan" in rendered["subject"]
     assert "{" not in rendered["subject"] and "{" not in rendered["body"]
