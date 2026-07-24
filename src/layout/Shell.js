@@ -20,6 +20,7 @@ import {
   Globe2,
   FolderKanban,
   AlertOctagon,
+  MessageSquareText,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -66,6 +67,10 @@ const NAV_ITEMS = {
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
+  // S-014/HRMS-0414 -- template.manage-gated activate action lives on
+  // the screen itself; the nav entry is visible to anyone who can see
+  // the Admin group (recruiters can create/preview, just not activate).
+  messageTemplates: { path: ROUTES.MESSAGE_TEMPLATES, label: "Message Templates", icon: MessageSquareText },
 };
 
 const GROUP_DEFS = [
@@ -90,7 +95,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["rbac", "hrUsers", "tenantLocale"],
+    keys: ["rbac", "hrUsers", "tenantLocale", "messageTemplates"],
   },
 ];
 
@@ -134,7 +139,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale",
+          "rbac", "hrUsers", "tenantLocale", "messageTemplates",
         ]),
       };
     }
@@ -146,7 +151,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale",
+          "rbac", "hrUsers", "tenantLocale", "messageTemplates",
         ]),
       };
     }
