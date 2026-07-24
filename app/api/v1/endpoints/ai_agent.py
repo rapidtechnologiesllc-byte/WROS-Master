@@ -203,6 +203,32 @@ def preview_missing_fields(
 
 
 # ===========================================================================
+# GET /ai-agent/portal-link/{candidate_id}
+# ===========================================================================
+
+@router.get(
+    "/portal-link/{candidate_id}",
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Get this candidate's Candidate Portal magic link (S-017/HRMS-0417)",
+    description=(
+        "Returns the /candidate/{token} URL a recruiter can send the "
+        "candidate (WhatsApp/Email) so they can view their own "
+        "conversation, complete missing profile fields, and see "
+        "upcoming interviews without a password."
+    ),
+)
+def get_candidate_portal_link(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    from app.services.candidate_portal_service import generate_portal_link_url
+
+    _get_candidate_or_404(candidate_id, db)
+    return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(candidate_id)}
+
+
+# ===========================================================================
 # POST /ai-agent/webhook/email-reply
 # ===========================================================================
 
