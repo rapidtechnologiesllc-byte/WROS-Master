@@ -1,0 +1,282 @@
+"""
+Public Thunder Chat -- the real, production candidate-facing web chat
+widget for external visitors (careers page / job listing), alongside
+WhatsApp. Not a test/preview tool: a genuine visitor who has never
+talked to anyone at BlitzenX can open this, get matched against real
+open roles, and become a real Candidate row -- through the exact same
+create_candidate_safe()/assign_ai_agent() paths every other candidate-
+creation entry point in this codebase uses (see
+app.api.v1.endpoints.create_job.apply_for_job for the other one). No
+shadow data model, no fabricated replies -- every message after the
+opening greeting goes through the real, context-aware
+generate_thunder_reply_with_fallback().
+
+Session model: there's no login. The candidate_id returned by
+start_public_chat() (a "CAN-<uuid4>", effectively unguessable) is what
+the browser holds onto (e.g. localStorage) to resume a conversation --
+functionally a bearer token, same trust model as any other opaque
+session id. Nothing about a candidate's real identity is derivable
+from it.
+"""
+from datetime import datetime
+from typing import Dict, List, Optional
+
+from sqlalchemy.orm import Session
+
+from app.core.logging import logger
+from app.models.candidate import Candidate
+from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.models.consent import ConsentRecord
+from app.models.user import Jobs, Users
+from app.services.ai_conversation_service import assign_ai_agent
+from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
+from app.services.thunder_service import (
+    WEB_CHAT_CONSENT_TYPE,
+    generate_thunder_reply_with_fallback,
+    send_thunder_message,
+)
+
+
+class PublicChatConsentRequired(Exception):
+    """The visitor didn't tick the consent checkbox -- fail closed, same
+    posture as every other consent gate in this codebase."""
+
+
+class PublicChatSessionNotFound(Exception):
+    """candidate_id doesn't correspond to a real chat session -- either
+    it was never created, or the client lost/fabricated it."""
+
+
+class PublicChatNoTenantAvailable(Exception):
+    """No Super User account exists to own this conversation. Real
+    misconfiguration, not something to paper over with a fake tenant."""
+
+
+def _resolve_default_tenant_id(db: Session) -> Optional[str]:
+    """No logged-in user on this public surface, and a chat isn't
+    always tied to one job (a visitor can just ask "what roles do you
+    have"), so there's no job.recuriterID/contactPerson to derive from
+    (that's apply_for_job's convention, reused below when job_id IS
+    given). Falls back to the org's own Super User account -- this is a
+    single-tenant deployment, so that account IS the tenant."""
+    owner = (
+        db.query(Users)
+        .filter(Users.UserRole == "Super User")
+        .order_by(Users.UserID.asc())
+        .first()
+    )
+    return owner.UserID if owner else None
+
+
+def _resolve_tenant_id(db: Session, job: Optional[Jobs]) -> Optional[str]:
+    if job and (job.recuriterID or job.contactPerson):
+        return job.recuriterID or job.contactPerson
+    return _resolve_default_tenant_id(db)
+
+
+def _get_or_open_conversation(db: Session, candidate: Candidate, tenant_id: str) -> CandidateConversation:
+    conversation = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == candidate.candidateID,
+            CandidateConversation.status != "closed",
+        )
+        .order_by(CandidateConversation.id.desc())
+        .first()
+    )
+    if conversation:
+        return conversation
+
+    assign_ai_agent(candidate_id=candidate.candidateID, tenant_id=tenant_id, assigned_by=None, db=db)
+    db.flush()
+    conversation = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == candidate.candidateID,
+            CandidateConversation.status != "closed",
+        )
+        .order_by(CandidateConversation.id.desc())
+        .first()
+    )
+    # assign_ai_agent() defaults every conversation to channel_preference
+    # "email" -- correct for the manual-assignment path it primarily
+    # serves, wrong here: this visitor is talking to Thunder over the
+    # web widget right now, not email.
+    conversation.channel_preference = "web_chat"
+    db.add(conversation)
+    return conversation
+
+
+def _capture_web_chat_consent(db: Session, candidate_id: str) -> None:
+    db.add(ConsentRecord(
+        subject_type="candidate",
+        subject_id=candidate_id,
+        consent_type=WEB_CHAT_CONSENT_TYPE,
+        consent_given=True,
+        captured_by="public_web_chat",
+    ))
+
+
+def _opening_message(candidate: Candidate, job: Optional[Jobs], resumed: bool) -> str:
+    """Deterministic, not LLM-generated -- there's no real inbound
+    candidate message to reply to yet, so there's nothing for the LLM
+    to ground a reply in. Writing a real greeting directly is more
+    honest than inventing a fake first message just to get an LLM
+    response out of generate_thunder_reply()."""
+    name = candidate.candidateFirstName or "there"
+    if resumed:
+        return f"Welcome back, {name}! How can I help you today?"
+    if job:
+        return (
+            f"Hi {name}, thanks for your interest in the {job.jobTitle} role at BlitzenX! "
+            f"Ask me anything about it, or tell me a bit about your background and I'll "
+            f"let you know how you match up."
+        )
+    return (
+        f"Hi {name}, I'm Thunder, BlitzenX's hiring assistant. Ask me about any of our "
+        f"open roles, or tell me about your background and I'll match you against what's "
+        f"currently open."
+    )
+
+
+def start_public_chat(
+    db: Session,
+    *,
+    full_name: str,
+    email: str,
+    phone: Optional[str],
+    job_id: Optional[str],
+    consent: bool,
+) -> Dict:
+    if not consent:
+        raise PublicChatConsentRequired("Consent is required to start a chat with Thunder.")
+
+    name_parts = full_name.strip().split(" ", 1)
+    first_name = name_parts[0]
+    last_name = name_parts[1] if len(name_parts) > 1 else None
+
+    job: Optional[Jobs] = db.query(Jobs).filter(Jobs.jobID == job_id).first() if job_id else None
+
+    existing, _matched_on = find_duplicate_candidate(db, email=email, mobile=phone)
+    resumed = bool(existing)
+    if existing:
+        candidate = existing
+    else:
+        candidate = create_candidate_safe(
+            db,
+            email=email,
+            mobile=phone,
+            candidateFirstName=first_name,
+            candidateLastName=last_name,
+            candidateRole="Candidate",
+            candidateSource="public_web_chat",
+            job_id=job_id,
+        )
+        db.flush()
+
+    tenant_id = _resolve_tenant_id(db, job)
+    if not tenant_id:
+        raise PublicChatNoTenantAvailable(
+            "No Super User account exists to own this conversation -- Thunder can't be "
+            "assigned. This is a real configuration gap, not a per-visitor error."
+        )
+
+    conversation = _get_or_open_conversation(db, candidate, tenant_id)
+    _capture_web_chat_consent(db, candidate.candidateID)
+    db.commit()
+    db.refresh(candidate)
+    db.refresh(conversation)
+
+    reply_text = _opening_message(candidate, job, resumed)
+    reply_event = send_thunder_message(
+        db, conversation, candidate, reply_text,
+        sender_type="ai_agent", channel="web_chat", auto_generated=True,
+    )
+    db.commit()
+
+    logger.info(
+        f"[PublicChat] {'resumed' if resumed else 'started'} chat for candidate "
+        f"{candidate.candidateID} (job_id={job_id})"
+    )
+
+    return {
+        "candidate_id": candidate.candidateID,
+        "status": "resumed" if resumed else "started",
+        "message": reply_text,
+        "created_at": reply_event.created_at,
+    }
+
+
+def send_public_chat_message(db: Session, *, candidate_id: str, message: str) -> Dict:
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise PublicChatSessionNotFound(f"No chat session found for candidate_id={candidate_id!r}.")
+
+    conversation = (
+        db.query(CandidateConversation)
+        .filter(
+            CandidateConversation.candidate_id == candidate_id,
+            CandidateConversation.status != "closed",
+        )
+        .order_by(CandidateConversation.id.desc())
+        .first()
+    )
+    if not conversation:
+        raise PublicChatSessionNotFound(f"No open conversation for candidate_id={candidate_id!r}.")
+
+    inbound_event = ConversationEvent(
+        conversation_id=conversation.id,
+        event_type="candidate_reply",
+        event_data={"channel": "web_chat", "body": message},
+        triggered_by="candidate",
+    )
+    db.add(inbound_event)
+    db.flush()
+
+    reply_text, _used_fallback = generate_thunder_reply_with_fallback(
+        db, candidate, message, channel="web_chat",
+    )
+
+    reply_event = send_thunder_message(
+        db, conversation, candidate, reply_text,
+        sender_type="ai_agent", channel="web_chat", auto_generated=True,
+    )
+    db.commit()
+
+    return {"reply": reply_text, "created_at": reply_event.created_at}
+
+
+def get_public_chat_history(db: Session, *, candidate_id: str) -> List[Dict]:
+    conversation = (
+        db.query(CandidateConversation)
+        .filter(CandidateConversation.candidate_id == candidate_id)
+        .order_by(CandidateConversation.id.desc())
+        .first()
+    )
+    if not conversation:
+        return []
+
+    events = (
+        db.query(ConversationEvent)
+        .filter(
+            ConversationEvent.conversation_id == conversation.id,
+            ConversationEvent.event_type.in_(("candidate_reply", "ai_message_sent", "hr_message_sent")),
+        )
+        .order_by(ConversationEvent.created_at.asc(), ConversationEvent.id.asc())
+        .all()
+    )
+    # assign_ai_agent() (called the first time a conversation opens) may
+    # also fire a real "missing profile fields" EMAIL and log it as an
+    # ai_message_sent event -- a legitimate event, just on a different
+    # channel. Filtering to channel="web_chat" keeps that email out of
+    # the web widget's own transcript instead of showing the visitor an
+    # empty bubble for a message that actually went to their inbox.
+    return [
+        {
+            "sender": "candidate" if event.event_type == "candidate_reply" else "thunder",
+            "body": (event.event_data or {}).get("body", ""),
+            "created_at": event.created_at,
+        }
+        for event in events
+        if (event.event_data or {}).get("channel") == "web_chat"
+    ]
