@@ -292,7 +292,9 @@ function ConversationCard({ conversation, onChanged }) {
       </div>
 
       {conversation.summary && (
-        <p className="mt-3 text-sm text-gray-600">{conversation.summary}</p>
+        <p className="mt-3 text-sm italic text-gray-600">
+          Thunder's summary: {conversation.summary}
+        </p>
       )}
       {conversation.next_action && (
         <p className="mt-1 text-xs font-medium text-indigo-600">
