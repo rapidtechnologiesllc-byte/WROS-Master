@@ -203,4 +203,12 @@ def extract_facts(
         from app.services.compensation_scoring_service import recalculate_for_candidate
         recalculate_for_candidate(db, candidate, tenant_id)
 
+    # S-039/HRMS-0439: same conditional-trigger posture as expected_ctc
+    # above -- only recalculate when notice_period_days was actually
+    # part of this turn's extraction. Never raises -- see
+    # availability_scoring_service.recalculate_for_candidate().
+    if any(f["fact_key"] == "notice_period_days" for f in facts):
+        from app.services.availability_scoring_service import recalculate_for_candidate as recalculate_availability
+        recalculate_availability(db, candidate, tenant_id)
+
     return facts
