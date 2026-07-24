@@ -6,11 +6,13 @@ from pydantic import BaseModel
 
 
 class MemoryFactItem(BaseModel):
+    id: int
     category: str
     key: str
     value: str
     confidence: float
     is_low_confidence: bool
+    extracted_at: Optional[datetime]
 
 
 class CandidateMemoryResponse(BaseModel):
@@ -18,3 +20,7 @@ class CandidateMemoryResponse(BaseModel):
     summary: Optional[str]
     last_updated: Optional[datetime]
     facts: List[MemoryFactItem]
+
+
+class MemoryFactCorrectionRequest(BaseModel):
+    fact_value: str

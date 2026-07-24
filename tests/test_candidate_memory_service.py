@@ -227,6 +227,58 @@ def test_should_update_summary_true_after_5_new_facts(db_session, seeded):
     assert svc.should_update_summary(db_session, "C-1", "U-ORG") is True
 
 
+def test_correct_fact_sets_full_confidence_and_new_value(db_session, seeded):
+    candidate, conv = seeded
+    fact = svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA", confidence=0.6)
+    db_session.commit()
+
+    corrected = svc.correct_fact(db_session, "C-1", "U-ORG", fact.id, "26 LPA", corrected_by="U-REC")
+
+    assert corrected.fact_value == "26 LPA"
+    assert corrected.confidence == 1.0  # BR-01
+
+
+def test_correct_fact_cascades_to_profile_field(db_session, seeded):
+    candidate, conv = seeded
+    fact = svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA", confidence=0.6)
+    db_session.commit()
+
+    svc.correct_fact(db_session, "C-1", "U-ORG", fact.id, "26 LPA", corrected_by="U-REC")
+    db_session.refresh(candidate)
+
+    assert candidate.candidateExpectedSalary == "26 LPA"  # BR-03
+
+
+def test_correct_fact_logs_memory_fact_corrected_event(db_session, seeded):
+    candidate, conv = seeded
+    fact = svc.upsert_fact(db_session, "C-1", "U-ORG", "PREFERENCE", "domain", "Healthcare", confidence=0.6)
+    db_session.commit()
+
+    svc.correct_fact(db_session, "C-1", "U-ORG", fact.id, "Insurance", corrected_by="U-REC")
+
+    events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "MEMORY_FACT_CORRECTED").all()
+    assert len(events) == 1
+    assert events[0].event_data["corrected_by"] == "U-REC"
+
+
+def test_correct_fact_unknown_fact_raises(db_session, seeded):
+    candidate, conv = seeded
+    with pytest.raises(svc.FactNotFound):
+        svc.correct_fact(db_session, "C-1", "U-ORG", 99999, "value", corrected_by="U-REC")
+
+
+def test_correct_fact_wrong_candidate_raises(db_session, seeded):
+    candidate, conv = seeded
+    other = Candidate(candidateID="C-2", candidateEmail="c2@example.com", candidatePassword="h")
+    db_session.add(other)
+    db_session.commit()
+    fact = svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA")
+    db_session.commit()
+
+    with pytest.raises(svc.FactNotFound):
+        svc.correct_fact(db_session, "C-2", "U-ORG", fact.id, "99 LPA", corrected_by="U-REC")
+
+
 def test_should_update_summary_true_after_a_day(db_session, seeded):
     candidate, conv = seeded
     summary_text = _valid_summary_text(300)
