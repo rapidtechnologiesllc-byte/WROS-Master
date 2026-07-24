@@ -23,6 +23,7 @@ from app.models.tenant import Tenant
 from app.models.client import Client
 from app.models.demand import Demand, DemandHistory
 from app.models.candidate import Candidate
+from app.models.consent import ConsentRecord
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser
 from app.models.sub_vendor_submission import (
     SubVendorSubmission,
@@ -61,6 +62,7 @@ def db_session():
         Candidate.__table__, Users.__table__,
         SubVendorAccount.__table__, SubVendorUser.__table__, SubVendorRequest.__table__,
         SubVendorSubmission.__table__, SubVendorViolation.__table__, SubVendorDedupRejection.__table__,
+        ConsentRecord.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
