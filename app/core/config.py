@@ -62,6 +62,12 @@ class Settings:
     # See app.core.field_encryption.
     FIELD_ENCRYPTION_KEY: str = os.getenv("FIELD_ENCRYPTION_KEY", "")
 
+    # S-017/HRMS-0417 -- base URL used to build the candidate portal
+    # link Thunder sends via WhatsApp/Email (/candidate/{token}).
+    # Defaults to the real production frontend origin already listed
+    # in CORS_ORIGINS below; override via env for other environments.
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://46.224.149.7:3005")
+
     # CORS Settings
     CORS_ORIGINS: list = [
         "http://localhost:3000",
