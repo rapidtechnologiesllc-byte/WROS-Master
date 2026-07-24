@@ -91,6 +91,7 @@ class ConversationThreadItem(BaseModel):
     ai_agent_name: Optional[str]
     channel_preference: Optional[str]
     summary: Optional[str]
+    summary_generated_at: Optional[str]
     next_action: Optional[str]
     owner_type: Optional[str]
     escalation_state: Optional[str]

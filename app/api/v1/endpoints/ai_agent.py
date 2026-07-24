@@ -380,6 +380,7 @@ def get_active_conversation(
         ai_agent_name=conv.ai_agent_name,
         channel_preference=conv.channel_preference,
         summary=conv.summary,
+        summary_generated_at=conv.summary_generated_at.isoformat() if conv.summary_generated_at else None,
         next_action=conv.next_action,
         owner_type=conv.owner_type,
         escalation_state=conv.escalation_state,
