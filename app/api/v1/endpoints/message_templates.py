@@ -23,7 +23,7 @@ from app.schemas.message_template import (
     TemplatePreviewResponse,
     TemplateResponse,
 )
-from app.services.ai_conversation_service import resolve_thunder_config
+from app.services.ai_conversation_service import resolve_default_tenant_id, resolve_thunder_config
 from app.services.first_engagement_service import COMPANY_NAME
 from app.services.message_template_service import (
     TemplateActivationConflict,
@@ -52,9 +52,17 @@ def create_template(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
+    # tenant_id is the org's canonical default (see resolve_default_
+    # tenant_id's docstring), NOT current_user.UserID -- a recruiter's
+    # own ID would never match the tenant_id first_engagement_service
+    # actually looks templates up under, silently making every
+    # recruiter-created template unreachable.
+    tenant_id = resolve_default_tenant_id(db)
+    if not tenant_id:
+        raise HTTPException(status_code=500, detail="No Super User account exists to own this template.")
     try:
         template = create_template_version(
-            db, tenant_id=current_user.UserID, template_key=body.template_key, template_name=body.template_name,
+            db, tenant_id=tenant_id, template_key=body.template_key, template_name=body.template_name,
             channel=body.channel, body=body.body, subject=body.subject, language=body.language,
             created_by=current_user.UserID,
         )
@@ -70,7 +78,8 @@ def list_templates_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
-    templates = list_templates(db, current_user.UserID, channel=channel, template_key=template_key)
+    tenant_id = resolve_default_tenant_id(db)
+    templates = list_templates(db, tenant_id, channel=channel, template_key=template_key) if tenant_id else []
     return TemplateListResponse(templates=[_to_response(t) for t in templates])
 
 
@@ -111,7 +120,7 @@ def preview_template_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
-    thunder_config = resolve_thunder_config(db, current_user.UserID)
+    thunder_config = resolve_thunder_config(db, resolve_default_tenant_id(db))
     try:
         result = preview_template(db, template_id, candidate_id, agent_name=thunder_config["name"], company_name=COMPANY_NAME)
     except TemplateNotFoundError as exc:

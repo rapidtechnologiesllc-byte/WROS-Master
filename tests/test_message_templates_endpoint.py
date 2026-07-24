@@ -87,6 +87,43 @@ def test_recruiter_can_create_template(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 201
+
+
+def test_recruiter_created_template_is_findable_by_render_template(client):
+    """Regression: a recruiter's own UserID must NOT become the
+    template's tenant_id -- it would never match the tenant_id
+    first_engagement_service actually resolves at send time, silently
+    making every recruiter-created template unreachable."""
+    from app.services.ai_conversation_service import resolve_default_tenant_id
+    from app.services.message_template_service import render_template
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy import create_engine
+
+    resp = client.post(
+        "/templates",
+        json={"template_key": "GREETING_WHATSAPP", "template_name": "V1", "channel": "WHATSAPP", "body": "Hi {{candidate_name}}!"},
+        headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
+    )
+    template_id = resp.json()["id"]
+
+    activate_resp = client.post(
+        f"/templates/{template_id}/activate",
+        headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com', 'Super User')}"},
+    )
+    assert activate_resp.status_code == 200
+
+    # Simulate what first_engagement_service actually does: resolve the
+    # org's default tenant_id and look the template up under it.
+    db_session = client.app.dependency_overrides[
+        __import__("app.core.database", fromlist=["get_db"]).get_db
+    ]()
+    db = next(db_session)
+    try:
+        tenant_id = resolve_default_tenant_id(db)
+        result = render_template(db, "GREETING_WHATSAPP", "WHATSAPP", tenant_id, {"candidate_name": "Jordan"})
+        assert result["rendered_body"] == "Hi Jordan!"
+    finally:
+        db.close()
     assert resp.json()["is_active"] is False
 
 

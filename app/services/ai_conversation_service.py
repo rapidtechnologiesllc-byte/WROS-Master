@@ -250,6 +250,29 @@ def _log_event(
     return event
 
 
+def resolve_default_tenant_id(db: Session) -> Optional[str]:
+    """
+    Shared default-tenant resolution for internal-staff-facing features
+    that need ONE consistent tenant_id regardless of which specific
+    user is logged in (S-014 templates, S-015 search) -- same "first
+    Super User by UserID" convention public_chat_service established
+    for the same reason.
+
+    Known real limitation, not fully resolved here: this codebase's
+    tenant_id is sometimes the org owner (a Super User) and sometimes a
+    specific recruiter (job.recuriterID/contactPerson, per create_job.
+    apply_for_job's own tenant derivation) -- true multi-tenant
+    isolation would need a real decision about which of these tenant_id
+    actually means, tracked as a known gap rather than guessed at here.
+    Every caller of this function degrades safely (falls back to a
+    hardcoded default) if the resolved tenant_id doesn't match a given
+    candidate's real one, so this is a "best consistent default" not a
+    correctness-critical resolution.
+    """
+    owner = db.query(Users).filter(Users.UserRole == "Super User").order_by(Users.UserID.asc()).first()
+    return owner.UserID if owner else None
+
+
 def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, str]:
     """
     S-011/HRMS-0411: per-tenant Thunder identity, admin-configurable via
