@@ -1363,6 +1363,10 @@ def process_candidate_reply(
         transition_status(db, conversation, "closed", reason="All fields complete after candidate reply", triggered_by="candidate")
         conversation.summary = "All fields complete after candidate reply. Conversation closed."
         conversation.next_action = "none"
+        # S-019/HRMS-0419 -- every 5th inbound message, replace the
+        # hardcoded fallback above with a real Thunder-generated summary.
+        from app.services.conversation_summary_service import maybe_generate_summary_after_reply
+        maybe_generate_summary_after_reply(db, conversation, candidate)
         db.commit()
         return {
             "conversation_id": conversation.id,
@@ -1406,6 +1410,10 @@ def process_candidate_reply(
         )
         conversation.next_action = "retry_followup"
 
+    # S-019/HRMS-0419 -- every 5th inbound message, replace the hardcoded
+    # fallback summary above with a real Thunder-generated summary.
+    from app.services.conversation_summary_service import maybe_generate_summary_after_reply
+    maybe_generate_summary_after_reply(db, conversation, candidate)
     db.commit()
 
     return {
@@ -1507,6 +1515,7 @@ def get_conversation_thread(
             "ai_agent_name": conv.ai_agent_name,
             "channel_preference": conv.channel_preference,
             "summary": conv.summary,
+            "summary_generated_at": conv.summary_generated_at.isoformat() if conv.summary_generated_at else None,
             "next_action": conv.next_action,
             "owner_type": conv.owner_type,
             "escalation_state": conv.escalation_state,

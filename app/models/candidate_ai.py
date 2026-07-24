@@ -86,6 +86,11 @@ class CandidateConversation(Base):
     # AI-generated summary of the conversation so far
     summary = Column(Text, nullable=True)
 
+    # S-019/HRMS-0419 -- when `summary` was last (re)generated. Distinct
+    # from updated_at, which also gets bumped by unrelated mutations
+    # (next_action changes, status transitions) that don't touch summary.
+    summary_generated_at = Column(DateTime(timezone=False), nullable=True)
+
     # What the AI plans to do next (e.g. "Wait for candidate reply", "Send reminder")
     next_action = Column(String(200), nullable=True)
 
