@@ -28,6 +28,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
+from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.user import Users
 
 
@@ -56,7 +57,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateInfoForm.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
-        CandidateMemory.__table__, CandidateMemoryFact.__table__,
+        CandidateMemory.__table__, CandidateMemoryFact.__table__, FollowUpSchedule.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

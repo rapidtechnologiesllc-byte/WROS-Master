@@ -1309,6 +1309,12 @@ def process_candidate_reply(
     from app.services.channel_preference_service import detect_channel_preference
     detect_channel_preference(db, conversation)
 
+    # S-041/HRMS-0441 BR-02: cancel ALL pending follow-ups the moment any
+    # inbound message arrives. Never raises -- see
+    # follow_up_scheduler_service.cancel_pending_follow_ups().
+    from app.services.follow_up_scheduler_service import cancel_pending_follow_ups
+    cancel_pending_follow_ups(db, candidate.candidateID, conversation.tenant_id)
+
     # S-022/HRMS-0422 -- extract structured facts from every inbound
     # message. Never raises (see facts_extraction_service module
     # docstring) -- an LLM/parse failure logs FACTS_EXTRACTION_FAILED

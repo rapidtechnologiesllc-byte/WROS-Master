@@ -180,6 +180,12 @@ def store_inbound_whatsapp_message(db: Session, message: Dict) -> Dict:
     db.add(conversation)
     db.commit()
 
+    # S-041/HRMS-0441 BR-02: cancel ALL pending follow-ups the moment any
+    # inbound message arrives. Never raises -- see
+    # follow_up_scheduler_service.cancel_pending_follow_ups().
+    from app.services.follow_up_scheduler_service import cancel_pending_follow_ups
+    cancel_pending_follow_ups(db, candidate.candidateID, conversation.tenant_id)
+
     logger.info(f"[WhatsAppWebhook] Stored inbound message for candidate {candidate.candidateID} (wamid={wamid})")
     return {
         "status": "stored",

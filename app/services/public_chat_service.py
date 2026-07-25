@@ -236,6 +236,12 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str, ba
     db.add(inbound_event)
     db.flush()
 
+    # S-041/HRMS-0441 BR-02: cancel ALL pending follow-ups the moment any
+    # inbound message arrives, on any channel. Never raises -- see
+    # follow_up_scheduler_service.cancel_pending_follow_ups().
+    from app.services.follow_up_scheduler_service import cancel_pending_follow_ups
+    cancel_pending_follow_ups(db, candidate_id, conversation.tenant_id)
+
     # S-036/HRMS-0436 BR-01: genuinely asynchronous -- scheduled via
     # FastAPI BackgroundTasks (same real mechanism whatsapp_webhook.py/
     # create_job.py/onboarding.py already use), so it runs after this

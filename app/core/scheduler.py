@@ -105,6 +105,60 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register SLA monitoring scheduler: {exc}")
 
+        # ── Every 15 min: FOLLOW_UP_EXECUTION_JOB (S-041/HRMS-0441) ─────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.follow_up_scheduler_service import run_follow_up_execution_job
+
+            async def _run_followup_execution():
+                db = SessionLocal()
+                try:
+                    result = run_follow_up_execution_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Follow-up execution: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Follow-up execution error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_followup_execution,
+                trigger="interval",
+                minutes=15,
+                id="follow_up_execution_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled follow-up execution job (every 15 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register follow-up execution scheduler: {exc}")
+
+        # ── Every 30 min: NO_RESPONSE_DETECTION_JOB (S-042/HRMS-0442) ───────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.no_response_detection_service import run_no_response_detection_job
+
+            async def _run_no_response_detection():
+                db = SessionLocal()
+                try:
+                    result = run_no_response_detection_job(db)
+                    if result["first_detected"] or result["post_third"]:
+                        logger.info(f"[scheduler] No-response detection: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] No-response detection error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_no_response_detection,
+                trigger="interval",
+                minutes=30,
+                id="no_response_detection_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled no-response detection job (every 30 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register no-response detection scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
