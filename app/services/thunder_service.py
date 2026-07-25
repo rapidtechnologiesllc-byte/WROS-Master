@@ -608,6 +608,126 @@ def generate_thunder_reply_with_fallback(
 
 
 # ===========================================================================
+# S-041/HRMS-0441 -- proactive follow-up generation.
+#
+# generate_thunder_reply() always replies TO something -- it builds its
+# prompt around inbound_message via build_safe_prompt() (the untrusted-
+# content wrapper). A follow-up has no inbound message at all: Thunder
+# is speaking first, unprompted, because the candidate went silent. So
+# this is a real second generation path, not a call to the existing one
+# with an empty message -- reuses the same context/config/validation/
+# fallback machinery, but its own instruction framing and no untrusted-
+# content wrapping (there's no candidate text to inject).
+# ===========================================================================
+
+SAFE_FOLLOWUP_FALLBACK_MESSAGE = (
+    "Just checking in -- we haven't heard back and wanted to make sure you saw "
+    "our last message. Let us know if you have any questions, or if you're "
+    "still interested in moving forward!"
+)
+
+# Data Mapping table: follow_up_number -> message tone.
+FOLLOWUP_TONE_BY_NUMBER = {
+    1: "This is a gentle, warm first follow-up -- assume they simply missed the earlier message.",
+    2: "This is the second follow-up -- be a little more direct than the first, while staying polite and professional.",
+    3: "This is the third and FINAL follow-up before we stop reaching out -- make that plain (politely), so they know this is their last chance to respond if they're still interested.",
+}
+
+
+def generate_followup_message(db: Session, candidate: Candidate, follow_up_number: int, *, channel: str = "whatsapp") -> str:
+    """Step 3.4's generateThunderResponse(..., 'FOLLOW_UP', {follow_up_number}).
+    Raises ThunderReplyGenerationFailed on any failure -- same contract
+    as generate_thunder_reply(), never a fabricated reply."""
+    if not GEMINI_API_KEY:
+        raise ThunderReplyGenerationFailed("GEMINI_API_KEY not configured -- cannot generate a follow-up message.")
+
+    context = build_candidate_context(db, candidate)
+
+    history_lines = "\n".join(
+        f"[{item['channel'] or 'system'}] {item['event_type']} ({item['triggered_by']}): {item['body']}"
+        for item in context["message_history"][-20:]
+        if item.get("body")
+    ) or "(no prior messages)"
+
+    channel_label = CHANNEL_LABELS.get(channel, channel)
+    agent_config = resolve_thunder_config(db, context.get("tenant_id"))
+    tone = FOLLOWUP_TONE_BY_NUMBER.get(follow_up_number, FOLLOWUP_TONE_BY_NUMBER[3])
+
+    instruction = f"""You are {agent_config['name']}, {_display_name(candidate)}'s AI hiring assistant at BlitzenX, writing a follow-up message over {channel_label}. The candidate has not replied to your last message.
+Persona: {agent_config['persona']}
+
+Conversation history so far (oldest to newest):
+{history_lines}
+
+{tone}
+
+Rules:
+- This is a proactive check-in, not a reply -- there is no new candidate message to respond to.
+- Keep it to 1-3 short sentences, chat-appropriate (no email-style formatting, no subject line).
+- Never invent facts about job offers, salary, or start dates that aren't already in the history above.
+- Do not re-ask for information the candidate already provided earlier in the history.
+- Write ONLY the follow-up message text -- no labels, no quotation marks, no explanation."""
+
+    llm = ChatGoogleGenerativeAI(
+        model=THUNDER_REPLY_MODEL,
+        google_api_key=GEMINI_API_KEY,
+        temperature=0.4,
+        timeout=30,
+    )
+    try:
+        response = llm.invoke(instruction)
+    except Exception as exc:
+        raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
+    content = response.content
+    if isinstance(content, list):
+        reply_text = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    else:
+        reply_text = str(content).strip()
+
+    if not reply_text:
+        raise ThunderReplyGenerationFailed("Gemini returned an empty follow-up message.")
+
+    return reply_text
+
+
+def generate_followup_message_with_fallback(
+    db: Session, candidate: Candidate, follow_up_number: int, *, channel: str = "whatsapp",
+    conversation: Optional[CandidateConversation] = None,
+) -> Tuple[str, bool]:
+    """Same shape as generate_thunder_reply_with_fallback(): BR-01-style
+    ownership check first (raises ConversationOwnedByHuman before any
+    LLM call), retry-once, validate, hardcoded safe fallback on
+    repeated failure -- never leaves a follow-up unsent due to a
+    technical failure. Unlike a reply, "no fallback at all" isn't an
+    option here since Step 3.4/BR-01 require sending SOMETHING for
+    every due follow-up; SAFE_FOLLOWUP_FALLBACK_MESSAGE (not the
+    reply-shaped SAFE_FALLBACK_MESSAGE) is used instead."""
+    if conversation is not None and not is_ai_owner(conversation):
+        raise ConversationOwnedByHuman(
+            f"Conversation {conversation.id} is owned by {conversation.owner_type}:"
+            f"{conversation.owner_id} -- Thunder may not generate a follow-up."
+        )
+
+    for attempt in range(2):
+        try:
+            message = generate_followup_message(db, candidate, follow_up_number, channel=channel)
+        except ThunderReplyGenerationFailed as exc:
+            logger.error(f"[Thunder] follow-up generation failed (attempt {attempt + 1}): {exc}")
+            continue
+        except Exception as exc:
+            logger.error(f"[Thunder] follow-up context build or unexpected failure (attempt {attempt + 1}): {exc}")
+            break
+        if validate_thunder_reply(message):
+            return message, False
+        logger.warning(f"[Thunder] generated follow-up failed validation (attempt {attempt + 1}): {message!r}")
+
+    return SAFE_FOLLOWUP_FALLBACK_MESSAGE, True
+
+
+# ===========================================================================
 # "Test Thunder" mode -- lets a real internal user chat with Thunder
 # without a live WhatsApp Business API (none is provisioned in this
 # codebase -- see whatsapp_routing_service's module docstring). The

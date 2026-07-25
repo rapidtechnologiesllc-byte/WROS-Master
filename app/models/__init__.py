@@ -86,6 +86,8 @@ from app.models.prompt_execution_log import PromptExecutionLog
 from app.models.candidate_sentiment_log import CandidateSentimentLog
 from app.models.candidate_job_score import CandidateJobScore
 from app.models.candidate_job_flag import CandidateJobFlag
+from app.models.follow_up_schedule import FollowUpSchedule
+from app.models.candidate_no_response_log import CandidateNoResponseLog
 
 __all__ = [
     # Base
@@ -216,5 +218,7 @@ __all__ = [
     "CandidateSentimentLog",
     "CandidateJobScore",
     "CandidateJobFlag",
+    "FollowUpSchedule",
+    "CandidateNoResponseLog",
 ]
 
