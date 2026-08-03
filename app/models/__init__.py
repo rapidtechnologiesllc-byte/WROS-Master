@@ -93,6 +93,7 @@ from app.models.outreach_campaign import OutreachCampaign, CampaignTouchpoint
 from app.models.candidate_abandonment_score import CandidateAbandonmentScore
 from app.models.candidate_availability_slot import CandidateAvailabilitySlot
 from app.models.interview_reminder import InterviewReminder
+from app.models.offer_faq_entry import OfferFAQEntry
 
 __all__ = [
     # Base
@@ -231,5 +232,6 @@ __all__ = [
     "CandidateAbandonmentScore",
     "CandidateAvailabilitySlot",
     "InterviewReminder",
+    "OfferFAQEntry",
 ]
 
