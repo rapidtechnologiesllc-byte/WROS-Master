@@ -13,11 +13,18 @@ decision, flagged here, not resolved by silently picking one.
 
 SubmissionInterview is this codebase's version of 02-DATA-MODEL.md's
 `interviews (id, submission_id, level, outcome, panel_id,
-scheduled_via_graph_event_id)` sketch. HRMS-0448 (Outlook calendar
-matching, Phase 3 EPIC-04) doesn't exist yet, so scheduling is manual
-(recruiter sets scheduled_at directly) -- scheduled_via_graph_event_id
-stays null until that integration lands; null means "scheduled
-manually", not "scheduling failed".
+scheduled_via_graph_event_id)` sketch.
+
+HRMS-0448 (Calendar Matching Engine) is now built
+(app.services.calendar_matching_service.attempt_calendar_match()) and
+populates `scheduled_at` for real by matching a candidate's
+availability slots against the assigned interviewer's real Outlook
+calendar. `scheduled_via_graph_event_id` still stays null even after a
+real HRMS-0448 match -- that story deliberately does not create the
+actual Graph calendar invite (see its own module docstring); the
+literal invite/join-link creation is left to a future HRMS-0449
+(Interview Confirmation), not yet built. Null continues to mean
+"scheduled, no Graph invite created yet", not "scheduling failed".
 """
 import uuid
 

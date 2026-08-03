@@ -1,11 +1,13 @@
 """
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2.
 
-get_assigned_interviewer() is the helper HRMS-0448 (Outlook calendar
-matching, Phase 3 EPIC-04 -- not built yet) would call to know whose
-calendar to check. Since that integration doesn't exist, interview
-scheduling in this build is manual: create_interview() records
-scheduled_at directly rather than proposing/confirming slots.
+get_assigned_interviewer() is the helper HRMS-0448 (Calendar Matching
+Engine, now built -- app.services.calendar_matching_service) calls to
+know whose calendar to check. create_interview() itself is still
+level-agnostic about *how* scheduled_at was decided -- HRMS-0448 calls
+it with a real matched UTC datetime; a recruiter can still call it
+directly with a manual scheduled_at for any interview HRMS-0448 either
+hasn't run for yet or couldn't match.
 
 R-05 (L1 must pass before L2) is enforced here, at creation time -- the
 one hard rule from this domain that's cheap to enforce for real without
