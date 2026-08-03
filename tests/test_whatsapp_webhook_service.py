@@ -22,6 +22,9 @@ from app.core.config import settings
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
+from app.models.candidate_ghosting_status import CandidateGhostingStatus
+from app.models.follow_up_schedule import FollowUpSchedule
+from app.models.outreach_campaign import CampaignTouchpoint, OutreachCampaign
 from app.models.user import Users
 
 import app.services.whatsapp_webhook_service as svc
@@ -41,6 +44,8 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__,
         ConversationEvent.__table__, CandidateAIAssignment.__table__,
+        FollowUpSchedule.__table__, CandidateGhostingStatus.__table__,
+        OutreachCampaign.__table__, CampaignTouchpoint.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
