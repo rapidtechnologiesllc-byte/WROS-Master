@@ -136,11 +136,19 @@ def detect_and_resolve_no_contact_breaches(db: Session, tenant_id: Optional[str]
             created += 1
             _notify_recruiter_of_breach(db, conversation.tenant_id, candidate)
 
+            # S-062/HRMS-0462: real intervention-queue wiring.
+            from app.services.intervention_queue_service import PRIORITY_HIGH, add_to_queue
+            elapsed_hours = round((now - conversation.updated_at).total_seconds() / 3600) if conversation.updated_at else NO_CONTACT_THRESHOLD_HOURS
+            add_to_queue(db, conversation.candidate_id, conversation.tenant_id, "SLA_BREACH", f"SLA Breach: {elapsed_hours}h no contact", PRIORITY_HIGH, commit=False)
+
         elif not is_stale and existing_breach:
             existing_breach.is_resolved = True
             existing_breach.resolved_at = now
             db.add(existing_breach)
             resolved += 1
+
+            from app.services.intervention_queue_service import resolve_queue_items
+            resolve_queue_items(db, conversation.candidate_id, conversation.tenant_id, ["SLA_BREACH"], note="Contact resumed", commit=False)
 
     db.commit()
     return {"checked": len(conversations), "created": created, "resolved": resolved}

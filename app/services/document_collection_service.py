@@ -231,6 +231,12 @@ def mark_document_received(db: Session, candidate: Candidate, conversation: Cand
         from app.services.joining_readiness_service import calculate_joining_readiness
         calculate_joining_readiness(db, candidate.candidateID, doc.offer_id, tenant_id)  # S-058: recalculate on every document received, per that story's own integrations table
 
+        if doc.reminder_count >= MAX_REMINDERS:
+            # S-062/HRMS-0462 BR-03: the specific overdue document just
+            # arrived -- auto-resolve, not left for a recruiter to close manually.
+            from app.services.intervention_queue_service import resolve_queue_items
+            resolve_queue_items(db, candidate.candidateID, tenant_id, ["DOCUMENT_OVERDUE"], note=f"{doc.document_label} received")
+
         if remaining:
             message = f"Thank you! I have received your {doc.document_label}. Next, could you share your {remaining[0].document_label}?"
             _send_channel_aware(db, conversation, candidate, message)
@@ -310,6 +316,12 @@ def run_document_reminder_job(db: Session) -> Dict:
                         db.commit()
                     submission = _relevant_submission(db, doc.candidate_id)
                     _notify_recruiter(db, submission, f"{candidate.candidateFirstName or candidate.candidateID} has not provided {doc.document_label} after 3 reminders. Please follow up directly.")
+
+                    if conversation is not None:
+                        # S-062/HRMS-0462: real intervention-queue wiring.
+                        from app.services.intervention_queue_service import PRIORITY_MEDIUM, add_to_queue
+                        add_to_queue(db, doc.candidate_id, conversation.tenant_id, "DOCUMENT_OVERDUE", f"Document overdue: {doc.document_label} (3 reminders sent)", PRIORITY_MEDIUM)
+
                     result["escalated"] += 1
                 else:
                     result["skipped"] += 1

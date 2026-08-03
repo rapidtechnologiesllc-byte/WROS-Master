@@ -98,6 +98,7 @@ from app.models.preboarding_document import PreboardingDocument
 from app.models.candidate_joining_score import CandidateJoiningScore
 from app.models.candidate_drop_risk import CandidateDropRisk
 from app.models.activity_feed_read_state import ActivityFeedReadState
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 
 __all__ = [
     # Base
@@ -241,5 +242,6 @@ __all__ = [
     "CandidateJoiningScore",
     "CandidateDropRisk",
     "ActivityFeedReadState",
+    "RecruiterInterventionQueue",
 ]
 

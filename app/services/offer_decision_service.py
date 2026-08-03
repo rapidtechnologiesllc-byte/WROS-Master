@@ -243,6 +243,13 @@ def _handle_counter(db: Session, candidate: Candidate, conversation: CandidateCo
     db.add(ConversationEvent(conversation_id=conversation.id, event_type="OFFER_COUNTERED", event_data={"offer_id": offer.id, "candidate_id": candidate.candidateID, "message": message_body}, triggered_by="candidate"))
     db.commit()
 
+    # S-062/HRMS-0462: real intervention-queue wiring. This story's own
+    # specific OFFER_COUNTER category, distinct from (and in addition to)
+    # the generic ESCALATION item escalate() above already adds -- see
+    # RecruiterInterventionQueue's module docstring on this real overlap.
+    from app.services.intervention_queue_service import PRIORITY_MEDIUM, add_to_queue
+    add_to_queue(db, candidate.candidateID, conversation.tenant_id, "OFFER_COUNTER", f"Offer countered: \"{message_body[:200]}\"", PRIORITY_MEDIUM)
+
     _send_channel_aware(db, conversation, candidate, COUNTER_MESSAGE)
 
     submission = _relevant_submission(db, candidate.candidateID)

@@ -34,6 +34,7 @@ from app.models.notification import Notification
 from app.models.offer_letter import OfferLetter
 from app.models.preboarding_document import PreboardingDocument
 from app.models.submission import Submission
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.user import Users, Jobs
 
 import app.services.drop_risk_service as svc
@@ -50,7 +51,7 @@ def db_session():
         SubmissionInterview.__table__, OfferLetter.__table__, CandidateJoiningScore.__table__,
         PreboardingDocument.__table__, Employee.__table__, Submission.__table__,
         CandidateAbandonmentScore.__table__, CandidateSentimentLog.__table__, CandidateGhostingStatus.__table__,
-        FollowUpSchedule.__table__, CandidateDropRisk.__table__, Notification.__table__,
+        FollowUpSchedule.__table__, CandidateDropRisk.__table__, Notification.__table__, RecruiterInterventionQueue.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

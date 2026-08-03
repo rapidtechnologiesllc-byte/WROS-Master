@@ -239,6 +239,11 @@ def run_no_show_detection_job(db: Session) -> Dict:
                 ))
             db.commit()
 
+            if conversation is not None:
+                # S-062/HRMS-0462: real intervention-queue wiring.
+                from app.services.intervention_queue_service import PRIORITY_HIGH, add_to_queue
+                add_to_queue(db, candidate.candidateID, conversation.tenant_id, "NO_SHOW", f"No-show: {interview.level} interview at {scheduled_utc.strftime('%b %d, %H:%M UTC')}", PRIORITY_HIGH)
+
             submission = db.query(Submission).filter(Submission.id == interview.submission_id).first()
             local_time = scheduled_utc.astimezone(ZoneInfo(candidate.timezone or "Asia/Kolkata"))
             candidate_name = candidate.candidateFirstName or candidate.candidateID
