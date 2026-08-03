@@ -151,6 +151,7 @@ def _send_followup(db: Session, conversation: CandidateConversation, candidate: 
 def run_follow_up_execution_job(db: Session) -> Dict:
     """Step 3. FOLLOWUP_EXECUTION_JOB body, run every 15 min. Never lets
     one bad row abort the batch -- catches per-row, marks SKIPPED, moves on."""
+    from app.services.ghosting_detection_service import is_candidate_ghosted
     from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, generate_followup_message_with_fallback
     from app.services.whatsapp_routing_service import is_ai_owner
 
@@ -186,6 +187,9 @@ def run_follow_up_execution_job(db: Session) -> Dict:
                 result["skipped"] += 1
             elif conversation.status == "closed" or conversation.escalation_state == "escalated":
                 row.status = "SKIPPED"  # Step 3.3 -- not QUALIFYING/QUALIFIED (real mapping)
+                result["skipped"] += 1
+            elif is_candidate_ghosted(db, row.candidate_id, row.tenant_id):  # S-043 BR-01
+                row.status = "SKIPPED"
                 result["skipped"] += 1
             else:
                 message, used_fallback = generate_followup_message_with_fallback(

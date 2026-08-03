@@ -138,6 +138,10 @@ def run_qualification_turn(
     if not is_ai_owner(conversation):  # BR-03
         return {"action": "skipped_recruiter_owns"}
 
+    from app.services.ghosting_detection_service import is_candidate_ghosted  # S-043 BR-01
+    if is_candidate_ghosted(db, candidate.candidateID, tenant_id):
+        return {"action": "skipped_candidate_ghosted"}
+
     if not is_qualifying_state(conversation):
         return {"action": "not_qualifying"}
 

@@ -24,6 +24,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.models.candidate_ghosting_status import CandidateGhostingStatus
 from app.models.consent import ConsentRecord
 from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.user import Users
@@ -50,7 +51,7 @@ def db_session():
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
-        FollowUpSchedule.__table__, ConsentRecord.__table__,
+        FollowUpSchedule.__table__, ConsentRecord.__table__, CandidateGhostingStatus.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
