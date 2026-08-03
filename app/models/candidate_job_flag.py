@@ -1,5 +1,8 @@
 """
 S-038/HRMS-0438 -- Compensation Fit Score, Step 2's budget-mismatch flag.
+S-053/HRMS-0453 -- Offer Readiness Check reads this table's
+COMPENSATION_MISMATCH flags as a warning (BR-03, non-blocking) and
+COMPLIANCE_BLOCK flags as a hard blocker.
 
 candidate_job_flags: genuinely new table -- a real, queryable "warning
 raised against a candidate-job pairing" record, distinct from the
@@ -8,13 +11,20 @@ resolved, not just replayed -- same reasoning as candidate_sla_breaches,
 S-020). Integer-autoincrement PK + String(50) UserID-as-tenant_id
 convention, matching every other new table this round, not the spec's
 UUID assumption.
+
+COMPLIANCE_BLOCK is a real, honest gap: no story in this codebase has
+ever produced one (grep confirms zero writers) -- added to FLAG_TYPES
+so S-053's readiness check can correctly read one if a future story
+ever creates it, same "built and tested standalone, ready for a future
+producer" posture as follow_up_schedule (S-041)/candidate_field_skips
+(S-024).
 """
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-FLAG_TYPES = ("COMPENSATION_MISMATCH",)
+FLAG_TYPES = ("COMPENSATION_MISMATCH", "COMPLIANCE_BLOCK")
 FLAG_SEVERITIES = ("LOW", "MEDIUM", "HIGH")
 
 
