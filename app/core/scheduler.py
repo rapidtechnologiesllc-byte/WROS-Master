@@ -299,6 +299,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register abandonment scoring scheduler: {exc}")
 
+        # ── Every 10 min: REMINDER_EXECUTION_JOB (S-050/HRMS-0450) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.interview_reminder_service import run_reminder_execution_job
+
+            async def _run_reminder_execution():
+                db = SessionLocal()
+                try:
+                    result = run_reminder_execution_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Interview reminder execution: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Interview reminder execution error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_reminder_execution,
+                trigger="interval",
+                minutes=10,
+                id="interview_reminder_execution_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled interview reminder execution job (every 10 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register interview reminder execution scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
