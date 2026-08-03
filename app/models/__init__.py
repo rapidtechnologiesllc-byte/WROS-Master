@@ -90,6 +90,7 @@ from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.candidate_no_response_log import CandidateNoResponseLog
 from app.models.candidate_ghosting_status import CandidateGhostingStatus
 from app.models.outreach_campaign import OutreachCampaign, CampaignTouchpoint
+from app.models.candidate_abandonment_score import CandidateAbandonmentScore
 
 __all__ = [
     # Base
@@ -225,5 +226,6 @@ __all__ = [
     "CandidateGhostingStatus",
     "OutreachCampaign",
     "CampaignTouchpoint",
+    "CandidateAbandonmentScore",
 ]
 
