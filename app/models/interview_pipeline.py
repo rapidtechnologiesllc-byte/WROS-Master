@@ -95,7 +95,16 @@ class SubmissionInterview(Base):
         nullable=False, default="PENDING",
     )
     outcome_set_at = Column(DateTime, nullable=True)
+    # S-049/HRMS-0449 -- populated for real once
+    # interview_confirmation_service.confirm_interview() successfully
+    # creates the interviewer's Outlook invite. This is the exact
+    # column HRMS-0448's own docstring already reserved for this.
     scheduled_via_graph_event_id = Column(String(200), nullable=True)
+    # S-049/HRMS-0449 -- presence means "status=CONFIRMED" (spec's own
+    # literal status value). No separate status enum column exists on
+    # this row (scheduled_at's presence already means "scheduled" the
+    # same way) -- a second timestamp-presence signal, not a new enum.
+    confirmed_at = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
