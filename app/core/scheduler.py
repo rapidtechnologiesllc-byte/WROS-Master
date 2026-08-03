@@ -380,6 +380,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register document reminder scheduler: {exc}")
 
+        # ── Every 6 hours: JOINING_READINESS_JOB (S-058/HRMS-0458) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.joining_readiness_service import run_joining_readiness_job
+
+            async def _run_joining_readiness():
+                db = SessionLocal()
+                try:
+                    result = run_joining_readiness_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Joining readiness: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Joining readiness error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_joining_readiness,
+                trigger="interval",
+                hours=6,
+                id="joining_readiness_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled joining readiness job (every 6 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register joining readiness scheduler: {exc}")
+
         # ── Every 15 min: NO_SHOW_FOLLOWUP_JOB (S-052/HRMS-0452) ────────────
         try:
             from app.core.database import SessionLocal

@@ -37,8 +37,10 @@ Real architecture adaptations:
 - No internal event bus -- "publish preboarding.document_received/
   preboarding.document_overdue" has nothing to publish through; the
   real `DOCUMENT_RECEIVED`/`DOCUMENT_OVERDUE` `ConversationEvent`s ARE
-  the real, durable signal (HRMS-0458 Joining Readiness Score, this
-  story's own literal "Blocks" dependency, doesn't exist yet).
+  the real, durable signal. HRMS-0458 (Joining Readiness Score) is now
+  built (S-058) -- `mark_document_received()` calls its real
+  `calculate_joining_readiness()` directly on every document received,
+  exactly matching that story's own integrations table.
 - BR-01's "cancel pending reminders if the candidate's status changes
   mid-collection" is a real, callable `cancel_pending_documents_for_candidate()`
   -- wired directly into `offer_decision_service._handle_decline()`
@@ -225,6 +227,9 @@ def mark_document_received(db: Session, candidate: Candidate, conversation: Cand
         db.commit()
 
         remaining = db.query(PreboardingDocument).filter(PreboardingDocument.tenant_id == tenant_id, PreboardingDocument.candidate_id == candidate.candidateID, PreboardingDocument.offer_id == doc.offer_id, PreboardingDocument.status == "PENDING").order_by(PreboardingDocument.id.asc()).all()
+
+        from app.services.joining_readiness_service import calculate_joining_readiness
+        calculate_joining_readiness(db, candidate.candidateID, doc.offer_id, tenant_id)  # S-058: recalculate on every document received, per that story's own integrations table
 
         if remaining:
             message = f"Thank you! I have received your {doc.document_label}. Next, could you share your {remaining[0].document_label}?"
