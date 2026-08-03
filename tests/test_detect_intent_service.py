@@ -224,9 +224,12 @@ def test_routing_objecting_reports_not_built():
     assert decision["status"] == "NOT_BUILT"
 
 
-def test_routing_scheduling_request_reports_not_built():
+def test_routing_scheduling_request_reports_not_wired():
+    # S-047-051 are all built now (availability collection, calendar
+    # matching, confirmation, reminders, reschedule), but none has a
+    # live trigger yet -- see detect_intent_service's own routing note.
     decision = svc.get_intent_routing_decision("scheduling_request")
-    assert decision["status"] == "NOT_BUILT"
+    assert decision["status"] == "NOT_WIRED"
 
 
 def test_routing_document_sharing_reports_not_wired():

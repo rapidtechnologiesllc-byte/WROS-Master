@@ -121,15 +121,25 @@ def create_interview(
     level: str,
     panel: Optional[DemandInterviewPanel] = None,
     scheduled_at=None,
+    reschedule_count: int = 0,
+    rescheduled_from_interview_id: Optional[str] = None,
 ) -> SubmissionInterview:
     """
     R-05: an L2 interview cannot be created unless an L1 interview for
     the same submission already has outcome='PASS'.
+
+    reschedule_count/rescheduled_from_interview_id (S-051/HRMS-0451):
+    the caller (interview_reschedule_service) is responsible for
+    marking the OLD interview's superseded_at BEFORE calling this --
+    the partial unique index (ix_one_current_interview_per_level, see
+    the model's own docstring) only allows a second CURRENT row for
+    the same submission+level once the old one is superseded.
     """
     if level == "L2":
         l1 = db.query(SubmissionInterview).filter(
             SubmissionInterview.submission_id == submission.id,
             SubmissionInterview.level == "L1",
+            SubmissionInterview.superseded_at == None,  # noqa: E711 -- the CURRENT L1 in the chain, not a superseded one
         ).first()
         if l1 is None or l1.outcome != "PASS":
             raise L1NotPassed(
@@ -149,6 +159,7 @@ def create_interview(
     interview = SubmissionInterview(
         tenant_id=tenant_id, submission_id=submission.id, candidate_id=submission.candidate_id,
         level=level, panel_id=panel.id, scheduled_at=scheduled_at,
+        reschedule_count=reschedule_count, rescheduled_from_interview_id=rescheduled_from_interview_id,
     )
     db.add(interview)
     return interview
