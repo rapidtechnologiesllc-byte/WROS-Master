@@ -185,13 +185,23 @@ def calculate_abandonment_score(db: Session, candidate_id: str, tenant_id: str, 
             tenant_id=tenant_id, candidate_id=candidate_id, conversation_id=conversation.id,
             abandonment_score=total_score, score_components=score_components, is_flagged=is_flagged, calculated_at=now,
         ))
+    newly_flagged = is_flagged and not was_flagged
+    if newly_flagged:
+        # S-061/HRMS-0461: real trigger point for the Activity Feed's
+        # "candidate.high_abandonment_risk" entry -- logged here (the one
+        # real place this transition happens), not published through a
+        # nonexistent event bus.
+        db.add(ConversationEvent(
+            conversation_id=conversation.id, event_type="HIGH_ABANDONMENT_RISK",
+            event_data={"abandonment_score": total_score}, triggered_by="system",
+        ))
     db.commit()
 
     return {
         "abandonment_score": total_score,
         "score_components": score_components,
         "is_flagged": is_flagged,
-        "newly_flagged": is_flagged and not was_flagged,
+        "newly_flagged": newly_flagged,
         "calculated_at": now,
     }
 
