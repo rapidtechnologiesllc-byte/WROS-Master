@@ -38,6 +38,15 @@ Real architecture adaptations:
   same non-retrofit posture as S-019/S-025/S-031/S-032. Built as a
   real, complete, standalone, tested module ready for that wiring as a
   deliberate future decision.
+- S-056/HRMS-0456 added offer_accepted/offer_declined/offer_counter to
+  VALID_INTENTS (INTENT_DETECTION prompt bumped v1.1->v1.2, same
+  version-bump convention S-033 itself established when confidence was
+  added). These 3 are only actually acted on by
+  offer_decision_service.py when conversation.offer_faq_active is
+  true -- this classifier has no such gate itself, so a casual "I
+  accept" sent outside an active offer window would still classify as
+  offer_accepted; the real precondition check lives in the caller, not
+  here.
 """
 import json
 from typing import Callable, Dict, Optional
@@ -50,6 +59,13 @@ from app.services import candidate_context_service, prompt_framework_service
 VALID_INTENTS = (
     "answering_question", "asking_question", "objecting",
     "scheduling_request", "document_sharing", "not_interested", "unclear",
+    # S-056/HRMS-0456 -- added directly to the shared classifier rather
+    # than a separate offer-specific classification pass, since this
+    # story's own Step 1 explicitly says "add offer-specific intents to
+    # HRMS-0433". Only meaningful when conversation.offer_faq_active is
+    # true (checked by the caller, offer_decision_service.py) -- the
+    # classifier itself has no notion of that flag.
+    "offer_accepted", "offer_declined", "offer_counter",
 )
 
 # BR-01 default -- never crash, never leave a message unclassified.
@@ -65,6 +81,9 @@ INTENT_ROUTING = {
     "document_sharing": {"status": "NOT_WIRED", "target": "resume_upload_service.handle_resume_document (real, but no live document_received trigger exists yet)"},
     "not_interested": {"status": "LIVE", "target": "qualification_conversation_service.run_qualification_turn (BR-04 not-interested branch, graceful exit)"},
     "unclear": {"status": "LIVE", "target": "thunder_service.generate_thunder_reply_with_fallback (clarification request)"},
+    "offer_accepted": {"status": "NOT_WIRED", "target": "offer_decision_service.handle_offer_decision (HRMS-0456, real and tested, no live trigger yet)"},
+    "offer_declined": {"status": "NOT_WIRED", "target": "offer_decision_service.handle_offer_decision (HRMS-0456, real and tested, no live trigger yet)"},
+    "offer_counter": {"status": "NOT_WIRED", "target": "offer_decision_service.handle_offer_decision (HRMS-0456, real and tested, no live trigger yet)"},
 }
 
 
