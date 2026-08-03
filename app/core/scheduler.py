@@ -213,6 +213,65 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register campaign execution scheduler: {exc}")
 
+        # ── Every 30 min: REACTIVATION_JOB (S-045/HRMS-0445) ────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.reactivation_campaign_service import run_reactivation_job
+
+            async def _run_reactivation():
+                db = SessionLocal()
+                try:
+                    result = run_reactivation_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Reactivation: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Reactivation error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_reactivation,
+                trigger="interval",
+                minutes=30,
+                id="reactivation_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled reactivation job (every 30 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register reactivation scheduler: {exc}")
+
+        # ── Daily: REACTIVATION_RESCHEDULE_JOB (S-045/HRMS-0445) ────────────
+        # No archive/terminal state per Avinash's explicit override -- see
+        # reactivation_campaign_service module docstring. This is the "keep
+        # trying till I succeed" mechanism: a completed reactivation
+        # campaign with no reply gets queued for another attempt, forever.
+        try:
+            from app.core.database import SessionLocal
+            from app.services.reactivation_campaign_service import run_reactivation_reschedule_job
+
+            async def _run_reactivation_reschedule():
+                db = SessionLocal()
+                try:
+                    result = run_reactivation_reschedule_job(db)
+                    if result["rescheduled"]:
+                        logger.info(f"[scheduler] Reactivation reschedule: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Reactivation reschedule error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_reactivation_reschedule,
+                trigger="cron",
+                hour=1,
+                minute=0,
+                id="reactivation_reschedule_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled reactivation reschedule job (01:00 UTC daily)")
+        except Exception as exc:
+            logger.warning(f"Could not register reactivation reschedule scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

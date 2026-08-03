@@ -137,24 +137,11 @@ def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bo
 
 
 def _send_touchpoint(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str) -> None:
-    """Reuses the same two real per-channel send paths S-041 already
-    established -- see module docstring."""
-    if channel == "whatsapp":
-        from app.services.thunder_service import send_thunder_message
-        send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
-        return
-
-    from app.services.email_service import EmailService
-    try:
-        EmailService.send_email(candidate.candidateEmail, "Following up on your application", message_body, is_html=False)
-    except Exception as exc:
-        logger.error(f"[OutreachCampaign] Email send failed for candidate {candidate.candidateID!r}: {exc}")
-    db.add(ConversationEvent(
-        conversation_id=conversation.id, event_type="ai_message_sent",
-        event_data={"channel": "email", "body": message_body, "auto_generated": True},
-        triggered_by="ai_agent",
-    ))
-    db.flush()
+    """Delegates to thunder_service's shared send helper -- see that
+    function's own docstring on why this was consolidated (previously
+    duplicated identically in follow_up_scheduler_service)."""
+    from app.services.thunder_service import send_outbound_campaign_message
+    send_outbound_campaign_message(db, conversation, candidate, message_body, channel)
 
 
 def run_campaign_execution_job(db: Session) -> Dict:
