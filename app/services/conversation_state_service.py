@@ -134,6 +134,11 @@ def get_conversation_state(db: Session, conversation_id: int, tenant_id: str) ->
 # Axis 2: escalation. Reversible by construction -- see module docstring.
 # ---------------------------------------------------------------------------
 
+# S-062/HRMS-0462 BR-01: CRITICAL escalations (legal keywords) sort to
+# the very top of the intervention queue regardless of age.
+LEGAL_ESCALATION_KEYWORDS = ("legal", "lawyer", "attorney", "lawsuit", "sue", "discriminat")
+
+
 def escalate(db: Session, conversation: CandidateConversation, *, reason: str, triggered_by: str = "ai_agent") -> CandidateConversation:
     conversation.escalation_state = "escalated"
     conversation.updated_at = datetime.utcnow()
@@ -143,6 +148,13 @@ def escalate(db: Session, conversation: CandidateConversation, *, reason: str, t
         event_data={"reason": reason, "triggered_by": triggered_by}, triggered_by=triggered_by,
     ))
     db.flush()
+
+    # S-062/HRMS-0462: the one real trigger point every escalation
+    # source funnels through -- see that story's own module docstring.
+    from app.services.intervention_queue_service import PRIORITY_CRITICAL, PRIORITY_HIGH, add_to_queue
+    priority = PRIORITY_CRITICAL if any(k in reason.lower() for k in LEGAL_ESCALATION_KEYWORDS) else PRIORITY_HIGH
+    add_to_queue(db, conversation.candidate_id, conversation.tenant_id, "ESCALATION", f"Escalation: {reason}", priority, commit=False)
+
     return conversation
 
 
@@ -155,6 +167,10 @@ def resolve_escalation(db: Session, conversation: CandidateConversation, *, reas
         event_data={"reason": reason, "triggered_by": triggered_by}, triggered_by=triggered_by,
     ))
     db.flush()
+
+    from app.services.intervention_queue_service import resolve_queue_items
+    resolve_queue_items(db, conversation.candidate_id, conversation.tenant_id, ["ESCALATION"], note=f"Escalation resolved: {reason}", commit=False)
+
     return conversation
 
 

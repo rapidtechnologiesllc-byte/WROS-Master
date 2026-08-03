@@ -30,6 +30,7 @@ from app.models.consent import ConsentRecord
 from app.models.notification import Notification
 from app.models.prompt_execution_log import PromptExecutionLog
 from app.models.sla_breach import CandidateSLABreach
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.user import Jobs, Users
 
 import app.services.escalation_detection_service as svc
@@ -45,7 +46,7 @@ def db_session():
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
         CandidateMemory.__table__, CandidateMemoryFact.__table__, CandidateSLABreach.__table__,
         CandidateAIAssignment.__table__, Notification.__table__, PromptExecutionLog.__table__,
-        ConsentRecord.__table__, CandidateSentimentLog.__table__,
+        ConsentRecord.__table__, CandidateSentimentLog.__table__, RecruiterInterventionQueue.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

@@ -31,6 +31,7 @@ from app.models.submission import Submission, SubmissionViolation
 from app.models.tenant import Tenant
 from app.models.client import Client
 from app.models.demand import Demand, DemandHistory
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.user import Users
 
 import app.services.offer_faq_service as svc
@@ -51,7 +52,7 @@ def db_session():
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
         OfferLetter.__table__, OfferFAQEntry.__table__, ConsentRecord.__table__, Notification.__table__,
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
-        Submission.__table__, SubmissionViolation.__table__,
+        Submission.__table__, SubmissionViolation.__table__, RecruiterInterventionQueue.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

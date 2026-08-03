@@ -197,6 +197,13 @@ def calculate_abandonment_score(db: Session, candidate_id: str, tenant_id: str, 
         ))
     db.commit()
 
+    # S-062/HRMS-0462: real intervention-queue wiring.
+    from app.services.intervention_queue_service import PRIORITY_HIGH, add_to_queue, resolve_queue_items
+    if newly_flagged:
+        add_to_queue(db, candidate_id, tenant_id, "HIGH_ABANDONMENT", f"High Abandonment Risk: {total_score}%", PRIORITY_HIGH)
+    elif was_flagged and not is_flagged:
+        resolve_queue_items(db, candidate_id, tenant_id, ["HIGH_ABANDONMENT"], note=f"Abandonment score fell to {total_score}")
+
     return {
         "abandonment_score": total_score,
         "score_components": score_components,

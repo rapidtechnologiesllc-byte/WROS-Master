@@ -326,6 +326,19 @@ def calculate_drop_risk(db: Session, candidate_id: str, tenant_id: str) -> Dict:
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="DROP_RISK_RESOLVED", event_data={"previous_score": previous_score, "new_score": final_score}, triggered_by="system"))
             db.commit()
 
+        # S-062/HRMS-0462: real intervention-queue wiring. CRITICAL (>=80)
+        # supersedes HIGH_DROP_RISK; HIGH (70-79) supersedes CRITICAL_DROP_RISK
+        # (a downgrade); BR-03's own literal "drops below 50" auto-resolves both.
+        from app.services.intervention_queue_service import PRIORITY_CRITICAL, PRIORITY_HIGH, add_to_queue, resolve_queue_items
+        if final_score >= CRITICAL_THRESHOLD:
+            add_to_queue(db, candidate_id, tenant_id, "CRITICAL_DROP_RISK", f"Critical Drop Risk: {final_score}", PRIORITY_CRITICAL)
+            resolve_queue_items(db, candidate_id, tenant_id, ["HIGH_DROP_RISK"], note=f"Superseded by CRITICAL_DROP_RISK (score {final_score})")
+        elif final_score >= FLAG_THRESHOLD:
+            add_to_queue(db, candidate_id, tenant_id, "HIGH_DROP_RISK", f"High Drop Risk: {final_score}", PRIORITY_HIGH)
+            resolve_queue_items(db, candidate_id, tenant_id, ["CRITICAL_DROP_RISK"], note=f"Downgraded from critical (score {final_score})")
+        elif final_score < 50:  # BR-03's own named threshold
+            resolve_queue_items(db, candidate_id, tenant_id, ["HIGH_DROP_RISK", "CRITICAL_DROP_RISK"], note=f"Drop risk score fell to {final_score}")
+
         return {"drop_risk_score": final_score, "risk_level": risk_level, "risk_signals": risk_signals, "is_flagged": is_flagged, "calculated_at": now}
     except Exception as exc:
         logger.error(f"[DropRisk] Failed calculating drop risk for candidate {candidate_id!r}: {exc}")

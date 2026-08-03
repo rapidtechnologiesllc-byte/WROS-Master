@@ -22,6 +22,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
 from app.models.notification import Notification
 from app.models.sla_breach import CandidateSLABreach
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.user import Users
 
 import app.services.sla_monitoring_service as svc
@@ -34,7 +35,7 @@ def db_session():
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
-        CandidateSLABreach.__table__, CandidateAIAssignment.__table__, Notification.__table__,
+        CandidateSLABreach.__table__, CandidateAIAssignment.__table__, Notification.__table__, RecruiterInterventionQueue.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

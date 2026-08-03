@@ -33,6 +33,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.preboarding_document import PreboardingDocument
 from app.models.submission import Submission, SubmissionViolation
 from app.models.tenant import Tenant
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.user import Users
 
 import app.services.document_collection_service as svc
@@ -53,7 +54,7 @@ def db_session():
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
         OfferLetter.__table__, PreboardingDocument.__table__, ConsentRecord.__table__, Notification.__table__,
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
-        Submission.__table__, SubmissionViolation.__table__, CandidateJoiningScore.__table__,
+        Submission.__table__, SubmissionViolation.__table__, CandidateJoiningScore.__table__, RecruiterInterventionQueue.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

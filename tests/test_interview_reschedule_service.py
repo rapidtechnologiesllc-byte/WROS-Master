@@ -36,6 +36,7 @@ from app.models.interview_reminder import InterviewReminder
 from app.models.notification import Notification
 from app.models.submission import Submission, SubmissionViolation
 from app.models.tenant import Tenant
+from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.user import Users
 
 import app.services.interview_reschedule_service as svc
@@ -61,7 +62,7 @@ def db_session():
         Submission.__table__, SubmissionViolation.__table__,
         DemandInterviewPanel.__table__, SubmissionInterview.__table__, InterviewReminder.__table__,
         CandidateAvailabilitySlot.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
-        Notification.__table__, ConsentRecord.__table__,
+        Notification.__table__, ConsentRecord.__table__, RecruiterInterventionQueue.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
