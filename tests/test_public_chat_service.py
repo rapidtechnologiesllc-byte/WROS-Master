@@ -27,6 +27,7 @@ from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation
 from app.models.candidate_ghosting_status import CandidateGhostingStatus
 from app.models.consent import ConsentRecord
 from app.models.follow_up_schedule import FollowUpSchedule
+from app.models.outreach_campaign import CampaignTouchpoint, OutreachCampaign
 from app.models.internal_note import InternalNote
 from app.models.notification import Notification
 from app.models.user import Jobs, Users
@@ -59,7 +60,7 @@ def db_session():
         Users.__table__, Candidate.__table__, Jobs.__table__, CandidateInfoForm.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
         Notification.__table__, ConsentRecord.__table__, InternalNote.__table__, FollowUpSchedule.__table__,
-        CandidateGhostingStatus.__table__,
+        CandidateGhostingStatus.__table__, OutreachCampaign.__table__, CampaignTouchpoint.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

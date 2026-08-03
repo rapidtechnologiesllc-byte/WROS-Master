@@ -248,6 +248,12 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str, ba
     from app.services.ghosting_detection_service import reactivate_candidate
     reactivate_candidate(db, candidate_id, conversation.tenant_id, conversation.id)
 
+    # S-044/HRMS-0444 BR-01: cancel the outreach campaign the moment any
+    # inbound message arrives. Never raises -- cheap no-op if no
+    # ACTIVE campaign exists.
+    from app.services.outreach_campaign_service import cancel_campaign_on_reply
+    cancel_campaign_on_reply(db, candidate_id, conversation.tenant_id)
+
     # S-036/HRMS-0436 BR-01: genuinely asynchronous -- scheduled via
     # FastAPI BackgroundTasks (same real mechanism whatsapp_webhook.py/
     # create_job.py/onboarding.py already use), so it runs after this

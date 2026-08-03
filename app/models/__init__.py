@@ -89,6 +89,7 @@ from app.models.candidate_job_flag import CandidateJobFlag
 from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.candidate_no_response_log import CandidateNoResponseLog
 from app.models.candidate_ghosting_status import CandidateGhostingStatus
+from app.models.outreach_campaign import OutreachCampaign, CampaignTouchpoint
 
 __all__ = [
     # Base
@@ -222,5 +223,7 @@ __all__ = [
     "FollowUpSchedule",
     "CandidateNoResponseLog",
     "CandidateGhostingStatus",
+    "OutreachCampaign",
+    "CampaignTouchpoint",
 ]
 

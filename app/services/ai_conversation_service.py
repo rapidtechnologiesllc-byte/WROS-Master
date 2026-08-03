@@ -522,17 +522,43 @@ def auto_assign_ai_agent_on_creation(
     # isn't literally Promise.all() concurrent in a synchronous-session
     # codebase) -- a WhatsApp failure never blocks email or vice versa,
     # and neither can undo the AI assignment that already succeeded above.
+    whatsapp_result = None
     try:
         from app.services.first_engagement_service import send_first_whatsapp_engagement
-        send_first_whatsapp_engagement(db, candidate_id, tenant_id)
+        whatsapp_result = send_first_whatsapp_engagement(db, candidate_id, tenant_id)
     except Exception as exc:
         logger.warning(f"[AutoAssign] First WhatsApp engagement did not complete for candidate '{candidate_id}': {exc}")
 
+    email_result = None
     try:
         from app.services.email_first_engagement_service import send_first_email_engagement
-        send_first_email_engagement(db, candidate_id, tenant_id)
+        email_result = send_first_email_engagement(db, candidate_id, tenant_id)
     except Exception as exc:
         logger.warning(f"[AutoAssign] First email engagement did not complete for candidate '{candidate_id}': {exc}")
+
+    # S-044/HRMS-0444 Step 4: start the multi-touch campaign once at
+    # least one Day-0 channel actually sent -- see
+    # outreach_campaign_service's own module docstring on why this is
+    # called unconditionally here (per Step 4/TC-001) rather than
+    # gated on a no-response signal. Never raises.
+    try:
+        day0_channel = None
+        if (whatsapp_result or {}).get("status") == "sent":
+            day0_channel = "whatsapp"
+        elif (email_result or {}).get("status") == "sent":
+            day0_channel = "email"
+        if day0_channel:
+            from app.services.outreach_campaign_service import start_campaign
+            conversation = (
+                db.query(CandidateConversation)
+                .filter(CandidateConversation.candidate_id == candidate_id, CandidateConversation.tenant_id == tenant_id)
+                .order_by(CandidateConversation.id.desc())
+                .first()
+            )
+            if conversation:
+                start_campaign(db, candidate_id, tenant_id, conversation.id)
+    except Exception as exc:
+        logger.warning(f"[AutoAssign] Outreach campaign did not start for candidate '{candidate_id}': {exc}")
 
 
 def _send_missing_fields_email(
@@ -1320,6 +1346,12 @@ def process_candidate_reply(
     # non-ghosted case.
     from app.services.ghosting_detection_service import reactivate_candidate
     reactivate_candidate(db, candidate.candidateID, conversation.tenant_id, conversation.id)
+
+    # S-044/HRMS-0444 BR-01: cancel the outreach campaign the moment any
+    # inbound message arrives. Never raises -- cheap no-op if no
+    # ACTIVE campaign exists.
+    from app.services.outreach_campaign_service import cancel_campaign_on_reply
+    cancel_campaign_on_reply(db, candidate.candidateID, conversation.tenant_id)
 
     # S-022/HRMS-0422 -- extract structured facts from every inbound
     # message. Never raises (see facts_extraction_service module
