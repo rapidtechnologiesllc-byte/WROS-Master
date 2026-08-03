@@ -326,6 +326,60 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register interview reminder execution scheduler: {exc}")
 
+        # ── Every 5 min: NO_SHOW_DETECTION_JOB (S-052/HRMS-0452) ────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.interview_no_show_service import run_no_show_detection_job
+
+            async def _run_no_show_detection():
+                db = SessionLocal()
+                try:
+                    result = run_no_show_detection_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] No-show detection: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] No-show detection error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_no_show_detection,
+                trigger="interval",
+                minutes=5,
+                id="no_show_detection_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled no-show detection job (every 5 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register no-show detection scheduler: {exc}")
+
+        # ── Every 15 min: NO_SHOW_FOLLOWUP_JOB (S-052/HRMS-0452) ────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.interview_no_show_service import run_no_show_followup_job
+
+            async def _run_no_show_followup():
+                db = SessionLocal()
+                try:
+                    result = run_no_show_followup_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] No-show follow-up: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] No-show follow-up error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_no_show_followup,
+                trigger="interval",
+                minutes=15,
+                id="no_show_followup_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled no-show follow-up job (every 15 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register no-show follow-up scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
