@@ -7,6 +7,7 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import HistoryTab from "./tabs/HistoryTab";
 import MessagesTab from "./tabs/MessagesTab";
+import CandidateJourney from "../components/candidate/CandidateJourney";
 import CandidateEditModal from "./CandidateEditModal";
 import {
   getCandidateStatus,
@@ -1267,6 +1268,10 @@ ${formattedJD}
             </div>
           </div>
         </div>
+
+        {!limitedMode && (
+          <CandidateJourney candidateId={candidate?.id} onNavigateTab={setActiveTab} />
+        )}
 
         <div className="border-b">
           <div className="flex flex-wrap gap-2">
