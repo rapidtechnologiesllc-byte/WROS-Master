@@ -82,6 +82,7 @@ import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
+import InterventionQueueScreen from "../screens/InterventionQueueScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -475,6 +476,7 @@ export default function AppRoutes() {
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
+            <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
 
             <Route
               path="candidates"
@@ -681,6 +683,7 @@ export default function AppRoutes() {
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
+            <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
           <Route
             path="candidates"
             element={

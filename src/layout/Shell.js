@@ -71,13 +71,17 @@ const NAV_ITEMS = {
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
   messageTemplates: { path: ROUTES.MESSAGE_TEMPLATES, label: "Message Templates", icon: MessageSquareText },
+  // S-062/HRMS-0462 -- candidates that need a human right now (escalations,
+  // high drop risk, SLA breaches, etc.), same recruiter-facing grouping as
+  // the rest of Recruitment.
+  interventionQueue: { path: ROUTES.INTERVENTION_QUEUE, label: "Intervention Queue", icon: AlertOctagon },
 };
 
 const GROUP_DEFS = [
   {
     label: "Recruitment",
     icon: Users,
-    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions"],
+    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue"],
   },
   {
     label: "Workforce",

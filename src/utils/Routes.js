@@ -28,4 +28,5 @@ export const ROUTES = {
   RBAC: "/rbac",
   OFFERS: "/offers",
   OFFERS_LISTING: "/offers-listing",
+  INTERVENTION_QUEUE: "/recruiter/intervention-queue",
 };
