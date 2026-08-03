@@ -24,6 +24,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
+from app.models.candidate_ghosting_status import CandidateGhostingStatus
 from app.models.consent import ConsentRecord
 from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.internal_note import InternalNote
@@ -58,6 +59,7 @@ def db_session():
         Users.__table__, Candidate.__table__, Jobs.__table__, CandidateInfoForm.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
         Notification.__table__, ConsentRecord.__table__, InternalNote.__table__, FollowUpSchedule.__table__,
+        CandidateGhostingStatus.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:

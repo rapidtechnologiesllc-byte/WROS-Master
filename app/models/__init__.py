@@ -88,6 +88,7 @@ from app.models.candidate_job_score import CandidateJobScore
 from app.models.candidate_job_flag import CandidateJobFlag
 from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.candidate_no_response_log import CandidateNoResponseLog
+from app.models.candidate_ghosting_status import CandidateGhostingStatus
 
 __all__ = [
     # Base
@@ -220,5 +221,6 @@ __all__ = [
     "CandidateJobFlag",
     "FollowUpSchedule",
     "CandidateNoResponseLog",
+    "CandidateGhostingStatus",
 ]
 

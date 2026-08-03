@@ -1315,6 +1315,12 @@ def process_candidate_reply(
     from app.services.follow_up_scheduler_service import cancel_pending_follow_ups
     cancel_pending_follow_ups(db, candidate.candidateID, conversation.tenant_id)
 
+    # S-043/HRMS-0443 Step 4/BR-03: any inbound message immediately
+    # reactivates a ghosted candidate. Cheap no-op for the common
+    # non-ghosted case.
+    from app.services.ghosting_detection_service import reactivate_candidate
+    reactivate_candidate(db, candidate.candidateID, conversation.tenant_id, conversation.id)
+
     # S-022/HRMS-0422 -- extract structured facts from every inbound
     # message. Never raises (see facts_extraction_service module
     # docstring) -- an LLM/parse failure logs FACTS_EXTRACTION_FAILED

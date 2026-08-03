@@ -159,6 +159,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register no-response detection scheduler: {exc}")
 
+        # ── Every 30 min: GHOSTING_DETECTION_JOB (S-043/HRMS-0443) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.ghosting_detection_service import run_ghosting_detection_job
+
+            async def _run_ghosting_detection():
+                db = SessionLocal()
+                try:
+                    result = run_ghosting_detection_job(db)
+                    if result["ghosted"]:
+                        logger.info(f"[scheduler] Ghosting detection: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Ghosting detection error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_ghosting_detection,
+                trigger="interval",
+                minutes=30,
+                id="ghosting_detection_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled ghosting detection job (every 30 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register ghosting detection scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

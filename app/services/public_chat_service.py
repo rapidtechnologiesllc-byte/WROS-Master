@@ -242,6 +242,12 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str, ba
     from app.services.follow_up_scheduler_service import cancel_pending_follow_ups
     cancel_pending_follow_ups(db, candidate_id, conversation.tenant_id)
 
+    # S-043/HRMS-0443 Step 4/BR-03: any inbound message immediately
+    # reactivates a ghosted candidate. Cheap no-op for the common
+    # non-ghosted case.
+    from app.services.ghosting_detection_service import reactivate_candidate
+    reactivate_candidate(db, candidate_id, conversation.tenant_id, conversation.id)
+
     # S-036/HRMS-0436 BR-01: genuinely asynchronous -- scheduled via
     # FastAPI BackgroundTasks (same real mechanism whatsapp_webhook.py/
     # create_job.py/onboarding.py already use), so it runs after this
