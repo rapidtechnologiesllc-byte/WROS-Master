@@ -272,6 +272,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register reactivation reschedule scheduler: {exc}")
 
+        # ── Every 6 hours: ABANDONMENT_SCORING_JOB (S-046/HRMS-0446) ────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.abandonment_scoring_service import run_abandonment_scoring_job
+
+            async def _run_abandonment_scoring():
+                db = SessionLocal()
+                try:
+                    result = run_abandonment_scoring_job(db)
+                    if result["scored"]:
+                        logger.info(f"[scheduler] Abandonment scoring: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Abandonment scoring error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_abandonment_scoring,
+                trigger="interval",
+                hours=6,
+                id="abandonment_scoring_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled abandonment scoring job (every 6 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register abandonment scoring scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
