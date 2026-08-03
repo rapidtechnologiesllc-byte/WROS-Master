@@ -186,6 +186,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register ghosting detection scheduler: {exc}")
 
+        # ── Every 15 min: CAMPAIGN_EXECUTION_JOB (S-044/HRMS-0444) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.outreach_campaign_service import run_campaign_execution_job
+
+            async def _run_campaign_execution():
+                db = SessionLocal()
+                try:
+                    result = run_campaign_execution_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Campaign execution: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Campaign execution error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_campaign_execution,
+                trigger="interval",
+                minutes=15,
+                id="campaign_execution_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled campaign execution job (every 15 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register campaign execution scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
