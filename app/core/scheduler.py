@@ -353,6 +353,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register no-show detection scheduler: {exc}")
 
+        # ── Every 6 hours: DOCUMENT_REMINDER_JOB (S-057/HRMS-0457) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.document_collection_service import run_document_reminder_job
+
+            async def _run_document_reminder():
+                db = SessionLocal()
+                try:
+                    result = run_document_reminder_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Document reminder: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Document reminder error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_document_reminder,
+                trigger="interval",
+                hours=6,
+                id="document_reminder_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled document reminder job (every 6 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register document reminder scheduler: {exc}")
+
         # ── Every 15 min: NO_SHOW_FOLLOWUP_JOB (S-052/HRMS-0452) ────────────
         try:
             from app.core.database import SessionLocal

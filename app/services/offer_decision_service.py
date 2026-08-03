@@ -56,9 +56,13 @@ Real architecture adaptations:
 - No internal event bus -- "publish offer.accepted/offer.declined" has
   nothing to publish through; the real `OFFER_ACCEPTED`/
   `OFFER_DECLINED`/`OFFER_COUNTERED` `ConversationEvent`s ARE the real,
-  durable signal (same posture every "downstream story not built yet"
-  case this round has taken -- HRMS-0457 Document Collection Agent,
-  this story's own literal "Blocks" dependency, doesn't exist yet).
+  durable signal. HRMS-0457 (Document Collection Agent) is now built
+  (S-057) -- `_handle_acceptance()` calls its real
+  `start_document_collection()` directly (this story's own dependency
+  chain says exactly that), and `_handle_decline()` calls its real
+  `cancel_pending_documents_for_candidate()` (BR-01 of that story: a
+  decline arriving after acceptance must stop any in-flight
+  collection).
 - HR notified via the pre-existing, already-real
   `EmailService.notify_hr_candidate_responded()` (reused as-is, same
   recipient -- `OfferLetter.created_by` -- the existing endpoint
@@ -182,6 +186,9 @@ def _handle_acceptance(db: Session, candidate: Candidate, conversation: Candidat
     _notify_recruiter(db, submission, f"{candidate.candidateFirstName or candidate.candidateID} has accepted the offer for {offer.position}. Starting date: {start_date}.")
     _notify_hr_by_email(db, offer, candidate, "Accepted")
 
+    from app.services.document_collection_service import start_document_collection
+    start_document_collection(db, candidate, conversation, offer, conversation.tenant_id)
+
     return {"outcome": "accepted", "message": ACCEPTANCE_MESSAGE}
 
 
@@ -211,6 +218,9 @@ def _handle_decline(db: Session, candidate: Candidate, conversation: CandidateCo
 
     set_org_pool(candidate_id=candidate.candidateID, reason=f"Candidate declined offer #{offer.id} via Thunder", db=db, performed_by_id=candidate.candidateID, performed_by_name=candidate.candidateFirstName or candidate.candidateEmail)
     db.commit()
+
+    from app.services.document_collection_service import cancel_pending_documents_for_candidate
+    cancel_pending_documents_for_candidate(db, candidate.candidateID)  # S-057/BR-01: a decline arriving after acceptance (rare, but real) must stop any in-flight collection
 
     submission = _relevant_submission(db, candidate.candidateID)
     reason_clause = f" Reason: {offer.candidate_response}." if offer.candidate_response else " Reason not provided."

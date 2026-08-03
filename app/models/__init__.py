@@ -94,6 +94,7 @@ from app.models.candidate_abandonment_score import CandidateAbandonmentScore
 from app.models.candidate_availability_slot import CandidateAvailabilitySlot
 from app.models.interview_reminder import InterviewReminder
 from app.models.offer_faq_entry import OfferFAQEntry
+from app.models.preboarding_document import PreboardingDocument
 
 __all__ = [
     # Base
@@ -233,5 +234,6 @@ __all__ = [
     "CandidateAvailabilitySlot",
     "InterviewReminder",
     "OfferFAQEntry",
+    "PreboardingDocument",
 ]
 
