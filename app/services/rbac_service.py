@@ -147,6 +147,7 @@ PERMISSIONS_SEED = [
     {"name": "thunder.test",         "description": "Access the internal Test Thunder QA chat harness"},
     {"name": "tenant.ai_config",     "description": "View and update Thunder's per-tenant name and persona (S-011/HRMS-0411)"},
     {"name": "template.manage",      "description": "Activate a message template version (S-014/HRMS-0414)"},
+    {"name": "offer.readiness_check", "description": "View a candidate's offer readiness gate before generating an offer (S-053/HRMS-0453) -- deliberately narrower than offer.manage/offer.view; excludes Recruiter per that story's own explicit AC/TC, unlike the two broader offer permissions which (a pre-existing inconsistency, not introduced by this story) currently include Recruiter despite its own role description/offer_control=False attribute saying otherwise."},
 ]
 
 # role_name → list of permission names it should have
@@ -155,41 +156,41 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
     "BU Head": [
         "candidate.view", "candidate.edit", "job.view", "job.create", "job.edit",
         "job.approve", "pipeline.move", "interview.feedback",
-        "offer.manage", "employee.view", "employee.edit","document.verify",
+        "offer.manage", "offer.readiness_check", "employee.view", "employee.edit","document.verify",
         "interview.manage","interview.view","newsletter.view","document.view","history.create","rbac.manage",
     ],
     "Hiring Manager": [
-        "candidate.view", "job.view", "interview.feedback","offer.manage","offer.view","candidate.edit",
+        "candidate.view", "job.view", "interview.feedback","offer.manage","offer.view","offer.readiness_check","candidate.edit",
         "interview.manage","interview.view","newsletter.view","document.view","document.verify","history.create"
     ],
     "HR Manager": [
         "candidate.view", "candidate.edit", "employee.view", "employee.edit",
         "user.manage", "newsletter.manage","newsletter.view","document.view","document.verify",
-        "history.create","interview.feedback","offer.manage","offer.view","interview.manage","interview.view"
+        "history.create","interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view"
 
     ],
     "HR Operations": [
         "candidate.view", "candidate.edit", "employee.view",
         "newsletter.view","document.view","document.verify","history.create",
-        "interview.feedback","offer.manage","offer.view","interview.manage","interview.view"
+        "interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view"
     ],
     "HRBP": [
         "candidate.view", "candidate.edit","newsletter.view",
         "document.view","document.verify","history.create","rbac.manage",
-        "interview.feedback","offer.manage","offer.view","interview.manage","interview.view"
+        "interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view"
     ],
     "Recruitment Manager": [
         "candidate.view", "candidate.create", "candidate.edit",
         "job.view", "job.create", "job.edit",
         "pipeline.move", "interview.feedback",
-        "offer.manage", "offer.view",
+        "offer.manage", "offer.view", "offer.readiness_check",
         "interview.manage","interview.view","newsletter.view",
         "document.view","document.verify","history.create"
     ],
     "Recruitment Team Lead": [
         "candidate.view", "candidate.create", "candidate.edit",
         "job.view", "pipeline.move", "interview.feedback",
-        "offer.manage", "offer.view",
+        "offer.manage", "offer.view", "offer.readiness_check",
         "interview.manage","interview.view","newsletter.view","document.view",
         "document.verify","history.create"
     ],

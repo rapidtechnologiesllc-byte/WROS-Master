@@ -50,6 +50,7 @@ from app.api.v1.endpoints.candidate_portal import router as candidate_portal_rou
 from app.api.v1.endpoints.sla_breach import router as sla_breach_router
 from app.api.v1.endpoints.technical_scoring import router as technical_scoring_router
 from app.api.v1.endpoints.abandonment_scoring import router as abandonment_scoring_router
+from app.api.v1.endpoints.offer_readiness import router as offer_readiness_router
 
 router = fastapi.APIRouter()
 
@@ -102,4 +103,5 @@ router.include_router(router=conversation_search_router)
 router.include_router(router=candidate_portal_router)
 router.include_router(router=technical_scoring_router)
 router.include_router(router=sla_breach_router)
-router.include_router(router=abandonment_scoring_router)
+router.include_router(router=abandonment_scoring_router)
+router.include_router(router=offer_readiness_router)
