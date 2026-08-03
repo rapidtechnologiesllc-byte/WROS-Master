@@ -407,6 +407,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register joining readiness scheduler: {exc}")
 
+        # ── Every 4 hours: DROP_RISK_SCORING_JOB (S-060/HRMS-0460) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.drop_risk_service import run_drop_risk_scoring_job
+
+            async def _run_drop_risk_scoring():
+                db = SessionLocal()
+                try:
+                    result = run_drop_risk_scoring_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Drop risk scoring: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Drop risk scoring error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_drop_risk_scoring,
+                trigger="interval",
+                hours=4,
+                id="drop_risk_scoring_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled drop risk scoring job (every 4 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register drop risk scoring scheduler: {exc}")
+
         # ── Every 15 min: NO_SHOW_FOLLOWUP_JOB (S-052/HRMS-0452) ────────────
         try:
             from app.core.database import SessionLocal
