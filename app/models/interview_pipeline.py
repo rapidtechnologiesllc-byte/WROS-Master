@@ -19,18 +19,37 @@ HRMS-0448 (Calendar Matching Engine) is now built
 (app.services.calendar_matching_service.attempt_calendar_match()) and
 populates `scheduled_at` for real by matching a candidate's
 availability slots against the assigned interviewer's real Outlook
-calendar. `scheduled_via_graph_event_id` still stays null even after a
-real HRMS-0448 match -- that story deliberately does not create the
-actual Graph calendar invite (see its own module docstring); the
-literal invite/join-link creation is left to a future HRMS-0449
-(Interview Confirmation), not yet built. Null continues to mean
-"scheduled, no Graph invite created yet", not "scheduling failed".
+calendar. HRMS-0449 (Interview Confirmation) is also now built
+(app.services.interview_confirmation_service.confirm_interview()) and
+populates `scheduled_via_graph_event_id` for real with the actual
+Graph event ID once the interviewer's calendar invite is created;
+`confirmed_at` (added by that story) is the real "status=CONFIRMED"
+signal. Null on `scheduled_via_graph_event_id` still means "scheduled,
+no Graph invite created (yet, or the invite creation itself failed --
+see that story's own CALENDAR_INVITE_FAILED handling)", never a
+generic "scheduling failed".
+
+S-051/HRMS-0451 (Interview Reschedule Workflow) added
+`reschedule_count`/`rescheduled_from_interview_id`/`superseded_at`.
+BR-03 there requires a NEW row per reschedule (never UPDATE the old
+time in place) -- this genuinely conflicted with this table's
+original `uq_one_interview_per_level_per_submission` UniqueConstraint
+(one row per submission+level, full stop), which a second row for the
+same submission+level would violate. Resolved by replacing that
+UniqueConstraint with a partial/filtered unique index
+(`ix_one_current_interview_per_level`, `WHERE superseded_at IS NULL`)
+that only enforces "one CURRENT interview per submission+level" --
+historical (superseded) rows are exempt. `superseded_at` (a
+timestamp-presence signal, same convention as `confirmed_at`/
+`scheduled_at`) is the real "status=RESCHEDULED" this story's own
+spec calls for -- there is still no separate literal status enum
+column on this row.
 """
 import uuid
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text,
-    UniqueConstraint, func,
+    Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer, String, Text,
+    UniqueConstraint, func, text,
 )
 
 from app.models.base import Base
@@ -105,14 +124,31 @@ class SubmissionInterview(Base):
     # this row (scheduled_at's presence already means "scheduled" the
     # same way) -- a second timestamp-presence signal, not a new enum.
     confirmed_at = Column(DateTime, nullable=True)
+    # S-051/HRMS-0451 -- BR-01's cap (max 2 autonomous reschedules, then
+    # escalate). Tracked on every row in a reschedule chain, not just
+    # the current one, so the full chain's count is always readable
+    # from any single row without a recursive walk.
+    reschedule_count = Column(Integer, nullable=False, server_default="0")
+    # S-051/HRMS-0451 -- BR-03: links a rescheduled interview back to
+    # the one it superseded. Null for an interview that has never been
+    # rescheduled.
+    rescheduled_from_interview_id = Column(String(36), ForeignKey("submission_interviews.id"), nullable=True)
+    # S-051/HRMS-0451 -- presence means "status=RESCHEDULED" (spec's
+    # own literal value) -- same timestamp-presence convention as
+    # confirmed_at/scheduled_at, not a new status enum column.
+    superseded_at = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
-        UniqueConstraint(
-            "submission_id", "level",
-            name="uq_one_interview_per_level_per_submission",
+        # S-051/HRMS-0451 -- replaces the original full UniqueConstraint
+        # (see module docstring): only CURRENT (non-superseded)
+        # interviews are constrained to one per submission+level;
+        # historical, superseded rows are exempt.
+        Index(
+            "ix_one_current_interview_per_level", "submission_id", "level", unique=True,
+            sqlite_where=text("superseded_at IS NULL"), mssql_where=text("superseded_at IS NULL"),
         ),
     )

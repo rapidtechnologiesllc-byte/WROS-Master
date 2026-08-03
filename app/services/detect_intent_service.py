@@ -61,7 +61,7 @@ INTENT_ROUTING = {
     "answering_question": {"status": "LIVE", "target": "qualification_conversation_service.run_qualification_turn"},
     "asking_question": {"status": "LIVE", "target": "qualification_conversation_service.run_qualification_turn (candidate-question branch)"},
     "objecting": {"status": "NOT_BUILT", "target": "HRMS-0472 Objection Handling Engine (Sprint 4, not yet built)"},
-    "scheduling_request": {"status": "NOT_BUILT", "target": "HRMS-0447 Interview Availability Collection (Sprint 3, not yet built)"},
+    "scheduling_request": {"status": "NOT_WIRED", "target": "interview_availability_service.parse_availability_response (first-time ask) / interview_reschedule_service.start_reschedule (mid-flow reschedule, HRMS-0451) -- both real and tested, no live trigger calls either yet"},
     "document_sharing": {"status": "NOT_WIRED", "target": "resume_upload_service.handle_resume_document (real, but no live document_received trigger exists yet)"},
     "not_interested": {"status": "LIVE", "target": "qualification_conversation_service.run_qualification_turn (BR-04 not-interested branch, graceful exit)"},
     "unclear": {"status": "LIVE", "target": "thunder_service.generate_thunder_reply_with_fallback (clarification request)"},

@@ -99,6 +99,15 @@ Real architecture adaptations:
   took. `attempt_calendar_match()` is the real, callable, fully tested
   entry point a future wiring pass would call right after S-047's
   `parse_availability_response()` returns `outcome="slots_sufficient"`.
+- `reschedule_count`/`rescheduled_from_interview_id` (S-051/HRMS-0451)
+  are optional passthrough params to `create_interview()`, added so
+  `interview_reschedule_service` can reuse this exact matching function
+  for a reschedule's new interview record instead of duplicating the
+  whole matching flow. `supersede_interview_id`, when given, marks that
+  interview's `superseded_at` in the exact same commit as the new
+  interview's creation -- ONLY on a real match, never on any other
+  outcome, so a stalled/failed reschedule attempt never orphans the
+  candidate's still-valid old interview.
 """
 import os
 from datetime import date as date_cls, datetime, time as time_cls, timedelta, timezone as dt_timezone
@@ -277,6 +286,7 @@ def _notify_recruiter(db: Session, submission: Submission, message: str) -> None
 def attempt_calendar_match(
     db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str,
     *, level: str = "L1", duration_minutes: int = DEFAULT_INTERVIEW_DURATION_MINUTES, graph_call: Optional[GraphCall] = None,
+    reschedule_count: int = 0, rescheduled_from_interview_id: Optional[str] = None, supersede_interview_id: Optional[str] = None,
 ) -> Dict:
     """Never raises. Returns one of:
       {"outcome": "insufficient_slots"}
@@ -352,7 +362,26 @@ def attempt_calendar_match(
             _notify_recruiter(db, submission, f"No matching interview slot found for {candidate.candidateFirstName or candidate.candidateID} -- candidate has been asked for new availability.")
             return {"outcome": "no_match", "message": NO_MATCH_MESSAGE}
 
-        interview = create_interview(db, tenant_id=submission.tenant_id, submission=submission, level=level, panel=panel, scheduled_at=match_start)
+        if supersede_interview_id:
+            # S-051/HRMS-0451: only mark the OLD interview superseded in
+            # the SAME commit as creating the new one -- the partial
+            # unique index (ix_one_current_interview_per_level) requires
+            # the old row to no longer be "current" before a second
+            # current row for the same submission+level can exist, but
+            # the old row must stay untouched on every non-matched
+            # outcome above (a stalled/failed reschedule attempt must
+            # never silently orphan the candidate's still-valid old
+            # interview).
+            old_interview = db.query(SubmissionInterview).filter(SubmissionInterview.id == supersede_interview_id).first()
+            if old_interview is not None:
+                old_interview.superseded_at = datetime.utcnow()
+                db.add(old_interview)
+                db.flush()  # the UPDATE must land before create_interview()'s INSERT, or the partial unique index rejects it
+
+        interview = create_interview(
+            db, tenant_id=submission.tenant_id, submission=submission, level=level, panel=panel, scheduled_at=match_start,
+            reschedule_count=reschedule_count, rescheduled_from_interview_id=rescheduled_from_interview_id,
+        )
         matched_slot.is_confirmed = True
         db.add(matched_slot)
         db.add(ConversationEvent(
