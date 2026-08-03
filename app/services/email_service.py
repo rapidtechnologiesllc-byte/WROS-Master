@@ -972,9 +972,24 @@ class EmailService:
         company_name: str = "BlitzenX",
         joining_date: str = "",
         offer_expire_date: str = "",
-    ) -> None:
+        salary: str = "",
+        portal_link: str = "",
+        offer_document_url: str = "",
+    ) -> bool:
         """
         Email sent to the candidate when HR releases the approved offer letter.
+
+        S-054/HRMS-0454 -- extended with salary (BR-03: already a
+        human-readable display string on OfferLetter, e.g. "24 LPA",
+        never a raw base-currency-unit value -- shown as-is, no
+        conversion needed), portal_link (a real "View Your Offer"
+        button, S-017's generate_portal_link_url()), and
+        offer_document_url (a real link to the already-generated
+        SharePoint document, not a re-fetched/re-attached binary).
+        Returns True/False instead of always swallowing -- the caller
+        (offer_release_notification_service, S-054) needs to know if
+        this failed to log OFFER_EMAIL_FAILED per BR-02's own
+        integrations note.
         """
         try:
             expire_row = ""
@@ -993,6 +1008,31 @@ class EmailService:
                     <strong>Joining Date:</strong> {joining_date}
                   </p>
                 </td></tr>"""
+            salary_row = ""
+            if salary:
+                salary_row = f"""
+                <tr><td style="padding:6px 0;">
+                  <p style="margin:0;font-size:14px;color:#374151;">
+                    <strong>Compensation:</strong> {salary}
+                  </p>
+                </td></tr>"""
+
+            portal_button = ""
+            if portal_link:
+                portal_button = f"""
+                <p style="text-align:center;margin:24px 0;">
+                  <a href="{portal_link}" style="background:#4f46e5;color:#ffffff;padding:12px 28px;
+                     border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;">
+                    View Your Offer
+                  </a>
+                </p>"""
+
+            document_link_row = ""
+            if offer_document_url:
+                document_link_row = f"""
+                <p style="font-size:14px;color:#374151;line-height:1.6;">
+                  <a href="{offer_document_url}">Download your offer letter</a>
+                </p>"""
 
             body = f"""
             <p style="font-size:16px;color:#111827;margin:0 0 16px;">
@@ -1000,8 +1040,9 @@ class EmailService:
             </p>
             <p style="font-size:14px;color:#374151;line-height:1.6;">
               We are delighted to extend an offer of employment to you from
-              <strong>{company_name}</strong>. Please log in to the candidate portal
-              to view your offer letter, provide your signature, and formally accept.
+              <strong>{company_name}</strong>. Please review your offer below and
+              log in to the candidate portal to view the full letter, provide your
+              signature, and formally accept.
             </p>
             <table width="100%" cellpadding="0" cellspacing="0"
                    style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
@@ -1010,9 +1051,12 @@ class EmailService:
                   <strong>Position:</strong> {position}
                 </p>
               </td></tr>
+              {salary_row}
               {joining_row}
               {expire_row}
             </table>
+            {portal_button}
+            {document_link_row}
             <p style="font-size:14px;color:#374151;line-height:1.6;">
               Please review the offer carefully and respond before the expiry date.
             </p>
@@ -1028,8 +1072,10 @@ class EmailService:
                 is_html=True,
             )
             logger.info(f"[EmailService] Offer-released email sent to {candidate_email}")
+            return True
         except Exception as exc:
             logger.warning(f"[EmailService] notify_candidate_offer_released failed: {exc}")
+            return False
 
     @classmethod
     def notify_hr_candidate_responded(

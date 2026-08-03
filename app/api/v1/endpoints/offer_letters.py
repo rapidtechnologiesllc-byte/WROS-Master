@@ -12,6 +12,7 @@ from app.core.dependencies import (
     get_current_hr_or_admin,
     require_permission,
 )
+from app.core.logging import logger
 from app.models.offer_letter import OfferLetter
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import Users, Jobs
@@ -894,20 +895,32 @@ async def approve_offer_letter(
 @router.post(
     "/release/{offer_id}",
     response_model=OfferReleaseResponse,
-    dependencies=[Depends(require_permission("offer.manage"))],
+    dependencies=[Depends(require_permission("offer.readiness_check"))],
     summary="Release an approved offer letter to the candidate",
 )
 def release_offer_letter(
     offer_id: int,
     db: Session = Depends(get_db),
-    user=Depends(require_permission("offer.manage")),
+    user=Depends(require_permission("offer.readiness_check")),
 ):
     """
     HR releases an `Approved` offer to the candidate, changing
     `offer_status` from `Approved` → `Released`. The candidate is
-    notified by email and the offer appears in their `my-offers` list.
+    notified via WhatsApp + email (S-054/HRMS-0454) and the offer
+    appears in their `my-offers` list.
 
-    **Required permission:** `offer.manage`
+    **Required permission:** `offer.readiness_check` -- S-053/HRMS-0453
+    added this narrower permission (not the broader `offer.manage`,
+    which a real, pre-existing RBAC data inconsistency currently still
+    grants to Recruiter despite that role's own description saying
+    otherwise) specifically so this release action gets a real HTTP
+    403 for Recruiter, per this story's own explicit AC-8.
+
+    S-054/HRMS-0454 BR-01: re-runs checkOfferReadiness() at the moment
+    of release (interview outcomes or candidate status could have
+    changed since it was last checked) -- returns HTTP 409 with the
+    real blockers if not ready, rather than relying solely on
+    approval_status.
     """
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     if not offer:
@@ -922,25 +935,26 @@ def release_offer_letter(
     if offer.offer_status == "Released":
         raise HTTPException(status_code=400, detail="Offer has already been released.")
 
+    from app.services.ai_conversation_service import resolve_default_tenant_id
+    from app.services.offer_readiness_service import check_offer_readiness
+
+    tenant_id = resolve_default_tenant_id(db)
+    readiness = check_offer_readiness(db, offer.candidate_id, offer.job_id, tenant_id)
+    if not readiness["is_ready"]:
+        raise HTTPException(status_code=409, detail={"message": "Candidate is not ready for an offer.", "blockers": readiness["blockers"]})
+
     now = datetime.now()
     offer.offer_status = "Released"
     offer.released_at  = now
     offer.released_by  = user.UserID
     db.commit()
 
-    # ── Notify the candidate by email ────────────────────────────────────────
+    # ── Notify the candidate via WhatsApp + email (S-054/HRMS-0454) ─────────
+    from app.services.offer_release_notification_service import send_offer_release_notification
     try:
-        candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
-        if candidate:
-            EmailService.notify_candidate_offer_released(
-                candidate_email=candidate.candidateEmail,
-                candidate_name=_candidate_name(candidate) or candidate.candidateEmail,
-                position=offer.position or "",
-                joining_date=str(offer.joining_date) if offer.joining_date else "",
-                offer_expire_date=str(offer.offer_expire_date) if offer.offer_expire_date else "",
-            )
-    except Exception:
-        pass
+        send_offer_release_notification(db, offer)
+    except Exception as exc:
+        logger.warning(f"[OfferRelease] Notification failed for offer {offer_id}: {exc}")
 
     return OfferReleaseResponse(
         status="success",

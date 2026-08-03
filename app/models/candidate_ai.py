@@ -103,6 +103,13 @@ class CandidateConversation(Base):
     # Escalation workflow state
     escalation_state = Column(String(50), nullable=True, server_default="none")
 
+    # S-054/HRMS-0454 -- set true once an offer is released (Step 4).
+    # Enables HRMS-0455 (Offer FAQ Bot) to respond to offer questions --
+    # that story isn't built yet, but the flag is cheap, real, and
+    # directly spec'd, same precedent scheduled_via_graph_event_id
+    # (S-048) set before its own consumer (S-049) existed.
+    offer_faq_active = Column(Boolean, nullable=False, server_default="0")
+
     # Audit timestamps
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(
