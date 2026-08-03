@@ -96,6 +96,7 @@ from app.models.interview_reminder import InterviewReminder
 from app.models.offer_faq_entry import OfferFAQEntry
 from app.models.preboarding_document import PreboardingDocument
 from app.models.candidate_joining_score import CandidateJoiningScore
+from app.models.candidate_drop_risk import CandidateDropRisk
 
 __all__ = [
     # Base
@@ -237,5 +238,6 @@ __all__ = [
     "OfferFAQEntry",
     "PreboardingDocument",
     "CandidateJoiningScore",
+    "CandidateDropRisk",
 ]
 

@@ -52,6 +52,7 @@ from app.api.v1.endpoints.technical_scoring import router as technical_scoring_r
 from app.api.v1.endpoints.abandonment_scoring import router as abandonment_scoring_router
 from app.api.v1.endpoints.offer_readiness import router as offer_readiness_router
 from app.api.v1.endpoints.candidate_journey import router as candidate_journey_router
+from app.api.v1.endpoints.drop_risk import router as drop_risk_router
 
 router = fastapi.APIRouter()
 
@@ -106,4 +107,5 @@ router.include_router(router=technical_scoring_router)
 router.include_router(router=sla_breach_router)
 router.include_router(router=abandonment_scoring_router)
 router.include_router(router=offer_readiness_router)
-router.include_router(router=candidate_journey_router)
+router.include_router(router=candidate_journey_router)
+router.include_router(router=drop_risk_router)
