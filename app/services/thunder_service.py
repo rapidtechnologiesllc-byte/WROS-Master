@@ -242,6 +242,34 @@ def send_thunder_message(
     )
 
 
+def send_outbound_campaign_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str, *, email_subject: str = "Following up on your application") -> None:
+    """Shared whatsapp/email send dispatch for the automated outreach
+    stack (S-041 follow-ups, S-044 campaign touchpoints, S-045
+    reactivation messages) -- previously duplicated identically across
+    follow_up_scheduler_service._send_followup() and
+    outreach_campaign_service._send_touchpoint(); consolidated here
+    once a third caller needed the exact same logic. whatsapp reuses
+    the real, gated send_thunder_message(); email reuses this
+    codebase's existing ungated candidate-email convention (every
+    other candidate email in this codebase, e.g. the missing-fields
+    email, already goes out this way)."""
+    if channel == "whatsapp":
+        send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
+        return
+
+    from app.services.email_service import EmailService
+    try:
+        EmailService.send_email(candidate.candidateEmail, email_subject, message_body, is_html=False)
+    except Exception as exc:
+        logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")
+    db.add(ConversationEvent(
+        conversation_id=conversation.id, event_type="ai_message_sent",
+        event_data={"channel": "email", "body": message_body, "auto_generated": True},
+        triggered_by="ai_agent",
+    ))
+    db.flush()
+
+
 # Real-world bug, reported directly by Avinash: a candidate asked "what
 # roles do you have" for a Lead Guidewire Business Analyst-shaped
 # background, and Thunder deflected to "I'll loop in our HR team"
@@ -725,6 +753,105 @@ def generate_followup_message_with_fallback(
         logger.warning(f"[Thunder] generated follow-up failed validation (attempt {attempt + 1}): {message!r}")
 
     return SAFE_FOLLOWUP_FALLBACK_MESSAGE, True
+
+
+# ===========================================================================
+# S-045/HRMS-0445 -- reactivation message generation.
+#
+# A second proactive-generation path, distinct from a follow-up: it
+# needs a genuinely different angle/tone (fresh, warm, no reference to
+# the prior silence) and real days-since-contact context. Reuses the
+# same context/config/validation/fallback machinery as
+# generate_followup_message() -- see that function's own comment for
+# why this isn't built as a call to it with different arguments.
+# ===========================================================================
+
+SAFE_REACTIVATION_FALLBACK_MESSAGE = (
+    "Hi again! It's been a little while, but we wanted to reach back out -- "
+    "we'd still love to hear from you if you're interested in exploring "
+    "opportunities with us. No pressure at all, just let us know!"
+)
+
+
+def generate_reactivation_message(db: Session, candidate: Candidate, days_since_last_contact: int, *, channel: str = "whatsapp") -> str:
+    """Step 1's REACTIVATION prompt, adapted to a direct instruction
+    string (no prompt-type catalog exists in this codebase's real
+    thunder_service -- see prompt_framework_service's own module
+    docstring on why the ~7 existing ad-hoc-prompting services,
+    including this one, were never retrofitted onto that framework).
+    Raises ThunderReplyGenerationFailed on any failure -- same contract
+    as generate_thunder_reply()/generate_followup_message()."""
+    if not GEMINI_API_KEY:
+        raise ThunderReplyGenerationFailed("GEMINI_API_KEY not configured -- cannot generate a reactivation message.")
+
+    context = build_candidate_context(db, candidate)
+
+    channel_label = CHANNEL_LABELS.get(channel, channel)
+    agent_config = resolve_thunder_config(db, context.get("tenant_id"))
+
+    instruction = f"""You are {agent_config['name']}, {_display_name(candidate)}'s AI hiring assistant at BlitzenX, writing a reactivation message over {channel_label}. It has been {days_since_last_contact} days since this candidate last heard from us, and they never replied to our earlier messages.
+Persona: {agent_config['persona']}
+
+Rules:
+- Write a fresh, warm message with a genuinely different angle than a typical follow-up -- do NOT reference or apologize for the earlier silence, do NOT say things like "we haven't heard back" or "following up again."
+- Acknowledge that some time has passed in a natural way, and offer new context or value (e.g. new roles, renewed interest) rather than repeating the original pitch verbatim.
+- Keep it to 2-3 short sentences, chat-appropriate (no email-style formatting, no subject line).
+- Never invent facts about job offers, salary, or start dates.
+- Write ONLY the message text -- no labels, no quotation marks, no explanation."""
+
+    llm = ChatGoogleGenerativeAI(
+        model=THUNDER_REPLY_MODEL,
+        google_api_key=GEMINI_API_KEY,
+        temperature=0.5,
+        timeout=30,
+    )
+    try:
+        response = llm.invoke(instruction)
+    except Exception as exc:
+        raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
+    content = response.content
+    if isinstance(content, list):
+        reply_text = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    else:
+        reply_text = str(content).strip()
+
+    if not reply_text:
+        raise ThunderReplyGenerationFailed("Gemini returned an empty reactivation message.")
+
+    return reply_text
+
+
+def generate_reactivation_message_with_fallback(
+    db: Session, candidate: Candidate, days_since_last_contact: int, *, channel: str = "whatsapp",
+    conversation: Optional[CandidateConversation] = None,
+) -> Tuple[str, bool]:
+    """Same shape as generate_followup_message_with_fallback(): ownership
+    check first, retry-once, validate, hardcoded safe fallback --
+    reactivation must never leave a candidate without an actual
+    message due to a technical failure."""
+    if conversation is not None and not is_ai_owner(conversation):
+        raise ConversationOwnedByHuman(
+            f"Conversation {conversation.id} is owned by {conversation.owner_type}:"
+            f"{conversation.owner_id} -- Thunder may not generate a reactivation message."
+        )
+
+    for attempt in range(2):
+        try:
+            message = generate_reactivation_message(db, candidate, days_since_last_contact, channel=channel)
+        except ThunderReplyGenerationFailed as exc:
+            logger.error(f"[Thunder] reactivation generation failed (attempt {attempt + 1}): {exc}")
+            continue
+        except Exception as exc:
+            logger.error(f"[Thunder] reactivation context build or unexpected failure (attempt {attempt + 1}): {exc}")
+            break
+        if validate_thunder_reply(message):
+            return message, False
+        logger.warning(f"[Thunder] generated reactivation message failed validation (attempt {attempt + 1}): {message!r}")
+
+    return SAFE_REACTIVATION_FALLBACK_MESSAGE, True
 
 
 # ===========================================================================

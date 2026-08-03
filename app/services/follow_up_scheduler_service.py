@@ -127,25 +127,11 @@ def _has_replied_since(db: Session, conversation_id: int, since: Optional[dateti
 
 
 def _send_followup(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str) -> None:
-    """Step 3.5/3.6 -- send + store. whatsapp reuses the real, gated
-    send_thunder_message(); email reuses this codebase's existing
-    ungated candidate-email convention -- see module docstring."""
-    if channel == "whatsapp":
-        from app.services.thunder_service import send_thunder_message
-        send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
-        return
-
-    from app.services.email_service import EmailService
-    try:
-        EmailService.send_email(candidate.candidateEmail, "Following up on your application", message_body, is_html=False)
-    except Exception as exc:
-        logger.error(f"[FollowUpScheduler] Email send failed for candidate {candidate.candidateID!r}: {exc}")
-    db.add(ConversationEvent(
-        conversation_id=conversation.id, event_type="ai_message_sent",
-        event_data={"channel": "email", "body": message_body, "auto_generated": True},
-        triggered_by="ai_agent",
-    ))
-    db.flush()
+    """Step 3.5/3.6. Delegates to thunder_service's shared send helper
+    -- see that function's own docstring on why this was consolidated
+    (previously duplicated identically in outreach_campaign_service)."""
+    from app.services.thunder_service import send_outbound_campaign_message
+    send_outbound_campaign_message(db, conversation, candidate, message_body, channel)
 
 
 def run_follow_up_execution_job(db: Session) -> Dict:
