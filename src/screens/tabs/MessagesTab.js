@@ -14,6 +14,7 @@ import {
 } from "../../services/api/aiAgent";
 import { toast } from "react-toastify";
 import ThunderMemorySection from "../../components/ThunderMemorySection";
+import ThunderActivitySection from "../../components/activity/ThunderActivitySection";
 
 const EVENT_LABELS = {
   ai_assigned: "AI Agent Assigned",
@@ -167,6 +168,7 @@ export default function MessagesTab({ candidateId }) {
       )}
 
       {candidateId ? <ThunderMemorySection candidateId={candidateId} /> : null}
+      {candidateId ? <ThunderActivitySection candidateId={candidateId} /> : null}
 
       {!conversations.length ? (
         <EmptyState
