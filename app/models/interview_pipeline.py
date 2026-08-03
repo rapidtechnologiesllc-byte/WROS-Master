@@ -137,6 +137,17 @@ class SubmissionInterview(Base):
     # own literal value) -- same timestamp-presence convention as
     # confirmed_at/scheduled_at, not a new status enum column.
     superseded_at = Column(DateTime, nullable=True)
+    # S-052/HRMS-0452 -- the real no-show state machine, all
+    # timestamp-presence signals (same convention as confirmed_at/
+    # superseded_at, no separate status enum): CONFIRMED (all 4 null)
+    # -> NO_SHOW_CHECK_IN_SENT (no_show_check_in_at set) ->
+    # NO_SHOW (no_show_confirmed_at set) -> reschedule offer sent
+    # (no_show_reschedule_offer_sent_at set) -> NO_SHOW_NO_RESPONSE
+    # (no_show_no_response_at set) if the offer itself goes unanswered.
+    no_show_check_in_at = Column(DateTime, nullable=True)
+    no_show_confirmed_at = Column(DateTime, nullable=True)
+    no_show_reschedule_offer_sent_at = Column(DateTime, nullable=True)
+    no_show_no_response_at = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
