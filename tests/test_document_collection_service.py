@@ -24,6 +24,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.models.candidate_joining_score import CandidateJoiningScore
 from app.models.client import Client
 from app.models.consent import ConsentRecord
 from app.models.demand import Demand, DemandHistory
@@ -52,7 +53,7 @@ def db_session():
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
         OfferLetter.__table__, PreboardingDocument.__table__, ConsentRecord.__table__, Notification.__table__,
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
-        Submission.__table__, SubmissionViolation.__table__,
+        Submission.__table__, SubmissionViolation.__table__, CandidateJoiningScore.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -166,6 +167,13 @@ def test_mark_document_received_acknowledges_and_asks_for_next(db_session, seede
     assert "received your" in ack_event.event_data["body"]
     assert "Next, could you share" in ack_event.event_data["body"]
 
+    # S-058 wiring: mark_document_received() must genuinely recalculate
+    # joining readiness, not silently fail (calculate_joining_readiness()
+    # swallows its own exceptions, so this proves the write really landed).
+    readiness = db_session.query(CandidateJoiningScore).filter(CandidateJoiningScore.candidate_id == candidate.candidateID, CandidateJoiningScore.offer_id == offer.id).first()
+    assert readiness is not None
+    assert readiness.score_breakdown["documents"] > 0
+
 
 def test_all_documents_received_notifies_hr(db_session, seeded):
     candidate, conv, offer, submission = seeded
@@ -179,8 +187,15 @@ def test_all_documents_received_notifies_hr(db_session, seeded):
     result = svc.mark_document_received(db_session, candidate, conv, "U-ORG", last.document_type, "https://example.com/last.pdf")
     assert result["all_complete"] is True
 
+    # S-058 wiring recalculates readiness on every document received, so
+    # early in this sequence (most documents still missing) the score
+    # legitimately crosses below BR-01's 50 threshold and fires its own
+    # alert -- a real, distinct notification from the "all complete" one
+    # below, not a duplicate of it.
     notifications = db_session.query(Notification).all()
-    assert len(notifications) == 1
+    assert len(notifications) == 2
+    assert any("has submitted all required preboarding documents" in n.message for n in notifications)
+    assert any("joining readiness score has dropped" in n.message for n in notifications)
 
 
 def test_no_matching_pending_document(db_session, seeded):
