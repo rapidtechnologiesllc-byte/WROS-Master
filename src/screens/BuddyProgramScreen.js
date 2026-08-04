@@ -96,7 +96,7 @@ export default function BuddyProgramScreen() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Buddy Program -- {record.employee_id}</h1>
+        <h1 className="text-xl font-bold text-bx-navy">Buddy Program -- {record.employee_id}</h1>
         <p className="text-sm text-gray-500">
           {record.status} -- started {record.program_start_date}, expected end {record.expected_end_date}
           {record.extension_count > 0 ? ` (extended ${record.extension_count}x)` : ""}

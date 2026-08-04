@@ -78,7 +78,7 @@ export default function ExecutiveSignalScreen() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Executive Signal</h1>
+        <h1 className="text-xl font-bold text-bx-navy">Executive Signal</h1>
         <p className="text-sm text-gray-500">Advisory only -- watches and drafts, never acts on its own. {health?.note}</p>
       </div>
 
@@ -110,7 +110,7 @@ export default function ExecutiveSignalScreen() {
             <p className="text-sm text-gray-400">Nothing pending.</p>
           ) : (
             pending.map((d) => (
-              <div key={d.id} className="border border-gray-200 rounded-lg p-3">
+              <div key={d.id} className="border border-bx-border rounded-bx p-3">
                 <p className="text-sm text-gray-800">{d.draft_text}</p>
                 <div className="flex gap-2 mt-2">
                   <Button onClick={() => handleApprove(d.id)}>Approve &amp; Send</Button>
