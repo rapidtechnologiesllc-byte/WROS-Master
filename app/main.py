@@ -1,5 +1,6 @@
 # main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
@@ -36,6 +37,32 @@ app.add_middleware(RequestLoggingMiddleware)
 # docstring for the known in-memory/multi-worker limitation.
 from app.middleware import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+
+
+# S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
+# definition, the CRITICAL case (nothing in the request path expected
+# or handled it) -- logged to the real error_log table and pages
+# on-call synchronously, additive to the existing file logger. Uses
+# its own fresh DB session (exception handlers run outside the normal
+# per-request Depends(get_db) lifecycle).
+@app.exception_handler(Exception)
+async def log_unhandled_exception(request: Request, exc: Exception):
+    from app.core.database import SessionLocal
+    from app.services.error_log_service import log_error
+
+    db = SessionLocal()
+    try:
+        log_error(
+            db, error_type=type(exc).__name__, severity="CRITICAL", message=str(exc)[:2000], exc=exc,
+            request_context={"method": request.method, "path": request.url.path},
+        )
+    except Exception as logging_exc:
+        logger.error(f"[ErrorLog] Failed to record unhandled exception: {logging_exc}")
+    finally:
+        db.close()
+
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 
 @app.on_event("startup")
