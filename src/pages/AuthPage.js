@@ -47,6 +47,7 @@ export default function AuthPage() {
       localStorage.removeItem("hrms_user_email");
       localStorage.removeItem("hrms_candidate_id");
       localStorage.removeItem("hrms_user_type");
+      localStorage.removeItem("hrms_active_bu_id");
 
       const data = await login({
         email: loginForm.UserEmail,
