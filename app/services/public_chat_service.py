@@ -32,9 +32,14 @@ from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import assign_ai_agent
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
 from app.services.escalation_detection_service import ESCALATION_EXIT_MESSAGE, check_escalation, execute_escalation
+from app.services.objection_handling_service import ObjectionEscalatedError, handle_objection
 from app.services.sentiment_analysis_service import analyze_sentiment
 from app.services.thunder_service import (
     WEB_CHAT_CONSENT_TYPE,
+    ConsentNotGiven,
+    ConversationOwnedByHuman,
+    DuplicateMessageSuppressed,
+    ThunderPausedError,
     generate_thunder_reply_with_fallback,
     send_thunder_message,
 )
@@ -276,14 +281,41 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str, ba
         execute_escalation(db, conversation, candidate, reason=escalation["reason"], trigger_type=escalation["trigger_type"])
         return {"reply": ESCALATION_EXIT_MESSAGE, "created_at": datetime.utcnow(), "escalated": True}
 
-    reply_text, _used_fallback = generate_thunder_reply_with_fallback(
-        db, candidate, message, channel="web_chat", conversation=conversation,
-    )
+    # S-072/HRMS-0472: the first live wiring of S-033's detect_intent()
+    # (previously built but never called from any real inbound path --
+    # see that module's own docstring). Only the "objecting" branch is
+    # acted on here; every other intent still goes through the normal
+    # reply path below, unchanged.
+    from app.services.detect_intent_service import detect_intent
+    intent_result = detect_intent(db, conversation.tenant_id, candidate_id, message, conversation_id=conversation.id, message_event_id=inbound_event.id)
 
-    reply_event = send_thunder_message(
-        db, conversation, candidate, reply_text,
-        sender_type="ai_agent", channel="web_chat", auto_generated=True,
-    )
+    if intent_result["intent"] == "objecting":
+        try:
+            objection_result = handle_objection(db, conversation, candidate, message)
+            reply_text, _used_fallback = objection_result["response"], False
+        except ObjectionEscalatedError as exc:
+            execute_escalation(db, conversation, candidate, reason=str(exc), trigger_type="OBJECTION_REPEATED")
+            return {"reply": ESCALATION_EXIT_MESSAGE, "created_at": datetime.utcnow(), "escalated": True}
+    else:
+        reply_text, _used_fallback = generate_thunder_reply_with_fallback(
+            db, candidate, message, channel="web_chat", conversation=conversation,
+        )
+
+    try:
+        reply_event = send_thunder_message(
+            db, conversation, candidate, reply_text,
+            sender_type="ai_agent", channel="web_chat", auto_generated=True,
+        )
+    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
+        # Real, pre-existing gap this send call never guarded against --
+        # newly reachable via S-072/HRMS-0472's SALARY objection
+        # fallback, which (deliberately, per BR-02) returns the exact
+        # same text every time, so a 2nd SALARY objection inside the
+        # 60s debounce window would otherwise 500 instead of degrading
+        # gracefully. Same catch-tuple convention every other real send
+        # site in this codebase already uses.
+        logger.info(f"[PublicChat] Reply suppressed for candidate {candidate_id!r}: {exc}")
+        return {"reply": reply_text, "created_at": datetime.utcnow(), "suppressed": True}
     db.commit()
 
     if not _used_fallback:
