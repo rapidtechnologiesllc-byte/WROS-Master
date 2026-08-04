@@ -27,6 +27,7 @@ from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_field_skip import CandidateFieldSkip
 from app.models.candidate_ghosting_status import CandidateGhostingStatus
+from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
 from app.models.consent import ConsentRecord
 from app.models.user import Users
 
@@ -41,7 +42,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateInfoForm.__table__,
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
-        ConsentRecord.__table__, CandidateGhostingStatus.__table__,
+        ConsentRecord.__table__, CandidateGhostingStatus.__table__, CandidateMemory.__table__, CandidateMemoryFact.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
