@@ -11,6 +11,8 @@ import {
   takeOverConversation,
   handBackConversation,
   pollForReply,
+  pauseThunder,
+  resumeThunder,
 } from "../../services/api/aiAgent";
 import { toast } from "react-toastify";
 import ThunderMemorySection from "../../components/ThunderMemorySection";
@@ -218,12 +220,45 @@ function ConversationCard({ conversation, onChanged }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [ownershipBusy, setOwnershipBusy] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
 
   const events = [...(conversation.events || [])].sort(
     (a, b) => new Date(a?.created_at || 0) - new Date(b?.created_at || 0),
   );
 
   const isHumanOwned = conversation.owner_type === "hr_user";
+  const isAiOwned = conversation.owner_type === "ai_agent";
+
+  const handlePause = async (durationMs) => {
+    try {
+      setPauseBusy(true);
+      const resumeAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
+      await pauseThunder(conversation.conversation_id, resumeAt);
+      toast.success("Thunder paused for this candidate");
+      setShowPauseModal(false);
+      await onChanged?.();
+    } catch (err) {
+      console.error("Failed to pause Thunder", err);
+      toast.error(err?.message || "Failed to pause Thunder");
+    } finally {
+      setPauseBusy(false);
+    }
+  };
+
+  const handleResume = async () => {
+    try {
+      setPauseBusy(true);
+      await resumeThunder(conversation.conversation_id);
+      toast.success("Thunder resumed for this candidate");
+      await onChanged?.();
+    } catch (err) {
+      console.error("Failed to resume Thunder", err);
+      toast.error(err?.message || "Failed to resume Thunder");
+    } finally {
+      setPauseBusy(false);
+    }
+  };
 
   // S-035/HRMS-0435 6A: "Escalation Reason" text, sourced from the latest
   // escalation_triggered event already present in this conversation's own
@@ -303,6 +338,14 @@ function ConversationCard({ conversation, onChanged }) {
                   : `Escalation: ${conversation.escalation_state}`}
               </span>
             )}
+          {conversation.is_thunder_paused && (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+              Thunder: PAUSED
+              {conversation.thunder_resume_at
+                ? ` — resumes ${formatDateTime(conversation.thunder_resume_at)}`
+                : " — until manually resumed"}
+            </span>
+          )}
         </div>
         <span className="text-xs text-gray-400">
           Updated {formatDateTime(conversation.updated_at)}
@@ -359,7 +402,35 @@ function ConversationCard({ conversation, onChanged }) {
             {ownershipBusy ? "Working..." : "Take Over"}
           </button>
         )}
+        {isAiOwned &&
+          (conversation.is_thunder_paused ? (
+            <button
+              type="button"
+              onClick={handleResume}
+              disabled={pauseBusy}
+              className="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+            >
+              {pauseBusy ? "Working..." : "Resume Thunder"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPauseModal(true)}
+              disabled={pauseBusy}
+              className="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+            >
+              Pause Thunder for this candidate
+            </button>
+          ))}
       </div>
+
+      {showPauseModal && (
+        <PauseThunderModal
+          busy={pauseBusy}
+          onConfirm={handlePause}
+          onCancel={() => setShowPauseModal(false)}
+        />
+      )}
 
       <div className="mt-3 flex items-end gap-2">
         <textarea
@@ -442,6 +513,63 @@ function EventRow({ event }) {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// S-075/HRMS-0475 6A: "Pause for: 24h / 48h / 1 week / Until manually resume".
+const PAUSE_DURATION_OPTIONS = [
+  { label: "24 hours", ms: 24 * 60 * 60 * 1000 },
+  { label: "48 hours", ms: 48 * 60 * 60 * 1000 },
+  { label: "1 week", ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: "Until I manually resume", ms: null },
+];
+
+function PauseThunderModal({ busy, onConfirm, onCancel }) {
+  const [selectedMs, setSelectedMs] = useState(PAUSE_DURATION_OPTIONS[0].ms);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-900">Pause Thunder?</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          Thunder will stop sending follow-ups to this candidate. Ownership stays with the AI recruiter -- no hand-back needed when it resumes.
+        </p>
+        <div className="mt-4 space-y-2">
+          {PAUSE_DURATION_OPTIONS.map((opt) => (
+            <label
+              key={opt.label}
+              className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <input
+                type="radio"
+                name="pause-duration"
+                checked={selectedMs === opt.ms}
+                onChange={() => setSelectedMs(opt.ms)}
+              />
+              Resume in: {opt.label}
+            </label>
+          ))}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(selectedMs)}
+            disabled={busy}
+            className="rounded-xl border border-amber-200 bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60"
+          >
+            {busy ? "Pausing..." : "Confirm"}
+          </button>
+        </div>
       </div>
     </div>
   );

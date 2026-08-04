@@ -81,3 +81,19 @@ export const handBackConversation = async (conversationId) => {
   });
   return data;
 };
+
+// S-075/HRMS-0475 -- resume_at is optional (omit for "until manually resumed").
+export const pauseThunder = async (conversationId, resumeAt) => {
+  const { data } = await apiRequest(`/ai-agent/conversations/${conversationId}/thunder-pause`, {
+    method: "POST",
+    body: JSON.stringify({ resume_at: resumeAt || null }),
+  });
+  return data;
+};
+
+export const resumeThunder = async (conversationId) => {
+  const { data } = await apiRequest(`/ai-agent/conversations/${conversationId}/thunder-resume`, {
+    method: "POST",
+  });
+  return data;
+};

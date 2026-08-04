@@ -3,9 +3,14 @@
 // USD cents as its base unit; no currency-conversion math happens here
 // (no exchange-rate source exists in this codebase).
 import { useEffect, useState } from "react";
-import { Globe2, RefreshCw } from "lucide-react";
+import { Globe2, RefreshCw, Zap } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
-import { getTenantLocale, updateTenantLocale } from "../services/api/tenant";
+import {
+  getTenantLocale,
+  updateTenantLocale,
+  getTenantThunderEnabled,
+  updateTenantThunderEnabled,
+} from "../services/api/tenant";
 
 const DATE_FORMATS = ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"];
 const CURRENCIES = ["USD", "INR", "GBP", "EUR", "CAD", "AUD"];
@@ -27,6 +32,14 @@ export default function TenantLocaleScreen() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  // S-075/HRMS-0475 -- global Thunder kill switch, Super User only
+  // (tenant.ai_config). This card silently hides itself on 403 rather
+  // than erroring the whole page for callers who can view locale
+  // settings but aren't the org's Super User.
+  const [thunderConfig, setThunderConfig] = useState(null);
+  const [thunderVisible, setThunderVisible] = useState(true);
+  const [thunderBusy, setThunderBusy] = useState(false);
+
   const load = async () => {
     setLoading(true);
     setError("");
@@ -40,9 +53,33 @@ export default function TenantLocaleScreen() {
     }
   };
 
+  const loadThunderConfig = async () => {
+    try {
+      const res = await getTenantThunderEnabled();
+      setThunderConfig(res);
+    } catch (err) {
+      if (err?.status === 403) {
+        setThunderVisible(false);
+      }
+    }
+  };
+
   useEffect(() => {
     load();
+    loadThunderConfig();
   }, []);
+
+  const handleToggleThunder = async () => {
+    setThunderBusy(true);
+    try {
+      const res = await updateTenantThunderEnabled(!thunderConfig.thunder_enabled);
+      setThunderConfig(res);
+    } catch (err) {
+      setError(err.message || "Failed to update Thunder's global switch.");
+    } finally {
+      setThunderBusy(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -113,6 +150,37 @@ export default function TenantLocaleScreen() {
           </div>
         )}
       </Card>
+
+      {thunderVisible && (
+        <Card
+          title="Thunder AI Controls"
+          subtitle="Global kill switch for Thunder across every candidate in this org. Super User only."
+          icon={<Zap className="h-4 w-4" />}
+        >
+          {!thunderConfig ? (
+            <div className="py-4 text-center text-sm text-gray-500">Loading…</div>
+          ) : (
+            <div className="flex max-w-xl items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-gray-800">
+                  Thunder Enabled: {thunderConfig.thunder_enabled ? "ON" : "OFF"}
+                </div>
+                <div className="mt-1 text-xs text-gray-400">
+                  Turning this off pauses all Thunder activity for the entire tenant, overriding any individual candidate's own pause/resume state.
+                </div>
+              </div>
+              <Button
+                variant={thunderConfig.thunder_enabled ? "danger" : "primary"}
+                disabled={thunderBusy}
+                onClick={handleToggleThunder}
+                className="w-fit shrink-0"
+              >
+                {thunderBusy ? "Working…" : thunderConfig.thunder_enabled ? "Turn Off" : "Turn On"}
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
