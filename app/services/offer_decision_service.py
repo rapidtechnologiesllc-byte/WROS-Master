@@ -189,6 +189,9 @@ def _handle_acceptance(db: Session, candidate: Candidate, conversation: Candidat
     from app.services.document_collection_service import start_document_collection
     start_document_collection(db, candidate, conversation, offer, conversation.tenant_id)
 
+    from app.services.onboarding_agent_service import schedule_onboarding_touchpoints
+    schedule_onboarding_touchpoints(db, candidate, offer, conversation.tenant_id)  # S-067: entering PREBOARDING
+
     return {"outcome": "accepted", "message": ACCEPTANCE_MESSAGE}
 
 
@@ -221,6 +224,9 @@ def _handle_decline(db: Session, candidate: Candidate, conversation: CandidateCo
 
     from app.services.document_collection_service import cancel_pending_documents_for_candidate
     cancel_pending_documents_for_candidate(db, candidate.candidateID)  # S-057/BR-01: a decline arriving after acceptance (rare, but real) must stop any in-flight collection
+
+    from app.services.onboarding_agent_service import cancel_pending_touchpoints_for_candidate
+    cancel_pending_touchpoints_for_candidate(db, candidate.candidateID)  # S-067/BR-01: same rare-but-real reversal
 
     submission = _relevant_submission(db, candidate.candidateID)
     reason_clause = f" Reason: {offer.candidate_response}." if offer.candidate_response else " Reason not provided."
