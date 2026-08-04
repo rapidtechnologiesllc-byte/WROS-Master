@@ -24,6 +24,7 @@ from app.schemas.user import (
     PanelMemberCreate, PanelMemberResponse, DeleteResponse,
     ChangePasswordRequest, HrMeResponse,
     SingleUserResponse, HiringManagerAssignedCandidateResponse,
+    DigestPreferenceRequest, DigestPreferenceResponse,
 )
 from app.utils.uniq_id_generator import user_id_generator
 
@@ -70,7 +71,24 @@ def get_me(
         business_unit_id=current_user.business_unit_id,
         created_at=current_user.CreatedAt,
         access_token=access_token,
+        digest_enabled=current_user.digest_enabled,
     )
+
+
+@router.patch(
+    "/me/digest-preference",
+    response_model=DigestPreferenceResponse,
+    summary="Enable/disable the recruiter's own Thunder morning digest (S-065/HRMS-0465)",
+)
+def update_digest_preference(
+    payload: DigestPreferenceRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    current_user.digest_enabled = payload.digest_enabled
+    db.add(current_user)
+    db.commit()
+    return DigestPreferenceResponse(digest_enabled=current_user.digest_enabled)
 
 
 @router.get(

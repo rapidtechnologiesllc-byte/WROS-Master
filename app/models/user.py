@@ -57,6 +57,14 @@ class Users(Base):
     # agent name must never reach a candidate blank).
     ai_agent_name = Column(String(100), nullable=True)
     ai_agent_persona = Column(Text, nullable=True)
+    # S-065/HRMS-0465 -- no system_configuration table exists in this
+    # codebase (same repeated gap every prior story flagged) -- this is
+    # a real, per-recruiter toggle column, same posture as mfa_enabled
+    # above. Send time itself is a module constant (08:00 local, see
+    # daily_digest_service.py), not separately configurable -- no
+    # admin UI asked for a time picker beyond the on/off toggle this
+    # story's own UI fields table actually specifies as required.
+    digest_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

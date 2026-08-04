@@ -336,6 +336,15 @@ class HrMeResponse(BaseModel):
     created_at: datetime
     access_token: str
     token_type: str = "bearer"
+    digest_enabled: bool = True  # S-065/HRMS-0465
+
+
+class DigestPreferenceRequest(BaseModel):
+    digest_enabled: bool
+
+
+class DigestPreferenceResponse(BaseModel):
+    digest_enabled: bool
 
 # LinkedIn Job Posting Schemas
 class LinkedInPostRequest(BaseModel):
