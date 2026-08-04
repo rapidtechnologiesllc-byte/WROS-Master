@@ -100,6 +100,7 @@ from app.models.candidate_drop_risk import CandidateDropRisk
 from app.models.activity_feed_read_state import ActivityFeedReadState
 from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.candidate_engagement_metrics import CandidateEngagementMetrics
+from app.models.bulk_engagement import BulkEngagementJob, BulkEngagementError
 
 __all__ = [
     # Base
@@ -245,5 +246,7 @@ __all__ = [
     "ActivityFeedReadState",
     "RecruiterInterventionQueue",
     "CandidateEngagementMetrics",
+    "BulkEngagementJob",
+    "BulkEngagementError",
 ]
 
