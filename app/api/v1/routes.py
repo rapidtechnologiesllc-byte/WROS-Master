@@ -65,6 +65,7 @@ from app.api.v1.endpoints.tasks import router as tasks_router
 from app.api.v1.endpoints.tickets import router as tickets_router
 from app.api.v1.endpoints.buddy_program import router as buddy_program_router
 from app.api.v1.endpoints.executive_signal import router as executive_signal_router
+from app.api.v1.endpoints.my_timesheet import router as my_timesheet_router
 
 router = fastapi.APIRouter()
 
@@ -132,4 +133,5 @@ router.include_router(router=event_log_router)
 router.include_router(router=tasks_router)
 router.include_router(router=tickets_router)
 router.include_router(router=buddy_program_router)
-router.include_router(router=executive_signal_router)
+router.include_router(router=executive_signal_router)
+router.include_router(router=my_timesheet_router)
