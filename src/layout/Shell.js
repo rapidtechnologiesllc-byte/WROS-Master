@@ -39,6 +39,10 @@ import { Outlet } from "react-router-dom";
 // current screen auto-expanded.
 const NAV_ITEMS = {
   dashboard: { path: ROUTES.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
+  // S-434 -- org-wide Task Dashboard. Visible to every internal role
+  // (every branch below), not gated to any one department/function --
+  // Task serves the whole org, per Avinash's explicit direction.
+  myTasks: { path: ROUTES.MY_TASKS, label: "My Tasks", icon: CalendarCheck2 },
   candidates: { path: ROUTES.CANDIDATES, label: "Candidates", icon: Users },
   jobs: { path: ROUTES.JOBS, label: "Jobs", icon: Briefcase },
   candidateReview: { path: ROUTES.HM_CANDIDATE_REVIEW, label: "Candidate Review", icon: UserCheck },
@@ -152,7 +156,7 @@ export default function Shell({
   const nav = useMemo(() => {
     if (isSuperUser) {
       return {
-        standalone: [NAV_ITEMS.dashboard],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks],
         groups: buildGroups([
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull",
@@ -164,7 +168,7 @@ export default function Shell({
     }
     if (isAdmin) {
       return {
-        standalone: [NAV_ITEMS.dashboard],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks],
         groups: buildGroups([
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull",
@@ -176,7 +180,7 @@ export default function Shell({
     }
     if (isHR_Manager) {
       return {
-        standalone: [],
+        standalone: [NAV_ITEMS.myTasks],
         groups: buildGroups([
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull",
@@ -186,12 +190,12 @@ export default function Shell({
       };
     }
     if (isHiringManager) {
-      return { standalone: [NAV_ITEMS.candidates], groups: [] };
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.myTasks], groups: [] };
     }
     if (isHrOperations) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs], groups: [] };
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks], groups: [] };
     }
-    return { standalone: [NAV_ITEMS.dashboard], groups: [] };
+    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks], groups: [] };
   }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
