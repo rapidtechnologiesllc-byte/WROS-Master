@@ -112,6 +112,7 @@ from app.models.executive_signal import (
     EmployeeFeedbackCycle, EmployeeFeedbackResponse, RecognitionMessageDraft, EmployeeConcernIntake,
 )
 from app.models.error_log import ErrorLog
+from app.models.bu_access import BUAccess
 
 __all__ = [
     # Base
@@ -281,5 +282,7 @@ __all__ = [
     "EmployeeConcernIntake",
     # Error Logging Framework (S-215/HRMS-0117, 2026-08-04)
     "ErrorLog",
+    # BU Context Switching (S-205/HRMS-0107, 2026-08-04)
+    "BUAccess",
 ]
 

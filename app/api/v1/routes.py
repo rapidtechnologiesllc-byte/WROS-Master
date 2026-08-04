@@ -67,6 +67,7 @@ from app.api.v1.endpoints.buddy_program import router as buddy_program_router
 from app.api.v1.endpoints.executive_signal import router as executive_signal_router
 from app.api.v1.endpoints.my_timesheet import router as my_timesheet_router
 from app.api.v1.endpoints.error_log import router as error_log_router
+from app.api.v1.endpoints.bu_context import router as bu_context_router
 
 router = fastapi.APIRouter()
 
@@ -136,4 +137,5 @@ router.include_router(router=tickets_router)
 router.include_router(router=buddy_program_router)
 router.include_router(router=executive_signal_router)
 router.include_router(router=my_timesheet_router)
-router.include_router(router=error_log_router)
+router.include_router(router=error_log_router)
+router.include_router(router=bu_context_router)

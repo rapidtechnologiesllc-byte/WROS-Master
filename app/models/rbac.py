@@ -103,6 +103,15 @@ class BusinessUnit(Base):
     bu_code = Column(String(50), nullable=True)
     parent_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     bu_head_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    # S-205/HRMS-0107 -- extends this existing table rather than
+    # forking a second one, same "extend, don't fork" convention as
+    # bu_code/parent_bu_id above. continent drives HRMS-0121's default
+    # locale/currency per the spec's own UI Fields note -- plain
+    # String, same no-native-DB-enum convention Project.continent
+    # already uses, not a formal constrained value set.
+    continent = Column(String(50), nullable=True)
+    region = Column(String(60), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
 
     # Back-reference: all departments that belong to this BU
     departments = relationship("Department", back_populates="business_unit", lazy="select")
