@@ -380,13 +380,21 @@ function ConversationCard({ conversation, onChanged }) {
   );
 }
 
+// S-064/HRMS-0464 -- keys this codebase's own event_data may carry that
+// explain a Thunder message; excluded from the generic key:value dump
+// below and surfaced instead via the dedicated "Why?" toggle.
+const EXPLANATION_KEYS = new Set(["explanation", "prompt_type", "context_snapshot", "explanation_generated_at"]);
+const PROMPT_TYPE_LABELS = { conversational_reply: "Conversational Reply" };
+
 function EventRow({ event }) {
+  const [showWhy, setShowWhy] = useState(false);
   const label = EVENT_LABELS[event.event_type] || event.event_type;
   const data = event.event_data;
+  const hasExplanation = event.event_type === "ai_message_sent" && data && data.explanation;
   const detail =
     data && typeof data === "object"
       ? Object.entries(data)
-          .filter(([, v]) => v !== null && v !== undefined && v !== "")
+          .filter(([k, v]) => !EXPLANATION_KEYS.has(k) && v !== null && v !== undefined && v !== "")
           .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
           .join(" · ")
       : "";
@@ -403,9 +411,34 @@ function EventRow({ event }) {
           {event.triggered_by && (
             <span className="text-xs text-gray-400">by {event.triggered_by}</span>
           )}
+          {hasExplanation && (
+            <button
+              type="button"
+              onClick={() => setShowWhy((v) => !v)}
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              Why?
+            </button>
+          )}
         </div>
         {detail && (
           <div className="mt-0.5 text-xs text-gray-500 break-words">{detail}</div>
+        )}
+        {hasExplanation && showWhy && (
+          <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            <div>Thunder sent this because: {data.explanation.replace(/^Thunder replied to continue the conversation\.\s*/, "")}</div>
+            <div className="mt-1 text-gray-500">Type: {PROMPT_TYPE_LABELS[data.prompt_type] || data.prompt_type}</div>
+            {data.context_snapshot && (
+              <div className="mt-1 text-gray-400">
+                At this moment: Profile {data.context_snapshot.completeness_at_time}% complete
+                {" | "}State: {data.context_snapshot.state_at_time}
+                {" | "}Memory facts: {data.context_snapshot.memory_facts_count}
+                {data.context_snapshot.missing_fields_at_time?.length
+                  ? ` | Missing: ${data.context_snapshot.missing_fields_at_time.join(", ")}`
+                  : ""}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
