@@ -65,6 +65,8 @@ const NAV_ITEMS = {
   forecast: { path: ROUTES.FORECAST, label: "Resource Forecast", icon: TrendingUp },
   htdIntake: { path: ROUTES.HTD_INTAKE, label: "HTD Intake", icon: AlertOctagon },
   projects: { path: ROUTES.PROJECTS, label: "Projects", icon: FolderKanban },
+  // S-364/S-365 -- 30-Day Buddy Program KPI tracking + graduation gate.
+  buddyProgram: { path: ROUTES.BUDDY_PROGRAM, label: "Buddy Program", icon: UserCheck },
   timesheets: { path: ROUTES.TIMESHEETS, label: "Timesheets", icon: Clock },
   invoices: { path: ROUTES.INVOICES, label: "Invoices", icon: BadgeDollarSign },
   revenue: { path: ROUTES.REVENUE, label: "Revenue", icon: LineChart },
@@ -110,7 +112,7 @@ const GROUP_DEFS = [
     icon: Users2,
     keys: [
       "employees", "resourceManagement", "allocations", "corePull",
-      "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+      "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
     ],
   },
   {
@@ -163,7 +165,7 @@ export default function Shell({
         groups: buildGroups([
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin",
         ]),
@@ -175,7 +177,7 @@ export default function Shell({
         groups: buildGroups([
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin",
         ]),
@@ -187,7 +189,7 @@ export default function Shell({
         groups: buildGroups([
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
+          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
         ]),
       };
