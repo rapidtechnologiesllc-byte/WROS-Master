@@ -83,6 +83,7 @@ import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
+import RiskDashboardScreen from "../screens/RiskDashboardScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -477,6 +478,7 @@ export default function AppRoutes() {
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
+            <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
 
             <Route
               path="candidates"
@@ -684,6 +686,7 @@ export default function AppRoutes() {
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
+            <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
           <Route
             path="candidates"
             element={
