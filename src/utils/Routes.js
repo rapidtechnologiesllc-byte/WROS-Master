@@ -38,4 +38,5 @@ export const ROUTES = {
   TICKET_ROUTING_ADMIN: "/admin/ticket-routing",
   BUDDY_PROGRAM: "/buddy-program",
   EXECUTIVE_SIGNAL: "/executive-signal",
+  ERROR_LOG: "/admin/error-log",
 };
