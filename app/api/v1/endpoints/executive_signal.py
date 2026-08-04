@@ -78,6 +78,11 @@ def submit_response(
     return {"submitted": True}
 
 
+@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_hr_or_admin)])
+def pending_recognition(db: Session = Depends(get_db)):
+    return db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.status == "DRAFT").all()
+
+
 @router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_hr_or_admin)])
 def birthday_drafts(db: Session = Depends(get_db)):
     return generate_birthday_drafts(db)
