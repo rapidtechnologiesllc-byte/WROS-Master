@@ -33,6 +33,7 @@ from app.models.demand import Demand, DemandHistory
 from app.models.notification import Notification
 from app.models.offer_letter import OfferLetter
 from app.models.preboarding_document import PreboardingDocument
+from app.models.preboarding_touchpoint import PreboardingTouchpoint
 from app.models.submission import Submission, SubmissionViolation
 from app.models.tenant import Tenant
 from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
@@ -55,7 +56,7 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateStatus.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
         OfferLetter.__table__, ConsentRecord.__table__, Notification.__table__, CandidateOwnership.__table__, CandidateHistory.__table__,
-        PreboardingDocument.__table__,
+        PreboardingDocument.__table__, PreboardingTouchpoint.__table__,
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
         Submission.__table__, SubmissionViolation.__table__, RecruiterInterventionQueue.__table__,
     ])
