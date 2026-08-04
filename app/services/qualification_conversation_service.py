@@ -167,6 +167,16 @@ def run_qualification_turn(
         transition_status(db, conversation, "closed", reason="Qualification complete", triggered_by="ai_agent")
         conversation.next_action = "ready_for_matching"
         message = COMPLETION_MESSAGE_TEMPLATE.format(name=_candidate_name(candidate))
+
+        # S-073/HRMS-0473 Step 3: the real completion trigger -- appends
+        # the first un-asked preference question, if any. The full
+        # multi-turn preference loop has no live trigger yet since this
+        # conversation is closed immediately after (see
+        # preference_capture_service.py's own module docstring).
+        from app.services.preference_capture_service import append_preference_question_to_message, ask_preference_question
+        preference_item = ask_preference_question(db, candidate.candidateID, tenant_id)
+        message = append_preference_question_to_message(message, preference_item)
+
         send_channel_aware_message(db, conversation, candidate, message, whatsapp_client=whatsapp_client)
         db.commit()
         return {"action": "qualification_complete"}
