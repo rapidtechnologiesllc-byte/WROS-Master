@@ -286,6 +286,12 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str, ba
     )
     db.commit()
 
+    if not _used_fallback:
+        # S-064/HRMS-0464: real explanation capture -- only for a genuine
+        # LLM-reasoned reply, not the hardcoded safe-fallback message.
+        from app.services.thunder_explanation_service import attach_explanation
+        attach_explanation(db, reply_event, candidate, conversation.tenant_id)
+
     return {"reply": reply_text, "created_at": reply_event.created_at}
 
 
