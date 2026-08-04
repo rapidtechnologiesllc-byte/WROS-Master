@@ -596,6 +596,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register onboarding touchpoint scheduler: {exc}")
 
+        # ── Every hour: TASK_ESCALATION_JOB (S-434) ─────────────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.task_escalation_service import escalate_overdue_tasks
+
+            async def _run_task_escalation():
+                db = SessionLocal()
+                try:
+                    escalated = escalate_overdue_tasks(db)
+                    if escalated:
+                        logger.info(f"[scheduler] Task escalation: {len(escalated)} task(s) escalated")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Task escalation job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_task_escalation,
+                trigger="interval",
+                hours=1,
+                id="task_escalation_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled task escalation job (every 1 hour)")
+        except Exception as exc:
+            logger.warning(f"Could not register task escalation scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
