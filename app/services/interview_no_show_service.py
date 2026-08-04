@@ -58,7 +58,8 @@ from app.models.submission import Submission
 from app.models.user import Users
 from app.services.email_service import EmailService
 from app.services.notification_service import send_notification
-from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, send_thunder_message
+from app.services.thunder_pause_service import is_thunder_paused_for_conversation
+from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
 CHECK_IN_MINUTES = 15  # Step 1
 NO_SHOW_CONFIRM_MINUTES = 30  # BR-01 -- total minutes since scheduled_at_utc
@@ -137,7 +138,7 @@ def _send_thunder_message_best_effort(db: Session, conversation: Optional[Candid
     try:
         send_thunder_message(db, conversation, candidate, message, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
         return True
-    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed) as exc:
+    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[InterviewNoShow] WhatsApp message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
 
@@ -176,6 +177,16 @@ def run_no_show_detection_job(db: Session) -> Dict:
             if conversation is not None and _has_replied_since(db, conversation.id, scheduled_utc):
                 result["skipped"] += 1
                 continue  # AC-3: candidate already checked in -- stays CONFIRMED
+
+            # S-075/HRMS-0475: the email check-in below is a raw
+            # EmailService.send_email() bypassing send_thunder_message()'s
+            # own pause check. no_show_check_in_at is left unset (not the
+            # whatsapp-only _send_thunder_message_best_effort's job to
+            # cover the email leg too) so this candidate is re-evaluated
+            # on the job's next 5-min tick once Thunder resumes.
+            if conversation is not None and is_thunder_paused_for_conversation(db, conversation):
+                result["skipped"] += 1
+                continue
 
             interviewer_name = _interviewer_name(db, interview.panel_id)
             local_time = scheduled_utc.astimezone(ZoneInfo(candidate.timezone or "Asia/Kolkata"))

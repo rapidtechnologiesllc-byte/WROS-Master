@@ -37,6 +37,7 @@ from app.services.notification_service import _is_within_business_hours
 from app.services.thunder_service import (
     ConsentNotGiven,
     DuplicateMessageSuppressed,
+    ThunderPausedError,
     has_active_consent,
     send_thunder_message,
 )
@@ -234,6 +235,13 @@ def _attempt_send(
         return sequence
     except DuplicateMessageSuppressed:
         sequence.blocked_reason = "Duplicate message suppressed by Thunder's debounce window."
+        db.add(sequence)
+        return sequence
+    except ThunderPausedError:
+        # S-075/HRMS-0475 BR-01/BR-03: paused per-candidate or globally --
+        # do not send this touch; leave it retryable for a later run,
+        # same posture as the ownership-lock branch above.
+        sequence.blocked_reason = "Thunder is paused for this candidate or tenant -- touch skipped."
         db.add(sequence)
         return sequence
     except NotImplementedError:

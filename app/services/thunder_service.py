@@ -51,6 +51,10 @@ from app.models.internal_note import InternalNote
 from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA, resolve_thunder_config
 from app.services.conversation_state_service import escalate as escalate_conversation
+from app.services.thunder_pause_service import (  # noqa: F401 -- re-exported for callers
+    ThunderPausedError,
+    raise_if_thunder_paused,
+)
 from app.services.whatsapp_routing_service import (  # noqa: F401 -- re-exported gate
     ConversationOwnedByHuman,
     is_ai_owner,
@@ -211,6 +215,8 @@ def send_thunder_message(
     Kept as a parameter rather than hardcoded so a future channel
     doesn't require every caller to change.
     """
+    raise_if_thunder_paused(db, conversation)
+
     consent_type = CHANNEL_CONSENT_TYPES.get(channel)
     if consent_type is None:
         raise NotImplementedError(
@@ -252,7 +258,14 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
     the real, gated send_thunder_message(); email reuses this
     codebase's existing ungated candidate-email convention (every
     other candidate email in this codebase, e.g. the missing-fields
-    email, already goes out this way)."""
+    email, already goes out this way).
+
+    S-075/HRMS-0475: checked directly here too (not just inside
+    send_thunder_message()) since the email branch below never calls
+    that function -- without this, a paused/globally-disabled candidate
+    would still get automated outreach email."""
+    raise_if_thunder_paused(db, conversation)
+
     if channel == "whatsapp":
         send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
         return

@@ -1230,11 +1230,20 @@ def run_reply_pipeline(
 
     # Step 4: send follow-up only if something is genuinely still missing
     if still_missing:
-        followup = send_followup_email(candidate, still_missing, conversation_id)
-        result["followup_sent"] = followup.get("sent", False)
-        result["followup_subject"] = followup.get("subject")
-        if not followup.get("sent"):
-            result["followup_error"] = followup.get("reason")
+        # S-075/HRMS-0475: this email bypasses thunder_service.send_thunder_message()
+        # entirely (see that module's own choke-point docstring), so the
+        # pause/global-disable check has to happen here directly.
+        from app.services.thunder_pause_service import is_thunder_paused_for_conversation
+        conversation = db.query(CandidateConversation).filter(CandidateConversation.id == conversation_id).first()
+        if conversation is not None and is_thunder_paused_for_conversation(db, conversation):
+            result["followup_sent"] = False
+            result["followup_error"] = "Thunder is paused for this candidate or tenant -- follow-up email skipped."
+        else:
+            followup = send_followup_email(candidate, still_missing, conversation_id)
+            result["followup_sent"] = followup.get("sent", False)
+            result["followup_subject"] = followup.get("subject")
+            if not followup.get("sent"):
+                result["followup_error"] = followup.get("reason")
 
     return result
 
@@ -1578,6 +1587,8 @@ def get_conversation_thread(
             "escalation_state": conv.escalation_state,
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
+            "is_thunder_paused": bool(conv.is_thunder_paused),
+            "thunder_resume_at": conv.thunder_resume_at.isoformat() if conv.thunder_resume_at else None,
             "events": [
                 {
                     "id": ev.id,

@@ -149,7 +149,7 @@ def run_campaign_execution_job(db: Session) -> Dict:
     per-row, marks SKIPPED, moves on, same defensive posture as every
     other periodic job this round."""
     from app.services.ghosting_detection_service import is_candidate_ghosted
-    from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, generate_followup_message_with_fallback
+    from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, generate_followup_message_with_fallback
     from app.services.whatsapp_routing_service import is_ai_owner
 
     now = datetime.utcnow()
@@ -211,7 +211,7 @@ def run_campaign_execution_job(db: Session) -> Dict:
                 campaign.completed_at = datetime.utcnow()
                 db.add(campaign)
                 db.commit()
-        except (ConversationOwnedByHuman, ConsentNotGiven, DuplicateMessageSuppressed) as exc:
+        except (ConversationOwnedByHuman, ConsentNotGiven, DuplicateMessageSuppressed, ThunderPausedError) as exc:
             logger.info(f"[OutreachCampaign] Touchpoint #{touchpoint.touchpoint_number} for candidate {touchpoint.candidate_id!r} skipped: {exc}")
             touchpoint.status = "SKIPPED"
             db.add(touchpoint)

@@ -65,6 +65,11 @@ class Users(Base):
     # admin UI asked for a time picker beyond the on/off toggle this
     # story's own UI fields table actually specifies as required.
     digest_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
+    # S-075/HRMS-0475 -- global per-tenant Thunder kill switch (BR-03:
+    # takes precedence over every individual conversation's own
+    # is_thunder_paused). Same "tenant_id genuinely resolves to this
+    # table's own UserID" convention as ai_agent_name/digest_enabled above.
+    thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

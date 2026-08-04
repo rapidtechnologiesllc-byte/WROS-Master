@@ -58,7 +58,8 @@ from app.models.submission import Submission
 from app.models.user import Users
 from app.services.email_service import EmailService
 from app.services.notification_service import send_notification
-from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, send_thunder_message
+from app.services.thunder_pause_service import is_thunder_paused_for_conversation
+from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
 SKIP_24H_THRESHOLD_HOURS = 25  # Step 2 -- less than 25h away: skip the 24H reminder
 SKIP_BOTH_THRESHOLD_MINUTES = 70  # Step 2 -- less than 70min away: skip both
@@ -206,12 +207,22 @@ def run_reminder_execution_job(db: Session) -> Dict:
                 .first()
             )
 
+            # S-075/HRMS-0475: the email branch below is a raw
+            # EmailService.send_email() bypassing send_thunder_message()'s
+            # own pause check entirely, so it's checked once here for
+            # both channels. Left PENDING (not CANCELLED) so it retries
+            # on this job's next 10-min tick once Thunder resumes --
+            # never counted as a "both failed" escalation.
+            if conversation is not None and is_thunder_paused_for_conversation(db, conversation):
+                result["skipped"] += 1
+                continue
+
             whatsapp_sent = False
             if conversation is not None:
                 try:
                     send_thunder_message(db, conversation, candidate, message, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
                     whatsapp_sent = True
-                except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed) as exc:
+                except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
                     logger.info(f"[InterviewReminder] WhatsApp reminder skipped for candidate {candidate.candidateID!r}: {exc}")
 
             email_sent = False

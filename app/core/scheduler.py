@@ -515,6 +515,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register no-show follow-up scheduler: {exc}")
 
+        # ── Every 15 min: PAUSE_EXPIRY_JOB (S-075/HRMS-0475) ────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.thunder_pause_service import run_pause_expiry_job
+
+            async def _run_pause_expiry():
+                db = SessionLocal()
+                try:
+                    result = run_pause_expiry_job(db)
+                    if result["resumed"]:
+                        logger.info(f"[scheduler] Pause expiry: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Pause expiry error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_pause_expiry,
+                trigger="interval",
+                minutes=15,
+                id="pause_expiry_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled pause expiry job (every 15 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register pause expiry scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
