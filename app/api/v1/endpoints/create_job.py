@@ -11,6 +11,7 @@ from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.tenant_context import get_tenant_scoped_query
 from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
+from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
 from app.models.candidate import (
     Candidate,
@@ -414,7 +415,7 @@ def get_job_by_id(
     response_model=JobCreateResponse,
     dependencies=[Depends(require_permission("job.create"))],
 )
-def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Create a new job posting.
 
@@ -508,6 +509,12 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
     db.commit()
     db.refresh(job)
 
+    if job_status == "active":
+        # Real trigger, never a scheduled poll -- a newly PUBLISHED job
+        # is exactly the "real match might now exist" event per
+        # [[wros_ready_for_opportunity_workflow]].
+        background_tasks.add_task(scan_new_job_for_matches, db, job)
+
     return JobCreateResponse(job_id=job_id, response=response_message)
 
 
@@ -518,6 +525,7 @@ def create_job(request: JobCreateRequest, db: Session = Depends(get_db), user = 
 )
 def approve_job(
     job_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
@@ -555,6 +563,8 @@ def approve_job(
     job.jobStatus = "active"
     db.commit()
     db.refresh(job)
+
+    background_tasks.add_task(scan_new_job_for_matches, db, job)
 
     approver_name = user.UserName or user.UserEmail
     return JobApproveResponse(
