@@ -84,6 +84,7 @@ from app.models.submission import Submission
 from app.models.user import Users
 from app.services import conversation_state_service
 from app.services.candidate_pool_service import set_org_pool
+from app.services.ready_for_opportunity_service import start_watching
 from app.services.email_service import EmailService
 from app.services.notification_service import send_notification
 from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
@@ -209,6 +210,10 @@ def _handle_decline(db: Session, candidate: Candidate, conversation: CandidateCo
     conversation.offer_faq_active = False
     conversation.status = "closed"  # the one real "done" value that exists -- see module docstring
     db.add(conversation)
+    # Real design (2026-08-04, captured in [[wros_ready_for_opportunity_workflow]]):
+    # closed-on-decline isn't the end -- keep watching for a future job
+    # that fits, nudge only when a real match appears.
+    start_watching(db, candidate, reason="OFFER_DECLINED")
     db.add(ConversationEvent(conversation_id=conversation.id, event_type="OFFER_DECLINED", event_data={"offer_id": offer.id, "candidate_id": candidate.candidateID, "decline_reason": offer.candidate_response}, triggered_by="candidate"))
     db.commit()
 

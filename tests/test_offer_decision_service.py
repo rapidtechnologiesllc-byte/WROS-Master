@@ -24,6 +24,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
 from app.models.candidate import Candidate, CandidateStatus
+from app.models.candidate_opportunity_watch import CandidateOpportunityWatch
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_history import CandidateHistory
 from app.models.candidate_ownership import CandidateOwnership
@@ -59,6 +60,7 @@ def db_session():
         PreboardingDocument.__table__, PreboardingTouchpoint.__table__,
         Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
         Submission.__table__, SubmissionViolation.__table__, RecruiterInterventionQueue.__table__,
+        CandidateOpportunityWatch.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
