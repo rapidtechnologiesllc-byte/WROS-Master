@@ -46,6 +46,10 @@ def escalate_overdue_tasks(db: Session, *, now: Optional[datetime] = None) -> Li
         task.priority = _bump_one_tier_capped(task.priority)
         db.add(task)
 
+        if task.task_type == "TICKET":
+            from app.services.ticket_sla_service import flag_sla_breach
+            flag_sla_breach(db, task)
+
         if task.assigned_to_user_id:
             from app.services.task_assignment_service import resolve_reporting_manager
 

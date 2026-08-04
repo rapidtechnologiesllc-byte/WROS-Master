@@ -35,11 +35,16 @@ from app.models.base import Base
 TASK_PRIORITIES = ("URGENT", "HIGH", "MEDIUM", "LOW")
 TASK_STATUSES = ("NEW", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "CANCELLED")
 TASK_VISIBILITY_SCOPES = ("ASSIGNEE_MANAGER_DEPARTMENT", "ORG_WIDE")
-# General task today; TICKET_* reserved for the Help Desk/IT-HR ticketing
-# story to reuse this same Task table as one more Task type, per
+# TICKET reuses this same Task table as one more Task type, per
 # Avinash's explicit "ticketing is a Task type, not a parallel object"
-# direction -- not yet populated by any caller in this pass.
-TASK_TYPES = ("GENERAL", "TICKET_HR", "TICKET_IT", "TICKET_FACILITIES", "TICKET_OTHER")
+# direction. Deliberately ONE generic TICKET value, not a fixed
+# TICKET_HR/TICKET_IT/... enum -- Avinash's 2026-08-04 direction was
+# explicit that ticketing must cover every department/function, not
+# just HR/IT, so the real category routing lives in the dynamic
+# TicketCategoryRoute table (keyed to the real, admin-configurable
+# Department list) instead of a hardcoded type list. See
+# app.services.ticket_service.
+TASK_TYPES = ("GENERAL", "TICKET")
 
 # BR: automatic overdue priority bump never reaches URGENT -- Urgent
 # stays a deliberate, human-declared (and Thunder-challenged) choice.
