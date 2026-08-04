@@ -32,4 +32,5 @@ export const ROUTES = {
   RISK_DASHBOARD: "/recruiter/risk-dashboard",
   THUNDER_ANALYTICS: "/recruiter/thunder-analytics",
   BULK_LAUNCH: "/recruiter/bulk-launch",
+  TENANT_AI_CONFIG: "/admin/ai-config",
 };

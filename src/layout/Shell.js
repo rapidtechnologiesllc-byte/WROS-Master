@@ -18,6 +18,7 @@ import {
   TrendingUp,
   LineChart,
   Globe2,
+  Bot,
   FolderKanban,
   AlertOctagon,
   MessageSquareText,
@@ -67,6 +68,10 @@ const NAV_ITEMS = {
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
+  // S-077/HRMS-0477 -- unified Thunder config, Super User only server-side
+  // (tenant.ai_config) -- visible in nav to the same Admin-group audience
+  // as tenantLocale above, same posture (backend enforces the real gate).
+  tenantAiConfig: { path: ROUTES.TENANT_AI_CONFIG, label: "AI Configuration", icon: Bot },
   // S-014/HRMS-0414 -- template.manage-gated activate action lives on
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
@@ -109,7 +114,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["rbac", "hrUsers", "tenantLocale", "messageTemplates"],
+    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates"],
   },
 ];
 
@@ -153,7 +158,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale", "messageTemplates",
+          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates",
         ]),
       };
     }
@@ -165,7 +170,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale", "messageTemplates",
+          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates",
         ]),
       };
     }
