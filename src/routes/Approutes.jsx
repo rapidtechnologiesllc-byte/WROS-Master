@@ -86,6 +86,7 @@ import InterventionQueueScreen from "../screens/InterventionQueueScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
 import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
+import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -483,6 +484,7 @@ export default function AppRoutes() {
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
+            <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
 
             <Route
               path="candidates"
@@ -693,6 +695,7 @@ export default function AppRoutes() {
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
+            <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
           <Route
             path="candidates"
             element={
