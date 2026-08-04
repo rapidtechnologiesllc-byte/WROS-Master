@@ -91,6 +91,7 @@ import MyTasksScreen from "../screens/MyTasksScreen";
 import TicketRoutingAdminScreen from "../screens/TicketRoutingAdminScreen";
 import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
 import BuddyProgramScreen from "../screens/BuddyProgramScreen";
+import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -493,6 +494,7 @@ export default function AppRoutes() {
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
+            <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
 
             <Route
               path="candidates"
@@ -708,6 +710,7 @@ export default function AppRoutes() {
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
+            <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
           <Route
             path="candidates"
             element={

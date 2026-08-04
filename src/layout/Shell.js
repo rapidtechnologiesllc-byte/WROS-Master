@@ -81,6 +81,9 @@ const NAV_ITEMS = {
   // Help Desk/IT-HR Ticketing -- category routing + SLA policy config,
   // gated server-side by rbac.manage same as the other Admin items.
   ticketRoutingAdmin: { path: ROUTES.TICKET_ROUTING_ADMIN, label: "Ticket Routing & SLA", icon: CalendarCheck2 },
+  // Executive Signal & Culture Agent -- advisory-only org-health +
+  // recognition + feedback cycle; Super User/Admin only (personnel data).
+  executiveSignal: { path: ROUTES.EXECUTIVE_SIGNAL, label: "Executive Signal", icon: LineChart },
   // S-014/HRMS-0414 -- template.manage-gated activate action lives on
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
@@ -123,7 +126,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin"],
+    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal"],
   },
 ];
 
@@ -167,7 +170,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin",
+          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal",
         ]),
       };
     }
@@ -179,7 +182,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin",
+          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal",
         ]),
       };
     }
