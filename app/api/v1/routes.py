@@ -57,6 +57,7 @@ from app.api.v1.endpoints.activity_feed import router as activity_feed_router
 from app.api.v1.endpoints.intervention_queue import router as intervention_queue_router
 from app.api.v1.endpoints.risk_dashboard import router as risk_dashboard_router
 from app.api.v1.endpoints.engagement_metrics import router as engagement_metrics_router
+from app.api.v1.endpoints.thunder_analytics import router as thunder_analytics_router
 
 router = fastapi.APIRouter()
 
@@ -116,4 +117,5 @@ router.include_router(router=drop_risk_router)
 router.include_router(router=activity_feed_router)
 router.include_router(router=intervention_queue_router)
 router.include_router(router=risk_dashboard_router)
-router.include_router(router=engagement_metrics_router)
+router.include_router(router=engagement_metrics_router)
+router.include_router(router=thunder_analytics_router)
