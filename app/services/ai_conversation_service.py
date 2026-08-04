@@ -516,25 +516,36 @@ def auto_assign_ai_agent_on_creation(
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
 
-    # S-012/S-013 (HRMS-0412/0413) -- 60-second-SLA first-touch messages
-    # on both channels. Run back-to-back, each independently resilient
-    # (see email_first_engagement_service's module docstring on why this
+    # S-012/S-013 (HRMS-0412/0413) -- 60-second-SLA first-touch messages.
+    # S-077/HRMS-0477: greeting_channel makes this literal BOTH_PARALLEL
+    # default (previously the only behavior) switchable per tenant.
+    # Run back-to-back, each independently resilient (see
+    # email_first_engagement_service's module docstring on why this
     # isn't literally Promise.all() concurrent in a synchronous-session
     # codebase) -- a WhatsApp failure never blocks email or vice versa,
     # and neither can undo the AI assignment that already succeeded above.
-    whatsapp_result = None
+    greeting_channel = "BOTH_PARALLEL"
     try:
-        from app.services.first_engagement_service import send_first_whatsapp_engagement
-        whatsapp_result = send_first_whatsapp_engagement(db, candidate_id, tenant_id)
-    except Exception as exc:
-        logger.warning(f"[AutoAssign] First WhatsApp engagement did not complete for candidate '{candidate_id}': {exc}")
+        from app.services.tenant_ai_config_service import get_greeting_channel
+        greeting_channel = get_greeting_channel(db, tenant_id)
+    except Exception:
+        pass
+
+    whatsapp_result = None
+    if greeting_channel in ("WHATSAPP_FIRST", "BOTH_PARALLEL"):
+        try:
+            from app.services.first_engagement_service import send_first_whatsapp_engagement
+            whatsapp_result = send_first_whatsapp_engagement(db, candidate_id, tenant_id)
+        except Exception as exc:
+            logger.warning(f"[AutoAssign] First WhatsApp engagement did not complete for candidate '{candidate_id}': {exc}")
 
     email_result = None
-    try:
-        from app.services.email_first_engagement_service import send_first_email_engagement
-        email_result = send_first_email_engagement(db, candidate_id, tenant_id)
-    except Exception as exc:
-        logger.warning(f"[AutoAssign] First email engagement did not complete for candidate '{candidate_id}': {exc}")
+    if greeting_channel in ("EMAIL_FIRST", "BOTH_PARALLEL"):
+        try:
+            from app.services.email_first_engagement_service import send_first_email_engagement
+            email_result = send_first_email_engagement(db, candidate_id, tenant_id)
+        except Exception as exc:
+            logger.warning(f"[AutoAssign] First email engagement did not complete for candidate '{candidate_id}': {exc}")
 
     # S-044/HRMS-0444 Step 4: start the multi-touch campaign once at
     # least one Day-0 channel actually sent -- see

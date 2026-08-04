@@ -131,7 +131,13 @@ def run_ghosting_detection_job(db: Session) -> dict:
                 continue
 
             now = datetime.utcnow()
-            reactivation_at = now + timedelta(days=GHOSTING_REACTIVATION_DAYS)
+            reactivation_days = GHOSTING_REACTIVATION_DAYS
+            try:
+                from app.services.tenant_ai_config_service import get_ghosting_reactivation_days
+                reactivation_days = get_ghosting_reactivation_days(db, log_row.tenant_id)
+            except Exception:
+                pass
+            reactivation_at = now + timedelta(days=reactivation_days)
 
             db.add(CandidateGhostingStatus(
                 tenant_id=log_row.tenant_id, candidate_id=log_row.candidate_id, conversation_id=log_row.conversation_id,

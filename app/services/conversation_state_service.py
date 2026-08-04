@@ -152,7 +152,17 @@ def escalate(db: Session, conversation: CandidateConversation, *, reason: str, t
     # S-062/HRMS-0462: the one real trigger point every escalation
     # source funnels through -- see that story's own module docstring.
     from app.services.intervention_queue_service import PRIORITY_CRITICAL, PRIORITY_HIGH, add_to_queue
-    priority = PRIORITY_CRITICAL if any(k in reason.lower() for k in LEGAL_ESCALATION_KEYWORDS) else PRIORITY_HIGH
+    # S-077/HRMS-0477: real per-tenant escalation_keywords MERGE with
+    # (never replace) the built-in legal-keyword list above.
+    critical_keywords = LEGAL_ESCALATION_KEYWORDS
+    try:
+        from app.services.tenant_ai_config_service import get_escalation_keywords
+        tenant_keywords = get_escalation_keywords(db, conversation.tenant_id)
+        if tenant_keywords:
+            critical_keywords = tuple(LEGAL_ESCALATION_KEYWORDS) + tuple(tenant_keywords)
+    except Exception:
+        pass
+    priority = PRIORITY_CRITICAL if any(k.lower() in reason.lower() for k in critical_keywords) else PRIORITY_HIGH
     add_to_queue(db, conversation.candidate_id, conversation.tenant_id, "ESCALATION", f"Escalation: {reason}", priority, commit=False)
 
     return conversation

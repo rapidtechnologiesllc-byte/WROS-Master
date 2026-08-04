@@ -60,11 +60,30 @@ EMAIL_FOLLOWUP_HOURS = int(os.getenv("EMAIL_FOLLOWUP_HOURS", "48"))  # BR-04 def
 JOB_BATCH_SIZE = 50
 
 
-def followup_hours_for_channel(channel: str) -> int:
+def followup_hours_for_channel(channel: str, db: Optional[Session] = None, tenant_id: Optional[str] = None) -> int:
     """Public (not underscore-prefixed) -- shared with
     no_response_detection_service (S-042), which needs the same
-    per-channel threshold to detect staleness."""
+    per-channel threshold to detect staleness.
+
+    S-077/HRMS-0477: when db+tenant_id are supplied, prefers the real
+    per-tenant TenantAIConfig value; falls back to the module-constant
+    default (still overridable via env var, unchanged pre-S-077
+    behavior) when they aren't, or when the lookup itself fails."""
+    if db is not None and tenant_id is not None:
+        try:
+            from app.services.tenant_ai_config_service import get_followup_hours
+            return get_followup_hours(db, tenant_id, channel)
+        except Exception:
+            pass
     return WHATSAPP_FOLLOWUP_HOURS if channel == "whatsapp" else EMAIL_FOLLOWUP_HOURS
+
+
+def max_followup_count_for_tenant(db: Session, tenant_id: str) -> int:
+    try:
+        from app.services.tenant_ai_config_service import get_max_followup_count
+        return get_max_followup_count(db, tenant_id)
+    except Exception:
+        return MAX_FOLLOWUPS
 
 
 def schedule_follow_up(
@@ -74,8 +93,9 @@ def schedule_follow_up(
     """Step 2. Returns the new PENDING record, or None if a duplicate
     was found (dedupe, per this function's own spec check) or
     follow_up_number exceeds BR-01's cap."""
-    if follow_up_number > MAX_FOLLOWUPS:  # BR-01
-        logger.warning(f"[FollowUpScheduler] Refusing to schedule follow-up #{follow_up_number} for candidate {candidate_id!r} -- exceeds max {MAX_FOLLOWUPS}.")
+    max_allowed = max_followup_count_for_tenant(db, tenant_id)
+    if follow_up_number > max_allowed:  # BR-01
+        logger.warning(f"[FollowUpScheduler] Refusing to schedule follow-up #{follow_up_number} for candidate {candidate_id!r} -- exceeds max {max_allowed}.")
         return None
 
     existing = (
@@ -87,7 +107,7 @@ def schedule_follow_up(
     if existing:
         return None
 
-    scheduled_at = datetime.utcnow() + timedelta(hours=followup_hours_for_channel(channel))
+    scheduled_at = datetime.utcnow() + timedelta(hours=followup_hours_for_channel(channel, db, tenant_id))
     record = FollowUpSchedule(
         tenant_id=tenant_id, candidate_id=candidate_id, conversation_id=conversation_id, channel=channel,
         scheduled_at=scheduled_at, status="PENDING", follow_up_number=follow_up_number,
@@ -191,7 +211,7 @@ def run_follow_up_execution_job(db: Session) -> Dict:
                 row.sent_at = now
                 result["sent"] += 1
 
-                if row.follow_up_number < MAX_FOLLOWUPS:  # Step 3.8
+                if row.follow_up_number < max_followup_count_for_tenant(db, row.tenant_id):  # Step 3.8
                     schedule_follow_up(db, row.candidate_id, row.tenant_id, row.conversation_id, row.channel, row.triggered_by_message_id, row.follow_up_number + 1)
                 # Step 3.9: no formal event published here -- see module docstring.
 
