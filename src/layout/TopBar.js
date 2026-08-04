@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import cx from "../utils/cx";
 import ThunderActivityFeedPanel from "../components/activity/ThunderActivityFeedPanel";
+import BUSwitcher from "../components/BUSwitcher";
 
 export default function TopBar({
   role,
@@ -303,6 +304,7 @@ export default function TopBar({
             </div>
 
             <div className="ml-auto flex items-center gap-3">
+              <BUSwitcher />
               <ThunderActivityFeedPanel />
 
               <div className="relative" ref={notificationsRef}>
