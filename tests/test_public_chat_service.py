@@ -24,14 +24,20 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
+from app.models.candidate_field_skip import CandidateFieldSkip
 from app.models.candidate_ghosting_status import CandidateGhostingStatus
+from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
+from app.models.candidate_sentiment_log import CandidateSentimentLog
 from app.models.consent import ConsentRecord
 from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.outreach_campaign import CampaignTouchpoint, OutreachCampaign
 from app.models.internal_note import InternalNote
 from app.models.notification import Notification
+from app.models.prompt_execution_log import PromptExecutionLog
+from app.models.sla_breach import CandidateSLABreach
 from app.models.user import Jobs, Users
 
+import app.services.prompt_framework_service as prompt_framework_svc
 import app.services.thunder_service as thunder_svc
 import app.services.whatsapp_routing_service as routing
 import app.services.public_chat_service as svc
@@ -51,6 +57,22 @@ def _mock_gemini(monkeypatch):
     monkeypatch.setattr(thunder_svc, "ChatGoogleGenerativeAI", MagicMock(return_value=mock_llm))
 
 
+@pytest.fixture(autouse=True)
+def _mock_intent_detection_llm(monkeypatch):
+    """S-072/HRMS-0472: send_public_chat_message() now calls
+    detect_intent_service.detect_intent() on every turn (its first
+    live wiring -- see public_chat_service's own inline comment), which
+    goes through prompt_framework_service.call_llm()'s REAL default
+    Gemini REST call path -- a different, separately-mocked path from
+    thunder_service's LangChain-based ChatGoogleGenerativeAI above.
+    Without this, every test in this file would attempt a real network
+    call (and a real 3s retry sleep on failure) the moment this story
+    landed. Default resolves to 'unclear' so every pre-existing test's
+    behavior is unchanged (falls through to the normal reply path);
+    individual objection-handling tests override this per-test."""
+    monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: '{"intent": "unclear", "confidence": 0.0}')
+
+
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -61,6 +83,8 @@ def db_session():
         CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
         Notification.__table__, ConsentRecord.__table__, InternalNote.__table__, FollowUpSchedule.__table__,
         CandidateGhostingStatus.__table__, OutreachCampaign.__table__, CampaignTouchpoint.__table__,
+        CandidateFieldSkip.__table__, CandidateMemory.__table__, CandidateMemoryFact.__table__,
+        PromptExecutionLog.__table__, CandidateSLABreach.__table__, CandidateSentimentLog.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -181,6 +205,67 @@ def test_send_public_chat_message_logs_real_events_and_replies(db_session, super
     web_chat_event_types = [e.event_type for e in web_chat_events]
     assert "candidate_reply" in web_chat_event_types
     assert "ai_message_sent" in web_chat_event_types
+
+
+def test_send_public_chat_message_objecting_intent_routes_to_objection_handler(db_session, super_user, monkeypatch):
+    """S-072/HRMS-0472: the first live, end-to-end proof that
+    detect_intent()'s 'objecting' branch actually reaches
+    handle_objection() -- production code calls check_escalation()
+    (S-035), detect_intent() (S-033), and classify_objection() (S-072)
+    IN THAT ORDER, all through the same unmocked
+    prompt_framework_service._default_llm_call() path (none of them
+    are given their own llm_call override), so this queues three
+    canned JSON responses -- the first satisfies check_escalation's own
+    ESCALATION_CHECK call (needs_escalation=false, so it falls through
+    normally), the second is the intent classification, the third is
+    the objection classification."""
+    started = svc.start_public_chat(db_session, full_name="Jane Doe", email="jane@example.com", phone=None, job_id=None, consent=True)
+
+    responses = iter([
+        '{"needs_escalation": false}',
+        '{"intent": "objecting", "confidence": 0.9}',
+        '{"objection_type": "LOCATION", "key_concern": "not willing to relocate", "confidence": 0.88}',
+    ])
+    monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: next(responses))
+
+    result = svc.send_public_chat_message(db_session, candidate_id=started["candidate_id"], message="I'm not willing to relocate for this role")
+
+    assert result.get("escalated") is not True
+    conversation = db_session.query(CandidateConversation).filter(CandidateConversation.candidate_id == started["candidate_id"]).first()
+    objection_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conversation.id, ConversationEvent.event_type == "OBJECTION_RAISED").all()
+    assert len(objection_events) == 1
+    assert objection_events[0].event_data["objection_type"] == "LOCATION"
+
+
+def test_send_public_chat_message_third_objection_escalates(db_session, super_user, monkeypatch):
+    """BR-01, proven end-to-end through the real public chat entry
+    point: the 3rd SALARY objection in the same conversation escalates
+    instead of Thunder responding again."""
+    started = svc.start_public_chat(db_session, full_name="Jane Doe", email="jane@example.com", phone=None, job_id=None, consent=True)
+    candidate_id = started["candidate_id"]
+
+    no_escalation = '{"needs_escalation": false}'
+    salary_intent = '{"intent": "objecting", "confidence": 0.9}'
+    salary_objection = '{"objection_type": "SALARY", "key_concern": "wants more money", "confidence": 0.9}'
+
+    def _queue_one_turn():
+        it = iter([no_escalation, salary_intent, salary_objection])
+        monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: next(it))
+
+    _queue_one_turn()
+    r1 = svc.send_public_chat_message(db_session, candidate_id=candidate_id, message="salary too low")
+    assert r1.get("escalated") is not True
+
+    _queue_one_turn()
+    r2 = svc.send_public_chat_message(db_session, candidate_id=candidate_id, message="still think salary is low")
+    assert r2.get("escalated") is not True
+
+    _queue_one_turn()
+    r3 = svc.send_public_chat_message(db_session, candidate_id=candidate_id, message="salary still an issue")
+    assert r3.get("escalated") is True
+
+    conversation = db_session.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate_id).first()
+    assert conversation.escalation_state == "escalated"
 
 
 def test_get_public_chat_history_returns_full_transcript(db_session, super_user):
