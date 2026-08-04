@@ -47,7 +47,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_no_response_log import CandidateNoResponseLog
 from app.models.follow_up_schedule import FollowUpSchedule, MAX_FOLLOWUPS
-from app.services.follow_up_scheduler_service import followup_hours_for_channel, schedule_follow_up
+from app.services.follow_up_scheduler_service import followup_hours_for_channel, max_followup_count_for_tenant, schedule_follow_up
 from app.services.whatsapp_routing_service import is_ai_owner
 
 
@@ -100,7 +100,7 @@ def run_no_response_detection_job(db: Session) -> Dict:
 
             result["checked"] += 1
             channel = (last_outbound.event_data or {}).get("channel", "whatsapp")
-            threshold = timedelta(hours=followup_hours_for_channel(channel))
+            threshold = timedelta(hours=followup_hours_for_channel(channel, db, conversation.tenant_id))
             stale = last_outbound.created_at <= datetime.utcnow() - threshold
 
             existing_rows = (
@@ -119,7 +119,7 @@ def run_no_response_detection_job(db: Session) -> Dict:
                 _log_detection(db, conversation.tenant_id, conversation.candidate_id, conversation.id, last_outbound.id, "FIRST_NO_RESPONSE", scheduled.scheduled_at if scheduled else None)
                 db.commit()
                 result["first_detected"] += 1
-            elif sent_count >= MAX_FOLLOWUPS and not has_pending:
+            elif sent_count >= max_followup_count_for_tenant(db, conversation.tenant_id) and not has_pending:
                 already_logged = (
                     db.query(CandidateNoResponseLog)
                     .filter(CandidateNoResponseLog.candidate_id == conversation.candidate_id, CandidateNoResponseLog.tenant_id == conversation.tenant_id, CandidateNoResponseLog.detection_type == "POST_THIRD")

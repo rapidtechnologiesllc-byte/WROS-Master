@@ -350,7 +350,19 @@ def run_daily_digest_job(db: Session) -> Dict:
                     result["skipped"] += 1
                     continue
                 local_hour = now_utc.astimezone(ZoneInfo(recruiter.timezone or "Asia/Kolkata")).hour
-                if local_hour != DIGEST_LOCAL_HOUR:
+                digest_hour = DIGEST_LOCAL_HOUR
+                # S-077/HRMS-0477: real per-tenant digest_send_time
+                # ("HH:MM"). This job's own cadence is 30-min, so only
+                # the hour component is honored -- same precision this
+                # check already had pre-S-077, just no longer hardcoded.
+                try:
+                    from app.services.tenant_ai_config_service import get_tenant_ai_config
+                    send_time = get_tenant_ai_config(db, tenant_id).get("digest_send_time")
+                    if send_time:
+                        digest_hour = int(str(send_time).split(":")[0])
+                except Exception:
+                    pass
+                if local_hour != digest_hour:
                     result["skipped"] += 1
                     continue
                 outcome = send_daily_digest(db, recruiter_id, tenant_id)

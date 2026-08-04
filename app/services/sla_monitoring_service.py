@@ -71,7 +71,18 @@ def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
     return None
 
 
-def _notify_recruiter_of_breach(db: Session, tenant_id: str, candidate: Candidate) -> None:
+def _no_contact_threshold_hours(db: Session, tenant_id: str) -> int:
+    """S-077/HRMS-0477: real per-tenant TenantAIConfig.sla_no_contact_hours,
+    falling back to the module-constant default (still env-overridable,
+    unchanged pre-S-077 behavior) on any lookup failure."""
+    try:
+        from app.services.tenant_ai_config_service import get_sla_no_contact_hours
+        return get_sla_no_contact_hours(db, tenant_id)
+    except Exception:
+        return NO_CONTACT_THRESHOLD_HOURS
+
+
+def _notify_recruiter_of_breach(db: Session, tenant_id: str, candidate: Candidate, threshold_hours: int) -> None:
     from app.services.notification_service import send_notification
 
     recipient = _assigned_recruiter(db, candidate.candidateID) or db.query(Users).filter(Users.UserID == tenant_id).first()
@@ -83,7 +94,7 @@ def _notify_recruiter_of_breach(db: Session, tenant_id: str, candidate: Candidat
             priority_tier="P1", channel_preference="IN_APP",
             message=(
                 f"Thunder has not heard back from {_candidate_name(candidate)} in "
-                f"{NO_CONTACT_THRESHOLD_HOURS} hours. Review their conversation."
+                f"{threshold_hours} hours. Review their conversation."
             ),
         )
     except Exception as exc:
@@ -98,7 +109,6 @@ def detect_and_resolve_no_contact_breaches(db: Session, tenant_id: Optional[str]
     (BR-02). Safe to call repeatedly (idempotent).
     """
     now = datetime.utcnow()
-    threshold = now - timedelta(hours=NO_CONTACT_THRESHOLD_HOURS)
 
     query = db.query(CandidateConversation).filter(CandidateConversation.status.in_(MONITORED_STATUSES))
     if tenant_id:
@@ -108,6 +118,8 @@ def detect_and_resolve_no_contact_breaches(db: Session, tenant_id: Optional[str]
     created = 0
     resolved = 0
     for conversation in conversations:
+        threshold_hours = _no_contact_threshold_hours(db, conversation.tenant_id)
+        threshold = now - timedelta(hours=threshold_hours)
         is_stale = conversation.updated_at is not None and conversation.updated_at < threshold
         existing_breach = (
             db.query(CandidateSLABreach)
@@ -134,7 +146,7 @@ def detect_and_resolve_no_contact_breaches(db: Session, tenant_id: Optional[str]
             ))
             db.flush()
             created += 1
-            _notify_recruiter_of_breach(db, conversation.tenant_id, candidate)
+            _notify_recruiter_of_breach(db, conversation.tenant_id, candidate, threshold_hours)
 
             # S-062/HRMS-0462: real intervention-queue wiring.
             from app.services.intervention_queue_service import PRIORITY_HIGH, add_to_queue

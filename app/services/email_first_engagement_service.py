@@ -173,7 +173,13 @@ def send_first_email_engagement(
     now = datetime.utcnow()
     created_at = candidate.candidateCreatedAt or now
     elapsed_seconds = max((now - created_at).total_seconds(), 0)
-    sla_event_type = "SLA_MET" if elapsed_seconds <= SLA_SECONDS else "SLA_BREACH"
+    sla_seconds = SLA_SECONDS
+    try:
+        from app.services.tenant_ai_config_service import get_sla_first_contact_seconds
+        sla_seconds = get_sla_first_contact_seconds(db, tenant_id)
+    except Exception:
+        pass
+    sla_event_type = "SLA_MET" if elapsed_seconds <= sla_seconds else "SLA_BREACH"
     db.add(ConversationEvent(
         conversation_id=conversation.id, event_type=sla_event_type,
         event_data={"channel": "email", "candidate_id": candidate_id, "elapsed_seconds": elapsed_seconds, "breach_type": "FIRST_EMAIL" if sla_event_type == "SLA_BREACH" else None},
