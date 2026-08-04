@@ -20,8 +20,12 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from datetime import date
+
 from app.models.base import Base
 from app.models.candidate import Candidate, CandidateStatus
+from app.models.employee import Employee
+from app.models.resource_management import BenchPoolEntry
 
 import app.services.internal_ask_thunder_service as svc
 
@@ -44,7 +48,9 @@ def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[Candidate.__table__, CandidateStatus.__table__])
+    Base.metadata.create_all(engine, tables=[
+        Candidate.__table__, CandidateStatus.__table__, Employee.__table__, BenchPoolEntry.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -157,3 +163,64 @@ def test_classify_internal_query_strips_markdown_fence(monkeypatch):
 
     result = svc.classify_internal_query("find me a python dev")
     assert result == {"intent": "sourcing", "query": "Python"}
+
+
+@pytest.fixture()
+def bench_employees(db_session):
+    react_dev = Employee(
+        first_name="Ravi", last_name="Iyer", email="ravi.iyer@blitzenx.com",
+        joining_date=date(2024, 1, 1), current_title="React Developer",
+    )
+    java_dev = Employee(
+        first_name="Meena", last_name="Nair", email="meena.nair@blitzenx.com",
+        joining_date=date(2023, 6, 1), current_title="Java Developer",
+    )
+    db_session.add_all([react_dev, java_dev])
+    db_session.commit()
+
+    db_session.add_all([
+        BenchPoolEntry(employee_id=react_dev.id, available_from=date(2026, 8, 1), skill_tags=json.dumps(["React", "TypeScript"])),
+        BenchPoolEntry(employee_id=java_dev.id, available_from=date(2026, 7, 15), skill_tags=json.dumps(["Java", "Spring"])),
+    ])
+    db_session.commit()
+    return {"react_dev": react_dev, "java_dev": java_dev}
+
+
+def test_find_available_bench_employees_no_filter_returns_all(db_session, bench_employees):
+    results = svc.find_available_bench_employees(db_session, "")
+    assert len(results) == 2
+
+
+def test_find_available_bench_employees_filters_by_skill(db_session, bench_employees):
+    # "React" alone -- "developer"/"role" are generic stopwords-adjacent
+    # terms that would keyword-match both employees' titles, same
+    # keyword-overlap tradeoff find_matching_candidates() already
+    # accepts for candidates.
+    results = svc.find_available_bench_employees(db_session, "React")
+    assert len(results) == 1
+    assert results[0]["name"] == "Ravi Iyer"
+
+
+def test_answer_internal_query_bench_availability_intent(monkeypatch, db_session, bench_employees):
+    monkeypatch.setattr(
+        svc, "ChatGoogleGenerativeAI",
+        _mock_gemini_returns({"intent": "bench_availability", "query": "Java"}),
+    )
+    result = svc.answer_internal_query(db_session, "Who's free for a Java role right now?")
+    assert result["intent"] == "bench_availability"
+    assert "Meena Nair" in result["reply"]
+    assert "Ravi Iyer" not in result["reply"]
+
+
+def test_answer_internal_query_bench_availability_empty_query_not_treated_as_unsupported(monkeypatch, db_session, bench_employees):
+    """Unlike SOURCING/CANDIDATE_STATUS, an empty query is a valid
+    'who's on the bench' question, not an error."""
+    monkeypatch.setattr(
+        svc, "ChatGoogleGenerativeAI",
+        _mock_gemini_returns({"intent": "bench_availability", "query": ""}),
+    )
+    result = svc.answer_internal_query(db_session, "Who's on the bench?")
+    assert result["intent"] == "bench_availability"
+    assert result["reply"] != svc.UNSUPPORTED_QUERY_MESSAGE
+    assert "Meena Nair" in result["reply"]
+    assert "Ravi Iyer" in result["reply"]

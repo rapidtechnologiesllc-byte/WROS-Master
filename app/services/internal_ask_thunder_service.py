@@ -3,13 +3,21 @@ Internal "Ask Thunder" -- a real, authenticated conversational query
 surface for BlitzenX staff, alongside the candidate-facing chat
 (app.services.thunder_service / app.services.public_chat_service).
 
-Scope, deliberately narrow: three real questions Avinash asked for by
-name -- a recruiter sourcing candidates for a role, a BU head checking
-a specific candidate's pipeline status, and a resource manager asking
+Scope: originally three real questions Avinash asked for by name -- a
+recruiter sourcing candidates for a role, a BU head checking a
+specific candidate's pipeline status, and a resource manager asking
 for a candidate for a role. The latter two ("find me a candidate for
 X" and "source candidates for X") are the same underlying real data
 question asked by different personas, so they share one implementation
 (SOURCING) rather than two near-identical ones.
+
+Extended 2026-08-04 per [[wros_thunder_query_layer_backlog]]'s own
+example query ("who's free for a Java role right now") -- a fourth
+real intent, BENCH_AVAILABILITY, answers from the real, already-built
+Resource Management bench pool (resource_management_service.get_current_bench_pool())
+rather than a new data source. Same "additive query layer on top of
+existing screens, not a replacement" posture that backlog note
+established -- the Resource Management screen itself is untouched.
 
 Every answer is built from real DB rows -- there is no free-text LLM
 answer describing candidates or their status. The LLM is used ONLY for
@@ -30,10 +38,13 @@ from sqlalchemy.orm import Session
 from app.core.llm_prompt_safety import build_safe_prompt
 from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
+from app.models.employee import Employee
+from app.models.resource_management import BenchPoolEntry
 from app.services.thunder_service import GEMINI_API_KEY, THUNDER_REPLY_MODEL
 
 INTENT_SOURCING = "sourcing"
 INTENT_CANDIDATE_STATUS = "candidate_status"
+INTENT_BENCH_AVAILABILITY = "bench_availability"
 INTENT_UNKNOWN = "unknown"
 
 UNSUPPORTED_QUERY_MESSAGE = (
@@ -71,16 +82,18 @@ def classify_internal_query(message: str) -> Dict:
 
     instruction = f"""Classify an internal BlitzenX staff member's question into exactly one category:
 
-- "{INTENT_SOURCING}": asking to find/source candidates matching a role, skill, or experience level (e.g. "find me a Java developer", "I need a candidate for the Guidewire role", "source someone with React experience").
+- "{INTENT_SOURCING}": asking to find/source CANDIDATES (not-yet-hired applicants) matching a role, skill, or experience level (e.g. "find me a Java developer", "I need a candidate for the Guidewire role", "source someone with React experience").
 - "{INTENT_CANDIDATE_STATUS}": asking about ONE SPECIFIC NAMED candidate's current status, pipeline stage, or progress (e.g. "how is Priya Sharma doing", "what's the status on candidate John Doe").
+- "{INTENT_BENCH_AVAILABILITY}": asking who's FREE/AVAILABLE/ON THE BENCH right now among existing EMPLOYEES (not candidates), optionally for a skill (e.g. "who's free for a Java role right now", "who's on the bench", "any available React developers").
 - "{INTENT_UNKNOWN}": anything else -- compensation questions, general chit-chat, or anything not covered above.
 
 Respond with ONLY a JSON object, no other text, no markdown code fences:
-{{"intent": "<one of the three above>", "query": "<see below>"}}
+{{"intent": "<one of the four above>", "query": "<see below>"}}
 
 "query" is:
 - for "{INTENT_SOURCING}": the role/skills/experience text to search for.
 - for "{INTENT_CANDIDATE_STATUS}": the candidate's name as mentioned.
+- for "{INTENT_BENCH_AVAILABILITY}": the skill/role text to filter by, or empty string for "who's on the bench" with no filter.
 - for "{INTENT_UNKNOWN}": empty string."""
 
     prompt = build_safe_prompt(
@@ -113,7 +126,7 @@ Respond with ONLY a JSON object, no other text, no markdown code fences:
         raise ThunderQueryClassificationFailed(f"Gemini returned non-JSON output: {raw!r}") from exc
 
     intent = parsed.get("intent")
-    if intent not in (INTENT_SOURCING, INTENT_CANDIDATE_STATUS, INTENT_UNKNOWN):
+    if intent not in (INTENT_SOURCING, INTENT_CANDIDATE_STATUS, INTENT_BENCH_AVAILABILITY, INTENT_UNKNOWN):
         raise ThunderQueryClassificationFailed(f"Gemini returned an unrecognized intent: {intent!r}")
 
     return {"intent": intent, "query": str(parsed.get("query") or "").strip()}
@@ -202,6 +215,50 @@ def get_candidate_status_summary(db: Session, name_query: str) -> Dict:
     return {"matches": matches}
 
 
+def find_available_bench_employees(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+    """
+    Real read of resource_management_service's own bench pool table --
+    no new data source, same "additive, not a replacement" posture as
+    the rest of this query layer. An empty query_text (bare "who's on
+    the bench") returns the whole current pool, most-recently-benched
+    first; a query_text filters by skill_tags/current_title overlap,
+    same keyword-overlap technique find_matching_candidates() already
+    uses for candidates.
+    """
+    entries = (
+        db.query(BenchPoolEntry, Employee)
+        .join(Employee, BenchPoolEntry.employee_id == Employee.id)
+        .order_by(BenchPoolEntry.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    keywords = _extract_keywords(query_text) if query_text else []
+
+    def _skill_tags(entry: BenchPoolEntry) -> List[str]:
+        try:
+            return json.loads(entry.skill_tags) if entry.skill_tags else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    results = []
+    for entry, employee in entries:
+        haystack = " ".join(filter(None, [
+            employee.current_title, " ".join(_skill_tags(entry)),
+        ])).lower()
+        if keywords and not any(kw.lower() in haystack for kw in keywords):
+            continue
+        results.append({
+            "employee_id": employee.id,
+            "name": " ".join(filter(None, [employee.first_name, employee.last_name])) or employee.email,
+            "current_title": employee.current_title,
+            "skills": _skill_tags(entry),
+            "available_from": entry.available_from.isoformat() if entry.available_from else None,
+        })
+
+    return results[:top_n]
+
+
 def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
     if not results:
         return (
@@ -231,6 +288,18 @@ def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
     )
 
 
+def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
+    label = f"matching \"{query_text}\"" if query_text else "on the bench right now"
+    if not results:
+        return f"No one is currently available {label}."
+    lines = [
+        f"- {r['name']} ({r['employee_id']}) -- {r['current_title'] or 'no title on file'}; "
+        f"skills: {', '.join(r['skills']) or 'not on file'}; available since {r['available_from'] or 'unknown'}"
+        for r in results
+    ]
+    return f"{len(results)} available {label}:\n" + "\n".join(lines)
+
+
 def answer_internal_query(db: Session, message: str) -> Dict:
     """
     Full turn: classify -> real DB lookup -> deterministic, honest
@@ -258,5 +327,12 @@ def answer_internal_query(db: Session, message: str) -> Dict:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
         status = get_candidate_status_summary(db, query)
         return {"intent": intent, "reply": _format_status_reply(query, status["matches"])}
+
+    if intent == INTENT_BENCH_AVAILABILITY:
+        # Unlike SOURCING/CANDIDATE_STATUS, an empty query is valid here
+        # ("who's on the bench" with no skill filter) -- never treated
+        # as unsupported.
+        results = find_available_bench_employees(db, query)
+        return {"intent": intent, "reply": _format_bench_reply(query, results)}
 
     return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}
