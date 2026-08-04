@@ -46,6 +46,13 @@ Routes:
 
   GET    /ai-agent/candidates/{candidate_id}/audit-log
       Compliance-grade audit trail of conversation actions (S-076).
+
+  GET    /ai-agent/messages/{event_id}/explanation
+      Why Thunder sent this specific message (S-064). 404 if the
+      message has no explanation (recruiter-sent or templated).
+
+  GET    /ai-agent/candidates/{candidate_id}/thunder-explanation-log
+      Full, immutable history of every explained Thunder decision (S-064).
 """
 
 from typing import List, Optional
@@ -933,3 +940,36 @@ def get_audit_log(
             for e in entries
         ],
     )
+
+
+# ===========================================================================
+# GET /ai-agent/messages/{event_id}/explanation
+# GET /ai-agent/candidates/{candidate_id}/thunder-explanation-log
+# ===========================================================================
+
+from app.schemas.thunder_explanation import ExplanationLogResponse, MessageExplanationResponse
+from app.services.thunder_explanation_service import get_explanation_log, get_message_explanation
+
+
+@router.get(
+    "/messages/{event_id}/explanation",
+    response_model=MessageExplanationResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Why Thunder sent this specific message (S-064/HRMS-0464)",
+)
+def get_thunder_message_explanation(event_id: int, db: Session = Depends(get_db)):
+    explanation = get_message_explanation(db, event_id)
+    if explanation is None:
+        raise HTTPException(status_code=404, detail="Explanation not available for this message.")
+    return explanation
+
+
+@router.get(
+    "/candidates/{candidate_id}/thunder-explanation-log",
+    response_model=ExplanationLogResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Full immutable history of Thunder's explained decisions for a candidate (S-064/HRMS-0464)",
+)
+def get_thunder_explanation_log(candidate_id: str, db: Session = Depends(get_db)):
+    _get_candidate_or_404(candidate_id, db)
+    return ExplanationLogResponse(entries=get_explanation_log(db, candidate_id))
