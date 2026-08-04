@@ -87,6 +87,8 @@ const NAV_ITEMS = {
   // Executive Signal & Culture Agent -- advisory-only org-health +
   // recognition + feedback cycle; Super User/Admin only (personnel data).
   executiveSignal: { path: ROUTES.EXECUTIVE_SIGNAL, label: "Executive Signal", icon: LineChart },
+  // S-215/HRMS-0117 -- Error Logging Framework, Admin/Director-only per spec.
+  errorLog: { path: ROUTES.ERROR_LOG, label: "Error Log", icon: AlertOctagon },
   // S-014/HRMS-0414 -- template.manage-gated activate action lives on
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
@@ -129,7 +131,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal"],
+    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog"],
   },
 ];
 
@@ -173,7 +175,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal",
+          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog",
         ]),
       };
     }
@@ -185,7 +187,7 @@ export default function Shell({
           "employees", "resourceManagement", "allocations", "corePull",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
-          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal",
+          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog",
         ]),
       };
     }
