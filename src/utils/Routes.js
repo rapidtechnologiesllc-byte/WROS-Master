@@ -31,4 +31,5 @@ export const ROUTES = {
   INTERVENTION_QUEUE: "/recruiter/intervention-queue",
   RISK_DASHBOARD: "/recruiter/risk-dashboard",
   THUNDER_ANALYTICS: "/recruiter/thunder-analytics",
+  BULK_LAUNCH: "/recruiter/bulk-launch",
 };
