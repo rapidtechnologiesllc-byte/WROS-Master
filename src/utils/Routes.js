@@ -29,4 +29,5 @@ export const ROUTES = {
   OFFERS: "/offers",
   OFFERS_LISTING: "/offers-listing",
   INTERVENTION_QUEUE: "/recruiter/intervention-queue",
+  RISK_DASHBOARD: "/recruiter/risk-dashboard",
 };

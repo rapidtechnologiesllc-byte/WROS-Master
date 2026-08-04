@@ -75,13 +75,17 @@ const NAV_ITEMS = {
   // high drop risk, SLA breaches, etc.), same recruiter-facing grouping as
   // the rest of Recruitment.
   interventionQueue: { path: ROUTES.INTERVENTION_QUEUE, label: "Intervention Queue", icon: AlertOctagon },
+  // S-063/HRMS-0463 -- broader visibility companion to the intervention
+  // queue above (all active candidates + trends, not just the ones
+  // needing action right now).
+  riskDashboard: { path: ROUTES.RISK_DASHBOARD, label: "Risk Dashboard", icon: BarChart3 },
 };
 
 const GROUP_DEFS = [
   {
     label: "Recruitment",
     icon: Users,
-    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue"],
+    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "riskDashboard"],
   },
   {
     label: "Workforce",
