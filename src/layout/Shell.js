@@ -79,13 +79,16 @@ const NAV_ITEMS = {
   // queue above (all active candidates + trends, not just the ones
   // needing action right now).
   riskDashboard: { path: ROUTES.RISK_DASHBOARD, label: "Risk Dashboard", icon: BarChart3 },
+  // S-071/HRMS-0471 -- leadership-facing KPI view of Thunder's own
+  // autonomous performance, distinct from the per-candidate risk view above.
+  thunderAnalytics: { path: ROUTES.THUNDER_ANALYTICS, label: "Thunder Analytics", icon: LineChart },
 };
 
 const GROUP_DEFS = [
   {
     label: "Recruitment",
     icon: Users,
-    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "riskDashboard"],
+    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "riskDashboard", "thunderAnalytics"],
   },
   {
     label: "Workforce",

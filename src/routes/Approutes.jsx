@@ -84,6 +84,7 @@ import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
+import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -479,6 +480,7 @@ export default function AppRoutes() {
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
+            <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
 
             <Route
               path="candidates"
@@ -687,6 +689,7 @@ export default function AppRoutes() {
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
+            <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
           <Route
             path="candidates"
             element={
