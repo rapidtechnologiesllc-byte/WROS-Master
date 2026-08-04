@@ -43,6 +43,9 @@ const NAV_ITEMS = {
   // (every branch below), not gated to any one department/function --
   // Task serves the whole org, per Avinash's explicit direction.
   myTasks: { path: ROUTES.MY_TASKS, label: "My Tasks", icon: CalendarCheck2 },
+  // Employee self-service timesheet, 2026-08-04 -- visible to every
+  // internal role, same universal-visibility posture as myTasks.
+  myTimesheet: { path: ROUTES.MY_TIMESHEET, label: "My Timesheet", icon: Clock },
   candidates: { path: ROUTES.CANDIDATES, label: "Candidates", icon: Users },
   jobs: { path: ROUTES.JOBS, label: "Jobs", icon: Briefcase },
   candidateReview: { path: ROUTES.HM_CANDIDATE_REVIEW, label: "Candidate Review", icon: UserCheck },
@@ -164,7 +167,7 @@ export default function Shell({
   const nav = useMemo(() => {
     if (isSuperUser) {
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups([
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull",
@@ -176,7 +179,7 @@ export default function Shell({
     }
     if (isAdmin) {
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups([
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull",
@@ -188,7 +191,7 @@ export default function Shell({
     }
     if (isHR_Manager) {
       return {
-        standalone: [NAV_ITEMS.myTasks],
+        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups([
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull",
@@ -198,12 +201,12 @@ export default function Shell({
       };
     }
     if (isHiringManager) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.myTasks], groups: [] };
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet], groups: [] };
     }
     if (isHrOperations) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks], groups: [] };
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet], groups: [] };
     }
-    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks], groups: [] };
+    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet], groups: [] };
   }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());

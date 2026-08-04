@@ -1,6 +1,7 @@
 export const ROUTES = {
   DASHBOARD: "/",
   MY_TASKS: "/my-tasks",
+  MY_TIMESHEET: "/my-timesheet",
   THUNDER: "/thunder",
   RESOURCE_MANAGEMENT: "/resource-management",
   CORE_PULL: "/core-pull",
