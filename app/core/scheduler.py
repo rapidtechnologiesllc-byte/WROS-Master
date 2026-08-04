@@ -407,6 +407,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register joining readiness scheduler: {exc}")
 
+        # ── Every 30 min: DAILY_DIGEST_JOB (S-065/HRMS-0465) ────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.daily_digest_service import run_daily_digest_job
+
+            async def _run_daily_digest():
+                db = SessionLocal()
+                try:
+                    result = run_daily_digest_job(db)
+                    if result["sent"]:
+                        logger.info(f"[scheduler] Daily digest: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Daily digest error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_daily_digest,
+                trigger="interval",
+                minutes=30,
+                id="daily_digest_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled daily digest job (every 30 minutes, checks each recruiter's local 8 AM)")
+        except Exception as exc:
+            logger.warning(f"Could not register daily digest scheduler: {exc}")
+
         # ── Every 4 hours: DROP_RISK_SCORING_JOB (S-060/HRMS-0460) ──────────
         try:
             from app.core.database import SessionLocal
