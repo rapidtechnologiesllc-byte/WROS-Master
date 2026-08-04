@@ -34,4 +34,5 @@ export const ROUTES = {
   THUNDER_ANALYTICS: "/recruiter/thunder-analytics",
   BULK_LAUNCH: "/recruiter/bulk-launch",
   TENANT_AI_CONFIG: "/admin/ai-config",
+  TICKET_ROUTING_ADMIN: "/admin/ticket-routing",
 };

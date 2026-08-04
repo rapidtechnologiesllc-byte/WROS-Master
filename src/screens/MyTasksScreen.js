@@ -9,6 +9,10 @@ import { toast } from "react-toastify";
 import {
   completeTask, confirmUrgentTask, createTask, getMyDayTasks, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
+import { createTicket, getTicketCategories } from "../services/api/tickets";
+
+const TICKET_IMPACTS = ["INDIVIDUAL", "DEPARTMENT", "MULTIPLE_DEPARTMENTS", "ORG_WIDE"];
+const TICKET_URGENCIES = ["LOW", "MODERATE", "CRITICAL"];
 
 const PRIORITY_STYLES = {
   URGENT: "bg-red-100 text-red-800 border-red-300",
@@ -70,7 +74,12 @@ export default function MyTasksScreen() {
   const [upcoming, setUpcoming] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [mode, setMode] = useState("TASK"); // TASK | TICKET
   const [form, setForm] = useState({ title: "", priority: "MEDIUM", due_date: "", is_external: false });
+  const [ticketForm, setTicketForm] = useState({
+    title: "", description: "", impact: "INDIVIDUAL", urgency: "MODERATE", category: "", is_external: false,
+  });
+  const [categories, setCategories] = useState([]);
   const now = new Date();
 
   const load = async () => {
@@ -87,6 +96,7 @@ export default function MyTasksScreen() {
 
   useEffect(() => {
     load();
+    getTicketCategories().then(setCategories).catch(() => setCategories([]));
   }, []);
 
   const handleComplete = async (taskId) => {
@@ -132,6 +142,20 @@ export default function MyTasksScreen() {
     }
   };
 
+  const handleCreateTicket = async (e) => {
+    e.preventDefault();
+    if (!ticketForm.title.trim() || !ticketForm.category) return;
+    try {
+      const created = await createTicket(ticketForm);
+      toast.success(`Ticket #${created.id} created -- routed to ${created.department_id ? `department ${created.department_id}` : "unassigned (no route configured for this category yet)"}.`);
+      setTicketForm({ title: "", description: "", impact: "INDIVIDUAL", urgency: "MODERATE", category: "", is_external: false });
+      setShowCreate(false);
+      load();
+    } catch {
+      toast.error("Could not create ticket.");
+    }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
@@ -148,42 +172,115 @@ export default function MyTasksScreen() {
       </div>
 
       {showCreate && (
-        <form onSubmit={handleCreate} className="mb-6 border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-          <input
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            placeholder="Task title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-          <div className="flex gap-3">
-            <select
-              className="border border-gray-300 rounded px-3 py-2 text-sm"
-              value={form.priority}
-              onChange={(e) => setForm({ ...form, priority: e.target.value })}
+        <div className="mb-6 border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+          <div className="flex gap-2 text-xs font-medium">
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-full border ${mode === "TASK" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300"}`}
+              onClick={() => setMode("TASK")}
             >
-              {["LOW", "MEDIUM", "HIGH", "URGENT"].map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-            <input
-              type="datetime-local"
-              className="border border-gray-300 rounded px-3 py-2 text-sm"
-              value={form.due_date}
-              onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-            />
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={form.is_external}
-                onChange={(e) => setForm({ ...form, is_external: e.target.checked })}
-              />
-              External stakeholder involved
-            </label>
+              Task
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-full border ${mode === "TICKET" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300"}`}
+              onClick={() => setMode("TICKET")}
+            >
+              Help Desk Ticket
+            </button>
           </div>
-          <button type="submit" className="bg-blue-600 text-white text-sm font-medium px-3 py-2 rounded hover:bg-blue-700">
-            Create
-          </button>
-        </form>
+
+          {mode === "TASK" ? (
+            <form onSubmit={handleCreate} className="space-y-3">
+              <input
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                placeholder="Task title"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+              <div className="flex gap-3">
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                  value={form.priority}
+                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                >
+                  {["LOW", "MEDIUM", "HIGH", "URGENT"].map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <input
+                  type="datetime-local"
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                  value={form.due_date}
+                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                />
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={form.is_external}
+                    onChange={(e) => setForm({ ...form, is_external: e.target.checked })}
+                  />
+                  External stakeholder involved
+                </label>
+              </div>
+              <button type="submit" className="bg-blue-600 text-white text-sm font-medium px-3 py-2 rounded hover:bg-blue-700">
+                Create
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleCreateTicket} className="space-y-3">
+              <input
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                placeholder="What's the issue?"
+                value={ticketForm.title}
+                onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
+              />
+              <textarea
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                placeholder="Description (optional)"
+                rows={2}
+                value={ticketForm.description}
+                onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+              />
+              <div className="flex flex-wrap gap-3">
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                  value={ticketForm.category}
+                  onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
+                >
+                  <option value="">Select category...</option>
+                  {categories.map((c) => (
+                    <option key={`${c.category}|${c.subcategory || ""}`} value={c.category}>{c.category}</option>
+                  ))}
+                </select>
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                  value={ticketForm.impact}
+                  onChange={(e) => setTicketForm({ ...ticketForm, impact: e.target.value })}
+                  title="Impact -- how much of the business is affected"
+                >
+                  {TICKET_IMPACTS.map((v) => (
+                    <option key={v} value={v}>{v.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                  value={ticketForm.urgency}
+                  onChange={(e) => setTicketForm({ ...ticketForm, urgency: e.target.value })}
+                  title="Urgency -- how fast it needs fixing"
+                >
+                  {TICKET_URGENCIES.map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-gray-500">Priority is derived from Impact + Urgency, not picked directly.</p>
+              <button type="submit" className="bg-blue-600 text-white text-sm font-medium px-3 py-2 rounded hover:bg-blue-700">
+                Submit Ticket
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
       {loading ? (
