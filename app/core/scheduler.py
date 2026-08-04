@@ -623,6 +623,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register task escalation scheduler: {exc}")
 
+        # ── Daily: BIRTHDAY_DRAFTS_JOB (Executive Signal & Culture Agent) ───
+        try:
+            from app.core.database import SessionLocal
+            from app.services.culture_agent_service import generate_birthday_drafts
+
+            async def _run_birthday_drafts():
+                db = SessionLocal()
+                try:
+                    drafts = generate_birthday_drafts(db)
+                    if drafts:
+                        logger.info(f"[scheduler] Birthday drafts: {len(drafts)} drafted for review")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Birthday drafts job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_birthday_drafts,
+                trigger="interval",
+                hours=24,
+                id="birthday_drafts_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled birthday drafts job (every 24 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register birthday drafts scheduler: {exc}")
+
         # ── Daily: MELLOW_KEEPWARM_JOB (outreach cadence-by-stage) ──────────
         try:
             from app.core.database import SessionLocal

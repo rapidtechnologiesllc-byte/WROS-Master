@@ -105,6 +105,12 @@ from app.models.tenant_ai_config import TenantAIConfig, TenantAIConfigChangeLog
 from app.models.event_log import EventLog
 from app.models.agent_execution_log import AgentExecutionLog
 from app.models.preboarding_touchpoint import PreboardingTouchpoint
+from app.models.task import Task, TaskReassignmentRequest, TaskCapacityAlert
+from app.models.ticket import TicketCategoryRoute, TicketSLAPolicy, TicketDetail
+from app.models.candidate_opportunity_watch import CandidateOpportunityWatch
+from app.models.executive_signal import (
+    EmployeeFeedbackCycle, EmployeeFeedbackResponse, RecognitionMessageDraft, EmployeeConcernIntake,
+)
 
 __all__ = [
     # Base
@@ -257,5 +263,20 @@ __all__ = [
     "EventLog",
     "AgentExecutionLog",
     "PreboardingTouchpoint",
+    # Task Dashboard (S-434, 2026-08-04)
+    "Task",
+    "TaskReassignmentRequest",
+    "TaskCapacityAlert",
+    # Help Desk/IT-HR Ticketing (2026-08-04)
+    "TicketCategoryRoute",
+    "TicketSLAPolicy",
+    "TicketDetail",
+    # Ready-for-opportunity workflow (2026-08-04)
+    "CandidateOpportunityWatch",
+    # Executive Signal & Culture Agent (2026-08-04)
+    "EmployeeFeedbackCycle",
+    "EmployeeFeedbackResponse",
+    "RecognitionMessageDraft",
+    "EmployeeConcernIntake",
 ]
 
