@@ -36,4 +36,5 @@ export const ROUTES = {
   TENANT_AI_CONFIG: "/admin/ai-config",
   TICKET_ROUTING_ADMIN: "/admin/ticket-routing",
   BUDDY_PROGRAM: "/buddy-program",
+  EXECUTIVE_SIGNAL: "/executive-signal",
 };
