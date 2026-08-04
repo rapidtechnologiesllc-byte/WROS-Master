@@ -82,13 +82,16 @@ const NAV_ITEMS = {
   // S-071/HRMS-0471 -- leadership-facing KPI view of Thunder's own
   // autonomous performance, distinct from the per-candidate risk view above.
   thunderAnalytics: { path: ROUTES.THUNDER_ANALYTICS, label: "Thunder Analytics", icon: LineChart },
+  // S-074/HRMS-0474 -- CSV import + rate-limited Thunder launch for
+  // many candidates at once.
+  bulkLaunch: { path: ROUTES.BULK_LAUNCH, label: "Bulk Launch", icon: UserPlus },
 };
 
 const GROUP_DEFS = [
   {
     label: "Recruitment",
     icon: Users,
-    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "riskDashboard", "thunderAnalytics"],
+    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "riskDashboard", "thunderAnalytics", "bulkLaunch"],
   },
   {
     label: "Workforce",
