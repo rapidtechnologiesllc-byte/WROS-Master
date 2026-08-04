@@ -73,6 +73,11 @@ export const createBusinessUnit = async (payload) => {
   return data;
 };
 // Departments
+export const listDepartments = async () => {
+  const { data } = await apiRequest("/rbac/departments", { method: "GET" });
+  return data;
+};
+
 export const createDepartment = async (payload) => {
   const { data } = await apiRequest("/rbac/departments", {
     method: "POST",

@@ -88,6 +88,7 @@ import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
+import TicketRoutingAdminScreen from "../screens/TicketRoutingAdminScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -487,6 +488,7 @@ export default function AppRoutes() {
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
+            <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
 
             <Route
               path="candidates"
@@ -699,6 +701,7 @@ export default function AppRoutes() {
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
+            <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
           <Route
             path="candidates"
             element={
