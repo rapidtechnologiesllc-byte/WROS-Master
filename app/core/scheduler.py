@@ -434,6 +434,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register daily digest scheduler: {exc}")
 
+        # ── Every 4 hours: ENGAGEMENT_METRICS_JOB (S-070/HRMS-0470) ─────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.engagement_metrics_service import run_engagement_metrics_job
+
+            async def _run_engagement_metrics():
+                db = SessionLocal()
+                try:
+                    result = run_engagement_metrics_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Engagement metrics: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Engagement metrics error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_engagement_metrics,
+                trigger="interval",
+                hours=4,
+                id="engagement_metrics_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled engagement metrics job (every 4 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register engagement metrics scheduler: {exc}")
+
         # ── Every 4 hours: DROP_RISK_SCORING_JOB (S-060/HRMS-0460) ──────────
         try:
             from app.core.database import SessionLocal
