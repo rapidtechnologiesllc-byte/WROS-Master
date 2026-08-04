@@ -6,6 +6,7 @@
 // Urgent tasks (not due today) show separately, never mixed in.
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { Card, Button, Input, Select } from "../components/ui";
 import {
   completeTask, confirmUrgentTask, createTask, getMyDayTasks, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
@@ -13,11 +14,12 @@ import { createTicket, getTicketCategories } from "../services/api/tickets";
 
 const TICKET_IMPACTS = ["INDIVIDUAL", "DEPARTMENT", "MULTIPLE_DEPARTMENTS", "ORG_WIDE"];
 const TICKET_URGENCIES = ["LOW", "MODERATE", "CRITICAL"];
+const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
 const PRIORITY_STYLES = {
   URGENT: "bg-red-100 text-red-800 border-red-300",
   HIGH: "bg-amber-100 text-amber-800 border-amber-300",
-  MEDIUM: "bg-blue-50 text-blue-700 border-blue-200",
+  MEDIUM: "bg-bx-orange/10 text-bx-orange border-bx-orange/30",
   LOW: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
@@ -28,12 +30,12 @@ function isOverdue(task, now) {
 function TaskRow({ task, now, onComplete, onConfirmUrgent }) {
   const overdue = isOverdue(task, now);
   return (
-    <tr className="border-b border-gray-100 last:border-0">
+    <tr className="border-b border-bx-border last:border-0">
       <td className="py-2 px-3 text-xs text-gray-500">#{task.id}</td>
       <td className="py-2 px-3">
-        <div className="text-sm font-medium text-gray-900">{task.title}</div>
+        <div className="text-sm font-medium text-bx-slate">{task.title}</div>
         {task.priority_challenged && (
-          <div className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-flex items-center gap-2">
+          <div className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-bx px-2 py-1 inline-flex items-center gap-2">
             Thunder: {task.priority_challenge_note}
             <button
               className="underline font-medium"
@@ -45,7 +47,7 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent }) {
         )}
       </td>
       <td className="py-2 px-3">
-        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded border ${PRIORITY_STYLES[task.priority] || ""}`}>
+        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-bx border ${PRIORITY_STYLES[task.priority] || ""}`}>
           {task.priority}
         </span>
       </td>
@@ -58,7 +60,7 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent }) {
       <td className="py-2 px-3">
         {task.status !== "COMPLETED" && (
           <button
-            className="text-xs font-medium text-green-700 hover:underline"
+            className="text-xs font-semibold text-emerald-700 hover:underline"
             onClick={() => onComplete(task.id)}
           >
             Mark complete
@@ -156,34 +158,34 @@ export default function MyTasksScreen() {
     }
   };
 
+  const categoryOptions = [
+    { value: "", label: "Select category..." },
+    ...categories.map((c) => ({ value: c.category, label: c.category })),
+  ];
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">My Tasks</h1>
+          <h1 className="text-xl font-bold text-bx-navy">My Tasks</h1>
           <p className="text-sm text-gray-500">Due today or overdue -- guaranteed on this list regardless of priority.</p>
         </div>
-        <button
-          className="bg-blue-600 text-white text-sm font-medium px-3 py-2 rounded hover:bg-blue-700"
-          onClick={() => setShowCreate((s) => !s)}
-        >
-          + New Task
-        </button>
+        <Button onClick={() => setShowCreate((s) => !s)}>+ New Task</Button>
       </div>
 
       {showCreate && (
-        <div className="mb-6 border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-          <div className="flex gap-2 text-xs font-medium">
+        <Card bodyClassName="px-5 py-5" title={mode === "TASK" ? "New Task" : "New Help Desk Ticket"}>
+          <div className="mb-4 flex gap-2 text-xs font-semibold">
             <button
               type="button"
-              className={`px-3 py-1.5 rounded-full border ${mode === "TASK" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300"}`}
+              className={`px-3 py-1.5 rounded-full border transition ${mode === "TASK" ? "bg-bx-orange text-white border-bx-orange" : "bg-white text-gray-600 border-bx-border hover:bg-bx-light"}`}
               onClick={() => setMode("TASK")}
             >
               Task
             </button>
             <button
               type="button"
-              className={`px-3 py-1.5 rounded-full border ${mode === "TICKET" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300"}`}
+              className={`px-3 py-1.5 rounded-full border transition ${mode === "TICKET" ? "bg-bx-orange text-white border-bx-orange" : "bg-white text-gray-600 border-bx-border hover:bg-bx-light"}`}
               onClick={() => setMode("TICKET")}
             >
               Help Desk Ticket
@@ -192,29 +194,11 @@ export default function MyTasksScreen() {
 
           {mode === "TASK" ? (
             <form onSubmit={handleCreate} className="space-y-3">
-              <input
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                placeholder="Task title"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-              <div className="flex gap-3">
-                <select
-                  className="border border-gray-300 rounded px-3 py-2 text-sm"
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                >
-                  {["LOW", "MEDIUM", "HIGH", "URGENT"].map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                <input
-                  type="datetime-local"
-                  className="border border-gray-300 rounded px-3 py-2 text-sm"
-                  value={form.due_date}
-                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                />
-                <label className="flex items-center gap-2 text-sm text-gray-600">
+              <Input label="Task title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
+              <div className="flex flex-wrap gap-3">
+                <Select label="Priority" value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={TASK_PRIORITIES} />
+                <Input label="Due date" type="datetime-local" value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} />
+                <label className="flex items-center gap-2 text-sm text-gray-600 self-end pb-2.5">
                   <input
                     type="checkbox"
                     checked={form.is_external}
@@ -223,73 +207,44 @@ export default function MyTasksScreen() {
                   External stakeholder involved
                 </label>
               </div>
-              <button type="submit" className="bg-blue-600 text-white text-sm font-medium px-3 py-2 rounded hover:bg-blue-700">
-                Create
-              </button>
+              <Button type="submit">Create</Button>
             </form>
           ) : (
             <form onSubmit={handleCreateTicket} className="space-y-3">
-              <input
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                placeholder="What's the issue?"
-                value={ticketForm.title}
-                onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
-              />
-              <textarea
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                placeholder="Description (optional)"
-                rows={2}
-                value={ticketForm.description}
-                onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
-              />
+              <Input label="What's the issue?" value={ticketForm.title} onChange={(v) => setTicketForm({ ...ticketForm, title: v })} />
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-gray-700">Description (optional)</div>
+                <textarea
+                  className="w-full rounded-xl border border-bx-border bg-white px-3 py-2 text-sm outline-none focus:border-bx-orange"
+                  rows={2}
+                  value={ticketForm.description}
+                  onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+                />
+              </label>
               <div className="flex flex-wrap gap-3">
-                <select
-                  className="border border-gray-300 rounded px-3 py-2 text-sm"
-                  value={ticketForm.category}
-                  onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
-                >
-                  <option value="">Select category...</option>
-                  {categories.map((c) => (
-                    <option key={`${c.category}|${c.subcategory || ""}`} value={c.category}>{c.category}</option>
-                  ))}
-                </select>
-                <select
-                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                <Select label="Category" value={ticketForm.category} onChange={(v) => setTicketForm({ ...ticketForm, category: v })} options={categoryOptions} />
+                <Select
+                  label="Impact"
                   value={ticketForm.impact}
-                  onChange={(e) => setTicketForm({ ...ticketForm, impact: e.target.value })}
-                  title="Impact -- how much of the business is affected"
-                >
-                  {TICKET_IMPACTS.map((v) => (
-                    <option key={v} value={v}>{v.replace(/_/g, " ")}</option>
-                  ))}
-                </select>
-                <select
-                  className="border border-gray-300 rounded px-3 py-2 text-sm"
-                  value={ticketForm.urgency}
-                  onChange={(e) => setTicketForm({ ...ticketForm, urgency: e.target.value })}
-                  title="Urgency -- how fast it needs fixing"
-                >
-                  {TICKET_URGENCIES.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setTicketForm({ ...ticketForm, impact: v })}
+                  options={TICKET_IMPACTS.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
+                />
+                <Select label="Urgency" value={ticketForm.urgency} onChange={(v) => setTicketForm({ ...ticketForm, urgency: v })} options={TICKET_URGENCIES} />
               </div>
               <p className="text-xs text-gray-500">Priority is derived from Impact + Urgency, not picked directly.</p>
-              <button type="submit" className="bg-blue-600 text-white text-sm font-medium px-3 py-2 rounded hover:bg-blue-700">
-                Submit Ticket
-              </button>
+              <Button type="submit">Submit Ticket</Button>
             </form>
           )}
-        </div>
+        </Card>
       )}
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading...</p>
       ) : (
         <>
-          <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
+          <div className="border border-bx-border rounded-bx-lg overflow-hidden mb-6 bg-white shadow-sm">
             <table className="w-full text-left">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+              <thead className="bg-bx-light text-xs uppercase text-gray-500">
                 <tr>
                   <th className="py-2 px-3">Task #</th>
                   <th className="py-2 px-3">Task</th>
@@ -315,7 +270,7 @@ export default function MyTasksScreen() {
           {upcoming.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-700 mb-2">Upcoming Urgent (heads-up, not due today)</h2>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="border border-bx-border rounded-bx-lg overflow-hidden bg-white shadow-sm">
                 <table className="w-full text-left">
                   <tbody>
                     {upcoming.map((t) => (
