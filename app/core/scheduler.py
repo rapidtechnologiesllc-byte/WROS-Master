@@ -542,6 +542,60 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register pause expiry scheduler: {exc}")
 
+        # ── Every 15 min: SUPERVISOR_AGENT_JOB (S-066/HRMS-0466) ────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.supervisor_agent_service import run_supervisor_cycle
+
+            async def _run_supervisor_cycle():
+                db = SessionLocal()
+                try:
+                    result = run_supervisor_cycle(db)
+                    if result["tenants_processed"]:
+                        logger.info(f"[scheduler] Supervisor cycle: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Supervisor cycle error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_supervisor_cycle,
+                trigger="interval",
+                minutes=15,
+                id="supervisor_agent_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled supervisor agent job (every 15 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register supervisor agent scheduler: {exc}")
+
+        # ── Every 6 hours: ONBOARDING_TOUCHPOINT_JOB (S-067/HRMS-0467) ──────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.onboarding_agent_service import run_onboarding_touchpoint_job
+
+            async def _run_onboarding_touchpoint():
+                db = SessionLocal()
+                try:
+                    result = run_onboarding_touchpoint_job(db)
+                    if result["processed"] or result["completions_detected"]:
+                        logger.info(f"[scheduler] Onboarding touchpoint job: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Onboarding touchpoint job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_onboarding_touchpoint,
+                trigger="interval",
+                hours=6,
+                id="onboarding_touchpoint_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled onboarding touchpoint job (every 6 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register onboarding touchpoint scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
