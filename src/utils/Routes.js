@@ -30,4 +30,5 @@ export const ROUTES = {
   OFFERS_LISTING: "/offers-listing",
   INTERVENTION_QUEUE: "/recruiter/intervention-queue",
   RISK_DASHBOARD: "/recruiter/risk-dashboard",
+  THUNDER_ANALYTICS: "/recruiter/thunder-analytics",
 };
