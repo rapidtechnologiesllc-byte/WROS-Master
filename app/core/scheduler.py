@@ -623,6 +623,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register task escalation scheduler: {exc}")
 
+        # ── Daily: MELLOW_KEEPWARM_JOB (outreach cadence-by-stage) ──────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.mellow_keepwarm_service import run_mellow_keepwarm_job
+
+            async def _run_mellow_keepwarm():
+                db = SessionLocal()
+                try:
+                    result = run_mellow_keepwarm_job(db)
+                    if result["nudged"]:
+                        logger.info(f"[scheduler] Mellow keep-warm: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Mellow keep-warm job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_mellow_keepwarm,
+                trigger="interval",
+                hours=24,
+                id="mellow_keepwarm_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled mellow keep-warm job (every 24 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register mellow keep-warm scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

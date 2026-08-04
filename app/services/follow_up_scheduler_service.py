@@ -59,6 +59,21 @@ WHATSAPP_FOLLOWUP_HOURS = int(os.getenv("WHATSAPP_FOLLOWUP_HOURS", "24"))  # BR-
 EMAIL_FOLLOWUP_HOURS = int(os.getenv("EMAIL_FOLLOWUP_HOURS", "48"))  # BR-04 default
 JOB_BATCH_SIZE = 50
 
+# Real cadence-by-stage reconciliation, 2026-08-04 (see
+# [[wros_outreach_cadence_by_stage_backlog]]): this scheduler is now the
+# INTERVIEW-stage mechanism specifically (24h, business-hours-gated) --
+# ENGAGED/QUALIFYING/SCREENED are handled by the new, separate mellow
+# keep-warm mechanism instead (app.services.mellow_keepwarm_service),
+# and OFFER/PREBOARDING already have their own correct 30h mechanism
+# (conversation_inactivity_service, confirmed correct by Avinash,
+# untouched). A stage outside INTERVIEW gets SKIPPED here, same as any
+# other real ineligibility reason this job already checks.
+FOLLOWUP_ELIGIBLE_STAGES = ("INTERVIEW",)
+# Spec's literal "9am-9pm" window, reused from notification_service's
+# already-tested timezone conversion rather than re-deriving it.
+BUSINESS_HOURS_START = 9
+BUSINESS_HOURS_END = 21
+
 
 def followup_hours_for_channel(channel: str, db: Optional[Session] = None, tenant_id: Optional[str] = None) -> int:
     """Public (not underscore-prefixed) -- shared with
@@ -146,6 +161,37 @@ def _has_replied_since(db: Session, conversation_id: int, since: Optional[dateti
     return reply is not None
 
 
+def _is_business_hours_weekday(now_utc: datetime, tz_name: str) -> bool:
+    """Spec's real constraint is "24 calendar hours, gated to business
+    hours Monday-Friday" -- notification_service's own
+    _is_within_business_hours() only checks the hour, so weekday is
+    checked here on top of it, same reused timezone conversion."""
+    from zoneinfo import ZoneInfo
+    import datetime as dt
+
+    from app.services.notification_service import _is_within_business_hours, DEFAULT_TIMEZONE
+
+    tz = ZoneInfo(tz_name or DEFAULT_TIMEZONE)
+    local_now = now_utc.replace(tzinfo=dt.timezone.utc).astimezone(tz)
+    is_weekday = local_now.weekday() < 5  # Mon=0..Fri=4
+    return is_weekday and _is_within_business_hours(
+        now_utc, tz_name, start_hour=BUSINESS_HOURS_START, end_hour=BUSINESS_HOURS_END,
+    )
+
+
+def _next_business_hours_weekday(now_utc: datetime, tz_name: str) -> datetime:
+    """Next moment that's both a weekday AND inside the business-hours
+    window -- reuses notification_service's own single-step
+    next-business-hours calculation, then walks forward a day at a time
+    over a weekend."""
+    from app.services.notification_service import _next_business_hours_release
+
+    candidate = _next_business_hours_release(now_utc, tz_name, start_hour=BUSINESS_HOURS_START, end_hour=BUSINESS_HOURS_END)
+    while not _is_business_hours_weekday(candidate, tz_name):
+        candidate += timedelta(hours=1)
+    return candidate
+
+
 def _send_followup(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str) -> None:
     """Step 3.5/3.6. Delegates to thunder_service's shared send helper
     -- see that function's own docstring on why this was consolidated
@@ -154,14 +200,15 @@ def _send_followup(db: Session, conversation: CandidateConversation, candidate: 
     send_outbound_campaign_message(db, conversation, candidate, message_body, channel)
 
 
-def run_follow_up_execution_job(db: Session) -> Dict:
+def run_follow_up_execution_job(db: Session, *, now: Optional[datetime] = None) -> Dict:
     """Step 3. FOLLOWUP_EXECUTION_JOB body, run every 15 min. Never lets
     one bad row abort the batch -- catches per-row, marks SKIPPED, moves on."""
+    from app.services.candidate_journey_service import get_candidate_journey
     from app.services.ghosting_detection_service import is_candidate_ghosted
     from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, generate_followup_message_with_fallback
     from app.services.whatsapp_routing_service import is_ai_owner
 
-    now = datetime.utcnow()
+    now = now or datetime.utcnow()
     due = (
         db.query(FollowUpSchedule)
         .filter(FollowUpSchedule.status == "PENDING", FollowUpSchedule.scheduled_at <= now)
@@ -196,6 +243,20 @@ def run_follow_up_execution_job(db: Session) -> Dict:
                 result["skipped"] += 1
             elif is_candidate_ghosted(db, row.candidate_id, row.tenant_id):  # S-043 BR-01
                 row.status = "SKIPPED"
+                result["skipped"] += 1
+            elif get_candidate_journey(db, row.candidate_id, row.tenant_id)["current_stage"] not in FOLLOWUP_ELIGIBLE_STAGES:
+                # Real cadence-by-stage reconciliation -- this scheduler
+                # is the INTERVIEW-stage mechanism specifically now; any
+                # other stage is either mellow-keep-warm's job or
+                # already correctly handled elsewhere (see module
+                # constant's own comment).
+                row.status = "SKIPPED"
+                result["skipped"] += 1
+            elif not _is_business_hours_weekday(now, candidate.timezone or "Asia/Kolkata"):
+                # BR: 24 CALENDAR hours, but only actually SENT during
+                # business hours Mon-Fri candidate-local -- reschedule
+                # rather than lose the follow-up or send at 2am.
+                row.scheduled_at = _next_business_hours_weekday(now, candidate.timezone or "Asia/Kolkata")
                 result["skipped"] += 1
             else:
                 message, used_fallback = generate_followup_message_with_fallback(

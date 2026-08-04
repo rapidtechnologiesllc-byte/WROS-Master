@@ -25,8 +25,15 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_ghosting_status import CandidateGhostingStatus
+from app.models.candidate_job_score import CandidateJobScore
+from app.models.candidate_joining_score import CandidateJoiningScore
 from app.models.consent import ConsentRecord
+from app.models.employee import Employee
 from app.models.follow_up_schedule import FollowUpSchedule
+from app.models.interview_pipeline import SubmissionInterview
+from app.models.offer_letter import OfferLetter
+from app.models.preboarding_document import PreboardingDocument
+from app.models.submission import Submission
 from app.models.user import Users
 
 import app.services.follow_up_scheduler_service as svc
@@ -44,6 +51,26 @@ def _fake_whatsapp_number(monkeypatch):
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
 
+# Real 2026-08-04 reconciliation: this scheduler is now INTERVIEW-stage-
+# only (see module constant FOLLOWUP_ELIGIBLE_STAGES) -- every test
+# fixture candidate here defaults to INTERVIEW so the pre-existing
+# tests still exercise the same send/skip logic they always did,
+# without each one needing a real Client/Demand/Submission/
+# SubmissionInterview chain just to reach that stage naturally. The
+# one new stage-scoping test overrides this back to ENGAGED.
+@pytest.fixture(autouse=True)
+def _default_interview_stage(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.candidate_journey_service.get_candidate_journey",
+        lambda *a, **kw: {"current_stage": "INTERVIEW"},
+    )
+
+
+# A real Monday 10am IST -- inside the business-hours-weekday window,
+# so tests aren't flaky depending on when they happen to run.
+BUSINESS_HOURS_NOW = datetime(2026, 8, 3, 4, 30, 0)  # 2026-08-03 is a Monday; 04:30 UTC = 10:00 IST
+
+
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,6 +79,8 @@ def db_session():
     Base.metadata.create_all(engine, tables=[
         Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
         FollowUpSchedule.__table__, ConsentRecord.__table__, CandidateGhostingStatus.__table__,
+        CandidateJobScore.__table__, CandidateJoiningScore.__table__, Employee.__table__,
+        OfferLetter.__table__, PreboardingDocument.__table__, Submission.__table__, SubmissionInterview.__table__,
     ])
     session = sessionmaker(bind=engine)()
     try:
@@ -136,13 +165,13 @@ def test_followup_hours_configurable_via_env(monkeypatch):
 
 def test_execution_job_sends_due_followup_and_marks_sent(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
 
     monkeypatch.setattr("app.services.thunder_service.generate_followup_message_with_fallback", lambda db, cand, num, **kw: ("Just checking in!", False))
 
-    result = svc.run_follow_up_execution_job(db_session)
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["sent"] == 1
 
     db_session.refresh(record)
@@ -155,12 +184,12 @@ def test_execution_job_sends_due_followup_and_marks_sent(db_session, seeded, mon
 
 def test_execution_job_schedules_next_followup_when_under_max(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
     monkeypatch.setattr("app.services.thunder_service.generate_followup_message_with_fallback", lambda db, cand, num, **kw: ("Just checking in!", False))
 
-    svc.run_follow_up_execution_job(db_session)
+    svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
 
     pending = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1", FollowUpSchedule.status == "PENDING").first()
     assert pending is not None
@@ -171,12 +200,12 @@ def test_execution_job_schedules_next_followup_when_under_max(db_session, seeded
 
 def test_execution_job_does_not_schedule_fourth_after_third(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=3, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=3, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
     monkeypatch.setattr("app.services.thunder_service.generate_followup_message_with_fallback", lambda db, cand, num, **kw: ("Final check-in!", False))
 
-    svc.run_follow_up_execution_job(db_session)
+    svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
 
     remaining_pending = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1", FollowUpSchedule.status == "PENDING").count()
     assert remaining_pending == 0
@@ -192,12 +221,12 @@ def test_execution_job_cancels_when_candidate_already_replied(db_session, seeded
     # comparison _has_replied_since() relies on.
     original.created_at = datetime.utcnow() - timedelta(hours=1)
     db_session.add(original)
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.add(ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={"channel": "whatsapp", "body": "yes I'm interested"}, triggered_by="candidate", created_at=datetime.utcnow()))
     db_session.commit()
 
-    result = svc.run_follow_up_execution_job(db_session)
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["cancelled"] == 1
     db_session.refresh(record)
     assert record.status == "CANCELLED"
@@ -230,11 +259,11 @@ def test_execution_job_skips_when_recruiter_owns(db_session, seeded):
     conv.owner_id = "U-RECRUITER"
     db_session.commit()
 
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
 
-    result = svc.run_follow_up_execution_job(db_session)
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["skipped"] == 1
     db_session.refresh(record)
     assert record.status == "SKIPPED"
@@ -245,11 +274,11 @@ def test_execution_job_skips_when_conversation_closed(db_session, seeded):
     conv.status = "closed"
     db_session.commit()
 
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
 
-    result = svc.run_follow_up_execution_job(db_session)
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["skipped"] == 1
 
 
@@ -258,11 +287,11 @@ def test_execution_job_skips_when_escalated(db_session, seeded):
     conv.escalation_state = "escalated"
     db_session.commit()
 
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
 
-    result = svc.run_follow_up_execution_job(db_session)
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["skipped"] == 1
 
 
@@ -272,18 +301,18 @@ def test_execution_job_ignores_not_yet_due_followups(db_session, seeded):
     db_session.add(record)
     db_session.commit()
 
-    result = svc.run_follow_up_execution_job(db_session)
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["processed"] == 0
 
 
 def test_execution_job_logs_generation_failed_on_fallback(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
     monkeypatch.setattr("app.services.thunder_service.generate_followup_message_with_fallback", lambda db, cand, num, **kw: (svc.__dict__.get("SAFE_FOLLOWUP_FALLBACK_MESSAGE", "fallback"), True))
 
-    svc.run_follow_up_execution_job(db_session)
+    svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
 
     failed_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "FOLLOWUP_GENERATION_FAILED").all()
     assert len(failed_events) == 1
@@ -291,7 +320,7 @@ def test_execution_job_logs_generation_failed_on_fallback(db_session, seeded, mo
 
 def test_execution_job_never_raises_on_bad_row(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
-    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
     db_session.add(record)
     db_session.commit()
 
@@ -300,5 +329,41 @@ def test_execution_job_never_raises_on_bad_row(db_session, seeded, monkeypatch):
 
     monkeypatch.setattr("app.services.thunder_service.generate_followup_message_with_fallback", _boom)
 
-    result = svc.run_follow_up_execution_job(db_session)  # should not raise
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)  # should not raise
     assert result["skipped"] == 1
+
+
+# ── Real 2026-08-04 cadence-by-stage reconciliation ──────────────────
+
+def test_execution_job_skips_non_interview_stage(db_session, seeded, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.candidate_journey_service.get_candidate_journey",
+        lambda *a, **kw: {"current_stage": "ENGAGED"},
+    )
+    candidate, conv, original = seeded
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    db_session.add(record)
+    db_session.commit()
+
+    result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
+    assert result["sent"] == 0
+    assert result["skipped"] == 1
+    db_session.refresh(record)
+    assert record.status == "SKIPPED"
+
+
+def test_execution_job_reschedules_outside_business_hours(db_session, seeded, monkeypatch):
+    """BR: 24 calendar hours, but only sent Mon-Fri 9am-9pm candidate-
+    local -- outside that window, the follow-up is rescheduled, not
+    lost or sent at 2am."""
+    candidate, conv, original = seeded
+    record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
+    db_session.add(record)
+    db_session.commit()
+
+    saturday_2am_ist = datetime(2026, 8, 1, 20, 30, 0)  # 2026-08-01 is a Saturday; 20:30 UTC Fri = 2:00 AM Sat IST
+    result = svc.run_follow_up_execution_job(db_session, now=saturday_2am_ist)
+    assert result["sent"] == 0
+    db_session.refresh(record)
+    assert record.status == "PENDING"  # not lost -- rescheduled
+    assert record.scheduled_at > saturday_2am_ist
