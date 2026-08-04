@@ -88,6 +88,7 @@ import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
+import MyTimesheetScreen from "../screens/MyTimesheetScreen";
 import TicketRoutingAdminScreen from "../screens/TicketRoutingAdminScreen";
 import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
 import BuddyProgramScreen from "../screens/BuddyProgramScreen";
@@ -491,6 +492,7 @@ export default function AppRoutes() {
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
+            <Route path="my-timesheet" element={<MyTimesheetScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
@@ -707,6 +709,7 @@ export default function AppRoutes() {
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
+            <Route path="my-timesheet" element={<MyTimesheetScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
