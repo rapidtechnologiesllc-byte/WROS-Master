@@ -89,6 +89,8 @@ import BulkLaunchScreen from "../screens/BulkLaunchScreen";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
 import TicketRoutingAdminScreen from "../screens/TicketRoutingAdminScreen";
+import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
+import BuddyProgramScreen from "../screens/BuddyProgramScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -489,6 +491,8 @@ export default function AppRoutes() {
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
+            <Route path="buddy-program" element={<BuddyProgramListScreen />} />
+            <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
 
             <Route
               path="candidates"
@@ -702,6 +706,8 @@ export default function AppRoutes() {
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
+            <Route path="buddy-program" element={<BuddyProgramListScreen />} />
+            <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
           <Route
             path="candidates"
             element={

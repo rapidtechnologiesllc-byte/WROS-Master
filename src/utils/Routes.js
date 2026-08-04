@@ -35,4 +35,5 @@ export const ROUTES = {
   BULK_LAUNCH: "/recruiter/bulk-launch",
   TENANT_AI_CONFIG: "/admin/ai-config",
   TICKET_ROUTING_ADMIN: "/admin/ticket-routing",
+  BUDDY_PROGRAM: "/buddy-program",
 };
