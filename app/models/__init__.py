@@ -111,6 +111,7 @@ from app.models.candidate_opportunity_watch import CandidateOpportunityWatch
 from app.models.executive_signal import (
     EmployeeFeedbackCycle, EmployeeFeedbackResponse, RecognitionMessageDraft, EmployeeConcernIntake,
 )
+from app.models.error_log import ErrorLog
 
 __all__ = [
     # Base
@@ -278,5 +279,7 @@ __all__ = [
     "EmployeeFeedbackResponse",
     "RecognitionMessageDraft",
     "EmployeeConcernIntake",
+    # Error Logging Framework (S-215/HRMS-0117, 2026-08-04)
+    "ErrorLog",
 ]
 
