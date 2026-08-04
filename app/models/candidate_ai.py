@@ -103,6 +103,18 @@ class CandidateConversation(Base):
     # Escalation workflow state
     escalation_state = Column(String(50), nullable=True, server_default="none")
 
+    # S-075/HRMS-0475 -- per-candidate Thunder pause. Independent of
+    # owner_type (BR-01): pausing does NOT transfer ownership, so when
+    # Thunder resumes it picks up where it left off with no "Hand Back"
+    # required. thunder_resume_at is nullable -- NULL means "paused
+    # until manually resumed" (no PauseExpiryJob auto-resume).
+    is_thunder_paused = Column(Boolean, nullable=False, server_default="0")
+    thunder_paused_at = Column(DateTime(timezone=False), nullable=True)
+    thunder_resume_at = Column(DateTime(timezone=False), nullable=True)
+    thunder_paused_by = Column(
+        String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True,
+    )
+
     # S-054/HRMS-0454 -- set true once an offer is released (Step 4).
     # Enables HRMS-0455 (Offer FAQ Bot) to respond to offer questions --
     # that story isn't built yet, but the flag is cheap, real, and

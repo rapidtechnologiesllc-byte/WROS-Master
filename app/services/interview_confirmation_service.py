@@ -87,7 +87,7 @@ from app.models.submission import Submission
 from app.models.user import Users
 from app.services.email_service import EmailService
 from app.services.notification_service import send_notification
-from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, send_thunder_message
+from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
 DEFAULT_ORGANIZER_EMAIL = os.getenv("THUNDER_ORGANIZER_EMAIL", "thunder@blitzenx.com")
 GraphCreateEventCall = Callable[[str, str, str, str, str, str, list], str]
@@ -209,7 +209,7 @@ def confirm_interview(
         try:
             send_thunder_message(db, conversation, candidate, candidate_message, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
             whatsapp_sent = True
-        except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed) as exc:
+        except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
             logger.info(f"[InterviewConfirmation] WhatsApp confirmation skipped for candidate {candidate.candidateID!r}: {exc}")
 
         ics_bytes = build_ics_file(

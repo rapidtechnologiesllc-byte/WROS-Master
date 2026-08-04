@@ -77,7 +77,7 @@ def run_reactivation_job(db: Session) -> Dict:
     a REACTIVATION_CAMPAIGN. Never raises."""
     from app.services.ghosting_detection_service import reactivate_candidate
     from app.services.outreach_campaign_service import start_campaign
-    from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, generate_reactivation_message_with_fallback
+    from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, generate_reactivation_message_with_fallback
     from app.services.whatsapp_routing_service import is_ai_owner
 
     now = datetime.utcnow()
@@ -146,7 +146,7 @@ def run_reactivation_job(db: Session) -> Dict:
 
             db.commit()
             result["sent"] += 1
-        except (ConversationOwnedByHuman, ConsentNotGiven, DuplicateMessageSuppressed) as exc:
+        except (ConversationOwnedByHuman, ConsentNotGiven, DuplicateMessageSuppressed, ThunderPausedError) as exc:
             logger.info(f"[Reactivation] Reactivation for candidate {status_row.candidate_id!r} skipped: {exc}")
             result["skipped"] += 1
         except Exception as exc:

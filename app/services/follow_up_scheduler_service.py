@@ -138,7 +138,7 @@ def run_follow_up_execution_job(db: Session) -> Dict:
     """Step 3. FOLLOWUP_EXECUTION_JOB body, run every 15 min. Never lets
     one bad row abort the batch -- catches per-row, marks SKIPPED, moves on."""
     from app.services.ghosting_detection_service import is_candidate_ghosted
-    from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, generate_followup_message_with_fallback
+    from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, generate_followup_message_with_fallback
     from app.services.whatsapp_routing_service import is_ai_owner
 
     now = datetime.utcnow()
@@ -197,7 +197,7 @@ def run_follow_up_execution_job(db: Session) -> Dict:
 
             db.add(row)
             db.commit()
-        except (ConversationOwnedByHuman, ConsentNotGiven, DuplicateMessageSuppressed) as exc:
+        except (ConversationOwnedByHuman, ConsentNotGiven, DuplicateMessageSuppressed, ThunderPausedError) as exc:
             logger.info(f"[FollowUpScheduler] Follow-up #{row.follow_up_number} for candidate {row.candidate_id!r} skipped: {exc}")
             row.status = "SKIPPED"
             db.add(row)

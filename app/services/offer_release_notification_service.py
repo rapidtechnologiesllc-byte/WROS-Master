@@ -61,7 +61,7 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.offer_letter import OfferLetter
 from app.services.candidate_portal_service import generate_portal_link_url
 from app.services.email_service import EmailService
-from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, send_thunder_message
+from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
 
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
@@ -100,7 +100,7 @@ def send_offer_release_notification(db: Session, offer: OfferLetter) -> Dict:
         try:
             send_thunder_message(db, conversation, candidate, message, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
             result["whatsapp_sent"] = True
-        except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed) as exc:
+        except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
             logger.info(f"[OfferReleaseNotification] WhatsApp notification skipped for candidate {candidate.candidateID!r}: {exc}")
 
     offer_document_url = offer.download_url or offer.sharepoint_url or ""

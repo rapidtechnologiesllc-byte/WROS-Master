@@ -38,6 +38,12 @@ Routes:
   POST   /ai-agent/conversations/{conversation_id}/hand-back
       Hand a conversation back to the AI agent (S-010).
 
+  POST   /ai-agent/conversations/{conversation_id}/thunder-pause
+      Pause Thunder for this candidate, optionally until a given time (S-075).
+
+  POST   /ai-agent/conversations/{conversation_id}/thunder-resume
+      Resume Thunder for this candidate immediately (S-075).
+
   GET    /ai-agent/assignments/{candidate_id}
       Return all AI agent assignments for a candidate.
 
@@ -88,8 +94,10 @@ from app.schemas.ai_agent import (
     ProcessReplyResponse,
     InboxMessageItem,
     InboxResponse,
+    PauseThunderRequest,
     SendMessageRequest,
     SendMessageResponse,
+    ThunderPauseResponse,
 )
 from app.services.ai_conversation_service import (
     assign_ai_agent,
@@ -101,6 +109,7 @@ from app.services.ai_conversation_service import (
     SERVICE_MAILBOX,
 )
 from app.services.audit_log_service import log_audit_event
+from app.services.thunder_pause_service import pause_thunder, resume_thunder
 from app.services.whatsapp_routing_service import (
     hand_back_conversation,
     NoWhatsAppNumberAvailable,
@@ -545,6 +554,8 @@ def get_active_conversation(
         escalation_state=conv.escalation_state,
         created_at=conv.created_at.isoformat() if conv.created_at else None,
         updated_at=conv.updated_at.isoformat() if conv.updated_at else None,
+        is_thunder_paused=bool(conv.is_thunder_paused),
+        thunder_resume_at=conv.thunder_resume_at.isoformat() if conv.thunder_resume_at else None,
         events=[
             ConversationEventOut(
                 id=ev.id,
@@ -728,6 +739,98 @@ def hand_back(
         conversation_id=conversation.id,
         owner_type=conversation.owner_type,
         owner_id=conversation.owner_id,
+    )
+
+
+# ===========================================================================
+# POST /ai-agent/conversations/{conversation_id}/thunder-pause
+# ===========================================================================
+
+@router.post(
+    "/conversations/{conversation_id}/thunder-pause",
+    response_model=ThunderPauseResponse,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Pause Thunder for this candidate, optionally with an auto-resume time (S-075)",
+    description=(
+        "HRMS-0475 BR-01: does not change owner_type -- the conversation "
+        "stays AI-owned, so Thunder resumes exactly where it left off "
+        "with no 'Hand Back' needed. Omit resume_at to pause until "
+        "manually resumed."
+    ),
+)
+def thunder_pause(
+    conversation_id: int,
+    body: PauseThunderRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    from datetime import datetime as _datetime
+
+    conversation = _get_conversation_or_404(conversation_id, db)
+    resume_at = None
+    if body.resume_at:
+        try:
+            resume_at = _datetime.fromisoformat(body.resume_at.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Invalid resume_at datetime: {body.resume_at!r}")
+
+    pause_thunder(db, conversation, paused_by=current_user.UserID, resume_at=resume_at)
+    log_audit_event(
+        db,
+        tenant_id=conversation.tenant_id,
+        candidate_id=conversation.candidate_id,
+        conversation_id=conversation.id,
+        audit_event_type="THUNDER_PAUSED",
+        description=f"HR user {current_user.UserID} paused Thunder for conversation {conversation.id}.",
+        actor_type="HR",
+        actor_id=current_user.UserID,
+        after_state={"is_thunder_paused": True, "thunder_resume_at": resume_at.isoformat() if resume_at else None},
+    )
+    db.commit()
+    db.refresh(conversation)
+    return ThunderPauseResponse(
+        conversation_id=conversation.id,
+        is_thunder_paused=conversation.is_thunder_paused,
+        thunder_resume_at=conversation.thunder_resume_at.isoformat() if conversation.thunder_resume_at else None,
+        thunder_paused_by=conversation.thunder_paused_by,
+    )
+
+
+# ===========================================================================
+# POST /ai-agent/conversations/{conversation_id}/thunder-resume
+# ===========================================================================
+
+@router.post(
+    "/conversations/{conversation_id}/thunder-resume",
+    response_model=ThunderPauseResponse,
+    dependencies=[Depends(require_permission("candidate.edit"))],
+    summary="Resume Thunder for this candidate immediately (S-075)",
+)
+def thunder_resume(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    conversation = _get_conversation_or_404(conversation_id, db)
+    resume_thunder(db, conversation)
+    log_audit_event(
+        db,
+        tenant_id=conversation.tenant_id,
+        candidate_id=conversation.candidate_id,
+        conversation_id=conversation.id,
+        audit_event_type="THUNDER_RESUMED",
+        description=f"HR user {current_user.UserID} resumed Thunder for conversation {conversation.id}.",
+        actor_type="HR",
+        actor_id=current_user.UserID,
+        after_state={"is_thunder_paused": False},
+    )
+    db.commit()
+    db.refresh(conversation)
+    return ThunderPauseResponse(
+        conversation_id=conversation.id,
+        is_thunder_paused=conversation.is_thunder_paused,
+        thunder_resume_at=None,
+        thunder_paused_by=conversation.thunder_paused_by,
     )
 
 

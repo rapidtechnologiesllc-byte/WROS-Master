@@ -78,7 +78,7 @@ from app.services.calendar_matching_service import attempt_calendar_match
 from app.services.interview_confirmation_service import confirm_interview
 from app.services.interview_reminder_service import cancel_pending_reminders_for_interview, schedule_reminders_for_interview
 from app.services.notification_service import send_notification
-from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, send_thunder_message
+from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
 MAX_RESCHEDULES = 2  # BR-01
 RESCHEDULE_ACK_MESSAGE = (
@@ -167,7 +167,7 @@ def _escalate_for_scheduling(db: Session, candidate: Candidate, conversation: Ca
     """Step 5/BR-01."""
     try:
         send_thunder_message(db, conversation, candidate, ESCALATION_MESSAGE, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
-    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed) as exc:
+    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[InterviewReschedule] Escalation message skipped for candidate {candidate.candidateID!r}: {exc}")
 
     conversation_state_service.escalate(db, conversation, reason="3+ interview reschedule requests", triggered_by="ai_agent")

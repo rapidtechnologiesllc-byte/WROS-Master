@@ -75,6 +75,8 @@ ACTIVITY_EVENT_SEVERITY = {
     "INTERVIEW_CONFIRMED": "INFO",
     "OFFER_RELEASED": "INFO",
     "escalation_triggered": "ACTION_REQUIRED",
+    # S-075/HRMS-0475 BR-02 -- PauseExpiryJob's auto-resume notification.
+    "THUNDER_AUTO_RESUMED": "INFO",
 }
 ACTIVITY_EVENT_TYPES = tuple(ACTIVITY_EVENT_SEVERITY.keys())
 
@@ -120,6 +122,8 @@ def _build_summary(db: Session, event: ConversationEvent, candidate_name: str) -
     if event.event_type == "escalation_triggered":
         reason = data.get("reason", "requested human review")
         return f"Thunder escalated {candidate_name} -- {reason}. Human review required."
+    if event.event_type == "THUNDER_AUTO_RESUMED":
+        return f"Thunder has automatically resumed for {candidate_name} -- pause duration expired."
     return f"Thunder activity for {candidate_name}."
 
 

@@ -98,6 +98,8 @@ class ConversationThreadItem(BaseModel):
     escalation_state: Optional[str]
     created_at: Optional[str]
     updated_at: Optional[str]
+    is_thunder_paused: bool = False
+    thunder_resume_at: Optional[str] = None
     events: List[ConversationEventOut]
 
 
@@ -127,6 +129,23 @@ class ConversationOwnershipResponse(BaseModel):
     conversation_id: int
     owner_type: Optional[str]
     owner_id: Optional[str]
+
+
+# ---------------------------------------------------------------------------
+# Pause / resume (S-075/HRMS-0475)
+# ---------------------------------------------------------------------------
+
+class PauseThunderRequest(BaseModel):
+    resume_at: Optional[str] = Field(
+        None, description="ISO datetime to auto-resume at. Omit for 'until manually resumed'.",
+    )
+
+
+class ThunderPauseResponse(BaseModel):
+    conversation_id: int
+    is_thunder_paused: bool
+    thunder_resume_at: Optional[str]
+    thunder_paused_by: Optional[str]
 
 
 # ---------------------------------------------------------------------------

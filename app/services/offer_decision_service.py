@@ -86,7 +86,7 @@ from app.services import conversation_state_service
 from app.services.candidate_pool_service import set_org_pool
 from app.services.email_service import EmailService
 from app.services.notification_service import send_notification
-from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, send_thunder_message
+from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
 ACCEPTANCE_MESSAGE = (
     "Congratulations and welcome to BlitzenX! We are thrilled to have you join the team. Our HR team will be in "
@@ -162,7 +162,7 @@ def _send_channel_aware(db: Session, conversation: CandidateConversation, candid
     try:
         send_thunder_message(db, conversation, candidate, message, sender_type="ai_agent", channel=channel, auto_generated=True)
         return True
-    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed) as exc:
+    except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[OfferDecision] Message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
 
