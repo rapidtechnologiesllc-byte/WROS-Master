@@ -2199,15 +2199,25 @@ def get_candidate_interview_history(
     for interview in interviews:
         panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
         panel_round_name = panel.round_name if panel else "N/A"
-        
+        # 2026-08-05 -- surfaces InterviewPanel.job_id so the frontend can
+        # group a candidate's interview history by job (a candidate can
+        # legitimately be interviewed for more than one job over time).
+        job_id = panel.job_id if panel else None
+        job_title = None
+        if job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            job_title = job.jobTitle if job else None
+
         feedback_count = db.query(InterviewFeedback).filter(
             InterviewFeedback.interview_id == interview.id
         ).count()
-        
+
         interview_details.append(InterviewDetailedResponse(
             id=interview.id,
             panel_id=interview.panel_id,
             panel_round_name=panel_round_name,
+            job_id=job_id,
+            job_title=job_title,
             candidate_id=interview.candidate_id,
             candidate_name=candidate_name,
             candidate_email=candidate.candidateEmail,
