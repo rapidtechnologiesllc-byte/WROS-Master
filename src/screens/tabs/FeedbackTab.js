@@ -308,6 +308,38 @@ export default function FeedbackTab({
     ? historyData.interviews
     : [];
 
+  // 2026-08-05 -- group rounds by job (a candidate can be interviewed
+  // for more than one job over time; without this every round from
+  // every job showed as one flat, undifferentiated list). Ordered by
+  // each job's earliest round so the candidate's most recent job
+  // pipeline surfaces first; rounds within a job keep chronological
+  // order (start_time), not alphabetical round-name sorting, since
+  // round names aren't a reliable ordinal ("HR"/"Tech"/"Manager" vs
+  // "L1"/"L2" depending on the job).
+  const jobGroups = useMemo(() => {
+    const byJob = new Map();
+    interviews.forEach((interview) => {
+      const key = interview?.job_id || "unassigned";
+      if (!byJob.has(key)) {
+        byJob.set(key, {
+          jobId: interview?.job_id || null,
+          jobTitle: interview?.job_title || "No job linked",
+          rounds: [],
+          earliest: interview?.start_time || null,
+        });
+      }
+      const group = byJob.get(key);
+      group.rounds.push(interview);
+      if (interview?.start_time && (!group.earliest || interview.start_time < group.earliest)) {
+        group.earliest = interview.start_time;
+      }
+    });
+    byJob.forEach((group) => {
+      group.rounds.sort((a, b) => new Date(a?.start_time || 0) - new Date(b?.start_time || 0));
+    });
+    return [...byJob.values()].sort((a, b) => new Date(b.earliest || 0) - new Date(a.earliest || 0));
+  }, [interviews]);
+
   const feedbackSummary = useMemo(() => {
     const totalInterviews = interviews.length;
     const completedInterviews = interviews.filter((interview) => {
@@ -617,27 +649,39 @@ ${feedbackSummary}
               subtitle="Feedback will appear here once interviews are completed and feedback is submitted."
             />
           ) : (
-            <div className="space-y-4">
-              {interviews.map((interview) => {
-                const interviewId = getInterviewId(interview);
-                const feedbackList = feedbackMap[interviewId] || [];
-                const myPanelInterview = myPanelInterviewMap.get(interviewId);
+            <div className="space-y-6">
+              {jobGroups.map((group) => (
+                <div key={group.jobId || "unassigned"}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <div className="text-sm font-bold text-bx-navy">{group.jobTitle}</div>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                      {group.rounds.length} round{group.rounds.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="space-y-4 border-l-2 border-gray-100 pl-4">
+                    {group.rounds.map((interview) => {
+                      const interviewId = getInterviewId(interview);
+                      const feedbackList = feedbackMap[interviewId] || [];
+                      const myPanelInterview = myPanelInterviewMap.get(interviewId);
 
-                return (
-                  <InterviewFeedbackCard
-                    key={interviewId}
-                    interview={interview}
-                    limitedMode={limitedMode}
-                    feedbackList={feedbackList}
-                    feedbackLoading={feedbackLoading}
-                    panelMembers={panelMembersMap[interview.panel_id] || []}
-                    myPanelInterview={myPanelInterview}
-                    loggedInInterviewerId={loggedInInterviewerId}
-                    onSubmitClick={() => openSubmitModal(interview)}
-                    onSkipClick={() => openSkipModal(interview)}
-                  />
-                );
-              })}
+                      return (
+                        <InterviewFeedbackCard
+                          key={interviewId}
+                          interview={interview}
+                          limitedMode={limitedMode}
+                          feedbackList={feedbackList}
+                          feedbackLoading={feedbackLoading}
+                          panelMembers={panelMembersMap[interview.panel_id] || []}
+                          myPanelInterview={myPanelInterview}
+                          loggedInInterviewerId={loggedInInterviewerId}
+                          onSubmitClick={() => openSubmitModal(interview)}
+                          onSkipClick={() => openSkipModal(interview)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </SectionCard>
