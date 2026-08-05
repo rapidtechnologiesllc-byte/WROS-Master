@@ -77,6 +77,10 @@ const NAV_ITEMS = {
   timesheets: { path: ROUTES.TIMESHEETS, label: "Timesheets", icon: Clock },
   invoices: { path: ROUTES.INVOICES, label: "Invoices", icon: BadgeDollarSign },
   revenue: { path: ROUTES.REVENUE, label: "Revenue", icon: LineChart },
+  // EPIC-02/03 Revenue Visibility Engine, 2026-08-05 -- Opportunity
+  // pipeline (S-236/237), gated the same as the rest of Finance via
+  // revenue.view server-side.
+  opportunityPipeline: { path: ROUTES.OPPORTUNITY_PIPELINE, label: "Opportunity Pipeline", icon: TrendingUp },
   rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
@@ -138,7 +142,7 @@ const GROUP_DEFS = [
   {
     label: "Finance",
     icon: BadgeDollarSign,
-    keys: ["timesheets", "invoices", "revenue"],
+    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline"],
   },
   {
     label: "Admin",
@@ -186,7 +190,7 @@ export default function Shell({
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue",
+          "timesheets", "invoices", "revenue", "opportunityPipeline",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -198,7 +202,7 @@ export default function Shell({
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue",
+          "timesheets", "invoices", "revenue", "opportunityPipeline",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -210,7 +214,7 @@ export default function Shell({
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue",
+          "timesheets", "invoices", "revenue", "opportunityPipeline",
         ]),
       };
     }

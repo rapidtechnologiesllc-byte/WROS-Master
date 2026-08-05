@@ -6,6 +6,7 @@ export const ROUTES = {
   RESOURCE_MANAGEMENT: "/resource-management",
   CORE_PULL: "/core-pull",
   CLIENT_MANAGEMENT: "/client-management",
+  OPPORTUNITY_PIPELINE: "/opportunity-pipeline",
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
   SUBMISSIONS: "/submissions",
