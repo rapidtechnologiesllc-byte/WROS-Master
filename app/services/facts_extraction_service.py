@@ -126,13 +126,34 @@ def _validate_extracted_items(raw_items: Any) -> List[Dict]:
     return validated
 
 
+def _resolve_confidence_threshold(db: Session, candidate: Candidate) -> float:
+    """S-213/HRMS-0115 -- this threshold now lives in system_config
+    (key: profile_update_confidence_threshold), Admin-editable without a
+    deploy. PROFILE_UPDATE_CONFIDENCE_THRESHOLD stays as the real
+    fallback default (same value system_config seeds), used as-is when
+    the candidate has no tenant_id (legacy/test rows, HRMS-0109) or the
+    lookup fails for any reason -- a config-read failure must never
+    block extraction."""
+    if candidate.tenant_id is None:
+        return PROFILE_UPDATE_CONFIDENCE_THRESHOLD
+    try:
+        from app.services.system_config_service import get_config_value
+        return get_config_value(
+            db, tenant_id=candidate.tenant_id, key="profile_update_confidence_threshold",
+        )
+    except Exception as exc:
+        logger.warning(f"[FactsExtraction] Config read failed, using default threshold: {exc}")
+        return PROFILE_UPDATE_CONFIDENCE_THRESHOLD
+
+
 def _apply_profile_field_updates(db: Session, candidate: Candidate, facts: List[Dict]) -> List[str]:
-    """BR-03: confidence >= 0.5 only. Returns the list of profile
+    """BR-03: confidence >= threshold only. Returns the list of profile
     fields actually updated."""
+    threshold = _resolve_confidence_threshold(db, candidate)
     updated = []
     for fact in facts:
         column = PROFILE_FIELD_MAP.get(fact["fact_key"])
-        if not column or fact["confidence"] < PROFILE_UPDATE_CONFIDENCE_THRESHOLD:
+        if not column or fact["confidence"] < threshold:
             continue
         setattr(candidate, column, fact["fact_value"])
         updated.append(column)

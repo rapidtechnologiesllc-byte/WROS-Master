@@ -113,6 +113,7 @@ from app.models.executive_signal import (
 )
 from app.models.error_log import ErrorLog
 from app.models.bu_access import BUAccess
+from app.models.system_config import SystemConfig
 
 __all__ = [
     # Base
@@ -284,5 +285,7 @@ __all__ = [
     "ErrorLog",
     # BU Context Switching (S-205/HRMS-0107, 2026-08-04)
     "BUAccess",
+    # System Configuration & Admin Settings Panel (S-213/HRMS-0115, 2026-08-05)
+    "SystemConfig",
 ]
 
