@@ -102,6 +102,10 @@ const NAV_ITEMS = {
   // high drop risk, SLA breaches, etc.), same recruiter-facing grouping as
   // the rest of Recruitment.
   interventionQueue: { path: ROUTES.INTERVENTION_QUEUE, label: "Intervention Queue", icon: AlertOctagon },
+  // Rehire guard, Part 2 of the interview regrouping + rehire guard
+  // priority (2026-08-05) -- candidates with a past no-hire outcome
+  // whose re-interview justification needs a hiring manager's sign-off.
+  rehireApprovals: { path: ROUTES.REHIRE_APPROVALS, label: "Rehire Approvals", icon: AlertOctagon },
   // S-063/HRMS-0463 -- broader visibility companion to the intervention
   // queue above (all active candidates + trends, not just the ones
   // needing action right now).
@@ -118,7 +122,7 @@ const GROUP_DEFS = [
   {
     label: "Recruitment",
     icon: Users,
-    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "riskDashboard", "thunderAnalytics", "bulkLaunch"],
+    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "rehireApprovals", "riskDashboard", "thunderAnalytics", "bulkLaunch"],
   },
   {
     label: "Workforce",

@@ -305,6 +305,8 @@ export default function ProfileTab({
         error={documentsError}
       />
 
+      <ResumeCompletenessBar score={profile?.resume_completeness_score} />
+
       <section className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
         <SectionTitle title="Basic Information" />
 
@@ -443,6 +445,44 @@ export default function ProfileTab({
     </div>
   );
 }
+
+// S-030/HRMS-0430 -- Resume Completeness Score. Backend already computes
+// and stores this (candidate.resume_completeness_score, see
+// resume_completeness_service.py); this was the missing frontend half,
+// previously deferred. Null/undefined = no resume parsed yet, not 0%.
+function ResumeCompletenessBar({ score }) {
+  if (score === null || score === undefined) {
+    return null;
+  }
+
+  const clamped = Math.max(0, Math.min(100, Number(score) || 0));
+  const barColor =
+    clamped >= 80
+      ? "bg-green-500"
+      : clamped >= 50
+        ? "bg-amber-500"
+        : "bg-red-500";
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-2">
+        <SectionTitle title="Resume Completeness" />
+        <span className="text-sm font-semibold text-gray-900">{clamped}%</span>
+      </div>
+      <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        Based on contact info, work history detail, education, skills, and
+        certifications parsed from the candidate's resume.
+      </p>
+    </section>
+  );
+}
+
 function ResumePreview({
   documents,
   previewUrl,

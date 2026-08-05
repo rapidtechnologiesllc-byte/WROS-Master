@@ -5,6 +5,7 @@ export const createInterviewPanel = async ({
   candidateId,
   roundName,
   jobId,
+  rehireJustification,
 }) => {
   const { data } = await apiRequest("/interviews/panels/create", {
     method: "POST",
@@ -12,8 +13,26 @@ export const createInterviewPanel = async ({
       candidate_id: candidateId,
       round_name: roundName,
       job_id: jobId,
+      rehire_justification: rehireJustification || undefined,
     }),
   });
+  return data;
+};
+
+// Rehire guard -- pending hiring-manager queue + decision.
+export const getRehireReviews = async () => {
+  const { data } = await apiRequest("/interviews/rehire-reviews");
+  return data;
+};
+
+export const decideRehireReview = async ({ reviewId, decision, note }) => {
+  const { data } = await apiRequest(
+    `/interviews/rehire-reviews/${reviewId}/decide`,
+    {
+      method: "POST",
+      body: JSON.stringify({ decision, note }),
+    },
+  );
   return data;
 };
 

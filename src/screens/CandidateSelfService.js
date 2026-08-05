@@ -1089,14 +1089,14 @@ export default function CandidateSelfService({ onLogout }) {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
+                            {/* 2026-08-05 -- a rejected document reads as
+                                "Pending" (re-upload needed), not a dead-end
+                                "Rejected", per Avinash's direct rule. The
+                                reason is still visible in HR's Documents
+                                view; this candidate-facing badge just needs
+                                to signal "action still needed". */}
                             <StatusBadge
-                              status={
-                                doc.is_verified
-                                  ? "Verified"
-                                  : doc.notes
-                                    ? "Rejected"
-                                    : "Pending"
-                              }
+                              status={doc.is_verified ? "Verified" : "Pending"}
                             />
                           </div>
                         </div>

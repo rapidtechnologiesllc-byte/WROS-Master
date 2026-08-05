@@ -4,11 +4,10 @@ import ProfileTab from "./tabs/ProfileTab";
 import FeedbackTab from "./tabs/FeedbackTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import TasksTab from "./tabs/TasksTab";
-import ActivityTab from "./tabs/ActivityTab";
+import InterviewsTab from "./tabs/InterviewsTab";
+import IntelligenceTab from "./tabs/IntelligenceTab";
 import HistoryTab from "./tabs/HistoryTab";
 import MessagesTab from "./tabs/MessagesTab";
-import ActivityTimeline from "../components/timeline/ActivityTimeline";
-import FileUploadPanel from "../components/timeline/FileUploadPanel";
 import CandidateJourney from "../components/candidate/CandidateJourney";
 import CandidateEditModal from "./CandidateEditModal";
 import {
@@ -158,12 +157,11 @@ export default function CandidateDetailsScreen({
     : [
         "profile",
         "messages",
-        "feedback",
+        "interview",
+        "intelligence",
         "documents",
         "tasks",
-        "interview",
         "history",
-        "attachments",
       ];
 
   const canShowFullActions = !limitedMode;
@@ -1044,6 +1042,14 @@ ${formattedJD}
                   <h2 className="text-lg font-semibold text-gray-900 truncate">
                     {fullName}
                   </h2>
+                  {candidate?.is_guidewire_candidate && (
+                    <span
+                      title="Guidewire candidate — our bread and butter, nurture for conversion"
+                      className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 shrink-0"
+                    >
+                      Guidewire
+                    </span>
+                  )}
                   {statusData?.status && (
                     <StatusBadge type="account" value={statusData.status} />
                   )}
@@ -1299,7 +1305,7 @@ ${formattedJD}
               <ProfileTab candidateId={candidate?.id} candidate={candidate} />
             )}
 
-            {activeTab === "feedback" && (
+            {activeTab === "feedback" && limitedMode && (
               <FeedbackTab
                 candidateId={candidate?.id}
                 limitedMode={limitedMode}
@@ -1323,30 +1329,15 @@ ${formattedJD}
               <MessagesTab candidateId={candidate?.id} />
             )}
             {activeTab === "interview" && !limitedMode && (
-              <ActivityTab candidateId={candidate?.id} />
+              <InterviewsTab candidateId={candidate?.id} />
+            )}
+            {activeTab === "intelligence" && !limitedMode && (
+              <IntelligenceTab candidateId={candidate?.id} currentRole={currentRole} />
             )}
             {activeTab === "history" && !limitedMode && (
               <HistoryTab
                 candidateId={candidate?.id || candidate?.candidate_id}
               />
-            )}
-            {activeTab === "attachments" && !limitedMode && (
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <h3 className="mb-3 text-xs font-semibold uppercase text-gray-500">Activity</h3>
-                  <ActivityTimeline
-                    entityType="candidate"
-                    entityId={candidate?.id || candidate?.candidate_id}
-                  />
-                </div>
-                <div>
-                  <FileUploadPanel
-                    entityType="candidate"
-                    entityId={candidate?.id || candidate?.candidate_id}
-                    fileCategory="COMPLIANCE"
-                  />
-                </div>
-              </div>
             )}
           </div>
           {!limitedMode && (

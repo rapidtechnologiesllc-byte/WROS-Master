@@ -34,6 +34,13 @@ const STATUS_TRANSITIONS = {
 };
 
 const SI_PARTNERS = ["PWC", "EY", "CASTLEBAY", "ZENSAR", "LTI_MINDTREE", "OTHER"];
+// Backlog item, 2026-08-05: Avinash -- "If Speciality then always =
+// Staff Augmentation so you don't need another field, but when it is
+// core we need to break down the subtype of revenue." Only shown (and
+// only required) when Delivery Engine = Core.
+const BUSINESS_TYPES = ["T_AND_M", "MANAGED_SERVICES", "PROJECT", "POD", "PILOT"];
+const SPECIALITY_CURRENCIES = ["INR", "USD"];
+const CORE_CURRENCIES = ["USD"];
 
 function CreateProjectForm({ onCreated }) {
   const [open, setOpen] = useState(false);
@@ -41,8 +48,23 @@ function CreateProjectForm({ onCreated }) {
   const [name, setName] = useState("");
   const [deliveryEngine, setDeliveryEngine] = useState("SPECIALITY");
   const [siPartner, setSiPartner] = useState("PWC");
+  const [endClient, setEndClient] = useState("");
+  const [clientPartner, setClientPartner] = useState("");
+  const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
+  const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const currencyOptions = deliveryEngine === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
+
+  const handleDeliveryEngineChange = (value) => {
+    setDeliveryEngine(value);
+    // Currency must stay valid for whichever engine is now selected.
+    const validCurrencies = value === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
+    if (!validCurrencies.includes(currency)) {
+      setCurrency(validCurrencies[0]);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!clientId.trim() || !name.trim()) {
@@ -56,10 +78,16 @@ function CreateProjectForm({ onCreated }) {
         client_id: clientId.trim(),
         name: name.trim(),
         delivery_engine: deliveryEngine,
+        currency,
         si_partner: deliveryEngine === "SPECIALITY" ? siPartner : null,
+        end_client: deliveryEngine === "SPECIALITY" && endClient.trim() ? endClient.trim() : null,
+        client_partner: deliveryEngine === "CORE" && clientPartner.trim() ? clientPartner.trim() : null,
+        business_type: deliveryEngine === "CORE" ? businessType : null,
       });
       setClientId("");
       setName("");
+      setEndClient("");
+      setClientPartner("");
       setOpen(false);
       onCreated();
     } catch (err) {
@@ -85,10 +113,19 @@ function CreateProjectForm({ onCreated }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <Input label="Client ID" value={clientId} onChange={setClientId} placeholder="client UUID" />
         <Input label="Project Name" value={name} onChange={setName} placeholder="PolicyCenter Rollout" />
-        <Select label="Delivery Engine" value={deliveryEngine} onChange={setDeliveryEngine} options={["SPECIALITY", "CORE"]} />
+        <Select label="Delivery Engine" value={deliveryEngine} onChange={handleDeliveryEngineChange} options={["SPECIALITY", "CORE"]} />
+        <Select label="Currency" value={currency} onChange={setCurrency} options={currencyOptions} />
         {deliveryEngine === "SPECIALITY" ? (
-          <Select label="SI Partner (required for Speciality)" value={siPartner} onChange={setSiPartner} options={SI_PARTNERS} />
-        ) : null}
+          <>
+            <Select label="SI Partner (required for Speciality)" value={siPartner} onChange={setSiPartner} options={SI_PARTNERS} />
+            <Input label="End Client (optional)" value={endClient} onChange={setEndClient} placeholder="Staff Augmentation end client" />
+          </>
+        ) : (
+          <>
+            <Select label="Business Type (required for Core)" value={businessType} onChange={setBusinessType} options={BUSINESS_TYPES} />
+            <Input label="Client Partner (optional)" value={clientPartner} onChange={setClientPartner} placeholder="Direct client / managed service partner" />
+          </>
+        )}
       </div>
       <div className="mt-3 flex gap-2">
         <Button variant="primary" disabled={saving} onClick={handleSubmit}>
@@ -290,8 +327,16 @@ function ProjectCard({ project, onChanged }) {
           <div className="font-semibold text-gray-900">{project.name}</div>
           <div className="text-xs text-gray-500">
             {project.delivery_engine}
-            {project.si_partner ? ` · ${project.si_partner}` : ""} · {project.billing_type} · {project.currency}
+            {project.si_partner ? ` · ${project.si_partner}` : ""}
+            {project.business_type ? ` · ${project.business_type}` : ""} · {project.billing_type} · {project.currency}
           </div>
+          {project.end_client || project.client_partner ? (
+            <div className="text-xs text-gray-400">
+              {project.end_client ? `End Client: ${project.end_client}` : ""}
+              {project.end_client && project.client_partner ? " · " : ""}
+              {project.client_partner ? `Client Partner: ${project.client_partner}` : ""}
+            </div>
+          ) : null}
         </div>
         <span className={cx("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", STATUS_STYLES[project.status])}>
           {project.status}

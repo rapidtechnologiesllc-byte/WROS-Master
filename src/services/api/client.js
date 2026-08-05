@@ -148,6 +148,10 @@ export const apiRequest = async (path, options = {}) => {
     const message = formatApiErrorMessage(data);
     const error = new Error(message);
     error.status = response.status;
+    // Structured 4xx bodies (e.g. { error, review_id, ... }) -- callers that
+    // need more than the flattened message string can read this directly
+    // instead of re-parsing it back out of `message`.
+    error.detail = data && typeof data === "object" ? data.detail : undefined;
     throw error;
   }
 
