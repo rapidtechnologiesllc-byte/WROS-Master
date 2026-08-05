@@ -99,7 +99,7 @@ def client(throwaway_jwt_keys):
     eligible_candidate = Candidate(
         candidateID="CAND-1", candidateFirstName="Sam", candidateLastName="Lee",
         candidateEmail="sam.candidate@blitzenx.com", candidatePassword="x",
-        total_experience_months=72, employment_type="W2_FULLTIME",
+        total_experience_months=72, employment_type="W2_FULLTIME", tenant_id=tenant.id,
     )
     db.add(eligible_candidate)
     db.commit()
@@ -114,7 +114,7 @@ def client(throwaway_jwt_keys):
     ineligible_candidate = Candidate(
         candidateID="CAND-2", candidateFirstName="Alex", candidateLastName="Kim",
         candidateEmail="alex.candidate@blitzenx.com", candidatePassword="x",
-        total_experience_months=72, employment_type="W2_FULLTIME",
+        total_experience_months=72, employment_type="W2_FULLTIME", tenant_id=tenant.id,
     )
     db.add(ineligible_candidate)
     db.commit()

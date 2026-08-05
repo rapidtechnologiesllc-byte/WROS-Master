@@ -55,6 +55,13 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+    # S-207 -- activates global tenant scoping (app.core.tenant_context)
+    # for every query the rest of this request makes. Local import: see
+    # tenant_context.py's own docstring for why the import direction runs
+    # this way (it depends on get_current_internal_user below).
+    from app.core.tenant_context import activate_tenant_scope
+    activate_tenant_scope(getattr(user, "tenant_id", None))
+
     return user
 
 
@@ -105,6 +112,9 @@ async def get_current_hr_or_admin(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+    from app.core.tenant_context import activate_tenant_scope
+    activate_tenant_scope(user.tenant_id)
+
     return user
 
 
@@ -129,6 +139,9 @@ async def get_current_internal_user(
     user = db.query(Users).filter(Users.UserEmail == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    from app.core.tenant_context import activate_tenant_scope
+    activate_tenant_scope(user.tenant_id)
 
     return user
 
@@ -202,6 +215,9 @@ def require_permission(permission: str):
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+        from app.core.tenant_context import activate_tenant_scope
+        activate_tenant_scope(user.tenant_id)
+
         # Super User bypass — always has all permissions
         # Check both the legacy UserRole string AND the RBAC role relationship
         is_super_user = (
@@ -248,6 +264,9 @@ def require_attribute(attribute: str, expected: bool = True):
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+        from app.core.tenant_context import activate_tenant_scope
+        activate_tenant_scope(user.tenant_id)
+
         # Super User bypass — check both legacy UserRole string and RBAC role relationship
         is_super_user = (
             (user.UserRole and user.UserRole.lower() == "super user")
@@ -266,3 +285,32 @@ def require_attribute(attribute: str, expected: bool = True):
     # HRMS-0114 — see require_permission's matching comment above.
     _check.__wros_attribute__ = attribute
     return _check
+
+
+async def require_admin_role(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> Users:
+    """
+    S-213/BR-0115-01 -- a literal "Admin role" gate, not an RBAC
+    permission string (this codebase has no 'config.write' permission
+    seeded, and the business rule itself is phrased as a role check, not
+    a permission). "Super User" also passes, matching the bypass every
+    other guard in this file already grants it.
+    """
+    token = credentials.credentials
+    payload = decode_access_token(token)
+    _reject_if_mfa_pending(payload)
+    user_email: str = payload.get("sub", "")
+
+    user = db.query(Users).filter(Users.UserEmail == user_email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    from app.core.tenant_context import activate_tenant_scope
+    activate_tenant_scope(user.tenant_id)
+
+    role_name = (user.UserRole or "").lower()
+    if role_name not in ("admin", "super user"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return user

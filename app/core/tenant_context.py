@@ -10,12 +10,92 @@ Every query against a tenant-scoped table should go through
 `get_tenant_scoped_query` (or a route should depend on `require_tenant_id`)
 rather than filtering by tenant_id by hand, so this guarantee lives in one
 place instead of being re-implemented per route.
+
+S-207 — global scoping
+-----------------------
+The above per-call helpers only ever covered 6 routes. Everything else
+(~180 `db.query(Candidate|Users|Jobs)` call sites across 23 endpoint
+files, per docs/build-package/HRMS-0109-tenant-scoping-gap.md) still
+queried unscoped. Rather than hand-edit 180 call sites one at a time,
+`activate_tenant_scope()` + the `do_orm_execute` listener below apply
+the same "own tenant only" filter to every ORM query against those three
+models, automatically, for the duration of one request.
+
+Why this is safe against the leak the gap doc explicitly warned about
+("a stale context value leaking between requests"): `_current_tenant_id`
+is a `contextvars.ContextVar`, not a plain module-level variable.
+Starlette gives every request its own asyncio Task (and `run_in_threadpool`
+copies the context via `contextvars.copy_context()` for sync route
+handlers), so each request's `.set()` is invisible to every other
+request — concurrently running or not — even on a shared thread pool.
+Nothing needs to reset it after the request; the next request simply
+starts from a fresh copy with the var back at its default (None).
+
+Only `Candidate`, `Users`, and `Jobs` are scoped here — the exact three
+models the gap doc's ~180-site inventory covers. Other tenant_id-bearing
+models are a separate, not-yet-audited piece of work, not silently
+folded into this one.
 """
+import contextvars
+
 from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Query, Session
+from sqlalchemy import event
+from sqlalchemy.orm import Query, Session, with_loader_criteria
 
 from app.core.dependencies import get_current_internal_user
-from app.models.user import Users
+from app.models.user import Users, Jobs
+from app.models.candidate import Candidate
+
+_current_tenant_id: "contextvars.ContextVar[int | None]" = contextvars.ContextVar(
+    "current_tenant_id", default=None
+)
+
+_TENANT_SCOPED_MODELS = (Candidate, Users, Jobs)
+
+
+def activate_tenant_scope(tenant_id) -> None:
+    """
+    Set the current request's tenant for the global query scoping below.
+
+    `tenant_id` may be None (e.g. a user not yet assigned to a tenant) --
+    that's the same as not calling this at all: no extra filter is
+    applied, matching today's unscoped behavior rather than failing
+    closed. Routes that need to hard-require a tenant already do so via
+    `require_tenant_id`/`get_tenant_scoped_query`; this global mechanism
+    is a backstop for the other ~180 sites, not a stricter gate.
+    """
+    _current_tenant_id.set(tenant_id)
+
+
+def _apply_tenant_scoping(execute_state) -> None:
+    tenant_id = _current_tenant_id.get()
+    if tenant_id is None or not execute_state.is_select:
+        return
+    for model in _TENANT_SCOPED_MODELS:
+        # `tenant_id` must be captured as a genuine closure (free) variable,
+        # not a default-argument default -- with_loader_criteria's
+        # LambdaElement caching inspects the lambda's __closure__ cells to
+        # decide whether a compiled statement can be reused across calls
+        # with a different bound value. A default-arg value lives in
+        # __defaults__, not __closure__, so it's invisible to that check:
+        # SQLAlchemy would treat every call as producing "the same" SQL and
+        # replay the FIRST tenant_id seen for every later call/tenant --
+        # a real cross-tenant leak, confirmed by this module's own
+        # concurrency test before this comment existed.
+        execute_state.statement = execute_state.statement.options(
+            with_loader_criteria(
+                model,
+                lambda cls: cls.tenant_id == tenant_id,
+            )
+        )
+
+
+# Registered once, at import time, against the base Session class -- this
+# covers every session in the process (SessionLocal in production, the
+# throwaway per-test engines in tests/), not just one sessionmaker. It is
+# a no-op for any session where activate_tenant_scope() was never called
+# on the current request (contextvar defaults to None).
+event.listen(Session, "do_orm_execute", _apply_tenant_scoping)
 
 
 def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:
