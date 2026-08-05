@@ -14,6 +14,7 @@ from app.core.logging import logger
 from app.models.client import Client, ClientContact, ClientHistory, STATUSES_REQUIRING_CONTACT
 from app.models.demand import Demand
 from app.models.employee import Employee
+from app.models.rbac import BusinessUnit
 from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.user import Users
@@ -26,6 +27,109 @@ MARKUP_VISIBLE_ROLES = {"Super User", "BU Head", "Recruitment Manager", "Directo
 
 class ClientValidationError(Exception):
     pass
+
+
+class DuplicateClientError(Exception):
+    pass
+
+
+def create_client(
+    db: Session,
+    *,
+    company_name: str,
+    created_by_user: Users,
+    client_type: str = "DIRECT",
+    industry: Optional[str] = None,
+    country: Optional[str] = None,
+    billing_currency: str = "USD",
+) -> Client:
+    """The one sanctioned client-creation path (no create path existed
+    anywhere in this codebase before this -- the GET-only /clients
+    endpoint's own docstring claimed one existed "elsewhere"; it didn't,
+    confirmed by grep before writing this).
+
+    BU attribution is LOCKED to the creating user's own business_unit_id
+    -- never a caller-supplied field -- per Avinash's 2026-08-05 "client
+    attribution locking" rule: a client sourced by someone in AXION
+    belongs to AXION, never reassignable across BUs, and the same rule
+    cascades to any sales org a Partner hires later (their tree never
+    crosses group). A creator with no BU (Super User/CEO/a Corporate
+    function) attributes to the "Corporate" BU if that row exists;
+    otherwise left unassigned -- same Org-Pool-until-claimed posture the
+    Client model's own business_unit_id docstring already establishes,
+    never guessed.
+    """
+    company_name = company_name.strip()
+    if not company_name:
+        raise ClientValidationError("company_name is required.")
+
+    existing = db.query(Client).filter(Client.company_name == company_name).first()
+    if existing:
+        raise DuplicateClientError(f"A client named {company_name!r} already exists.")
+
+    business_unit_id = created_by_user.business_unit_id
+    if business_unit_id is None:
+        corporate_bu = db.query(BusinessUnit).filter(BusinessUnit.name == "Corporate").first()
+        business_unit_id = corporate_bu.id if corporate_bu else None
+
+    client = Client(
+        company_name=company_name,
+        business_unit_id=business_unit_id,
+        client_type=client_type,
+        industry=industry,
+        country=country,
+        billing_currency=billing_currency,
+        created_by=created_by_user.UserID,
+    )
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return client
+
+
+EDITABLE_CLIENT_FIELDS = {
+    "company_name", "company_short_name", "industry", "country", "client_type", "tier",
+    "billing_address", "billing_currency", "payment_terms_days",
+    "tax_id_client", "contract_start_date", "contract_end_date",
+    "contract_url", "nda_signed", "nda_url", "notes",
+}
+
+
+def update_client_details(db: Session, client: Client, updates: dict) -> Client:
+    """General "edit client details" path (the gap Avinash flagged
+    2026-08-05: no client edit UI/API existed at all). Deliberately
+    excludes `business_unit_id` (locked per the attribution rule in
+    create_client() -- never editable through a general-purpose update),
+    `status` (its own sanctioned path is set_client_status(), which
+    enforces BR-01's contact requirement -- bypassing that here would
+    let a status change skip the check), and `markup_rate_pct` (BR-02
+    confidential -- restricted to MARKUP_VISIBLE_ROLES at read time;
+    a write path here would let a broader-access edit endpoint bypass
+    that read restriction, so margin changes stay out of scope)."""
+    unknown = set(updates) - EDITABLE_CLIENT_FIELDS
+    if unknown:
+        raise ClientValidationError(f"Not editable via this path: {sorted(unknown)}")
+
+    new_name = updates.get("company_name")
+    if new_name is not None and new_name.strip() != client.company_name:
+        new_name = new_name.strip()
+        if not new_name:
+            raise ClientValidationError("company_name cannot be blank.")
+        duplicate = (
+            db.query(Client)
+            .filter(Client.company_name == new_name, Client.id != client.id)
+            .first()
+        )
+        if duplicate:
+            raise DuplicateClientError(f"A client named {new_name!r} already exists.")
+        updates = {**updates, "company_name": new_name}
+
+    for field, value in updates.items():
+        setattr(client, field, value)
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return client
 
 
 def set_client_status(
