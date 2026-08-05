@@ -82,10 +82,10 @@ def classify_internal_query(message: str) -> Dict:
 
     instruction = f"""Classify an internal BlitzenX staff member's question into exactly one category:
 
-- "{INTENT_SOURCING}": asking to find/source CANDIDATES (not-yet-hired applicants) matching a role, skill, or experience level (e.g. "find me a Java developer", "I need a candidate for the Guidewire role", "source someone with React experience").
+- "{INTENT_SOURCING}": asking to find/source CANDIDATES (not-yet-hired applicants) ALREADY IN THE SYSTEM matching a role, skill, or experience level (e.g. "find me a Java developer", "I need a candidate for the Guidewire role", "source someone with React experience").
 - "{INTENT_CANDIDATE_STATUS}": asking about ONE SPECIFIC NAMED candidate's current status, pipeline stage, or progress (e.g. "how is Priya Sharma doing", "what's the status on candidate John Doe").
 - "{INTENT_BENCH_AVAILABILITY}": asking who's FREE/AVAILABLE/ON THE BENCH right now among existing EMPLOYEES (not candidates), optionally for a skill (e.g. "who's free for a Java role right now", "who's on the bench", "any available React developers").
-- "{INTENT_UNKNOWN}": anything else -- compensation questions, general chit-chat, or anything not covered above.
+- "{INTENT_UNKNOWN}": anything else -- compensation questions, general chit-chat, requests to CREATE/POST/OPEN a NEW job requisition (e.g. "open a job for Guidewire developer", "post a new role for a data analyst" -- this system cannot create jobs yet, do NOT classify these as sourcing just because they mention a role), or anything else not covered above.
 
 Respond with ONLY a JSON object, no other text, no markdown code fences:
 {{"intent": "<one of the four above>", "query": "<see below>"}}
@@ -164,7 +164,14 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
             candidate.candidateSkills, candidate.candidateJobTitle, candidate.candidateExperience,
         ])).lower()
         score = sum(1 for kw in keywords if kw.lower() in haystack)
-        if score > 0:
+        # Every keyword must match, not just one -- a bare "score > 0"
+        # let a single generic word (e.g. "developer") pull in a
+        # candidate with zero real relevance to the other, more specific
+        # keyword ("Guidewire") the caller actually cared about. Same
+        # "no fake success" principle as the rest of this module: an
+        # honest empty result beats a confident wrong one, especially in
+        # front of a live audience.
+        if score == len(keywords):
             scored.append((candidate, score))
 
     scored.sort(key=lambda pair: pair[1], reverse=True)
@@ -246,7 +253,11 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
         haystack = " ".join(filter(None, [
             employee.current_title, " ".join(_skill_tags(entry)),
         ])).lower()
-        if keywords and not any(kw.lower() in haystack for kw in keywords):
+        # All keywords must match, not just one -- same fix as
+        # find_matching_candidates(), same reasoning: a single generic
+        # word shouldn't be enough to surface someone with no real
+        # overlap with the rest of the query.
+        if keywords and not all(kw.lower() in haystack for kw in keywords):
             continue
         results.append({
             "employee_id": employee.id,
@@ -266,7 +277,7 @@ def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
             f"They may not have applied yet, or try different keywords."
         )
     lines = [
-        f"- {r['name']} ({r['candidate_id']}) -- {r['job_title'] or 'no title on file'}; "
+        f"- {r['name']} -- {r['job_title'] or 'no title on file'}; "
         f"skills: {r['skills'] or 'not on file'}; experience: {r['experience'] or 'not on file'}"
         for r in results
     ]
@@ -277,11 +288,16 @@ def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
     if not matches:
         return f"I couldn't find a candidate named \"{name_query}\" in the system."
     if len(matches) > 1:
-        names = ", ".join(f"{m['name']} ({m['candidate_id']})" for m in matches)
-        return f"I found more than one candidate matching \"{name_query}\": {names}. Which one did you mean?"
+        # Numbered, not raw internal IDs -- lets the user disambiguate
+        # ("the first one") without ever seeing a candidateID.
+        lines = [f"{i}. {m['name']}" for i, m in enumerate(matches, start=1)]
+        return (
+            f"I found more than one candidate matching \"{name_query}\":\n" + "\n".join(lines)
+            + "\nWhich one did you mean?"
+        )
     m = matches[0]
     return (
-        f"{m['name']} ({m['candidate_id']}) -- pipeline status: {m['pipeline_status'] or 'not set'}, "
+        f"{m['name']} -- pipeline status: {m['pipeline_status'] or 'not set'}, "
         f"account status: {m['account_status'] or 'not set'}"
         + (f", linked to job {m['job_id']}" if m["job_id"] else "")
         + "."
@@ -293,7 +309,7 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
     if not results:
         return f"No one is currently available {label}."
     lines = [
-        f"- {r['name']} ({r['employee_id']}) -- {r['current_title'] or 'no title on file'}; "
+        f"- {r['name']} -- {r['current_title'] or 'no title on file'}; "
         f"skills: {', '.join(r['skills']) or 'not on file'}; available since {r['available_from'] or 'unknown'}"
         for r in results
     ]
