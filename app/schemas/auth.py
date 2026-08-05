@@ -69,6 +69,19 @@ class UnifiedLoginResponse(BaseModel):
     # access_token (mfa_pending) to complete login.
     email_otp_required: bool = False
 
+    # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half).
+    # candidate_otp_required: this candidate has opted in -- a code has
+    # already been emailed as part of this same login call, same
+    # pattern as email_otp_required above but candidate-side. Call
+    # POST /auth/mfa/candidate/email/verify with that code against the
+    # same access_token (candidate_otp_pending) to complete login.
+    # show_2fa_opt_in_popup: this candidate has never been asked
+    # (email_2fa_opted_in is NULL) -- login completes normally
+    # (access_token below is already a full candidate token), the
+    # frontend should show the opt-in popup once, non-blocking.
+    candidate_otp_required: bool = False
+    show_2fa_opt_in_popup: bool = False
+
     # User-specific (None for candidates)
     user_role: Optional[str] = None
     user_name: Optional[str] = None

@@ -14,6 +14,7 @@ from app.services.candidate_service import (
     parse_experience_to_months,
 )
 from app.services.guidewire_candidate_service import is_guidewire_candidate
+from app.core.bu_scope import apply_bu_scope_to_candidate_query
 from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import (
     Candidate,
@@ -202,7 +203,15 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     # HRMS-0109 -- scoped to the caller's own tenant, never all tenants'
     # candidates. See app.core.tenant_context; fails closed (403) if
     # `user` has no tenant assigned rather than silently showing everyone's.
-    candidates = get_tenant_scoped_query(db, Candidate, current_user=user).all()
+    # Backlog item, 2026-08-05: on top of tenant scoping, a bu_restricted
+    # role (e.g. HR Manager) is further scoped to Org Pool candidates
+    # plus their own Business Unit's -- see app.core.bu_scope's module
+    # docstring for why this endpoint specifically needed the fix
+    # (a correctly-scoped sibling endpoint already existed but no
+    # frontend screen ever called it).
+    candidates = apply_bu_scope_to_candidate_query(
+        db, get_tenant_scoped_query(db, Candidate, current_user=user), current_user=user,
+    ).all()
 
     candidates_data = []
     for candidate in candidates:
@@ -349,9 +358,16 @@ def get_candidate_by_id(
     experience, Aadhar, and PAN records.
 
     Raises:
-        HTTPException 404: If no candidate with the given ID exists.
+        HTTPException 404: If no candidate with the given ID exists, or
+        the candidate exists but is outside the caller's own Business
+        Unit (a bu_restricted role must not be able to reach another
+        BU's candidate by navigating straight to this URL even though
+        the candidate list already filters them out -- see
+        app.core.bu_scope's module docstring).
     """
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    candidate = apply_bu_scope_to_candidate_query(
+        db, db.query(Candidate).filter(Candidate.candidateID == candidate_id), current_user=user,
+    ).first()
     if not candidate:
         raise HTTPException(
             status_code=404,

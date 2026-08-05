@@ -83,6 +83,17 @@ class Candidate(Base):
     # get backfilled in a follow-up step. Scope every candidate query through
     # app.core.tenant_context, never filter on this column by hand.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half) --
+    # opt-in email OTP, reusing app.core.mfa's role-agnostic EMAIL_OTP_*
+    # functions. Tri-state, not a plain boolean: NULL = never asked
+    # (show the opt-in popup once), True = opted in (challenge every
+    # login), False = explicitly declined (never ask again unless they
+    # change it in a future settings screen). email_otp_code_hash/
+    # email_otp_expires_at mirror Users' own fields exactly -- only
+    # populated at the moment a code is issued, cleared on verify/expiry.
+    email_2fa_opted_in = Column(Boolean, nullable=True)
+    email_otp_code_hash = Column(String(64), nullable=True)
+    email_otp_expires_at = Column(DateTime, nullable=True)
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")

@@ -57,6 +57,17 @@ class Client(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    # EPIC-02/03 access spec, 2026-08-05 -- Avinash's own words: "a
+    # partner has it's own clients and the work is done in their BU
+    # only... any business he generates should go only to that BU."
+    # The client itself is the real point of BU ownership -- every
+    # Opportunity/Demand/revenue figure under this client inherits it
+    # by joining through here, never a second, independently-settable
+    # copy on Opportunity (single source of truth, no drift risk).
+    # Nullable: a prospect with no partner/BU assigned yet is visible
+    # to everyone until claimed, same "Org Pool" posture
+    # CandidateOwnership already established for candidates.
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     company_name = Column(String(300), nullable=False)
     company_short_name = Column(String(50), nullable=True)

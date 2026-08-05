@@ -18,7 +18,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_mfa_pending_user
+from app.core.dependencies import (
+    get_current_candidate,
+    get_current_candidate_otp_pending,
+    get_current_mfa_pending_user,
+)
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     generate_backup_codes,
@@ -32,6 +36,7 @@ from app.core.mfa import (
     verify_totp_code,
 )
 from app.core.security import create_access_token
+from app.models.candidate import Candidate
 from app.models.user import Users
 from app.services.email_service import EmailService
 
@@ -206,3 +211,107 @@ def _issue_full_token(user: Users) -> MfaVerifiedResponse:
         user_name=user.UserName or "",
         user_email=user.UserEmail,
     )
+
+
+# ============================================
+# Backlog item, 2026-08-05 (wros_email_2fa_backlog) -- candidate half.
+# Opt-in, not enforced: a candidate chooses via the popup their first
+# normal login shows (UnifiedLoginResponse.show_2fa_opt_in_popup), and
+# from then on every login challenges them for an emailed code, same
+# mechanics as the internal-user email OTP above, just Candidate- not
+# Users-scoped and gated by the candidate's own choice instead of an
+# env flag.
+# ============================================
+
+class CandidateOtpOptInRequest(BaseModel):
+    opted_in: bool
+
+
+class CandidateOtpOptInResponse(BaseModel):
+    email_2fa_opted_in: bool
+
+
+class CandidateOtpVerifiedResponse(BaseModel):
+    access_token: str
+    candidate_id: str
+    candidate_role: str
+    candidate_email: str
+
+
+def _candidate_name(candidate: Candidate) -> str:
+    parts = [candidate.candidateFirstName, candidate.candidateMiddleName, candidate.candidateLastName]
+    return " ".join(p for p in parts if p) or candidate.candidateEmail
+
+
+def _issue_full_candidate_token(candidate: Candidate) -> CandidateOtpVerifiedResponse:
+    access_token = create_access_token(data={"sub": candidate.candidateID, "type": "candidate"})
+    return CandidateOtpVerifiedResponse(
+        access_token=access_token,
+        candidate_id=candidate.candidateID,
+        candidate_role=candidate.candidateRole or "Candidate",
+        candidate_email=candidate.candidateEmail,
+    )
+
+
+@router.post("/candidate/opt-in", response_model=CandidateOtpOptInResponse)
+def set_candidate_email_2fa_opt_in(
+    body: CandidateOtpOptInRequest,
+    candidate: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """Called from the opt-in popup (or a future settings screen) by an
+    ALREADY-logged-in candidate -- a normal full candidate token, not a
+    pending one; there's nothing to verify here, just a preference."""
+    candidate.email_2fa_opted_in = body.opted_in
+    db.add(candidate)
+    db.commit()
+    return CandidateOtpOptInResponse(email_2fa_opted_in=candidate.email_2fa_opted_in)
+
+
+@router.post("/candidate/email/resend")
+def resend_candidate_email_otp(
+    candidate: Candidate = Depends(get_current_candidate_otp_pending),
+    db: Session = Depends(get_db),
+):
+    code = generate_email_otp_code()
+    candidate.email_otp_code_hash = hash_email_otp_code(code)
+    candidate.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+    db.add(candidate)
+    db.commit()
+
+    try:
+        EmailService.send_event_notification(
+            to_email=candidate.candidateEmail,
+            recipient_name=_candidate_name(candidate),
+            event_type="action_required",
+            heading="Your BlitzenX verification code",
+            message=(
+                f"Your one-time verification code is <strong>{code}</strong>. "
+                f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes."
+            ),
+        )
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not send verification email. Please try again.")
+
+    return {"sent": True}
+
+
+@router.post("/candidate/email/verify", response_model=CandidateOtpVerifiedResponse)
+def verify_candidate_email_otp(
+    body: EmailOtpVerifyRequest,
+    candidate: Candidate = Depends(get_current_candidate_otp_pending),
+    db: Session = Depends(get_db),
+):
+    if not candidate.email_otp_code_hash or not candidate.email_otp_expires_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No verification code was issued. Call /auth/mfa/candidate/email/resend first.")
+    if datetime.utcnow() > candidate.email_otp_expires_at:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Verification code has expired. Request a new one.")
+    if not verify_email_otp_code(body.code, candidate.email_otp_code_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+
+    candidate.email_otp_code_hash = None
+    candidate.email_otp_expires_at = None
+    db.add(candidate)
+    db.commit()
+
+    return _issue_full_candidate_token(candidate)

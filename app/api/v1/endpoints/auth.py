@@ -193,32 +193,75 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     # ── 2. Fall back to Candidate ────────────────────────────────
     candidate = authenticate_candidate(db, request.email, request.password)
     if candidate:
-        access_token = create_access_token(
-            data={
-                "sub": candidate.candidateID,
-                "type": "candidate",
-            }
-        )
         name_parts = [
             candidate.candidateFirstName,
             candidate.candidateMiddleName,
             candidate.candidateLastName,
         ]
         candidate_name = " ".join(filter(None, name_parts)) or ""
+        is_first_time = (
+            not candidate.candidateIsVerified
+            if candidate.candidateIsVerified is not None
+            else True
+        )
 
+        # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
+        # half): opted-in candidates get a pending token + emailed code
+        # instead of a full session, same shape as the internal-user
+        # email-OTP gate in the branch above but candidate-scoped.
+        if candidate.email_2fa_opted_in:
+            from datetime import timedelta as _timedelta
+            code = generate_email_otp_code()
+            candidate.email_otp_code_hash = hash_email_otp_code(code)
+            candidate.email_otp_expires_at = datetime.utcnow() + _timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+            db.add(candidate)
+            db.commit()
+            try:
+                EmailService.send_event_notification(
+                    to_email=candidate.candidateEmail,
+                    recipient_name=candidate_name or candidate.candidateEmail,
+                    event_type="action_required",
+                    heading="Your BlitzenX verification code",
+                    message=(
+                        f"Your one-time verification code is <strong>{code}</strong>. "
+                        f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes."
+                    ),
+                )
+            except Exception:
+                pass  # see the internal-user branch above -- never leak the code into logs/response on send failure
+
+            pending_token = create_access_token(
+                data={"sub": candidate.candidateID, "type": "candidate", "candidate_otp_pending": True},
+                expires_delta=_timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
+            )
+            return UnifiedLoginResponse(
+                entity_type="candidate",
+                access_token=pending_token,
+                is_first_time=is_first_time,
+                candidate_id=candidate.candidateID,
+                candidate_role=candidate.candidateRole or "Candidate",
+                candidate_name=candidate_name,
+                candidate_email=candidate.candidateEmail,
+                candidate_mobile=candidate.candidateMobile,
+                candidate_otp_required=True,
+            )
+
+        access_token = create_access_token(
+            data={
+                "sub": candidate.candidateID,
+                "type": "candidate",
+            }
+        )
         return UnifiedLoginResponse(
             entity_type="candidate",
             access_token=access_token,
-            is_first_time=(
-                not candidate.candidateIsVerified
-                if candidate.candidateIsVerified is not None
-                else True
-            ),
+            is_first_time=is_first_time,
             candidate_id=candidate.candidateID,
             candidate_role=candidate.candidateRole or "Candidate",
             candidate_name=candidate_name,
             candidate_email=candidate.candidateEmail,
             candidate_mobile=candidate.candidateMobile,
+            show_2fa_opt_in_popup=candidate.email_2fa_opted_in is None,
         )
 
     # ── 3. Neither matched ───────────────────────────────────────

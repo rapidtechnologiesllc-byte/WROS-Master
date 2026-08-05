@@ -758,6 +758,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register proactive motivation scheduler: {exc}")
 
+        # ── Every 30 min: EPIC-14/S-435 M365 mail sync (lifecycle linking) ──
+        try:
+            from app.core.database import SessionLocal
+            from app.services.msgraph_mail_sync_service import run_msgraph_mail_sync_job
+
+            async def _run_msgraph_mail_sync():
+                db = SessionLocal()
+                try:
+                    result = run_msgraph_mail_sync_job(db)
+                    if result["total_linked"]:
+                        logger.info(f"[scheduler] M365 mail sync: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] M365 mail sync error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_msgraph_mail_sync,
+                trigger="interval",
+                minutes=30,
+                id="msgraph_mail_sync_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled M365 mail sync job (every 30 minutes)")
+        except Exception as exc:
+            logger.warning(f"Could not register M365 mail sync scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

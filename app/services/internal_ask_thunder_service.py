@@ -55,6 +55,19 @@ UNSUPPORTED_QUERY_MESSAGE = (
 
 MAX_CANDIDATES_RETURNED = 5
 
+# Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
+# Avinash -- "i ask a question to thunder and move to a different page
+# it looses the history and acts as a new session." Confirmed real
+# cause: this whole module was fully stateless, zero awareness of
+# anything asked earlier in the SAME open chat. Deliberately NOT a new
+# server-side conversation table -- AskThunderWidget.js already holds
+# the visible chat bubbles in its own React state for the life of the
+# panel, so the client passes its last few turns back on each new
+# question instead of the backend persisting anything new. Kept small
+# (last 3 exchanges) -- this is context for resolving a follow-up's
+# pronoun/reference, not a transcript archive.
+MAX_HISTORY_TURNS = 3
+
 _STOPWORDS = {
     "a", "an", "the", "for", "with", "and", "or", "of", "in", "on", "to", "who",
     "that", "has", "have", "years", "year", "yrs", "experience", "role", "roles",
@@ -69,18 +82,39 @@ class ThunderQueryClassificationFailed(Exception):
     must fall back to UNSUPPORTED_QUERY_MESSAGE, never guess the intent."""
 
 
-def classify_internal_query(message: str) -> Dict:
+def _format_history_transcript(message: str, history: Optional[List[Dict]]) -> str:
+    lines = []
+    for turn in (history or [])[-MAX_HISTORY_TURNS:]:
+        question = str((turn or {}).get("question") or "").strip()
+        reply = str((turn or {}).get("reply") or "").strip()
+        if question:
+            lines.append(f"Staff: {question}")
+        if reply:
+            lines.append(f"Thunder: {reply}")
+    lines.append(f"Staff: {message}")
+    return "\n".join(lines)
+
+
+def classify_internal_query(message: str, *, history: Optional[List[Dict]] = None) -> Dict:
     """
     Narrow LLM task: classify `message` into one of INTENT_SOURCING /
     INTENT_CANDIDATE_STATUS / INTENT_UNKNOWN, and extract the search
     term (role/skills text, or a candidate's name). Never asked to
     answer the question itself -- that always comes from a real DB
     query in answer_internal_query() below.
+
+    `history` (optional, last few {question, reply} turns from the
+    SAME open chat, caller-supplied -- see MAX_HISTORY_TURNS above) is
+    context ONLY, so a follow-up like "what about her experience" can
+    resolve who "her" is. The model is explicitly told to classify and
+    extract for the FINAL question in the transcript, never an earlier
+    turn -- history changes what a pronoun means, never which question
+    is being answered.
     """
     if not GEMINI_API_KEY:
         raise ThunderQueryClassificationFailed("GEMINI_API_KEY not configured.")
 
-    instruction = f"""Classify an internal BlitzenX staff member's question into exactly one category:
+    instruction = f"""Below is a short conversation transcript between a BlitzenX staff member and Thunder, ending with the staff member's CURRENT question. Classify ONLY that final "Staff:" line into exactly one category. Earlier turns are context only -- use them to resolve a pronoun or vague reference in the final question (e.g. "her", "that role", "the same person"), never to answer a question from an earlier turn.
 
 - "{INTENT_SOURCING}": asking to find/source CANDIDATES (not-yet-hired applicants) ALREADY IN THE SYSTEM matching a role, skill, or experience level (e.g. "find me a Java developer", "I need a candidate for the Guidewire role", "source someone with React experience").
 - "{INTENT_CANDIDATE_STATUS}": asking about ONE SPECIFIC NAMED candidate's current status, pipeline stage, or progress (e.g. "how is Priya Sharma doing", "what's the status on candidate John Doe").
@@ -90,16 +124,16 @@ def classify_internal_query(message: str) -> Dict:
 Respond with ONLY a JSON object, no other text, no markdown code fences:
 {{"intent": "<one of the four above>", "query": "<see below>"}}
 
-"query" is:
+"query" is, for the FINAL question only (resolve pronouns/references using earlier turns, but the query text itself should stand alone, e.g. "Priya Sharma" not "her"):
 - for "{INTENT_SOURCING}": the role/skills/experience text to search for.
-- for "{INTENT_CANDIDATE_STATUS}": the candidate's name as mentioned.
+- for "{INTENT_CANDIDATE_STATUS}": the candidate's name as mentioned (pulled from an earlier turn if the final question only uses a pronoun).
 - for "{INTENT_BENCH_AVAILABILITY}": the skill/role text to filter by, or empty string for "who's on the bench" with no filter.
 - for "{INTENT_UNKNOWN}": empty string."""
 
     prompt = build_safe_prompt(
         instruction=instruction,
-        untrusted_label="STAFF_QUESTION",
-        untrusted_content=message,
+        untrusted_label="CONVERSATION",
+        untrusted_content=_format_history_transcript(message, history),
     )
 
     llm = ChatGoogleGenerativeAI(
@@ -316,15 +350,18 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
     return f"{len(results)} available {label}:\n" + "\n".join(lines)
 
 
-def answer_internal_query(db: Session, message: str) -> Dict:
+def answer_internal_query(db: Session, message: str, *, history: Optional[List[Dict]] = None) -> Dict:
     """
     Full turn: classify -> real DB lookup -> deterministic, honest
     formatting. Never falls through to an LLM-generated guess -- a
     classification failure or an "unknown" intent both return
-    UNSUPPORTED_QUERY_MESSAGE verbatim.
+    UNSUPPORTED_QUERY_MESSAGE verbatim. `history` -- see
+    classify_internal_query()'s own docstring -- only ever affects
+    which candidate/role the CURRENT question resolves to; the DB
+    lookup and reply formatting below are unchanged either way.
     """
     try:
-        classification = classify_internal_query(message)
+        classification = classify_internal_query(message, history=history)
     except ThunderQueryClassificationFailed as exc:
         logger.warning(f"[AskThunder] classification failed: {exc}")
         return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}
