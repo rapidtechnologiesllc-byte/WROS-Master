@@ -114,6 +114,8 @@ from app.models.executive_signal import (
 from app.models.error_log import ErrorLog
 from app.models.bu_access import BUAccess
 from app.models.system_config import SystemConfig
+from app.models.activity_timeline import ActivityTimeline
+from app.models.file_upload import FileUpload
 
 __all__ = [
     # Base
@@ -287,5 +289,8 @@ __all__ = [
     "BUAccess",
     # System Configuration & Admin Settings Panel (S-213/HRMS-0115, 2026-08-05)
     "SystemConfig",
+    # Shared Activity Timeline & File Attachment Framework (S-216/HRMS-0118, 2026-08-05)
+    "ActivityTimeline",
+    "FileUpload",
 ]
 

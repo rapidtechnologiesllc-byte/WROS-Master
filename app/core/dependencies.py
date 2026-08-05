@@ -314,3 +314,13 @@ async def require_admin_role(
     if role_name not in ("admin", "super user"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user
+
+
+# HRMS-0114 -- same marker convention as get_current_hr_or_admin etc.
+# above; without this, app.core.route_security_audit's startup gate
+# treats any route using ONLY this dependency as having no declared
+# auth at all and refuses to boot. A real role check, not just "any
+# internal user," but not the RBAC permission-string system either
+# (no 'config.write' permission is seeded) -- __wros_authn__ is the
+# closer-fitting of the two marker categories.
+require_admin_role.__wros_authn__ = "admin_role_only"
