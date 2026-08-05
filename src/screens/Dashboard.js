@@ -125,6 +125,7 @@ export default function Dashboard({
           <Button
             variant="secondary"
             className="mt-3 w-full"
+            onClick={() => navigate("/offers")}
           >
             Manage Offers
           </Button>
