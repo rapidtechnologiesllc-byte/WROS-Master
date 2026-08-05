@@ -272,8 +272,12 @@ export const getAssignedInterviews = async () => {
 };
 
 // S-102/HRMS-P207 -- Hiring Manager Candidate Review.
-export const getHmCandidateReview = async (hiringManagerId) => {
-  const { data } = await apiRequest(`/interviews/hm-review/${hiringManagerId}`, {
+// Real fix, 2026-08-05 -- no longer takes a hiring manager ID at all.
+// The old version let any logged-in internal user view any OTHER
+// hiring manager's candidate review by typing an arbitrary ID; the
+// backend now derives "my candidates" from the authenticated caller.
+export const getMyHmCandidateReview = async () => {
+  const { data } = await apiRequest("/interviews/hm-review/my-candidates", {
     method: "GET",
   });
   return data;

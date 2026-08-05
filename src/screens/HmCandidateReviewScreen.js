@@ -3,11 +3,20 @@
 // feedback history. Approval/rejection itself happens on the existing
 // candidate status action (approval_endpoint below), not here -- this
 // is a read-only review surface.
-import { useState } from "react";
-import { UserCheck, Search, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
-import { Card, Button, Input } from "../components/ui";
+//
+// Real fix, 2026-08-05 -- used to make the user manually type their
+// own "Hiring Manager User ID" into a text field (Avinash: "why do we
+// need this field, shouldn't this be based on the current login").
+// Worse than a UX smell: the old backend route took that ID as a raw
+// path parameter with no ownership check, so any logged-in internal
+// user could view any OTHER hiring manager's candidates by typing a
+// different ID. Now loads "my own" candidates automatically from the
+// authenticated session, same as every other self-service screen.
+import { useEffect, useState } from "react";
+import { UserCheck, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { Card } from "../components/ui";
 import cx from "../utils/cx";
-import { getHmCandidateReview } from "../services/api/interviews";
+import { getMyHmCandidateReview } from "../services/api/interviews";
 
 const RECOMMENDATION_STYLES = {
   Hire: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -89,47 +98,33 @@ function CandidateReviewCard({ item }) {
 }
 
 export default function HmCandidateReviewScreen() {
-  const [hiringManagerId, setHiringManagerId] = useState("");
   const [review, setReview] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const handleLoad = async () => {
-    if (!hiringManagerId.trim()) {
-      setError("Hiring Manager user ID is required.");
-      return;
-    }
+  useEffect(() => {
     setLoading(true);
     setError("");
-    try {
-      const res = await getHmCandidateReview(hiringManagerId.trim());
-      setReview(res);
-    } catch (err) {
-      setError(err.message || "Failed to load candidate review.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    getMyHmCandidateReview()
+      .then(setReview)
+      .catch((err) => setError(err.message || "Failed to load your candidate review."))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="grid gap-4">
       <Card
         title="Hiring Manager Candidate Review"
-        subtitle="Every candidate assigned to a hiring manager with their full interview feedback history. Approve/Reject/Hold happens on the candidate's own status action, not here."
+        subtitle="Every candidate assigned to you as hiring manager, with their full interview feedback history. Approve/Reject/Hold happens on the candidate's own status action, not here."
         icon={<UserCheck className="h-4 w-4" />}
       >
         {error ? (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
         ) : null}
 
-        <div className="flex flex-wrap items-end gap-2">
-          <Input label="Hiring Manager User ID" value={hiringManagerId} onChange={setHiringManagerId} placeholder="U-..." />
-          <Button variant="primary" disabled={loading} onClick={handleLoad}>
-            <Search className="h-4 w-4" /> {loading ? "Loading…" : "Load Review"}
-          </Button>
-        </div>
-
-        {review ? (
+        {loading ? (
+          <div className="py-6 text-center text-sm text-gray-500">Loading...</div>
+        ) : review ? (
           <div className="mt-4">
             <div className="mb-3 text-sm text-gray-600">
               {review.hiring_manager_name} · {review.total_candidates} candidate(s) assigned
