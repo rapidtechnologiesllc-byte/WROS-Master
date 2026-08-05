@@ -126,8 +126,14 @@ export default function CandidateJourney({ candidateId, onNavigateTab }) {
         const active = data.stages.find((s) => s.status === "active");
         setSelectedStage(active || data.stages[0]);
       })
-      .catch(() => {
-        if (!cancelled) setError("Unable to load journey. Please refresh.");
+      .catch((err) => {
+        // 2026-08-05 -- was swallowing the real error entirely, so every
+        // failure (a genuine backend bug, a 403, a network blip) showed
+        // the same unhelpful message with nothing to diagnose from.
+        if (!cancelled) {
+          console.error("Failed to load candidate journey", err);
+          setError(err?.message ? `Unable to load journey: ${err.message}` : "Unable to load journey. Please refresh.");
+        }
       });
     return () => {
       cancelled = true;

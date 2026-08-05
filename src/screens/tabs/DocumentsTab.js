@@ -7,6 +7,8 @@ import {
 } from "../../services/api/documents";
 import { sendPlainEmail } from "../../services/api/email";
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
+import ActivityTimeline from "../../components/timeline/ActivityTimeline";
+import FileUploadPanel from "../../components/timeline/FileUploadPanel";
 
 const DOCUMENT_LABELS = {
   pan: "PAN Card",
@@ -397,15 +399,11 @@ HR Team`;
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
-                          <StatusBadge
-                            status={
-                              isVerified
-                                ? "verified"
-                                : showRejectReason
-                                  ? "rejected"
-                                  : "pending"
-                            }
-                          />
+                          {/* 2026-08-05 -- a rejected document reads as
+                              "pending" (re-upload needed), not a dead-end
+                              "rejected" -- the reason banner below still
+                              shows why, and a Task is now tracking it. */}
+                          <StatusBadge status={isVerified ? "verified" : "pending"} />
                           <ScanStatusBadge result={currentDoc?.virus_scan_result} />
                         </div>
                       </div>
@@ -471,6 +469,27 @@ HR Team`;
             </section>
           </div>
         )}
+
+        {/* 2026-08-05 -- merged in from the previous separate "Attachments"
+            tab, per Avinash's direct feedback: documents and attachments
+            are one candidate-facing concept, not two navigated screens. */}
+        <div className="border-t pt-6">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Activity &amp; General Uploads
+          </h3>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <ActivityTimeline entityType="candidate" entityId={candidateId} />
+            </div>
+            <div>
+              <FileUploadPanel
+                entityType="candidate"
+                entityId={candidateId}
+                fileCategory="COMPLIANCE"
+              />
+            </div>
+          </div>
+        </div>
       </div>
       {rejectDoc ? (
         <RejectReasonModal
@@ -564,11 +583,10 @@ function DocumentDetailsPanel({
               <h3 className="text-lg font-semibold text-gray-900">
                 {getDocumentLabel(doc?.document_type)}
               </h3>
-              <StatusBadge
-                status={
-                  isVerified ? "verified" : isRejected ? "rejected" : "pending"
-                }
-              />
+              {/* 2026-08-05 -- rejected reads as "pending" (re-upload
+                  needed); the rejection-reason banner below still shows
+                  why, and a Task now tracks it as open work. */}
+              <StatusBadge status={isVerified ? "verified" : "pending"} />
               <ScanStatusBadge result={doc?.virus_scan_result} />
             </div>
             <p className="mt-1 text-sm text-gray-500">

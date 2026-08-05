@@ -258,7 +258,6 @@ export default function CandidateEditModal({
                 },
                 { label: "Full time employee", value: "Full Time Employee" },
                 { label: "Intern", value: "Intern" },
-                { label: "Guidewire Employee", value: "Guidewire" },
               ]}
             />
             <Input

@@ -83,6 +83,7 @@ import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
+import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
 import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
@@ -489,6 +490,7 @@ export default function AppRoutes() {
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
+            <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -708,6 +710,7 @@ export default function AppRoutes() {
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
+            <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />

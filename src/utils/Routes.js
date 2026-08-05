@@ -31,6 +31,7 @@ export const ROUTES = {
   OFFERS: "/offers",
   OFFERS_LISTING: "/offers-listing",
   INTERVENTION_QUEUE: "/recruiter/intervention-queue",
+  REHIRE_APPROVALS: "/recruiter/rehire-approvals",
   RISK_DASHBOARD: "/recruiter/risk-dashboard",
   THUNDER_ANALYTICS: "/recruiter/thunder-analytics",
   BULK_LAUNCH: "/recruiter/bulk-launch",

@@ -36,11 +36,11 @@ function RoundCard({ round }) {
       <div className="text-xs text-gray-500">
         {round.status} · {round.start_time ? new Date(round.start_time).toLocaleString() : "—"}
       </div>
-      {round.feedbacks.length === 0 ? (
+      {(round.feedbacks || []).length === 0 ? (
         <div className="mt-2 text-xs text-gray-400">No feedback submitted yet.</div>
       ) : (
         <div className="mt-2 grid gap-2">
-          {round.feedbacks.map((f) => (
+          {(round.feedbacks || []).map((f) => (
             <div key={f.feedback_id} className="rounded-lg border bg-gray-50 px-3 py-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-gray-800">{f.interviewer_name}</span>
@@ -86,10 +86,10 @@ function CandidateReviewCard({ item }) {
       </div>
       {expanded ? (
         <div className="mt-3 grid gap-2">
-          {item.interviews.length === 0 ? (
+          {(item.interviews || []).length === 0 ? (
             <div className="text-xs text-gray-500">No interview rounds recorded yet.</div>
           ) : (
-            item.interviews.map((r) => <RoundCard key={r.interview_id} round={r} />)
+            (item.interviews || []).map((r) => <RoundCard key={r.interview_id} round={r} />)
           )}
         </div>
       ) : null}
@@ -130,10 +130,10 @@ export default function HmCandidateReviewScreen() {
               {review.hiring_manager_name} · {review.total_candidates} candidate(s) assigned
             </div>
             <div className="grid gap-3">
-              {review.candidates.length === 0 ? (
+              {(review.candidates || []).length === 0 ? (
                 <div className="py-6 text-center text-sm text-gray-500">No candidates assigned to this hiring manager.</div>
               ) : (
-                review.candidates.map((item) => <CandidateReviewCard key={item.candidate_id} item={item} />)
+                (review.candidates || []).map((item) => <CandidateReviewCard key={item.candidate_id} item={item} />)
               )}
             </div>
           </div>

@@ -359,14 +359,24 @@ export default function CandidateSearch({
       width: 300,
       render: (_, record) => {
         return (
-          <button
-            className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
-            onClick={() => {
-              navigate(`/candidates/${record.candidate_id}`);
-            }}
-          >
-            {record?.candidate_name}
-          </button>
+          <span className="inline-flex items-center gap-1.5">
+            <button
+              className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
+              onClick={() => {
+                navigate(`/candidates/${record.candidate_id}`);
+              }}
+            >
+              {record?.candidate_name}
+            </button>
+            {record?.is_guidewire_candidate ? (
+              <span
+                title="Guidewire candidate — nurture for conversion"
+                className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+              >
+                Guidewire
+              </span>
+            ) : null}
+          </span>
         );
       },
     },
