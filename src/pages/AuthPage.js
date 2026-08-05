@@ -1,7 +1,13 @@
 // Auth page with sample-style two-step sign-in flow.
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { getAzureSigninUrl, login } from "../services/api/auth";
+import {
+  getAzureSigninUrl,
+  login,
+  resendCandidateEmailOtp,
+  setCandidateEmail2faOptIn,
+  verifyCandidateEmailOtp,
+} from "../services/api/auth";
 import { getHrMe } from "../services/api/users";
 
 export default function AuthPage() {
@@ -13,6 +19,15 @@ export default function AuthPage() {
     UserPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  // Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half).
+  // pendingOtpToken is the short-lived candidate_otp_pending token --
+  // deliberately kept in React state, never written to hrms_token
+  // (that slot means "real session" everywhere else in this app).
+  const [pendingOtpToken, setPendingOtpToken] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpNotice, setOtpNotice] = useState("");
+  const [show2faOptInPopup, setShow2faOptInPopup] = useState(false);
 
   const handleNext = (event) => {
     event.preventDefault();
@@ -35,6 +50,60 @@ export default function AuthPage() {
     }
   };
 
+  // Shared by the direct-success path and the post-OTP-verify path --
+  // stores the real session and either redirects immediately or, for a
+  // never-asked candidate, shows the opt-in popup first.
+  const finishLogin = async (data, { offer2faOptIn = false } = {}) => {
+    localStorage.setItem("hrms_token", data.access_token);
+    const user = await getCurrentUser();
+    if (user) {
+      localStorage.setItem("user_info", JSON.stringify(user));
+      localStorage.setItem("permission_role", user.permission_role);
+    }
+    const entityType = String(data?.entity_type || "")
+      .trim()
+      .toLowerCase();
+    const looksLikeCandidate =
+      entityType === "candidate" ||
+      Boolean(
+        data?.candidate_id || data?.candidate_email || data?.candidate_role,
+      );
+
+    if (looksLikeCandidate) {
+      localStorage.setItem("hrms_user_type", "candidate");
+      localStorage.setItem(
+        "hrms_role",
+        String(data?.candidate_role || "Candidate").toUpperCase(),
+      );
+      if (data?.candidate_name) {
+        localStorage.setItem("hrms_user_name", data.candidate_name);
+      }
+      if (data?.candidate_email) {
+        localStorage.setItem("hrms_user_email", data.candidate_email);
+      }
+      if (data?.candidate_id) {
+        localStorage.setItem("hrms_candidate_id", data.candidate_id);
+      }
+    } else {
+      localStorage.setItem("hrms_user_type", "employee");
+      if (data?.user_role) {
+        localStorage.setItem("hrms_role", data.user_role.toUpperCase());
+      }
+      if (data?.user_name) {
+        localStorage.setItem("hrms_user_name", data.user_name);
+      }
+      if (data?.user_email) {
+        localStorage.setItem("hrms_user_email", data.user_email);
+      }
+    }
+
+    if (offer2faOptIn) {
+      setShow2faOptInPopup(true);
+      return;
+    }
+    window.location.href = "/";
+  };
+
   const submitLogin = async (event) => {
     event.preventDefault();
     setError("");
@@ -53,57 +122,61 @@ export default function AuthPage() {
         email: loginForm.UserEmail,
         password: loginForm.UserPassword,
       });
-      if (data?.access_token) {
-        localStorage.setItem("hrms_token", data.access_token);
-        const user = await getCurrentUser();
-        if (user) {
-          localStorage.setItem("user_info", JSON.stringify(user));
-          localStorage.setItem("permission_role", user.permission_role);
-        }
-        const entityType = String(data?.entity_type || "")
-          .trim()
-          .toLowerCase();
-        const looksLikeCandidate =
-          entityType === "candidate" ||
-          Boolean(
-            data?.candidate_id || data?.candidate_email || data?.candidate_role,
-          );
 
-        localStorage.setItem("hrms_token", data.access_token);
-        if (looksLikeCandidate) {
-          localStorage.setItem("hrms_user_type", "candidate");
-          localStorage.setItem(
-            "hrms_role",
-            String(data?.candidate_role || "Candidate").toUpperCase(),
-          );
-          if (data?.candidate_name) {
-            localStorage.setItem("hrms_user_name", data.candidate_name);
-          }
-          if (data?.candidate_email) {
-            localStorage.setItem("hrms_user_email", data.candidate_email);
-          }
-          if (data?.candidate_id) {
-            localStorage.setItem("hrms_candidate_id", data.candidate_id);
-          }
-        } else {
-          localStorage.setItem("hrms_user_type", "employee");
-          if (data?.user_role) {
-            localStorage.setItem("hrms_role", data.user_role.toUpperCase());
-          }
-          if (data?.user_name) {
-            localStorage.setItem("hrms_user_name", data.user_name);
-          }
-          if (data?.user_email) {
-            localStorage.setItem("hrms_user_email", data.user_email);
-          }
-        }
-        window.location.href = "/";
+      // Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
+      // half): this candidate has opted into email 2FA -- data.access_token
+      // here is a pending token, not a real session. Don't finish login.
+      if (data?.candidate_otp_required && data?.access_token) {
+        setPendingOtpToken(data.access_token);
+        setStep("candidate-otp");
+        return;
+      }
+
+      if (data?.access_token) {
+        await finishLogin(data, { offer2faOptIn: Boolean(data?.show_2fa_opt_in_popup) });
         return;
       }
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitCandidateOtp = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await verifyCandidateEmailOtp(pendingOtpToken, otpCode.trim());
+      await finishLogin(data);
+    } catch (err) {
+      setError(err.message || "Invalid or expired code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError("");
+    setOtpNotice("");
+    try {
+      await resendCandidateEmailOtp(pendingOtpToken);
+      setOtpNotice("A new code has been sent to your email.");
+    } catch (err) {
+      setError(err.message || "Could not resend the code.");
+    }
+  };
+
+  const handle2faOptInChoice = async (optedIn) => {
+    try {
+      await setCandidateEmail2faOptIn(optedIn);
+    } catch (err) {
+      // Non-blocking -- a failed preference save must never trap the
+      // candidate on the login screen after they've already authenticated.
+    } finally {
+      setShow2faOptInPopup(false);
+      window.location.href = "/";
     }
   };
 
@@ -132,7 +205,65 @@ export default function AuthPage() {
             </div>
           ) : null}
 
-          {step === "email" ? (
+          {step === "candidate-otp" ? (
+            <form onSubmit={submitCandidateOtp} className="space-y-4">
+              <p className="text-sm text-slate-600">
+                We emailed a verification code to{" "}
+                <span className="font-semibold">{loginForm.UserEmail}</span>.
+                Enter it below to finish signing in.
+              </p>
+              {otpNotice ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {otpNotice}
+                </div>
+              ) : null}
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-700">
+                  Verification Code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-center text-lg tracking-[0.5em] outline-none focus:border-bx-orange"
+                  value={otpCode}
+                  onChange={(event) =>
+                    setOtpCode(event.target.value.replace(/[^0-9]/g, ""))
+                  }
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
+                disabled={loading || otpCode.length !== 6}
+              >
+                {loading ? "Verifying..." : "Verify & Sign In"}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+                onClick={handleResendOtp}
+                disabled={loading}
+              >
+                Resend code
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+                onClick={() => {
+                  setError("");
+                  setOtpNotice("");
+                  setOtpCode("");
+                  setPendingOtpToken("");
+                  setStep("password");
+                }}
+              >
+                Go Back
+              </button>
+            </form>
+          ) : step === "email" ? (
             <form onSubmit={handleNext} className="space-y-5">
               <div>
                 <label className="mb-1 block text-sm font-semibold text-slate-700">
@@ -244,6 +375,37 @@ export default function AuthPage() {
           )}
         </div>
       </div>
+
+      {show2faOptInPopup ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-bx-lg bg-white p-6 shadow-2xl">
+            <h2 className="mb-2 text-lg font-bold text-slate-900">
+              Add an extra layer of security?
+            </h2>
+            <p className="mb-5 text-sm text-slate-600">
+              You can turn on email verification for future sign-ins --
+              we'll send a one-time code to your email each time you log
+              in. You can change this anytime.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="flex-1 rounded-xl bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover"
+                onClick={() => handle2faOptInChoice(true)}
+              >
+                Enable
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => handle2faOptInChoice(false)}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

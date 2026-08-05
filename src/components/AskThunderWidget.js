@@ -15,16 +15,33 @@ export default function AskThunderWidget() {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
 
+  // Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
+  // pairs up the flat you/thunder message list into {question, reply}
+  // turns for the backend's history-aware classifier -- the fix for
+  // "i ask a question to thunder and move to a different page it
+  // looses the history and acts as a new session." Only the recent
+  // tail matters (the backend caps further); no need to send everything.
+  const recentHistory = (allMessages) => {
+    const turns = [];
+    for (let i = 0; i < allMessages.length - 1; i++) {
+      if (allMessages[i].sender === "you" && allMessages[i + 1].sender === "thunder") {
+        turns.push({ question: allMessages[i].body, reply: allMessages[i + 1].body });
+      }
+    }
+    return turns.slice(-3);
+  };
+
   const handleSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
 
+    const history = recentHistory(messages);
     setSending(true);
     setMessages((prev) => [...prev, { sender: "you", body: text }]);
     setDraft("");
 
     try {
-      const res = await askThunder(text);
+      const res = await askThunder(text, history);
       setMessages((prev) => [...prev, { sender: "thunder", body: res.reply }]);
     } catch (err) {
       setMessages((prev) => [
