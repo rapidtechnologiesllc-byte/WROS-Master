@@ -67,6 +67,7 @@ import ThunderChatScreen from "../screens/ThunderChatScreen";
 import ResourceManagementScreen from "../screens/ResourceManagementScreen";
 import CorePullScreen from "../screens/CorePullScreen";
 import ClientManagementScreen from "../screens/ClientManagementScreen";
+import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import EmployeeDirectoryScreen from "../screens/EmployeeDirectoryScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
@@ -489,6 +490,7 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
+            <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
@@ -709,6 +711,7 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
+            <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
