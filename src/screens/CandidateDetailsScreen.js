@@ -7,6 +7,8 @@ import TasksTab from "./tabs/TasksTab";
 import ActivityTab from "./tabs/ActivityTab";
 import HistoryTab from "./tabs/HistoryTab";
 import MessagesTab from "./tabs/MessagesTab";
+import ActivityTimeline from "../components/timeline/ActivityTimeline";
+import FileUploadPanel from "../components/timeline/FileUploadPanel";
 import CandidateJourney from "../components/candidate/CandidateJourney";
 import CandidateEditModal from "./CandidateEditModal";
 import {
@@ -161,6 +163,7 @@ export default function CandidateDetailsScreen({
         "tasks",
         "interview",
         "history",
+        "attachments",
       ];
 
   const canShowFullActions = !limitedMode;
@@ -1326,6 +1329,24 @@ ${formattedJD}
               <HistoryTab
                 candidateId={candidate?.id || candidate?.candidate_id}
               />
+            )}
+            {activeTab === "attachments" && !limitedMode && (
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div>
+                  <h3 className="mb-3 text-xs font-semibold uppercase text-gray-500">Activity</h3>
+                  <ActivityTimeline
+                    entityType="candidate"
+                    entityId={candidate?.id || candidate?.candidate_id}
+                  />
+                </div>
+                <div>
+                  <FileUploadPanel
+                    entityType="candidate"
+                    entityId={candidate?.id || candidate?.candidate_id}
+                    fileCategory="COMPLIANCE"
+                  />
+                </div>
+              </div>
             )}
           </div>
           {!limitedMode && (
