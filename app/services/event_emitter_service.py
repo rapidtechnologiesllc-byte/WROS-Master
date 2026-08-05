@@ -54,6 +54,13 @@ EVENT_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "offer.declined": {"version": "v1", "candidate_scoped": True},
     "onboarding.complete": {"version": "v1", "candidate_scoped": True},
     "sla.breach_detected": {"version": "v1", "candidate_scoped": True},
+    # S-348/HRMS-P118 -- Desire Profile Builder.
+    "candidate.desire_profile_updated": {"version": "v1", "candidate_scoped": True},
+    "candidate.desire_shift_detected": {"version": "v1", "candidate_scoped": True},
+    "candidate.competing_offer_detected": {"version": "v1", "candidate_scoped": True},
+    # S-349/HRMS-P119 -- consumed by motivation_engine_service's
+    # COOLING_ENGAGEMENT trigger.
+    "candidate.engagement_cooled": {"version": "v1", "candidate_scoped": True},
     # Not candidate-specific -- one summary event per tenant per cycle.
     "supervisor.cycle_completed": {"version": "v1", "candidate_scoped": False},
 }

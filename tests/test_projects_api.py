@@ -143,11 +143,74 @@ def test_create_speciality_project_requires_si_partner(client):
 def test_create_core_project_does_not_require_si_partner(client):
     resp = client.post(
         "/projects",
-        json={"client_id": client.wros_ids["client_id"], "name": "Core Engagement", "delivery_engine": "CORE"},
+        json={
+            "client_id": client.wros_ids["client_id"], "name": "Core Engagement",
+            "delivery_engine": "CORE", "business_type": "MANAGED_SERVICES",
+        },
         headers=_auth(),
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["si_partner"] is None
+
+
+def test_create_core_project_requires_business_type(client):
+    resp = client.post(
+        "/projects",
+        json={"client_id": client.wros_ids["client_id"], "name": "Core, No Business Type", "delivery_engine": "CORE"},
+        headers=_auth(),
+    )
+    assert resp.status_code == 400
+
+
+def test_create_speciality_project_does_not_require_business_type(client):
+    resp = client.post(
+        "/projects",
+        json={
+            "client_id": client.wros_ids["client_id"], "name": "Speciality Only", "delivery_engine": "SPECIALITY",
+            "si_partner": "PWC",
+        },
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["business_type"] is None
+
+
+def test_speciality_project_allows_inr(client):
+    resp = client.post(
+        "/projects",
+        json={
+            "client_id": client.wros_ids["client_id"], "name": "INR Speciality", "delivery_engine": "SPECIALITY",
+            "si_partner": "PWC", "currency": "INR",
+        },
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["currency"] == "INR"
+
+
+def test_core_project_rejects_inr(client):
+    resp = client.post(
+        "/projects",
+        json={
+            "client_id": client.wros_ids["client_id"], "name": "INR Core Attempt", "delivery_engine": "CORE",
+            "business_type": "T_AND_M", "currency": "INR",
+        },
+        headers=_auth(),
+    )
+    assert resp.status_code == 400
+
+
+def test_end_client_and_client_partner_round_trip(client):
+    resp = client.post(
+        "/projects",
+        json={
+            "client_id": client.wros_ids["client_id"], "name": "With End Client", "delivery_engine": "SPECIALITY",
+            "si_partner": "PWC", "end_client": "Acme Global Insurance", "client_partner": None,
+        },
+        headers=_auth(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["end_client"] == "Acme Global Insurance"
 
 
 def test_list_and_get_project(client):

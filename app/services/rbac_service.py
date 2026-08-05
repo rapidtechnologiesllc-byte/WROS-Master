@@ -20,6 +20,7 @@ from app.core.logging import logger
 
 ROLES_SEED = [
     {"name": "Super User",            "description": "Full system access across all Business Units"},
+    {"name": "Partner",               "description": "Org leadership one level above BU Head -- global access across Business Units (2026-08-05, added for the desire-intelligence edit gate; not yet part of a fully-modeled title hierarchy)"},
     {"name": "BU Head",               "description": "Full access within a single Business Unit"},
     {"name": "Hiring Manager",        "description": "Access to jobs they opened; interview feedback"},
     {"name": "HR Manager",            "description": "Full HR control within BU"},
@@ -36,6 +37,13 @@ ROLES_SEED = [
 # role_name → {attribute_name: bool}
 ROLE_ATTRIBUTES_SEED: Dict[str, Dict[str, bool]] = {
     "Super User": {
+        "global_access": True, "bu_restricted": False,
+        "candidate_owner_only": False, "job_owner_only": False,
+        "pipeline_control": True, "interview_control": True,
+        "offer_control": True, "employee_data_access": True,
+        "timesheet_access": True, "payroll_access": True,
+    },
+    "Partner": {
         "global_access": True, "bu_restricted": False,
         "candidate_owner_only": False, "job_owner_only": False,
         "pipeline_control": True, "interview_control": True,
@@ -148,13 +156,21 @@ PERMISSIONS_SEED = [
     {"name": "tenant.ai_config",     "description": "View and update Thunder's per-tenant name and persona (S-011/HRMS-0411)"},
     {"name": "template.manage",      "description": "Activate a message template version (S-014/HRMS-0414)"},
     {"name": "offer.readiness_check", "description": "View a candidate's offer readiness gate before generating an offer (S-053/HRMS-0453) -- deliberately narrower than offer.manage/offer.view; excludes Recruiter per that story's own explicit AC/TC, unlike the two broader offer permissions which (a pre-existing inconsistency, not introduced by this story) currently include Recruiter despite its own role description/offer_control=False attribute saying otherwise."},
+    {"name": "candidate.desire_intelligence.edit", "description": "Edit/refresh a candidate's Desire Intelligence profile (S-350/HRMS-P120) -- viewing is candidate.view (everyone); editing (refresh narrative, curate motivation content library) is Partner/BU Head/HR Manager/Super User only per Avinash's explicit 2026-08-05 direction. Recruiter and Resource Manager still feed the underlying signals through their normal candidate interactions -- they just don't get the edit/curation controls."},
 ]
 
 # role_name → list of permission names it should have
 ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
     "Super User": [p["name"] for p in PERMISSIONS_SEED],   # all permissions
+    "Partner": [
+        "candidate.view", "candidate.edit", "candidate.desire_intelligence.edit",
+        "job.view", "job.create", "job.edit", "job.approve", "pipeline.move", "interview.feedback",
+        "offer.manage", "offer.readiness_check", "employee.view", "employee.edit", "document.verify",
+        "interview.manage", "interview.view", "newsletter.view", "document.view", "history.create", "rbac.manage",
+    ],
     "BU Head": [
-        "candidate.view", "candidate.edit", "job.view", "job.create", "job.edit",
+        "candidate.view", "candidate.edit", "candidate.desire_intelligence.edit",
+        "job.view", "job.create", "job.edit",
         "job.approve", "pipeline.move", "interview.feedback",
         "offer.manage", "offer.readiness_check", "employee.view", "employee.edit","document.verify",
         "interview.manage","interview.view","newsletter.view","document.view","history.create","rbac.manage",
@@ -164,7 +180,7 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
         "interview.manage","interview.view","newsletter.view","document.view","document.verify","history.create"
     ],
     "HR Manager": [
-        "candidate.view", "candidate.edit", "employee.view", "employee.edit",
+        "candidate.view", "candidate.edit", "candidate.desire_intelligence.edit", "employee.view", "employee.edit",
         "user.manage", "newsletter.manage","newsletter.view","document.view","document.verify",
         "history.create","interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view"
 

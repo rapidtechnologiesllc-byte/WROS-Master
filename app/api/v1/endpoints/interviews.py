@@ -13,6 +13,7 @@ from app.models import (
     CandidateStatus, CandidateAssignment, Jobs,
     CandidateHistory,
     ChecklistTemplate, CandidateChecklist, CandidateChecklistItem, ChecklistTemplateItem,
+    InterviewRehireReview,
 )
 from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
@@ -20,6 +21,18 @@ from app.services.interview_sequencing_service import (
     PriorRoundNotPassed,
     enforce_interview_sequencing_gate,
     get_hm_candidate_review_list,
+)
+from app.services.interview_rehire_guard_service import (
+    RehireReviewAlreadyDecided,
+    RehireReviewNotFound,
+    candidate_has_past_no_hire,
+    decide_rehire_review,
+    get_pending_rehire_reviews,
+    submit_rehire_request,
+)
+from app.services.interview_feedback_task_service import (
+    close_pending_feedback_task,
+    sync_pending_feedback_tasks_for_interview,
 )
 from app.core.scheduler import scheduler
 from app.core.logging import logger
@@ -41,6 +54,8 @@ from app.schemas.interview import (
     DeleteResponse, BulkDeleteResponse,
     # Hiring Manager review
     HMFeedbackDetail, HMInterviewRound, HMCandidateReviewItem, HMCandidateReviewListResponse,
+    # Rehire guard
+    RehireReviewResponse, RehireReviewListResponse, RehireReviewDecideRequest,
 )
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
@@ -747,6 +762,75 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
             )
 
 
+def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) -> str | None:
+    """Backlog item, 2026-08-05: same 3-priority HM resolution
+    _check_and_auto_submit_for_hire() already uses, kept as its own
+    standalone helper (not a refactor of that already-tested function)
+    so this new call site can't regress it. Returns a Users.UserID or
+    None -- callers must handle "no HM resolvable" without raising."""
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    if panel and panel.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+        if job and job.hiringManagerID:
+            return job.hiringManagerID
+
+    assignment = db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == interview.candidate_id).first()
+    if assignment and assignment.hiring_manager_id:
+        return assignment.hiring_manager_id
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == interview.candidate_id).first()
+    if candidate and candidate.job_id:
+        job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
+        if job and job.hiringManagerID:
+            return job.hiringManagerID
+
+    return None
+
+
+def _create_hm_review_task(db: Session, interview: Interview) -> None:
+    """Backlog item, 2026-08-05 (wros_hm_candidate_review_task_link_backlog):
+    a real Task ("Review interview feedback for [Candidate]") once all
+    interviewers for a candidate's current round have submitted --
+    Interview.status flips to "Completed" is the real, already-shipped
+    signal for that (see completeInterviewIfAllPanelDone() on the
+    frontend, which only PUTs status=Completed once every panel member
+    is done). Deep-links to HmCandidateReviewScreen via the Task
+    description rather than a dedicated Task field -- no generic
+    "related entity" column exists on Task for a non-document link.
+    Fire-and-forget: a Task-creation bug must never break marking an
+    interview Completed, which has already committed by the time this
+    runs."""
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == interview.candidate_id).first()
+        candidate_name = _candidate_display_name(candidate) if candidate else interview.candidate_id
+        hm_user_id = _resolve_hiring_manager_id_for_interview(db, interview)
+
+        from app.services.task_service import create_task
+        task = create_task(
+            db,
+            title=f"Review interview feedback: {candidate_name}",
+            description=(
+                f"All panel members have submitted feedback for {candidate_name}'s interview round. "
+                f"Review it on the Hiring Manager Candidate Review screen (/hiring-manager-review)."
+            ),
+            priority="MEDIUM",
+            assigned_to_user_id=hm_user_id,
+            visibility_scope="ORG_WIDE" if hm_user_id is None else "ASSIGNEE_MANAGER_DEPARTMENT",
+            task_type="GENERAL",
+            category="INTERVIEW_REVIEW",
+        )
+        # Backlog item, 2026-08-05 (Task feedback-pending vs HM-decision-
+        # pending split): link candidate_id/interview_id so this task is
+        # real queryable-per-round, distinct from any pending-feedback
+        # Task (category=INTERVIEW_FEEDBACK) on the same interview.
+        task.candidate_id = interview.candidate_id
+        task.interview_id = interview.id
+        db.add(task)
+        db.commit()
+    except Exception as exc:
+        logger.warning(f"[HMReviewTask] Failed to create review task for interview {interview.id}: {exc}")
+
+
 # ============================================
 # NOTE: Hiring Manager review endpoint moved
 # ============================================
@@ -810,6 +894,48 @@ def create_interview_panel(
     except PriorRoundNotPassed as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+    # Rehire guard: a candidate with a past no-hire (Reject) outcome on
+    # any prior round/job needs a written justification, reviewed by AI
+    # and escalated to the hiring manager when not clearly justified,
+    # before a new round can be scheduled. Fail-closed -- the panel is
+    # never created in the same request unless AI actually clears it.
+    rehire_review_id = None
+    rehire_cleared_by = None
+    if candidate_has_past_no_hire(db, request.candidate_id):
+        if not request.rehire_justification or not request.rehire_justification.strip():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This candidate has a past no-hire outcome on record. A written "
+                    "justification is required to schedule a new interview round."
+                ),
+            )
+        review = submit_rehire_request(
+            db,
+            request.candidate_id,
+            _candidate_display_name(candidate),
+            request.round_name,
+            request.job_id,
+            user.UserID,
+            request.rehire_justification,
+        )
+        if review.status != "AI_CLEARED":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "rehire_review_pending",
+                    "review_id": review.id,
+                    "msg": (
+                        "This candidate has a past no-hire outcome. The justification "
+                        "has been sent to the hiring manager for approval before this "
+                        "round can be scheduled."
+                    ),
+                    "ai_reasoning": review.ai_reasoning,
+                },
+            )
+        rehire_review_id = review.id
+        rehire_cleared_by = "AI"
+
     # Create panel
     panel = InterviewPanel(
         candidate_id=request.candidate_id,
@@ -827,7 +953,9 @@ def create_interview_panel(
         round_name=panel.round_name,
         job_id=panel.job_id,
         job_title=job.jobTitle if job else None,
-        created_at=panel.created_at
+        created_at=panel.created_at,
+        rehire_review_id=rehire_review_id,
+        rehire_cleared_by=rehire_cleared_by,
     )
 
 
@@ -1023,6 +1151,127 @@ def delete_interview_panel(
 
 
 # ============================================
+# Rehire Guard Endpoints (2026-08-05)
+# ============================================
+
+def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> RehireReviewResponse:
+    candidate = db.query(Candidate).filter(Candidate.candidateID == review.candidate_id).first()
+    requester = db.query(Users).filter(Users.UserID == review.requested_by).first() if review.requested_by else None
+    job = db.query(Jobs).filter(Jobs.jobID == review.job_id).first() if review.job_id else None
+
+    return RehireReviewResponse(
+        id=review.id,
+        candidate_id=review.candidate_id,
+        candidate_name=_candidate_display_name(candidate) if candidate else None,
+        round_name=review.round_name,
+        job_id=review.job_id,
+        job_title=job.jobTitle if job else None,
+        requested_by=review.requested_by,
+        requested_by_name=requester.UserName if requester else None,
+        justification=review.justification,
+        past_no_hire_panel_ids=review.past_no_hire_panel_ids,
+        status=review.status,
+        ai_decision=review.ai_decision,
+        ai_reasoning=review.ai_reasoning,
+        ai_confidence=float(review.ai_confidence) if review.ai_confidence is not None else None,
+        decided_by=review.decided_by,
+        decided_at=review.decided_at,
+        decision_note=review.decision_note,
+        resulting_panel_id=review.resulting_panel_id,
+        created_at=review.created_at,
+    )
+
+
+@router.get(
+    "/rehire-reviews",
+    response_model=RehireReviewListResponse,
+    dependencies=[Depends(require_permission("interview.manage"))],
+)
+def list_rehire_reviews(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin),
+):
+    """
+    Pending rehire-guard reviews awaiting a hiring manager's decision --
+    candidates with a past no-hire outcome whose re-interview
+    justification was NOT clearly justified enough for AI to auto-clear.
+    No InterviewPanel exists for any of these yet.
+    """
+    reviews = get_pending_rehire_reviews(db)
+    return RehireReviewListResponse(
+        total=len(reviews),
+        reviews=[_rehire_review_to_response(db, r) for r in reviews],
+    )
+
+
+@router.post(
+    "/rehire-reviews/{review_id}/decide",
+    response_model=RehireReviewResponse,
+    dependencies=[Depends(require_permission("interview.manage"))],
+)
+def decide_rehire_review_endpoint(
+    review_id: int,
+    request: RehireReviewDecideRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin),
+):
+    """
+    Hiring manager approves or rejects a pending rehire review. Approve
+    creates the real interview panel for the first time -- it does not
+    exist until this call succeeds. Reject leaves no panel, ever.
+    """
+    decision = (request.decision or "").strip().lower()
+    if decision not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="decision must be 'approve' or 'reject'")
+
+    try:
+        review = decide_rehire_review(db, review_id, decision, user.UserID, request.note)
+    except RehireReviewNotFound:
+        raise HTTPException(status_code=404, detail=f"Rehire review {review_id} not found")
+    except RehireReviewAlreadyDecided as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    return _rehire_review_to_response(db, review)
+
+
+def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id: str) -> str | None:
+    """Backlog item, 2026-08-05 (wros_interview_regrouping_and_rehire_guard_priority):
+    Avinash -- "we also need to ensure that same panel is not used if
+    different jobs, different clients but same candidate ... allows us
+    to get different perspective on the candidate." Advisory only (same
+    "advisory where it can decide" posture as Task priority validation)
+    -- a recruiter may have a real reason to reuse an interviewer (e.g.
+    no one else has the required skill), so this warns rather than
+    blocks. Only flags OTHER panels for the same candidate on a
+    DIFFERENT job -- reusing the same interviewer across rounds of the
+    SAME job (e.g. L1 and L2 both by the same panel) is normal and not
+    a diversity concern."""
+    past_panels = (
+        db.query(InterviewPanel)
+        .join(PanelMember, PanelMember.panel_id == InterviewPanel.id)
+        .filter(
+            InterviewPanel.candidate_id == panel.candidate_id,
+            InterviewPanel.id != panel.id,
+            PanelMember.interviewer_id == interviewer_id,
+        )
+        .all()
+    )
+    if not past_panels:
+        return None
+
+    if panel.job_id is not None:
+        past_panels = [p for p in past_panels if p.job_id != panel.job_id]
+        if not past_panels:
+            return None
+
+    return (
+        f"Interviewer {interviewer_id} already served on a panel for this candidate "
+        f"on {len(past_panels)} other job(s) -- consider a different interviewer for "
+        f"a fresh perspective."
+    )
+
+
+# ============================================
 # Panel Member Endpoints
 # ============================================
 
@@ -1079,12 +1328,14 @@ def assign_panel_member(
             detail=f"Interviewer {request.interviewer_id} is already assigned to panel {request.panel_id}"
         )
     
+    diversity_warning = _panel_diversity_warning(db, panel, request.interviewer_id)
+
     # Create panel member
     panel_member = PanelMember(
         panel_id=request.panel_id,
         interviewer_id=request.interviewer_id
     )
-    
+
     db.add(panel_member)
     db.commit()
     db.refresh(panel_member)
@@ -1102,6 +1353,7 @@ def assign_panel_member(
         )
         for iv in active_interviews:
             _schedule_feedback_reminders(iv, db)
+            sync_pending_feedback_tasks_for_interview(db, iv)
             logger.info(
                 f"[FeedbackReminder] Scheduled reminders for new panel member "
                 f"{request.interviewer_id} on interview {iv.id}."
@@ -1115,7 +1367,8 @@ def assign_panel_member(
     return PanelMemberResponse(
         id=panel_member.id,
         panel_id=panel_member.panel_id,
-        interviewer_id=panel_member.interviewer_id
+        interviewer_id=panel_member.interviewer_id,
+        diversity_warning=diversity_warning,
     )
 
 
@@ -1282,7 +1535,12 @@ def create_interview(
         _schedule_feedback_reminders(interview, db)
     except Exception as exc:
         logger.warning(f"[FeedbackReminder] Scheduler error on create (non-critical): {exc}")
-    
+
+    # Backlog item, 2026-08-05: real Task Dashboard entries for each
+    # panel member's pending feedback, scoped to this exact round --
+    # additive to the email reminders above, not a replacement.
+    sync_pending_feedback_tasks_for_interview(db, interview)
+
     return InterviewResponse(
         id=interview.id,
         panel_id=interview.panel_id,
@@ -1620,7 +1878,9 @@ def update_interview(
             status_code=404,
             detail=f"Interview with ID {interview_id} not found"
         )
-    
+
+    previous_status = interview.status
+
     # Update only provided fields
     if request.start_time is not None:
         interview.start_time = request.start_time
@@ -1662,7 +1922,14 @@ def update_interview(
             _schedule_feedback_reminders(interview, db)
         except Exception as exc:
             logger.warning(f"[FeedbackReminder] Scheduler error on update (non-critical): {exc}")
-    
+
+    # Backlog item, 2026-08-05: create the HM review Task the first time
+    # (and only the first time) this interview round transitions into
+    # Completed -- re-PUTs of an already-Completed interview must not
+    # spawn duplicate tasks.
+    if interview.status == "Completed" and previous_status != "Completed":
+        _create_hm_review_task(db, interview)
+
     return InterviewResponse(
         id=interview.id,
         panel_id=interview.panel_id,
@@ -1812,7 +2079,9 @@ def submit_interview_feedback(
     db.add(feedback)
     db.commit()
     db.refresh(feedback)
-    
+
+    close_pending_feedback_task(db, request.interview_id, request.interviewer_id)
+
     # Auto-complete interview status when last panel member submits feedback
     try:
         # Get all panel members assigned to this interview's panel
@@ -1842,6 +2111,7 @@ def submit_interview_feedback(
                         f"[FeedbackComplete] Interview #{interview.id} marked as 'Completed' — "
                         f"all {len(panel_member_ids)} panel member(s) have submitted feedback."
                     )
+                    _create_hm_review_task(db, interview)
     except Exception as exc:
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
 

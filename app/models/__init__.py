@@ -116,6 +116,10 @@ from app.models.bu_access import BUAccess
 from app.models.system_config import SystemConfig
 from app.models.activity_timeline import ActivityTimeline
 from app.models.file_upload import FileUpload
+from app.models.interview_rehire_review import InterviewRehireReview
+from app.models.candidate_desire_signal import CandidateDesireSignal
+from app.models.candidate_desire_profile import CandidateDesireProfile
+from app.models.motivation import MotivationContentLibrary, MotivationOutcome
 
 __all__ = [
     # Base
@@ -292,5 +296,14 @@ __all__ = [
     # Shared Activity Timeline & File Attachment Framework (S-216/HRMS-0118, 2026-08-05)
     "ActivityTimeline",
     "FileUpload",
+    # Interview Rehire Guard (2026-08-05)
+    "InterviewRehireReview",
+    # Candidate Desire Intelligence Engine (S-347, 2026-08-05)
+    "CandidateDesireSignal",
+    # Desire Profile Builder (S-348, 2026-08-05)
+    "CandidateDesireProfile",
+    # Proactive Motivation Engine (S-349, 2026-08-05)
+    "MotivationContentLibrary",
+    "MotivationOutcome",
 ]
 

@@ -18,6 +18,15 @@ class CreateProjectRequest(BaseModel):
     continent: Optional[str] = None
     delivery_engine: str = "SPECIALITY"
     si_partner: Optional[str] = None
+    # Backlog item, 2026-08-05: end_client is a Speciality/Staff-Aug
+    # concept but never mandatory (Avinash's own words). client_partner
+    # is the Core equivalent. business_type (T_AND_M/MANAGED_SERVICES/
+    # PROJECT/POD/PILOT) is required for CORE, meaningless for
+    # Speciality (which is implicitly Staff Aug, nothing to store) --
+    # enforced at the API layer, see create_project_endpoint().
+    end_client: Optional[str] = None
+    client_partner: Optional[str] = None
+    business_type: Optional[str] = None
     allow_weekend_billing: bool = False
 
 
@@ -32,6 +41,9 @@ class ProjectItem(BaseModel):
     continent: Optional[str] = None
     delivery_engine: str
     si_partner: Optional[str] = None
+    end_client: Optional[str] = None
+    client_partner: Optional[str] = None
+    business_type: Optional[str] = None
     allow_weekend_billing: bool
     start_date: Optional[date] = None
     end_date: Optional[date] = None

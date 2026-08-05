@@ -76,3 +76,16 @@ class PortalRescheduleRequest(BaseModel):
 class PortalRescheduleResponse(BaseModel):
     request_id: int
     submitted_at: Optional[datetime]
+
+
+class PortalTrackRequest(BaseModel):
+    """S-346 Step 4 / S-347 Step 4 -- a portal page view. page is a free
+    label (home|messages|profile|interviews|...), not FK'd to anything --
+    matches whatever route the frontend is actually on."""
+    page: str = Field(..., max_length=50)
+    time_on_page_seconds: int = Field(..., ge=0)
+    scroll_depth_pct: Optional[int] = Field(None, ge=0, le=100)
+
+
+class PortalTrackResponse(BaseModel):
+    recorded: bool

@@ -36,6 +36,8 @@ from app.schemas.candidate_portal import (
     PortalRescheduleRequest,
     PortalRescheduleResponse,
     PortalThreadResponse,
+    PortalTrackRequest,
+    PortalTrackResponse,
 )
 from app.services.ai_conversation_service import get_missing_fields, merge_fields_to_db
 from app.services.candidate_portal_service import (
@@ -46,6 +48,7 @@ from app.services.candidate_portal_service import (
     get_portal_interviews,
     get_portal_profile_fields,
     get_portal_thread,
+    track_portal_page_view,
 )
 
 router = APIRouter(prefix="/portal", tags=["candidate-portal"])
@@ -130,3 +133,18 @@ def portal_reschedule_request(
     except PortalInterviewNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return PortalRescheduleResponse(**result)
+
+
+@router.post("/track", response_model=PortalTrackResponse)
+def portal_track_page_view(
+    body: PortalTrackRequest,
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """S-346 Step 4 / S-347 Step 4 -- called by the frontend on page
+    leave (beforeunload) or after 30s on page. Always 200 -- this is a
+    behavioral-telemetry beacon, not a business action; a missing
+    conversation just means the signal is silently skipped (see
+    track_portal_page_view()'s own docstring)."""
+    recorded = track_portal_page_view(db, candidate, body.page, body.time_on_page_seconds, body.scroll_depth_pct)
+    return PortalTrackResponse(recorded=recorded)

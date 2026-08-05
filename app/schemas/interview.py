@@ -11,6 +11,14 @@ class InterviewPanelCreate(BaseModel):
     candidate_id: str
     round_name: str = Field(..., description="Round name: HR, Technical, Managerial, etc.")
     job_id: Optional[str] = Field(None, description="Job the candidate is being interviewed for")
+    rehire_justification: Optional[str] = Field(
+        None,
+        description=(
+            "Required only when the candidate has a past no-hire (Reject) outcome on "
+            "record -- explains why they should be re-interviewed. Reviewed by AI, "
+            "escalated to the hiring manager if not clearly justified."
+        ),
+    )
 
 class InterviewPanelResponse(BaseModel):
     """Schema for interview panel response"""
@@ -20,6 +28,12 @@ class InterviewPanelResponse(BaseModel):
     job_id: Optional[str] = None
     job_title: Optional[str] = None
     created_at: datetime
+    rehire_review_id: Optional[int] = Field(
+        None, description="Set only when this panel was created via the rehire guard."
+    )
+    rehire_cleared_by: Optional[str] = Field(
+        None, description="'AI' or 'Hiring Manager' -- only set when the rehire guard applied."
+    )
 
 class InterviewPanelWithDetails(BaseModel):
     """Schema for interview panel with member details"""
@@ -48,6 +62,12 @@ class PanelMemberResponse(BaseModel):
     id: int
     panel_id: int
     interviewer_id: str
+    diversity_warning: Optional[str] = Field(
+        None,
+        description="Set when this interviewer already served on a panel for this "
+                    "same candidate on a different job -- assignment still succeeds, "
+                    "this is advisory only.",
+    )
 
 class PanelMemberWithDetails(BaseModel):
     """Schema for panel member with interviewer details"""
@@ -336,4 +356,41 @@ class HMCandidateReviewListResponse(BaseModel):
     hiring_manager_id: str
     hiring_manager_name: str
     total_candidates: int
+
+
+# ============================================
+# Rehire Guard Schemas (2026-08-05)
+# ============================================
+
+class RehireReviewResponse(BaseModel):
+    """A single rehire-guard review row."""
+    id: int
+    candidate_id: str
+    candidate_name: Optional[str] = None
+    round_name: str
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    requested_by: Optional[str] = None
+    requested_by_name: Optional[str] = None
+    justification: str
+    past_no_hire_panel_ids: Optional[List[int]] = None
+    status: str  # PENDING_HM_APPROVAL | AI_CLEARED | APPROVED | REJECTED
+    ai_decision: Optional[str] = None
+    ai_reasoning: Optional[str] = None
+    ai_confidence: Optional[float] = None
+    decided_by: Optional[str] = None
+    decided_at: Optional[datetime] = None
+    decision_note: Optional[str] = None
+    resulting_panel_id: Optional[int] = None
+    created_at: datetime
+
+
+class RehireReviewListResponse(BaseModel):
+    total: int
+    reviews: List[RehireReviewResponse]
+
+
+class RehireReviewDecideRequest(BaseModel):
+    decision: str = Field(..., description="'approve' or 'reject'")
+    note: Optional[str] = None
     candidates: List[HMCandidateReviewItem]

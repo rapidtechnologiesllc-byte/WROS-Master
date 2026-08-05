@@ -20,8 +20,10 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.project import Project
+from app.models.task import Task
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.timesheet_anomaly import TimesheetAnomalyFlag
 
@@ -46,6 +48,32 @@ def _is_duplicate_entry(db: Session, timesheet: Timesheet, entry: TimesheetEntry
     return other is not None
 
 
+def _is_unlinked_task(db: Session, timesheet: Timesheet) -> bool:
+    """Backlog item, 2026-08-05 (Task<->Timesheet tie): "A user must
+    NOT be able to log an arbitrary/unlinked timesheet entry that
+    doesn't trace back to real Task work." Only meaningful for
+    task-linked timesheets (allocation_id is None) -- an
+    allocation-backed timesheet is out of scope for this check
+    entirely. True (flag) when the Task no longer exists, or the
+    employee who logged the hours doesn't resolve to the Task's real
+    assignee (via Employee.wros_user_id -> Users.UserID, the same
+    resolver task_assignment_service.resolve_reporting_manager()
+    already established)."""
+    if timesheet.allocation_id is not None or timesheet.task_id is None:
+        return False
+
+    task = db.query(Task).filter(Task.id == timesheet.task_id).first()
+    if task is None:
+        return True
+    if task.assigned_to_user_id is None:
+        return False  # unassigned/org-wide task -- nothing to mismatch against
+
+    employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
+    if employee is None or employee.wros_user_id != task.assigned_to_user_id:
+        return True
+    return False
+
+
 def scan_timesheet_anomalies(db: Session, timesheet: Timesheet) -> List[TimesheetAnomalyFlag]:
     """Idempotent: re-scanning an already-flagged entry returns the
     existing flag rather than creating a duplicate row."""
@@ -53,6 +81,8 @@ def scan_timesheet_anomalies(db: Session, timesheet: Timesheet) -> List[Timeshee
     project = None
     if allocation and allocation.project_id:
         project = db.query(Project).filter(Project.id == allocation.project_id).first()
+
+    unlinked_task = _is_unlinked_task(db, timesheet)
 
     entries = db.query(TimesheetEntry).filter(TimesheetEntry.timesheet_id == timesheet.id).all()
 
@@ -68,6 +98,8 @@ def scan_timesheet_anomalies(db: Session, timesheet: Timesheet) -> List[Timeshee
             anomaly_types.add("COMPLETED_PROJECT")
         if project and _is_duplicate_entry(db, timesheet, entry, project):
             anomaly_types.add("DUPLICATE")
+        if unlinked_task:
+            anomaly_types.add("UNLINKED_TASK")
 
         for anomaly_type in anomaly_types:
             existing = db.query(TimesheetAnomalyFlag).filter(

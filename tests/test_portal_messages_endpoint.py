@@ -4,9 +4,13 @@ real candidate JWT auth, cross-candidate 403, happy-path 201/200.
 Business rules themselves are covered in test_portal_message_service.py.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.
+No real Gemini call is made -- see the LLM mocking fixtures below;
+without them, S-346's synchronous reply generation would hit the real
+network (slow, flaky) on every POST in this file.
 """
 import os
 import tempfile
+from unittest.mock import MagicMock
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -17,12 +21,33 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import app.core.security as security
+import app.services.prompt_framework_service as prompt_framework_svc
+import app.services.thunder_service as thunder_svc
 from app.core.security import get_password_hash
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 import app.models  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def _fake_api_key(monkeypatch):
+    monkeypatch.setattr(thunder_svc, "GEMINI_API_KEY", "fake-key-for-test")
+
+
+@pytest.fixture(autouse=True)
+def _mock_gemini(monkeypatch):
+    mock_response = MagicMock()
+    mock_response.content = "Real Thunder reply text, long enough to pass validation."
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = mock_response
+    monkeypatch.setattr(thunder_svc, "ChatGoogleGenerativeAI", MagicMock(return_value=mock_llm))
+
+
+@pytest.fixture(autouse=True)
+def _mock_intent_and_escalation_llm(monkeypatch):
+    monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: '{"intent": "unclear", "confidence": 0.0}')
 
 
 @pytest.fixture()
@@ -122,5 +147,7 @@ def test_get_history_after_posting_returns_message(client):
     resp = test_client.get(f"/portal/conversations/{conv_id}/messages", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total_count"] == 1
+    # S-346: the candidate's message plus its real (mocked) auto-reply.
+    assert body["total_count"] == 2
     assert body["messages"][0]["message_body"] == "Hello"
+    assert body["messages"][1]["message_body"] == "Real Thunder reply text, long enough to pass validation."

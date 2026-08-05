@@ -109,6 +109,22 @@ def _map_thread_message(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def track_portal_page_view(db: Session, candidate: Candidate, page: str, time_on_page_seconds: int, scroll_depth_pct: Optional[int]) -> bool:
+    """S-346 Step 4 / S-347 Step 4 -- real behavioral signal, invisible
+    to the candidate (BR-01). Silently no-ops (returns False) when the
+    candidate has no conversation yet -- there's no tenant to attribute
+    the signal to before Thunder is assigned, same real precondition
+    every other candidate_desire_signals row in this codebase has."""
+    conversation = _active_conversation(db, candidate.candidateID)
+    if conversation is None:
+        return False
+    from app.services.desire_signal_service import record_portal_page_view_signal
+    signal = record_portal_page_view_signal(
+        db, conversation.tenant_id, candidate.candidateID, page, time_on_page_seconds, scroll_depth_pct,
+    )
+    return signal is not None
+
+
 def get_portal_home(db: Session, candidate: Candidate) -> Dict[str, Any]:
     conversation = _active_conversation(db, candidate.candidateID)
     badge = STAGE_BADGE.get(conversation.status, DEFAULT_STAGE_BADGE) if conversation else DEFAULT_STAGE_BADGE

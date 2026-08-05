@@ -162,3 +162,34 @@ def test_reschedule_request_happy_path(client):
     )
     assert resp.status_code == 200
     assert resp.json()["request_id"]
+
+
+def test_track_page_view_recorded_when_conversation_exists(client):
+    """S-346 Step 4 / S-347 Step 4."""
+    test_client, _ = client
+    resp = test_client.post(
+        "/portal/track",
+        json={"page": "profile", "time_on_page_seconds": 45, "scroll_depth_pct": 80},
+        headers={"Authorization": f"Bearer {_token_for('C-A')}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["recorded"] is True
+
+
+def test_track_page_view_no_conversation_still_returns_200(client):
+    """C-B has no conversation in this fixture -- a behavioral-telemetry
+    beacon must never fail loudly over a missing precondition."""
+    test_client, _ = client
+    resp = test_client.post(
+        "/portal/track",
+        json={"page": "home", "time_on_page_seconds": 10},
+        headers={"Authorization": f"Bearer {_token_for('C-B')}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["recorded"] is False
+
+
+def test_track_page_view_requires_auth(client):
+    test_client, _ = client
+    resp = test_client.post("/portal/track", json={"page": "home", "time_on_page_seconds": 10})
+    assert resp.status_code in (401, 403)

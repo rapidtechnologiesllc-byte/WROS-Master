@@ -124,6 +124,15 @@ class CandidateCompleteResponse(BaseModel):
     candidate_expected_salary: str | None = None
     # ── Employee type ────────────────────────────────────────────────────────
     candidate_employee_type: str | None = None
+    # ── S-030/HRMS-0430 -- Resume Completeness Score. Denormalized read of
+    # candidate.resume_completeness_score (see resume_completeness_service),
+    # 0-100 or null if no resume has been parsed yet.
+    resume_completeness_score: int | None = None
+    # ── Guidewire candidate indicator, 2026-08-05. Avinash: "our bread and
+    # butter comes from Guidewire SI work" -- recruiters should be able to
+    # see at a glance whether this candidate should get extra nurture.
+    # Derived on read, see app.services.guidewire_candidate_service.
+    is_guidewire_candidate: bool = False
     # ── Job assignment ───────────────────────────────────────────────────────
     job_id: str | None = None
     # ── Related records ──────────────────────────────────────────────────────

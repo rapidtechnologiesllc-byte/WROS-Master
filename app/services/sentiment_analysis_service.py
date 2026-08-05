@@ -91,6 +91,11 @@ def analyze_sentiment(
     ))
     db.commit()
 
+    # S-347/HRMS-P117 -- every sentiment score is a desire signal.
+    # Fire-and-forget, never raises.
+    from app.services.desire_signal_service import record_sentiment_signal
+    record_sentiment_signal(db, tenant_id, candidate_id, sentiment, confidence, message_event_id)
+
     return {"sentiment": sentiment, "confidence": confidence, "raw_response": response}
 
 

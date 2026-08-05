@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.tenant_context import get_tenant_scoped_query
-from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
+from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
@@ -940,9 +940,14 @@ async def apply_for_job(
             raise
 
     # 13. Fire ATS scoring in the background — does NOT block the response
+    # 2026-08-05 real fix: must NOT pass this request's own `db` (or ORM
+    # objects bound to it) into a BackgroundTask -- the session is closed
+    # before the task runs. See ats.run_ats_scoring_in_background()'s own
+    # docstring; same convention as run_auto_assign_ai_agent_in_background
+    # below.
     try:
-        from app.api.v1.endpoints.ats import _run_and_persist_ats
-        background_tasks.add_task(_run_and_persist_ats, candidate, job, db)
+        from app.api.v1.endpoints.ats import run_ats_scoring_in_background
+        background_tasks.add_task(run_ats_scoring_in_background, candidate_id, job.jobID)
     except Exception:
         pass  # ATS failure must never block an application submission
 
@@ -952,7 +957,10 @@ async def apply_for_job(
     # already, same convention app.services.ai_conversation_service uses
     # elsewhere. Skips gracefully (logged, not raised) if neither is set.
     auto_assign_tenant_id = job.recuriterID or job.contactPerson
-    background_tasks.add_task(auto_assign_ai_agent_on_creation, candidate_id, auto_assign_tenant_id, db)
+    # 2026-08-05 real fix: must NOT pass this request's own `db` into a
+    # BackgroundTask -- it's closed before the task runs. See
+    # run_auto_assign_ai_agent_in_background()'s own docstring.
+    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id, auto_assign_tenant_id)
 
     return JobApplicationResponse(
         status="Success",

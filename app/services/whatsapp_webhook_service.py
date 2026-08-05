@@ -198,6 +198,17 @@ def store_inbound_whatsapp_message(db: Session, message: Dict) -> Dict:
     from app.services.outreach_campaign_service import cancel_campaign_on_reply
     cancel_campaign_on_reply(db, candidate.candidateID, conversation.tenant_id)
 
+    # S-347/HRMS-P117 -- every channel is an equal desire-signal source
+    # (BR-02). Fire-and-forget, never raises.
+    from app.services.desire_signal_service import (
+        minutes_since_last_outbound, record_message_signal, record_response_speed_signal,
+    )
+    if body:
+        record_message_signal(db, conversation.tenant_id, candidate.candidateID, "WHATSAPP_MESSAGE", body)
+    _prior_gap = minutes_since_last_outbound(db, conversation.id, before=event.created_at)
+    if _prior_gap is not None:
+        record_response_speed_signal(db, conversation.tenant_id, candidate.candidateID, _prior_gap)
+
     logger.info(f"[WhatsAppWebhook] Stored inbound message for candidate {candidate.candidateID} (wamid={wamid})")
     return {
         "status": "stored",

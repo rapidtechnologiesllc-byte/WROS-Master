@@ -34,6 +34,12 @@ router= APIRouter(prefix="/msgraph", tags=["msgraph"])
 
 # Simple in-memory "session" for demo (swap with Redis/DB in production)
 user_tokens = {}
+# 2026-08-05 real bug fix -- see _require_account()'s own docstring:
+# maps this app's real Users.UserID to the MS Graph account_id (oid) so
+# personal-calendar identity is resolved from the authenticated JWT,
+# never a client-suppliable cookie. Same in-memory-demo caveat as
+# user_tokens above.
+_account_id_by_user_id = {}
 
 def _msal_client():
     return msal.ConfidentialClientApplication(
@@ -105,6 +111,9 @@ def callback(request: Request, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
+
+    # 2026-08-05 real bug fix -- see _require_account()'s own docstring.
+    _account_id_by_user_id[user.UserID] = account_id
 
     role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
 
@@ -188,22 +197,36 @@ def me(db: Session = Depends(get_db), user: Users = Depends(get_current_hr_or_ad
         }
     })
 
-def _require_account(request: Request) -> str:
+def _require_account(current_user: Users = Depends(get_current_hr_or_admin)) -> str:
     """
-    Identify the calling user from their session cookie.
-    The cookie is set by /auth/callback after a successful OAuth flow.
+    Identify the calling user's linked Microsoft account from their real
+    authenticated session (the same JWT every other endpoint in this
+    app uses), never a client-suppliable value.
+
+    Real bug fix, 2026-08-05: this used to read `request.cookies.get(
+    "account_id")` -- a cookie /auth/callback never actually sets
+    anywhere (confirmed by grep: no set_cookie call exists in this
+    file), so every call through this path always 401'd in real usage,
+    silently breaking "Schedule Interview"'s Microsoft Teams meeting
+    creation. Worse than just broken: even if a future edit started
+    setting that cookie, trusting a raw, unsigned cookie value as a
+    direct key into `user_tokens` (which holds real Graph access
+    tokens -- mail send, calendar read/write) with no cross-check
+    against the actual authenticated caller would be a real IDOR --
+    anyone who learned/guessed another user's MS `oid` could set it
+    client-side and use that user's Graph token. Fixed the same way
+    every other "resolve MY OWN data" endpoint in this codebase
+    already does: derive identity from Depends(get_current_hr_or_admin)
+    (the real JWT), never a request-supplied identifier.
     """
-    account_id = request.cookies.get("account_id")
-    if not account_id:
-        raise HTTPException(401, "Not authenticated. Please sign in at /msgraph/auth/signin")
-    if account_id not in user_tokens:
-        raise HTTPException(401, "Session expired or invalid. Please sign in again at /msgraph/auth/signin")
+    account_id = _account_id_by_user_id.get(current_user.UserID)
+    if not account_id or account_id not in user_tokens:
+        raise HTTPException(401, "Microsoft account not linked or session expired. Please sign in again at /msgraph/auth/signin")
     return account_id
 
 # ---------- SEND MAIL ----------
 @router.post("/mail/send")
-def send_mail(request: Request, to: str, subject: str, body_text: str):
-    account_id = _require_account(request)
+def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_require_account)):
     token_data = _graph_client_for(account_id)
 
     # Build the message payload as JSON
@@ -230,15 +253,14 @@ def send_mail(request: Request, to: str, subject: str, body_text: str):
 # ---------- CREATE MEETING (CALENDAR EVENT) ----------
 @router.post("/calendar/schedule")
 def schedule_meeting(
-    request: Request,
     subject: str,
     start_iso: str,
     end_iso: str,
     timezone: str = "India Standard Time",
     attendees: list[str] = [],
-    teams_online: bool = True
+    teams_online: bool = True,
+    account_id: str = Depends(_require_account),
 ):
-    account_id = _require_account(request)
     token_data = _graph_client_for(account_id)
 
     # Build the event payload as JSON
@@ -274,21 +296,20 @@ def schedule_meeting(
 
 @router.get("/calendar/meetings")
 def get_my_meetings(
-    request: Request,
     top: int = 10,
-    skip: int = 0
+    skip: int = 0,
+    account_id: str = Depends(_require_account),
 ):
     '''
     Get user's calendar meetings/events.
-    
+
     Args:
         top: Number of events to return (default: 10, max: 100)
         skip: Number of events to skip for pagination (default: 0)
-    
+
     Returns:
         List of calendar events with details
     '''
-    account_id = _require_account(request)
     token_data = _graph_client_for(account_id)
     
     # Validate parameters
