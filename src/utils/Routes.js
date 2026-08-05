@@ -5,6 +5,7 @@ export const ROUTES = {
   THUNDER: "/thunder",
   RESOURCE_MANAGEMENT: "/resource-management",
   CORE_PULL: "/core-pull",
+  CLIENT_MANAGEMENT: "/client-management",
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
   SUBMISSIONS: "/submissions",

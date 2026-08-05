@@ -63,6 +63,9 @@ const NAV_ITEMS = {
   allocations: { path: ROUTES.ALLOCATIONS, label: "Allocations", icon: Briefcase },
   // S-353/HRMS-0514 + S-373/HRMS-0529 -- same role scoping rationale.
   corePull: { path: ROUTES.CORE_PULL, label: "Core-Pull & Pool Guard", icon: ShieldAlert },
+  // Client Management -- add/edit client details, real gap flagged
+  // 2026-08-05 (no client CRUD UI existed anywhere before this).
+  clientManagement: { path: ROUTES.CLIENT_MANAGEMENT, label: "Client Management", icon: Briefcase },
   // S-372/HRMS-0528 -- same role scoping rationale.
   demandConfirmation: { path: ROUTES.DEMAND_CONFIRMATION, label: "Demand Confirmation", icon: CalendarCheck2 },
   utilization: { path: ROUTES.UTILIZATION_DASHBOARD, label: "Utilization & Bench Cost", icon: BarChart3 },
@@ -128,7 +131,7 @@ const GROUP_DEFS = [
     label: "Workforce",
     icon: Users2,
     keys: [
-      "employees", "resourceManagement", "allocations", "corePull",
+      "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
       "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
     ],
   },
@@ -181,7 +184,7 @@ export default function Shell({
         standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups([
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
-          "employees", "resourceManagement", "allocations", "corePull",
+          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
@@ -193,7 +196,7 @@ export default function Shell({
         standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups([
           "candidates", "jobs",
-          "employees", "resourceManagement", "allocations", "corePull",
+          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
@@ -205,7 +208,7 @@ export default function Shell({
         standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups([
           "candidates", "offerLettersListing",
-          "employees", "resourceManagement", "allocations", "corePull",
+          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "timesheets", "invoices", "revenue",
         ]),

@@ -3,6 +3,7 @@ import { Briefcase } from "lucide-react";
 import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { searchUsers } from "../services/api/users";
+import { listClients } from "../services/api/clients";
 import { toast } from "react-toastify";
 import {
   listBusinessUnits,
@@ -51,6 +52,7 @@ export default function JobCreate({
   const [selectedDept, setSelectedDept] = useState("");
   const [businessUnitList, setBusinessUnitList] = useState([]);
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
+  const [clientList, setClientList] = useState([]);
   const [hrUsers, setHrUsers] = useState([]);
   const [hiringManagers, setHiringManagers] = useState([]);
   const [current, setCurrent] = useState(0);
@@ -217,6 +219,31 @@ export default function JobCreate({
     };
     listingBusinessUnits();
   }, []);
+
+  // Flagged by Avinash 2026-08-05: Company/Client was a free-form text
+  // box, not backed by the real Client table -- meant a job could name
+  // a "company" that isn't a real, tracked client at all. Loads the
+  // real active client list (GET /clients, active_only default).
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const result = await listClients();
+        setClientList(result?.clients || []);
+      } catch (err) {
+        console.error("Failed to load clients:", err);
+        setClientList([]);
+      }
+    };
+    loadClients();
+  }, []);
+
+  const clientOptions = [
+    { label: "Select client", value: "", disabled: true },
+    ...(clientList?.map((client) => ({
+      label: client?.company_name,
+      value: client?.company_name,
+    })) || []),
+  ];
 
   const deptOptions = [
     { label: "Please select department", value: "", disabled: true },
@@ -390,10 +417,11 @@ export default function JobCreate({
                 ]}
                 disabled={true}
               />
-              <Input
+              <Select
                 label="Company / Client *"
                 value={companyClient}
                 onChange={setCompanyClient}
+                options={clientOptions}
               />
               <Select
                 label="Business Unit"
