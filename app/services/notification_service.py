@@ -142,6 +142,24 @@ def _dispatch_now(
     notification.delivery_status = "FAILED"
 
 
+def _resolve_business_hours_window(db: Session, tenant_id: Optional[int]):
+    """S-213/HRMS-0115 -- business_hours_start/business_hours_end now
+    live in system_config, Admin-editable without a deploy.
+    BUSINESS_HOURS_START/END stay as the real fallback (same value
+    system_config seeds); a config-read failure must never block a
+    notification send."""
+    if tenant_id is None:
+        return BUSINESS_HOURS_START, BUSINESS_HOURS_END
+    try:
+        from app.services.system_config_service import get_config_value
+        return (
+            get_config_value(db, tenant_id=tenant_id, key="business_hours_start"),
+            get_config_value(db, tenant_id=tenant_id, key="business_hours_end"),
+        )
+    except Exception:
+        return BUSINESS_HOURS_START, BUSINESS_HOURS_END
+
+
 def send_notification(
     db: Session,
     *,
@@ -179,11 +197,15 @@ def send_notification(
     if priority_tier == "P0":
         # BR-0113-03: P0 is the sole exception -- bypasses business-hours gating entirely.
         _dispatch_now(notification, recipient, message, channel_preference, senders, allow_p0_fallback=True)
-    elif _is_within_business_hours(now, recipient.timezone):
-        _dispatch_now(notification, recipient, message, channel_preference, senders, allow_p0_fallback=False)
     else:
-        notification.scheduled_release_at = _next_business_hours_release(now, recipient.timezone)
-        # delivery_status stays PENDING -- release_pending_notifications() sends it later.
+        start_hour, end_hour = _resolve_business_hours_window(db, calling_context_tenant_id)
+        if _is_within_business_hours(now, recipient.timezone, start_hour=start_hour, end_hour=end_hour):
+            _dispatch_now(notification, recipient, message, channel_preference, senders, allow_p0_fallback=False)
+        else:
+            notification.scheduled_release_at = _next_business_hours_release(
+                now, recipient.timezone, start_hour=start_hour, end_hour=end_hour,
+            )
+            # delivery_status stays PENDING -- release_pending_notifications() sends it later.
 
     db.add(notification)
     return notification
