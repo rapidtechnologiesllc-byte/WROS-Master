@@ -91,6 +91,34 @@ def test_find_matching_candidates_no_keywords_returns_empty(db_session, candidat
     assert svc.find_matching_candidates(db_session, "for with and") == []
 
 
+def test_find_matching_candidates_requires_all_keywords_not_just_one(db_session, candidates):
+    """Real bug, 2026-08-05: an 'Agentic AI developer' with zero Guidewire
+    experience was returned for a 'Guidewire developer' search because the
+    generic word 'developer' alone was enough to score > 0. Only the real
+    Guidewire Developer should match; a candidate matching just the generic
+    word must not."""
+    unrelated_dev = Candidate(
+        candidateID="C-UNRELATED", candidateEmail="unrelated@example.com", candidatePassword="h",
+        candidateFirstName="Alex", candidateLastName="Doe",
+        candidateJobTitle="Agentic AI Developer", candidateSkills="JavaScript, React, Node.js",
+        candidateExperience="Since 2021",
+    )
+    db_session.add(unrelated_dev)
+    db_session.commit()
+
+    results = svc.find_matching_candidates(db_session, "Guidewire developer")
+    ids = [r["candidate_id"] for r in results]
+    assert "C-GW" in ids
+    assert "C-UNRELATED" not in ids
+
+
+def test_sourcing_reply_never_includes_raw_candidate_id(db_session, candidates):
+    results = svc.find_matching_candidates(db_session, "Java developer")
+    reply = svc._format_sourcing_reply("Java developer", results)
+    for r in results:
+        assert r["candidate_id"] not in reply
+
+
 def test_find_matching_candidates_no_match_returns_empty(db_session, candidates):
     assert svc.find_matching_candidates(db_session, "COBOL mainframe") == []
 
