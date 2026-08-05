@@ -26,6 +26,19 @@ def _reject_if_mfa_pending(payload: dict) -> None:
         )
 
 
+def _reject_if_candidate_otp_pending(payload: dict) -> None:
+    """Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
+    half) -- the candidate-side counterpart to _reject_if_mfa_pending
+    above. A token issued mid-email-OTP-challenge
+    (candidate_otp_pending: true) must never work as a normal candidate
+    session anywhere else."""
+    if payload.get("candidate_otp_pending"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required before this token can be used",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Base user resolution
 # ---------------------------------------------------------------------------
@@ -40,6 +53,7 @@ async def get_current_user(
     token = credentials.credentials
     payload = decode_access_token(token)
     _reject_if_mfa_pending(payload)
+    _reject_if_candidate_otp_pending(payload)
 
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type", "candidate")
@@ -75,6 +89,7 @@ async def get_current_candidate(
     token = credentials.credentials
     payload = decode_access_token(token)
     _reject_if_mfa_pending(payload)
+    _reject_if_candidate_otp_pending(payload)
 
     user_id: str = payload.get("sub")
     user_type: str = payload.get("type")
@@ -86,6 +101,30 @@ async def get_current_candidate(
     if not candidate:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
 
+    return candidate
+
+
+async def get_current_candidate_otp_pending(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> Candidate:
+    """Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
+    half) -- the candidate-side counterpart to
+    get_current_mfa_pending_user. ONLY accepts a token with
+    candidate_otp_pending=true, resolved to the Candidate row it names.
+    A normal full candidate token must not work here either -- a
+    candidate can't skip straight to "verify" without having actually
+    passed the password check first in the current session."""
+    token = credentials.credentials
+    payload = decode_access_token(token)
+
+    if not payload.get("candidate_otp_pending"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a candidate email-verification-pending session")
+
+    candidate_id: str = payload.get("sub", "")
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
     return candidate
 
 
@@ -184,6 +223,7 @@ get_current_candidate.__wros_authn__ = "candidate_self_service"
 get_current_hr_or_admin.__wros_authn__ = "any_internal_user"
 get_current_internal_user.__wros_authn__ = "any_internal_user"
 get_current_mfa_pending_user.__wros_authn__ = "mfa_pending_session"
+get_current_candidate_otp_pending.__wros_authn__ = "candidate_otp_pending_session"
 
 
 # ---------------------------------------------------------------------------

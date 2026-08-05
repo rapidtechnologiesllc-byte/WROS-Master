@@ -38,5 +38,6 @@ def ask_thunder(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_hr_or_admin),
 ):
-    result = answer_internal_query(db, body.message)
+    history = [{"question": turn.question, "reply": turn.reply} for turn in body.history]
+    result = answer_internal_query(db, body.message, history=history)
     return AskThunderResponse(**result)

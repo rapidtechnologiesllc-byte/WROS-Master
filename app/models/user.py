@@ -40,6 +40,14 @@ class Users(Base):
     # way mfa_secret is.
     email_otp_code_hash = Column(String(64), nullable=True)
     email_otp_expires_at = Column(DateTime, nullable=True)
+    # EPIC-14/S-435 (HRMS-1408) -- Candidate & Employee Lifecycle
+    # Communication Linking. Tracks the high-water mark for this user's
+    # M365 mail sync (app.services.msgraph_mail_sync_service) so each
+    # sync pass only fetches messages sent/received since the last one,
+    # not the user's entire mailbox history every time. Null means
+    # never synced -- the first sync uses a short default lookback
+    # window instead of a full-mailbox pull.
+    msgraph_mail_last_synced_at = Column(DateTime, nullable=True)
     # HRMS-0113 BR-0113-03 -- business-hours notification gating needs each
     # recipient's local timezone. HRMS-0121 (Locale & Currency Config), the
     # story this was supposed to come from, doesn't exist in this codebase.

@@ -1,5 +1,6 @@
 
 import os
+from datetime import timedelta
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
@@ -11,9 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.core.security import create_access_token
+from app.core.security import create_access_token, decode_access_token
 from app.models import Users,Role
 from app.core.logging import logger
+from app.core.msgraph_session_store import (
+    account_id_by_user_id as _account_id_by_user_id,
+    user_tokens,
+)
 
 
 
@@ -32,14 +37,10 @@ redirect_url = os.getenv("REDIRECT_RESPONSE")
 
 router= APIRouter(prefix="/msgraph", tags=["msgraph"])
 
-# Simple in-memory "session" for demo (swap with Redis/DB in production)
-user_tokens = {}
-# 2026-08-05 real bug fix -- see _require_account()'s own docstring:
-# maps this app's real Users.UserID to the MS Graph account_id (oid) so
-# personal-calendar identity is resolved from the authenticated JWT,
-# never a client-suppliable cookie. Same in-memory-demo caveat as
-# user_tokens above.
-_account_id_by_user_id = {}
+# user_tokens / _account_id_by_user_id now live in
+# app.core.msgraph_session_store (EPIC-14/S-435 needs the mail-sync
+# service to read the same live state without importing from this
+# endpoints module) -- imported above, not redefined here.
 
 def _msal_client():
     return msal.ConfidentialClientApplication(
@@ -64,6 +65,74 @@ def _auth_url(state: str = "xyz"):
 def signin():
     return RedirectResponse(_auth_url())
 
+
+# ============================================
+# EPIC-14/S-379 (HRMS-1401) -- M365 Launchpad account linking
+# ============================================
+# 2026-08-05: the flow above (/auth/signin -> /auth/callback) was built
+# for one purpose only -- get a Graph token to send mail/schedule a
+# meeting on behalf of whoever completes it, minting a *fresh* WROS
+# session in the process. The Launchpad needs a second, different use
+# case: a user who is ALREADY logged into WROS wants to link their
+# Microsoft account so the Launchpad can show their real mail/calendar/
+# chat -- linking must NOT silently swap out their current WROS
+# session token as a side effect. OAuth's own `state` param is the only
+# channel that survives the round-trip to Microsoft and back, so a
+# short-lived, narrowly-scoped "link intent" token (same
+# Depends()-checked-claim pattern as MFA's mfa_pending token, see
+# app.core.dependencies.get_current_mfa_pending_user) rides through it.
+# /auth/callback below checks for this claim FIRST and, if present,
+# takes the link-only path -- every other `state` value (including the
+# old hardcoded "xyz" default) falls through to the ORIGINAL,
+# byte-for-byte-unchanged login behavior.
+LINK_STATE_TTL_MINUTES = 10
+
+
+@router.get("/link/start")
+def start_link(current_user: Users = Depends(get_current_hr_or_admin)):
+    """Returns the Microsoft sign-in URL for the CURRENTLY authenticated
+    WROS user to link their M365 account. The frontend must call this
+    via an authenticated fetch (not a plain <a href>, since a real
+    browser navigation carries no Authorization header) and then
+    navigate the browser to the returned auth_url itself."""
+    link_state = create_access_token(
+        data={"sub": current_user.UserEmail, "msgraph_link": True},
+        expires_delta=timedelta(minutes=LINK_STATE_TTL_MINUTES),
+    )
+    return {"auth_url": _auth_url(state=link_state)}
+
+
+@router.get("/link-status")
+def link_status(current_user: Users = Depends(get_current_hr_or_admin)):
+    account_id = _account_id_by_user_id.get(current_user.UserID)
+    linked = bool(account_id and account_id in user_tokens)
+    return {"linked": linked}
+
+
+@router.post("/unlink")
+def unlink(current_user: Users = Depends(get_current_hr_or_admin)):
+    account_id = _account_id_by_user_id.pop(current_user.UserID, None)
+    if account_id:
+        user_tokens.pop(account_id, None)
+    return {"linked": False}
+
+
+def _decode_link_state(state: str):
+    """Returns the Users row this state token names, or None if `state`
+    isn't a valid, unexpired link-intent token -- i.e. every non-link
+    caller of /auth/callback (the original login flow, or garbage/
+    missing state) gets None here and falls through unaffected."""
+    if not state:
+        return None
+    try:
+        payload = decode_access_token(state)
+    except HTTPException:
+        return None
+    if not payload.get("msgraph_link"):
+        return None
+    return payload.get("sub")
+
+
 @router.get("/auth/callback")
 def callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
@@ -85,7 +154,22 @@ def callback(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(401, "Could not determine user identity (missing oid claim)")
     user_tokens[account_id] = token_result
 
-    # Fetch user profile from Graph to get email + display name
+    # ---- Account-linking path (S-379): an already-logged-in WROS user
+    # asked to link their M365 account -- link it to THEIR real row and
+    # bounce back to the Launchpad without touching their WROS session.
+    link_target_email = _decode_link_state(request.query_params.get("state"))
+    if link_target_email:
+        linked_user = db.query(Users).filter(Users.UserEmail == link_target_email).first()
+        if linked_user:
+            _account_id_by_user_id[linked_user.UserID] = account_id
+            return RedirectResponse(url=f"{redirect_url}m365?linked=true")
+        # Falls through to the original flow below if the linking
+        # user's row somehow no longer exists -- fail open to "just
+        # log this Microsoft identity in normally" rather than a dead end.
+
+    # ---- Original flow (unchanged): mint a fresh WROS session for
+    # whoever just signed into Microsoft, creating a Users row if this
+    # is their first time.
     graph_resp = requests.get(
         "https://graph.microsoft.com/v1.0/me",
         headers={"Authorization": f"Bearer {token_result['access_token']}"},
