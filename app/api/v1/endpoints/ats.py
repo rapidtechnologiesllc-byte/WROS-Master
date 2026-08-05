@@ -381,3 +381,23 @@ async def _run_and_persist_ats(
     db.commit()
     db.refresh(score_row)
     return score_row
+
+
+async def run_ats_scoring_in_background(candidate_id: str, job_id: str) -> None:
+    """BackgroundTask entry point for the public job-application endpoint
+    (app.api.v1.endpoints.create_job). Must not receive the request's own
+    `Depends(get_db)` session -- it's closed as soon as the HTTP response
+    is sent, before a BackgroundTask necessarily gets its turn. Same
+    SessionLocal()-per-background-task convention as
+    app.services.ai_conversation_service.run_auto_assign_ai_agent_in_background()
+    and app.api.v1.endpoints.bulk_engagement._run_worker_in_background()."""
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+        if not candidate or not job:
+            return
+        await _run_and_persist_ats(candidate, job, db)
+    finally:
+        db.close()

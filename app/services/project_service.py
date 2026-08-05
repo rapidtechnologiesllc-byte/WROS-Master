@@ -53,6 +53,8 @@ def create_project_from_won_opportunity(
     db: Session, opportunity: Opportunity, *, name: str, tenant_id: Optional[int] = None,
     billing_type: str = "TIME_AND_MATERIALS", continent: Optional[str] = None,
     delivery_engine: str = "SPECIALITY", si_partner: Optional[str] = None,
+    end_client: Optional[str] = None, client_partner: Optional[str] = None,
+    business_type: Optional[str] = None,
     created_by: Optional[str] = None,
 ) -> Project:
     """HRMS-0801 BR-0801-01: inherits client_id/currency directly from
@@ -65,6 +67,7 @@ def create_project_from_won_opportunity(
         opportunity_id=opportunity.id, name=name, status="ACTIVE",
         billing_type=billing_type, currency=opportunity.currency, continent=continent,
         delivery_engine=delivery_engine, si_partner=si_partner,
+        end_client=end_client, client_partner=client_partner, business_type=business_type,
         created_by=created_by,
     )
     db.add(project)
@@ -75,14 +78,19 @@ def create_project(
     db: Session, *, tenant_id: Optional[int], client_id: str, name: str,
     billing_type: str = "TIME_AND_MATERIALS", currency: str = "USD",
     continent: Optional[str] = None, delivery_engine: str = "SPECIALITY",
-    si_partner: Optional[str] = None, created_by: Optional[str] = None,
+    si_partner: Optional[str] = None,
+    end_client: Optional[str] = None, client_partner: Optional[str] = None,
+    business_type: Optional[str] = None,
+    created_by: Optional[str] = None,
 ) -> Project:
     """Manual creation path for non-opportunity-originated work (e.g. an
     existing client's direct follow-on request)."""
     project = Project(
         tenant_id=tenant_id, client_id=client_id, name=name, status="ACTIVE",
         billing_type=billing_type, currency=currency, continent=continent,
-        delivery_engine=delivery_engine, si_partner=si_partner, created_by=created_by,
+        delivery_engine=delivery_engine, si_partner=si_partner,
+        end_client=end_client, client_partner=client_partner, business_type=business_type,
+        created_by=created_by,
     )
     db.add(project)
     return project

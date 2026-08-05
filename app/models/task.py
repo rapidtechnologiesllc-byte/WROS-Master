@@ -102,6 +102,23 @@ class Task(Base):
     # is ready, the fan-out UX is follow-up work.
     parent_task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, index=True)
 
+    # 2026-08-05 -- document review linkage. Avinash's direct rule: a
+    # rejected candidate document must reopen (or create) a real Task
+    # so it shows as pending work, not just a status flag nobody's
+    # tracking; approving the document closes that same Task. Both
+    # nullable -- every non-document-review Task leaves these null,
+    # same "polymorphic-lite, not a forced generic link table" posture
+    # as parent_task_id above.
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+    document_id = Column(Integer, ForeignKey("candidate_documents.id"), nullable=True, index=True)
+    # 2026-08-05 -- interview feedback/HM-decision linkage (backlog item:
+    # distinguish "interviewer hasn't submitted feedback yet" from
+    # "hiring manager hasn't decided yet" Tasks without clubbing across a
+    # candidate's other rounds/jobs). Nullable, same posture as
+    # document_id above -- most Tasks are still unrelated to any
+    # interview.
+    interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=True, index=True)
+
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)
     visibility_scope = Column(
@@ -123,6 +140,9 @@ class Task(Base):
     assigned_to = relationship("Users", foreign_keys=[assigned_to_user_id])
     created_by = relationship("Users", foreign_keys=[created_by_user_id])
     parent_task = relationship("Task", remote_side=[id], foreign_keys=[parent_task_id])
+    candidate = relationship("Candidate", foreign_keys=[candidate_id])
+    document = relationship("CandidateDocument", foreign_keys=[document_id])
+    interview = relationship("Interview", foreign_keys=[interview_id])
 
     __table_args__ = (
         CheckConstraint(

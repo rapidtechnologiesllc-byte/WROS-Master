@@ -43,6 +43,18 @@ BILLING_TYPES = ("TIME_AND_MATERIALS", "FIXED_BID")
 # other way (Project has no Demand link of its own; Demand points to
 # Project, not the reverse).
 SI_PARTNERS = ("PWC", "EY", "CASTLEBAY", "ZENSAR", "LTI_MINDTREE", "OTHER")
+# Backlog item, 2026-08-05: Avinash -- "If Speciality then always =
+# Staff Augmentation so you don't need another field, but when it is
+# core we need to break down the subtype of revenue." Speciality has no
+# stored business-type value at all (it's implicitly Staff Aug, never
+# persisted); this enum only ever applies when delivery_engine=CORE,
+# service-layer enforced (same posture as si_partner above, not a DB
+# CHECK constraint -- create_project() is reused by many unrelated
+# tests' fixtures with no opinion on business type).
+PROJECT_BUSINESS_TYPES = ("T_AND_M", "MANAGED_SERVICES", "PROJECT", "POD", "PILOT")
+# Speciality: INR or USD. Core: USD only. Same ask, same source quote.
+SPECIALITY_CURRENCIES = ("INR", "USD")
+CORE_CURRENCIES = ("USD",)
 
 
 class Project(Base):
@@ -86,6 +98,18 @@ class Project(Base):
     )
     si_partner = Column(
         Enum(*SI_PARTNERS, name="project_si_partner", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
+    # Backlog item, 2026-08-05 -- conditional-by-delivery_engine fields.
+    # end_client: Speciality/Staff-Aug concept, optional even for
+    # Speciality (per Avinash: "end client where end client is not a
+    # mandatory field"). client_partner: Core concept ("Direct client
+    # project, managed service"). business_type: CORE-only revenue
+    # subtype breakdown, see PROJECT_BUSINESS_TYPES above.
+    end_client = Column(String(300), nullable=True)
+    client_partner = Column(String(300), nullable=True)
+    business_type = Column(
+        Enum(*PROJECT_BUSINESS_TYPES, name="project_business_type", native_enum=False, create_constraint=True),
         nullable=True,
     )
 

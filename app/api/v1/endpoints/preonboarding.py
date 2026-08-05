@@ -84,9 +84,18 @@ def _assign_preboarding_checklist(
 
     Mapping:
       - "Intern"             → 'Intern Document Collection'
-      - "Guidewire"          → 'Guidewire Document Collection'
       - "Full Time Employee" → 'Experience Document Collection'
       - (not set / unknown)  → falls back to experience check for backward compatibility
+
+    2026-08-05: a "Guidewire" employee-type option used to exist on the
+    Employee Type dropdown (CandidateEditModal.js) -- a bug, per
+    Avinash: employee type is Intern/Full Time Employee only, Guidewire
+    is a skill/technology, not an employment type. Removed from the
+    dropdown; this function never had a real distinct branch for it
+    anyway (the stored dropdown value was "Guidewire", one word, but
+    this function's old check compared against "guidewire employee",
+    two words -- always False, so it silently fell through to the
+    backward-compatibility branch below for every legacy row).
     """
     from datetime import timedelta
 
@@ -94,8 +103,6 @@ def _assign_preboarding_checklist(
 
     if employee_type == "intern":
         template_name = "Intern Document Collection"
-    elif employee_type == "guidewire employee":
-        template_name = "Experience Document Collection"
     elif employee_type == "full time employee":
         template_name = "Experience Document Collection"
     else:

@@ -160,6 +160,11 @@ def handle_objection(db: Session, conversation: CandidateConversation, candidate
     ))
     db.commit()
 
+    # S-347/HRMS-P117 BR-03: objection_type -> desire_category,
+    # direction=AWAY_FROM always. Fire-and-forget, never raises.
+    from app.services.desire_signal_service import record_objection_signal
+    record_objection_signal(db, conversation.tenant_id, candidate.candidateID, objection_type, key_concern)
+
     # Step 5: real memory fact, regardless of escalation outcome below --
     # future context should know this objection was raised either way.
     try:

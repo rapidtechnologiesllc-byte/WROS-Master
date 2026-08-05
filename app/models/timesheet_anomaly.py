@@ -22,7 +22,14 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-ANOMALY_TYPES = ("WEEKEND", "OVER_12H", "COMPLETED_PROJECT", "DUPLICATE")
+ANOMALY_TYPES = ("WEEKEND", "OVER_12H", "COMPLETED_PROJECT", "DUPLICATE", "UNLINKED_TASK")
+# UNLINKED_TASK -- backlog item, 2026-08-05 (Task<->Timesheet tie):
+# "A user must NOT be able to log an arbitrary/unlinked timesheet entry
+# that doesn't trace back to real Task work" -- for a task-linked
+# timesheet (Timesheet.task_id set, no allocation), flags entries whose
+# Task either doesn't exist anymore or isn't actually assigned to the
+# employee who logged the hours. Advisory only, same BR-0910-01 posture
+# as every other anomaly type here.
 
 
 class TimesheetAnomalyFlag(Base):

@@ -43,7 +43,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
-from app.models.project import Project, ProjectMilestone
+from app.models.project import (
+    CORE_CURRENCIES,
+    Project,
+    ProjectMilestone,
+    SPECIALITY_CURRENCIES,
+)
 from app.models.user import Users
 from app.schemas.project import (
     CompleteMilestoneRequest,
@@ -78,6 +83,8 @@ def _to_item(project: Project) -> ProjectItem:
         name=project.name, status=project.status, billing_type=project.billing_type,
         currency=project.currency, continent=project.continent,
         delivery_engine=project.delivery_engine, si_partner=project.si_partner,
+        end_client=project.end_client, client_partner=project.client_partner,
+        business_type=project.business_type,
         allow_weekend_billing=project.allow_weekend_billing,
         start_date=project.start_date, end_date=project.end_date,
     )
@@ -110,10 +117,32 @@ def create_project_endpoint(
     if body.delivery_engine == "SPECIALITY" and not body.si_partner:
         raise HTTPException(status_code=400, detail="SI Partner is required for Speciality Engine projects.")
 
+    # Backlog item, 2026-08-05: business_type required for CORE (the
+    # revenue-subtype breakdown Avinash asked for), meaningless for
+    # Speciality -- same "enforced at the API boundary, not inside
+    # create_project()" posture as si_partner above.
+    if body.delivery_engine == "CORE" and not body.business_type:
+        raise HTTPException(status_code=400, detail="Business Type is required for Core Engine projects.")
+
+    # Currency-by-delivery_engine: Speciality allows INR or USD, Core is
+    # USD-only at this point -- Avinash's own words.
+    if body.delivery_engine == "SPECIALITY" and body.currency not in SPECIALITY_CURRENCIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Speciality Engine projects must be billed in {' or '.join(SPECIALITY_CURRENCIES)}.",
+        )
+    if body.delivery_engine == "CORE" and body.currency not in CORE_CURRENCIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Core Engine projects must be billed in {' or '.join(CORE_CURRENCIES)}.",
+        )
+
     project = create_project(
         db, tenant_id=current_user.tenant_id, client_id=body.client_id, name=body.name,
         billing_type=body.billing_type, currency=body.currency, continent=body.continent,
         delivery_engine=body.delivery_engine, si_partner=body.si_partner,
+        end_client=body.end_client, client_partner=body.client_partner,
+        business_type=body.business_type,
         created_by=current_user.UserID,
     )
     project.allow_weekend_billing = body.allow_weekend_billing

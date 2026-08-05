@@ -10,7 +10,7 @@ app.core.dependencies rejects it via _reject_if_mfa_pending) -- the two
 token types are deliberately non-interchangeable.
 """
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,15 +20,20 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_mfa_pending_user
 from app.core.mfa import (
+    EMAIL_OTP_TTL_MINUTES,
+    generate_backup_codes,
+    generate_email_otp_code,
     generate_totp_secret,
     get_provisioning_uri,
-    verify_totp_code,
-    generate_backup_codes,
     hash_backup_code,
+    hash_email_otp_code,
     verify_and_consume_backup_code,
+    verify_email_otp_code,
+    verify_totp_code,
 )
 from app.core.security import create_access_token
 from app.models.user import Users
+from app.services.email_service import EmailService
 
 router = APIRouter(prefix="/auth/mfa", tags=["mfa"])
 
@@ -126,6 +131,69 @@ def verify_mfa(
             return _issue_full_token(user)
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+
+
+class EmailOtpVerifyRequest(BaseModel):
+    code: str
+
+
+@router.post("/email/resend", response_model=dict)
+def resend_email_otp(
+    user: Users = Depends(get_current_mfa_pending_user),
+    db: Session = Depends(get_db),
+):
+    """Backlog item, 2026-08-05 (wros_email_2fa_backlog): re-issues a
+    fresh code and invalidates the previous one -- same posture as
+    /auth/mfa/setup being safe to call again before confirming."""
+    code = generate_email_otp_code()
+    user.email_otp_code_hash = hash_email_otp_code(code)
+    user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+    db.add(user)
+    db.commit()
+
+    try:
+        EmailService.send_event_notification(
+            to_email=user.UserEmail,
+            recipient_name=user.UserName or user.UserEmail,
+            event_type="action_required",
+            heading="Your BlitzenX WROS verification code",
+            message=(
+                f"Your one-time verification code is <strong>{code}</strong>. "
+                f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes."
+            ),
+        )
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not send verification email. Please try again.")
+
+    return {"sent": True}
+
+
+@router.post("/email/verify", response_model=MfaVerifiedResponse)
+def verify_email_otp(
+    body: EmailOtpVerifyRequest,
+    user: Users = Depends(get_current_mfa_pending_user),
+    db: Session = Depends(get_db),
+):
+    """Backlog item, 2026-08-05 (wros_email_2fa_backlog): the email-OTP
+    counterpart to /auth/mfa/verify. Fail closed on expiry -- an
+    expired code is treated exactly like a wrong one, not silently
+    accepted."""
+    if not user.email_otp_code_hash or not user.email_otp_expires_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No verification code was issued. Call /auth/mfa/email/resend first.")
+    if datetime.utcnow() > user.email_otp_expires_at:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Verification code has expired. Request a new one.")
+    if not verify_email_otp_code(body.code, user.email_otp_code_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+
+    # Single-use: clear it the moment it's consumed, whether or not the
+    # user has any other MFA factor -- same "never a reusable stored
+    # secret" posture as mfa_backup_codes' single-use consumption.
+    user.email_otp_code_hash = None
+    user.email_otp_expires_at = None
+    db.add(user)
+    db.commit()
+
+    return _issue_full_token(user)
 
 
 def _issue_full_token(user: Users) -> MfaVerifiedResponse:

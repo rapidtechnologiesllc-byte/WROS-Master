@@ -677,6 +677,87 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register mellow keep-warm scheduler: {exc}")
 
+        # ── Every 30 min: S-347 Desire Signal Processing Job ────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.desire_signal_service import process_unprocessed_signals
+
+            async def _run_desire_signal_processing():
+                db = SessionLocal()
+                try:
+                    result = process_unprocessed_signals(db)
+                    if result["batch_size"]:
+                        logger.info(f"[scheduler] Desire signal processing: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Desire signal processing error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_desire_signal_processing,
+                trigger="interval",
+                minutes=30,
+                id="desire_signal_processing_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled desire signal processing job (every 30 minutes)")
+        except Exception as exc:
+            logger.warning(f"Could not register desire signal processing scheduler: {exc}")
+
+        # ── Every 4 hours: S-348 Desire Profile Update Job ──────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.desire_profile_service import run_desire_profile_update_job
+
+            async def _run_desire_profile_update():
+                db = SessionLocal()
+                try:
+                    result = run_desire_profile_update_job(db)
+                    if result["candidates_due"]:
+                        logger.info(f"[scheduler] Desire profile update: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Desire profile update error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_desire_profile_update,
+                trigger="interval",
+                hours=4,
+                id="desire_profile_update_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled desire profile update job (every 4 hours)")
+        except Exception as exc:
+            logger.warning(f"Could not register desire profile update scheduler: {exc}")
+
+        # ── Every 30 min: S-349 ScheduledMotivationJob ──────────────────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.motivation_engine_service import run_motivation_job
+
+            async def _run_motivation_job():
+                db = SessionLocal()
+                try:
+                    result = run_motivation_job(db)
+                    if result["sent"]:
+                        logger.info(f"[scheduler] Motivation job: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Motivation job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_motivation_job,
+                trigger="interval",
+                minutes=30,
+                id="proactive_motivation_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled proactive motivation job (every 30 minutes)")
+        except Exception as exc:
+            logger.warning(f"Could not register proactive motivation scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

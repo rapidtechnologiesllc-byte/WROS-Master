@@ -649,6 +649,14 @@ async def update_document_verification(
         f"to '{verification_status}'."
     )
 
+    # 2026-08-05 -- rejecting a document reopens (or creates) a real
+    # Task so it shows as pending work; approving closes it. Never
+    # raises -- see document_task_service's own module docstring.
+    from app.services.document_task_service import sync_task_for_document_decision
+    sync_task_for_document_decision(
+        db, document, verification_status, current_user.UserID, reason=notes,
+    )
+
     return {
         "status": "success",
         "message": f"Document marked as '{verification_status}' successfully",

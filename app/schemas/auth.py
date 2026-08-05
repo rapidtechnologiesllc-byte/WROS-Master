@@ -61,6 +61,14 @@ class UnifiedLoginResponse(BaseModel):
     mfa_required: bool = False        # MFA already enabled -> call /auth/mfa/verify
     mfa_setup_required: bool = False  # MFA never enrolled -> call /auth/mfa/setup
 
+    # Backlog item, 2026-08-05 -- email OTP, supplements the TOTP fields
+    # above rather than replacing them (see app.core.mfa's EMAIL_OTP_*
+    # section). When True, a one-time code has ALREADY been emailed to
+    # the user as part of this same login call -- call
+    # POST /auth/mfa/email/verify with that code against the same
+    # access_token (mfa_pending) to complete login.
+    email_otp_required: bool = False
+
     # User-specific (None for candidates)
     user_role: Optional[str] = None
     user_name: Optional[str] = None

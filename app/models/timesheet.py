@@ -45,7 +45,16 @@ class Timesheet(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    allocation_id = Column(String(36), ForeignKey("employee_allocations.id"), nullable=False, index=True)
+    # Backlog item, 2026-08-05 (Task<->Timesheet tie): allocation_id is
+    # now nullable -- a timesheet backed by internal Task work (an HR
+    # ticket, an IT request) has no client allocation to bill against.
+    # task_id is the alternative source. Exactly one of the two must be
+    # set, enforced by ck_timesheet_allocation_or_task below -- a real
+    # structural invariant, not a soft conditional-field rule, so this
+    # one IS a DB CHECK constraint (unlike si_partner/business_type on
+    # Project, which are service-layer only).
+    allocation_id = Column(String(36), ForeignKey("employee_allocations.id"), nullable=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, index=True)
 
     week_starting_date = Column(Date, nullable=False)  # always a Monday
     total_hours = Column(Numeric(6, 2), nullable=False, default=0)
@@ -71,6 +80,14 @@ class Timesheet(Base):
         UniqueConstraint(
             "tenant_id", "employee_id", "allocation_id", "week_starting_date",
             name="uq_timesheet_per_employee_allocation_week",
+        ),
+        UniqueConstraint(
+            "tenant_id", "employee_id", "task_id", "week_starting_date",
+            name="uq_timesheet_per_employee_task_week",
+        ),
+        CheckConstraint(
+            "(allocation_id IS NOT NULL) OR (task_id IS NOT NULL)",
+            name="ck_timesheet_allocation_or_task",
         ),
     )
 

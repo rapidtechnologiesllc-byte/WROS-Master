@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 
 import app.schemas as schema
 from app.core.database import get_db
-from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
+from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
     create_candidate_safe,
     DuplicateCandidateError,
     parse_experience_to_months,
 )
+from app.services.guidewire_candidate_service import is_guidewire_candidate
 from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import (
     Candidate,
@@ -174,7 +175,10 @@ def create_candidate(
 
     # HRMS-0401: assign the AI recruiter automatically -- doesn't block
     # this response, doesn't fail candidate creation if it errors.
-    background_tasks.add_task(auto_assign_ai_agent_on_creation, candidate_id, user.UserID, db)
+    # 2026-08-05 real fix: must NOT pass this request's own `db` into a
+    # BackgroundTask -- it's closed before the task runs. See
+    # run_auto_assign_ai_agent_in_background()'s own docstring.
+    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id, user.UserID)
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(
@@ -260,6 +264,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate_current_salary=candidate.candidateCurrentSalary,
             candidate_expected_salary=candidate.candidateExpectedSalary,
             candidate_employee_type=candidate.candidateEmployeeType,
+            is_guidewire_candidate=is_guidewire_candidate(db, candidate),
             job_id=candidate.job_id,
             personal_info=CandidateInfoResponse(
                 position=personal_info.position if personal_info else None,
@@ -405,6 +410,8 @@ def get_candidate_by_id(
         candidate_current_salary=candidate.candidateCurrentSalary,
         candidate_expected_salary=candidate.candidateExpectedSalary,
         candidate_employee_type=candidate.candidateEmployeeType,
+        resume_completeness_score=candidate.resume_completeness_score,
+        is_guidewire_candidate=is_guidewire_candidate(db, candidate),
         job_id=candidate.job_id,
         personal_info=CandidateInfoResponse(
             position=personal_info.position if personal_info else None,
@@ -597,6 +604,7 @@ def get_candidates_by_my_bu(
             candidate_current_salary=candidate.candidateCurrentSalary,
             candidate_expected_salary=candidate.candidateExpectedSalary,
             candidate_employee_type=candidate.candidateEmployeeType,
+            is_guidewire_candidate=is_guidewire_candidate(db, candidate),
             job_id=candidate.job_id,
             personal_info=CandidateInfoResponse(
                 position=personal_info.position if personal_info else None,

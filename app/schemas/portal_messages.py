@@ -17,6 +17,14 @@ class PortalMessageRequest(BaseModel):
 class PortalMessageResponse(BaseModel):
     message_id: int
     sent_at: Optional[datetime]
+    # S-346 -- Thunder's synchronous reply to this message, when one was
+    # generated. None when a human owns the conversation, Thunder is
+    # paused, the message was escalated, or reply generation failed
+    # (the candidate's own message is still safely stored either way).
+    reply: Optional[str] = None
+    reply_sent_at: Optional[datetime] = None
+    escalated: bool = False
+    suppressed: bool = False
 
 
 class PortalMessageItem(BaseModel):

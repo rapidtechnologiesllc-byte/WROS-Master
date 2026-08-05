@@ -516,6 +516,37 @@ def auto_assign_ai_agent_on_creation(
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
 
+
+def run_auto_assign_ai_agent_in_background(candidate_id: str, tenant_id: Optional[str]) -> None:
+    """Real bug fix, 2026-08-05 -- Avinash: "When a candidate is added AI
+    recruiter is not assigned automatically and is causing delays in
+    candidate outreach." Root cause: both real call sites
+    (app.api.v1.endpoints.onboarding.create_candidate and
+    app.api.v1.endpoints.create_job's public application endpoint) were
+    doing `background_tasks.add_task(auto_assign_ai_agent_on_creation,
+    candidate_id, tenant_id, db)` -- passing the REQUEST-scoped
+    Depends(get_db) session straight into a BackgroundTask. That
+    session is closed the moment the HTTP response is sent, which
+    happens before a BackgroundTask necessarily gets its turn -- so by
+    the time this actually ran, every DB operation inside it hit an
+    already-closed session and silently failed, caught only by
+    auto_assign_ai_agent_on_creation()'s own try/except and logged as
+    an [AutoAssign] error line nobody was watching. The AI recruiter
+    was never actually assigned, and the S-012/S-013 first-touch
+    messages that depend on it never fired either.
+
+    This wrapper is the fix: same real `SessionLocal()`-per-background-
+    task convention already established and documented in
+    app.api.v1.endpoints.bulk_engagement._run_worker_in_background()
+    and every scheduled job in app.core.scheduler -- open a fresh
+    session here, never reuse the caller's."""
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        auto_assign_ai_agent_on_creation(candidate_id, tenant_id, db)
+    finally:
+        db.close()
+
     # S-012/S-013 (HRMS-0412/0413) -- 60-second-SLA first-touch messages.
     # S-077/HRMS-0477: greeting_channel makes this literal BOTH_PARALLEL
     # default (previously the only behavior) switchable per tenant.
@@ -1379,6 +1410,16 @@ def process_candidate_reply(
     # and returns [], the reply pipeline below is unaffected either way.
     from app.services.facts_extraction_service import extract_facts
     extract_facts(db, candidate, conversation.tenant_id, conversation.id, raw_reply_text, source_message_id=reply_event.id)
+
+    # S-347/HRMS-P117 -- every channel is an equal desire-signal source
+    # (BR-02). Fire-and-forget, never raises.
+    from app.services.desire_signal_service import (
+        minutes_since_last_outbound, record_message_signal, record_response_speed_signal,
+    )
+    record_message_signal(db, conversation.tenant_id, candidate.candidateID, "EMAIL_MESSAGE", raw_reply_text)
+    _prior_gap = minutes_since_last_outbound(db, conversation.id, before=reply_event.created_at)
+    if _prior_gap is not None:
+        record_response_speed_signal(db, conversation.tenant_id, candidate.candidateID, _prior_gap)
 
     # ── Step 3: Check if anything is still missing before running pipeline ─
     missing = get_missing_fields(candidate, db)

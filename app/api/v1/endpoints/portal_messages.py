@@ -79,3 +79,27 @@ def list_portal_messages(
         raise HTTPException(status_code=403, detail="You don't have access to this conversation.")
 
     return PortalMessageHistoryResponse(**result)
+
+
+@router.get(
+    "/{conversation_id}/messages/poll",
+    response_model=PortalMessageHistoryResponse,
+    summary="S-346 -- long-poll for messages newer than after_id (WebSocket fallback)",
+)
+def poll_portal_messages(
+    conversation_id: int,
+    after_id: int = 0,
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """No WebSocket infra in this codebase (see portal_message_service's
+    module docstring) -- the chat widget calls this on a short interval
+    to pick up messages sent on another channel (e.g. a WhatsApp reply)
+    while the portal tab is open, catching what the synchronous POST
+    reply above already delivers for the common case."""
+    try:
+        result = get_portal_message_history(db, candidate, conversation_id, after_id=after_id)
+    except PortalConversationNotFound:
+        raise HTTPException(status_code=403, detail="You don't have access to this conversation.")
+
+    return PortalMessageHistoryResponse(**result)

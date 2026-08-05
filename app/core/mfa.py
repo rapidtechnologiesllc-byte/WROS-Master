@@ -42,6 +42,60 @@ def role_requires_mfa(role_name: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Backlog item, 2026-08-05 -- email-based one-time code, SUPPLEMENTING the
+# TOTP flow above rather than replacing it. Avinash's ask: "Missing two
+# step validation via email for employees and internal users" -- broader
+# than MFA_REQUIRED_ROLES (Super User/BU Head only). A deliberately
+# SEPARATE role set and a SEPARATE enforcement flag from the TOTP gate
+# above -- expanding MFA_REQUIRED_ROLES itself would be a real,
+# independent security-scope change to the existing, already-careful
+# TOTP posture; this instead adds a new, independently-off-by-default
+# channel for the broader "every internal role" ask. Same
+# "ENFORCEMENT IS OFF BY DEFAULT, do not enable until the frontend has
+# a real screen for it" posture as mfa_enforcement_enabled() above.
+# ---------------------------------------------------------------------------
+# Every real internal role except Candidate (candidates are the
+# separate, opt-in, NOT-built-this-pass half of the same ask -- see
+# wros_email_2fa_backlog memory note).
+EMAIL_OTP_REQUIRED_ROLES = {
+    "Super User", "Partner", "BU Head", "Hiring Manager", "HR Manager",
+    "HR Operations", "HRBP", "Recruitment Manager", "Recruitment Team Lead",
+    "Recruiter", "Employee", "Consultant",
+}
+EMAIL_OTP_TTL_MINUTES = 10
+
+
+def email_otp_enforcement_enabled() -> bool:
+    return os.getenv("EMAIL_OTP_ENFORCEMENT_ENABLED", "false").lower() == "true"
+
+
+def role_requires_email_otp(role_name: str) -> bool:
+    return bool(role_name) and role_name in EMAIL_OTP_REQUIRED_ROLES
+
+
+def generate_email_otp_code() -> str:
+    """6-digit numeric code, zero-padded -- easy to read aloud/type,
+    same posture as every mainstream email-OTP flow. Generated via
+    `secrets`, not `random` -- this is a real auth credential, however
+    short-lived."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def hash_email_otp_code(code: str) -> str:
+    # Same rationale as hash_backup_code below: a short-lived,
+    # high-entropy-enough (1 in a million, single 10-minute window,
+    # not a long-lived user-chosen password) token -- a fast SHA-256
+    # is appropriate here, not bcrypt.
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+def verify_email_otp_code(code: str, hashed: str) -> bool:
+    if not code or not hashed:
+        return False
+    return hashlib.sha256(code.strip().encode("utf-8")).hexdigest() == hashed
+
+
+# ---------------------------------------------------------------------------
 # TOTP secret + verification
 # ---------------------------------------------------------------------------
 

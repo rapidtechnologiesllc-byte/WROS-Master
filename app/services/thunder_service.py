@@ -415,7 +415,7 @@ def _display_name(candidate: Candidate) -> str:
     return name or candidate.candidateEmail
 
 
-CHANNEL_LABELS = {"whatsapp": "WhatsApp", "web_chat": "our website chat widget"}
+CHANNEL_LABELS = {"whatsapp": "WhatsApp", "web_chat": "our website chat widget", "portal": "the candidate portal chat widget"}
 
 
 def generate_thunder_reply(

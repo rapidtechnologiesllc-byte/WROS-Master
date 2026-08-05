@@ -25,6 +25,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.task import Task
 from app.models.timesheet import (
     MAX_SUBMISSION_LOOKBACK_WEEKS,
     MAX_WEEKLY_HOURS,
@@ -80,6 +81,38 @@ def create_weekly_draft(
 
     timesheet = Timesheet(
         tenant_id=tenant_id, employee_id=allocation.employee_id, allocation_id=allocation.id,
+        week_starting_date=week_starting_date,
+    )
+    db.add(timesheet)
+    return timesheet
+
+
+def create_weekly_draft_for_task(
+    db: Session, task: Task, employee_id: str, week_starting_date: date,
+    *, tenant_id: Optional[int] = None,
+) -> Timesheet:
+    """Backlog item, 2026-08-05 (Task<->Timesheet tie): the
+    allocation-less sibling of create_weekly_draft() -- for internal
+    Task work (an HR ticket, an IT request) with no client allocation
+    to bill against. A separate function rather than an optional
+    parameter on create_weekly_draft() so that function's existing
+    signature/callers (many unrelated stories' test fixtures) are
+    completely untouched. Same idempotent-by-lookup posture as
+    create_weekly_draft()."""
+    if week_starting_date.weekday() != 0:
+        raise InvalidTimesheetEntry("week_starting_date must be a Monday.")
+
+    existing = db.query(Timesheet).filter(
+        Timesheet.tenant_id == tenant_id,
+        Timesheet.employee_id == employee_id,
+        Timesheet.task_id == task.id,
+        Timesheet.week_starting_date == week_starting_date,
+    ).first()
+    if existing:
+        return existing
+
+    timesheet = Timesheet(
+        tenant_id=tenant_id, employee_id=employee_id, task_id=task.id,
         week_starting_date=week_starting_date,
     )
     db.add(timesheet)

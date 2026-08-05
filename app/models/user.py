@@ -33,6 +33,13 @@ class Users(Base):
     mfa_enabled = Column(Boolean, nullable=False, default=False)
     mfa_secret = Column(String(64), nullable=True)
     mfa_backup_codes = Column(Text, nullable=True)  # JSON-encoded list of hashed codes
+    # Backlog item, 2026-08-05 -- email OTP, supplementing the TOTP flow
+    # above (see app.core.mfa's EMAIL_OTP_* section). Both nullable and
+    # only ever populated at the moment a code is issued; cleared again
+    # once verified or expired -- never a long-lived stored secret the
+    # way mfa_secret is.
+    email_otp_code_hash = Column(String(64), nullable=True)
+    email_otp_expires_at = Column(DateTime, nullable=True)
     # HRMS-0113 BR-0113-03 -- business-hours notification gating needs each
     # recipient's local timezone. HRMS-0121 (Locale & Currency Config), the
     # story this was supposed to come from, doesn't exist in this codebase.

@@ -21,7 +21,17 @@ from app.core.security import (
     get_password_hash,
 )
 from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
-from app.core.mfa import mfa_enforcement_enabled, role_requires_mfa, MFA_PENDING_TOKEN_MINUTES
+from app.core.mfa import (
+    EMAIL_OTP_TTL_MINUTES,
+    MFA_PENDING_TOKEN_MINUTES,
+    email_otp_enforcement_enabled,
+    generate_email_otp_code,
+    hash_email_otp_code,
+    mfa_enforcement_enabled,
+    role_requires_email_otp,
+    role_requires_mfa,
+)
+from app.services.email_service import EmailService
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
@@ -111,11 +121,47 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         # until the frontend has a screen for this, or every Super
         # User / BU Head account gets locked out with no way through.
         from datetime import timedelta
-        if mfa_enforcement_enabled() and role_requires_mfa(user.UserRole):
+        totp_gate = mfa_enforcement_enabled() and role_requires_mfa(user.UserRole)
+        # Backlog item, 2026-08-05: email OTP is a SEPARATE, independently-
+        # off-by-default gate that SUPPLEMENTS the TOTP one above -- see
+        # app.core.mfa's EMAIL_OTP_* section for why this isn't just a
+        # wider MFA_REQUIRED_ROLES. Either gate alone is enough to route
+        # into the mfa_pending flow.
+        email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user.UserRole)
+        if totp_gate or email_otp_gate:
             pending_token = create_access_token(
                 data={"sub": user.UserEmail, "type": user.UserRole, "mfa_pending": True},
                 expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
             )
+
+            if email_otp_gate:
+                # Unlike TOTP (user generates their own code from an
+                # already-enrolled authenticator app), an email code
+                # must be proactively issued and sent by us right now --
+                # there's nothing for the user to produce on their own.
+                code = generate_email_otp_code()
+                user.email_otp_code_hash = hash_email_otp_code(code)
+                user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+                db.add(user)
+                db.commit()
+                try:
+                    EmailService.send_event_notification(
+                        to_email=user.UserEmail,
+                        recipient_name=user.UserName or user.UserEmail,
+                        event_type="action_required",
+                        heading="Your BlitzenX WROS verification code",
+                        message=(
+                            f"Your one-time verification code is <strong>{code}</strong>. "
+                            f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes. If you didn't "
+                            f"just try to sign in, you can ignore this email."
+                        ),
+                    )
+                except Exception:
+                    # A failed send must never leak the code into the API
+                    # response or logs -- the user can request a resend
+                    # via /auth/mfa/email/resend instead of blocking login.
+                    pass
+
             return UnifiedLoginResponse(
                 entity_type="user",
                 access_token=pending_token,
@@ -123,8 +169,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 user_role=user.UserRole,
                 user_name=user.UserName or "",
                 user_email=user.UserEmail,
-                mfa_required=bool(user.mfa_enabled),
-                mfa_setup_required=not bool(user.mfa_enabled),
+                mfa_required=bool(user.mfa_enabled) if totp_gate else False,
+                mfa_setup_required=(not bool(user.mfa_enabled)) if totp_gate else False,
+                email_otp_required=email_otp_gate,
             )
 
         access_token = create_access_token(
