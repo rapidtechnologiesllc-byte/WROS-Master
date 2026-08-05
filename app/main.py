@@ -10,6 +10,11 @@ from app.core.logging import logger
 from app.models.base import Base
 from app.api.v1.routes import router
 from app.middleware import setup_cors, RequestLoggingMiddleware
+# S-207 -- importing this here (rather than relying on it being pulled in
+# lazily by whichever endpoint module happens to run first) registers the
+# global tenant-scoping do_orm_execute listener deterministically at
+# process startup. See app.core.tenant_context's module docstring.
+from app.core import tenant_context as _tenant_context  # noqa: F401
 
 
 # Create FastAPI application

@@ -450,6 +450,7 @@ def _create_candidate(client, candidate_id="CAND-1"):
     session.add(Candidate(
         candidateID=candidate_id, candidateFirstName="Jamie", candidateLastName="Fox",
         candidateEmail=f"{candidate_id.lower()}@candidate.com", candidatePassword="x",
+        tenant_id=client.wros_ids["tenant_id"],
     ))
     session.commit()
     session.close()
