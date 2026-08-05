@@ -1,9 +1,17 @@
 """
-get_hm_candidate_review_list() + GET /interviews/hm-review/{id} --
+get_hm_candidate_review_list() + GET /interviews/hm-review/my-candidates --
 proves S-102/HRMS-P207 (Hiring Manager Candidate Review) end-to-end.
 The schemas (HMCandidateReviewListResponse etc.) already existed,
 imported into interviews.py, but were wired to no route -- this closes
 that real, scoped gap.
+
+Real fix, 2026-08-05: the route used to take hiring_manager_id as a
+client-supplied path parameter with no ownership check -- any logged-in
+internal user could view any OTHER hiring manager's candidates by
+guessing/enumerating a UserID. Now derives "my candidates" from the
+authenticated caller; test_my_candidates_never_leaks_another_hms_data
+below proves the fix, replacing the old unknown-id-404 test (there's no
+longer a client-supplied id to be unknown).
 
 Throwaway SQLite -- never the real database or real signing keys.
 """
@@ -227,12 +235,12 @@ def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
 
 
-def _auth():
-    return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
+def _auth(email="admin@blitzenx.com", role="Admin"):
+    return {"Authorization": f"Bearer {_token_for(email, role)}"}
 
 
-def test_api_route_returns_empty_review_list(api_client):
-    resp = api_client.get("/interviews/hm-review/U-HM", headers=_auth())
+def test_api_route_returns_the_callers_own_review_list(api_client):
+    resp = api_client.get("/interviews/hm-review/my-candidates", headers=_auth("priya@blitzenx.com", "Hiring Manager"))
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["hiring_manager_id"] == "U-HM"
@@ -240,6 +248,13 @@ def test_api_route_returns_empty_review_list(api_client):
     assert body["total_candidates"] == 0
 
 
-def test_api_route_404_for_unknown_hiring_manager(api_client):
-    resp = api_client.get("/interviews/hm-review/does-not-exist", headers=_auth())
-    assert resp.status_code == 404
+def test_my_candidates_never_leaks_another_hms_data(api_client):
+    """The real security fix: no path parameter exists anymore for a
+    caller to substitute another hiring manager's id into -- calling as
+    Admin (a different real user than Priya HM) must return Admin's OWN
+    (empty) list, never Priya's."""
+    resp = api_client.get("/interviews/hm-review/my-candidates", headers=_auth("admin@blitzenx.com", "Admin"))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["hiring_manager_id"] == "U-ADMIN"
+    assert body["hiring_manager_id"] != "U-HM"
