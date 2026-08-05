@@ -39,4 +39,5 @@ export const ROUTES = {
   BUDDY_PROGRAM: "/buddy-program",
   EXECUTIVE_SIGNAL: "/executive-signal",
   ERROR_LOG: "/admin/error-log",
+  ADMIN_SETTINGS: "/admin/settings",
 };
