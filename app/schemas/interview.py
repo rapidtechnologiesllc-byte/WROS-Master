@@ -98,6 +98,14 @@ class InterviewDetailedResponse(BaseModel):
     id: int
     panel_id: int
     panel_round_name: str
+    # 2026-08-05 -- InterviewPanel.job_id already existed (a candidate can
+    # be interviewed for more than one job, each panel/round tied to a
+    # specific one) but was never surfaced here, so the frontend had no
+    # way to group a candidate's interview history by job. Both nullable:
+    # a panel with no job_id (legacy data) still returns real round info,
+    # just ungrouped.
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
     candidate_id: str
     candidate_name: str
     candidate_email: str
