@@ -2332,27 +2332,32 @@ def get_interviewer_workload(
 
 
 @router.get(
-    "/hm-review/{hiring_manager_id}", response_model=HMCandidateReviewListResponse,
-    summary="S-102/HRMS-P207 -- Hiring Manager candidate review list: profile + all interview feedback per candidate",
+    "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
+    summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
-def get_hiring_manager_candidate_review(
-    hiring_manager_id: str,
+def get_my_hiring_manager_candidate_review(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Wires app.schemas.interview's HMCandidateReviewListResponse and its
-    nested schemas -- already fully defined, imported here, but never
-    attached to a route until now. See interview_sequencing_service.
-    get_hm_candidate_review_list()'s own docstring for what's
-    deliberately not derived here (a "Must Hire" tier with no defined
-    threshold; the "must view all feedback before approving" BR, which
-    belongs to the existing, separate PUT /status/{candidate_id}
-    approval endpoint, not this read-only list).
-    """
-    hiring_manager = db.query(Users).filter(Users.UserID == hiring_manager_id).first()
-    if hiring_manager is None:
-        raise HTTPException(status_code=404, detail=f"User {hiring_manager_id} not found.")
+    Real fix, 2026-08-05 -- this route used to take hiring_manager_id as
+    a client-supplied path parameter, gated only by "any internal user
+    is logged in," with no check that the caller WAS that hiring
+    manager. Any authenticated internal user could view any OTHER
+    hiring manager's full candidate review + interview feedback by
+    guessing/enumerating a UserID -- a real IDOR, not just a UX
+    inconvenience with the frontend's old "enter Hiring Manager User
+    ID" text field. Fixed the same way employee self-service resolves
+    "my" data: derive from the authenticated caller, never trust a
+    client-supplied identity.
 
-    result = get_hm_candidate_review_list(db, hiring_manager)
+    Wires app.schemas.interview's HMCandidateReviewListResponse and its
+    nested schemas -- already fully defined, imported here. See
+    interview_sequencing_service.get_hm_candidate_review_list()'s own
+    docstring for what's deliberately not derived here (a "Must Hire"
+    tier with no defined threshold; the "must view all feedback before
+    approving" BR, which belongs to the existing, separate PUT
+    /status/{candidate_id} approval endpoint, not this read-only list).
+    """
+    result = get_hm_candidate_review_list(db, user)
     return HMCandidateReviewListResponse(**result)
