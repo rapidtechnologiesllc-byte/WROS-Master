@@ -3,9 +3,10 @@
 // planning estimates, not contractual commitments (labeled as such).
 import { useEffect, useState } from "react";
 import { TrendingUp, RefreshCw, Clock3 } from "lucide-react";
-import { Card, Button } from "../components/ui";
+import { Card, Button, Select } from "../components/ui";
 import cx from "../utils/cx";
 import { getExpiringAllocations, getSkillGapAnalysis } from "../services/api/resourceForecast";
+import { listBusinessUnits } from "../services/api/rbac";
 
 function ExpiryColumn({ title, tone, items }) {
   return (
@@ -35,12 +36,28 @@ export default function ForecastScreen() {
   const [gapRows, setGapRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [businessUnits, setBusinessUnits] = useState([]);
+  const [businessUnitId, setBusinessUnitId] = useState("");
+
+  useEffect(() => {
+    listBusinessUnits()
+      .then((list) => setBusinessUnits(list || []))
+      .catch((err) => console.error("Failed to load business units:", err));
+  }, []);
+
+  const buOptions = [
+    { label: "All Business Units", value: "" },
+    ...businessUnits.map((bu) => ({ label: bu.name, value: bu.id })),
+  ];
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const [expiringRes, gapRes] = await Promise.all([getExpiringAllocations(), getSkillGapAnalysis()]);
+      const [expiringRes, gapRes] = await Promise.all([
+        getExpiringAllocations(),
+        getSkillGapAnalysis(businessUnitId || undefined),
+      ]);
       setExpiring(expiringRes);
       setGapRows(gapRes?.rows || []);
     } catch (err) {
@@ -52,7 +69,7 @@ export default function ForecastScreen() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [businessUnitId]);
 
   return (
     <div className="grid gap-4">
@@ -61,9 +78,14 @@ export default function ForecastScreen() {
         subtitle="Estimates for planning only, not contractual commitments -- who's coming off allocation soon, and where bench supply is ahead of or behind open demand by skill."
         icon={<TrendingUp className="h-4 w-4" />}
         right={
-          <Button variant="ghost" onClick={load} disabled={loading}>
-            <RefreshCw className={cx("h-4 w-4", loading ? "animate-spin" : "")} /> Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="w-48">
+              <Select label="" value={businessUnitId} onChange={setBusinessUnitId} options={buOptions} />
+            </div>
+            <Button variant="ghost" onClick={load} disabled={loading}>
+              <RefreshCw className={cx("h-4 w-4", loading ? "animate-spin" : "")} /> Refresh
+            </Button>
+          </div>
         }
       >
         {error ? (
@@ -95,7 +117,14 @@ export default function ForecastScreen() {
               />
             </div>
 
-            <div className="mb-2 mt-6 text-sm font-semibold text-gray-700">Skill Gap Analysis</div>
+            <div className="mb-2 mt-6 text-sm font-semibold text-gray-700">
+              Skill Gap Analysis
+              {businessUnitId ? (
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  Open Demand scoped to this BU · Bench/Expiring supply shown org-wide (no BU field exists on employees yet)
+                </span>
+              ) : null}
+            </div>
             <div className="overflow-visible rounded-2xl border">
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50">
