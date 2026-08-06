@@ -9,6 +9,7 @@ export const ROUTES = {
   CLIENT_MANAGEMENT: "/client-management",
   OPPORTUNITY_PIPELINE: "/opportunity-pipeline",
   EXECUTIVE_REVENUE_DASHBOARD: "/executive-revenue-dashboard",
+  FINANCE_OPERATIONS: "/finance-operations",
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
   SUBMISSIONS: "/submissions",

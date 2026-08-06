@@ -87,6 +87,7 @@ const NAV_ITEMS = {
   // revenue.view server-side.
   opportunityPipeline: { path: ROUTES.OPPORTUNITY_PIPELINE, label: "Opportunity Pipeline", icon: TrendingUp },
   executiveRevenueDashboard: { path: ROUTES.EXECUTIVE_REVENUE_DASHBOARD, label: "Executive Revenue Dashboard", icon: LineChart },
+  financeOperations: { path: ROUTES.FINANCE_OPERATIONS, label: "Finance Operations", icon: BadgeDollarSign },
   rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
@@ -196,7 +197,7 @@ export default function Shell({
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -208,7 +209,7 @@ export default function Shell({
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -220,7 +221,11 @@ export default function Shell({
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline",
+          // financeOperations deliberately excluded -- Avinash's explicit
+          // "finance & HR manager (no actual p&l)" rule. executiveRevenueDashboard
+          // stays (revenue.view-level content, backend gates the P&L bits
+          // separately at revenue.view_pnl).
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard",
         ]),
       };
     }

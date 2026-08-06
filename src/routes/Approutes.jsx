@@ -70,6 +70,7 @@ import ClientManagementScreen from "../screens/ClientManagementScreen";
 import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
 import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
+import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import EmployeeDirectoryScreen from "../screens/EmployeeDirectoryScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
@@ -494,6 +495,7 @@ export default function AppRoutes() {
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
+            <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
@@ -718,6 +720,7 @@ export default function AppRoutes() {
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
+            <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
