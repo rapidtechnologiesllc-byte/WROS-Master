@@ -92,3 +92,22 @@ def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
                 pass
 
     return task
+
+
+def run_ar_follow_up_job(db: Session) -> dict:
+    """Scheduler wrapper, 2026-08-06 -- this logic existed and was fully
+    tested (scan_overdue_invoices/trigger_ar_follow_up) but was never
+    actually registered in app.core.scheduler, so it only ever ran when
+    someone manually hit the /invoices/ar/aging + /invoices/{id}/ar/
+    follow-up endpoints. Runs org-wide -- scan_overdue_invoices with no
+    tenant_id filter, trigger_ar_follow_up already stamps each Task with
+    the invoice's own tenant_id. Idempotent (trigger_ar_follow_up returns
+    the existing open Task rather than duplicating), safe to re-run on
+    every scheduler tick."""
+    processed = 0
+    for row in scan_overdue_invoices(db):
+        invoice = db.query(Invoice).filter(Invoice.id == row["invoice_id"]).first()
+        if invoice:
+            trigger_ar_follow_up(db, invoice)
+            processed += 1
+    return {"processed": processed}
