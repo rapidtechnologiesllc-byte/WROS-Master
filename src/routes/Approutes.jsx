@@ -703,6 +703,7 @@ export default function AppRoutes() {
             element={<ResourceManagementScreen />}
           />
           <Route path="core-pull" element={<CorePullScreen />} />
+            <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeeDirectoryScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
