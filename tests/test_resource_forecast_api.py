@@ -28,6 +28,7 @@ from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.rbac import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
 from app.models.tenant import Tenant
 from app.models.user import Users
@@ -89,16 +90,24 @@ def client(throwaway_jwt_keys):
     db.add(acme)
     db.commit()
 
+    axion = BusinessUnit(name="Axion")
+    prism = BusinessUnit(name="Prism")
+    db.add_all([axion, prism])
+    db.commit()
+
     # Demand A -- open, requires Guidewire (2 units of demand for that skill).
+    # A belongs to Axion, B belongs to Prism -- proves BU-scoped filtering.
     demand_a = Demand(
         tenant_id=tenant.id, client_id=acme.id, job_title="Guidewire Dev A",
         required_skills=json.dumps(["Guidewire"]), min_experience_years=3.0,
         work_location="REMOTE", status="OPEN", billing_rate_usd_cents=15000,
+        assigned_bu_id=axion.id,
     )
     demand_b = Demand(
         tenant_id=tenant.id, client_id=acme.id, job_title="Guidewire Dev B",
         required_skills=json.dumps(["Guidewire"]), min_experience_years=3.0,
         work_location="REMOTE", status="IN_PROGRESS", billing_rate_usd_cents=15000,
+        assigned_bu_id=prism.id,
     )
     db.add_all([demand_a, demand_b])
     db.commit()
@@ -150,6 +159,7 @@ def client(throwaway_jwt_keys):
     ids = {
         "tenant_id": tenant.id, "bench_employee_id": bench_employee.id,
         "expiring_employee_id": expiring_employee.id, "later_employee_id": later_employee.id,
+        "axion_id": axion.id, "prism_id": prism.id,
     }
     db.close()
 
@@ -207,3 +217,22 @@ def test_gap_analysis_computes_supply_vs_demand_per_skill(client):
     # demand requires it -- so it correctly never surfaces as a row at
     # all (the service only unions skills from those three sources).
     assert "PolicyCenter" not in rows
+
+
+def test_gap_analysis_scoped_to_business_unit_filters_demand_only(client):
+    """business_unit_id narrows open_demand_count to that BU's own
+    Demand rows (demand_a=Axion, demand_b=Prism) -- bench/expiring
+    supply stays org-wide (no BU field exists on Employee/BenchPoolEntry
+    anywhere in this codebase, a real, already-flagged gap -- filtering
+    those would fabricate data, not narrow it)."""
+    ids = client.wros_ids
+    resp = client.get(
+        "/resource-forecast/gap-analysis", headers=_auth(),
+        params={"business_unit_id": ids["axion_id"]},
+    )
+    assert resp.status_code == 200
+    rows = {r["skill"]: r for r in resp.json()["rows"]}
+    guidewire = rows["Guidewire"]
+    assert guidewire["open_demand_count"] == 1  # only demand_a (Axion), not demand_b (Prism)
+    assert guidewire["current_bench_count"] == 1  # bench stays org-wide, unfiltered
+    assert guidewire["expiring_allocations_count_30d"] == 1
