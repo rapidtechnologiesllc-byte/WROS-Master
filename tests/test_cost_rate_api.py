@@ -228,3 +228,51 @@ def test_bu_pnl_flags_incomplete_cost_data_when_no_config(client):
     assert body["cost_data_complete"] is False
     assert body["cost_usd_cents"] is None
     assert body["gross_margin_usd_cents"] is None
+
+
+def test_reserve_fund_contribution_and_status(client):
+    ids = client.wros_ids
+    client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
+
+    create_resp = client.post(
+        "/reserve-fund/entries", headers=_avinash_auth(),
+        json={
+            "entry_type": "CONTRIBUTION", "amount_usd_cents": 500_000,
+            "period_year": ids["year"], "period_month": ids["month"], "business_unit_id": ids["axion_id"],
+        },
+    )
+    assert create_resp.status_code == 201, create_resp.text
+
+    status_resp = client.get(
+        f"/reserve-fund/bu/{ids['axion_id']}/status", headers=_avinash_auth(),
+        params={"year": ids["year"], "month": ids["month"]},
+    )
+    assert status_resp.status_code == 200, status_resp.text
+    body = status_resp.json()
+    assert body["balance_usd_cents"] == 500_000
+    # target = trailing avg monthly cost (1,200,000, only 1 month has data) x 12
+    assert body["target_usd_cents"] == 1_200_000 * 12
+    assert body["pct_funded"] == round(500_000 / (1_200_000 * 12) * 100, 1)
+
+
+def test_reserve_fund_withdrawal_reduces_balance(client):
+    ids = client.wros_ids
+    client.post(
+        "/reserve-fund/entries", headers=_avinash_auth(),
+        json={
+            "entry_type": "CONTRIBUTION", "amount_usd_cents": 500_000,
+            "period_year": ids["year"], "period_month": ids["month"], "business_unit_id": ids["axion_id"],
+        },
+    )
+    client.post(
+        "/reserve-fund/entries", headers=_avinash_auth(),
+        json={
+            "entry_type": "WITHDRAWAL", "amount_usd_cents": 200_000,
+            "period_year": ids["year"], "period_month": ids["month"], "business_unit_id": ids["axion_id"],
+        },
+    )
+    status_resp = client.get(
+        f"/reserve-fund/bu/{ids['axion_id']}/status", headers=_avinash_auth(),
+        params={"year": ids["year"], "month": ids["month"]},
+    )
+    assert status_resp.json()["balance_usd_cents"] == 300_000
