@@ -68,6 +68,8 @@ import ResourceManagementScreen from "../screens/ResourceManagementScreen";
 import CorePullScreen from "../screens/CorePullScreen";
 import ClientManagementScreen from "../screens/ClientManagementScreen";
 import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
+import MyExpensesScreen from "../screens/MyExpensesScreen";
+import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import EmployeeDirectoryScreen from "../screens/EmployeeDirectoryScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
@@ -491,6 +493,7 @@ export default function AppRoutes() {
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
+            <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
@@ -501,6 +504,7 @@ export default function AppRoutes() {
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="my-timesheet" element={<MyTimesheetScreen />} />
+            <Route path="my-expenses" element={<MyExpensesScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
@@ -712,6 +716,7 @@ export default function AppRoutes() {
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
+            <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
@@ -722,6 +727,7 @@ export default function AppRoutes() {
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="my-timesheet" element={<MyTimesheetScreen />} />
+            <Route path="my-expenses" element={<MyExpensesScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
