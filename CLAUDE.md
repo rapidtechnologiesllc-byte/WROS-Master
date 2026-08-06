@@ -31,46 +31,48 @@ The sheet's own Status column is **confirmed stale in multiple places** — this
 | EPIC-P6 (Interview Decision Engine & Compliance) | 0/12 Planned | **Core engine built** (`SubmissionInterview`/`DemandInterviewPanel`: L1/L2, R-05, real round-robin, no-show handling) — **but entirely unwired to any screen** | Confirmed via code this session; see the Interview Workflow section above and `ORPHAN_CODE_AUDIT.md` |
 | EPIC-P5 (HTD — Hire Train Deploy) | 0/10 Done | **Buddy Program / Graduation Gate built + pushed** (S-067, S-364, S-365) | 2026-08-04 session log |
 | EPIC-16 itself, partial | (see above) | 6 of ~9 finance engines have real UI (Finance Operations screen); **bank reconciliation + AR aging + invoice detail do not** (confirmed orphan in the audit) | `ORPHAN_CODE_AUDIT.md` — this is tracked as Task #15 |
-| DESIRE | 0/5 Done | **5/5 Done** — S-347/348/349 directly confirmed this session (real scheduled jobs in `scheduler.py`); S-346 (Portal Chat Widget) and S-350 (HR Intelligence Briefing) confirmed by Avinash directly (prior session), not independently re-verified this session | Avinash, 2026-08-06 |
+| DESIRE | 0/5 Done | **4.5/5 Done, not 5/5 — corrected after direct code verification, not taken on say-so.** S-347/348/349 (`desire_signal_service.py`/`desire_profile_service.py`/`motivation_engine_service.py`, real scheduled jobs) and S-350 (`desire_intelligence.py` endpoints + `IntelligenceTab.js` frontend, fully wired) are genuinely complete. **S-346 (Portal Real-Time Chat Widget) has a real, confirmed gap**: the backend genuinely supports long-polling (`get_portal_message_history`'s `after_id` param, documented explicitly as the WebSocket-free real-time mechanism) and the frontend does call `getPortalMessages`/send from `CandidatePortalScreen.js` — but that screen calls `getPortalMessages` once on load with **no `setInterval`/polling loop anywhere in the file**. The chat works; it is not actually real-time — a candidate has to reload to see a new reply. Avinash's own initial claim was "5/5 completed," corrected by re-checking the code directly per his own explicit instruction not to take a completion claim at face value, including his. | Verified against code, 2026-08-06 |
 | EPIC-01 | 12/21 Done (57%, includes 7 RETIRED + 1 Deferred in the denominator) | **Effectively 100% of actionable scope** — the 7 RETIRED rows are legitimately merged into other stories (not real gaps), `S-209` is explicitly Deferred Post-Go-Live per Avinash's own 2026-08-04 call, and the only remaining `Planned` row (`S-208`, Audit Log Base System) is blocked on an external DB grant, not a coding gap. Real denominator for "still-open coding work": 0. | Verified against the sheet's own per-row notes, 2026-08-06 |
 
 Not fully spot-checked (real work plausibly happened but not individually verified against the sheet): EPIC-08 (Project & Delivery — real `Project` model/screens exist from this session's Client/Project redesign), EPIC-12 (Analytics — Executive Revenue Dashboard + CEO Culture Agent exist), EPIC-P2 (Employee Portal — `/my-timesheet` self-service built 2026-08-04). Treat the sheet's numbers for these as a floor, not a ceiling, and confirm before planning precisely against them.
 
-### All 28 epics, sheet-reported completion (raw numbers — see corrections above before trusting)
+### All 27 in-scope epics, RETIRED rows excluded entirely (Avinash's explicit instruction, 2026-08-06 — retired stories are descoped, not "remaining work," so they shouldn't count toward either side of the fraction)
 
-| Epic | Name | Stories | Done | % | P0 count |
+Real in-scope backlog: **393 stories, 132 done (34%)** once retired rows are dropped from both numerator and denominator. Numbers below still reflect the sheet's own Status column except where the corrections table above applies (marked *) — always cross-check a Done claim against code before trusting it, including a completion claim from Avinash himself (see the DESIRE correction above for exactly why).
+
+| Epic | Name | Stories (retired excl.) | Done | % | P0 count |
 |---|---|---|---|---|---|
-| EPIC-01 | Core Platform & Multi-Tenant Foundation | 21 | 12 | **~100% of actionable scope*** | 14 |
-| EPIC-02 | Revenue Visibility Engine | 15 | 6 | 40% | 9 |
+| EPIC-01 | Core Platform & Multi-Tenant Foundation | 14 | 12 | 86%* (see corrections — effectively 100% of actionable work; S-208 blocked externally, S-209 deferred by Avinash) | 11 |
+| EPIC-02 | Revenue Visibility Engine | 10 | 6 | 60% | 7 |
 | EPIC-03 | Workforce Planning & Demand Forecasting | 14 | 1 | 7% | 10 |
 | EPIC-04 | Candidate Engagement & AI Recruiter Platform | 80 | 78 | 98% | 44 |
 | EPIC-04-ONB | Onboarding Portal (onboarding.blitzenx.com) | 32 | 0 | 0% | 0 |
 | EPIC-05 | Resource & Bench Management | 12 | 12 | **100%** | 8 |
 | EPIC-06 | Adhoc Staffing Demand Engine | 8 | 0 | 0% | 5 |
 | EPIC-07 | Talent Engine (ATS Layer) | 10 | 1 | 10% | 7 |
-| EPIC-08 | Project & Delivery Management | 7 | 0 | 0% | 4 |
-| EPIC-09 | Time Tracking & Revenue Capture | 10 | 6 | 60% | 7 |
-| EPIC-10 | AI Intelligence Layer (7/10 retired) | 10 | 0 | 0% | 2 |
+| EPIC-08 | Project & Delivery Management | 6 | 0 | 0% | 3 |
+| EPIC-09 | Time Tracking & Revenue Capture | 9 | 6 | 67% | 7 |
+| EPIC-10 | AI Intelligence Layer | 3 | 0 | 0% | 1 |
 | EPIC-11 | Agentic Operations Layer | 10 | 1 | 10% | 5 |
 | EPIC-12 | Analytics & Executive Dashboards | 10 | 0 | 0% | 4 |
-| EPIC-13 | Integration Hub | 10 | 3 | 30% | 5 |
+| EPIC-13 | Integration Hub | 8 | 3 | 38% | 4 |
 | EPIC-14 | Internal Collaboration Hub | 6 | 0* | 0% | 3 |
 | EPIC-15 | Interview Integrity Layer | 2 | 0 | 0% | 0 |
 | EPIC-16 | Finance & Accounting Operations | 15 | 0* | 0% | 11 |
 | EPIC-P1 | Candidate Portal & Universal Identity Engine | 15 | 0 | 0% | 10 |
-| EPIC-P2 | Employee Portal — Admin & Technical Split | 11 | 2 | 18% | 9 |
+| EPIC-P2 | Employee Portal — Admin & Technical Split | 10 | 2 | 20% | 8 |
 | EPIC-P3 | Proactive AI Nurture & Candidate Relationship Engine | 9 | 0 | 0% | 4 |
 | EPIC-P4 | LinkedIn Autonomous Sourcing Pipeline | 9 | 0 | 0% | 5 |
-| EPIC-P5 | HTD — Hire Train Deploy Model | 10 | 0* | 0% | 8 |
+| EPIC-P5 | HTD — Hire Train Deploy Model | 5 | 0* | 0% | 4 |
 | EPIC-P6 | Interview Decision Engine & Compliance Rules | 12 | 0* | 0% | 11 |
-| EPIC-P7 | Client Portal — Submission, Timesheet & RFP | 30 | 0 | 0% | 22 |
-| EPIC-P8 | Sub-Vendor Portal | 18 | 0 | 0% | 12 |
+| EPIC-P7 | Client Portal — Submission, Timesheet & RFP | 26 | 0 | 0% | 19 |
+| EPIC-P8 | Sub-Vendor Portal | 15 | 0 | 0% | 11 |
 | EPIC-P9 | Boolean Search & AI Search Intelligence | 14 | 0 | 0% | 8 |
 | NEW-RM | Delivery Engine & Performance Intelligence | 9 | 6 | 67% | 7 |
 | NEW-RM-EXT | Delivery Engine & Performance Intelligence (ext.) | 15 | 4 | 27% | 10 |
-| DESIRE | Desire Intelligence System | 5 | 5* | **100%** | 3 |
+| DESIRE | Desire Intelligence System | 5 | 4.5* | 90% (S-346's real-time polling gap, see corrections above) | 3 |
 
-\* = confirmed stale, see corrections table above. PATCHES (4 rows, "Revised Existing Documents") excluded — spec-revision markers, not real build stories.
+\* = confirmed stale/corrected, see corrections table above — don't trust the raw sheet % for these without reading the correction. PATCHES (4 rows, "Revised Existing Documents") excluded — spec-revision markers, not real build stories. RETIRED rows (40 total across the epics above) excluded entirely per Avinash's instruction — they were superseded/merged into other stories, not real remaining scope.
 
 ### Epic → MVP pipeline stage mapping
 
