@@ -754,3 +754,21 @@ Committed and pushed: backend + frontend, continuing the same rhythm as every ot
 **Real, deeper gap surfaced but not fixed (deliberately out of scope for Task 7)**: fully BU-scoping the bench pool needs `Employee.business_unit_id` to exist for real, which is a bigger schema/architecture decision (touches hiring pipeline, Core-Pull, Delivery Engine assignment) — not something to bolt on inside a bench-matching task. Flagged for whoever next does deeper Resource Management work, same posture as the original Operating Model TODO.
 
 **Tasks 8-15 (EPIC-16 Finance & Accounting, Partner ROI Agent, CFO Agent, CEO FY Progress dashboard) still not started as of this entry** — largest remaining chunk of the build queue, 15 EPIC-16 stories alone. Continuing story-by-story, same commit/test rhythm.
+
+## Session log — 2026-08-06 (continued): EPIC-16, 5 of ~9 remaining engines shipped + a shared Finance Operations screen
+
+Built against the real FY26-27 workbook's formula shapes (structure/logic only, no real figures, per the standing rule), with every genuine assumption flagged in code rather than guessed at silently:
+
+1. **Fully Loaded Cost + Blended Delivery Rate** (`cost_rate_service.py`, `cost_rate_configs` table) — config-driven statutory/overhead % per BU (append-only ledger pattern), fully loaded cost = salary + statutory + overhead. Blended delivery rate = real period revenue / real approved billable hours, not a rate card.
+2. **BU P&L Engine** (`pnl_service.py`) — revenue minus fully-loaded cost of every ACTIVE-allocated employee, both real derived numbers. **Location P&L (BXIN/BXUS) deliberately not built** — no field anywhere identifies an employee's legal entity, would be a guess.
+3. **Reserve Fund Ledger** (`reserve_fund_service.py`, `reserve_fund_entries` table) — append-only contribution/withdrawal ledger; target = trailing avg monthly BU cost × 12 (a real computed figure, matching the "12-month-target gate" shape already scoped).
+4. **Hiring Affordability gate** (`hiring_affordability_service.py`) — checks a proposed hire's fully-loaded cost against the BU's real current P&L. **One flagged assumption**: affordable = projected margin stays ≥ 0% — no minimum-margin policy number was ever given, so this is the literal floor, not a guessed threshold. Easy to make configurable once Avinash gives a real number.
+5. **Intercompany Ledger** (`intercompany_ledger_service.py`, `intercompany_settlements` table) — manual-entry settlement ledger between legal entities, same posture as the Expense Ledger (Finance records the real transaction, system tracks net position per entity) — same "no legal-entity field exists" reason this can't be auto-derived.
+
+**Finance Operations screen** ties all five together — one BU + Year/Month selector at the top drives every read panel below, plus compact write-forms for each engine. One screen for the whole epic, not five, matching the fewer-clicks mandate now that Avinash has flagged the UI as over-built once already this session.
+
+**Real pre-existing bug found and fixed while wiring nav**: Executive Revenue Dashboard was defined as a `NAV_ITEMS` entry and listed in the `GROUP_DEFS` "Finance" group's keys, but was never actually included in any role's own nav-building list in `Shell.js` (`buildGroups()` filters the group's keys against a per-role list, and none of the three role branches — Super User, Admin, HR Manager — named it) — unreachable via nav for literally everyone, only reachable by typing the URL directly (which is exactly how Avinash found it earlier this session). Fixed for all three; Finance Operations deliberately left out of HR Manager's list (P&L data, "no actual p&l" rule).
+
+**Commits**: `5a3f7b3`/`0a1c932`/`2d1d0ba`/`9db0a8e`/`c4257a0` backend (5 engines, 24 new tests total), `4d61fd3` frontend (screen + nav fix).
+
+**Remaining EPIC-16**: Partner Incentive Calculator (extend the already-built `PartnerIncentiveRule`/`PartnerIncentiveEvent`), AR follow-up, Bank Reconciliation, Invoice cycle enhancements, Timesheet nag cascade, an Executive Dashboard view tying revenue+cost+reserve together at the org level. GST/S-401 stays skipped (canonical sheet: `BLOCKED -- Awaiting Finance/CA Requirements Review`). Then tasks 14/15 (Partner ROI Agent, CFO Agent) and the CEO FY Progress dashboard.
