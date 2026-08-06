@@ -54,6 +54,7 @@ from app.models.project import Project, ProjectMilestone
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
 from app.models.pipeline_leakage import PipelineLeakageFlag
+from app.models.cost_rate_config import CostRateConfig
 from app.models.timesheet_anomaly import TimesheetAnomalyFlag
 from app.models.checklist import (
     ChecklistTemplate,
