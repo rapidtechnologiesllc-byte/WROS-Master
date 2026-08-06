@@ -116,3 +116,21 @@ def trigger_timesheet_nag(
         return log
 
     return log
+
+
+def run_timesheet_nag_job(db: Session) -> dict:
+    """Scheduler wrapper, 2026-08-06 -- this logic existed and was fully
+    tested but was never actually registered in app.core.scheduler,
+    same "built, never wired to run" gap as ar_followup_service's own
+    job wrapper below. Runs org-wide (scan_missing_timesheets/
+    trigger_timesheet_nag are called with no tenant_id filter -- each
+    Employee's own tenant_id is what gets stamped on the resulting
+    TimesheetNagLog/notification), current week only (Monday-anchored,
+    matching Timesheet.week_starting_date's own convention)."""
+    today = date.today()
+    week_starting_date = today - timedelta(days=today.weekday())
+    processed = 0
+    for employee in scan_missing_timesheets(db, week_starting_date=week_starting_date):
+        if trigger_timesheet_nag(db, employee, week_starting_date=week_starting_date, tenant_id=employee.tenant_id) is not None:
+            processed += 1
+    return {"processed": processed}

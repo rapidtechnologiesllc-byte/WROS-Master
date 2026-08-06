@@ -785,6 +785,70 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register M365 mail sync scheduler: {exc}")
 
+        # ── Daily: TIMESHEET_NAG_JOB (EPIC-16) ───────────────────────────────
+        # 2026-08-06 -- built 2026-08-05 with the logic fully tested but never
+        # actually registered here; Avinash caught the resulting gap live
+        # ("Is my timesheet pending for this week to employee") and it's the
+        # proof point behind this codebase's standing Task-Driven Workflow
+        # Coverage rule (see CLAUDE.md). Daily, not weekly -- escalation to
+        # the reporting manager depends on days-since-last-nag, so this needs
+        # to check in more than once a week to fire on time.
+        try:
+            from app.core.database import SessionLocal
+            from app.services.timesheet_nag_service import run_timesheet_nag_job
+
+            async def _run_timesheet_nag():
+                db = SessionLocal()
+                try:
+                    result = run_timesheet_nag_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] Timesheet nag: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Timesheet nag job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_timesheet_nag,
+                trigger="cron",
+                hour=9,
+                minute=0,
+                id="timesheet_nag_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled timesheet nag job (09:00 UTC daily)")
+        except Exception as exc:
+            logger.warning(f"Could not register timesheet nag scheduler: {exc}")
+
+        # ── Daily: AR_FOLLOW_UP_JOB (EPIC-16) ────────────────────────────────
+        # 2026-08-06 -- same gap as timesheet nag above, same fix.
+        try:
+            from app.core.database import SessionLocal
+            from app.services.ar_followup_service import run_ar_follow_up_job
+
+            async def _run_ar_follow_up():
+                db = SessionLocal()
+                try:
+                    result = run_ar_follow_up_job(db)
+                    if result["processed"]:
+                        logger.info(f"[scheduler] AR follow-up: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] AR follow-up job error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_ar_follow_up,
+                trigger="cron",
+                hour=9,
+                minute=30,
+                id="ar_follow_up_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled AR follow-up job (09:30 UTC daily)")
+        except Exception as exc:
+            logger.warning(f"Could not register AR follow-up scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
