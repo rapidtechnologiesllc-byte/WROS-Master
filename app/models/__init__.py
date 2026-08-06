@@ -58,6 +58,7 @@ from app.models.cost_rate_config import CostRateConfig
 from app.models.reserve_fund import ReserveFundEntry
 from app.models.intercompany_ledger import IntercompanySettlement
 from app.models.bank_reconciliation import BankTransaction
+from app.models.timesheet_nag import TimesheetNagLog
 from app.models.timesheet_anomaly import TimesheetAnomalyFlag
 from app.models.checklist import (
     ChecklistTemplate,

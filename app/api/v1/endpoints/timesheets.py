@@ -91,6 +91,7 @@ from app.services.timesheet_dispute_service import (
     raise_dispute,
     resolve_dispute,
 )
+from app.services.timesheet_nag_service import scan_missing_timesheets, trigger_timesheet_nag
 from app.services.timesheet_service import (
     AllocationNotActive,
     InvalidTimesheetEntry,
@@ -432,3 +433,25 @@ def resolve_dispute_endpoint(
     db.commit()
     db.refresh(dispute)
     return _dispute_to_item(dispute)
+
+
+@router.post("/nag-cascade/run", summary="EPIC-16 Timesheet Nag Cascade: scan + nag for one week")
+def run_timesheet_nag_cascade(
+    week_starting_date: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """Not wired to a scheduler -- same posture as every other
+    scheduled-job function in this codebase (a cron would call this
+    per-week; the idempotent function itself is what's real and
+    tested)."""
+    from datetime import date as date_cls
+
+    week = date_cls.fromisoformat(week_starting_date)
+    missing = scan_missing_timesheets(db, week_starting_date=week, tenant_id=current_user.tenant_id)
+    results = []
+    for employee in missing:
+        log = trigger_timesheet_nag(db, employee, week_starting_date=week, tenant_id=current_user.tenant_id)
+        if log:
+            results.append({"employee_id": employee.id, "escalation_level": log.escalation_level})
+    return {"nagged": results}
