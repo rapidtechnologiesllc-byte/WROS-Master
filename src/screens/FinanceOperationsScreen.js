@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Wallet, DollarSign, Building2, RefreshCw } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
+import { searchUsers } from "../services/api/users";
 import {
   setCostRateConfig,
   getBuPnl,
@@ -18,6 +19,7 @@ import {
   recordIntercompanySettlement,
   listIntercompanySettlements,
 } from "../services/api/financeOperations";
+import { getPartnerIncentiveEvents, calculateRevenueShare } from "../services/api/partnerIncentives";
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -52,6 +54,10 @@ export default function FinanceOperationsScreen() {
   const [settlementAmount, setSettlementAmount] = useState("");
   const [settlementReason, setSettlementReason] = useState("");
 
+  const [partners, setPartners] = useState([]);
+  const [incentivePartnerId, setIncentivePartnerId] = useState("");
+  const [incentiveEvents, setIncentiveEvents] = useState([]);
+
   useEffect(() => {
     listBusinessUnits()
       .then((list) => setBusinessUnits(list || []))
@@ -59,7 +65,35 @@ export default function FinanceOperationsScreen() {
     listIntercompanySettlements()
       .then((list) => setSettlements(list || []))
       .catch((err) => console.error("Failed to load intercompany settlements:", err));
+    searchUsers({ permission_role: "Partner", limit: 100 })
+      .then((res) => setPartners(res?.users || []))
+      .catch((err) => console.error("Failed to load partners:", err));
   }, []);
+
+  const partnerOptions = [
+    { label: "Select Partner", value: "", disabled: true },
+    ...partners.map((p) => ({ label: `${p.user_name} (${p.user_email})`, value: p.user_id })),
+  ];
+
+  useEffect(() => {
+    if (!incentivePartnerId) {
+      setIncentiveEvents([]);
+      return;
+    }
+    getPartnerIncentiveEvents(incentivePartnerId)
+      .then((res) => setIncentiveEvents(res?.events || []))
+      .catch((err) => console.error("Failed to load incentive events:", err));
+  }, [incentivePartnerId]);
+
+  const handleCalculateRevenueShare = async () => {
+    try {
+      await calculateRevenueShare(incentivePartnerId, Number(year), Number(month));
+      const res = await getPartnerIncentiveEvents(incentivePartnerId);
+      setIncentiveEvents(res?.events || []);
+    } catch (err) {
+      setError(err.message || "Failed to calculate revenue share.");
+    }
+  };
 
   const buOptions = [
     { label: "Select Business Unit", value: "", disabled: true },
@@ -265,6 +299,29 @@ export default function FinanceOperationsScreen() {
                       </div>
                     ))}
                   </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
+                <div className="mb-3 text-sm font-semibold text-gray-900">
+                  <Wallet className="mr-1 inline h-4 w-4" /> Partner Incentives
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <Select label="Partner" value={incentivePartnerId} onChange={setIncentivePartnerId} options={partnerOptions} />
+                  <Button className="mt-5" onClick={handleCalculateRevenueShare} disabled={!incentivePartnerId}>
+                    Calculate Revenue Share for {year}-{month}
+                  </Button>
+                </div>
+                {incentiveEvents.length > 0 ? (
+                  <div className="mt-3 space-y-1 text-xs text-gray-600">
+                    {incentiveEvents.map((e) => (
+                      <div key={e.id}>
+                        {e.period_year ? `${e.period_year}-${e.period_month}` : "New Logo"}: {formatUsdCents(e.amount_usd_cents)} ({e.status})
+                      </div>
+                    ))}
+                  </div>
+                ) : incentivePartnerId ? (
+                  <div className="mt-3 text-xs text-gray-500">No incentive events yet for this Partner.</div>
                 ) : null}
               </div>
             </div>
