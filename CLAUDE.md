@@ -13,6 +13,125 @@ This file is read automatically at the start of every Claude Code session in thi
 7. `C:\Users\AvinashMukund\Documents\Claude\WROS_Canonical_Backlog_S001-401.xlsx` — the authoritative Story-ID/WROS-ID/Status tracker (401 stories). Resolves the renumbering churn noted above: when a `.docx` filename and this sheet disagree on a story's real WROS ID, trust the sheet, verified by content (Summary/Description), not ID string alone — real, confirmed drift exists (e.g. Core-Pull is genuinely HRMS-0514/S-353, not HRMS-0312 as this file used to say and `04-RESOURCE-MANAGEMENT.md` still does). **Standing convention**: mark a row `Done` in this sheet (with a `Change Log` tab entry) only once the Definition of Done above is actually met (UI + API/integration + business rules + tests) — don't batch it, don't do a full historical reconciliation, just keep the going-forward stream current. A full regression pass over the remaining open rows happens once, at the end of the build.
 8. `docs/build-package/PHASE-4-UI-INTEGRATION-COMPLETION-PROMPT.md` — **current active task**: Phase 4's backend (Core-Pull Engine, Specialty Pool Guard, Resource Management Agent, Confirmed vs Potential Demand Workflow) is built and tested but has no API or UI yet, so none of it is actually Done per the rule above. This is the story-by-story, top-down completion checklist — read it before starting any Phase 4 UI/API work.
 
+## MVP Build Roadmap — Epic-by-Epic order, confirmed 2026-08-06
+
+**Avinash's MVP vision, his own words**: "Agents to do each of them and make it autonomous: Identify opportunity → Find the resource → recruitment → Win the client → Resource Management → Project → timesheet → Finance → revenue. Employee Portal, Candidate portal for best experience. Sub agent [sub-vendor], client portal can be last."
+
+Source: `WROS_Canonical_Backlog_S001-401.xlsx` "Master Backlog" sheet — 433 stories across 28 epic groupings.
+
+### Read this before trusting any % below
+
+The sheet's own Status column is **confirmed stale in multiple places** — this repo's own convention (line 13 above) only updates it going-forward, never batch-reconciles historically, so completed work regularly isn't reflected. Checked directly against this session's own verified builds before writing the roadmap below:
+
+| Epic | Sheet says | Actually | Verified via |
+|---|---|---|---|
+| EPIC-16 (Finance & Accounting) | 0/15 Done | **15/15 built + pushed** | This session's own build (S-387–401), commits `5a3f7b3` etc. |
+| DESIRE (Desire Intelligence) | 0/5 Done | **Built + pushed 2026-08-05** | `desire_signal_service.py`/`desire_profile_service.py`/`motivation_engine_service.py` all live with real scheduled jobs (confirmed reading `scheduler.py` this session) |
+| EPIC-14 (Internal Collaboration Hub) | 0/6 Done | **Stage 1 built + pushed** (S-379 email linking, S-435 M365 sync) | 2026-08-05 session log |
+| EPIC-P6 (Interview Decision Engine & Compliance) | 0/12 Planned | **Core engine built** (`SubmissionInterview`/`DemandInterviewPanel`: L1/L2, R-05, real round-robin, no-show handling) — **but entirely unwired to any screen** | Confirmed via code this session; see the Interview Workflow section above and `ORPHAN_CODE_AUDIT.md` |
+| EPIC-P5 (HTD — Hire Train Deploy) | 0/10 Done | **Buddy Program / Graduation Gate built + pushed** (S-067, S-364, S-365) | 2026-08-04 session log |
+| EPIC-16 itself, partial | (see above) | 6 of ~9 finance engines have real UI (Finance Operations screen); **bank reconciliation + AR aging + invoice detail do not** (confirmed orphan in the audit) | `ORPHAN_CODE_AUDIT.md` — this is tracked as Task #15 |
+| DESIRE | 0/5 Done | **5/5 Done** — S-347/348/349 directly confirmed this session (real scheduled jobs in `scheduler.py`); S-346 (Portal Chat Widget) and S-350 (HR Intelligence Briefing) confirmed by Avinash directly (prior session), not independently re-verified this session | Avinash, 2026-08-06 |
+| EPIC-01 | 12/21 Done (57%, includes 7 RETIRED + 1 Deferred in the denominator) | **Effectively 100% of actionable scope** — the 7 RETIRED rows are legitimately merged into other stories (not real gaps), `S-209` is explicitly Deferred Post-Go-Live per Avinash's own 2026-08-04 call, and the only remaining `Planned` row (`S-208`, Audit Log Base System) is blocked on an external DB grant, not a coding gap. Real denominator for "still-open coding work": 0. | Verified against the sheet's own per-row notes, 2026-08-06 |
+
+Not fully spot-checked (real work plausibly happened but not individually verified against the sheet): EPIC-08 (Project & Delivery — real `Project` model/screens exist from this session's Client/Project redesign), EPIC-12 (Analytics — Executive Revenue Dashboard + CEO Culture Agent exist), EPIC-P2 (Employee Portal — `/my-timesheet` self-service built 2026-08-04). Treat the sheet's numbers for these as a floor, not a ceiling, and confirm before planning precisely against them.
+
+### All 28 epics, sheet-reported completion (raw numbers — see corrections above before trusting)
+
+| Epic | Name | Stories | Done | % | P0 count |
+|---|---|---|---|---|---|
+| EPIC-01 | Core Platform & Multi-Tenant Foundation | 21 | 12 | **~100% of actionable scope*** | 14 |
+| EPIC-02 | Revenue Visibility Engine | 15 | 6 | 40% | 9 |
+| EPIC-03 | Workforce Planning & Demand Forecasting | 14 | 1 | 7% | 10 |
+| EPIC-04 | Candidate Engagement & AI Recruiter Platform | 80 | 78 | 98% | 44 |
+| EPIC-04-ONB | Onboarding Portal (onboarding.blitzenx.com) | 32 | 0 | 0% | 0 |
+| EPIC-05 | Resource & Bench Management | 12 | 12 | **100%** | 8 |
+| EPIC-06 | Adhoc Staffing Demand Engine | 8 | 0 | 0% | 5 |
+| EPIC-07 | Talent Engine (ATS Layer) | 10 | 1 | 10% | 7 |
+| EPIC-08 | Project & Delivery Management | 7 | 0 | 0% | 4 |
+| EPIC-09 | Time Tracking & Revenue Capture | 10 | 6 | 60% | 7 |
+| EPIC-10 | AI Intelligence Layer (7/10 retired) | 10 | 0 | 0% | 2 |
+| EPIC-11 | Agentic Operations Layer | 10 | 1 | 10% | 5 |
+| EPIC-12 | Analytics & Executive Dashboards | 10 | 0 | 0% | 4 |
+| EPIC-13 | Integration Hub | 10 | 3 | 30% | 5 |
+| EPIC-14 | Internal Collaboration Hub | 6 | 0* | 0% | 3 |
+| EPIC-15 | Interview Integrity Layer | 2 | 0 | 0% | 0 |
+| EPIC-16 | Finance & Accounting Operations | 15 | 0* | 0% | 11 |
+| EPIC-P1 | Candidate Portal & Universal Identity Engine | 15 | 0 | 0% | 10 |
+| EPIC-P2 | Employee Portal — Admin & Technical Split | 11 | 2 | 18% | 9 |
+| EPIC-P3 | Proactive AI Nurture & Candidate Relationship Engine | 9 | 0 | 0% | 4 |
+| EPIC-P4 | LinkedIn Autonomous Sourcing Pipeline | 9 | 0 | 0% | 5 |
+| EPIC-P5 | HTD — Hire Train Deploy Model | 10 | 0* | 0% | 8 |
+| EPIC-P6 | Interview Decision Engine & Compliance Rules | 12 | 0* | 0% | 11 |
+| EPIC-P7 | Client Portal — Submission, Timesheet & RFP | 30 | 0 | 0% | 22 |
+| EPIC-P8 | Sub-Vendor Portal | 18 | 0 | 0% | 12 |
+| EPIC-P9 | Boolean Search & AI Search Intelligence | 14 | 0 | 0% | 8 |
+| NEW-RM | Delivery Engine & Performance Intelligence | 9 | 6 | 67% | 7 |
+| NEW-RM-EXT | Delivery Engine & Performance Intelligence (ext.) | 15 | 4 | 27% | 10 |
+| DESIRE | Desire Intelligence System | 5 | 5* | **100%** | 3 |
+
+\* = confirmed stale, see corrections table above. PATCHES (4 rows, "Revised Existing Documents") excluded — spec-revision markers, not real build stories.
+
+### Epic → MVP pipeline stage mapping
+
+| Pipeline stage | Primary epic(s) |
+|---|---|
+| Identify opportunity | EPIC-02 (Revenue Visibility Engine — Opportunity Pipeline/Kanban) |
+| Find the resource | EPIC-03 (Workforce Planning & Demand Forecasting), EPIC-05 (done), EPIC-06 (Adhoc Staffing) |
+| Recruitment | EPIC-04 (98% done), EPIC-07 (Talent/ATS), EPIC-P6 (engine built, UI orphaned), EPIC-P4 (LinkedIn), EPIC-P9 (Boolean Search), EPIC-15 (Interview Integrity) |
+| Win the client | EPIC-08 (Project & Delivery — Opportunity→WON→Project conversion) |
+| Resource Management | EPIC-05 (done), NEW-RM/NEW-RM-EXT (Delivery Engine & Performance Intelligence) |
+| Project | EPIC-08 |
+| Timesheet | EPIC-09 (Time Tracking & Revenue Capture, 60%) |
+| Finance | EPIC-16 (built, UI partial — Task #15), EPIC-13 (Integration Hub, partial) |
+| Revenue | EPIC-02 (overlaps with Identify Opportunity), EPIC-12 (Analytics & Executive Dashboards) |
+| Employee Portal (best experience) | EPIC-P2 |
+| Candidate Portal (best experience) | EPIC-P1, EPIC-P3 (nurture/relationship extension) |
+| Autonomy layer (cross-cutting, not one stage) | EPIC-11 (Agentic Operations) — **the epic that actually delivers "make it autonomous"**; build alongside each stage above, not as a separate late phase |
+| Sub-vendor / Client portal — explicitly LAST | EPIC-P8, EPIC-P7 |
+| Not yet placed — needs a scope call | EPIC-04-ONB (Onboarding Portal, onboarding.blitzenx.com, 32 stories, 0% — a full separate portal, not explicitly named in the MVP list; distinct from the internal onboarding-agent work already built. Ask before assuming it's in scope for this MVP pass.), EPIC-10 (AI Intelligence Layer — 7/10 stories already retired, likely superseded by Thunder's real intelligence, low real priority as-is) |
+
+### Recommended build order (efficiency-first: close near-done work before opening new fronts)
+
+**Phase 0 — Close what's already ~built (cheapest ROI, prevents repeating this session's own orphan-code mistake)**
+1. EPIC-05 (100% built) + EPIC-16 (built) + EPIC-04 (98%, 2 stories left) — wire the remaining orphaned UI (Tasks #11, #15 already tracked) rather than build anything new.
+2. EPIC-01 Core Platform — confirmed effectively 100% of actionable scope already (see corrections table above); the only open item (`S-208`) is blocked on an external DB grant, not something a build session resolves. Nothing to do here except unblock that grant when possible.
+3. Correct the sheet itself for EPIC-16/DESIRE/EPIC-14/EPIC-P5/EPIC-01 (mark truly Done) so the next session doesn't re-discover this staleness — a real housekeeping task, not busywork, given the Definition of Done convention this file already commits to.
+
+**Phase 1 — Identify Opportunity → Win the Client**
+4. EPIC-02 Revenue Visibility Engine (close remaining 60%)
+5. EPIC-08 Project & Delivery Management (real gap — only the model exists, not the full lifecycle)
+
+**Phase 2 — Find the Resource → Recruitment**
+6. EPIC-03 Workforce Planning & Demand Forecasting (biggest real gap in this band — 93% remaining, only Task 6 done)
+7. EPIC-06 Adhoc Staffing Demand Engine
+8. EPIC-07 Talent Engine (ATS Layer)
+9. EPIC-P6 Interview Decision Engine — **reuse, don't rebuild**: the engine already exists, this is the UI-migration work already scoped as Task #14
+10. EPIC-15 Interview Integrity Layer (small, 2 stories)
+11. EPIC-P4 LinkedIn Sourcing, EPIC-P9 Boolean Search — sourcing enhancements, lower urgency than closing the core recruiting loop above
+
+**Phase 3 — Resource Management → Project → Timesheet → Finance → Revenue**
+12. NEW-RM / NEW-RM-EXT (Delivery Engine & Performance Intelligence — close the remaining 33%/73%)
+13. EPIC-09 Time Tracking & Revenue Capture (close remaining 40%)
+14. EPIC-12 Analytics & Executive Dashboards (real dashboards exist — needs a reconciliation pass first to find the true remaining gap, same staleness risk as the corrections table above)
+
+**Cross-cutting, build alongside every phase above, not after them**
+15. EPIC-11 Agentic Operations Layer — this is the actual "autonomous" layer; each pipeline stage's own agent belongs in that stage's phase, not bolted on at the end
+16. EPIC-13 Integration Hub (M365/WhatsApp — infrastructure several stages above depend on)
+17. EPIC-10 AI Intelligence Layer — lowest real priority, mostly superseded already
+
+**Phase 4 — Portals for best experience**
+18. EPIC-P2 Employee Portal (18% → close remaining, builds on Resource Mgmt/Timesheet work already done)
+19. EPIC-P1 Candidate Portal & Universal Identity Engine
+20. EPIC-P3 Proactive AI Nurture (extends candidate experience)
+21. EPIC-04-ONB Onboarding Portal — **flagged above as needing a scope call before placing it in the order at all**
+
+**Phase 5 — explicitly last, per direct instruction**
+22. EPIC-P8 Sub-Vendor Portal
+23. EPIC-P7 Client Portal
+
+This is a plan, not a rigid lockstep sequence — re-confirm with Avinash before starting each phase, same "question before you build" discipline as the standing rule below.
+
 ## MANDATORY: two standing process rules, given directly by Avinash 2026-08-06 — read before building anything
 
 These are not backlog items. They are how every future build in this codebase must happen, starting now.
