@@ -28,3 +28,11 @@ export const updateClient = async (clientId, payload) => {
   });
   return data;
 };
+
+export const getBusinessUnitAssignments = async (businessUnitId) => {
+  const { data } = await apiRequest(
+    `/clients/business-units/${businessUnitId}/assignments`,
+    { method: "GET" }
+  );
+  return data;
+};

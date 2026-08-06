@@ -16,6 +16,8 @@ import {
   getUnfilledRoles,
   getExpectedRevenue,
 } from "../services/api/projects";
+import { listClients } from "../services/api/clients";
+import { searchUsers } from "../services/api/users";
 
 const STATUS_STYLES = {
   PLANNING: "border-gray-200 bg-gray-50 text-gray-800",
@@ -33,7 +35,6 @@ const STATUS_TRANSITIONS = {
   CLOSED: [],
 };
 
-const SI_PARTNERS = ["PWC", "EY", "CASTLEBAY", "ZENSAR", "LTI_MINDTREE", "OTHER"];
 // Backlog item, 2026-08-05: Avinash -- "If Speciality then always =
 // Staff Augmentation so you don't need another field, but when it is
 // core we need to break down the subtype of revenue." Only shown (and
@@ -45,30 +46,81 @@ const CORE_CURRENCIES = ["USD"];
 function CreateProjectForm({ onCreated }) {
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState("");
+  const [clientList, setClientList] = useState([]);
   const [name, setName] = useState("");
-  const [deliveryEngine, setDeliveryEngine] = useState("SPECIALITY");
-  const [siPartner, setSiPartner] = useState("PWC");
+  // Delivery Engine is fully derived from the selected client's own
+  // Line Type -- not a separate manual choice. There is no SI Partner
+  // field: client_id IS the SI partner (PWC/EY/etc. are just Client
+  // rows with line_type=SPECIALITY, same Client Master concept).
+  const [deliveryEngine, setDeliveryEngine] = useState("");
   const [endClient, setEndClient] = useState("");
   const [clientPartner, setClientPartner] = useState("");
+  const [clientPartnerSuggestions, setClientPartnerSuggestions] = useState([]);
+  const [showClientPartnerSuggestions, setShowClientPartnerSuggestions] = useState(false);
   const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    listClients({ activeOnly: true })
+      .then((data) => setClientList(data?.clients || []))
+      .catch((err) => console.error("Failed to load clients:", err));
+  }, [open]);
+
+  const clientOptions = [
+    { label: "Select client", value: "", disabled: true },
+    ...clientList.map((c) => ({ label: c.company_name, value: c.id })),
+  ];
+
   const currencyOptions = deliveryEngine === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
 
-  const handleDeliveryEngineChange = (value) => {
-    setDeliveryEngine(value);
-    // Currency must stay valid for whichever engine is now selected.
-    const validCurrencies = value === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
+  // Selecting a client fully determines Delivery Engine from that
+  // client's own Line Type -- Core or Specialty, no manual choice.
+  const handleClientChange = (value) => {
+    setClientId(value);
+    const matchedClient = clientList.find((c) => c.id === value);
+    const engine = matchedClient?.line_type || "";
+    setDeliveryEngine(engine);
+    const validCurrencies = engine === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
     if (!validCurrencies.includes(currency)) {
       setCurrency(validCurrencies[0]);
     }
   };
 
+  // Client Partner: typeahead over Partners + the CEO (Super User) --
+  // "should be the name of the partner, CEO or who have the sales
+  // attribute, not a manual entry." Two role searches merged, since the
+  // search endpoint only accepts one permission_role at a time.
+  const handleClientPartnerQueryChange = async (value) => {
+    setClientPartner(value);
+    if (!value.trim() || value.trim().length < 2) {
+      setClientPartnerSuggestions([]);
+      setShowClientPartnerSuggestions(false);
+      return;
+    }
+    try {
+      const [partners, ceos] = await Promise.all([
+        searchUsers({ name: value, permission_role: "Partner", limit: 5 }),
+        searchUsers({ name: value, permission_role: "Super User", limit: 5 }),
+      ]);
+      const merged = [...(partners?.users || []), ...(ceos?.users || [])];
+      setClientPartnerSuggestions(merged);
+      setShowClientPartnerSuggestions(merged.length > 0);
+    } catch (err) {
+      console.error("Failed to search Partners/CEO:", err);
+      setClientPartnerSuggestions([]);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!clientId.trim() || !name.trim()) {
-      setError("Client ID and project name are both required.");
+      setError("Client and project name are both required.");
+      return;
+    }
+    if (!deliveryEngine) {
+      setError("Selected client has no Line Type set -- fix that in Client Management first.");
       return;
     }
     setSaving(true);
@@ -77,9 +129,7 @@ function CreateProjectForm({ onCreated }) {
       await createProject({
         client_id: clientId.trim(),
         name: name.trim(),
-        delivery_engine: deliveryEngine,
         currency,
-        si_partner: deliveryEngine === "SPECIALITY" ? siPartner : null,
         end_client: deliveryEngine === "SPECIALITY" && endClient.trim() ? endClient.trim() : null,
         client_partner: deliveryEngine === "CORE" && clientPartner.trim() ? clientPartner.trim() : null,
         business_type: deliveryEngine === "CORE" ? businessType : null,
@@ -88,6 +138,7 @@ function CreateProjectForm({ onCreated }) {
       setName("");
       setEndClient("");
       setClientPartner("");
+      setDeliveryEngine("");
       setOpen(false);
       onCreated();
     } catch (err) {
@@ -111,19 +162,42 @@ function CreateProjectForm({ onCreated }) {
         <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Client ID" value={clientId} onChange={setClientId} placeholder="client UUID" />
+        <Select label="Client" value={clientId} onChange={handleClientChange} options={clientOptions} />
         <Input label="Project Name" value={name} onChange={setName} placeholder="PolicyCenter Rollout" />
-        <Select label="Delivery Engine" value={deliveryEngine} onChange={handleDeliveryEngineChange} options={["SPECIALITY", "CORE"]} />
+        <Input label="Delivery Engine" value={deliveryEngine || "Select a client first"} onChange={() => {}} disabled={true} />
         <Select label="Currency" value={currency} onChange={setCurrency} options={currencyOptions} />
         {deliveryEngine === "SPECIALITY" ? (
-          <>
-            <Select label="SI Partner (required for Speciality)" value={siPartner} onChange={setSiPartner} options={SI_PARTNERS} />
-            <Input label="End Client (optional)" value={endClient} onChange={setEndClient} placeholder="Staff Augmentation end client" />
-          </>
+          <Input label="End Client (optional)" value={endClient} onChange={setEndClient} placeholder="Staff Augmentation end client" />
         ) : (
           <>
             <Select label="Business Type (required for Core)" value={businessType} onChange={setBusinessType} options={BUSINESS_TYPES} />
-            <Input label="Client Partner (optional)" value={clientPartner} onChange={setClientPartner} placeholder="Direct client / managed service partner" />
+            <div className="relative">
+              <Input
+                label="Client Partner (optional)"
+                value={clientPartner}
+                onChange={handleClientPartnerQueryChange}
+                placeholder="Type a Partner or CEO name…"
+                onFocus={() => setShowClientPartnerSuggestions(clientPartnerSuggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowClientPartnerSuggestions(false), 150)}
+              />
+              {showClientPartnerSuggestions ? (
+                <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {clientPartnerSuggestions.map((u) => (
+                    <button
+                      key={u.user_id}
+                      type="button"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      onClick={() => {
+                        setClientPartner(u.user_name || u.user_email);
+                        setShowClientPartnerSuggestions(false);
+                      }}
+                    >
+                      {u.user_name} <span className="text-xs text-gray-500">({u.user_email})</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </>
         )}
       </div>

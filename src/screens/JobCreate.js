@@ -3,7 +3,7 @@ import { Briefcase } from "lucide-react";
 import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { searchUsers } from "../services/api/users";
-import { listClients } from "../services/api/clients";
+import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
 import { toast } from "react-toastify";
 import {
   listBusinessUnits,
@@ -54,6 +54,8 @@ export default function JobCreate({
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [clientList, setClientList] = useState([]);
   const [hrUsers, setHrUsers] = useState([]);
+  const [resolvedBuHead, setResolvedBuHead] = useState(null);
+  const [resolvedHrManager, setResolvedHrManager] = useState(null);
   const [hiringManagers, setHiringManagers] = useState([]);
   const [current, setCurrent] = useState(0);
   const storedRole = localStorage.getItem("permission_role");
@@ -154,6 +156,47 @@ export default function JobCreate({
     businessUnitList,
     departmentListState,
   ]);
+
+  // Selecting a client auto-resolves its Business Unit -- one less
+  // manual step, matching the agentic-first "fewer clicks" mandate.
+  // Only auto-selects when the user hasn't already picked a BU
+  // themselves, so it never silently overrides a manual choice.
+  useEffect(() => {
+    if (!companyClient) return;
+    const matchedClient = clientList?.find(
+      (client) => client?.company_name === companyClient
+    );
+    if (matchedClient?.business_unit_id && !selectedBusinessUnit) {
+      setSelectedBusinessUnit(String(matchedClient.business_unit_id));
+    }
+  }, [companyClient, clientList, selectedBusinessUnit]);
+
+  // Once a Business Unit is resolved (from the client above, or picked
+  // manually), auto-fill HR + surface BU Head -- the agent resolves
+  // what it already knows rather than requiring a manual lookup.
+  useEffect(() => {
+    const resolveAssignments = async () => {
+      if (!selectedBusinessUnit) {
+        setResolvedBuHead(null);
+        return;
+      }
+      try {
+        const assignments = await getBusinessUnitAssignments(
+          selectedBusinessUnit
+        );
+        setResolvedBuHead(assignments?.bu_head || null);
+        setResolvedHrManager(assignments?.hr_manager || null);
+        if (assignments?.hr_manager?.user_id && !contactPerson) {
+          setContactPerson(assignments.hr_manager.user_id);
+        }
+      } catch (error) {
+        console.error("Failed to resolve BU assignments:", error);
+        setResolvedBuHead(null);
+        setResolvedHrManager(null);
+      }
+    };
+    resolveAssignments();
+  }, [selectedBusinessUnit, contactPerson]);
 
   useEffect(() => {
     const loadHiringManagers = async () => {
@@ -402,19 +445,35 @@ export default function JobCreate({
                 options={["Low", "High"]}
               />
               <Select
-                label="HR *"
+                label="HR * (auto-assigned from Business Unit, override if needed)"
                 value={contactPerson}
                 onChange={setContactPerson}
                 options={[
-                  {
-                    label: "Select HR",
-                    value: "",
-                  },
-                  ...(hrUsers?.map((user) => ({
-                    label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
-                    value: user?.user_id ?? "",
-                  })) ?? []),
+                  { label: "Select HR", value: "" },
+                  ...(resolvedHrManager?.user_id
+                    ? [{
+                        label: `${resolvedHrManager.name} (${resolvedHrManager.email})`,
+                        value: resolvedHrManager.user_id,
+                      }]
+                    : []),
+                  ...(hrUsers
+                    ?.filter((user) => user?.user_id !== resolvedHrManager?.user_id)
+                    .map((user) => ({
+                      label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
+                      value: user?.user_id ?? "",
+                    })) ?? []),
                 ]}
+              />
+              <Input
+                label="BU Head (auto-resolved, informational)"
+                value={
+                  resolvedBuHead
+                    ? `${resolvedBuHead.name} (${resolvedBuHead.email})`
+                    : selectedBusinessUnit
+                    ? "Not assigned for this BU"
+                    : ""
+                }
+                onChange={() => {}}
                 disabled={true}
               />
               <Select
