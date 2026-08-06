@@ -20,6 +20,8 @@ Routes:
   GET /resource-forecast/gap-analysis    Per-skill projected bench supply
                                           vs open demand.
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -58,11 +60,12 @@ def expiring_allocations(
 
 @router.get(
     "/gap-analysis", response_model=SkillGapAnalysisResponse,
-    summary="Per-skill projected bench supply vs open demand",
+    summary="Per-skill projected bench supply vs open demand, optionally scoped to one Business Unit's own demand",
 )
 def gap_analysis(
+    business_unit_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
-    rows = get_skill_gap_analysis(db, tenant_id=current_user.tenant_id)
+    rows = get_skill_gap_analysis(db, tenant_id=current_user.tenant_id, business_unit_id=business_unit_id)
     return SkillGapAnalysisResponse(rows=[SkillGapRow(**r) for r in rows])

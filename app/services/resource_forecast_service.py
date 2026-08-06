@@ -89,12 +89,24 @@ def get_expiring_allocations(
     return buckets
 
 
-def get_skill_gap_analysis(db: Session, *, tenant_id: Optional[int] = None) -> List[Dict]:
+def get_skill_gap_analysis(
+    db: Session, *, tenant_id: Optional[int] = None, business_unit_id: Optional[int] = None,
+) -> List[Dict]:
     """Step 2: per skill (union of every skill on a currently-benched
     employee and every skill required by an open/in-progress demand),
     current_bench_count + expiring_30d_count vs open_demand_count.
     Negative gap = shortage, positive = excess supply -- exactly the
-    doc's own definition, not reinterpreted."""
+    doc's own definition, not reinterpreted.
+
+    business_unit_id, when given, filters the DEMAND side only
+    (Demand.assigned_bu_id is real) -- bench supply stays org-wide.
+    Neither Employee nor BenchPoolEntry carries a business_unit_id
+    anywhere in this codebase (the exact gap the BlitzenX Operating
+    Model entry in this file flags: "confirm employees are BU-scoped...
+    before extending this system further") -- filtering bench counts by
+    a BU that doesn't exist on the row would fabricate data, not narrow
+    it. A BU Head reading this sees their own open demand against the
+    real, full bench -- directionally correct, not silently wrong."""
     bench_query = db.query(BenchPoolEntry)
     if tenant_id is not None:
         bench_query = bench_query.filter(BenchPoolEntry.tenant_id == tenant_id)
@@ -114,6 +126,8 @@ def get_skill_gap_analysis(db: Session, *, tenant_id: Optional[int] = None) -> L
     demand_query = db.query(Demand).filter(Demand.status.in_(("OPEN", "IN_PROGRESS")))
     if tenant_id is not None:
         demand_query = demand_query.filter(Demand.tenant_id == tenant_id)
+    if business_unit_id is not None:
+        demand_query = demand_query.filter(Demand.assigned_bu_id == business_unit_id)
     demand_skill_counts: Dict[str, int] = {}
     for demand in demand_query.all():
         for skill in _parse_skills(demand.required_skills):
