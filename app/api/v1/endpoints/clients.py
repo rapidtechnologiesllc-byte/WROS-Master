@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
 from app.models.client import Client
+from app.models.user import Users
 from app.schemas.client import (
     ClientCreateRequest, ClientCreateResponse, ClientDetailResponse, ClientListItem,
     ClientListResponse, ClientUpdateRequest,
@@ -46,8 +47,54 @@ def list_clients(
         query = query.filter(Client.status != "INACTIVE")
     clients = query.order_by(Client.company_name).all()
     return ClientListResponse(
-        clients=[ClientListItem(id=c.id, company_name=c.company_name, status=c.status) for c in clients]
+        clients=[
+            ClientListItem(
+                id=c.id, company_name=c.company_name, status=c.status,
+                business_unit_id=c.business_unit_id, line_type=c.line_type,
+            )
+            for c in clients
+        ]
     )
+
+
+@router.get("/business-units/{business_unit_id}/assignments")
+def get_business_unit_assignments(
+    business_unit_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """Resolves a BU's designated BU Head + HR Manager for Job-creation
+    auto-assignment (agentic-first mandate -- the agent resolves what it
+    already knows, no manual lookup step). Employee -> Users resolution
+    is by email match (this codebase has no direct employees->users FK;
+    Employee.email and Users.UserEmail are the only shared key) --
+    user_id is None if no matching Users row exists for that email, so
+    the caller can fall back to manual assignment rather than silently
+    failing."""
+    from app.models.employee import Employee
+    from app.models.rbac import BusinessUnit
+
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if bu is None:
+        raise HTTPException(status_code=404, detail=f"Business unit {business_unit_id} not found.")
+
+    def _resolve(employee_id: Optional[str]):
+        if employee_id is None:
+            return None
+        employee = db.query(Employee).filter(Employee.id == employee_id).first()
+        if employee is None:
+            return None
+        user = db.query(Users).filter(Users.UserEmail == employee.email).first()
+        return {
+            "employee_id": employee.id, "name": f"{employee.first_name} {employee.last_name}",
+            "email": employee.email, "user_id": user.UserID if user else None,
+        }
+
+    return {
+        "business_unit_id": business_unit_id,
+        "bu_head": _resolve(bu.bu_head_employee_id),
+        "hr_manager": _resolve(bu.hr_manager_employee_id),
+    }
 
 
 @router.post("", response_model=ClientCreateResponse, status_code=201)
@@ -61,10 +108,12 @@ def create_client_endpoint(
             db,
             company_name=body.company_name,
             created_by_user=current_user,
-            client_type=body.client_type,
-            industry=body.industry,
+            line_type=body.line_type,
             country=body.country,
+            website=body.website,
             billing_currency=body.billing_currency,
+            hiring_manager=body.hiring_manager.dict(),
+            timesheet_approver=body.timesheet_approver.dict(),
         )
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))

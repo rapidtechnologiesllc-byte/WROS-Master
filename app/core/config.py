@@ -11,7 +11,18 @@ from dotenv import load_dotenv
 # dev-server preview registration) start uvicorn with an unrelated CWD,
 # which silently leaves every setting below at its "" default instead of
 # a clear "file not found" error. Resolve relative to this file instead.
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+load_dotenv(os.path.join(_REPO_ROOT, ".env"))
+
+# 2026-08-06, per Avinash's explicit instruction: local dev/click-through
+# sessions must never point at the real production database again (the
+# .env above has always held the real production DATABASE_URL -- that
+# was the root cause of the login-outage incident logged in CLAUDE.md).
+# .env.local (gitignored, same as .env) overrides DATABASE_URL and any
+# other setting for local-only work -- see scripts/setup_local_db.py for
+# how it's built. override=True so this genuinely wins over .env, not
+# just fills in what .env left blank.
+load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 
 
 class Settings:

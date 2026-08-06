@@ -10,24 +10,37 @@ from sqlalchemy.orm import sessionmaker, Session
 # which silently produces DATABASE_URL=None here instead of a clear
 # "file not found" error. Resolve relative to this file instead so the
 # repo's own .env is always found regardless of launch CWD.
-_ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
-load_dotenv(_ENV_PATH)
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+load_dotenv(os.path.join(_REPO_ROOT, ".env"))
+# 2026-08-06, same override as app.core.config -- this module builds its
+# own engine independently (separate from Settings.DATABASE_URL), so it
+# needs its own .env.local load too, or a local SQLite override here
+# would silently keep pointing at production. See CLAUDE.md's login-
+# outage session log for why this matters.
+load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 # Build the SQL Server connection string
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# fast_executemany and the pyodbc-style connect_args are SQL-Server-only
+# (mssql+pyodbc) -- SQLite (used for local dev via .env.local, and for
+# every test in this repo) doesn't accept either kwarg and raises
+# TypeError on create_engine() if they're passed unconditionally.
+_is_sqlserver = DATABASE_URL and DATABASE_URL.startswith("mssql")
+_engine_kwargs = {
+    "pool_pre_ping": False,   # Disabled: avoids a SELECT 1 round-trip to Azure on every checkout
+    "echo": False,            # Set to True for SQL debugging
+}
+if _is_sqlserver:
+    _engine_kwargs.update(
+        pool_size=5,              # Number of connections to keep in pool
+        max_overflow=10,          # Extra connections if pool is full
+        pool_recycle=1800,        # Recycle connections after 30 minutes
+        fast_executemany=True,    # Improves bulk insert performance
+        connect_args={"timeout": 10},  # Connection timeout in seconds
+    )
+
 # Create SQLAlchemy engine with optimized settings
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=5,              # Number of connections to keep in pool
-    max_overflow=10,          # Extra connections if pool is full
-    pool_pre_ping=False,      # Disabled: avoids a SELECT 1 round-trip to Azure on every checkout
-    pool_recycle=1800,        # Recycle connections after 30 minutes
-    echo=False,               # Set to True for SQL debugging
-    fast_executemany=True,    # Improves bulk insert performance
-    connect_args={
-        "timeout": 10,        # Connection timeout in seconds
-    },
-)
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

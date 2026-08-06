@@ -8,6 +8,8 @@ class ClientListItem(BaseModel):
     id: str
     company_name: str
     status: str
+    business_unit_id: Optional[int] = None
+    line_type: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -17,12 +19,25 @@ class ClientListResponse(BaseModel):
     clients: list[ClientListItem]
 
 
+class ClientContactCreateRequest(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+
+
 class ClientCreateRequest(BaseModel):
     company_name: str
-    client_type: str = "DIRECT"
-    industry: Optional[str] = None
+    # 2026-08-06 redesign: line_type (Core/Specialty) replaces
+    # client_type on the create form; industry dropped entirely per
+    # Avinash's direct instruction. hiring_manager/timesheet_approver
+    # are required -- "every client should have contacts that are
+    # hiring manager, timesheet approver."
+    line_type: str
     country: Optional[str] = None
+    website: str
     billing_currency: str = "USD"
+    hiring_manager: ClientContactCreateRequest
+    timesheet_approver: ClientContactCreateRequest
 
 
 class ClientCreateResponse(BaseModel):
@@ -41,6 +56,8 @@ class ClientDetailResponse(BaseModel):
     industry: Optional[str]
     country: Optional[str]
     client_type: str
+    line_type: Optional[str]
+    website: Optional[str]
     tier: str
     status: str
     business_unit_id: Optional[int]
@@ -65,6 +82,8 @@ class ClientUpdateRequest(BaseModel):
     industry: Optional[str] = None
     country: Optional[str] = None
     client_type: Optional[str] = None
+    line_type: Optional[str] = None
+    website: Optional[str] = None
     tier: Optional[str] = None
     billing_address: Optional[str] = None
     billing_currency: Optional[str] = None

@@ -46,7 +46,15 @@ class SiPartnerRequired(Exception):
     shared service function would break every one of those callers for
     a rule the doc's own AC-1 phrases as an API-call behavior
     ("API call with delivery_engine=CORE... returns HTTP 400"), not a
-    service-layer invariant every caller must satisfy."""
+    service-layer invariant every caller must satisfy.
+
+    2026-08-06: no longer raised at all. si_partner is retired from the
+    create-project flow entirely -- Avinash's direct instruction: SI
+    Partners (PWC, EY, etc.) ARE clients (line_type=SPECIALITY, real
+    rows in the same Client Master), client_id already identifies the
+    SI partner, a parallel si_partner field is redundant. The DB column
+    is left in place (untouched schema) but every new project leaves it
+    null; nothing reads it as authoritative anymore."""
 
 
 def create_project_from_won_opportunity(

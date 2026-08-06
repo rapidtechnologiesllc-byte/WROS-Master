@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
+from app.models.client import Client
 from app.models.project import (
     CORE_CURRENCIES,
     Project,
@@ -111,27 +112,40 @@ def create_project_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
-    # S-358/HRMS-0519 BR: "SI Partner Mandatory for SPECIALITY Projects" --
-    # enforced here, at the real API boundary the doc's own AC-1 describes,
-    # not inside create_project() (see SiPartnerRequired's docstring).
-    if body.delivery_engine == "SPECIALITY" and not body.si_partner:
-        raise HTTPException(status_code=400, detail="SI Partner is required for Speciality Engine projects.")
+    # 2026-08-06 redesign, confirmed directly with Avinash while testing
+    # live: delivery_engine and si_partner are no longer caller-supplied
+    # -- both are derived server-side from the selected client's own
+    # line_type, the same single source of truth the real Client Master
+    # workbook uses (SI Partners like PWC are just Client rows with
+    # line_type=SPECIALITY, not a second disconnected concept). The
+    # client is authoritative; body.delivery_engine/si_partner (still
+    # accepted for backward-compat request shapes) are ignored.
+    client = db.query(Client).filter(Client.id == body.client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail=f"Client {body.client_id!r} not found.")
+    if not client.line_type:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Client {client.company_name!r} has no Line Type set -- cannot derive a delivery engine.",
+        )
+    delivery_engine = client.line_type
+    si_partner = None  # client_id is the SI partner now -- no parallel field
 
     # Backlog item, 2026-08-05: business_type required for CORE (the
     # revenue-subtype breakdown Avinash asked for), meaningless for
     # Speciality -- same "enforced at the API boundary, not inside
     # create_project()" posture as si_partner above.
-    if body.delivery_engine == "CORE" and not body.business_type:
+    if delivery_engine == "CORE" and not body.business_type:
         raise HTTPException(status_code=400, detail="Business Type is required for Core Engine projects.")
 
     # Currency-by-delivery_engine: Speciality allows INR or USD, Core is
     # USD-only at this point -- Avinash's own words.
-    if body.delivery_engine == "SPECIALITY" and body.currency not in SPECIALITY_CURRENCIES:
+    if delivery_engine == "SPECIALITY" and body.currency not in SPECIALITY_CURRENCIES:
         raise HTTPException(
             status_code=400,
             detail=f"Speciality Engine projects must be billed in {' or '.join(SPECIALITY_CURRENCIES)}.",
         )
-    if body.delivery_engine == "CORE" and body.currency not in CORE_CURRENCIES:
+    if delivery_engine == "CORE" and body.currency not in CORE_CURRENCIES:
         raise HTTPException(
             status_code=400,
             detail=f"Core Engine projects must be billed in {' or '.join(CORE_CURRENCIES)}.",
@@ -140,7 +154,7 @@ def create_project_endpoint(
     project = create_project(
         db, tenant_id=current_user.tenant_id, client_id=body.client_id, name=body.name,
         billing_type=body.billing_type, currency=body.currency, continent=body.continent,
-        delivery_engine=body.delivery_engine, si_partner=body.si_partner,
+        delivery_engine=delivery_engine, si_partner=si_partner,
         end_client=body.end_client, client_partner=body.client_partner,
         business_type=body.business_type,
         created_by=current_user.UserID,
