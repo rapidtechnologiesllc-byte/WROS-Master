@@ -15,6 +15,7 @@ from app.models.user import Users
 from app.schemas.cost_rate import (
     BlendedDeliveryRateResponse, CostRateConfigResponse, FullyLoadedCostResponse, SetCostRateConfigRequest,
 )
+from app.schemas.hiring_affordability import HiringAffordabilityResponse
 from app.schemas.pnl import BuPnlResponse
 from app.schemas.reserve_fund import (
     RecordReserveFundEntryRequest, ReserveFundEntryResponse, ReserveFundStatusResponse,
@@ -23,6 +24,7 @@ from app.services.cost_rate_service import (
     CostRateConfigError, calculate_blended_delivery_rate, calculate_fully_loaded_cost_usd_cents,
     get_active_cost_rate_config, set_cost_rate_config,
 )
+from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.pnl_service import get_bu_pnl
 from app.services.reserve_fund_service import (
     ReserveFundError, get_reserve_fund_status, record_reserve_fund_entry,
@@ -112,3 +114,15 @@ def reserve_fund_status(
     current_user: Users = Depends(require_permission("revenue.view_pnl")),
 ):
     return get_reserve_fund_status(db, business_unit_id=business_unit_id, as_of_year=year, as_of_month=month)
+
+
+@router.get("/hiring-affordability/bu/{business_unit_id}", response_model=HiringAffordabilityResponse)
+def hiring_affordability(
+    business_unit_id: int, proposed_annual_salary_usd_cents: int, year: int, month: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return check_hiring_affordability(
+        db, business_unit_id=business_unit_id,
+        proposed_annual_salary_usd_cents=proposed_annual_salary_usd_cents, year=year, month=month,
+    )

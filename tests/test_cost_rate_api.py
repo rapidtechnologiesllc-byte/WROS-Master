@@ -276,3 +276,44 @@ def test_reserve_fund_withdrawal_reduces_balance(client):
         params={"year": ids["year"], "month": ids["month"]},
     )
     assert status_resp.json()["balance_usd_cents"] == 300_000
+
+
+def test_hiring_affordability_affordable_hire(client):
+    ids = client.wros_ids
+    client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
+    # Revenue is 100,000_00, current cost 1,200,000 -- plenty of room for a small hire.
+    resp = client.get(
+        f"/hiring-affordability/bu/{ids['axion_id']}", headers=_avinash_auth(),
+        params={"proposed_annual_salary_usd_cents": 1_200_000, "year": ids["year"], "month": ids["month"]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["affordable"] is True
+    assert body["projected_margin_pct"] > 0
+
+
+def test_hiring_affordability_unaffordable_hire(client):
+    ids = client.wros_ids
+    client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
+    # A huge proposed salary blows past the BU's entire revenue.
+    resp = client.get(
+        f"/hiring-affordability/bu/{ids['axion_id']}", headers=_avinash_auth(),
+        params={"proposed_annual_salary_usd_cents": 500_000_000_00, "year": ids["year"], "month": ids["month"]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["affordable"] is False
+    assert body["projected_margin_pct"] < 0
+    assert "floor" in body["reason"]
+
+
+def test_hiring_affordability_none_when_cost_data_incomplete(client):
+    ids = client.wros_ids
+    resp = client.get(
+        f"/hiring-affordability/bu/{ids['axion_id']}", headers=_avinash_auth(),
+        params={"proposed_annual_salary_usd_cents": 1_200_000, "year": ids["year"], "month": ids["month"]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["affordable"] is None
+    assert body["reason"] is not None
