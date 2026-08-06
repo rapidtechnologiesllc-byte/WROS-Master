@@ -200,3 +200,31 @@ def test_blended_delivery_rate_none_when_no_billable_hours(client):
     )
     assert resp.status_code == 200
     assert resp.json()["blended_delivery_rate_usd_cents_per_hour"] is None
+
+
+def test_bu_pnl_computes_revenue_minus_fully_loaded_cost(client):
+    ids = client.wros_ids
+    client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
+    resp = client.get(
+        f"/pnl/bu/{ids['axion_id']}", headers=_avinash_auth(),
+        params={"year": ids["year"], "month": ids["month"]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["revenue_usd_cents"] == 100_000_00
+    assert body["cost_usd_cents"] == 1_200_000  # fully loaded cost of the one allocated employee
+    assert body["gross_margin_usd_cents"] == 100_000_00 - 1_200_000
+    assert body["cost_data_complete"] is True
+
+
+def test_bu_pnl_flags_incomplete_cost_data_when_no_config(client):
+    ids = client.wros_ids
+    resp = client.get(
+        f"/pnl/bu/{ids['axion_id']}", headers=_avinash_auth(),
+        params={"year": ids["year"], "month": ids["month"]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["cost_data_complete"] is False
+    assert body["cost_usd_cents"] is None
+    assert body["gross_margin_usd_cents"] is None

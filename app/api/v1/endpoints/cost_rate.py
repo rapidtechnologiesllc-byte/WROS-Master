@@ -15,10 +15,12 @@ from app.models.user import Users
 from app.schemas.cost_rate import (
     BlendedDeliveryRateResponse, CostRateConfigResponse, FullyLoadedCostResponse, SetCostRateConfigRequest,
 )
+from app.schemas.pnl import BuPnlResponse
 from app.services.cost_rate_service import (
     CostRateConfigError, calculate_blended_delivery_rate, calculate_fully_loaded_cost_usd_cents,
     get_active_cost_rate_config, set_cost_rate_config,
 )
+from app.services.pnl_service import get_bu_pnl
 
 router = APIRouter(tags=["cost-rate"])
 
@@ -69,3 +71,12 @@ def blended_delivery_rate(
         business_unit_id=business_unit_id, year=year, month=month,
         blended_delivery_rate_usd_cents_per_hour=rate,
     )
+
+
+@router.get("/pnl/bu/{business_unit_id}", response_model=BuPnlResponse)
+def bu_pnl(
+    business_unit_id: int, year: int, month: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return get_bu_pnl(db, business_unit_id=business_unit_id, year=year, month=month)
