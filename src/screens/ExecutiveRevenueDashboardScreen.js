@@ -11,28 +11,66 @@ import {
   createPartnerGoal,
   getPartnerPosition,
 } from "../services/api/revenueTargets";
-
-const PERIODS = ["ANNUAL", "H1", "H2", "Q1", "Q2", "Q3", "Q4"];
+import { listBusinessUnits } from "../services/api/rbac";
+import { searchUsers } from "../services/api/users";
 
 const formatUsdCents = (cents) =>
   cents == null
     ? "—"
     : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+// A stored target is always ANNUAL now (the one number that matters);
+// this is a pure even-division display breakdown, not a second set of
+// stored rows -- "less clicks, more outcome": the system computes the
+// breakdown, nobody re-enters the same number 17 times.
+function PeriodBreakdown({ annualUsdCents }) {
+  if (annualUsdCents == null) return null;
+  const quarterly = annualUsdCents / 4;
+  const halfYearly = annualUsdCents / 2;
+  const monthly = annualUsdCents / 12;
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-gray-700">
+      <div className="rounded-lg border bg-white p-2">
+        <div className="text-gray-500">Monthly</div>
+        <div className="font-semibold">{formatUsdCents(monthly)}</div>
+      </div>
+      <div className="rounded-lg border bg-white p-2">
+        <div className="text-gray-500">Quarterly</div>
+        <div className="font-semibold">{formatUsdCents(quarterly)}</div>
+      </div>
+      <div className="rounded-lg border bg-white p-2">
+        <div className="text-gray-500">Half-Yearly</div>
+        <div className="font-semibold">{formatUsdCents(halfYearly)}</div>
+      </div>
+    </div>
+  );
+}
+
 function BuTargetForm() {
+  const [businessUnits, setBusinessUnits] = useState([]);
   const [businessUnitId, setBusinessUnitId] = useState("");
-  const [targetPeriod, setTargetPeriod] = useState("ANNUAL");
   const [fiscalYear, setFiscalYear] = useState("2026");
   const [amount, setAmount] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    listBusinessUnits()
+      .then((list) => setBusinessUnits(list || []))
+      .catch((err) => console.error("Failed to load business units:", err));
+  }, []);
+
+  const buOptions = [
+    { label: "Select Business Unit", value: "", disabled: true },
+    ...businessUnits.map((bu) => ({ label: bu.name, value: bu.id })),
+  ];
 
   const handleSave = async () => {
     setError("");
     try {
       const res = await createBuTarget({
         business_unit_id: Number(businessUnitId),
-        target_period: targetPeriod,
+        target_period: "ANNUAL",
         fiscal_year: Number(fiscalYear),
         target_amount_usd_cents: Math.round(parseFloat(amount || "0") * 100),
       });
@@ -44,31 +82,45 @@ function BuTargetForm() {
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="mb-3 text-sm font-semibold text-gray-900">Set BU Revenue Target</div>
+      <div className="mb-3 text-sm font-semibold text-gray-900">Set BU Annual Revenue Target</div>
       {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Input label="Business Unit ID" value={businessUnitId} onChange={setBusinessUnitId} placeholder="1" />
-        <Select label="Period" value={targetPeriod} onChange={setTargetPeriod} options={PERIODS} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Select label="Business Unit" value={businessUnitId} onChange={setBusinessUnitId} options={buOptions} />
         <Input label="Fiscal Year" value={fiscalYear} onChange={setFiscalYear} />
-        <Input label="Target (USD)" value={amount} onChange={setAmount} placeholder="2000000" />
+        <Input label="Annual Target (USD)" value={amount} onChange={setAmount} placeholder="2000000" />
       </div>
       <Button className="mt-3" onClick={handleSave}>Set Target</Button>
       {result ? (
-        <div className="mt-3 text-xs text-gray-700">
-          Target: {formatUsdCents(result.target_amount_usd_cents)} · Actual: {formatUsdCents(result.actual_usd_cents)} ·{" "}
-          <span className="font-semibold">{result.status}</span>
-        </div>
+        <>
+          <div className="mt-3 text-xs text-gray-700">
+            Target: {formatUsdCents(result.target_amount_usd_cents)} · Actual: {formatUsdCents(result.actual_usd_cents)} ·{" "}
+            <span className="font-semibold">{result.status}</span>
+          </div>
+          <PeriodBreakdown annualUsdCents={result.target_amount_usd_cents} />
+        </>
       ) : null}
     </div>
   );
 }
 
 function PartnerGoalForm() {
+  const [partners, setPartners] = useState([]);
   const [partnerUserId, setPartnerUserId] = useState("");
   const [fiscalYear, setFiscalYear] = useState("2026");
   const [amount, setAmount] = useState("");
   const [position, setPosition] = useState(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    searchUsers({ permission_role: "Partner", limit: 100 })
+      .then((data) => setPartners(data?.users || []))
+      .catch((err) => console.error("Failed to load Partners:", err));
+  }, []);
+
+  const partnerOptions = [
+    { label: "Select Partner", value: "", disabled: true },
+    ...partners.map((p) => ({ label: `${p.user_name} (${p.user_email})`, value: p.user_id })),
+  ];
 
   const handleSave = async () => {
     setError("");
@@ -84,25 +136,30 @@ function PartnerGoalForm() {
     }
   };
 
+  const currentYearTarget = position?.years?.find((y) => String(y.fiscal_year) === fiscalYear);
+
   return (
     <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="mb-3 text-sm font-semibold text-gray-900">Set Partner Goal (CEO only)</div>
+      <div className="mb-3 text-sm font-semibold text-gray-900">Set Partner Annual Goal (CEO only)</div>
       {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Input label="Partner User ID" value={partnerUserId} onChange={setPartnerUserId} placeholder="troy" />
+        <Select label="Partner" value={partnerUserId} onChange={setPartnerUserId} options={partnerOptions} />
         <Input label="Fiscal Year" value={fiscalYear} onChange={setFiscalYear} />
         <Input label="Annual Target (USD)" value={amount} onChange={setAmount} placeholder="2000000" />
       </div>
       <Button className="mt-3" onClick={handleSave}>Set Goal</Button>
       {position ? (
-        <div className="mt-3 space-y-1 text-xs text-gray-700">
-          <div>
-            Cumulative deficit: <span className="font-semibold text-rose-700">{formatUsdCents(position.cumulative_deficit_usd_cents)}</span>
+        <>
+          <div className="mt-3 space-y-1 text-xs text-gray-700">
+            <div>
+              Cumulative deficit: <span className="font-semibold text-rose-700">{formatUsdCents(position.cumulative_deficit_usd_cents)}</span>
+            </div>
+            <div>
+              This FY surplus: <span className="font-semibold text-emerald-700">{formatUsdCents(position.current_fy_surplus_usd_cents)}</span>
+            </div>
           </div>
-          <div>
-            This FY surplus: <span className="font-semibold text-emerald-700">{formatUsdCents(position.current_fy_surplus_usd_cents)}</span>
-          </div>
-        </div>
+          <PeriodBreakdown annualUsdCents={currentYearTarget?.target_amount_usd_cents} />
+        </>
       ) : null}
     </div>
   );
@@ -111,6 +168,7 @@ function PartnerGoalForm() {
 export default function ExecutiveRevenueDashboardScreen() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [businessUnitNames, setBusinessUnitNames] = useState({});
 
   const load = async () => {
     setLoading(true);
@@ -126,6 +184,13 @@ export default function ExecutiveRevenueDashboardScreen() {
 
   useEffect(() => {
     load();
+    listBusinessUnits()
+      .then((list) => {
+        const names = {};
+        (list || []).forEach((bu) => { names[bu.id] = bu.name; });
+        setBusinessUnitNames(names);
+      })
+      .catch((err) => console.error("Failed to load business units:", err));
   }, []);
 
   return (
@@ -163,7 +228,9 @@ export default function ExecutiveRevenueDashboardScreen() {
               <div className="space-y-2">
                 {dashboard.by_business_unit.map((bu) => (
                   <div key={bu.business_unit_id ?? "unassigned"} className="flex items-center justify-between rounded-xl border bg-white p-3 text-sm">
-                    <span className="font-medium text-gray-700">BU #{bu.business_unit_id ?? "Unassigned"}</span>
+                    <span className="font-medium text-gray-700">
+                      {bu.business_unit_id ? (businessUnitNames[bu.business_unit_id] || `BU #${bu.business_unit_id}`) : "Unassigned"}
+                    </span>
                     <span className="text-gray-600">Pipeline: {formatUsdCents(bu.pipeline_usd_cents)}</span>
                     <span className="text-emerald-700">Won: {formatUsdCents(bu.won_usd_cents)}</span>
                     <span className="text-gray-600">Weighted: {formatUsdCents(bu.weighted_forecast_usd_cents)}</span>

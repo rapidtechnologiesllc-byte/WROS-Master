@@ -7,7 +7,9 @@ export default function Input({
   type = "text",
   disabled = false,
   readOnly = false,
-  actionNotice
+  actionNotice,
+  onFocus,
+  onBlur,
 }) {
   return (
     <label className="block">
@@ -17,6 +19,8 @@ export default function Input({
         value={value}
         placeholder={placeholder}
         onChange={disabled ? undefined : (e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
         disabled={disabled}
         readOnly={readOnly}
         className={`w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none ring-0 ${actionNotice && value === "" ? `border-red-900`: `focus:border-gray-900`} `}

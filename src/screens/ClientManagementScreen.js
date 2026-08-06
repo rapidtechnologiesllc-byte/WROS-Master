@@ -3,24 +3,39 @@
 // details not seeing it in UI") -- no client CRUD UI existed anywhere
 // before this. BU attribution is never editable here (locked to the
 // creating user's own BU server-side, see POST /clients).
+//
+// 2026-08-06 redesign, confirmed directly with Avinash while testing
+// live: Line Type (Core/Specialty) replaces Client Type on create;
+// Industry dropped; Country is a dropdown; Website is a required dedup
+// key; every client needs Hiring Manager + Timesheet Approver contacts
+// captured at creation.
 import { useEffect, useState } from "react";
 import { Building2, Plus, Pencil } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listClients, createClient, updateClient } from "../services/api/clients";
 
-const CLIENT_TYPES = ["DIRECT", "MSP", "VMS"];
+const LINE_TYPES = ["CORE", "SPECIALITY"];
 const CLIENT_TIERS = ["PLATINUM", "GOLD", "SILVER", "STANDARD"];
 const BILLING_CURRENCIES = ["USD", "INR", "GBP", "EUR", "CAD", "AUD"];
+const COUNTRIES = [
+  "United States", "India", "United Kingdom", "Canada", "Australia",
+  "Germany", "France", "Ireland", "Singapore", "United Arab Emirates",
+  "Netherlands", "Mexico", "Philippines", "Other",
+];
 
 const emptyForm = {
   company_name: "",
   company_short_name: "",
-  industry: "",
   country: "",
-  client_type: "DIRECT",
+  line_type: "CORE",
+  website: "",
   tier: "STANDARD",
   billing_currency: "USD",
   notes: "",
+  hiring_manager_name: "",
+  hiring_manager_email: "",
+  timesheet_approver_name: "",
+  timesheet_approver_email: "",
 };
 
 function ClientForm({ mode, initial, onCancel, onSaved }) {
@@ -35,21 +50,43 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       setError("Company name is required.");
       return;
     }
+    if (mode === "create") {
+      if (!form.website?.trim()) {
+        setError("Website is required (used to detect duplicate clients).");
+        return;
+      }
+      if (!form.hiring_manager_name?.trim() || !form.hiring_manager_email?.trim()) {
+        setError("Hiring Manager contact (name + email) is required.");
+        return;
+      }
+      if (!form.timesheet_approver_name?.trim() || !form.timesheet_approver_email?.trim()) {
+        setError("Timesheet Approver contact (name + email) is required.");
+        return;
+      }
+    }
     setSaving(true);
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, industry, country, client_type, tier, billing_currency, notes } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, notes } = form;
         await updateClient(form.id, {
-          company_name, company_short_name, industry, country, client_type, tier, billing_currency, notes,
+          company_name, company_short_name, country, line_type, website, tier, billing_currency, notes,
         });
       } else {
         await createClient({
           company_name: form.company_name,
-          client_type: form.client_type,
-          industry: form.industry || null,
+          line_type: form.line_type,
           country: form.country || null,
+          website: form.website,
           billing_currency: form.billing_currency,
+          hiring_manager: {
+            name: form.hiring_manager_name,
+            email: form.hiring_manager_email,
+          },
+          timesheet_approver: {
+            name: form.timesheet_approver_name,
+            email: form.timesheet_approver_email,
+          },
         });
       }
       onSaved();
@@ -69,12 +106,23 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input label="Company Name *" value={form.company_name} onChange={set("company_name")} />
         <Input label="Short Name" value={form.company_short_name || ""} onChange={set("company_short_name")} />
-        <Input label="Industry" value={form.industry || ""} onChange={set("industry")} />
-        <Input label="Country" value={form.country || ""} onChange={set("country")} />
-        <Select label="Client Type" value={form.client_type} onChange={set("client_type")} options={CLIENT_TYPES} />
+        <Input label="Website *" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com" />
+        <Select label="Country" value={form.country} onChange={set("country")} options={COUNTRIES} />
+        <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
       </div>
+
+      {mode === "create" ? (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2 text-xs font-semibold text-gray-700">Client Contacts</div>
+          <Input label="Hiring Manager Name *" value={form.hiring_manager_name || ""} onChange={set("hiring_manager_name")} />
+          <Input label="Hiring Manager Email *" value={form.hiring_manager_email || ""} onChange={set("hiring_manager_email")} />
+          <Input label="Timesheet Approver Name *" value={form.timesheet_approver_name || ""} onChange={set("timesheet_approver_name")} />
+          <Input label="Timesheet Approver Email *" value={form.timesheet_approver_email || ""} onChange={set("timesheet_approver_email")} />
+        </div>
+      ) : null}
+
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save"}
