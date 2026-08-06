@@ -118,6 +118,12 @@ class Task(Base):
     # document_id above -- most Tasks are still unrelated to any
     # interview.
     interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=True, index=True)
+    # 2026-08-05 -- expense approval linkage: once an expense is
+    # approved, a real Task assigned to Finance tracks "mark it paid
+    # once paid" (Avinash's explicit rule). Completing this Task is
+    # what flips the expense to REIMBURSED -- same polymorphic-lite
+    # nullable-link posture as document_id/interview_id above.
+    expense_id = Column(String(36), ForeignKey("expense_records.id"), nullable=True, index=True)
 
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)

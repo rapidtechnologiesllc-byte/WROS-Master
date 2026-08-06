@@ -1,0 +1,242 @@
+"""
+Partner/BU spend tracking, 2026-08-05. Self-service, same ownership
+boundary as the existing employee self-service timesheet: whoever is
+logged in logs their OWN expense -- `logged_by_user_id` is always
+resolved from the authenticated caller, never a caller-supplied field
+(Avinash: "the expense is logged by employee so they need to login to
+their portal and add their expense").
+
+BU attribution is derived from the logger's own business_unit_id at
+creation time, never freely settable, same discipline as
+app.services.client_service.create_client().
+"""
+from datetime import date
+from typing import List, Optional
+
+from sqlalchemy.orm import Session
+
+from app.core.logging import logger
+from app.models.client import Client, ClientHistory
+from app.models.expense import CLIENT_DIRECTED_PURPOSES, ExpenseRecord
+from app.models.invoice import Invoice
+from app.models.user import Users
+
+FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
+
+
+class ExpenseValidationError(Exception):
+    pass
+
+
+def log_expense(
+    db: Session,
+    *,
+    logged_by_user: Users,
+    purpose: str,
+    expense_category: str,
+    amount_usd_cents: int,
+    expense_date: date,
+    client_id: Optional[str] = None,
+    conference_name: Optional[str] = None,
+    investment_label: Optional[str] = None,
+    travel_type: Optional[str] = None,
+    trip_label: Optional[str] = None,
+    location: Optional[str] = None,
+    description: Optional[str] = None,
+    receipt_ref: Optional[str] = None,
+) -> ExpenseRecord:
+    if amount_usd_cents <= 0:
+        raise ExpenseValidationError("amount_usd_cents must be positive.")
+
+    if purpose in CLIENT_DIRECTED_PURPOSES:
+        if not client_id:
+            raise ExpenseValidationError(f"purpose={purpose!r} requires client_id.")
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if not client:
+            raise ExpenseValidationError(f"Client {client_id!r} not found.")
+    elif purpose == "CONFERENCE":
+        if not conference_name:
+            raise ExpenseValidationError("purpose=CONFERENCE requires conference_name.")
+        client_id = None
+    elif purpose == "INVESTMENT":
+        if not investment_label:
+            raise ExpenseValidationError("purpose=INVESTMENT requires investment_label.")
+        client_id = None
+    else:  # OTHER
+        client_id = None
+
+    expense = ExpenseRecord(
+        tenant_id=logged_by_user.tenant_id,
+        business_unit_id=logged_by_user.business_unit_id,
+        logged_by_user_id=logged_by_user.UserID,
+        purpose=purpose, client_id=client_id, conference_name=conference_name,
+        investment_label=investment_label, expense_category=expense_category,
+        travel_type=travel_type, trip_label=trip_label, amount_usd_cents=amount_usd_cents,
+        location=location, description=description, receipt_ref=receipt_ref,
+        expense_date=expense_date,
+    )
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
+    """Picks a Finance-role user to assign the "mark as paid" Task to.
+    Deterministic (lowest UserID) rather than round-robin -- this is a
+    single low-volume approval queue, not a high-throughput ticket
+    system that needs load balancing."""
+    query = db.query(Users).filter(Users.UserRole == "Finance")
+    if tenant_id is not None:
+        query = query.filter(Users.tenant_id == tenant_id)
+    return query.order_by(Users.UserID).first()
+
+
+def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
+    """Avinash's explicit rule, 2026-08-05: approval isn't the end of
+    the flow -- accounts@blitzenx.com gets notified, and a real Task
+    tracks "mark it paid once paid" so it doesn't just vanish into an
+    approved-but-forgotten state."""
+    expense.payment_status = "APPROVED"
+    expense.approved_by = approved_by
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+
+    _notify_finance_of_approval(db, expense)
+    _create_mark_paid_task(db, expense)
+    return expense
+
+
+def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
+    """accounts@blitzenx.com is a shared inbox, not a real Users login
+    in this codebase -- goes through EmailService directly (same
+    posture as the candidate email-OTP send), not the internal
+    Notification Engine, which requires a real Users recipient. Never
+    blocks the approval itself on a send failure."""
+    from app.services.email_service import EmailService
+
+    try:
+        EmailService.send_event_notification(
+            to_email=FINANCE_INBOX_EMAIL,
+            recipient_name="Finance",
+            event_type="action_required",
+            heading="Expense approved -- ready to pay",
+            message=(
+                f"An expense of ${expense.amount_usd_cents / 100:,.2f} "
+                f"({expense.expense_category}, {expense.purpose}) logged by "
+                f"{expense.logged_by_user_id} has been approved and is ready for payment."
+            ),
+        )
+    except Exception as exc:
+        logger.warning(f"[ExpenseService] Could not notify {FINANCE_INBOX_EMAIL} of approval for expense {expense.id}: {exc}")
+
+
+def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
+    from app.services.task_service import create_task
+
+    assignee = _finance_assignee(db, expense.tenant_id)
+    create_task(
+        db,
+        title=f"Mark expense as paid: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
+        description=f"Approved expense {expense.id} (purpose={expense.purpose}) -- mark REIMBURSED once payment is sent.",
+        priority="MEDIUM",
+        tenant_id=expense.tenant_id,
+        assigned_to_user_id=assignee.UserID if assignee else None,
+        expense_id=expense.id,
+    )
+
+
+def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
+    """Completes the loop: flips the expense to REIMBURSED and closes
+    its "mark as paid" Task (if one exists -- older/manually-created
+    expenses may not have one)."""
+    from app.models.task import Task
+    from app.services.task_service import complete_task
+
+    if expense.payment_status != "APPROVED":
+        raise ExpenseValidationError(
+            f"Expense {expense.id} must be APPROVED before it can be marked paid (currently {expense.payment_status})."
+        )
+
+    expense.payment_status = "REIMBURSED"
+    db.add(expense)
+
+    task = db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED").first()
+    if task:
+        complete_task(db, task)
+
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+def get_client_investment_position(db: Session, client_id: str) -> dict:
+    """The full story: total spend on this client (from its very first
+    PROSPECT-era expense, if any) vs. total revenue billed (from
+    Invoice), the conversion date (from ClientHistory's STATUS change
+    log -- already tracked, not duplicated here), and the date the
+    relationship first turned net-positive.
+
+    Prospect-to-active timeline reuses ClientHistory rather than a
+    second tracking mechanism: it's already written on every
+    set_client_status() call.
+    """
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise ExpenseValidationError(f"Client {client_id!r} not found.")
+
+    expenses: List[ExpenseRecord] = (
+        db.query(ExpenseRecord)
+        .filter(ExpenseRecord.client_id == client_id)
+        .order_by(ExpenseRecord.expense_date)
+        .all()
+    )
+    invoices: List[Invoice] = (
+        db.query(Invoice)
+        .filter(Invoice.client_id == client_id, Invoice.status.in_(("APPROVED", "SENT", "PAID")))
+        .order_by(Invoice.created_at)
+        .all()
+    )
+
+    total_expense_usd_cents = sum(e.amount_usd_cents for e in expenses)
+    total_revenue_usd_cents = sum(i.total_usd_cents for i in invoices)
+
+    converted_on = None
+    activation_history = (
+        db.query(ClientHistory)
+        .filter(
+            ClientHistory.client_id == client_id,
+            ClientHistory.change_type == "STATUS",
+            ClientHistory.new_value.like('%"ACTIVE"%'),
+        )
+        .order_by(ClientHistory.changed_at)
+        .first()
+    )
+    if activation_history:
+        converted_on = activation_history.changed_at
+
+    # Running balance to find the first date the relationship turned
+    # net-positive -- merge expense and revenue events chronologically.
+    events = [(e.expense_date, -e.amount_usd_cents) for e in expenses]
+    events += [(i.created_at.date() if i.created_at else i.created_at, i.total_usd_cents) for i in invoices if i.created_at]
+    events.sort(key=lambda ev: ev[0])
+    running = 0
+    breakeven_date = None
+    for event_date, delta in events:
+        running += delta
+        if breakeven_date is None and running >= 0 and total_expense_usd_cents > 0:
+            breakeven_date = event_date
+
+    return {
+        "client_id": client_id,
+        "company_name": client.company_name,
+        "status": client.status,
+        "prospect_since": client.created_at,
+        "converted_on": converted_on,
+        "total_expense_usd_cents": total_expense_usd_cents,
+        "total_revenue_usd_cents": total_revenue_usd_cents,
+        "net_position_usd_cents": total_revenue_usd_cents - total_expense_usd_cents,
+        "breakeven_date": breakeven_date,
+        "expense_count": len(expenses),
+    }
