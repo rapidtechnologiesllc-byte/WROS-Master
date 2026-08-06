@@ -15,6 +15,9 @@ from app.models.user import Users
 from app.schemas.cost_rate import (
     BlendedDeliveryRateResponse, CostRateConfigResponse, FullyLoadedCostResponse, SetCostRateConfigRequest,
 )
+from app.schemas.bank_reconciliation import (
+    BankTransactionResponse, MatchTransactionRequest, RecordBankTransactionRequest, UnmatchedPaidInvoiceResponse,
+)
 from app.schemas.hiring_affordability import HiringAffordabilityResponse
 from app.schemas.intercompany_ledger import (
     EntityNetPositionResponse, IntercompanySettlementResponse, RecordIntercompanySettlementRequest,
@@ -26,6 +29,11 @@ from app.schemas.reserve_fund import (
 from app.services.cost_rate_service import (
     CostRateConfigError, calculate_blended_delivery_rate, calculate_fully_loaded_cost_usd_cents,
     get_active_cost_rate_config, set_cost_rate_config,
+)
+from app.models.invoice import Invoice
+from app.services.bank_reconciliation_service import (
+    BankReconciliationError, get_unmatched_paid_invoices, get_unreconciled_transactions,
+    match_transaction_to_invoice, record_bank_transaction,
 )
 from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.intercompany_ledger_service import (
@@ -167,3 +175,57 @@ def entity_net_position(
     return EntityNetPositionResponse(
         entity=entity, net_position_usd_cents=get_entity_net_position(db, entity=entity, tenant_id=current_user.tenant_id),
     )
+
+
+@router.post("/bank-transactions", response_model=BankTransactionResponse, status_code=201)
+def create_bank_transaction(
+    body: RecordBankTransactionRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    try:
+        return record_bank_transaction(
+            db, transaction_date=body.transaction_date, amount_usd_cents=body.amount_usd_cents,
+            description=body.description, created_by=current_user.UserID, tenant_id=current_user.tenant_id,
+        )
+    except BankReconciliationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/bank-transactions/{transaction_id}/match", response_model=BankTransactionResponse)
+def match_bank_transaction(
+    transaction_id: int, body: MatchTransactionRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    from app.models.bank_reconciliation import BankTransaction
+
+    transaction = db.query(BankTransaction).filter(BankTransaction.id == transaction_id).first()
+    if transaction is None:
+        raise HTTPException(status_code=404, detail=f"Bank transaction {transaction_id} not found.")
+    invoice = db.query(Invoice).filter(Invoice.id == body.invoice_id).first()
+    if invoice is None:
+        raise HTTPException(status_code=404, detail=f"Invoice {body.invoice_id!r} not found.")
+    try:
+        return match_transaction_to_invoice(db, transaction, invoice)
+    except BankReconciliationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/bank-transactions/unreconciled", response_model=list[BankTransactionResponse])
+def unreconciled_bank_transactions(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return get_unreconciled_transactions(db, tenant_id=current_user.tenant_id)
+
+
+@router.get("/invoices/unmatched-paid", response_model=list[UnmatchedPaidInvoiceResponse])
+def unmatched_paid_invoices(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return [
+        UnmatchedPaidInvoiceResponse(invoice_id=inv.id, client_id=inv.client_id, total_usd_cents=inv.total_usd_cents)
+        for inv in get_unmatched_paid_invoices(db, tenant_id=current_user.tenant_id)
+    ]

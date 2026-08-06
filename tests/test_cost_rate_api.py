@@ -348,3 +348,62 @@ def test_intercompany_settlement_rejects_same_entity(client):
         },
     )
     assert resp.status_code == 400
+
+
+def test_bank_transaction_match_requires_exact_amount(client):
+    ids = client.wros_ids
+    create_resp = client.post(
+        "/bank-transactions", headers=_avinash_auth(),
+        json={"transaction_date": date.today().isoformat(), "amount_usd_cents": 999_00, "description": "Wire from Builders"},
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    txn_id = create_resp.json()["id"]
+
+    match_resp = client.post(
+        f"/bank-transactions/{txn_id}/match", headers=_avinash_auth(),
+        json={"invoice_id": "does-not-need-to-be-real-for-this-check"},
+    )
+    # Invoice lookup itself 404s before the amount check even runs,
+    # since we didn't seed a real invoice with that id here.
+    assert match_resp.status_code == 404
+
+
+def test_bank_transaction_matches_real_invoice_exact_amount(client):
+    ids = client.wros_ids
+    # This fixture's own seeded Invoice is $100,000.00 (100_000_00 cents).
+    create_resp = client.post(
+        "/bank-transactions", headers=_avinash_auth(),
+        json={"transaction_date": date.today().isoformat(), "amount_usd_cents": 100_000_00, "description": "Wire from Builders"},
+    )
+    txn_id = create_resp.json()["id"]
+
+    # Find the seeded invoice via the unmatched-paid-invoices list.
+    unmatched = client.get("/invoices/unmatched-paid", headers=_avinash_auth()).json()
+    assert len(unmatched) == 1
+    invoice_id = unmatched[0]["invoice_id"]
+
+    match_resp = client.post(
+        f"/bank-transactions/{txn_id}/match", headers=_avinash_auth(),
+        json={"invoice_id": invoice_id},
+    )
+    assert match_resp.status_code == 200, match_resp.text
+    assert match_resp.json()["reconciled"] is True
+
+    still_unmatched = client.get("/invoices/unmatched-paid", headers=_avinash_auth()).json()
+    assert still_unmatched == []
+
+
+def test_bank_transaction_rejects_amount_mismatch(client):
+    create_resp = client.post(
+        "/bank-transactions", headers=_avinash_auth(),
+        json={"transaction_date": date.today().isoformat(), "amount_usd_cents": 1_00, "description": "Wrong amount"},
+    )
+    txn_id = create_resp.json()["id"]
+    unmatched = client.get("/invoices/unmatched-paid", headers=_avinash_auth()).json()
+    invoice_id = unmatched[0]["invoice_id"]
+
+    match_resp = client.post(
+        f"/bank-transactions/{txn_id}/match", headers=_avinash_auth(),
+        json={"invoice_id": invoice_id},
+    )
+    assert match_resp.status_code == 400
