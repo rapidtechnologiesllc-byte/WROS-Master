@@ -103,6 +103,11 @@ class BusinessUnit(Base):
     bu_code = Column(String(50), nullable=True)
     parent_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     bu_head_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    # 2026-08-06, confirmed directly with Avinash -- symmetric to
+    # bu_head_employee_id above. One designated HR person per BU, so
+    # Job creation can auto-resolve both from the selected client's BU
+    # instead of a manual assignment step (agentic-first mandate).
+    hr_manager_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
     # S-205/HRMS-0107 -- extends this existing table rather than
     # forking a second one, same "extend, don't fork" convention as
     # bu_code/parent_bu_id above. continent drives HRMS-0121's default

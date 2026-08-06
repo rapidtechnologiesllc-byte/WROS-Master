@@ -33,15 +33,33 @@ class DuplicateClientError(Exception):
     pass
 
 
+def _normalize_website(website: Optional[str]) -> Optional[str]:
+    """Bare domain, lowercased, no scheme/www/trailing slash -- so
+    'https://Builders.com/' and 'builders.com' dedupe as the same site."""
+    if not website:
+        return None
+    value = website.strip().lower()
+    for prefix in ("https://", "http://"):
+        if value.startswith(prefix):
+            value = value[len(prefix):]
+    if value.startswith("www."):
+        value = value[4:]
+    return value.rstrip("/") or None
+
+
 def create_client(
     db: Session,
     *,
     company_name: str,
     created_by_user: Users,
+    line_type: str = "CORE",
     client_type: str = "DIRECT",
     industry: Optional[str] = None,
     country: Optional[str] = None,
+    website: Optional[str] = None,
     billing_currency: str = "USD",
+    hiring_manager: Optional[dict] = None,
+    timesheet_approver: Optional[dict] = None,
 ) -> Client:
     """The one sanctioned client-creation path (no create path existed
     anywhere in this codebase before this -- the GET-only /clients
@@ -58,6 +76,20 @@ def create_client(
     otherwise left unassigned -- same Org-Pool-until-claimed posture the
     Client model's own business_unit_id docstring already establishes,
     never guessed.
+
+    2026-08-06 redesign, confirmed directly with Avinash while testing
+    live: line_type (Core/Specialty) is the real classification now,
+    client_type kept only for legacy rows -- not required here, callers
+    that don't pass it get the same "CORE" default every existing
+    fixture/test already got via client_type="DIRECT" before this.
+    website dedupes the same way create_candidate_safe() dedupes on
+    email/phone/LinkedIn -- app-level, not a DB UNIQUE constraint, since
+    existing rows may already collide. hiring_manager/timesheet_approver
+    are optional here (kept backward-compatible for the many existing
+    callers that use this as a test fixture) but required at the API
+    layer -- see app.api.v1.endpoints.clients, same "validation belongs
+    at the API layer, not a broadly-reused service function" lesson
+    already applied to Project.si_partner.
     """
     company_name = company_name.strip()
     if not company_name:
@@ -67,6 +99,18 @@ def create_client(
     if existing:
         raise DuplicateClientError(f"A client named {company_name!r} already exists.")
 
+    normalized_website = _normalize_website(website)
+    if normalized_website:
+        existing_by_website = [
+            c for c in db.query(Client).filter(Client.website.isnot(None)).all()
+            if _normalize_website(c.website) == normalized_website
+        ]
+        if existing_by_website:
+            raise DuplicateClientError(
+                f"A client with website {normalized_website!r} already exists "
+                f"({existing_by_website[0].company_name})."
+            )
+
     business_unit_id = created_by_user.business_unit_id
     if business_unit_id is None:
         corporate_bu = db.query(BusinessUnit).filter(BusinessUnit.name == "Corporate").first()
@@ -75,21 +119,32 @@ def create_client(
     client = Client(
         company_name=company_name,
         business_unit_id=business_unit_id,
+        line_type=line_type,
         client_type=client_type,
         industry=industry,
         country=country,
+        website=website,
         billing_currency=billing_currency,
         created_by=created_by_user.UserID,
     )
     db.add(client)
     db.commit()
     db.refresh(client)
+
+    for contact, role_type in ((hiring_manager, "HIRING_MANAGER"), (timesheet_approver, "TIMESHEET_APPROVER")):
+        if contact:
+            db.add(ClientContact(
+                client_id=client.id, tenant_id=client.tenant_id, role_type=role_type,
+                name=contact["name"], email=contact["email"], phone=contact.get("phone"),
+            ))
+    db.commit()
+
     return client
 
 
 EDITABLE_CLIENT_FIELDS = {
-    "company_name", "company_short_name", "industry", "country", "client_type", "tier",
-    "billing_address", "billing_currency", "payment_terms_days",
+    "company_name", "company_short_name", "industry", "country", "client_type", "line_type",
+    "website", "tier", "billing_address", "billing_currency", "payment_terms_days",
     "tax_id_client", "contract_start_date", "contract_end_date",
     "contract_url", "nda_signed", "nda_url", "notes",
 }
@@ -178,6 +233,8 @@ def serialize_client_for_role(client: Client, role_name: str) -> dict:
         "company_short_name": client.company_short_name,
         "industry": client.industry,
         "client_type": client.client_type,
+        "line_type": client.line_type,
+        "website": client.website,
         "tier": client.tier,
         "status": client.status,
         "billing_currency": client.billing_currency,

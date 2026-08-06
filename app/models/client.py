@@ -46,7 +46,15 @@ CLIENT_TYPES = ("DIRECT", "MSP", "VMS")
 CLIENT_TIERS = ("PLATINUM", "GOLD", "SILVER", "STANDARD")
 CLIENT_STATUSES = ("PROSPECT", "ACTIVE", "ON_HOLD", "INACTIVE", "PENDING_VERIFICATION")
 BILLING_CURRENCIES = ("USD", "INR", "GBP", "EUR", "CAD", "AUD")
-CONTACT_ROLE_TYPES = ("HIRING_MANAGER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY")
+CONTACT_ROLE_TYPES = ("HIRING_MANAGER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY", "TIMESHEET_APPROVER")
+
+# 2026-08-06, confirmed directly with Avinash while redesigning Client
+# Management live: the same Core/Specialty split as Employee.delivery_
+# engine, not a new taxonomy -- matches the real FY26-27 workbook's
+# Line Type field. Replaces client_type on the create form (client_type
+# itself is kept, unenforced, only for legacy rows created before this
+# -- new clients set line_type instead; see client_service.create_client()).
+LINE_TYPES = ("CORE", "SPECIALITY")
 
 # BR-01: cannot set status=ACTIVE without at least one client_contact.
 STATUSES_REQUIRING_CONTACT = {"ACTIVE"}
@@ -77,6 +85,15 @@ class Client(Base):
     # note below on why this extends HRMS-0102 rather than forking it.
     country = Column(String(100), nullable=True)
     client_type = Column(Enum(*CLIENT_TYPES, name="client_type", native_enum=False, create_constraint=True), nullable=False, default="DIRECT")
+    # 2026-08-06 -- see LINE_TYPES above. Nullable because existing rows
+    # predate this field; the create form requires it going forward.
+    line_type = Column(Enum(*LINE_TYPES, name="client_line_type", native_enum=False, create_constraint=True), nullable=True)
+    # 2026-08-06 -- real dedup key, same precedent as
+    # create_candidate_safe()'s email/phone/LinkedIn checks. Not a DB
+    # UNIQUE constraint (existing rows may already collide on a blank/
+    # duplicate value) -- enforced in client_service.create_client()
+    # the same way email dedup is app-level there, not DB-level.
+    website = Column(String(300), nullable=True)
     tier = Column(Enum(*CLIENT_TIERS, name="client_tier", native_enum=False, create_constraint=True), nullable=False, default="STANDARD")
     status = Column(Enum(*CLIENT_STATUSES, name="client_status", native_enum=False, create_constraint=True), nullable=False, default="PROSPECT")
 

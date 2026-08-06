@@ -134,3 +134,51 @@ def test_update_client_name_to_existing_name_rejected(db_session):
 
     with pytest.raises(DuplicateClientError):
         update_client_details(db_session, other, {"company_name": "Builders Insurance"})
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-06 Client Management redesign: website dedup, line_type,
+# hiring_manager/timesheet_approver contacts.
+# ---------------------------------------------------------------------------
+
+def test_website_dedup_rejects_second_client_same_domain(db_session):
+    axion = BusinessUnit(name="Axion")
+    db_session.add(axion)
+    db_session.commit()
+    troy = _make_user(db_session, "troy", business_unit_id=axion.id)
+    create_client(db_session, company_name="Builders Insurance", created_by_user=troy, website="https://Builders.com/")
+
+    with pytest.raises(DuplicateClientError):
+        create_client(db_session, company_name="Builders Insurance Group", created_by_user=troy, website="www.builders.com")
+
+
+def test_website_dedup_ignores_scheme_www_trailing_slash_case(db_session):
+    """https://Builders.com/ and builders.com must be recognized as the
+    same site -- proves _normalize_website(), not just exact string match."""
+    axion = BusinessUnit(name="Axion")
+    db_session.add(axion)
+    db_session.commit()
+    troy = _make_user(db_session, "troy", business_unit_id=axion.id)
+    create_client(db_session, company_name="Builders Insurance", created_by_user=troy, website="https://Builders.com/")
+
+    with pytest.raises(DuplicateClientError):
+        create_client(db_session, company_name="Different Name", created_by_user=troy, website="builders.com")
+
+
+def test_create_client_hiring_manager_and_timesheet_approver_contacts_created(db_session):
+    axion = BusinessUnit(name="Axion")
+    db_session.add(axion)
+    db_session.commit()
+    troy = _make_user(db_session, "troy", business_unit_id=axion.id)
+
+    client = create_client(
+        db_session, company_name="Builders Insurance", created_by_user=troy, line_type="CORE",
+        website="builders.com",
+        hiring_manager={"name": "Jane HM", "email": "jane@builders.com"},
+        timesheet_approver={"name": "Sam TA", "email": "sam@builders.com"},
+    )
+
+    contacts = db_session.query(ClientContact).filter(ClientContact.client_id == client.id).all()
+    roles = {c.role_type for c in contacts}
+    assert roles == {"HIRING_MANAGER", "TIMESHEET_APPROVER"}
+    assert client.line_type == "CORE"
