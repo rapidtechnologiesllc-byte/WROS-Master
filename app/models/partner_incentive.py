@@ -77,6 +77,16 @@ class PartnerIncentiveEvent(Base):
     triggered_at = Column(DateTime, server_default=func.now())
     paid_at = Column(DateTime, nullable=True)
 
+    # 2026-08-06, EPIC-16 Partner Incentive Calculator -- REVENUE_SHARE
+    # events are period-based (once per rule per month), not per-client
+    # like NEW_LOGO_BONUS, so client_id is always null for these. NULL
+    # isn't unique-constrainable across SQL dialects the way (rule_id,
+    # client_id) is for new-logo bonuses -- idempotency for revenue
+    # share is an application-level check in
+    # calculate_revenue_share_payout(), not a DB constraint.
+    period_year = Column(Integer, nullable=True)
+    period_month = Column(Integer, nullable=True)
+
     __table_args__ = (
         # DB-level idempotency -- see check_new_logo_incentive_service's
         # module docstring. An application-side "does this exist

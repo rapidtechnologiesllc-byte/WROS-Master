@@ -18,10 +18,11 @@ from app.models.partner_incentive import PartnerIncentiveEvent
 from app.models.user import Users
 from app.schemas.partner_incentive import (
     IncentiveEventItem, IncentiveEventListResponse, IncentiveRuleCreateRequest, IncentiveRuleItem,
+    RevenueShareCalculationResponse,
 )
 from app.services.partner_incentive_service import (
-    check_new_logo_incentive, create_incentive_rule, list_incentive_events_for_partner,
-    mark_incentive_paid,
+    calculate_revenue_share_payout, check_new_logo_incentive, create_incentive_rule,
+    list_incentive_events_for_partner, mark_incentive_paid,
 )
 
 router = APIRouter(prefix="/partner-incentives", tags=["partner-incentives"])
@@ -62,6 +63,23 @@ def check_new_logo(
     if event is None:
         raise HTTPException(status_code=409, detail="Not yet eligible -- MSA not signed, no invoice, or no rule configured for this client's Partner.")
     return event
+
+
+@router.post("/partners/{partner_user_id}/calculate-revenue-share", response_model=RevenueShareCalculationResponse)
+def calculate_revenue_share(
+    partner_user_id: str, year: int, month: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    """EPIC-16 Partner Incentive Calculator. Idempotent per (partner,
+    period) -- calling this twice for the same month never double-pays,
+    see calculate_revenue_share_payout()'s own docstring."""
+    existing_before = [
+        e for e in list_incentive_events_for_partner(db, partner_user_id)
+        if e.period_year == year and e.period_month == month
+    ]
+    event = calculate_revenue_share_payout(db, partner_user_id=partner_user_id, year=year, month=month, tenant_id=current_user.tenant_id)
+    return RevenueShareCalculationResponse(event=event, already_calculated=bool(existing_before))
 
 
 @router.post("/events/{event_id}/mark-paid", response_model=IncentiveEventItem)

@@ -34,6 +34,8 @@ class IncentiveEventItem(BaseModel):
     status: str
     triggered_at: Optional[datetime]
     paid_at: Optional[datetime]
+    period_year: Optional[int] = None
+    period_month: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -41,3 +43,8 @@ class IncentiveEventItem(BaseModel):
 
 class IncentiveEventListResponse(BaseModel):
     events: list[IncentiveEventItem]
+
+
+class RevenueShareCalculationResponse(BaseModel):
+    event: Optional[IncentiveEventItem]
+    already_calculated: bool
