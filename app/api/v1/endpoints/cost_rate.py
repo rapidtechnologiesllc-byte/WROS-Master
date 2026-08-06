@@ -16,6 +16,9 @@ from app.schemas.cost_rate import (
     BlendedDeliveryRateResponse, CostRateConfigResponse, FullyLoadedCostResponse, SetCostRateConfigRequest,
 )
 from app.schemas.hiring_affordability import HiringAffordabilityResponse
+from app.schemas.intercompany_ledger import (
+    EntityNetPositionResponse, IntercompanySettlementResponse, RecordIntercompanySettlementRequest,
+)
 from app.schemas.pnl import BuPnlResponse
 from app.schemas.reserve_fund import (
     RecordReserveFundEntryRequest, ReserveFundEntryResponse, ReserveFundStatusResponse,
@@ -25,6 +28,9 @@ from app.services.cost_rate_service import (
     get_active_cost_rate_config, set_cost_rate_config,
 )
 from app.services.hiring_affordability_service import check_hiring_affordability
+from app.services.intercompany_ledger_service import (
+    IntercompanySettlementError, get_entity_net_position, list_settlements, record_intercompany_settlement,
+)
 from app.services.pnl_service import get_bu_pnl
 from app.services.reserve_fund_service import (
     ReserveFundError, get_reserve_fund_status, record_reserve_fund_entry,
@@ -125,4 +131,39 @@ def hiring_affordability(
     return check_hiring_affordability(
         db, business_unit_id=business_unit_id,
         proposed_annual_salary_usd_cents=proposed_annual_salary_usd_cents, year=year, month=month,
+    )
+
+
+@router.post("/intercompany-settlements", response_model=IntercompanySettlementResponse, status_code=201)
+def create_intercompany_settlement(
+    body: RecordIntercompanySettlementRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    try:
+        return record_intercompany_settlement(
+            db, from_entity=body.from_entity, to_entity=body.to_entity, amount_usd_cents=body.amount_usd_cents,
+            settlement_date=body.settlement_date, reason=body.reason,
+            created_by=current_user.UserID, tenant_id=current_user.tenant_id,
+        )
+    except IntercompanySettlementError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/intercompany-settlements", response_model=list[IntercompanySettlementResponse])
+def list_intercompany_settlements(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return list_settlements(db, tenant_id=current_user.tenant_id)
+
+
+@router.get("/intercompany-settlements/entity/{entity}/net-position", response_model=EntityNetPositionResponse)
+def entity_net_position(
+    entity: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return EntityNetPositionResponse(
+        entity=entity, net_position_usd_cents=get_entity_net_position(db, entity=entity, tenant_id=current_user.tenant_id),
     )

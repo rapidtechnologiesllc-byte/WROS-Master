@@ -317,3 +317,34 @@ def test_hiring_affordability_none_when_cost_data_incomplete(client):
     body = resp.json()
     assert body["affordable"] is None
     assert body["reason"] is not None
+
+
+def test_intercompany_settlement_records_and_updates_net_position(client):
+    resp = client.post(
+        "/intercompany-settlements", headers=_avinash_auth(),
+        json={
+            "from_entity": "BXUS", "to_entity": "BXIN", "amount_usd_cents": 50_000_00,
+            "settlement_date": date.today().isoformat(), "reason": "Offshore delivery reimbursement",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    bxin_resp = client.get("/intercompany-settlements/entity/BXIN/net-position", headers=_avinash_auth())
+    assert bxin_resp.json()["net_position_usd_cents"] == 50_000_00
+
+    bxus_resp = client.get("/intercompany-settlements/entity/BXUS/net-position", headers=_avinash_auth())
+    assert bxus_resp.json()["net_position_usd_cents"] == -50_000_00
+
+    list_resp = client.get("/intercompany-settlements", headers=_avinash_auth())
+    assert len(list_resp.json()) == 1
+
+
+def test_intercompany_settlement_rejects_same_entity(client):
+    resp = client.post(
+        "/intercompany-settlements", headers=_avinash_auth(),
+        json={
+            "from_entity": "BXUS", "to_entity": "BXUS", "amount_usd_cents": 100,
+            "settlement_date": date.today().isoformat(), "reason": "Invalid",
+        },
+    )
+    assert resp.status_code == 400
