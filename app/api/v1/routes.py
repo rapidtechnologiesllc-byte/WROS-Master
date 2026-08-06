@@ -40,6 +40,9 @@ from app.api.v1.endpoints.htd_intake_pause import router as htd_intake_pause_rou
 from app.api.v1.endpoints.notifications import router as notifications_router
 from app.api.v1.endpoints.clients import router as clients_router
 from app.api.v1.endpoints.opportunities import router as opportunities_router
+from app.api.v1.endpoints.expenses import router as expenses_router
+from app.api.v1.endpoints.partner_incentives import router as partner_incentives_router
+from app.api.v1.endpoints.revenue_targets import router as revenue_targets_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.internal_ask_thunder import router as internal_ask_thunder_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
@@ -115,6 +118,9 @@ router.include_router(router=htd_intake_pause_router)
 router.include_router(router=notifications_router)
 router.include_router(router=clients_router)
 router.include_router(router=opportunities_router)
+router.include_router(router=expenses_router)
+router.include_router(router=partner_incentives_router)
+router.include_router(router=revenue_targets_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=internal_ask_thunder_router)
 router.include_router(router=whatsapp_webhook_router)
