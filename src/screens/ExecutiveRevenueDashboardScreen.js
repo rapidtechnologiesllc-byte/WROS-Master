@@ -10,6 +10,7 @@ import {
   createBuTarget,
   createPartnerGoal,
   getPartnerPosition,
+  getRevenueToDemandProjection,
 } from "../services/api/revenueTargets";
 import { listBusinessUnits } from "../services/api/rbac";
 import { searchUsers } from "../services/api/users";
@@ -52,6 +53,7 @@ function BuTargetForm() {
   const [fiscalYear, setFiscalYear] = useState("2026");
   const [amount, setAmount] = useState("");
   const [result, setResult] = useState(null);
+  const [workforceProjection, setWorkforceProjection] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -59,6 +61,23 @@ function BuTargetForm() {
       .then((list) => setBusinessUnits(list || []))
       .catch((err) => console.error("Failed to load business units:", err));
   }, []);
+
+  // Picking a BU also shows its current-month Revenue-to-Workforce
+  // projection -- no extra click, the agent surfaces what it already
+  // knows the moment there's a BU to know it about.
+  useEffect(() => {
+    if (!businessUnitId) {
+      setWorkforceProjection(null);
+      return;
+    }
+    const now = new Date();
+    getRevenueToDemandProjection(businessUnitId, now.getFullYear(), now.getMonth() + 1)
+      .then(setWorkforceProjection)
+      .catch((err) => {
+        console.error("Failed to load workforce projection:", err);
+        setWorkforceProjection(null);
+      });
+  }, [businessUnitId]);
 
   const buOptions = [
     { label: "Select Business Unit", value: "", disabled: true },
@@ -90,6 +109,26 @@ function BuTargetForm() {
         <Input label="Annual Target (USD)" value={amount} onChange={setAmount} placeholder="2000000" />
       </div>
       <Button className="mt-3" onClick={handleSave}>Set Target</Button>
+      {workforceProjection ? (
+        <div className="mt-3 rounded-lg border bg-white p-2 text-xs text-gray-700">
+          <div className="mb-1 font-semibold text-gray-900">This Month's Workforce Need (Revenue-to-Demand)</div>
+          <div>Current headcount: <span className="font-semibold">{workforceProjection.current_headcount}</span></div>
+          <div>
+            Revenue per head:{" "}
+            <span className="font-semibold">{formatUsdCents(workforceProjection.revenue_per_head_usd_cents)}</span>
+          </div>
+          <div>
+            Projected need:{" "}
+            <span className="font-semibold">{workforceProjection.projected_headcount_needed ?? "—"}</span>
+            {" "}(already open in pipeline: {workforceProjection.open_demand_headcount})
+          </div>
+          {workforceProjection.workforce_gap != null ? (
+            <div className={workforceProjection.workforce_gap > 0 ? "text-rose-700" : "text-emerald-700"}>
+              Gap to plan for: <span className="font-semibold">{workforceProjection.workforce_gap}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {result ? (
         <>
           <div className="mt-3 text-xs text-gray-700">
