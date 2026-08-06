@@ -93,6 +93,7 @@ def create_task(
     tenant_id: Optional[int] = None,
     assigned_to_user_id: Optional[str] = None,
     expense_id: Optional[str] = None,
+    invoice_id: Optional[str] = None,
     urgency_llm_call=None,
 ) -> Task:
     if priority not in TASK_PRIORITIES:
@@ -104,7 +105,7 @@ def create_task(
         due_date=due_date, is_external=is_external, visibility_scope=visibility_scope,
         task_type=task_type, category=category, subcategory=subcategory,
         parent_task_id=parent_task_id, tenant_id=tenant_id,
-        assigned_to_user_id=assigned_to_user_id, expense_id=expense_id,
+        assigned_to_user_id=assigned_to_user_id, expense_id=expense_id, invoice_id=invoice_id,
     )
 
     if priority == "URGENT":
