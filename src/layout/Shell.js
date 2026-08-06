@@ -22,6 +22,7 @@ import {
   FolderKanban,
   AlertOctagon,
   MessageSquareText,
+  Receipt,
   Settings,
 } from "lucide-react";
 import cx from "../utils/cx";
@@ -47,6 +48,10 @@ const NAV_ITEMS = {
   // Employee self-service timesheet, 2026-08-04 -- visible to every
   // internal role, same universal-visibility posture as myTasks.
   myTimesheet: { path: ROUTES.MY_TIMESHEET, label: "My Timesheet", icon: Clock },
+  // Self-service expense logging, 2026-08-05 -- same universal-
+  // visibility posture as myTasks/myTimesheet (Avinash: "the expense
+  // is logged by employee so they need to login to their portal").
+  myExpenses: { path: ROUTES.MY_EXPENSES, label: "My Expenses", icon: Receipt },
   candidates: { path: ROUTES.CANDIDATES, label: "Candidates", icon: Users },
   jobs: { path: ROUTES.JOBS, label: "Jobs", icon: Briefcase },
   candidateReview: { path: ROUTES.HM_CANDIDATE_REVIEW, label: "Candidate Review", icon: UserCheck },
@@ -81,6 +86,7 @@ const NAV_ITEMS = {
   // pipeline (S-236/237), gated the same as the rest of Finance via
   // revenue.view server-side.
   opportunityPipeline: { path: ROUTES.OPPORTUNITY_PIPELINE, label: "Opportunity Pipeline", icon: TrendingUp },
+  executiveRevenueDashboard: { path: ROUTES.EXECUTIVE_REVENUE_DASHBOARD, label: "Executive Revenue Dashboard", icon: LineChart },
   rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
@@ -142,7 +148,7 @@ const GROUP_DEFS = [
   {
     label: "Finance",
     icon: BadgeDollarSign,
-    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline"],
+    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard"],
   },
   {
     label: "Admin",
@@ -185,7 +191,7 @@ export default function Shell({
   const nav = useMemo(() => {
     if (isSuperUser) {
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses],
         groups: buildGroups([
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
@@ -197,7 +203,7 @@ export default function Shell({
     }
     if (isAdmin) {
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses],
         groups: buildGroups([
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
@@ -209,7 +215,7 @@ export default function Shell({
     }
     if (isHR_Manager) {
       return {
-        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses],
         groups: buildGroups([
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
@@ -219,12 +225,12 @@ export default function Shell({
       };
     }
     if (isHiringManager) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet], groups: [] };
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
     }
     if (isHrOperations) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet], groups: [] };
+      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
     }
-    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet], groups: [] };
+    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
   }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
