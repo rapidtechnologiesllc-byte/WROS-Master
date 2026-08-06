@@ -189,3 +189,75 @@ def test_future_sales_hire_becomes_eligible_by_getting_a_rule(db_session, world)
     assert event is not None
     assert event.partner_user_id == "newsales"
     assert event.amount_usd_cents == 500000
+
+
+# ---------------------------------------------------------------------------
+# EPIC-16 Partner Incentive Calculator -- calculate_revenue_share_payout()
+# ---------------------------------------------------------------------------
+
+def _make_invoice_for_month(db, client, year, month, amount_usd_cents):
+    from datetime import datetime as dt
+
+    project = Project(client_id=client.id, name=f"{client.company_name} Engagement", status="ACTIVE", billing_type="TIME_AND_MATERIALS")
+    db.add(project)
+    db.commit()
+    invoice = Invoice(
+        client_id=client.id, project_id=project.id, status="PAID", total_usd_cents=amount_usd_cents,
+        billing_period_start=date(year, month, 1), billing_period_end=date(year, month, 28),
+        created_at=dt(year, month, 15),
+    )
+    db.add(invoice)
+    db.commit()
+    return invoice
+
+
+def test_calculate_revenue_share_payout_core_only(db_session, world):
+    """Curtis's revenue-share mechanism, per Avinash directly. Only
+    CORE line_type clients count toward the Partner's own payout --
+    SPECIALITY revenue counts toward BU Head's operational score only
+    (the Specialty-vs-Partner attribution decision from earlier this
+    session)."""
+    from app.services.partner_incentive_service import calculate_revenue_share_payout
+
+    create_incentive_rule(
+        db_session, partner_user_id="curtis", incentive_type="REVENUE_SHARE", revenue_share_pct=10.0,
+    )
+    core_client = Client(company_name="Core Client", business_unit_id=world["prism"].id, line_type="CORE")
+    speciality_client = Client(company_name="Speciality Client", business_unit_id=world["prism"].id, line_type="SPECIALITY")
+    db_session.add_all([core_client, speciality_client])
+    db_session.commit()
+
+    _make_invoice_for_month(db_session, core_client, 2026, 8, 1_000_000)
+    _make_invoice_for_month(db_session, speciality_client, 2026, 8, 5_000_000)  # excluded
+
+    event = calculate_revenue_share_payout(db_session, partner_user_id="curtis", year=2026, month=8)
+
+    assert event is not None
+    assert event.amount_usd_cents == 100_000  # 10% of 1,000,000 (Core only)
+    assert event.period_year == 2026
+    assert event.period_month == 8
+
+
+def test_calculate_revenue_share_payout_idempotent_per_period(db_session, world):
+    from app.services.partner_incentive_service import calculate_revenue_share_payout
+
+    create_incentive_rule(
+        db_session, partner_user_id="curtis", incentive_type="REVENUE_SHARE", revenue_share_pct=10.0,
+    )
+    core_client = Client(company_name="Core Client", business_unit_id=world["prism"].id, line_type="CORE")
+    db_session.add(core_client)
+    db_session.commit()
+    _make_invoice_for_month(db_session, core_client, 2026, 8, 1_000_000)
+
+    first = calculate_revenue_share_payout(db_session, partner_user_id="curtis", year=2026, month=8)
+    second = calculate_revenue_share_payout(db_session, partner_user_id="curtis", year=2026, month=8)
+
+    assert first.id == second.id
+
+
+def test_calculate_revenue_share_payout_none_without_rule(db_session, world):
+    from app.services.partner_incentive_service import calculate_revenue_share_payout
+
+    # Troy only has NEW_LOGO_BONUS configured, not REVENUE_SHARE.
+    event = calculate_revenue_share_payout(db_session, partner_user_id="troy", year=2026, month=8)
+    assert event is None
