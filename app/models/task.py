@@ -124,6 +124,11 @@ class Task(Base):
     # what flips the expense to REIMBURSED -- same polymorphic-lite
     # nullable-link posture as document_id/interview_id above.
     expense_id = Column(String(36), ForeignKey("expense_records.id"), nullable=True, index=True)
+    # 2026-08-06 -- EPIC-16 AR follow-up: one open Task per overdue
+    # invoice, assigned to the client's account manager (or unassigned/
+    # flagged if none is set). Same polymorphic-lite nullable-link
+    # posture as expense_id/document_id/interview_id above.
+    invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=True, index=True)
 
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)

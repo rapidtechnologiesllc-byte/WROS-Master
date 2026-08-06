@@ -55,6 +55,7 @@ from app.services.invoice_service import (
     mark_invoice_paid,
     send_invoice,
 )
+from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_follow_up
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -183,3 +184,23 @@ def get_invoice(
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     return _to_item(db, invoice)
+
+
+@router.get("/ar/aging", summary="EPIC-16 AR Follow-Up: overdue SENT invoices")
+def ar_aging(
+    grace_days: int = 30,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    return {"overdue": scan_overdue_invoices(db, grace_days=grace_days, tenant_id=current_user.tenant_id)}
+
+
+@router.post("/{invoice_id}/ar/follow-up", summary="EPIC-16 AR Follow-Up: create/return the follow-up Task for this invoice")
+def ar_follow_up(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    invoice = _get_invoice_or_404(db, invoice_id)
+    task = trigger_ar_follow_up(db, invoice)
+    return {"task_id": task.id, "title": task.title, "assigned_to_user_id": task.assigned_to_user_id}
