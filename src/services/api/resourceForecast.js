@@ -7,7 +7,8 @@ export const getExpiringAllocations = async () => {
   return data;
 };
 
-export const getSkillGapAnalysis = async () => {
-  const { data } = await apiRequest("/resource-forecast/gap-analysis", { method: "GET" });
+export const getSkillGapAnalysis = async (businessUnitId) => {
+  const suffix = businessUnitId ? `?business_unit_id=${businessUnitId}` : "";
+  const { data } = await apiRequest(`/resource-forecast/gap-analysis${suffix}`, { method: "GET" });
   return data;
 };
