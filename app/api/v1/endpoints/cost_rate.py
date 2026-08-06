@@ -22,7 +22,7 @@ from app.schemas.hiring_affordability import HiringAffordabilityResponse
 from app.schemas.intercompany_ledger import (
     EntityNetPositionResponse, IntercompanySettlementResponse, RecordIntercompanySettlementRequest,
 )
-from app.schemas.pnl import BuPnlResponse
+from app.schemas.pnl import BuPnlResponse, OrgPnlSummaryResponse
 from app.schemas.reserve_fund import (
     RecordReserveFundEntryRequest, ReserveFundEntryResponse, ReserveFundStatusResponse,
 )
@@ -39,7 +39,7 @@ from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.intercompany_ledger_service import (
     IntercompanySettlementError, get_entity_net_position, list_settlements, record_intercompany_settlement,
 )
-from app.services.pnl_service import get_bu_pnl
+from app.services.pnl_service import get_bu_pnl, get_org_pnl_summary
 from app.services.reserve_fund_service import (
     ReserveFundError, get_reserve_fund_status, record_reserve_fund_entry,
 )
@@ -102,6 +102,15 @@ def bu_pnl(
     current_user: Users = Depends(require_permission("revenue.view_pnl")),
 ):
     return get_bu_pnl(db, business_unit_id=business_unit_id, year=year, month=month)
+
+
+@router.get("/pnl/org-summary", response_model=OrgPnlSummaryResponse, summary="EPIC-16 Executive Dashboard: org-wide P&L rollup across all Business Units")
+def org_pnl_summary(
+    year: int, month: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+):
+    return get_org_pnl_summary(db, year=year, month=month, tenant_id=current_user.tenant_id)
 
 
 @router.post("/reserve-fund/entries", response_model=ReserveFundEntryResponse, status_code=201)

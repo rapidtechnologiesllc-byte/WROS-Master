@@ -217,6 +217,29 @@ def test_bu_pnl_computes_revenue_minus_fully_loaded_cost(client):
     assert body["cost_data_complete"] is True
 
 
+def test_org_pnl_summary_sums_across_business_units(client):
+    client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
+    ids = client.wros_ids
+    resp = client.get("/pnl/org-summary", headers=_avinash_auth(), params={"year": ids["year"], "month": ids["month"]})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["total_revenue_usd_cents"] == 100_000_00
+    assert body["total_cost_usd_cents"] == 1_200_000
+    assert body["org_cost_data_complete"] is True
+    assert len(body["by_business_unit"]) == 1
+    assert body["by_business_unit"][0]["business_unit_name"] == "Axion"
+
+
+def test_org_pnl_summary_incomplete_when_no_config_set(client):
+    ids = client.wros_ids
+    resp = client.get("/pnl/org-summary", headers=_avinash_auth(), params={"year": ids["year"], "month": ids["month"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["org_cost_data_complete"] is False
+    assert body["total_cost_usd_cents"] is None
+    assert body["total_gross_margin_usd_cents"] is None
+
+
 def test_bu_pnl_flags_incomplete_cost_data_when_no_config(client):
     ids = client.wros_ids
     resp = client.get(
