@@ -784,8 +784,10 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         if request.candidate_gender is not None:
             personal_info.gender = request.candidate_gender
         if request.candidate_date_of_birth is not None:
-            from datetime import date
-            personal_info.dob = request.candidate_date_of_birth if isinstance(request.candidate_date_of_birth, date) else request.candidate_date_of_birth.date() if hasattr(request.candidate_date_of_birth, 'date') else request.candidate_date_of_birth
+            dob_value = request.candidate_date_of_birth
+            if hasattr(dob_value, 'date'):
+                dob_value = dob_value.date()
+            personal_info.dob = dob_value
         if request.candidate_current_location is not None:
             personal_info.current_address = request.candidate_current_location
 
