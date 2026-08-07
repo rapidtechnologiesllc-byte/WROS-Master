@@ -5,13 +5,12 @@ from sqlalchemy import func, and_, text
 from app.models.client import Client
 from app.models.opportunity import Opportunity
 from app.models.invoice import Invoice
-from app.models.users import Users
+from app.models.user import Users
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.demand import Demand
 from app.services.pnl_service import get_bu_pnl
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
-from app.core.revenue_visibility_scope import get_tenant_scoped_query
 
 
 def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> dict:

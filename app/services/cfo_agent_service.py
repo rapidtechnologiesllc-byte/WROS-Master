@@ -3,13 +3,12 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from app.models.invoice import Invoice
-from app.models.revenue_leakage import RevenueLeakage
+from app.models.revenue_leakage import RevenueLeakageFlag
 from app.models.timesheet_dispute import TimesheetDispute
-from app.models.users import Users
+from app.models.user import Users
 from app.services.pnl_service import get_org_pnl_summary, get_bu_pnl
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.reserve_fund_service import get_reserve_fund_status
-from app.core.revenue_visibility_scope import get_tenant_scoped_query
 
 
 def get_org_financial_snapshot(db: Session, year_month: str = None) -> dict:
@@ -53,9 +52,9 @@ def get_org_financial_snapshot(db: Session, year_month: str = None) -> dict:
     reserve = get_reserve_fund_status(db)
 
     # 5. Revenue Leakage (gap between invoiced and earned hours)
-    leakage = db.query(func.sum(RevenueLeakage.gap_hours)).filter(
-        RevenueLeakage.created_at >= period_start,
-        RevenueLeakage.created_at < period_end
+    leakage = db.query(func.sum(RevenueLeakageFlag.unbilled_hours)).filter(
+        RevenueLeakageFlag.detected_at >= period_start,
+        RevenueLeakageFlag.detected_at < period_end
     ).scalar() or 0
 
     # 6. Open Disputes (timesheet disputes pending resolution)

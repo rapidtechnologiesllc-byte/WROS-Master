@@ -15,7 +15,7 @@ from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from app.models.interview_pipeline import SubmissionInterview, DemandInterviewPanel, PanelMember
+from app.models.interview_pipeline import SubmissionInterview, DemandInterviewPanel
 from app.models.submission import Submission
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -49,11 +49,9 @@ def suggest_panelists(db: Session, demand_id: str, level: str = "L1") -> List[Di
         skill_match = len(required_skills & current_skills) / len(required_skills) if required_skills else 0
 
         # Check past interview count for this demand's role/skill combo
-        past_panels = db.query(PanelMember).join(
-            DemandInterviewPanel, PanelMember.panel_id == DemandInterviewPanel.id
-        ).filter(
-            PanelMember.employee_id == emp.id,
-            DemandInterviewPanel.level == level
+        past_panels = db.query(DemandInterviewPanel).filter(
+            DemandInterviewPanel.employee_id == emp.id,
+            DemandInterviewPanel.interview_level == level
         ).count()
 
         score = skill_match * 0.8 + (1 - min(past_panels / 5, 1.0)) * 0.2  # Prefer less-used panelists
@@ -157,31 +155,22 @@ def create_l2_interview_panel(db: Session, demand_id: str, submission_id: str,
         if not demand:
             return {"error": "Demand not found"}
 
-        # Create L2 interview panel
-        l2_panel = DemandInterviewPanel(
-            demand_id=demand_id,
-            submission_id=submission_id,
-            level="L2",
-            created_at=datetime.utcnow(),
-        )
-        db.add(l2_panel)
-        db.flush()
-
-        # Assign panelists
+        # Create L2 interview panel entries for each panelist
+        created_panels = []
         for emp_id in panelists:
-            member = PanelMember(
-                panel_id=l2_panel.id,
+            panel = DemandInterviewPanel(
+                demand_id=demand_id,
                 employee_id=emp_id,
-                assigned_at=datetime.utcnow(),
+                interview_level="L2",
+                is_active=True,
             )
-            db.add(member)
+            db.add(panel)
+            created_panels.append(panel)
 
         db.commit()
-        db.refresh(l2_panel)
 
         return {
-            "l2_panel_id": l2_panel.id,
-            "panelists_count": len(panelists),
+            "panelists_count": len(created_panels),
             "status": "L2 panel created, awaiting scheduling",
         }
     except Exception as e:
