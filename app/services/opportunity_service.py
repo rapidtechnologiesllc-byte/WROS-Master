@@ -69,14 +69,15 @@ def _update_client_status_from_opportunities(db: Session, client_id: str) -> Non
 
     Stage hierarchy: WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST
     Client.status reflects the highest stage across all its opportunities.
+    Valid Client statuses: PROSPECT, ACTIVE, ON_HOLD, INACTIVE, PENDING_VERIFICATION
     """
     STAGE_PRIORITY = {"WON": 5, "NEGOTIATION": 4, "PROPOSAL": 3, "QUALIFICATION": 2, "LOST": 1}
     STAGE_TO_CLIENT_STATUS = {
-        "WON": "ACTIVE",
-        "NEGOTIATION": "DEAL",
-        "PROPOSAL": "OPPORTUNITY",
-        "QUALIFICATION": "PROSPECT",
-        "LOST": "INACTIVE",
+        "WON": "ACTIVE",  # Won opportunity = active client
+        "NEGOTIATION": "ON_HOLD",  # Under negotiation = on hold
+        "PROPOSAL": "ON_HOLD",  # Proposal sent = on hold pending response
+        "QUALIFICATION": "PROSPECT",  # Qualifying = prospect
+        "LOST": "PROSPECT",  # Lost opportunity = back to prospect (may re-engage)
     }
 
     # Get highest-priority stage across all opportunities for this client
