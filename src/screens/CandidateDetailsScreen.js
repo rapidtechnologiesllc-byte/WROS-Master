@@ -823,12 +823,12 @@ ${formattedJD}
           : "Face-to-face interview scheduled successfully",
       );
       await onRefreshCandidates?.();
+      setScheduling(false);
       closeScheduleModal();
       setActiveTab("interview");
     } catch (err) {
       console.error("Failed to complete interview scheduling flow", err);
       showNotice(err?.message || "Failed to schedule interview", "error", 5000);
-    } finally {
       setScheduling(false);
     }
   };
