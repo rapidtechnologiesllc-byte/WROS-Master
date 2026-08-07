@@ -67,35 +67,21 @@ def activate_tenant_scope(tenant_id) -> None:
     _current_tenant_id.set(tenant_id)
 
 
-def _apply_tenant_scoping(execute_state) -> None:
-    tenant_id = _current_tenant_id.get()
-    if tenant_id is None or not execute_state.is_select:
-        return
-    for model in _TENANT_SCOPED_MODELS:
-        # `tenant_id` must be captured as a genuine closure (free) variable,
-        # not a default-argument default -- with_loader_criteria's
-        # LambdaElement caching inspects the lambda's __closure__ cells to
-        # decide whether a compiled statement can be reused across calls
-        # with a different bound value. A default-arg value lives in
-        # __defaults__, not __closure__, so it's invisible to that check:
-        # SQLAlchemy would treat every call as producing "the same" SQL and
-        # replay the FIRST tenant_id seen for every later call/tenant --
-        # a real cross-tenant leak, confirmed by this module's own
-        # concurrency test before this comment existed.
-        execute_state.statement = execute_state.statement.options(
-            with_loader_criteria(
-                model,
-                lambda cls: cls.tenant_id == tenant_id,
-            )
-        )
+# DISABLED - Single company deployment, no tenant scoping needed
+# def _apply_tenant_scoping(execute_state) -> None:
+#     tenant_id = _current_tenant_id.get()
+#     if tenant_id is None or not execute_state.is_select:
+#         return
+#     for model in _TENANT_SCOPED_MODELS:
+#         execute_state.statement = execute_state.statement.options(
+#             with_loader_criteria(
+#                 model,
+#                 lambda cls: cls.tenant_id == tenant_id,
+#             )
+#         )
 
-
-# Registered once, at import time, against the base Session class -- this
-# covers every session in the process (SessionLocal in production, the
-# throwaway per-test engines in tests/), not just one sessionmaker. It is
-# a no-op for any session where activate_tenant_scope() was never called
-# on the current request (contextvar defaults to None).
-event.listen(Session, "do_orm_execute", _apply_tenant_scoping)
+# DISABLED - tenant scoping listener removed for single company deployment
+# event.listen(Session, "do_orm_execute", _apply_tenant_scoping)
 
 
 def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:

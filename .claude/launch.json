@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "wros-backend",
-      "runtimeExecutable": "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Backend-main\\.venv\\Scripts\\python.exe",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8081"],
-      "port": 8081
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1"],
+      "port": 8080,
+      "autoPort": false
     }
   ]
 }
