@@ -145,9 +145,9 @@ const CandidateAssignJobModal = ({
 
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => ({
-      label: `${job?.id || job?.job_id} - ${
+      label: `${job?.company_name || job?.companyName || "N/A"} | ${
         job?.title || job?.job_title || "Untitled Job"
-      }`,
+      } | ${job?.id || job?.job_id}`,
       value: job?.id || job?.job_id,
     }));
   }, [jobs]);
@@ -300,10 +300,6 @@ const CandidateAssignJobModal = ({
     }
     if (isEmptyValue(formData?.agreedPayRate)) {
       toast.error("Please enter agreed pay rate");
-      return false;
-    }
-    if (!selectedHr1Id) {
-      toast.error("Please select Primary HR");
       return false;
     }
     return true;
@@ -483,7 +479,7 @@ const CandidateAssignJobModal = ({
                   disabled={isAssigning}
                 />
                 <SelectWrapper>
-                  <Label>Primary HR *</Label>
+                  <Label>Primary HR</Label>
                   <StyledSelect
                     value={selectedHr1Id}
                     onChange={setSelectedHr1Id}
