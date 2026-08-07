@@ -45,6 +45,26 @@ class CandidateCreateRequest(BaseModel):
     education_records: Optional[List["EducationRecord"]] = None
     experience_records: Optional[List["ExperienceRecord"]] = None
 
+class CandidateUpdateRequest(BaseModel):
+    candidate_first_name: Optional[str] = None
+    candidate_middle_name: Optional[str] = None
+    candidate_last_name: Optional[str] = None
+    candidate_email: Optional[EmailStr] = None
+    candidate_mobile: Optional[str] = None
+    candidate_gender: Optional[str] = None
+    candidate_date_of_birth: Optional[date] = None
+    candidate_source: Optional[str] = None
+    candidate_experience: Optional[str] = None
+    candidate_skills: Optional[list[str]] = None
+    candidate_joining_date: Optional[date] = None
+    candidate_expected_salary: Optional[str] = None
+    candidate_current_salary: Optional[str] = None
+    candidate_current_location: Optional[str] = None
+    candidate_job_title: Optional[str] = None
+    candidate_employee_type: Optional[str] = None
+    assigned_hr_manager_id: Optional[str] = None
+    assigned_report_manager_id: Optional[str] = None
+
 class CandidateCreateResponse(BaseModel):
     candidate_id: str
     candidate_is_first_time: bool
