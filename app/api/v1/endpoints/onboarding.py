@@ -106,6 +106,7 @@ def create_candidate(
             candidateCurrentSalary=request.candidate_current_salary,
             candidateCurrentLocation=request.candidate_current_location,
             candidateCreatedAt=datetime.now(),
+            tenant_id=user.tenant_id,
         )
     except DuplicateCandidateError:
         raise HTTPException(
