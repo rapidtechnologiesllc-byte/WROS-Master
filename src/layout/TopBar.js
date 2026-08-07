@@ -18,6 +18,7 @@ export default function TopBar({
   jobs = [],
   setSelectedCandidateData,
   setSelectedJobId,
+  hideTitle = false,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -235,13 +236,15 @@ export default function TopBar({
       <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div className="flex w-full items-center">
-            <div className="min-w-fit">
-              <div className="text-base font-bold">
-                {crumbs[crumbs.length - 1]}
+            {!hideTitle && (
+              <div className="min-w-fit">
+                <div className="text-base font-bold">
+                  {crumbs[crumbs.length - 1]}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div ref={searchRef} className="relative ml-6 flex-1 max-w-2xl">
+            <div ref={searchRef} className={`relative flex-1 max-w-2xl ${hideTitle ? "" : "ml-6"}`}>
               <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
               <input
                 type="text"
