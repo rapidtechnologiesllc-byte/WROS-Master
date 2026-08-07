@@ -169,7 +169,7 @@ export default function HrUserManagement() {
     setError("");
     try {
       const response = await fetch(
-        `/hr/admin/users/${adminResetForm.user_id}/reset-password`,
+        `/api/v1/hr/admin/users/${adminResetForm.user_id}/reset-password`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
