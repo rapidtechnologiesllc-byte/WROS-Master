@@ -57,6 +57,9 @@ export default function RehireApprovalsScreen() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <div className="text-lg font-bold text-gray-900">Rehire Approvals</div>
+      </div>
       <div className="rounded-2xl border bg-white shadow-sm">
         {loading ? (
           <div className="p-6 text-center text-sm text-gray-500">Loading...</div>
