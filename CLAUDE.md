@@ -37,6 +37,22 @@
 - UI added to HrUserManagement screen
 - Commits: Backend `ef0674c`, Frontend `e825099`
 
+**5. BUSINESS UNIT SCOPING ARCHITECTURE FIX** ⭐ CRITICAL
+- **Problem:** Newly created candidates were invisible (404 errors) due to incorrect BU scoping
+- **Root Cause:** All candidate fetch endpoints applied BU scoping to all candidates, but:
+  - Newly created candidates have NO CandidateOwnership record (not yet submitted to a job)
+  - BU scoping shouldn't apply until a candidate is submitted to a job
+  - `get_candidate_by_id()` and similar endpoints couldn't find newly created candidates
+- **Solution:** 
+  - Created `get_candidate_by_id_with_bu_scope()` helper in `app/core/bu_scope.py`
+  - Only applies BU scoping if candidate HAS a CandidateOwnership record
+  - Newly created candidates (Org Pool) visible to all HR users regardless of BU
+  - Updated critical endpoints: `get_candidate_by_id()`, `get_candidate_status()`
+- **Principle:** BU scoping only applies AFTER job submission (CandidateOwnership creation)
+  - Org Pool (newly created): visible to all HR users
+  - Job-submitted: respect BU ownership if user is bu_restricted
+- **Commits:** `706ce22` (BU scope architecture), `7b43ee3` (helper function), `e96e987` (candidate_status)
+
 ---
 
 ## CRITICAL: LOCAL DATABASE FIX EXPLANATION
