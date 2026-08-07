@@ -106,6 +106,9 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
         <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
+        {mode === "edit" && (
+          <Select label="Status" value={form.status || "PROSPECT"} onChange={set("status")} options={CLIENT_STATUSES} />
+        )}
       </div>
 
       {mode === "create" ? (
