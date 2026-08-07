@@ -88,6 +88,9 @@ const NAV_ITEMS = {
   opportunityPipeline: { path: ROUTES.OPPORTUNITY_PIPELINE, label: "Opportunity Pipeline", icon: TrendingUp },
   executiveRevenueDashboard: { path: ROUTES.EXECUTIVE_REVENUE_DASHBOARD, label: "Executive Revenue", icon: LineChart },
   financeOperations: { path: ROUTES.FINANCE_OPERATIONS, label: "Finance Operations", icon: BadgeDollarSign },
+  partnerRoi: { path: ROUTES.PARTNER_ROI, label: "Partner ROI Agent", icon: TrendingUp },
+  ceoFyProgress: { path: ROUTES.CEO_FY_PROGRESS, label: "CEO FY Progress", icon: BarChart3 },
+  cfoDashboard: { path: ROUTES.CFO_DASHBOARD, label: "CFO Agent", icon: LineChart },
   rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
@@ -149,7 +152,7 @@ const GROUP_DEFS = [
   {
     label: "Finance",
     icon: BadgeDollarSign,
-    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard"],
+    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "partnerRoi", "ceoFyProgress", "cfoDashboard"],
   },
   {
     label: "Admin",
@@ -197,7 +200,7 @@ export default function Shell({
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -209,7 +212,7 @@ export default function Shell({
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -224,8 +227,9 @@ export default function Shell({
           // financeOperations deliberately excluded -- Avinash's explicit
           // "finance & HR manager (no actual p&l)" rule. executiveRevenueDashboard
           // stays (revenue.view-level content, backend gates the P&L bits
-          // separately at revenue.view_pnl).
-          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard",
+          // separately at revenue.view_pnl). Agent dashboards (CEO FY Progress,
+          // CFO Agent, Partner ROI) follow the same RBAC gates as executiveRevenueDashboard.
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "ceoFyProgress", "cfoDashboard",
         ]),
       };
     }

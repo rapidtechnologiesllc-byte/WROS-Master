@@ -44,6 +44,9 @@ export const ROUTES = {
   TICKET_ROUTING_ADMIN: "/admin/ticket-routing",
   BUDDY_PROGRAM: "/buddy-program",
   EXECUTIVE_SIGNAL: "/executive-signal",
+  PARTNER_ROI: "/partner-roi",
+  CEO_FY_PROGRESS: "/ceo-fy-progress",
+  CFO_DASHBOARD: "/cfo-dashboard",
   ERROR_LOG: "/admin/error-log",
   ADMIN_SETTINGS: "/admin/settings",
 };
