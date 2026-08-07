@@ -11,6 +11,7 @@ import {
   updateHrUser
 } from "../services/api/users";
 import { listRoles } from "../services/api/rbac";
+import { apiRequest } from "../services/api/client";
 
 function safeText(v) {
   return v == null ? "" : String(v);
@@ -168,22 +169,10 @@ export default function HrUserManagement() {
     setBusy(true);
     setError("");
     try {
-      const token = localStorage.getItem("hrms_token");
-      const response = await fetch(
-        `/api/v1/hr/admin/users/${adminResetForm.user_id}/reset-password`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` })
-          },
-          body: JSON.stringify({ new_password: adminResetForm.new_password })
-        }
-      );
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || "Failed to reset password");
-      }
+      await apiRequest(`/hr/admin/users/${adminResetForm.user_id}/reset-password`, {
+        method: "PUT",
+        body: JSON.stringify({ new_password: adminResetForm.new_password }),
+      });
       setAdminResetForm({ user_id: "", new_password: "" });
       setError("Password reset successfully!");
       await refresh();
