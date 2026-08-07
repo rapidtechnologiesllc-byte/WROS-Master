@@ -84,6 +84,7 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   };
 
   const handleSaveSection = async (section) => {
+    console.log(`[ProfileTabEditable] Saving section: ${section}, candidateId: ${candidateId}`);
     setSavingSection(section);
     try {
       const updatePayload = {};
