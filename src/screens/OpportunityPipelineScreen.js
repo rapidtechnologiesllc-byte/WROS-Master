@@ -20,7 +20,7 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
-import { listClients } from "../services/api/clients";
+import { listClients, createClient } from "../services/api/clients";
 import {
   getPipeline,
   listOpportunities,
@@ -37,12 +37,36 @@ const formatUsdCents = (cents) =>
     ? "—"
     : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-function CreateOpportunityForm({ clients, onCancel, onCreated }) {
+function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) {
   const [clientId, setClientId] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
   const [probability, setProbability] = useState("50");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [addingClient, setAddingClient] = useState(false);
+  const [newClientWebsite, setNewClientWebsite] = useState("");
+
+  const handleAddClient = async () => {
+    if (!newClientWebsite.trim()) {
+      setError("Website is required to create a prospect client.");
+      return;
+    }
+    try {
+      const created = await createClient({
+        company_name: newClientWebsite.trim(),
+        website: newClientWebsite.trim(),
+        line_type: "SPECIALITY",
+        billing_currency: "USD",
+      });
+      await reloadClients();
+      setClientId(created.id);
+      setAddingClient(false);
+      setNewClientWebsite("");
+      setError("");
+    } catch (err) {
+      setError(err.message || "Failed to add prospect client.");
+    }
+  };
 
   const handleSave = async () => {
     if (!clientId) {
@@ -75,15 +99,36 @@ function CreateOpportunityForm({ clients, onCancel, onCreated }) {
       <div className="mb-3 text-sm font-semibold text-gray-900">New opportunity</div>
       {error ? <div className="mb-3 text-xs text-rose-700">{error}</div> : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select
-          label="Client"
-          value={clientId}
-          onChange={setClientId}
-          options={[
-            { label: "Select client", value: "", disabled: true },
-            ...clients.map((c) => ({ label: c.company_name, value: c.id })),
-          ]}
-        />
+        <div>
+          <Select
+            label="Client"
+            value={clientId}
+            onChange={setClientId}
+            options={[
+              { label: "Select client", value: "", disabled: true },
+              ...clients.map((c) => ({ label: c.company_name, value: c.id })),
+            ]}
+          />
+          {addingClient ? (
+            <div className="mt-1 flex gap-1">
+              <input
+                className="w-full rounded-lg border px-2 py-1 text-xs"
+                placeholder="Website (e.g. acme.com)"
+                value={newClientWebsite}
+                onChange={(e) => setNewClientWebsite(e.target.value)}
+              />
+              <Button variant="secondary" onClick={handleAddClient}>Add</Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="mt-1 text-xs font-semibold text-bx-orange"
+              onClick={() => setAddingClient(true)}
+            >
+              + New prospect
+            </button>
+          )}
+        </div>
         <Input label="Revenue Value (USD)" value={revenueValue} onChange={setRevenueValue} placeholder="500000" />
         <Input label="Win Probability (%)" value={probability} onChange={setProbability} placeholder="50" />
       </div>
@@ -451,6 +496,7 @@ export default function OpportunityPipelineScreen() {
               setShowCreate(false);
               refreshAll();
             }}
+            reloadClients={load}
           />
         ) : null}
 
