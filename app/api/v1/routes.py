@@ -79,6 +79,7 @@ from app.api.v1.endpoints.bu_context import router as bu_context_router
 from app.api.v1.endpoints.system_config import router as system_config_router
 from app.api.v1.endpoints.activity_timeline import router as activity_timeline_router
 from app.api.v1.endpoints.agents import router as agents_router
+from app.api.v1.endpoints.flash_interview import router as flash_interview_router
 
 router = fastapi.APIRouter()
 
@@ -160,4 +161,5 @@ router.include_router(router=error_log_router)
 router.include_router(router=bu_context_router)
 router.include_router(router=system_config_router)
 router.include_router(router=activity_timeline_router)
-router.include_router(router=agents_router)
+router.include_router(router=agents_router)
+router.include_router(router=flash_interview_router)
