@@ -346,6 +346,7 @@ export default function JobCreate({
   };
 
   const handleCreateJob = async () => {
+    setIsSaving(true);
     const required = [
       { label: "Job Title", value: title },
       { label: "Internal Job Description", value: internalJD },
@@ -365,15 +366,19 @@ export default function JobCreate({
       )
       .map(({ label }) => label);
     if (missing.length) {
-      toast.error(`Please fill required fields: ${missing.join(", ")}.`);
+      const err = `Please fill required fields: ${missing.join(", ")}.`;
+      toast.error(err);
+      setIsSaving(false);
       return;
     }
     if (!hmUserId?.trim()) {
       toast.error("Please select a Hiring Manager.");
+      setIsSaving(false);
       return;
     }
     if (!contactPerson?.trim()) {
       toast.error("Please select an HR.");
+      setIsSaving(false);
       return;
     }
     try {
@@ -398,7 +403,9 @@ export default function JobCreate({
       toast.success(`Created job ${title}`);
       navigate(ROUTES.JOBS);
     } catch (err) {
-      toast.error(err?.message || "Failed to create job.");
+      console.error("Job creation error:", err);
+      const errorMsg = err?.message || err?.response?.data?.detail || "Failed to create job.";
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
