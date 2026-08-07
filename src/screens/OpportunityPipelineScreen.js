@@ -17,7 +17,7 @@
 //  - createRoleDemandFromOpportunity (POST /opportunities/:id/role-demand)
 //    as a "Create Role Demand" form inside that same detail panel,
 //    shown once the opportunity is WON.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
@@ -245,6 +245,15 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
+  // S-240: Real-time revenue potential calculation (billing_rate * duration_hours * quantity)
+  const revenuePotentialUsdCents = useMemo(() => {
+    const rate = Math.round(parseFloat(form.billing_rate_usd_cents || "0") * 100);
+    const duration = parseInt(form.duration_hours || "0", 10);
+    const qty = parseInt(form.quantity || "1", 10);
+    if (!rate || !duration || !qty) return null;
+    return rate * duration * qty;
+  }, [form.billing_rate_usd_cents, form.duration_hours, form.quantity]);
+
   const handleCreateRoleDemand = async () => {
     setFormError("");
     if (!form.job_title.trim() || !form.required_skills.trim() || !form.work_location.trim()) {
@@ -367,6 +376,13 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
                 <Input label="Billing Rate (USD/hr)" value={form.billing_rate_usd_cents} onChange={set("billing_rate_usd_cents")} placeholder="85" />
               </div>
             </div>
+            {revenuePotentialUsdCents != null ? (
+              <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-2">
+                <div className="text-xs text-blue-700">
+                  <span className="font-semibold">Revenue Potential:</span> {formatUsdCents(revenuePotentialUsdCents)}
+                </div>
+              </div>
+            ) : null}
             <Button className="mt-3" onClick={handleCreateRoleDemand} disabled={saving}>
               {saving ? "Creating…" : "Create Role Demand"}
             </Button>
