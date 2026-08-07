@@ -78,12 +78,6 @@ export default function CFOAgentScreen() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">CFO Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Org-wide financial intelligence and alerts</p>
-      </div>
-
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b">
         {["overview", "alerts", "bu-comparison", "forecast"].map((tab) => (

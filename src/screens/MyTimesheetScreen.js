@@ -111,7 +111,6 @@ export default function MyTimesheetScreen() {
   if (allocations.length === 0) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
-        <h1 className="text-xl font-bold text-bx-navy mb-2">My Timesheet</h1>
         <Card>
           <p className="text-sm text-gray-500">You're not currently allocated to an active project, so there's no timesheet to fill yet.</p>
         </Card>
@@ -125,9 +124,8 @@ export default function MyTimesheetScreen() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-bx-navy">My Timesheet</h1>
-        {allocations.length > 1 && (
+      {allocations.length > 1 && (
+        <div className="flex justify-end">
           <div className="w-64">
             <Select
               value={allocationId}
@@ -135,8 +133,8 @@ export default function MyTimesheetScreen() {
               options={allocations.map((a) => ({ value: a.id, label: `${a.demand_job_title} (${a.role || "assigned"})` }))}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {timesheet && (
         <Card

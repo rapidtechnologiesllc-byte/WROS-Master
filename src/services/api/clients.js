@@ -29,6 +29,19 @@ export const updateClient = async (clientId, payload) => {
   return data;
 };
 
+export const getClientContacts = async (clientId) => {
+  const { data } = await apiRequest(`/clients/${clientId}/contacts`, { method: "GET" });
+  return data;
+};
+
+export const addClientContact = async (clientId, payload) => {
+  const { data } = await apiRequest(`/clients/${clientId}/contacts`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data;
+};
+
 export const getBusinessUnitAssignments = async (businessUnitId) => {
   const { data } = await apiRequest(
     `/clients/business-units/${businessUnitId}/assignments`,

@@ -64,11 +64,7 @@ export default function PartnerROIAgentScreen() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{kpis.partner_name} — ROI Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Real-time KPI tracking for your business unit</p>
-        </div>
+      <div className="flex items-center justify-end mb-6">
         <input
           type="month"
           value={selectedMonth}
