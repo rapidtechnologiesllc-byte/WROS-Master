@@ -950,13 +950,13 @@ async def apply_for_job(
     except Exception:
         pass  # ATS failure must never block an application submission
 
-    # 14. HRMS-0401: assign the AI recruiter automatically. Tenant is
-    # derived from the job itself, which is always scoped to a tenant.
-    # Skips gracefully (logged, not raised) if tenant_id not set.
+    # 14. HRMS-0401: assign the AI recruiter automatically.
+    # Tenant scoping removed (single-company deployment) -- function uses default tenant_id=1.
+    # Skips gracefully (logged, not raised) if assignment fails.
     # 2026-08-05 real fix: must NOT pass this request's own `db` into a
     # BackgroundTask -- it's closed before the task runs. See
     # run_auto_assign_ai_agent_in_background()'s own docstring.
-    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id, job.tenant_id)
+    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
 
     return JobApplicationResponse(
         status="Success",
