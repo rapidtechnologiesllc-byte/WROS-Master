@@ -54,3 +54,59 @@ export const setCandidateEmail2faOptIn = async (optedIn) => {
 };
 
 export const getAzureSigninUrl = () => `${getApiBaseUrl()}/msgraph/auth/signin`;
+
+// 2026-08-07 -- Staff MFA (Phase 1 B3), wiring the real backend that
+// already existed (POST /auth/login already returns mfa_required/
+// mfa_setup_required/email_otp_required + a real mfa_pending token when
+// applicable -- this was orphan code, this session's audit found it,
+// nothing here is new backend). Same skipAuth + explicit Authorization
+// header pattern as the candidate email-OTP functions above -- the
+// mfa_pending token is not a real session, and a wrong code (a real
+// 401) must not trip apiRequest's global "expired session" handling.
+export const setupMfa = async (pendingToken) => {
+  const { data } = await apiRequest("/auth/mfa/setup", {
+    method: "POST",
+    skipAuth: true,
+    headers: { Authorization: `Bearer ${pendingToken}` },
+  });
+  return data;
+};
+
+export const confirmMfaSetup = async (pendingToken, code) => {
+  const { data } = await apiRequest("/auth/mfa/setup/confirm", {
+    method: "POST",
+    skipAuth: true,
+    headers: { Authorization: `Bearer ${pendingToken}` },
+    body: JSON.stringify({ code }),
+  });
+  return data;
+};
+
+export const verifyMfa = async (pendingToken, { code, backupCode } = {}) => {
+  const { data } = await apiRequest("/auth/mfa/verify", {
+    method: "POST",
+    skipAuth: true,
+    headers: { Authorization: `Bearer ${pendingToken}` },
+    body: JSON.stringify({ code: code || undefined, backup_code: backupCode || undefined }),
+  });
+  return data;
+};
+
+export const resendStaffEmailOtp = async (pendingToken) => {
+  const { data } = await apiRequest("/auth/mfa/email/resend", {
+    method: "POST",
+    skipAuth: true,
+    headers: { Authorization: `Bearer ${pendingToken}` },
+  });
+  return data;
+};
+
+export const verifyStaffEmailOtp = async (pendingToken, code) => {
+  const { data } = await apiRequest("/auth/mfa/email/verify", {
+    method: "POST",
+    skipAuth: true,
+    headers: { Authorization: `Bearer ${pendingToken}` },
+    body: JSON.stringify({ code }),
+  });
+  return data;
+};
