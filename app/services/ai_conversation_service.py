@@ -486,7 +486,6 @@ def get_active_ai_assignment(db: Session, candidate_id: str, tenant_id: str) -> 
 
 def auto_assign_ai_agent_on_creation(
     candidate_id: str,
-    tenant_id: Optional[str],
     db: Session,
 ) -> None:
     """
@@ -495,29 +494,26 @@ def auto_assign_ai_agent_on_creation(
     only when an HR user clicks "Assign AI Recruiter" (that manual path,
     the only one built until now, is still available for reassignment).
 
+    Tenant scoping removed (single-company deployment). Uses default tenant_id=1.
+
     Meant to be run as a FastAPI BackgroundTask from a real candidate-
     creation call site (see app.api.v1.endpoints.onboarding.create_candidate
     and app.api.v1.endpoints.create_job's public application endpoint --
     the two R-07-sanctioned creation paths), so it never delays the
     candidate-creation response and never fails the creation itself if
-    something goes wrong (a missing tenant_id, an unreachable mailbox,
-    etc.) -- errors are logged, not raised, matching this codebase's
-    established pattern for the ATS-scoring background task.
+    something goes wrong (an unreachable mailbox, etc.) -- errors are
+    logged, not raised, matching this codebase's established pattern
+    for the ATS-scoring background task.
     """
-    if not tenant_id:
-        logger.warning(
-            f"[AutoAssign] No tenant_id resolvable for candidate '{candidate_id}' -- "
-            f"skipping automatic AI recruiter assignment (manual assignment still available)."
-        )
-        return
     try:
-        assign_ai_agent(candidate_id=candidate_id, tenant_id=tenant_id, assigned_by=None, db=db)
+        # Single-company deployment: use default tenant_id=1
+        assign_ai_agent(candidate_id=candidate_id, tenant_id=1, assigned_by=None, db=db)
     except Exception as exc:
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
 
 
-def run_auto_assign_ai_agent_in_background(candidate_id: str, tenant_id: Optional[str]) -> None:
+def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
     """Real bug fix, 2026-08-05 -- Avinash: "When a candidate is added AI
     recruiter is not assigned automatically and is causing delays in
     candidate outreach." Root cause: both real call sites
@@ -539,11 +535,14 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str, tenant_id: Optiona
     task convention already established and documented in
     app.api.v1.endpoints.bulk_engagement._run_worker_in_background()
     and every scheduled job in app.core.scheduler -- open a fresh
-    session here, never reuse the caller's."""
+    session here, never reuse the caller's.
+
+    Tenant scoping removed (single-company deployment): uses tenant_id=1."""
     from app.core.database import SessionLocal
     db = SessionLocal()
+    tenant_id = 1  # Single-company deployment default
     try:
-        auto_assign_ai_agent_on_creation(candidate_id, tenant_id, db)
+        auto_assign_ai_agent_on_creation(candidate_id, db)
     finally:
         db.close()
 
