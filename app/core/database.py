@@ -77,9 +77,12 @@ def authenticate_user(db: Session, email: str, password: str):
         logger.warning(f"[AUTH] authenticate_user: user not found for email='{email}'")
         return False
 
+    logger.debug(f"[AUTH] Attempting password verification: password='{password}' (len={len(password)}, repr={repr(password)}), stored_hash[:20]='{user.UserPassword[:20]}'")
     password_match = verify_password(password, user.UserPassword)
+    logger.debug(f"[AUTH] verify_password returned: {password_match}")
+
     if not password_match:
-        logger.warning(f"[AUTH] authenticate_user: password mismatch for email='{email}'")
+        logger.warning(f"[AUTH] authenticate_user: password mismatch for email='{email}' | received_password='{password}' | stored_hash_start='{user.UserPassword[:30]}'")
         return False
 
     logger.info(f"[AUTH] authenticate_user: SUCCESS for email='{email}'")
