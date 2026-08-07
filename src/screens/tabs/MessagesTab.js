@@ -18,6 +18,7 @@ import { toast } from "react-toastify";
 import ThunderMemorySection from "../../components/ThunderMemorySection";
 import ThunderActivitySection from "../../components/activity/ThunderActivitySection";
 import EngagementMetricsSection from "../../components/engagement/EngagementMetricsSection";
+import ThunderAssignmentSection from "../../components/assignment/ThunderAssignmentSection";
 
 const EVENT_LABELS = {
   ai_assigned: "AI Agent Assigned",
@@ -170,6 +171,9 @@ export default function MessagesTab({ candidateId }) {
         </div>
       )}
 
+      {candidateId ? (
+        <ThunderAssignmentSection candidateId={candidateId} onChanged={fetchThread} />
+      ) : null}
       {candidateId ? <ThunderMemorySection candidateId={candidateId} /> : null}
       {candidateId ? <ThunderActivitySection candidateId={candidateId} /> : null}
       {candidateId ? <EngagementMetricsSection candidateId={candidateId} /> : null}

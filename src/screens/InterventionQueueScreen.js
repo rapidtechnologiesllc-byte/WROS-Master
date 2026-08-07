@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { getInterventionQueue, resolveQueueItem, takeOverQueueItem } from "../services/api/interventionQueue";
+import { getInterventionQueue, getInterventionQueueSummary, resolveQueueItem, takeOverQueueItem } from "../services/api/interventionQueue";
 
 const PRIORITY_LABELS = { 1: "CRITICAL", 2: "HIGH", 3: "MEDIUM" };
 const PRIORITY_BADGE = {
@@ -31,6 +31,7 @@ function isOverdue(iso) {
 
 export default function InterventionQueueScreen() {
   const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState(null);
   const [resolutionNote, setResolutionNote] = useState("");
@@ -44,6 +45,12 @@ export default function InterventionQueueScreen() {
       toast.error("Unable to load intervention queue.");
     } finally {
       setLoading(false);
+    }
+    try {
+      const summaryData = await getInterventionQueueSummary();
+      setSummary(summaryData);
+    } catch {
+      // Summary widget is a bonus view -- the queue table below still works without it.
     }
   };
 
@@ -79,6 +86,27 @@ export default function InterventionQueueScreen() {
         <h1 className="text-xl font-bold text-gray-900">Recruiter Intervention Queue</h1>
         <p className="text-sm text-gray-500">Candidates that need you right now, sorted by urgency.</p>
       </div>
+
+      {summary ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
+            <div className="text-xs font-semibold uppercase tracking-wide text-red-700">Critical</div>
+            <div className="mt-1 text-2xl font-bold text-red-800">{summary.critical}</div>
+          </div>
+          <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4 text-center">
+            <div className="text-xs font-semibold uppercase tracking-wide text-red-600">High</div>
+            <div className="mt-1 text-2xl font-bold text-red-700">{summary.high}</div>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+            <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Medium</div>
+            <div className="mt-1 text-2xl font-bold text-amber-800">{summary.medium}</div>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Open</div>
+            <div className="mt-1 text-2xl font-bold text-gray-900">{summary.total}</div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border bg-white shadow-sm">
         {loading ? (

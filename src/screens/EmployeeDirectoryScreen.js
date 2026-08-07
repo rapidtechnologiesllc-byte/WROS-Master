@@ -1,12 +1,13 @@
 // S-245 (Create Employee Profile) + S-246 (Mark Employee as Bench) +
 // S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report).
 import { useEffect, useRef, useState } from "react";
-import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft, Upload, History, Award, LineChart, Flag, CheckCircle2 } from "lucide-react";
+import { UserPlus, RefreshCw, AlertTriangle, LogOut, LogIn, ArrowRightLeft, Upload, History, Award, LineChart, Flag, CheckCircle2, Filter, TrendingUp, CalendarClock, ScanSearch } from "lucide-react";
 import { Card, Button, Input, Select, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import {
   createEmployee,
   getAllEmployees,
+  getBenchPool,
   getBenchAgingAlerts,
   markEmployeeOnBench,
   removeEmployeeFromBench,
@@ -14,12 +15,15 @@ import {
   bulkImportEmployees,
   getEngineHistory,
   getEmployeePerformance,
+  getEmployeeBenchHistory,
 } from "../services/api/employees";
 import {
   createEmployeeMilestone,
   getEmployeeMilestones,
   completeEmployeeMilestone,
+  scanOverdueMilestones,
 } from "../services/api/employeeMilestones";
+import { getUtilizationHistory } from "../services/api/utilization";
 
 const BENCH_REASONS = [
   { value: "PROJECT_ENDED", label: "Project Ended" },
@@ -401,6 +405,116 @@ function EngineHistoryPanel({ employeeId }) {
   );
 }
 
+// S-254 -- weekly utilization history (billable vs bench hours) for one
+// employee. UtilizationDashboardScreen only ever shows the *latest*
+// week per employee (utilization-summary); this is the full history
+// behind that snapshot, so it belongs on the employee's own row.
+function UtilizationHistoryPanel({ employeeId }) {
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleToggle = async () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    if (history) return;
+    try {
+      const res = await getUtilizationHistory(employeeId);
+      setHistory(res.history || []);
+    } catch (err) {
+      setError(err.message || "Failed to load utilization history.");
+    }
+  };
+
+  return (
+    <div>
+      <Button variant="ghost" onClick={handleToggle}>
+        <TrendingUp className="h-4 w-4" /> {open ? "Hide" : "View"} Utilization History
+      </Button>
+      {open ? (
+        <div className="mt-2 max-w-md rounded-lg border bg-gray-50 p-2 text-xs">
+          {error ? <div className="text-rose-700">{error}</div> : null}
+          {!history ? (
+            <div className="text-gray-500">Loading…</div>
+          ) : history.length === 0 ? (
+            <div className="text-gray-500">No utilization history recorded yet.</div>
+          ) : (
+            <ul className="space-y-1">
+              {history.map((h) => (
+                <li key={h.period_start} className="flex items-center justify-between border-b pb-1 last:border-b-0">
+                  <span className="font-semibold text-gray-900">Week of {h.period_start}</span>
+                  <span className="text-gray-600">
+                    {h.utilization_pct}% · {h.billable_hours}h billable / {h.bench_hours}h bench
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Full bench episode history for one employee -- every mark-bench /
+// remove-from-bench cycle, not just the current bench state already
+// shown in the "Bench" column.
+function BenchHistoryPanel({ employeeId }) {
+  const [open, setOpen] = useState(false);
+  const [periods, setPeriods] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleToggle = async () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    if (periods) return;
+    try {
+      const res = await getEmployeeBenchHistory(employeeId);
+      setPeriods(res.periods || []);
+    } catch (err) {
+      setError(err.message || "Failed to load bench history.");
+    }
+  };
+
+  return (
+    <div>
+      <Button variant="ghost" onClick={handleToggle}>
+        <CalendarClock className="h-4 w-4" /> {open ? "Hide" : "View"} Bench History
+      </Button>
+      {open ? (
+        <div className="mt-2 max-w-md rounded-lg border bg-gray-50 p-2 text-xs">
+          {error ? <div className="text-rose-700">{error}</div> : null}
+          {!periods ? (
+            <div className="text-gray-500">Loading…</div>
+          ) : periods.length === 0 ? (
+            <div className="text-gray-500">No bench episodes recorded.</div>
+          ) : (
+            <ul className="space-y-1">
+              {periods.map((p) => (
+                <li key={p.id} className="border-b pb-1 last:border-b-0">
+                  <span className="font-semibold text-gray-900">
+                    {p.bench_start_date} → {p.bench_end_date || "present"}
+                  </span>
+                  <div className="text-gray-600">
+                    {p.reason_for_bench}
+                    {p.bench_cost_usd_cents != null ? ` · $${(p.bench_cost_usd_cents / 100).toFixed(2)}/day` : ""}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // S-356/HRMS-0517 -- create a PERSONAL/ORG milestone for this employee.
 // No PROJECT milestones here -- those are set on the project itself
 // (Projects screen), per this story's own project_id/employee_id
@@ -588,17 +702,68 @@ function PerformanceMilestonesPanel({ employeeId }) {
   );
 }
 
+// S-356/HRMS-0517 -- manual trigger for the idempotent overdue-milestone
+// scan. No cron job registers this anywhere in app/core/scheduler.py
+// (checked -- every other periodic job in this codebase is wired up
+// there), so this button is currently the ONLY way scan_overdue_milestones
+// ever runs, not just a supplemental "run it now" convenience.
+function ScanOverdueMilestonesButton() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleScan = async () => {
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      const res = await scanOverdueMilestones();
+      setResult(res.overdue || []);
+    } catch (err) {
+      setError(err.message || "Failed to scan for overdue milestones.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <Button variant="secondary" disabled={busy} onClick={handleScan}>
+        <ScanSearch className="h-4 w-4" /> {busy ? "Scanning…" : "Scan Overdue Milestones"}
+      </Button>
+      {error ? (
+        <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      ) : null}
+      {result ? (
+        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {result.length === 0
+            ? "No milestones newly flagged overdue."
+            : `${result.length} milestone(s) newly flagged overdue: ${result.map((m) => m.title).join(", ")}.`}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function EmployeeDirectoryScreen() {
   const [employees, setEmployees] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // S-247 -- View Bench Pool: toggles the table between every employee
+  // and just the current bench pool (get_current_bench_pool-backed).
+  const [showBenchPoolOnly, setShowBenchPoolOnly] = useState(false);
 
-  const load = async () => {
+  const load = async (benchPoolOnly = showBenchPoolOnly) => {
     setLoading(true);
     setError("");
     try {
-      const [empRes, alertRes] = await Promise.all([getAllEmployees(), getBenchAgingAlerts()]);
+      const [empRes, alertRes] = await Promise.all([
+        benchPoolOnly ? getBenchPool() : getAllEmployees(),
+        getBenchAgingAlerts(),
+      ]);
       setEmployees(empRes?.employees || []);
       setAlerts(alertRes?.alerts || []);
     } catch (err) {
@@ -609,8 +774,8 @@ export default function EmployeeDirectoryScreen() {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    load(showBenchPoolOnly);
+  }, [showBenchPoolOnly]);
 
   return (
     <div className="grid gap-4">
@@ -619,9 +784,17 @@ export default function EmployeeDirectoryScreen() {
         subtitle="Create employee profiles and manage bench status. Every bench entry/exit is recorded in a permanent history for aging and cost reporting."
         icon={<UserPlus className="h-4 w-4" />}
         right={
-          <Button variant="ghost" onClick={load} disabled={loading}>
-            <RefreshCw className={cx("h-4 w-4", loading ? "animate-spin" : "")} /> Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showBenchPoolOnly ? "primary" : "ghost"}
+              onClick={() => setShowBenchPoolOnly((v) => !v)}
+            >
+              <Filter className="h-4 w-4" /> {showBenchPoolOnly ? "Showing Bench Pool" : "View Bench Pool"}
+            </Button>
+            <Button variant="ghost" onClick={() => load()} disabled={loading}>
+              <RefreshCw className={cx("h-4 w-4", loading ? "animate-spin" : "")} /> Refresh
+            </Button>
+          </div>
         }
       >
         {error ? (
@@ -631,9 +804,10 @@ export default function EmployeeDirectoryScreen() {
         ) : null}
 
         <div className="flex flex-wrap items-start gap-2">
-          <CreateEmployeeForm onCreated={load} />
-          <ConvertCandidateForm onConverted={load} />
-          <BulkImportForm onImported={load} />
+          <CreateEmployeeForm onCreated={() => load()} />
+          <ConvertCandidateForm onConverted={() => load()} />
+          <BulkImportForm onImported={() => load()} />
+          <ScanOverdueMilestonesButton />
         </div>
 
         {alerts.length > 0 ? (
@@ -677,7 +851,7 @@ export default function EmployeeDirectoryScreen() {
               ) : employees.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
-                    No employees yet. Create one above.
+                    {showBenchPoolOnly ? "No one is currently on the bench." : "No employees yet. Create one above."}
                   </td>
                 </tr>
               ) : (
@@ -699,6 +873,8 @@ export default function EmployeeDirectoryScreen() {
                       <div className="mt-1 flex flex-col items-start gap-1">
                         <EngineHistoryPanel employeeId={e.id} />
                         <PerformanceMilestonesPanel employeeId={e.id} />
+                        <UtilizationHistoryPanel employeeId={e.id} />
+                        <BenchHistoryPanel employeeId={e.id} />
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-700">

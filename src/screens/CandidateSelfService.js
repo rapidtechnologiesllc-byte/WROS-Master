@@ -31,9 +31,12 @@ import {
   getCandidateMyInfo,
   getCandidateOnboardingStatus,
   getCandidatePan,
+  getCandidatePersonalInfo,
   listCandidateEducation,
   listCandidateExperience,
   submitCandidateAadharForm,
+  submitCandidateEducationForm,
+  submitCandidateExperienceForm,
   submitCandidateInfoForm,
   submitCandidatePanForm,
   updateCandidateEducation,
@@ -126,6 +129,10 @@ export default function CandidateSelfService({ onLogout }) {
   const [loading, setLoading] = useState(false);
   const [savingEducationId, setSavingEducationId] = useState(null);
   const [savingExperienceId, setSavingExperienceId] = useState(null);
+  const [submittingAllEducation, setSubmittingAllEducation] = useState(false);
+  const [submittingAllExperience, setSubmittingAllExperience] =
+    useState(false);
+  const [resettingPersonalInfo, setResettingPersonalInfo] = useState(false);
   const [uploadingEducationIndex, setUploadingEducationIndex] = useState(null);
   const [uploadingExperienceIndex, setUploadingExperienceIndex] =
     useState(null);
@@ -402,6 +409,89 @@ export default function CandidateSelfService({ onLogout }) {
       showNotice(err?.message || "Failed to save experience.");
     } finally {
       setSavingExperienceId(null);
+    }
+  };
+
+  const submitAllEducation = async () => {
+    const records = education.filter(
+      (row) => row.education_institute || row.degree || row.field_of_study,
+    );
+    if (!records.length) {
+      showNotice("Add at least one education record before submitting.");
+      return;
+    }
+    try {
+      setSubmittingAllEducation(true);
+      clearNotice();
+      await submitCandidateEducationForm(records.map(toEducationPayload));
+      const refreshed = await listCandidateEducation();
+      if (refreshed?.records?.length) {
+        setEducation(refreshed.records.map(normalizeEducationRecord));
+      }
+      showNotice("All education records submitted.", "success");
+    } catch (err) {
+      showNotice(err?.message || "Failed to submit education records.");
+    } finally {
+      setSubmittingAllEducation(false);
+    }
+  };
+
+  const submitAllExperience = async () => {
+    const records = experience.filter(
+      (row) => row.company_name || row.job_title,
+    );
+    if (!records.length) {
+      showNotice("Add at least one experience record before submitting.");
+      return;
+    }
+    try {
+      setSubmittingAllExperience(true);
+      clearNotice();
+      await submitCandidateExperienceForm(records.map(toExperiencePayload));
+      const refreshed = await listCandidateExperience();
+      if (refreshed?.records?.length) {
+        setExperience(refreshed.records.map(normalizeExperienceRecord));
+      }
+      showNotice("All experience records submitted.", "success");
+    } catch (err) {
+      showNotice(err?.message || "Failed to submit experience records.");
+    } finally {
+      setSubmittingAllExperience(false);
+    }
+  };
+
+  const handleResetPersonalInfo = async () => {
+    try {
+      setResettingPersonalInfo(true);
+      clearNotice();
+      const saved = await getCandidatePersonalInfo();
+      if (saved) {
+        setPersonal((prev) => ({
+          ...prev,
+          position: saved.position || "",
+          department: saved.department || "",
+          dob: saved.dob || "",
+          gender: saved.gender || "",
+          marital_status: saved.marital_status || "",
+          nationality: saved.nationality || "",
+          current_address: saved.current_address || "",
+          permanent_address: saved.permanent_address || "",
+          submitted_at: today(),
+        }));
+        setPermanentLocationValue(
+          parseLocation(saved.permanent_address || ""),
+        );
+        showNotice("Reloaded your last saved personal information.", "success");
+      } else {
+        showNotice(
+          "No saved personal information found yet. Fill out the form below.",
+          "success",
+        );
+      }
+    } catch (err) {
+      showNotice(err?.message || "Failed to reload personal information.");
+    } finally {
+      setResettingPersonalInfo(false);
     }
   };
 
@@ -985,7 +1075,21 @@ export default function CandidateSelfService({ onLogout }) {
               ))}
 
             {activeSection === "profile" && (
-              <Card title="Personal Information">
+              <Card
+                title="Personal Information"
+                subtitle="Update your details below, or discard unsaved changes and reload what's on file."
+              >
+                <div className="mb-3 flex justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={handleResetPersonalInfo}
+                    disabled={resettingPersonalInfo || loading}
+                  >
+                    {resettingPersonalInfo
+                      ? "Reloading..."
+                      : "Reset to Saved"}
+                  </Button>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <Input
                     label="Department (Previous Company)"
@@ -1322,6 +1426,23 @@ export default function CandidateSelfService({ onLogout }) {
                     </div>
                   ))}
                 </div>
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">
+                    "Save Education" above saves one record at a time. Use
+                    this to submit all education records above in a single
+                    batch (replaces your previously submitted education
+                    records).
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={submitAllEducation}
+                    disabled={submittingAllEducation}
+                  >
+                    {submittingAllEducation
+                      ? "Submitting..."
+                      : "Submit All Education Details"}
+                  </Button>
+                </div>
               </Card>
             )}
 
@@ -1528,6 +1649,23 @@ export default function CandidateSelfService({ onLogout }) {
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">
+                    "Save Experience" above saves one record at a time. Use
+                    this to submit all experience records above in a single
+                    batch (replaces your previously submitted experience
+                    records).
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={submitAllExperience}
+                    disabled={submittingAllExperience}
+                  >
+                    {submittingAllExperience
+                      ? "Submitting..."
+                      : "Submit All Experience Details"}
+                  </Button>
                 </div>
               </Card>
             )}
