@@ -27,17 +27,22 @@ class ClientContactCreateRequest(BaseModel):
 
 class ClientCreateRequest(BaseModel):
     company_name: str
-    # 2026-08-06 redesign: line_type (Core/Specialty) replaces
-    # client_type on the create form; industry dropped entirely per
-    # Avinash's direct instruction. hiring_manager/timesheet_approver
-    # are required -- "every client should have contacts that are
-    # hiring manager, timesheet approver."
-    line_type: str
+    # 2026-08-07 redesign, per Avinash's live-testing feedback (real
+    # JobDiva client record shown as reference: contacts are their own
+    # tab, not a field that blocks creating the company record):
+    # hiring_manager/timesheet_approver are now OPTIONAL at creation.
+    # They're still required before a client can go status=ACTIVE --
+    # see client_service.STATUSES_REQUIRING_CONTACT / set_client_status()
+    # -- captured via POST /clients/{client_id}/contacts as a separate
+    # step instead of blocking the create form.
+    # 2026-08-07 further: website is now OPTIONAL (prospect clients
+    # may not have a website yet). line_type defaults to CORE.
+    line_type: str = "CORE"
     country: Optional[str] = None
-    website: str
+    website: Optional[str] = None
     billing_currency: str = "USD"
-    hiring_manager: ClientContactCreateRequest
-    timesheet_approver: ClientContactCreateRequest
+    hiring_manager: Optional[ClientContactCreateRequest] = None
+    timesheet_approver: Optional[ClientContactCreateRequest] = None
 
 
 class ClientCreateResponse(BaseModel):
@@ -47,6 +52,31 @@ class ClientCreateResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ClientContactAddRequest(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    role_type: str
+
+
+class ClientContactResponse(BaseModel):
+    id: str
+    client_id: str
+    name: str
+    title: Optional[str] = None
+    email: str
+    phone: Optional[str] = None
+    role_type: str
+    is_primary: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ClientContactsListResponse(BaseModel):
+    contacts: list[ClientContactResponse]
 
 
 class ClientDetailResponse(BaseModel):
