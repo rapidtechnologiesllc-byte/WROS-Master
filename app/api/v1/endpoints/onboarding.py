@@ -178,7 +178,7 @@ def create_candidate(
     # 2026-08-05 real fix: must NOT pass this request's own `db` into a
     # BackgroundTask -- it's closed before the task runs. See
     # run_auto_assign_ai_agent_in_background()'s own docstring.
-    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id, user.UserID)
+    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id, user.tenant_id)
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(
