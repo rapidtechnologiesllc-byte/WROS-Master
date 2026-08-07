@@ -20,6 +20,8 @@ export const ROUTES = {
   UTILIZATION_DASHBOARD: "/utilization-dashboard",
   TIMESHEETS: "/timesheets",
   FORECAST: "/forecast",
+  FORECAST_VS_ACTUAL: "/forecast-vs-actual",
+  REVENUE_LEAKAGE: "/revenue-leakage",
   INVOICES: "/invoices",
   REVENUE: "/revenue",
   TENANT_LOCALE: "/settings/locale",

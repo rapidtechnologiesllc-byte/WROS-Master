@@ -75,6 +75,7 @@ const NAV_ITEMS = {
   demandConfirmation: { path: ROUTES.DEMAND_CONFIRMATION, label: "Demand Confirmation", icon: CalendarCheck2 },
   utilization: { path: ROUTES.UTILIZATION_DASHBOARD, label: "Utilization & Bench Cost", icon: BarChart3 },
   forecast: { path: ROUTES.FORECAST, label: "Resource Forecast", icon: TrendingUp },
+  forecastVsActual: { path: ROUTES.FORECAST_VS_ACTUAL, label: "Forecast vs Actual", icon: TrendingUp },
   htdIntake: { path: ROUTES.HTD_INTAKE, label: "HTD Intake", icon: AlertOctagon },
   projects: { path: ROUTES.PROJECTS, label: "Projects", icon: FolderKanban },
   // S-364/S-365 -- 30-Day Buddy Program KPI tracking + graduation gate.
@@ -152,7 +153,7 @@ const GROUP_DEFS = [
   {
     label: "Finance",
     icon: BadgeDollarSign,
-    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "partnerRoi", "ceoFyProgress", "cfoDashboard"],
+    keys: ["timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "partnerRoi", "ceoFyProgress", "cfoDashboard"],
   },
   {
     label: "Admin",
