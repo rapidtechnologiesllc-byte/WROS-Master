@@ -24,7 +24,7 @@ scheduled poll -- per Avinash's explicit constraint.
 
 Match check is a real, honest v1: keyword overlap between the
 candidate's own skills/title text and the new job's skills/title text
-(same technique internal_ask_thunder_service.find_matching_candidates()
+(same technique flash_service.find_matching_candidates()
 already uses for the same class of problem), not the full S-037-040
 scoring pipeline -- that pipeline is Submission-scoped (built against
 an existing application to a specific job) and doesn't cleanly apply
