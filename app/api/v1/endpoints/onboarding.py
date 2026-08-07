@@ -710,21 +710,21 @@ def get_candidates_by_my_bu(
 def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Update an existing candidate.
-    
+
     Args:
         candidate_id: ID of the candidate to update
         request: CandidateUpdateRequest containing fields to update
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         CandidateCreateResponse with updated candidate details
-        
+
     Raises:
-        HTTPException: If candidate not found
+        HTTPException: If candidate not found or user lacks permission to update
     """
-    # Find the candidate
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    # Use safe candidate fetch with proper BU scoping
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     if not candidate:
         raise HTTPException(
             status_code=404,
@@ -766,10 +766,18 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.assignedHRManagerID = request.assigned_hr_manager_id
     if request.assigned_report_manager_id is not None:
         candidate.assignedReportManagerID = request.assigned_report_manager_id
-    
-    db.commit()
-    db.refresh(candidate)
-    
+
+    # CRITICAL: Must commit changes immediately
+    try:
+        db.commit()
+        db.refresh(candidate)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update candidate: {str(e)}"
+        )
+
     return CandidateCreateResponse(
         candidate_id=candidate.candidateID,
         candidate_is_first_time=False,
