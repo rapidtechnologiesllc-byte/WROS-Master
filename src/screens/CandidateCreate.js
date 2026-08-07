@@ -591,18 +591,26 @@ export default function CandidateCreate({ onBack, onSave }) {
   const handleSaveOnly = async () => {
     try {
       const candidate = await handleCreateCandidate();
+      console.log("Created candidate:", candidate);
 
       if (!candidate?.id) {
+        console.error("Candidate creation returned no ID", candidate);
         return;
       }
 
-      await createCandidateHistoryEvent(candidate.id, {
-        event_type: HISTORY_EVENT_TYPES.APPLIED,
-      });
+      try {
+        await createCandidateHistoryEvent(candidate.id, {
+          event_type: HISTORY_EVENT_TYPES.APPLIED,
+        });
+      } catch (historyErr) {
+        console.error("Failed to create history event (continuing anyway):", historyErr);
+      }
 
+      console.log("Calling onSave with:", candidate);
       onSave(candidate);
     } catch (error) {
-      console.error("Failed to create candidate history event:", error);
+      console.error("Failed in handleSaveOnly:", error);
+      toast.error(error.message || "Failed to create candidate");
     }
   };
 
