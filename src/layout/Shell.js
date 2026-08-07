@@ -201,7 +201,7 @@ export default function Shell({
           "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -213,7 +213,7 @@ export default function Shell({
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
           "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
@@ -230,7 +230,7 @@ export default function Shell({
           // stays (revenue.view-level content, backend gates the P&L bits
           // separately at revenue.view_pnl). Agent dashboards (CEO FY Progress,
           // CFO Agent, Partner ROI) follow the same RBAC gates as executiveRevenueDashboard.
-          "timesheets", "invoices", "revenue", "opportunityPipeline", "executiveRevenueDashboard", "ceoFyProgress", "cfoDashboard",
+          "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "ceoFyProgress", "cfoDashboard",
         ]),
       };
     }
