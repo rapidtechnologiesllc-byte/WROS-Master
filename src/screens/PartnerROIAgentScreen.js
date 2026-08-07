@@ -3,7 +3,7 @@ import { toast } from "react-toastify";
 import { TrendingUp, AlertCircle, Target } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import { getPartnerROIKpis, getPartnerROITrend, getPartnerROIActions } from "../services/api/agents";
-import { getCurrentUser } from "../services/api/users";
+import { getHrMe } from "../services/api/users";
 
 export default function PartnerROIAgentScreen() {
   const [partnerId, setPartnerId] = useState(null);
@@ -19,24 +19,24 @@ export default function PartnerROIAgentScreen() {
         setLoading(true);
 
         // Get current user's Partner ID from auth context
-        const user = await getCurrentUser();
-        if (user?.id) {
-          setPartnerId(user.id);
+        const user = await getHrMe();
+        if (user?.UserID) {
+          setPartnerId(user.UserID);
 
           // Fetch KPIs for selected month
-          const kpis = await getPartnerROIKpis(user.id, selectedMonth);
+          const kpis = await getPartnerROIKpis(user.UserID, selectedMonth);
           if (kpis) {
             setKpis(kpis);
           }
 
           // Fetch trend
-          const trend = await getPartnerROITrend(user.id, 6);
+          const trend = await getPartnerROITrend(user.UserID, 6);
           if (trend) {
             setTrend(trend);
           }
 
           // Fetch actions
-          const actions = await getPartnerROIActions(user.id);
+          const actions = await getPartnerROIActions(user.UserID);
           if (actions) {
             setActions(actions);
           }
