@@ -44,6 +44,11 @@ export default function HrUserManagement() {
     new_password: ""
   });
 
+  const [adminResetForm, setAdminResetForm] = useState({
+    user_id: "",
+    new_password: ""
+  });
+
   const userOptions = useMemo(() => {
     return ["", ...users.map((u) => u.user_id)];
   }, [users]);
@@ -151,6 +156,35 @@ export default function HrUserManagement() {
       setPasswordForm({ current_password: "", new_password: "" });
     } catch (err) {
       setError(err.message || "Failed to change password.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAdminResetPassword = async () => {
+    if (!adminResetForm.user_id) return setError("Please select a user.");
+    if (!adminResetForm.new_password.trim()) return setError("New password is required.");
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/v1/admin/users/${adminResetForm.user_id}/reset-password`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: adminResetForm.user_id, new_password: adminResetForm.new_password })
+        }
+      );
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to reset password");
+      }
+      setAdminResetForm({ user_id: "", new_password: "" });
+      setError("Password reset successfully!");
+      await refresh();
+    } catch (err) {
+      setError(err.message || "Failed to reset password.");
     } finally {
       setBusy(false);
     }
@@ -271,6 +305,31 @@ export default function HrUserManagement() {
           </div>
         </Card>
       </div>
+
+      <Card title="Admin: Reset User Password" icon={<Lock className="h-4 w-4" />}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Select
+            label="Select User"
+            value={adminResetForm.user_id}
+            onChange={(v) => setAdminResetForm((p) => ({ ...p, user_id: v }))}
+            options={userOptions}
+          />
+          <Input
+            label="New Password (no current password needed)"
+            type="password"
+            value={adminResetForm.new_password}
+            onChange={(v) => setAdminResetForm((p) => ({ ...p, new_password: v }))}
+          />
+          <div className="md:col-span-2 flex justify-end gap-2">
+            <div className="text-xs text-gray-500 flex-1">
+              Admin can reset any user's password without knowing their current password
+            </div>
+            <Button onClick={handleAdminResetPassword} disabled={busy}>
+              Reset Password
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <Card title="Change My Password" icon={<Lock className="h-4 w-4" />}>
         <div className="grid gap-3 md:grid-cols-2">
