@@ -472,15 +472,9 @@ export default function CandidateSelfService({ onLogout }) {
           department: saved.department || "",
           dob: saved.dob || "",
           gender: saved.gender || "",
-          marital_status: saved.marital_status || "",
-          nationality: saved.nationality || "",
           current_address: saved.current_address || "",
-          permanent_address: saved.permanent_address || "",
           submitted_at: today(),
         }));
-        setPermanentLocationValue(
-          parseLocation(saved.permanent_address || ""),
-        );
         showNotice("Reloaded your last saved personal information.", "success");
       } else {
         showNotice(
@@ -556,10 +550,7 @@ export default function CandidateSelfService({ onLogout }) {
     department: "",
     dob: "",
     gender: "",
-    marital_status: "",
-    nationality: "",
     current_address: "",
-    permanent_address: "",
     submitted_at: today(),
   });
   const [permanentLocationValue, setPermanentLocationValue] = useState({
@@ -1110,13 +1101,6 @@ export default function CandidateSelfService({ onLogout }) {
                     onChange={(v) => setPersonal((p) => ({ ...p, gender: v }))}
                     options={["", "Male", "Female", "Other"]}
                   />
-                  <Input
-                    label="Nationality"
-                    value={personal.nationality}
-                    onChange={(v) =>
-                      setPersonal((p) => ({ ...p, nationality: v }))
-                    }
-                  />
                   <TextArea
                     label="Current Residential Address"
                     value={personal.current_address}
@@ -1125,25 +1109,6 @@ export default function CandidateSelfService({ onLogout }) {
                     }
                     rows={3}
                   />
-                  <div className="md:col-span-2">
-                    <div className="mb-1 text-xs font-semibold text-gray-700">
-                      Permanent Address
-                    </div>
-                    <LocationCascadeSelect
-                      value={permanentLocationValue}
-                      onChange={(next) => {
-                        setPermanentLocationValue(next);
-                        setPersonal((p) => ({
-                          ...p,
-                          permanent_address: formatLocation(next),
-                        }));
-                      }}
-                    />
-                    <p className="mt-1 text-xs text-gray-400">
-                      Full street address is collected separately during
-                      onboarding.
-                    </p>
-                  </div>
                 </div>
 
                 <div className="mt-4 flex justify-end">

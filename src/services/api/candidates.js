@@ -74,6 +74,7 @@ export const updateCandidate = async (candidateId, payload) => {
   if (payload.assigned_report_manager_id != null)
     body.assigned_report_manager_id = payload.assigned_report_manager_id;
 
+  console.log(`[updateCandidate] Calling PUT /onboarding/hr/update_candidate/${candidateId}`, body);
   const { data } = await apiRequest(
     `/onboarding/hr/update_candidate/${candidateId}`,
     {
@@ -81,6 +82,7 @@ export const updateCandidate = async (candidateId, payload) => {
       body: JSON.stringify(body),
     },
   );
+  console.log(`[updateCandidate] Response:`, data);
   return data;
 };
 

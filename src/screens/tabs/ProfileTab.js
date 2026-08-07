@@ -357,20 +357,8 @@ export default function ProfileTab({
           <Info label="Gender" value={profile?.candidate_gender || profile?.personal_info?.gender} />
           <Info label="Department" value={profile?.personal_info?.department} />
           <Info
-            label="Marital Status"
-            value={profile?.personal_info?.marital_status}
-          />
-          <Info
-            label="Nationality"
-            value={profile?.personal_info?.nationality}
-          />
-          <Info
             label="Current Address"
             value={profile?.personal_info?.current_address}
-          />
-          <Info
-            label="Permanent Address"
-            value={profile?.personal_info?.permanent_address}
           />
         </div>
       </section>
