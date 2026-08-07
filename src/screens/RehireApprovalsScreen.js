@@ -57,14 +57,6 @@ export default function RehireApprovalsScreen() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Rehire Approvals</h1>
-        <p className="text-sm text-gray-500">
-          Candidates with a past no-hire outcome, requested for re-interview, whose
-          justification needs your sign-off before a round can be scheduled.
-        </p>
-      </div>
-
       <div className="rounded-2xl border bg-white shadow-sm">
         {loading ? (
           <div className="p-6 text-center text-sm text-gray-500">Loading...</div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button } from "../components/ui";
-import ProfileTab from "./tabs/ProfileTab";
+import ProfileTabEditable from "./tabs/ProfileTabEditable";
 import FeedbackTab from "./tabs/FeedbackTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import TasksTab from "./tabs/TasksTab";
@@ -1302,7 +1302,7 @@ ${formattedJD}
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
           <div className="p-5 bg-white border rounded-2xl shadow-sm">
             {activeTab === "profile" && !limitedMode && (
-              <ProfileTab candidateId={candidate?.id} candidate={candidate} />
+              <ProfileTabEditable candidateId={candidate?.id} candidate={candidate} onRefresh={onUpdateCandidate} />
             )}
 
             {activeTab === "feedback" && limitedMode && (

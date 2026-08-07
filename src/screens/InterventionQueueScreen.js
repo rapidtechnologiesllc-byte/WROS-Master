@@ -82,11 +82,6 @@ export default function InterventionQueueScreen() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Recruiter Intervention Queue</h1>
-        <p className="text-sm text-gray-500">Candidates that need you right now, sorted by urgency.</p>
-      </div>
-
       {summary ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">

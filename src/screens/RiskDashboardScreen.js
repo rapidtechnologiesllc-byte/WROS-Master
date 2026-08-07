@@ -120,11 +120,6 @@ export default function RiskDashboardScreen() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Candidate Risk Dashboard</h1>
-        <p className="text-sm text-gray-500">All active candidates, risk levels, and trends. Refreshes every 5 minutes.</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {SUMMARY_CARD_DEFS.map((def) => (
           <button

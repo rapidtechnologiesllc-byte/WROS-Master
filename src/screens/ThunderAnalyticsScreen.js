@@ -103,10 +103,6 @@ export default function ThunderAnalyticsScreen() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Thunder Performance Analytics</h1>
-          <p className="text-sm text-gray-500">How effective is Thunder at qualifying candidates autonomously.</p>
-        </div>
         <div className="flex gap-2">
           {RANGE_PRESETS.map((preset) => (
             <button

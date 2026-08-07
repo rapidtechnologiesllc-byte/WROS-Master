@@ -74,11 +74,6 @@ export default function BulkLaunchScreen() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Bulk Candidate Engagement Launch</h1>
-        <p className="text-sm text-gray-500">Import candidates from CSV and launch Thunder for all of them at once.</p>
-      </div>
-
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-gray-900">1. Import</h3>
         <div
