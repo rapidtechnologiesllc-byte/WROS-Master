@@ -124,7 +124,7 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
 
   if (loading) return <div className="p-6 text-center text-gray-500">Loading profile...</div>;
 
-  const userOptions = users.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }));
+  const userOptions = Array.isArray(users) ? users.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` })) : [];
 
   return (
     <div className="space-y-4">
