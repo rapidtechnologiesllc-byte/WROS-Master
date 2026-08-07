@@ -72,3 +72,43 @@ def get_bu_scoped_candidate_ids(db: Session, current_user: Users) -> Optional[Se
         return None
     query = apply_bu_scope_to_candidate_query(db, db.query(Candidate.candidateID), current_user)
     return {row[0] for row in query.all()}
+
+
+def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_user: Users) -> Optional[Candidate]:
+    """
+    Safely fetch a candidate by ID, respecting BU scoping ONLY if the
+    candidate has been submitted to a job (has CandidateOwnership).
+
+    Newly created candidates live in the Org Pool (no CandidateOwnership)
+    and should be visible to ALL HR users regardless of Business Unit.
+    BU scoping only applies AFTER a candidate is submitted to a job.
+
+    Args:
+        db: Database session
+        candidate_id: The candidate ID to fetch
+        current_user: The requesting user
+
+    Returns:
+        The Candidate if found and visible to the user, None otherwise
+    """
+    # Fetch the candidate without scoping first. If it doesn't exist, return None.
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        return None
+
+    # Check if candidate has been submitted to a job (has CandidateOwnership).
+    # If not, it's in Org Pool and should be visible to all HR users.
+    from app.models.candidate_ownership import CandidateOwnership
+    ownership = db.query(CandidateOwnership).filter(
+        CandidateOwnership.candidateID == candidate_id
+    ).first()
+
+    if not ownership:
+        # No job submission yet -- in Org Pool, visible to all HR users
+        return candidate
+
+    # Has been submitted to a job. Apply BU scoping.
+    candidate_scoped = apply_bu_scope_to_candidate_query(
+        db, db.query(Candidate).filter(Candidate.candidateID == candidate_id), current_user=current_user,
+    ).first()
+    return candidate_scoped

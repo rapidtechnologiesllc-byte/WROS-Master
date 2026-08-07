@@ -14,7 +14,7 @@ from app.services.candidate_service import (
     parse_experience_to_months,
 )
 from app.services.guidewire_candidate_service import is_guidewire_candidate
-from app.core.bu_scope import apply_bu_scope_to_candidate_query
+from app.core.bu_scope import apply_bu_scope_to_candidate_query, get_candidate_by_id_with_bu_scope
 from app.models.candidate import (
     Candidate,
     CandidateInfoForm,
@@ -373,34 +373,15 @@ def get_candidate_by_id(
         the candidate has been submitted to a job outside the caller's
         Business Unit and the caller is bu_restricted.
     """
-    # First, fetch the candidate without BU scoping. A candidate just
-    # created is not yet in any BU's scope -- BU ownership only applies
-    # after submission to a job creates a CandidateOwnership record.
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    # Safely fetch candidate with proper BU scoping logic:
+    # - Org Pool (no job submission yet): visible to all HR users
+    # - Job-submitted: respect BU ownership if user is bu_restricted
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     if not candidate:
         raise HTTPException(
             status_code=404,
             detail=f"Candidate with ID '{candidate_id}' not found"
         )
-
-    # Check if candidate has been submitted to a job (has CandidateOwnership).
-    # If so, apply BU scoping to respect job-level ownership.
-    from app.models.candidate_ownership import CandidateOwnership
-    ownership = db.query(CandidateOwnership).filter(
-        CandidateOwnership.candidateID == candidate_id
-    ).first()
-
-    if ownership:
-        # Candidate is submitted to a job and has BU ownership. Apply BU scoping.
-        candidate_scoped = apply_bu_scope_to_candidate_query(
-            db, db.query(Candidate).filter(Candidate.candidateID == candidate_id), current_user=user,
-        ).first()
-        if not candidate_scoped:
-            # Candidate exists but is outside caller's BU
-            raise HTTPException(
-                status_code=404,
-                detail=f"Candidate with ID '{candidate_id}' not found"
-            )
 
     # Construct display name
     name_parts = [
