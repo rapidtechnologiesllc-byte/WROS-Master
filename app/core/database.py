@@ -70,11 +70,19 @@ def get_user(db: Session, email: str):
 
 def authenticate_user(db: Session, email: str, password: str):
     from app.core.security import verify_password
+    from app.core.logging import logger
+
     user = get_user(db, email)
     if not user:
+        logger.warning(f"[AUTH] authenticate_user: user not found for email='{email}'")
         return False
-    if not verify_password(password, user.UserPassword):
+
+    password_match = verify_password(password, user.UserPassword)
+    if not password_match:
+        logger.warning(f"[AUTH] authenticate_user: password mismatch for email='{email}'")
         return False
+
+    logger.info(f"[AUTH] authenticate_user: SUCCESS for email='{email}'")
     return user
 
 def get_candidate(db: Session, email: str):
