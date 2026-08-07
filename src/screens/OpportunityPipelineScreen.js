@@ -30,7 +30,9 @@ import {
   createRoleDemandFromOpportunity,
 } from "../services/api/opportunities";
 
-const STAGES = ["QUALIFICATION", "PROPOSAL", "NEGOTIATION", "WON", "LOST"];
+// Shared with backend PIPELINE_STATUSES - single source of truth
+// Must match app/models/opportunity.py and app/models/client.py
+const STAGES = ["QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST"];
 
 const formatUsdCents = (cents) =>
   cents == null
