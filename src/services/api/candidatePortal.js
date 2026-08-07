@@ -68,3 +68,14 @@ export const sendPortalReply = (token, conversationId, messageBody) =>
     method: "POST",
     body: { message_body: messageBody },
   });
+
+// S-346 real-time fix, 2026-08-06: the backend has supported this
+// long-poll endpoint since the widget was first built, but nothing on
+// the frontend ever called it -- MessagesTab fetched once on load and
+// never again, so a reply arriving on another channel (e.g. WhatsApp)
+// while the portal tab was open never appeared without a manual
+// reload. No WebSocket infra exists in this codebase (see the backend
+// endpoint's own docstring), so this is the documented fallback: poll
+// on a short interval for messages newer than after_id.
+export const pollPortalMessages = (token, conversationId, afterId) =>
+  portalRequest(`/portal/conversations/${conversationId}/messages/poll?after_id=${afterId}`, token);

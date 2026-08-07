@@ -54,11 +54,3 @@ export const setCandidateEmail2faOptIn = async (optedIn) => {
 };
 
 export const getAzureSigninUrl = () => `${getApiBaseUrl()}/msgraph/auth/signin`;
-
-export const fetchAzureProfile = async () => {
-  const { data } = await apiRequest("/msgraph/me", {
-    method: "GET",
-    skipAuth: true
-  });
-  return data;
-};
