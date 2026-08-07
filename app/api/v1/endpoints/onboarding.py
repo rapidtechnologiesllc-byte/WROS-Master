@@ -144,6 +144,16 @@ def create_candidate(
         updatedAt=datetime.now(),
     )
     db.add(candidate_status)
+
+    # Create candidate personal info form
+    candidate_info = CandidateInfoForm(
+        candidateID=candidate_id,
+        dob=request.candidate_date_of_birth,
+        gender=request.candidate_gender,
+        submittedAt=datetime.now().date(),
+    )
+    db.add(candidate_info)
+
     # CRITICAL: Must commit status before queuing background tasks.
     # Background tasks run in a fresh session and need to find BOTH
     # the candidate AND its status record. Without this commit,
@@ -767,6 +777,17 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.assignedHRManagerID = request.assigned_hr_manager_id
     if request.assigned_report_manager_id is not None:
         candidate.assignedReportManagerID = request.assigned_report_manager_id
+
+    # Update CandidateInfoForm when personal info fields are updated
+    personal_info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).first()
+    if personal_info:
+        if request.candidate_gender is not None:
+            personal_info.gender = request.candidate_gender
+        if request.candidate_date_of_birth is not None:
+            from datetime import date
+            personal_info.dob = request.candidate_date_of_birth if isinstance(request.candidate_date_of_birth, date) else request.candidate_date_of_birth.date() if hasattr(request.candidate_date_of_birth, 'date') else request.candidate_date_of_birth
+        if request.candidate_current_location is not None:
+            personal_info.current_address = request.candidate_current_location
 
     # CRITICAL: Must commit changes immediately
     try:
