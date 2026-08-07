@@ -437,7 +437,8 @@ def get_candidate_status(
     """
     Returns the current account status and pipeline status for a single candidate.
     """
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    from app.core.bu_scope import get_candidate_by_id_with_bu_scope
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
