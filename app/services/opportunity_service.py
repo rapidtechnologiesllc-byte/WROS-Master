@@ -21,6 +21,7 @@ from typing import Iterable, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.client import Client
 from app.models.demand import Demand
 from app.models.opportunity import CLOSED_STAGES, OPPORTUNITY_STAGES, Opportunity
 from app.services.demand_service import create_demand
@@ -63,6 +64,41 @@ def create_opportunity(
     return opportunity
 
 
+def _update_client_status_from_opportunities(db: Session, client_id: str) -> None:
+    """Auto-sync client status to match its most-advanced opportunity stage.
+
+    Stage hierarchy: WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST
+    Client.status reflects the highest stage across all its opportunities.
+    """
+    STAGE_PRIORITY = {"WON": 5, "NEGOTIATION": 4, "PROPOSAL": 3, "QUALIFICATION": 2, "LOST": 1}
+    STAGE_TO_CLIENT_STATUS = {
+        "WON": "ACTIVE",
+        "NEGOTIATION": "DEAL",
+        "PROPOSAL": "OPPORTUNITY",
+        "QUALIFICATION": "PROSPECT",
+        "LOST": "INACTIVE",
+    }
+
+    # Get highest-priority stage across all opportunities for this client
+    opportunities = db.query(Opportunity).filter(Opportunity.client_id == client_id).all()
+    if not opportunities:
+        return
+
+    highest_stage = max(
+        (opp.stage for opp in opportunities if opp.stage in STAGE_PRIORITY),
+        key=lambda s: STAGE_PRIORITY.get(s, 0),
+        default=None
+    )
+
+    if highest_stage:
+        new_status = STAGE_TO_CLIENT_STATUS.get(highest_stage)
+        if new_status:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client and client.status != new_status:
+                client.status = new_status
+                db.add(client)
+
+
 def transition_stage(
     db: Session, opportunity: Opportunity, new_stage: str,
     *, project_name: Optional[str] = None, billing_type: str = "TIME_AND_MATERIALS",
@@ -73,6 +109,9 @@ def transition_stage(
     returns (opportunity, project) -- HRMS-0801 BR-0801-01: winning an
     opportunity auto-creates a Project inheriting client_id/currency,
     no manual re-entry.
+
+    Also auto-syncs parent Client.status to match the most-advanced
+    opportunity stage (WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST).
     """
     if opportunity.stage in CLOSED_STAGES:
         raise InvalidStageTransition(
@@ -84,6 +123,9 @@ def transition_stage(
     opportunity.stage = new_stage
     opportunity.updated_at = datetime.utcnow()
     db.add(opportunity)
+
+    # Auto-sync parent Client status to match opportunity progression
+    _update_client_status_from_opportunities(db, opportunity.client_id)
 
     if new_stage == "WON":
         project = create_project_from_won_opportunity(
