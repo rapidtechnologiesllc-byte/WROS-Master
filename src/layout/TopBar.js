@@ -3,7 +3,7 @@ import { Bell, Settings, Eye, EyeOff, Search, User, KeyRound, LogOut } from "luc
 import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import cx from "../utils/cx";
 import ThunderActivityFeedPanel from "../components/activity/ThunderActivityFeedPanel";
@@ -40,6 +40,7 @@ export default function TopBar({
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef(null);
+  const location = useLocation();
 
   const loadNotifications = async () => {
     try {
@@ -163,15 +164,53 @@ export default function TopBar({
   };
 
   const crumbs = useMemo(() => {
-    const map = {
-      dashboard: ["Dashboard"],
-      candidateSearch: ["Candidate Dashboard"],
-      jobs: ["Jobs"],
-      rbac: ["RBAC Settings"],
-      hrUsers: ["List of Users"],
+    const path = location.pathname;
+    const pathMap = {
+      "/": ["Dashboard"],
+      "/candidates": ["Candidates"],
+      "/candidates/create": ["Create Candidate"],
+      "/jobs": ["Jobs"],
+      "/jobs/create": ["Create Job"],
+      "/my-tasks": ["My Tasks"],
+      "/my-timesheet": ["My Timesheet"],
+      "/my-expenses": ["My Expenses"],
+      "/resource-management": ["Resource Management"],
+      "/core-pull": ["Core Pull"],
+      "/client-management": ["Client Management"],
+      "/demand-confirmation": ["Demand Confirmation"],
+      "/employees": ["Employee Directory"],
+      "/submissions": ["Submissions"],
+      "/allocations": ["Allocations"],
+      "/projects": ["Projects"],
+      "/htd-intake": ["HTD Intake"],
+      "/hm-candidate-review": ["HM Candidate Review"],
+      "/utilization-dashboard": ["Utilization Dashboard"],
+      "/timesheets": ["Timesheets"],
+      "/forecast": ["Forecast"],
+      "/invoices": ["Invoices"],
+      "/revenue": ["Revenue"],
+      "/opportunity-pipeline": ["Opportunity Pipeline"],
+      "/executive-revenue-dashboard": ["Executive Revenue"],
+      "/finance-operations": ["Finance Operations"],
+      "/thunder": ["Thunder Chat"],
+      "/rbac": ["RBAC Settings"],
+      "/hr-users": ["User Management"],
+      "/settings/locale": ["Locale Settings"],
+      "/settings/templates": ["Message Templates"],
+      "/admin/ticket-routing": ["Ticket Routing"],
+      "/admin/ai-config": ["AI Configuration"],
+      "/admin/error-log": ["Error Log"],
+      "/admin/settings": ["Admin Settings"],
+      "/buddy-program": ["Buddy Program"],
+      "/executive-signal": ["Executive Signal"],
     };
-    return map[screen] || ["Dashboard"];
-  }, [screen]);
+    // Check exact path first, then partial matches
+    if (pathMap[path]) return pathMap[path];
+    for (const [key, value] of Object.entries(pathMap)) {
+      if (path.startsWith(key) && key !== "/") return value;
+    }
+    return ["Dashboard"];
+  }, [location.pathname]);
   const filteredCandidates = useMemo(() => {
     return candidates
       .filter((candidate) =>
