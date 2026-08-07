@@ -113,7 +113,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         HTTPException 401: If credentials do not match any user or candidate.
     """
     from app.core.logging import logger
-    logger.info(f"[LOGIN] unified_login attempt for email='{request.email}'")
+    import os
+
+    db_url = os.getenv("DATABASE_URL", "NOT SET")
+    logger.warning(f"[LOGIN] === START === email='{request.email}' | DATABASE_URL='{db_url[:50]}...'")
+    logger.warning(f"[LOGIN] unified_login attempt for email='{request.email}'")
 
     # ── 1. Try authenticating as a User first ───────────────────
     user = authenticate_user(db, request.email, request.password)

@@ -72,25 +72,41 @@ def authenticate_user(db: Session, email: str, password: str):
     from app.core.security import verify_password
     from app.core.logging import logger
     import hashlib
+    import bcrypt
+
+    logger.warning(f"[AUTH] === START authenticate_user for email='{email}' ===")
 
     user = get_user(db, email)
     if not user:
-        logger.warning(f"[AUTH] authenticate_user: user not found for email='{email}'")
+        logger.warning(f"[AUTH] USER NOT FOUND: email='{email}'")
         return False
 
-    # Log password metadata (length, hash to identify the value without exposing it)
+    logger.warning(f"[AUTH] USER FOUND: {user.UserEmail}, role={user.UserRole}")
+    logger.warning(f"[AUTH] STORED HASH: {user.UserPassword}")
+
+    # Log password metadata
     pwd_input_len = len(password)
     pwd_input_hash = hashlib.sha256(password.encode()).hexdigest()[:8]
-    logger.debug(f"[AUTH] Attempting password verification: input_len={pwd_input_len}, input_hash_prefix={pwd_input_hash}, stored_hash[:30]='{user.UserPassword[:30]}'")
+    logger.warning(f"[AUTH] INPUT PASSWORD: len={pwd_input_len}, sha256_prefix={pwd_input_hash}")
 
+    # Test bcrypt directly
+    try:
+        pwd_bytes = password.encode('utf-8')
+        hash_bytes = user.UserPassword.encode('utf-8') if isinstance(user.UserPassword, str) else user.UserPassword
+        bcrypt_result = bcrypt.checkpw(pwd_bytes, hash_bytes)
+        logger.warning(f"[AUTH] BCRYPT DIRECT TEST: {bcrypt_result}")
+    except Exception as e:
+        logger.error(f"[AUTH] BCRYPT DIRECT TEST FAILED: {e}")
+
+    # Test via verify_password function
     password_match = verify_password(password, user.UserPassword)
-    logger.debug(f"[AUTH] verify_password returned: {password_match}")
+    logger.warning(f"[AUTH] verify_password() returned: {password_match}")
 
     if not password_match:
-        logger.warning(f"[AUTH] authenticate_user: password mismatch for email='{email}' | input_len={pwd_input_len} | input_hash={pwd_input_hash} | stored_hash_start='{user.UserPassword[:30]}'")
+        logger.warning(f"[AUTH] === PASSWORD MISMATCH ===")
         return False
 
-    logger.info(f"[AUTH] authenticate_user: SUCCESS for email='{email}'")
+    logger.warning(f"[AUTH] === SUCCESS ===")
     return user
 
 def get_candidate(db: Session, email: str):
