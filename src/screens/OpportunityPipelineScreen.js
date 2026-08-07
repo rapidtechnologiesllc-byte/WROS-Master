@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
+import { getAllUsers } from "../services/api/users";
 import {
   getPipeline,
   listOpportunities,
@@ -41,12 +42,32 @@ const formatUsdCents = (cents) =>
 
 function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) {
   const [clientId, setClientId] = useState("");
+  const [dealName, setDealName] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
   const [probability, setProbability] = useState("50");
+  const [ownerId, setOwnerId] = useState(""); // Opportunity owner
+  const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [addingClient, setAddingClient] = useState(false);
   const [newClientWebsite, setNewClientWebsite] = useState("");
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const userList = await getAllUsers();
+        setUsers(userList || []);
+      } catch (err) {
+        console.error("Failed to load users:", err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    loadUsers();
+  }, []);
 
   const handleAddClient = async () => {
     if (!newClientWebsite.trim()) {
@@ -75,6 +96,10 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       setError("Client is required.");
       return;
     }
+    if (!ownerId) {
+      setError("Owner is required.");
+      return;
+    }
     const usdCents = Math.round(parseFloat(revenueValue || "0") * 100);
     if (!usdCents || usdCents <= 0) {
       setError("Revenue value must be a positive number.");
@@ -87,6 +112,9 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         client_id: clientId,
         revenue_value_usd_cents: usdCents,
         probability_pct: Number(probability),
+        owner_employee_id: ownerId,
+        expected_close_date: expectedCloseDate || null,
+        stage: "QUALIFICATION",
       });
       onCreated();
     } catch (err) {
@@ -100,7 +128,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
     <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
       <div className="mb-3 text-sm font-semibold text-gray-900">New opportunity</div>
       {error ? <div className="mb-3 text-xs text-rose-700">{error}</div> : null}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div>
           <Select
             label="Client"
@@ -131,8 +159,26 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
             </button>
           )}
         </div>
+        <Select
+          label="Owner"
+          value={ownerId}
+          onChange={setOwnerId}
+          options={[
+            { label: "Select owner", value: "", disabled: true },
+            ...users.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
+          ]}
+          disabled={loadingUsers}
+        />
         <Input label="Revenue Value (USD)" value={revenueValue} onChange={setRevenueValue} placeholder="500000" />
         <Input label="Win Probability (%)" value={probability} onChange={setProbability} placeholder="50" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
+        <Input
+          label="Expected Close Date"
+          type="date"
+          value={expectedCloseDate}
+          onChange={setExpectedCloseDate}
+        />
       </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
