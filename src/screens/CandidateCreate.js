@@ -555,6 +555,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         }
       }
       setActionNotice(nextNotice);
+      // Navigate back to candidate list to show newly created candidate
+      setTimeout(() => navigate("/candidates"), 1500);
       return createdCandidate;
     } catch (err) {
       toast.error(err.message || "Failed to create candidate.");
