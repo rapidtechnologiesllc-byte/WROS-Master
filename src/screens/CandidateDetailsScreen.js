@@ -382,6 +382,22 @@ export default function CandidateDetailsScreen({
     if (candidate?.id) {
       loadDocumentCount();
     }
+
+    // Load candidate job applications for Schedule button visibility
+    const loadCandidateJobs = async () => {
+      try {
+        const candidateId = candidate?.candidate_id ?? candidate?.id ?? candidate?._id;
+        const response = await getCandidateApplications(candidateId);
+        const applications = response?.applications ?? [];
+        setCandidateJobs(applications);
+      } catch (error) {
+        console.error("Failed to fetch candidate jobs:", error);
+        setCandidateJobs([]);
+      }
+    };
+    if (candidate?.id) {
+      loadCandidateJobs();
+    }
   }, [candidate?.id, limitedMode]);
 
   const handleTemplateChange = async (id) => {
@@ -1156,7 +1172,7 @@ ${formattedJD}
                       ? "Unarchive"
                       : "Archive"}
                   </Button>
-                  {selectedJobId && (
+                  {candidateJobs?.length > 0 && (
                     <div className="relative" ref={scheduleMenuRef}>
                       <Button
                         onClick={() => setShowScheduleMenu((prev) => !prev)}
