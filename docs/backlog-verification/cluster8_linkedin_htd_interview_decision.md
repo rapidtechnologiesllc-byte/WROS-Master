@@ -80,8 +80,8 @@ Real engine confirmed: `app/models/interview_pipeline.py` (`SubmissionInterview`
 | Classification | Count | Stories |
 |---|---|---|
 | CONFIRMED-DONE | 1 | S-108 |
-| PARTIAL | 6 | S-107, S-112, S-115, S-118 (EPIC-P6); S-264 (EPIC-P5) — 5 in P6/P5 as listed, plus none in P4 |
-| NOT-DONE | 19 | All 9 EPIC-P4 stories; S-257, S-258, S-261, S-266 (EPIC-P5); S-109, S-110, S-111, S-113, S-114, S-116, S-117 (EPIC-P6) |
+| PARTIAL | 5 | S-107, S-112, S-115, S-118 (EPIC-P6); S-264 (EPIC-P5) |
+| NOT-DONE | 20 | All 9 EPIC-P4 stories (S-128–S-136); S-257, S-258, S-261, S-266 (EPIC-P5); S-109, S-110, S-111, S-113, S-114, S-116, S-117 (EPIC-P6) |
 | CANT-DETERMINE | 0 | — |
 
-(Note: 1 + 6 + 19 = 26. PARTIAL breakdown: EPIC-P5 contributes S-264; EPIC-P6 contributes S-107, S-112, S-115, S-118 — 4 stories, so PARTIAL total is 1 (P5) + 4 (P6) = 5, and CONFIRMED-DONE is 1 (S-108), NOT-DONE is 9 (P4) + 4 (P5) + 7 (P6) = 20. Corrected tally: CONFIRMED-DONE 1, PARTIAL 5, NOT-DONE 20, total 26.)
+Total: 1 + 5 + 20 = 26. Verified 2026-08-06 by independent re-check against code (this document was first produced by a prior session run that was interrupted by an unrelated usage-limit error; its findings were re-confirmed line-by-line against the live repos before being left in place, not taken on trust).
