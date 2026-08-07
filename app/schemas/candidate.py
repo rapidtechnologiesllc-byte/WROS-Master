@@ -33,12 +33,11 @@ class CandidateCreateRequest(BaseModel):
     # Salary info (optional)
     candidate_expected_salary: Optional[str] = None
     candidate_current_salary: Optional[str] = None
-    
-    # Location (optional)
-    candidate_current_location: Optional[str] = None
-    candidate_job_title: Optional[str] = None
-    # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
-    candidate_employee_type: Optional[str] = None
+
+    # Location (MANDATORY - needed for candidate search)
+    # Format: "City, State, Country" (e.g., "San Francisco, CA, USA")
+    candidate_current_location: str = Field(..., description="Required: City, State, Country format")
+
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
 

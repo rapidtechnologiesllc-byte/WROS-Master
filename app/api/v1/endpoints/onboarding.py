@@ -64,19 +64,26 @@ def create_candidate(
 ):
     """
     Create a new candidate account with comprehensive information.
-    
+
     Args:
         request: CandidateCreateRequest containing candidate details including:
-                - Required: email, role
-                - Optional: name fields, contact info, professional details, salary info, location
+                - Required: email, location (City, State, Country format)
+                - Optional: name fields, contact info, professional details, salary info
         db: Database session
-        
+
     Returns:
         CandidateCreateResponse with candidate_id, is_first_time flag, and generated password
-        
+
     Raises:
-        HTTPException: If candidate with email already exists
+        HTTPException: If candidate with email already exists, or location not provided
     """
+    # Validate location is provided (required for candidate search)
+    if not request.candidate_current_location or not request.candidate_current_location.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Location (City, State, Country) is mandatory for candidate creation"
+        )
+
     # R-07: createCandidateSafe() is the only sanctioned creation path --
     # runs email/phone/LinkedIn dedup (each independently) before any insert.
     password = generate_password()
