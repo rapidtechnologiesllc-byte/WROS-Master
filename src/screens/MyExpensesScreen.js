@@ -48,7 +48,11 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
   const handleAddProspect = async () => {
     if (!newProspectName.trim()) return;
     try {
-      const created = await createClient({ company_name: newProspectName.trim() });
+      const created = await createClient({
+        company_name: newProspectName.trim(),
+        line_type: "SPECIALITY",
+        billing_currency: "USD",
+      });
       await reloadClients();
       setForm((f) => ({ ...f, clientId: created.id }));
       setAddingProspect(false);

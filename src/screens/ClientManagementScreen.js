@@ -66,10 +66,6 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       setError("Company name is required.");
       return;
     }
-    if (mode === "create" && !form.website?.trim()) {
-      setError("Website is required (used to detect duplicate clients).");
-      return;
-    }
     setSaving(true);
     setError("");
     try {
@@ -104,7 +100,7 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input label="Company Name *" value={form.company_name} onChange={set("company_name")} />
         <Input label="Short Name" value={form.company_short_name || ""} onChange={set("company_short_name")} />
-        <Input label="Website *" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com" />
+        <Input label="Website" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com (optional)" />
         <Select label="Country" value={form.country} onChange={set("country")} options={COUNTRIES} />
         <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
@@ -113,7 +109,7 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
 
       {mode === "create" ? (
         <div className="mt-3 text-xs text-gray-500">
-          Contacts (Hiring Manager, Timesheet Approver, etc.) can be added after the client is created.
+          Contacts (Hiring Manager, Timesheet Approver, etc.) and website can be added/updated after creation.
         </div>
       ) : null}
 
