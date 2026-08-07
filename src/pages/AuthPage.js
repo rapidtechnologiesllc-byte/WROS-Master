@@ -2,11 +2,16 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import {
+  confirmMfaSetup,
   getAzureSigninUrl,
   login,
   resendCandidateEmailOtp,
+  resendStaffEmailOtp,
   setCandidateEmail2faOptIn,
+  setupMfa,
   verifyCandidateEmailOtp,
+  verifyMfa,
+  verifyStaffEmailOtp,
 } from "../services/api/auth";
 import { getHrMe } from "../services/api/users";
 
@@ -28,6 +33,19 @@ export default function AuthPage() {
   const [otpCode, setOtpCode] = useState("");
   const [otpNotice, setOtpNotice] = useState("");
   const [show2faOptInPopup, setShow2faOptInPopup] = useState(false);
+
+  // 2026-08-07 -- Staff MFA (Phase 1 B3). pendingMfaToken is the
+  // short-lived mfa_pending token (same "never written to hrms_token"
+  // discipline as pendingOtpToken above). mfaSetupData holds the
+  // one-time-shown provisioning_uri/secret/backup_codes from /setup --
+  // never re-fetchable, so it stays in React state only until the user
+  // confirms enrollment.
+  const [pendingMfaToken, setPendingMfaToken] = useState("");
+  const [mfaSetupData, setMfaSetupData] = useState(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [staffOtpCode, setStaffOtpCode] = useState("");
+  const [staffOtpNotice, setStaffOtpNotice] = useState("");
 
   const handleNext = (event) => {
     event.preventDefault();
@@ -132,6 +150,37 @@ export default function AuthPage() {
         return;
       }
 
+      // Staff MFA (Phase 1 B3) -- the backend has always returned these
+      // flags + a real mfa_pending token when the (off-by-default) gate
+      // applies to this role; this frontend just never checked for them
+      // before 2026-08-07. email_otp_required checked first since its
+      // code is already sent server-side as part of this same login
+      // call -- time-sensitive, shouldn't sit behind a TOTP step first.
+      if (data?.access_token && data?.email_otp_required) {
+        setPendingMfaToken(data.access_token);
+        setStep("staff-email-otp");
+        return;
+      }
+      if (data?.access_token && data?.mfa_setup_required) {
+        setPendingMfaToken(data.access_token);
+        setLoading(true);
+        try {
+          const setupData = await setupMfa(data.access_token);
+          setMfaSetupData(setupData);
+          setStep("mfa-setup");
+        } catch (setupErr) {
+          setError(setupErr.message || "Could not start MFA enrollment.");
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+      if (data?.access_token && data?.mfa_required) {
+        setPendingMfaToken(data.access_token);
+        setStep("mfa-verify");
+        return;
+      }
+
       if (data?.access_token) {
         await finishLogin(data, { offer2faOptIn: Boolean(data?.show_2fa_opt_in_popup) });
         return;
@@ -154,6 +203,67 @@ export default function AuthPage() {
       setError(err.message || "Invalid or expired code.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 2026-08-07 -- Staff MFA (Phase 1 B3). Confirms the just-generated
+  // TOTP secret works (first successful code proves enrollment), then
+  // finishes login with the real full token /setup/confirm returns.
+  const submitMfaSetupConfirm = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await confirmMfaSetup(pendingMfaToken, mfaCode.trim());
+      setMfaSetupData(null);
+      await finishLogin(data);
+    } catch (err) {
+      setError(err.message || "Invalid code. Check your authenticator app and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Already-enrolled path -- accepts either a fresh TOTP code or a
+  // single-use backup code, same real /auth/mfa/verify contract.
+  const submitMfaVerify = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = useBackupCode
+        ? await verifyMfa(pendingMfaToken, { backupCode: mfaCode.trim() })
+        : await verifyMfa(pendingMfaToken, { code: mfaCode.trim() });
+      await finishLogin(data);
+    } catch (err) {
+      setError(err.message || "Invalid or expired code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitStaffEmailOtp = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await verifyStaffEmailOtp(pendingMfaToken, staffOtpCode.trim());
+      await finishLogin(data);
+    } catch (err) {
+      setError(err.message || "Invalid or expired code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendStaffOtp = async () => {
+    setError("");
+    setStaffOtpNotice("");
+    try {
+      await resendStaffEmailOtp(pendingMfaToken);
+      setStaffOtpNotice("A new code has been sent to your email.");
+    } catch (err) {
+      setError(err.message || "Could not resend the code.");
     }
   };
 
@@ -257,6 +367,180 @@ export default function AuthPage() {
                   setOtpNotice("");
                   setOtpCode("");
                   setPendingOtpToken("");
+                  setStep("password");
+                }}
+              >
+                Go Back
+              </button>
+            </form>
+          ) : step === "staff-email-otp" ? (
+            <form onSubmit={submitStaffEmailOtp} className="space-y-4">
+              <p className="text-sm text-slate-600">
+                We emailed a verification code to{" "}
+                <span className="font-semibold">{loginForm.UserEmail}</span>.
+                Enter it below to finish signing in.
+              </p>
+              {staffOtpNotice ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {staffOtpNotice}
+                </div>
+              ) : null}
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-700">
+                  Verification Code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-center text-lg tracking-[0.5em] outline-none focus:border-bx-orange"
+                  value={staffOtpCode}
+                  onChange={(event) =>
+                    setStaffOtpCode(event.target.value.replace(/[^0-9]/g, ""))
+                  }
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
+                disabled={loading || staffOtpCode.length !== 6}
+              >
+                {loading ? "Verifying..." : "Verify & Sign In"}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+                onClick={handleResendStaffOtp}
+                disabled={loading}
+              >
+                Resend code
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+                onClick={() => {
+                  setError("");
+                  setStaffOtpNotice("");
+                  setStaffOtpCode("");
+                  setPendingMfaToken("");
+                  setStep("password");
+                }}
+              >
+                Go Back
+              </button>
+            </form>
+          ) : step === "mfa-setup" ? (
+            <form onSubmit={submitMfaSetupConfirm} className="space-y-4">
+              <p className="text-sm text-slate-600">
+                Your account requires an authenticator app for sign-in. Scan
+                this into Google Authenticator, Authy, or similar — or enter
+                the key manually if you can't scan.
+              </p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Setup key (manual entry)
+                </div>
+                <div className="select-all break-all font-mono text-sm text-slate-800">
+                  {mfaSetupData?.secret}
+                </div>
+              </div>
+              {mfaSetupData?.backup_codes?.length ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    Backup codes — save these now, shown only once
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 font-mono text-sm text-amber-900">
+                    {mfaSetupData.backup_codes.map((c) => (
+                      <div key={c}>{c}</div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-700">
+                  Enter the 6-digit code from your app to confirm setup
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-center text-lg tracking-[0.5em] outline-none focus:border-bx-orange"
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value.replace(/[^0-9]/g, ""))}
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
+                disabled={loading || mfaCode.length !== 6}
+              >
+                {loading ? "Confirming..." : "Confirm & Sign In"}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+                onClick={() => {
+                  setError("");
+                  setMfaCode("");
+                  setMfaSetupData(null);
+                  setPendingMfaToken("");
+                  setStep("password");
+                }}
+              >
+                Go Back
+              </button>
+            </form>
+          ) : step === "mfa-verify" ? (
+            <form onSubmit={submitMfaVerify} className="space-y-4">
+              <p className="text-sm text-slate-600">
+                Enter the 6-digit code from your authenticator app.
+              </p>
+              <div>
+                <label className="mb-1 flex items-center justify-between text-sm font-semibold text-slate-700">
+                  <span>{useBackupCode ? "Backup Code" : "Verification Code"}</span>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-bx-orange hover:underline"
+                    onClick={() => {
+                      setUseBackupCode((prev) => !prev);
+                      setMfaCode("");
+                    }}
+                  >
+                    {useBackupCode ? "Use authenticator code instead" : "Use a backup code instead"}
+                  </button>
+                </label>
+                <input
+                  type="text"
+                  inputMode={useBackupCode ? "text" : "numeric"}
+                  maxLength={useBackupCode ? 20 : 6}
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-center text-lg tracking-[0.3em] outline-none focus:border-bx-orange"
+                  value={mfaCode}
+                  onChange={(event) =>
+                    setMfaCode(useBackupCode ? event.target.value : event.target.value.replace(/[^0-9]/g, ""))
+                  }
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-bx-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-70"
+                disabled={loading || !mfaCode}
+              >
+                {loading ? "Verifying..." : "Verify & Sign In"}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+                onClick={() => {
+                  setError("");
+                  setMfaCode("");
+                  setUseBackupCode(false);
+                  setPendingMfaToken("");
                   setStep("password");
                 }}
               >
