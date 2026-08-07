@@ -37,7 +37,10 @@ export default function ErrorLogScreen() {
   }, [severity]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto space-y-4">
+      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <div className="text-lg font-bold text-gray-900">Error Log</div>
+      </div>
       <div className="flex items-center justify-between mb-4">
         <div className="w-48">
           <Select value={severity} onChange={setSeverity} options={SEVERITY_OPTIONS} />
