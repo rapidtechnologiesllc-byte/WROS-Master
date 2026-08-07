@@ -544,9 +544,16 @@ export default function AppRoutes() {
               element={
                 <CandidateCreate
                   onSave={async (c) => {
-                    const fullCandidate = await fetchCandidateById(c.id);
-                    setCandidates((prev) => [fullCandidate, ...prev]);
-                    navigate(`/candidates/${fullCandidate.id}`);
+                    try {
+                      const fullCandidate = await fetchCandidateById(c.id);
+                      setCandidates((prev) => [fullCandidate, ...prev]);
+                      navigate(`/candidates/${fullCandidate.id}`);
+                    } catch (err) {
+                      console.error("Failed to fetch candidate after creation, adding minimal data:", err);
+                      // Add the candidate with minimal data if full fetch fails
+                      setCandidates((prev) => [c, ...prev]);
+                      navigate(`/candidates/${c.id}`);
+                    }
                   }}
                 />
               }
@@ -772,9 +779,15 @@ export default function AppRoutes() {
             element={
               <CandidateCreate
                 onSave={async (c) => {
-                  const fullCandidate = await fetchCandidateById(c.id);
-                  setCandidates((prev) => [fullCandidate, ...prev]);
-                  navigate(`/candidates/${fullCandidate.id}`);
+                  try {
+                    const fullCandidate = await fetchCandidateById(c.id);
+                    setCandidates((prev) => [fullCandidate, ...prev]);
+                    navigate(`/candidates/${fullCandidate.id}`);
+                  } catch (err) {
+                    console.error("Failed to fetch candidate after creation, adding minimal data:", err);
+                    setCandidates((prev) => [c, ...prev]);
+                    navigate(`/candidates/${c.id}`);
+                  }
                 }}
               />
             }
