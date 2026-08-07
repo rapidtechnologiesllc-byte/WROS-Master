@@ -349,7 +349,7 @@ function DigestSection({ config, save }) {
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
             Digest Enabled
           </label>
-          <Input label="Digest Send Time (HH:MM, local)" value={sendTime} onChange={setSendTime} placeholder="08:00" />
+          <Input label="Digest Send Time" value={sendTime} onChange={setSendTime} placeholder="08:00" />
         </div>
       ) : (
         <div className="grid max-w-xl gap-2 text-sm">
