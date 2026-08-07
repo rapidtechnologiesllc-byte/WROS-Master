@@ -15,7 +15,6 @@ from app.services.candidate_service import (
 )
 from app.services.guidewire_candidate_service import is_guidewire_candidate
 from app.core.bu_scope import apply_bu_scope_to_candidate_query
-from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import (
     Candidate,
     CandidateInfoForm,
@@ -106,7 +105,6 @@ def create_candidate(
             candidateCurrentSalary=request.candidate_current_salary,
             candidateCurrentLocation=request.candidate_current_location,
             candidateCreatedAt=datetime.now(),
-            tenant_id=user.tenant_id,
         )
     except DuplicateCandidateError:
         raise HTTPException(
@@ -211,7 +209,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     # (a correctly-scoped sibling endpoint already existed but no
     # frontend screen ever called it).
     candidates = apply_bu_scope_to_candidate_query(
-        db, get_tenant_scoped_query(db, Candidate, current_user=user), current_user=user,
+        db, db.query(Candidate), current_user=user,
     ).all()
 
     candidates_data = []
