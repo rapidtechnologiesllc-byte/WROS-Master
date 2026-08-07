@@ -136,6 +136,17 @@ _STOPWORDS = {
     "candidate", "candidates", "find", "source", "sourcing", "me", "us", "need",
     "want", "wants", "looking", "please", "any", "some", "there", "is", "are",
     "resource", "someone",
+    # 2026-08-06 -- added after a real live query ("do you have a
+    # guidewire developer... that we can propose to a client") leaked
+    # sentence filler into the search keywords, requiring irrelevant
+    # words to also match a candidate's skills/title/experience under
+    # find_matching_candidates()'s "every keyword must match" rule.
+    "do", "you", "we", "can", "propose", "client", "clients", "at",
+    # Staffing-model words a Partner naturally says in a sourcing
+    # question but that aren't a Candidate-searchable skill/title field
+    # (delivery_engine/CORE-SPECIALITY is an Employee-level concept,
+    # post-conversion -- candidates aren't tagged with it yet).
+    "specialty", "speciality", "core", "engine",
 }
 
 
@@ -181,7 +192,9 @@ _CANDIDATE_STATUS_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _SOURCING_PATTERN = re.compile(
-    r"\b(find|source)\s+me\b|need\s+a\s+candidate\b|candidate\s+for\b|looking\s+for\s+(a|an|someone)\b",
+    r"\b(find|source)\s+me\b|need\s+a\s+candidate\b|candidate\s+for\b|looking\s+for\s+(a|an|someone)\b|"
+    r"\bdo\s+(you|we)\s+have\b|\bdo\s+we\s+have\s+any\b|\bany\s+candidates?\b|\bis\s+there\s+a\s+candidate\b|"
+    r"\bwho\s+(do\s+we\s+have|has)\b",
     re.IGNORECASE,
 )
 # Simple proper-noun heuristic for candidate-name extraction: 1-3
