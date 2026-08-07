@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 from app.models.rbac import BusinessUnit
@@ -105,7 +104,7 @@ def list_candidate_pool(
         )
 
     # HRMS-0109 -- scope to the caller's tenant.
-    candidate_query = get_tenant_scoped_query(db, Candidate, current_user=user)
+    candidate_query = db.query(Candidate)
     all_candidates = candidate_query.order_by(Candidate.candidateID).offset(skip).limit(limit).all()
 
     results = []

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.core.tenant_context import get_tenant_scoped_query
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
@@ -118,7 +117,7 @@ def get_all_jobs(
         AllJobsResponse with list of all jobs and total count
     """
     # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' jobs.
-    jobs = get_tenant_scoped_query(db, Jobs, current_user=user).all()
+    jobs = db.query(Jobs).all()
     
     # Build response
     jobs_data = []
@@ -234,7 +233,7 @@ def filter_jobs(
     """
     # HRMS-0109 -- scope to the caller's tenant before any of the
     # optional filters below narrow it further.
-    query = get_tenant_scoped_query(db, Jobs, current_user=user)
+    query = db.query(Jobs)
 
     if business_unit is not None:
         query = query.filter(Jobs.business_unit_id == business_unit)

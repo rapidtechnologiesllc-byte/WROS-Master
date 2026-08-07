@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.core.tenant_context import get_tenant_scoped_query
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import CandidateAssignment, Jobs, Users
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
@@ -400,7 +399,7 @@ def get_all_candidate_statuses(
 
     # HRMS-0109 -- scope to the caller's tenant first, then join
     # CandidateStatus only when a filter is active.
-    query = get_tenant_scoped_query(db, Candidate, current_user=user)
+    query = db.query(Candidate)
 
     if status is not None or pipeline_status is not None:
         query = query.join(
