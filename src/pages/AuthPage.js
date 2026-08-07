@@ -78,6 +78,10 @@ export default function AuthPage() {
       localStorage.setItem("user_info", JSON.stringify(user));
       localStorage.setItem("permission_role", user.permission_role);
     }
+    // Fallback: use user_role from login response if permission_role not available
+    if (data?.user_role) {
+      localStorage.setItem("permission_role", data.user_role);
+    }
     const entityType = String(data?.entity_type || "")
       .trim()
       .toLowerCase();

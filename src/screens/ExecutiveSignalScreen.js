@@ -94,11 +94,6 @@ export default function ExecutiveSignalScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-bx-navy">Executive Signal</h1>
-        <p className="text-sm text-gray-500">Advisory only -- watches and drafts, never acts on its own. {health?.note}</p>
-      </div>
-
       <Card title="Org Health Snapshot">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border border-gray-200 p-3 text-center">

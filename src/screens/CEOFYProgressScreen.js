@@ -80,12 +80,6 @@ export default function CEOFYProgressScreen() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">FY 2026 Progress Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Overall organizational progress: {summary.overall_health_pct}% health</p>
-      </div>
-
       {/* Executive Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -129,7 +123,6 @@ export default function CEOFYProgressScreen() {
       {/* Detailed Metrics */}
       {progress && (
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Detailed Progress</h2>
           <MetricCard
             metric={{
               label: "Headcount",
