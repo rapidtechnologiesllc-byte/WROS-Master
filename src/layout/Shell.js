@@ -26,7 +26,6 @@ import {
   Settings,
 } from "lucide-react";
 import cx from "../utils/cx";
-import TopBar from "./TopBar";
 import FlashWidget from "../components/FlashWidget";
 import { ROUTES } from "../utils/Routes";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -358,19 +357,7 @@ export default function Shell({
         </aside>
 
         <main className="flex-1">
-          <TopBar
-            role={role}
-            screen={screen}
-            setScreen={setScreen}
-            onLogout={onLogout}
-            candidates={candidates}
-            jobs={jobs}
-            setSelectedCandidateData={setSelectedCandidateData}
-            setSelectedJobId={setSelectedJobId}
-          />
-          <div className="mt-4">
-            <Outlet />
-          </div>
+          <Outlet />
         </main>
       </div>
       <FlashWidget />

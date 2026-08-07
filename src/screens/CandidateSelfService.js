@@ -1092,7 +1092,7 @@ export default function CandidateSelfService({ onLogout }) {
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <Input
-                    label="Department (Previous Company)"
+                    label="Department"
                     value={personal.department}
                     onChange={(v) =>
                       setPersonal((p) => ({ ...p, department: v }))
