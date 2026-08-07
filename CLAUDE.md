@@ -18,11 +18,17 @@
 - Frontend: Shows "Role • Business Unit" instead of "(local dev)" placeholder
 - Commit: `79e0f74`
 
-**3. AUTOMATIC AI RECRUITER ASSIGNMENT**
-- Created `candidate_ai_auto_assignment_service.py`
-- Every candidate auto-assigned Thunder upon intake
-- Removed manual "Assign AI Recruiter" button concept
-- Commit: `1e386c7`
+**3. THUNDER AI RECRUITER AUTO-ASSIGNMENT BUG FIX** ⭐ CRITICAL
+- **Problem:** Thunder auto-assignment was silently failing
+- **Root Cause:** Both call sites passed wrong tenant_id value:
+  - `onboarding.py:181` — passed `user.UserID` instead of `user.tenant_id`
+  - `create_job.py:958` — passed `job.recuriterID or job.contactPerson` instead of `job.tenant_id`
+  - Function checked `if not tenant_id: return` (line 507), so incorrect values skipped silently
+- **Solution:** 
+  - Line 181: `run_auto_assign_ai_agent_in_background(candidate_id, user.tenant_id)`
+  - Lines 953-962: `run_auto_assign_ai_agent_in_background(candidate_id, job.tenant_id)`
+- **Why This Matters:** Throughout candidate lifecycle (intake→conversion), Thunder should run autonomously without manual "Assign AI Recruiter" clicks
+- **Commit:** `c746970`
 
 **4. ADMIN PASSWORD RESET FIX**
 - New endpoint: `PUT /admin/users/{user_id}/reset-password`
