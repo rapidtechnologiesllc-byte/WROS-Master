@@ -20,7 +20,6 @@ export default function BuddyProgramListScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-xl font-bold text-bx-navy mb-4">30-Day Buddy Program</h1>
       <Card title="Active Cohort" subtitle="New hires currently in their Buddy Program run.">
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>

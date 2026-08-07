@@ -189,10 +189,6 @@ export default function MyWorkspace({ onLogout }) {
                 HRMS
               </div>
 
-              <h1 className="mt-1 text-xl font-bold text-gray-900">
-                My Workspace
-              </h1>
-
               <p className="mt-1 text-sm text-gray-500">
                 View your assigned interviews and submit interview feedback.
               </p>

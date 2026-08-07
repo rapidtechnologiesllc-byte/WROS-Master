@@ -94,14 +94,6 @@ export default function BuddyProgramScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-bx-navy">Buddy Program -- {record.employee_id}</h1>
-        <p className="text-sm text-gray-500">
-          {record.status} -- started {record.program_start_date}, expected end {record.expected_end_date}
-          {record.extension_count > 0 ? ` (extended ${record.extension_count}x)` : ""}
-        </p>
-      </div>
-
       <Card title="Weekly KPI Scoring" subtitle="Submit scores 1-5 for your category's KPIs -- a week only counts once all 35 are in.">
         <div className="mb-3 flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-700">Week</span>
