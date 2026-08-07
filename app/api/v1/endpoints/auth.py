@@ -112,8 +112,12 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     Raises:
         HTTPException 401: If credentials do not match any user or candidate.
     """
+    from app.core.logging import logger
+    logger.info(f"[LOGIN] unified_login attempt for email='{request.email}'")
+
     # ── 1. Try authenticating as a User first ───────────────────
     user = authenticate_user(db, request.email, request.password)
+    logger.info(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'False'}")
     if user:
         # Get authoritative UserRole from database (ORM not loading correctly)
         from sqlalchemy import text
