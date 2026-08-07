@@ -101,6 +101,9 @@ import BuddyProgramScreen from "../screens/BuddyProgramScreen";
 import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ErrorLogScreen from "../screens/ErrorLogScreen";
 import AdminSettingsScreen from "../screens/AdminSettingsScreen";
+import PartnerROIAgentScreen from "../screens/PartnerROIAgentScreen";
+import CEOFYProgressScreen from "../screens/CEOFYProgressScreen";
+import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 
@@ -496,6 +499,9 @@ export default function AppRoutes() {
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
+            <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
+            <Route path="ceo-fy-progress" element={<CEOFYProgressScreen />} />
+            <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
@@ -721,6 +727,9 @@ export default function AppRoutes() {
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
+            <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
+            <Route path="ceo-fy-progress" element={<CEOFYProgressScreen />} />
+            <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
