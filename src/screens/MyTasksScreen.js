@@ -167,7 +167,6 @@ export default function MyTasksScreen() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-bx-navy">My Tasks</h1>
           <p className="text-sm text-gray-500">Due today or overdue -- guaranteed on this list regardless of priority.</p>
         </div>
         <Button onClick={() => setShowCreate((s) => !s)}>+ New Task</Button>

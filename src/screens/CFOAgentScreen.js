@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { AlertTriangle, DollarSign, TrendingDown, Clock } from "lucide-react";
 import { Card, Button } from "../components/ui";
-import { apiRequest } from "../services/api/requests";
+import {
+  getCFOFinancialSnapshot,
+  getCFOAlerts,
+  getCFOBUComparison,
+  getCFOForecast
+} from "../services/api/agents";
 
 export default function CFOAgentScreen() {
   const [snapshot, setSnapshot] = useState(null);
@@ -18,27 +23,27 @@ export default function CFOAgentScreen() {
         setLoading(true);
 
         // Fetch financial snapshot
-        const snapshotRes = await apiRequest("/agents/cfo/financial-snapshot");
-        if (snapshotRes?.data) {
-          setSnapshot(snapshotRes.data);
+        const snapshot = await getCFOFinancialSnapshot();
+        if (snapshot) {
+          setSnapshot(snapshot);
         }
 
         // Fetch alerts
-        const alertsRes = await apiRequest("/agents/cfo/alerts");
-        if (alertsRes?.data) {
-          setAlerts(alertsRes.data);
+        const alerts = await getCFOAlerts();
+        if (alerts) {
+          setAlerts(alerts);
         }
 
         // Fetch BU comparison
-        const buRes = await apiRequest("/agents/cfo/bu-comparison");
-        if (buRes?.data) {
-          setBuComparison(buRes.data);
+        const buComparison = await getCFOBUComparison();
+        if (buComparison) {
+          setBuComparison(buComparison);
         }
 
         // Fetch forecast
-        const forecastRes = await apiRequest("/agents/cfo/forecast");
-        if (forecastRes?.data) {
-          setForecast(forecastRes.data);
+        const forecast = await getCFOForecast();
+        if (forecast) {
+          setForecast(forecast);
         }
       } catch (err) {
         toast.error("Failed to load CFO dashboard");
