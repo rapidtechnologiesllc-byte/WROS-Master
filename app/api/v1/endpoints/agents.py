@@ -101,19 +101,15 @@ def get_cfo_snapshot(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Get org-wide financial snapshot (CFO + Finance only).
+    Get org-wide financial snapshot (revenue.view_pnl gated).
 
     Permissions: revenue.view_pnl (Finance + CEO only)
     """
-    # This endpoint has stricter gating than revenue.view — only org-wide financial viewers
-    if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance and CEO can access financial snapshots"
-        )
-
-    snapshot = get_org_financial_snapshot(db, year_month)
-    return {"status": "success", "data": snapshot}
+    try:
+        snapshot = get_org_financial_snapshot(db, year_month)
+        return {"status": "success", "data": snapshot}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/cfo/alerts", dependencies=[Depends(require_permission("revenue.view_pnl"))])
@@ -121,15 +117,12 @@ def get_cfo_critical_alerts(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get critical financial alerts for CFO attention."""
-    if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance and CEO can access financial alerts"
-        )
-
-    alerts = get_cfo_alerts(db)
-    return {"status": "success", "data": alerts}
+    """Get critical financial alerts for CFO attention (revenue.view_pnl gated)."""
+    try:
+        alerts = get_cfo_alerts(db)
+        return {"status": "success", "data": alerts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/cfo/bu-comparison", dependencies=[Depends(require_permission("revenue.view_pnl"))])
@@ -138,15 +131,12 @@ def get_cfo_bu_comparison(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Compare all BU financials side-by-side."""
-    if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance and CEO can access BU comparisons"
-        )
-
-    comparison = get_bu_financial_comparison(db, year_month)
-    return {"status": "success", "data": comparison}
+    """Compare all BU financials side-by-side (revenue.view_pnl gated)."""
+    try:
+        comparison = get_bu_financial_comparison(db, year_month)
+        return {"status": "success", "data": comparison}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/cfo/expense-breakdown", dependencies=[Depends(require_permission("revenue.view_pnl"))])
@@ -155,15 +145,12 @@ def get_cfo_expenses(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get expense breakdown by category."""
-    if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance and CEO can access expense details"
-        )
-
-    breakdown = get_expense_breakdown(db, year_month)
-    return {"status": "success", "data": breakdown}
+    """Get expense breakdown by category (revenue.view_pnl gated)."""
+    try:
+        breakdown = get_expense_breakdown(db, year_month)
+        return {"status": "success", "data": breakdown}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/cfo/forecast", dependencies=[Depends(require_permission("revenue.view_pnl"))])
@@ -172,15 +159,12 @@ def get_cfo_forecast(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get financial forecast for next N months."""
-    if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance and CEO can access forecasts"
-        )
-
-    forecast = get_financial_forecast(db, months_ahead)
-    return {"status": "success", "data": forecast}
+    """Get financial forecast for next N months (revenue.view_pnl gated)."""
+    try:
+        forecast = get_financial_forecast(db, months_ahead)
+        return {"status": "success", "data": forecast}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
@@ -194,18 +178,15 @@ def get_ceo_fy_progress(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Get org-wide FY progress against targets (CEO + Finance only).
+    Get org-wide FY progress against targets (revenue.view_pnl gated).
 
     Returns: headcount, revenue, new logos, engagement, retention, utilization, margin progress.
     """
-    if current_user.UserRole not in ["Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only CEO can access FY progress dashboard"
-        )
-
-    progress = get_fy_progress(db, fy_year)
-    return {"status": "success", "data": progress}
+    try:
+        progress = get_fy_progress(db, fy_year)
+        return {"status": "success", "data": progress}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/ceo/fy-summary", dependencies=[Depends(require_permission("revenue.view_pnl"))])
@@ -213,12 +194,9 @@ def get_ceo_fy_summary(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get executive summary of FY progress with top priorities."""
-    if current_user.UserRole not in ["Super User", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only CEO can access FY summary"
-        )
-
-    summary = get_fy_executive_summary(db)
-    return {"status": "success", "data": summary}
+    """Get executive summary of FY progress with top priorities (revenue.view_pnl gated)."""
+    try:
+        summary = get_fy_executive_summary(db)
+        return {"status": "success", "data": summary}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
