@@ -5,8 +5,8 @@
 // drives every read-only panel below -- pick once, see everything for
 // that BU/period, matching the "fewer clicks, more outcome" mandate.
 import { useEffect, useState } from "react";
-import { Wallet, DollarSign, Building2, RefreshCw } from "lucide-react";
-import { Card, Button, Input, Select } from "../components/ui";
+import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
+import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
 import { searchUsers } from "../services/api/users";
 import {
@@ -18,8 +18,20 @@ import {
   checkHiringAffordability,
   recordIntercompanySettlement,
   listIntercompanySettlements,
+  getFullyLoadedCost,
+  getEntityNetPosition,
 } from "../services/api/financeOperations";
-import { getPartnerIncentiveEvents, calculateRevenueShare } from "../services/api/partnerIncentives";
+import {
+  getPartnerIncentiveEvents,
+  calculateRevenueShare,
+  createIncentiveRule,
+} from "../services/api/partnerIncentives";
+import { listAllExpenses, approveExpense } from "../services/api/expenses";
+
+const INCENTIVE_TYPES = [
+  { label: "Revenue Share", value: "REVENUE_SHARE" },
+  { label: "New Logo Bonus", value: "NEW_LOGO_BONUS" },
+];
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -58,6 +70,40 @@ export default function FinanceOperationsScreen() {
   const [incentivePartnerId, setIncentivePartnerId] = useState("");
   const [incentiveEvents, setIncentiveEvents] = useState([]);
 
+  const [ruleIncentiveType, setRuleIncentiveType] = useState("REVENUE_SHARE");
+  const [ruleAmount, setRuleAmount] = useState("");
+  const [ruleRevSharePct, setRuleRevSharePct] = useState("");
+  const [ruleTriggerDescription, setRuleTriggerDescription] = useState("");
+  const [ruleSaving, setRuleSaving] = useState(false);
+
+  const [costLookupEmployeeId, setCostLookupEmployeeId] = useState("");
+  const [costLookupResult, setCostLookupResult] = useState(null);
+  const [costLookupError, setCostLookupError] = useState("");
+  const [costLookupLoading, setCostLookupLoading] = useState(false);
+
+  const [netPositionEntity, setNetPositionEntity] = useState("BXUS");
+  const [netPositionResult, setNetPositionResult] = useState(null);
+  const [netPositionError, setNetPositionError] = useState("");
+  const [netPositionLoading, setNetPositionLoading] = useState(false);
+
+  const [allExpenses, setAllExpenses] = useState([]);
+  const [expensesLoading, setExpensesLoading] = useState(false);
+  const [expensesError, setExpensesError] = useState("");
+  const [approvingExpenseId, setApprovingExpenseId] = useState(null);
+
+  const loadAllExpenses = async () => {
+    setExpensesLoading(true);
+    setExpensesError("");
+    try {
+      const res = await listAllExpenses();
+      setAllExpenses(res?.expenses || []);
+    } catch (err) {
+      setExpensesError(err.message || "Failed to load expenses.");
+    } finally {
+      setExpensesLoading(false);
+    }
+  };
+
   useEffect(() => {
     listBusinessUnits()
       .then((list) => setBusinessUnits(list || []))
@@ -68,6 +114,7 @@ export default function FinanceOperationsScreen() {
     searchUsers({ permission_role: "Partner", limit: 100 })
       .then((res) => setPartners(res?.users || []))
       .catch((err) => console.error("Failed to load partners:", err));
+    loadAllExpenses();
   }, []);
 
   const partnerOptions = [
@@ -92,6 +139,82 @@ export default function FinanceOperationsScreen() {
       setIncentiveEvents(res?.events || []);
     } catch (err) {
       setError(err.message || "Failed to calculate revenue share.");
+    }
+  };
+
+  const handleCreateIncentiveRule = async () => {
+    if (!incentivePartnerId) {
+      setError("Select a Partner above before creating an incentive rule.");
+      return;
+    }
+    setRuleSaving(true);
+    setError("");
+    try {
+      await createIncentiveRule({
+        partner_user_id: incentivePartnerId,
+        incentive_type: ruleIncentiveType,
+        amount_usd_cents:
+          ruleIncentiveType === "NEW_LOGO_BONUS" && ruleAmount
+            ? Math.round(parseFloat(ruleAmount) * 100)
+            : null,
+        revenue_share_pct:
+          ruleIncentiveType === "REVENUE_SHARE" && ruleRevSharePct
+            ? parseFloat(ruleRevSharePct)
+            : null,
+        trigger_description: ruleTriggerDescription || null,
+      });
+      setRuleAmount("");
+      setRuleRevSharePct("");
+      setRuleTriggerDescription("");
+      const res = await getPartnerIncentiveEvents(incentivePartnerId);
+      setIncentiveEvents(res?.events || []);
+    } catch (err) {
+      setError(err.message || "Failed to create incentive rule.");
+    } finally {
+      setRuleSaving(false);
+    }
+  };
+
+  const handleLookupFullyLoadedCost = async () => {
+    if (!costLookupEmployeeId.trim()) return;
+    setCostLookupLoading(true);
+    setCostLookupError("");
+    setCostLookupResult(null);
+    try {
+      const res = await getFullyLoadedCost(costLookupEmployeeId.trim(), businessUnitId || undefined);
+      setCostLookupResult(res);
+    } catch (err) {
+      setCostLookupError(err.message || "Failed to look up fully loaded cost.");
+    } finally {
+      setCostLookupLoading(false);
+    }
+  };
+
+  const handleLookupNetPosition = async () => {
+    if (!netPositionEntity.trim()) return;
+    setNetPositionLoading(true);
+    setNetPositionError("");
+    setNetPositionResult(null);
+    try {
+      const res = await getEntityNetPosition(netPositionEntity.trim());
+      setNetPositionResult(res);
+    } catch (err) {
+      setNetPositionError(err.message || "Failed to look up entity net position.");
+    } finally {
+      setNetPositionLoading(false);
+    }
+  };
+
+  const handleApproveExpense = async (expenseId) => {
+    setApprovingExpenseId(expenseId);
+    setExpensesError("");
+    try {
+      await approveExpense(expenseId);
+      await loadAllExpenses();
+    } catch (err) {
+      setExpensesError(err.message || "Failed to approve expense.");
+    } finally {
+      setApprovingExpenseId(null);
     }
   };
 
@@ -257,6 +380,37 @@ export default function FinanceOperationsScreen() {
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-3 text-sm font-semibold text-gray-900">
+                  <Search className="mr-1 inline h-4 w-4" /> Fully Loaded Cost Lookup
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    label="Employee ID"
+                    value={costLookupEmployeeId}
+                    onChange={setCostLookupEmployeeId}
+                    placeholder="EMP-1042"
+                  />
+                  <Button className="mt-5" onClick={handleLookupFullyLoadedCost} disabled={costLookupLoading || !costLookupEmployeeId.trim()}>
+                    {costLookupLoading ? "Looking up…" : "Look Up"}
+                  </Button>
+                </div>
+                <div className="mt-1 text-xs text-gray-500">Uses this Business Unit's active Cost & Rate config.</div>
+                {costLookupError ? <div className="mt-2 text-xs text-rose-700">{costLookupError}</div> : null}
+                {costLookupResult ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500">Base Salary</div>
+                      <div className="font-semibold text-gray-900">{formatUsdCents(costLookupResult.base_salary_usd_cents)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Fully Loaded Cost</div>
+                      <div className="font-semibold text-gray-900">{formatUsdCents(costLookupResult.fully_loaded_cost_usd_cents)}</div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <div className="mb-3 text-sm font-semibold text-gray-900">Reserve Fund Entry</div>
                 <div className="grid grid-cols-2 gap-3">
                   <Select label="Type" value={reserveType} onChange={setReserveType} options={["CONTRIBUTION", "WITHDRAWAL"]} />
@@ -302,6 +456,31 @@ export default function FinanceOperationsScreen() {
                 ) : null}
               </div>
 
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-3 text-sm font-semibold text-gray-900">
+                  <Building2 className="mr-1 inline h-4 w-4" /> Intercompany Net Position
+                </div>
+                <div className="flex gap-2">
+                  <Input label="Entity" value={netPositionEntity} onChange={setNetPositionEntity} placeholder="BXUS" />
+                  <Button className="mt-5" onClick={handleLookupNetPosition} disabled={netPositionLoading || !netPositionEntity.trim()}>
+                    {netPositionLoading ? "Looking up…" : "Look Up"}
+                  </Button>
+                </div>
+                {netPositionError ? <div className="mt-2 text-xs text-rose-700">{netPositionError}</div> : null}
+                {netPositionResult ? (
+                  <div className="mt-3 text-sm">
+                    <div className="text-xs text-gray-500">Net Position for {netPositionResult.entity}</div>
+                    <div
+                      className={`text-lg font-semibold ${
+                        netPositionResult.net_position_usd_cents < 0 ? "text-rose-700" : "text-emerald-700"
+                      }`}
+                    >
+                      {formatUsdCents(netPositionResult.net_position_usd_cents)}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
                 <div className="mb-3 text-sm font-semibold text-gray-900">
                   <Wallet className="mr-1 inline h-4 w-4" /> Partner Incentives
@@ -323,9 +502,99 @@ export default function FinanceOperationsScreen() {
                 ) : incentivePartnerId ? (
                   <div className="mt-3 text-xs text-gray-500">No incentive events yet for this Partner.</div>
                 ) : null}
+
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <div className="mb-2 text-xs font-semibold text-gray-700">Create Incentive Rule for Selected Partner</div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Select label="Type" value={ruleIncentiveType} onChange={setRuleIncentiveType} options={INCENTIVE_TYPES} />
+                    {ruleIncentiveType === "REVENUE_SHARE" ? (
+                      <Input label="Revenue Share %" value={ruleRevSharePct} onChange={setRuleRevSharePct} placeholder="5" />
+                    ) : (
+                      <Input label="Bonus Amount (USD)" value={ruleAmount} onChange={setRuleAmount} placeholder="2500" />
+                    )}
+                    <Input
+                      label="Trigger Description"
+                      value={ruleTriggerDescription}
+                      onChange={setRuleTriggerDescription}
+                      placeholder="Optional notes"
+                    />
+                    <Button
+                      className="mt-5"
+                      onClick={handleCreateIncentiveRule}
+                      disabled={ruleSaving || !incentivePartnerId}
+                    >
+                      {ruleSaving ? "Saving…" : "Create Rule"}
+                    </Button>
+                  </div>
+                  {!incentivePartnerId ? (
+                    <div className="mt-2 text-xs text-gray-500">Select a Partner above first.</div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </>
+        )}
+      </Card>
+
+      <Card
+        title="Expense Review"
+        subtitle="All logged expenses across Clients/BUs -- approve pending spend. Not scoped to the Business Unit selected above."
+        icon={<Receipt className="h-4 w-4" />}
+        right={
+          <Button variant="ghost" onClick={loadAllExpenses} disabled={expensesLoading}>
+            <RefreshCw className={expensesLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
+          </Button>
+        }
+      >
+        {expensesError ? (
+          <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{expensesError}</div>
+        ) : null}
+        {expensesLoading ? (
+          <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
+        ) : allExpenses.length === 0 ? (
+          <div className="py-8 text-center text-sm text-gray-500">No expenses logged yet.</div>
+        ) : (
+          <Table
+            columns={[
+              { key: "date", header: "Date" },
+              { key: "purpose", header: "Purpose" },
+              { key: "subject", header: "Subject" },
+              { key: "category", header: "Category" },
+              { key: "amount", header: "Amount" },
+              { key: "status", header: "Status" },
+              { key: "actions", header: "" },
+            ]}
+            rows={allExpenses.map((e) => ({
+              date: e.expense_date,
+              purpose: e.purpose.replace("_", " "),
+              subject: e.conference_name || e.investment_label || (e.client_id ? "Client" : "—"),
+              category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
+              amount: formatUsdCents(e.amount_usd_cents),
+              status: (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    e.payment_status === "PENDING"
+                      ? "bg-amber-50 text-amber-800"
+                      : e.payment_status === "APPROVED"
+                      ? "bg-blue-50 text-blue-800"
+                      : "bg-emerald-50 text-emerald-800"
+                  }`}
+                >
+                  {e.payment_status}
+                </span>
+              ),
+              actions:
+                e.payment_status === "PENDING" ? (
+                  <Button
+                    variant="success"
+                    disabled={approvingExpenseId === e.id}
+                    onClick={() => handleApproveExpense(e.id)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> Approve
+                  </Button>
+                ) : null,
+            }))}
+          />
         )}
       </Card>
     </div>

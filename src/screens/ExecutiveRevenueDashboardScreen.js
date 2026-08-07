@@ -2,15 +2,27 @@
 // targets + S-244 Pipeline Coverage. Every figure here is a direct
 // read of the shared backend calculations (calculate_weighted_forecast
 // etc.) -- no local recalculation, per BR-0212-01.
+//
+// 2026-08-06: wired 2 previously-orphaned wrappers (working backend +
+// api/ function, never imported by any screen):
+//  - getBuTarget (GET /revenue-targets/bu/:id) -- auto-loads the
+//    currently-set target/actual/status for the selected BU + fiscal
+//    year the moment both are picked, instead of only showing a result
+//    after re-submitting a new target via createBuTarget.
+//  - getPipelineCoverage (GET /revenue-targets/pipeline-coverage) --
+//    new "Pipeline Coverage" widget: how many multiples of a revenue
+//    target the open (non-WON/LOST) pipeline currently covers.
 import { useEffect, useState } from "react";
-import { LineChart, Plus } from "lucide-react";
+import { LineChart, Plus, Target } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import {
   getExecutiveDashboard,
   createBuTarget,
+  getBuTarget,
   createPartnerGoal,
   getPartnerPosition,
   getRevenueToDemandProjection,
+  getPipelineCoverage,
 } from "../services/api/revenueTargets";
 import { listBusinessUnits } from "../services/api/rbac";
 import { searchUsers } from "../services/api/users";
@@ -79,6 +91,30 @@ function BuTargetForm() {
       });
   }, [businessUnitId]);
 
+  // Picking a BU + fiscal year also loads whatever ANNUAL target is
+  // already on record for it (GET /revenue-targets/bu/:id) -- previously
+  // the only way to see a target/actual/status was to re-submit one via
+  // createBuTarget. get_bu_target_vs_actual never errors on "no target
+  // set yet" (returns status "NO_TARGET"), so this is safe to auto-fire.
+  useEffect(() => {
+    if (!businessUnitId || !fiscalYear) {
+      setResult(null);
+      return;
+    }
+    let cancelled = false;
+    getBuTarget(Number(businessUnitId), "ANNUAL", Number(fiscalYear))
+      .then((data) => {
+        if (!cancelled) setResult(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load existing BU target:", err);
+        if (!cancelled) setResult(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessUnitId, fiscalYear]);
+
   const buOptions = [
     { label: "Select Business Unit", value: "", disabled: true },
     ...businessUnits.map((bu) => ({ label: bu.name, value: bu.id })),
@@ -132,6 +168,7 @@ function BuTargetForm() {
       {result ? (
         <>
           <div className="mt-3 text-xs text-gray-700">
+            {result.status === "NO_TARGET" ? "No target set yet for this BU/year" : "Current Target"} ·{" "}
             Target: {formatUsdCents(result.target_amount_usd_cents)} · Actual: {formatUsdCents(result.actual_usd_cents)} ·{" "}
             <span className="font-semibold">{result.status}</span>
           </div>
@@ -199,6 +236,71 @@ function PartnerGoalForm() {
           </div>
           <PeriodBreakdown annualUsdCents={currentYearTarget?.target_amount_usd_cents} />
         </>
+      ) : null}
+    </div>
+  );
+}
+
+// S-244 Pipeline Coverage -- how many multiples of a chosen revenue
+// target the currently-open (non-WON/LOST) pipeline covers, scoped to
+// whatever BU/client visibility the logged-in user already has
+// (revenue.view -- same scope as the dashboard totals above).
+function PipelineCoverageWidget() {
+  const [targetAmount, setTargetAmount] = useState("");
+  const [coverage, setCoverage] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleCheck = async () => {
+    setError("");
+    const usdCents = Math.round(parseFloat(targetAmount || "0") * 100);
+    if (!usdCents || usdCents <= 0) {
+      setError("Enter a positive revenue target.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await getPipelineCoverage(usdCents);
+      setCoverage(data);
+    } catch (err) {
+      setError(err.message || "Failed to compute pipeline coverage.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <Target className="h-4 w-4" /> Pipeline Coverage
+      </div>
+      <p className="mb-3 text-xs text-gray-500">
+        Open pipeline (excludes WON/LOST) as a multiple of a revenue target -- e.g. 3x coverage
+        against a quota is the common healthy-pipeline benchmark.
+      </p>
+      {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Input
+          label="Revenue Target (USD)"
+          value={targetAmount}
+          onChange={setTargetAmount}
+          placeholder="2000000"
+        />
+        <div className="flex items-end">
+          <Button onClick={handleCheck} disabled={loading}>
+            {loading ? "Checking…" : "Check Coverage"}
+          </Button>
+        </div>
+      </div>
+      {coverage ? (
+        <div className="mt-3 rounded-lg border bg-white p-2 text-xs text-gray-700">
+          Target: <span className="font-semibold">{formatUsdCents(coverage.revenue_target_usd_cents)}</span>
+          {" · "}
+          Coverage Ratio:{" "}
+          <span className="font-semibold">
+            {coverage.coverage_ratio == null ? "—" : `${coverage.coverage_ratio.toFixed(2)}x`}
+          </span>
+        </div>
       ) : null}
     </div>
   );
@@ -279,6 +381,8 @@ export default function ExecutiveRevenueDashboardScreen() {
             </div>
           </>
         )}
+
+        <PipelineCoverageWidget />
 
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <BuTargetForm />

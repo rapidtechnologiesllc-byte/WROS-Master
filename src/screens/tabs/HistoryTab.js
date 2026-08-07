@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   getCandidateHistory,
+  getLatestCandidateHistory,
   HISTORY_EVENT_TYPES,
   HISTORY_EVENT_TYPE_OPTIONS,
 } from "../../services/api/candidateHistory";
@@ -102,6 +103,7 @@ export default function HistoryTab({ candidateId }) {
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [latestEvent, setLatestEvent] = useState(null);
 
   const fetchHistory = useCallback(async () => {
     if (!candidateId) return;
@@ -125,9 +127,26 @@ export default function HistoryTab({ candidateId }) {
     }
   }, [candidateId, selectedEventType]);
 
+  // S-070 -- convenience "latest change" card, independent of the
+  // event-type filter above so it always reflects the single most
+  // recent event regardless of what the timeline below is filtered to.
+  const fetchLatestEvent = useCallback(async () => {
+    if (!candidateId) return;
+    try {
+      const data = await getLatestCandidateHistory(candidateId, 1);
+      setLatestEvent(data?.events?.[0] || null);
+    } catch (err) {
+      console.error("Failed to fetch latest candidate history entry", err);
+    }
+  }, [candidateId]);
+
   useEffect(() => {
     fetchHistory();
   }, [candidateId, selectedEventType]);
+
+  useEffect(() => {
+    fetchLatestEvent();
+  }, [candidateId, fetchLatestEvent]);
 
   const filteredEvents = useMemo(() => {
     const events = Array.isArray(historyData?.events) ? historyData.events : [];
@@ -184,7 +203,10 @@ export default function HistoryTab({ candidateId }) {
 
           <button
             type="button"
-            onClick={fetchHistory}
+            onClick={() => {
+              fetchHistory();
+              fetchLatestEvent();
+            }}
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -233,6 +255,40 @@ export default function HistoryTab({ candidateId }) {
           </div>
         </div>
       </div>
+
+      {latestEvent && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {(() => {
+                const LatestIcon = getEventIcon(latestEvent.event_type);
+                return <LatestIcon size={15} className="text-blue-700" />;
+              })()}
+              <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                Latest Update
+              </span>
+              <span
+                className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getEventBadgeClass(
+                  latestEvent.event_type,
+                )}`}
+              >
+                {latestEvent.event_type || "History Event"}
+              </span>
+            </div>
+            <span className="text-xs text-blue-600">
+              {formatDateTime(latestEvent.event_at || latestEvent.created_at)}
+            </span>
+          </div>
+          {latestEvent.performed_by_name && (
+            <p className="mt-2 text-xs text-gray-600">
+              By {latestEvent.performed_by_name}
+            </p>
+          )}
+          {latestEvent.note && (
+            <p className="mt-1 text-sm text-gray-700">{latestEvent.note}</p>
+          )}
+        </div>
+      )}
 
       {errorMessage && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import cx from "../../utils/cx";
-import { getActivityFeed, markAllActivityRead } from "../../services/api/activityFeed";
+import { getActivityFeed, markActivityRead, markAllActivityRead } from "../../services/api/activityFeed";
 
 const SEVERITY_BORDER = {
   INFO: "border-l-gray-300",
@@ -71,6 +71,21 @@ export default function ThunderActivityFeedPanel() {
   };
 
   const handleItemClick = (activity) => {
+    // BR-01: ACTION_REQUIRED items never auto-clear via read-all, so
+    // clicking one is the only way it gets marked read.
+    if (!activity.is_read) {
+      markActivityRead(activity.id)
+        .then(() =>
+          setFeed((prev) => ({
+            ...prev,
+            unread_count: Math.max(0, prev.unread_count - 1),
+            activities: prev.activities.map((a) => (a.id === activity.id ? { ...a, is_read: true } : a)),
+          })),
+        )
+        .catch(() => {
+          // Non-fatal -- item just stays unread-styled until next load.
+        });
+    }
     if (activity.candidate_id) navigate(`/candidates/${activity.candidate_id}?tab=messages`);
     setOpen(false);
   };

@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 import { Card, Button, Input } from "../components/ui";
 import {
   approveRecognition, closeFeedbackCycle, createFeedbackCycle, generateBirthdayDrafts,
-  getOrgHealth, getPendingRecognition, rejectRecognition,
+  getOrgHealth, getPendingRecognition, rejectRecognition, submitConcern,
 } from "../services/api/executiveSignal";
 
 export default function ExecutiveSignalScreen() {
@@ -14,6 +14,8 @@ export default function ExecutiveSignalScreen() {
   const [pending, setPending] = useState([]);
   const [quarterLabel, setQuarterLabel] = useState("");
   const [loading, setLoading] = useState(true);
+  const [concernText, setConcernText] = useState("");
+  const [submittingConcern, setSubmittingConcern] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -73,6 +75,21 @@ export default function ExecutiveSignalScreen() {
     }
   };
 
+  const handleSubmitConcern = async () => {
+    const trimmed = concernText.trim();
+    if (!trimmed) return;
+    setSubmittingConcern(true);
+    try {
+      await submitConcern(trimmed);
+      toast.success("Your concern has been raised.");
+      setConcernText("");
+    } catch (err) {
+      toast.error(err.message || "Could not submit your concern.");
+    } finally {
+      setSubmittingConcern(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
   return (
@@ -126,6 +143,21 @@ export default function ExecutiveSignalScreen() {
         <div className="flex gap-2">
           <Input label="Quarter (e.g. 2026-Q3)" value={quarterLabel} onChange={setQuarterLabel} />
           <Button onClick={handleCreateCycle}>Open Cycle</Button>
+        </div>
+      </Card>
+
+      <Card title="Raise a Concern" subtitle="Sent under your own name to Executive Signal for triage -- not anonymous.">
+        <textarea
+          value={concernText}
+          onChange={(e) => setConcernText(e.target.value)}
+          placeholder="What's on your mind?"
+          rows={3}
+          className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+        />
+        <div className="mt-2 flex justify-end">
+          <Button onClick={handleSubmitConcern} disabled={submittingConcern || !concernText.trim()}>
+            {submittingConcern ? "Submitting…" : "Submit Concern"}
+          </Button>
         </div>
       </Card>
     </div>

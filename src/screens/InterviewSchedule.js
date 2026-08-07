@@ -10,6 +10,7 @@ import {
 import {
   getGraphMe,
   getMicrosoftSigninUrl,
+  scheduleTeamsMeeting,
   scheduleUserMeeting,
 } from "../services/api/msgraph";
 import { getAllUsers } from "../services/api/users";
@@ -75,6 +76,15 @@ export default function InterviewSchedule({
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [msConnected, setMsConnected] = useState(false);
   const [msUserEmail, setMsUserEmail] = useState("");
+  // S-XXX orphan-code fix, 2026-08-06: /msgraph/service/calendar/schedule
+  // uses application-level Graph permissions ("No user sign-in required"
+  // per its own docstring) -- lets a recruiter who hasn't personally
+  // connected Microsoft still get a real Teams link, organized on behalf
+  // of whichever mailbox they name (their own, by default).
+  const [useServiceAccount, setUseServiceAccount] = useState(false);
+  const [organizerEmail, setOrganizerEmail] = useState(
+    localStorage.getItem("hrms_user_email") || "",
+  );
 
   const newId = useMemo(() => {
     const n = Math.floor(3000 + Math.random() * 7000);
@@ -333,6 +343,7 @@ export default function InterviewSchedule({
                 type="button"
                 variant="secondary"
                 onClick={() => window.open(getMicrosoftSigninUrl(), "_blank")}
+                disabled={useServiceAccount}
               >
                 {msConnected ? "Re-connect Microsoft" : "Connect Microsoft"}
               </Button>
@@ -343,6 +354,25 @@ export default function InterviewSchedule({
                 ? `Connected${msUserEmail ? ` (${msUserEmail})` : ""}`
                 : "Not connected"}
             </div>
+            <label className="mt-3 flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={useServiceAccount}
+                onChange={(e) => setUseServiceAccount(e.target.checked)}
+              />
+              Schedule via Teams using the service account instead (no
+              personal Microsoft sign-in required)
+            </label>
+            {useServiceAccount ? (
+              <div className="mt-2">
+                <Input
+                  label="Organizer Email"
+                  value={organizerEmail}
+                  onChange={setOrganizerEmail}
+                  placeholder="organizer@company.com"
+                />
+              </div>
+            ) : null}
           </div>
           <div className="md:col-span-2">
             <Input
@@ -415,7 +445,12 @@ export default function InterviewSchedule({
                 .filter(Boolean);
               setStatusNotice("");
               setDiversityWarnings([]);
-              if (!msConnected) {
+              if (useServiceAccount) {
+                if (!organizerEmail.trim()) {
+                  setStatusNotice("Organizer email is required for service-account scheduling.");
+                  return;
+                }
+              } else if (!msConnected) {
                 setStatusNotice(
                   "Microsoft sign-in required. Please connect first.",
                 );
@@ -446,14 +481,24 @@ export default function InterviewSchedule({
                 setDiversityWarnings(newDiversityWarnings);
                 const startIso = new Date(startTime).toISOString();
                 const endIso = new Date(endTime).toISOString();
-                const meeting = await scheduleUserMeeting({
-                  subject: `Interview - ${activeCandidate.name} (${roundName})`,
-                  startIso,
-                  endIso,
-                  attendees: attendeeList,
-                  timezone: timezone || "UTC",
-                  teamsOnline: true,
-                });
+                const meeting = useServiceAccount
+                  ? await scheduleTeamsMeeting({
+                      organizerEmail: organizerEmail.trim(),
+                      subject: `Interview - ${activeCandidate.name} (${roundName})`,
+                      startIso,
+                      endIso,
+                      attendees: attendeeList,
+                      timezone: timezone || "UTC",
+                      teamsOnline: true,
+                    })
+                  : await scheduleUserMeeting({
+                      subject: `Interview - ${activeCandidate.name} (${roundName})`,
+                      startIso,
+                      endIso,
+                      attendees: attendeeList,
+                      timezone: timezone || "UTC",
+                      teamsOnline: true,
+                    });
                 const interview = await createInterview({
                   panelId,
                   candidateId: activeCandidate.id,

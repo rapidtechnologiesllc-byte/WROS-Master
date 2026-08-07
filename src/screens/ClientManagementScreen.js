@@ -10,9 +10,15 @@
 // key; every client needs Hiring Manager + Timesheet Approver contacts
 // captured at creation.
 import { useEffect, useState } from "react";
-import { Building2, Plus, Pencil } from "lucide-react";
+import { Building2, Plus, Pencil, TrendingUp, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
-import { listClients, createClient, updateClient } from "../services/api/clients";
+import { listClients, createClient, updateClient, getClient } from "../services/api/clients";
+import { getClientInvestmentPosition } from "../services/api/expenses";
+
+const formatUsdCents = (cents) =>
+  cents == null
+    ? "—"
+    : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const LINE_TYPES = ["CORE", "SPECIALITY"];
 const CLIENT_TIERS = ["PLATINUM", "GOLD", "SILVER", "STANDARD"];
@@ -140,6 +146,12 @@ export default function ClientManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [editLoadingId, setEditLoadingId] = useState(null);
+  const [detailClient, setDetailClient] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [investmentPosition, setInvestmentPosition] = useState(null);
+  const [investmentPositionError, setInvestmentPositionError] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -163,22 +175,81 @@ export default function ClientManagementScreen() {
     load();
   };
 
+  const handleEditClick = async (c) => {
+    setShowAdd(false);
+    setDetailClient(null);
+    setEditLoadingId(c.id);
+    try {
+      // The list endpoint only returns company_name/status/BU/line_type --
+      // fetching the real record here so Save doesn't blank out every
+      // other field (website, tier, notes, etc.) back to form defaults.
+      const full = await getClient(c.id);
+      setEditingClient({
+        id: full.id,
+        company_name: full.company_name || "",
+        company_short_name: full.company_short_name || "",
+        country: full.country || "",
+        line_type: full.line_type || "CORE",
+        website: full.website || "",
+        tier: full.tier || "STANDARD",
+        billing_currency: full.billing_currency || "USD",
+        notes: full.notes || "",
+      });
+    } catch (err) {
+      console.error("Failed to load client details:", err);
+      setEditingClient({ id: c.id, ...emptyForm, company_name: c.company_name });
+    } finally {
+      setEditLoadingId(null);
+    }
+  };
+
+  const handleRowClick = async (c) => {
+    setDetailError("");
+    setInvestmentPosition(null);
+    setInvestmentPositionError("");
+    setDetailClient({ id: c.id, company_name: c.company_name });
+    setDetailLoading(true);
+    try {
+      const full = await getClient(c.id);
+      setDetailClient(full);
+    } catch (err) {
+      setDetailError(err.message || "Failed to load client details.");
+    } finally {
+      setDetailLoading(false);
+    }
+    try {
+      const position = await getClientInvestmentPosition(c.id);
+      setInvestmentPosition(position);
+    } catch (err) {
+      setInvestmentPositionError(err.message || "Failed to load investment position.");
+    }
+  };
+
+  const handleCloseDetail = () => {
+    setDetailClient(null);
+    setInvestmentPosition(null);
+    setInvestmentPositionError("");
+    setDetailError("");
+  };
+
   const rows = clients.map((c) => ({
-    company_name: c.company_name,
+    company_name: (
+      <button
+        type="button"
+        onClick={() => handleRowClick(c)}
+        className="text-left font-medium text-blue-700 hover:underline"
+      >
+        {c.company_name}
+      </button>
+    ),
     status: (
       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
         {c.status}
       </span>
     ),
     actions: (
-      <Button
-        variant="ghost"
-        onClick={() => {
-          setShowAdd(false);
-          setEditingClient({ id: c.id, ...emptyForm, company_name: c.company_name });
-        }}
-      >
-        <Pencil className="h-4 w-4" /> Edit
+      <Button variant="ghost" onClick={() => handleEditClick(c)} disabled={editLoadingId === c.id}>
+        <Pencil className="h-4 w-4" /> {editLoadingId === c.id ? "Loading…" : "Edit"}
       </Button>
     ),
   }));
@@ -225,6 +296,117 @@ export default function ClientManagementScreen() {
           />
         )}
       </Card>
+
+      {detailClient ? (
+        <ClientDetailModal
+          client={detailClient}
+          loading={detailLoading}
+          error={detailError}
+          investmentPosition={investmentPosition}
+          investmentPositionError={investmentPositionError}
+          onClose={handleCloseDetail}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ClientDetailModal({ client, loading, error, investmentPosition, investmentPositionError, onClose }) {
+  const fields = [
+    { label: "Company Name", value: client.company_name },
+    { label: "Short Name", value: client.company_short_name },
+    { label: "Status", value: client.status },
+    { label: "Line Type", value: client.line_type },
+    { label: "Tier", value: client.tier },
+    { label: "Country", value: client.country },
+    { label: "Website", value: client.website },
+    { label: "Billing Currency", value: client.billing_currency },
+    { label: "Payment Terms (days)", value: client.payment_terms_days },
+    { label: "Billing Address", value: client.billing_address },
+    { label: "Contract Start", value: client.contract_start_date },
+    { label: "Contract End", value: client.contract_end_date },
+    { label: "NDA Signed", value: client.nda_signed === undefined ? undefined : client.nda_signed ? "Yes" : "No" },
+    { label: "Notes", value: client.notes },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="text-base font-semibold text-gray-900">{client.company_name}</div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-5 py-4">
+          {loading ? (
+            <div className="py-6 text-center text-sm text-gray-500">Loading client details…</div>
+          ) : error ? (
+            <div className="text-sm text-rose-700">{error}</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {fields.map((f) => (
+                <div key={f.label} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{f.label}</div>
+                  <div className="mt-1 break-words text-sm font-medium text-gray-900">
+                    {f.value === undefined || f.value === null || f.value === "" ? "-" : String(f.value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 border-t pt-4">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Investment Position
+            </div>
+            {investmentPositionError ? (
+              <div className="text-sm text-rose-700">{investmentPositionError}</div>
+            ) : !investmentPosition ? (
+              <div className="text-sm text-gray-400">Loading…</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="text-xs text-gray-500">Total Expense</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {formatUsdCents(investmentPosition.total_expense_usd_cents)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="text-xs text-gray-500">Total Revenue</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {formatUsdCents(investmentPosition.total_revenue_usd_cents)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="text-xs text-gray-500">Net Position</div>
+                  <div
+                    className={`mt-1 text-sm font-semibold ${
+                      investmentPosition.net_position_usd_cents < 0 ? "text-rose-700" : "text-green-700"
+                    }`}
+                  >
+                    {formatUsdCents(investmentPosition.net_position_usd_cents)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="text-xs text-gray-500">Breakeven Date</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {investmentPosition.breakeven_date || "Not yet"}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="text-xs text-gray-500">Expense Records</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{investmentPosition.expense_count}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
