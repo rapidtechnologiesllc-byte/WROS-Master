@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { CheckCircle, AlertCircle, TrendingUp } from "lucide-react";
 import { Card } from "../components/ui";
-import { apiRequest } from "../services/api/requests";
+import { getCEOFYProgress, getCEOFYSummary } from "../services/api/agents";
 
 export default function CEOFYProgressScreen() {
   const [summary, setSummary] = useState(null);
@@ -15,15 +15,15 @@ export default function CEOFYProgressScreen() {
         setLoading(true);
 
         // Fetch FY summary
-        const summaryRes = await apiRequest("/agents/ceo/fy-summary");
-        if (summaryRes?.data) {
-          setSummary(summaryRes.data);
+        const summary = await getCEOFYSummary();
+        if (summary) {
+          setSummary(summary);
         }
 
         // Fetch full progress
-        const progressRes = await apiRequest("/agents/ceo/fy-progress");
-        if (progressRes?.data) {
-          setProgress(progressRes.data);
+        const progress = await getCEOFYProgress();
+        if (progress) {
+          setProgress(progress);
         }
       } catch (err) {
         toast.error("Failed to load FY progress dashboard");

@@ -7,13 +7,27 @@
 // 2026-08-06 redesign, confirmed directly with Avinash while testing
 // live: Line Type (Core/Specialty) replaces Client Type on create;
 // Industry dropped; Country is a dropdown; Website is a required dedup
-// key; every client needs Hiring Manager + Timesheet Approver contacts
-// captured at creation.
+// key.
+//
+// 2026-08-07: Hiring Manager / Timesheet Approver contacts moved OFF
+// the create form per Avinash's live-testing feedback (real JobDiva
+// client record shown as reference: contacts are their own tab, not a
+// field that blocks creating the company). Contacts are now captured
+// after creation, in the client detail view -- see ClientContactsPanel
+// below. A client still can't go status=ACTIVE without at least one
+// contact (enforced server-side, unchanged).
 import { useEffect, useState } from "react";
-import { Building2, Plus, Pencil, TrendingUp, X } from "lucide-react";
+import { Building2, Plus, Pencil, TrendingUp, Users, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
-import { listClients, createClient, updateClient, getClient } from "../services/api/clients";
+import {
+  listClients, createClient, updateClient, getClient,
+  getClientContacts, addClientContact,
+} from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
+
+const CONTACT_ROLE_TYPES = [
+  "HIRING_MANAGER", "TIMESHEET_APPROVER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY",
+];
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -38,10 +52,6 @@ const emptyForm = {
   tier: "STANDARD",
   billing_currency: "USD",
   notes: "",
-  hiring_manager_name: "",
-  hiring_manager_email: "",
-  timesheet_approver_name: "",
-  timesheet_approver_email: "",
 };
 
 function ClientForm({ mode, initial, onCancel, onSaved }) {
@@ -56,19 +66,9 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       setError("Company name is required.");
       return;
     }
-    if (mode === "create") {
-      if (!form.website?.trim()) {
-        setError("Website is required (used to detect duplicate clients).");
-        return;
-      }
-      if (!form.hiring_manager_name?.trim() || !form.hiring_manager_email?.trim()) {
-        setError("Hiring Manager contact (name + email) is required.");
-        return;
-      }
-      if (!form.timesheet_approver_name?.trim() || !form.timesheet_approver_email?.trim()) {
-        setError("Timesheet Approver contact (name + email) is required.");
-        return;
-      }
+    if (mode === "create" && !form.website?.trim()) {
+      setError("Website is required (used to detect duplicate clients).");
+      return;
     }
     setSaving(true);
     setError("");
@@ -85,14 +85,6 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
           country: form.country || null,
           website: form.website,
           billing_currency: form.billing_currency,
-          hiring_manager: {
-            name: form.hiring_manager_name,
-            email: form.hiring_manager_email,
-          },
-          timesheet_approver: {
-            name: form.timesheet_approver_name,
-            email: form.timesheet_approver_email,
-          },
         });
       }
       onSaved();
@@ -120,12 +112,8 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       </div>
 
       {mode === "create" ? (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2 text-xs font-semibold text-gray-700">Client Contacts</div>
-          <Input label="Hiring Manager Name *" value={form.hiring_manager_name || ""} onChange={set("hiring_manager_name")} />
-          <Input label="Hiring Manager Email *" value={form.hiring_manager_email || ""} onChange={set("hiring_manager_email")} />
-          <Input label="Timesheet Approver Name *" value={form.timesheet_approver_name || ""} onChange={set("timesheet_approver_name")} />
-          <Input label="Timesheet Approver Email *" value={form.timesheet_approver_email || ""} onChange={set("timesheet_approver_email")} />
+        <div className="mt-3 text-xs text-gray-500">
+          Contacts (Hiring Manager, Timesheet Approver, etc.) can be added after the client is created.
         </div>
       ) : null}
 
@@ -152,6 +140,9 @@ export default function ClientManagementScreen() {
   const [detailError, setDetailError] = useState("");
   const [investmentPosition, setInvestmentPosition] = useState(null);
   const [investmentPositionError, setInvestmentPositionError] = useState("");
+  const [contacts, setContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactsError, setContactsError] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -203,10 +194,25 @@ export default function ClientManagementScreen() {
     }
   };
 
+  const loadContacts = async (clientId) => {
+    setContactsLoading(true);
+    setContactsError("");
+    try {
+      const data = await getClientContacts(clientId);
+      setContacts(data?.contacts || []);
+    } catch (err) {
+      setContactsError(err.message || "Failed to load contacts.");
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
   const handleRowClick = async (c) => {
     setDetailError("");
     setInvestmentPosition(null);
     setInvestmentPositionError("");
+    setContacts([]);
+    setContactsError("");
     setDetailClient({ id: c.id, company_name: c.company_name });
     setDetailLoading(true);
     try {
@@ -223,6 +229,7 @@ export default function ClientManagementScreen() {
     } catch (err) {
       setInvestmentPositionError(err.message || "Failed to load investment position.");
     }
+    loadContacts(c.id);
   };
 
   const handleCloseDetail = () => {
@@ -230,6 +237,8 @@ export default function ClientManagementScreen() {
     setInvestmentPosition(null);
     setInvestmentPositionError("");
     setDetailError("");
+    setContacts([]);
+    setContactsError("");
   };
 
   const rows = clients.map((c) => ({
@@ -304,6 +313,10 @@ export default function ClientManagementScreen() {
           error={detailError}
           investmentPosition={investmentPosition}
           investmentPositionError={investmentPositionError}
+          contacts={contacts}
+          contactsLoading={contactsLoading}
+          contactsError={contactsError}
+          onContactAdded={() => loadContacts(detailClient.id)}
           onClose={handleCloseDetail}
         />
       ) : null}
@@ -311,100 +324,233 @@ export default function ClientManagementScreen() {
   );
 }
 
-function ClientDetailModal({ client, loading, error, investmentPosition, investmentPositionError, onClose }) {
-  const fields = [
-    { label: "Company Name", value: client.company_name },
-    { label: "Short Name", value: client.company_short_name },
-    { label: "Status", value: client.status },
-    { label: "Line Type", value: client.line_type },
-    { label: "Tier", value: client.tier },
-    { label: "Country", value: client.country },
-    { label: "Website", value: client.website },
-    { label: "Billing Currency", value: client.billing_currency },
-    { label: "Payment Terms (days)", value: client.payment_terms_days },
-    { label: "Billing Address", value: client.billing_address },
-    { label: "Contract Start", value: client.contract_start_date },
-    { label: "Contract End", value: client.contract_end_date },
-    { label: "NDA Signed", value: client.nda_signed === undefined ? undefined : client.nda_signed ? "Yes" : "No" },
-    { label: "Notes", value: client.notes },
-  ];
+function ClientContactsPanel({ clientId, contacts, loading, error, onContactAdded }) {
+  const emptyContact = { name: "", email: "", phone: "", role_type: "HIRING_MANAGER" };
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState(emptyContact);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleAdd = async () => {
+    if (!form.name.trim() || !form.email.trim()) {
+      setSaveError("Name and email are required.");
+      return;
+    }
+    setSaving(true);
+    setSaveError("");
+    try {
+      await addClientContact(clientId, {
+        name: form.name.trim(), email: form.email.trim(),
+        phone: form.phone.trim() || null, role_type: form.role_type,
+      });
+      setForm(emptyContact);
+      setShowAdd(false);
+      onContactAdded();
+    } catch (err) {
+      setSaveError(err.message || "Failed to add contact.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 border-t pt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <Users className="h-3.5 w-3.5" />
+          Contacts
+        </div>
+        <Button variant="ghost" onClick={() => setShowAdd((v) => !v)}>
+          <Plus className="h-4 w-4" /> Add Contact
+        </Button>
+      </div>
+
+      {showAdd ? (
+        <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          {saveError ? <div className="mb-2 text-xs text-rose-700">{saveError}</div> : null}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Input label="Name *" value={form.name} onChange={set("name")} />
+            <Input label="Email *" value={form.email} onChange={set("email")} />
+            <Input label="Phone" value={form.phone} onChange={set("phone")} />
+            <Select label="Role" value={form.role_type} onChange={set("role_type")} options={CONTACT_ROLE_TYPES} />
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Button onClick={handleAdd} disabled={saving}>{saving ? "Saving…" : "Save Contact"}</Button>
+            <Button variant="ghost" onClick={() => setShowAdd(false)} disabled={saving}>Cancel</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="text-sm text-gray-400">Loading contacts…</div>
+      ) : error ? (
+        <div className="text-sm text-rose-700">{error}</div>
+      ) : contacts.length === 0 ? (
+        <div className="text-sm text-gray-400">No contacts yet.</div>
+      ) : (
+        <div className="space-y-2">
+          {contacts.map((c) => (
+            <div key={c.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium text-gray-900">{c.name}</div>
+                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                  {c.role_type.replace(/_/g, " ")}
+                </span>
+              </div>
+              <div className="mt-0.5 text-xs text-gray-500">
+                {c.email}{c.phone ? ` · ${c.phone}` : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClientDetailModal({
+  client, loading, error, investmentPosition, investmentPositionError,
+  contacts, contactsLoading, contactsError, onContactAdded, onClose,
+}) {
+  const statusColors = {
+    "ACTIVE": "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "INACTIVE": "bg-gray-50 text-gray-700 border-gray-200",
+    "PENDING": "bg-amber-50 text-amber-700 border-amber-200",
+  };
+
+  const getStatusBadge = (status) => {
+    const colors = statusColors[status] || "bg-gray-50 text-gray-700 border-gray-200";
+    return (
+      <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${colors}`}>
+        {status}
+      </span>
+    );
+  };
+
+  const FieldGroup = ({ label, children }) => (
+    <div>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+
+  const FieldRow = ({ label, value }) => (
+    <div className="flex justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100 transition">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span className="text-sm font-medium text-gray-900">
+        {value === undefined || value === null || value === "" ? "—" : String(value)}
+      </span>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b px-5 py-4">
-          <div className="text-base font-semibold text-gray-900">{client.company_name}</div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="px-5 py-4">
-          {loading ? (
-            <div className="py-6 text-center text-sm text-gray-500">Loading client details…</div>
-          ) : error ? (
-            <div className="text-sm text-rose-700">{error}</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {fields.map((f) => (
-                <div key={f.label} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{f.label}</div>
-                  <div className="mt-1 break-words text-sm font-medium text-gray-900">
-                    {f.value === undefined || f.value === null || f.value === "" ? "-" : String(f.value)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 border-t pt-4">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <TrendingUp className="h-3.5 w-3.5" />
-              Investment Position
-            </div>
-            {investmentPositionError ? (
-              <div className="text-sm text-rose-700">{investmentPositionError}</div>
-            ) : !investmentPosition ? (
-              <div className="text-sm text-gray-400">Loading…</div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-500">Total Expense</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {formatUsdCents(investmentPosition.total_expense_usd_cents)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-500">Total Revenue</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {formatUsdCents(investmentPosition.total_revenue_usd_cents)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-500">Net Position</div>
-                  <div
-                    className={`mt-1 text-sm font-semibold ${
-                      investmentPosition.net_position_usd_cents < 0 ? "text-rose-700" : "text-green-700"
-                    }`}
-                  >
-                    {formatUsdCents(investmentPosition.net_position_usd_cents)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-500">Breakeven Date</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {investmentPosition.breakeven_date || "Not yet"}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-500">Expense Records</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">{investmentPosition.expense_count}</div>
-                </div>
+        {/* Header */}
+        <div className="sticky top-0 border-b border-gray-200 bg-white px-8 py-6 rounded-t-3xl">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <Building2 className="h-6 w-6 text-blue-600" />
+                <h2 className="text-2xl font-bold text-gray-900">{client.company_name}</h2>
               </div>
-            )}
+              <div className="mt-2">{getStatusBadge(client.status)}</div>
+            </div>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+              <X className="h-6 w-6" />
+            </button>
           </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-8 py-6 space-y-8">
+          {loading ? (
+            <div className="py-12 text-center text-sm text-gray-500">Loading client details…</div>
+          ) : error ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+          ) : (
+            <>
+              {/* Company Details */}
+              <FieldGroup label="Company Details">
+                <FieldRow label="Short Name" value={client.company_short_name} />
+                <FieldRow label="Website" value={client.website} />
+                <FieldRow label="Country" value={client.country} />
+                <FieldRow label="Line Type" value={client.line_type} />
+              </FieldGroup>
+
+              {/* Billing & Contract */}
+              <FieldGroup label="Billing & Contract">
+                <FieldRow label="Tier" value={client.tier} />
+                <FieldRow label="Billing Currency" value={client.billing_currency} />
+                <FieldRow label="Payment Terms (days)" value={client.payment_terms_days} />
+                <FieldRow label="Billing Address" value={client.billing_address} />
+                <FieldRow label="Contract Start" value={client.contract_start_date} />
+                <FieldRow label="Contract End" value={client.contract_end_date} />
+                <FieldRow label="NDA Signed" value={client.nda_signed === undefined ? undefined : client.nda_signed ? "Yes" : "No"} />
+              </FieldGroup>
+
+              {/* Notes */}
+              {client.notes && (
+                <FieldGroup label="Notes">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{client.notes}</p>
+                  </div>
+                </FieldGroup>
+              )}
+
+              {/* Investment Position */}
+              {!investmentPositionError && investmentPosition && (
+                <FieldGroup label="Investment Position">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-blue-50 to-blue-100/50 px-4 py-4 hover:from-blue-100">
+                      <div className="text-xs font-semibold text-blue-600">Total Expense</div>
+                      <div className="mt-2 text-lg font-bold text-gray-900">{formatUsdCents(investmentPosition.total_expense_usd_cents)}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-emerald-50 to-emerald-100/50 px-4 py-4 hover:from-emerald-100">
+                      <div className="text-xs font-semibold text-emerald-600">Total Revenue</div>
+                      <div className="mt-2 text-lg font-bold text-gray-900">{formatUsdCents(investmentPosition.total_revenue_usd_cents)}</div>
+                    </div>
+                    <div className={`rounded-lg border px-4 py-4 ${investmentPosition.net_position_usd_cents < 0 ? "border-rose-200 bg-gradient-to-br from-rose-50 to-rose-100/50 hover:from-rose-100" : "border-green-200 bg-gradient-to-br from-green-50 to-green-100/50 hover:from-green-100"}`}>
+                      <div className={`text-xs font-semibold ${investmentPosition.net_position_usd_cents < 0 ? "text-rose-600" : "text-green-600"}`}>Net Position</div>
+                      <div className={`mt-2 text-lg font-bold ${investmentPosition.net_position_usd_cents < 0 ? "text-rose-700" : "text-green-700"}`}>{formatUsdCents(investmentPosition.net_position_usd_cents)}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-purple-50 to-purple-100/50 px-4 py-4 hover:from-purple-100">
+                      <div className="text-xs font-semibold text-purple-600">Breakeven Date</div>
+                      <div className="mt-2 text-lg font-bold text-gray-900">{investmentPosition.breakeven_date || "—"}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-orange-50 to-orange-100/50 px-4 py-4 hover:from-orange-100">
+                      <div className="text-xs font-semibold text-orange-600">Expense Records</div>
+                      <div className="mt-2 text-lg font-bold text-gray-900">{investmentPosition.expense_count}</div>
+                    </div>
+                  </div>
+                </FieldGroup>
+              )}
+              {investmentPositionError && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{investmentPositionError}</div>
+              )}
+
+              {/* Contacts */}
+              {!loading && !error ? (
+                <div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contacts</div>
+                  </div>
+                  <ClientContactsPanel
+                    clientId={client.id}
+                    contacts={contacts}
+                    loading={contactsLoading}
+                    error={contactsError}
+                    onContactAdded={onContactAdded}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>

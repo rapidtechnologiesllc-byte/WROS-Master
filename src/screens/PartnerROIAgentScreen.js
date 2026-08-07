@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { TrendingUp, AlertCircle, Target } from "lucide-react";
 import { Card, Button } from "../components/ui";
-import { apiRequest } from "../services/api/requests";
+import { getPartnerROIKpis, getPartnerROITrend, getPartnerROIActions } from "../services/api/agents";
+import { getCurrentUser } from "../services/api/users";
 
 export default function PartnerROIAgentScreen() {
   const [partnerId, setPartnerId] = useState(null);
@@ -17,27 +18,27 @@ export default function PartnerROIAgentScreen() {
       try {
         setLoading(true);
 
-        // Get current user's Partner ID (simplified — in production, get from auth context)
-        const userRes = await apiRequest("/users/me");
-        if (userRes?.id) {
-          setPartnerId(userRes.id);
+        // Get current user's Partner ID from auth context
+        const user = await getCurrentUser();
+        if (user?.id) {
+          setPartnerId(user.id);
 
           // Fetch KPIs for selected month
-          const kpisRes = await apiRequest(`/agents/partner-roi/${userRes.id}/kpis?year_month=${selectedMonth}`);
-          if (kpisRes?.data) {
-            setKpis(kpisRes.data);
+          const kpis = await getPartnerROIKpis(user.id, selectedMonth);
+          if (kpis) {
+            setKpis(kpis);
           }
 
           // Fetch trend
-          const trendRes = await apiRequest(`/agents/partner-roi/${userRes.id}/trend?months_back=6`);
-          if (trendRes?.data) {
-            setTrend(trendRes.data);
+          const trend = await getPartnerROITrend(user.id, 6);
+          if (trend) {
+            setTrend(trend);
           }
 
           // Fetch actions
-          const actionsRes = await apiRequest(`/agents/partner-roi/${userRes.id}/actions`);
-          if (actionsRes?.data) {
-            setActions(actionsRes.data);
+          const actions = await getPartnerROIActions(user.id);
+          if (actions) {
+            setActions(actions);
           }
         }
       } catch (err) {
