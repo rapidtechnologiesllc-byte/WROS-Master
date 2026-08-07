@@ -71,18 +71,23 @@ def get_user(db: Session, email: str):
 def authenticate_user(db: Session, email: str, password: str):
     from app.core.security import verify_password
     from app.core.logging import logger
+    import hashlib
 
     user = get_user(db, email)
     if not user:
         logger.warning(f"[AUTH] authenticate_user: user not found for email='{email}'")
         return False
 
-    logger.debug(f"[AUTH] Attempting password verification: password='{password}' (len={len(password)}, repr={repr(password)}), stored_hash[:20]='{user.UserPassword[:20]}'")
+    # Log password metadata (length, hash to identify the value without exposing it)
+    pwd_input_len = len(password)
+    pwd_input_hash = hashlib.sha256(password.encode()).hexdigest()[:8]
+    logger.debug(f"[AUTH] Attempting password verification: input_len={pwd_input_len}, input_hash_prefix={pwd_input_hash}, stored_hash[:30]='{user.UserPassword[:30]}'")
+
     password_match = verify_password(password, user.UserPassword)
     logger.debug(f"[AUTH] verify_password returned: {password_match}")
 
     if not password_match:
-        logger.warning(f"[AUTH] authenticate_user: password mismatch for email='{email}' | received_password='{password}' | stored_hash_start='{user.UserPassword[:30]}'")
+        logger.warning(f"[AUTH] authenticate_user: password mismatch for email='{email}' | input_len={pwd_input_len} | input_hash={pwd_input_hash} | stored_hash_start='{user.UserPassword[:30]}'")
         return False
 
     logger.info(f"[AUTH] authenticate_user: SUCCESS for email='{email}'")
