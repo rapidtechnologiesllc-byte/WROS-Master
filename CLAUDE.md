@@ -970,7 +970,7 @@ Avinash's live bug report ("I scheduled an interview, it never showed as a task;
 
 - **L2 panel selection**: same algorithm as L1 — skill/role-match suggestion, BU Head/Partner confirms/overrides, round-robin assignment. No separate seniority rule.
 - **Explicit "No Hire"**: marked rejected for this specific role (not the general pool), **and the candidate gets a real rejection notice** via the existing Thunder-side send path — not internal-only.
-- **BU Head declines financial approval** after a positive hire decision: task **returns to the hiring manager** to reconsider/escalate — not a dead end, not an automatic rejection.
+- **BU Head declines financial approval** after a positive hire decision — refined same day to a specific 2-step flow, not just "returns to the hiring manager": (1) declining creates a task for **HR to negotiate with the candidate and confirm the best possible rate**, not the hiring manager; (2) the negotiated rate goes back to the BU Head for re-approval; (3) **if the BU Head declines a second time (after the negotiated rate), that is a real dead end** — the candidate gets a "no hire" email that specifically cites the financial/budget reason, not a generic rejection. Two decline points exist, not one; the first is a real negotiation attempt, only the second is terminal.
 
 ### Still open — exact UI shape
 
