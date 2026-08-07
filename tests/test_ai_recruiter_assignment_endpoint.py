@@ -1,8 +1,14 @@
 """
-GET /candidates/{id}/ai-assignment, GET/PATCH /admin/tenant/ai-config --
-proves the HTTP-level auth gating: admin config is Super-User-only
-(tenant.ai_config permission), everything else covered at the service
-layer in test_ai_recruiter_assignment.py.
+GET /candidates/{id}/ai-assignment -- proves the HTTP-level auth
+gating; everything else covered at the service layer in
+test_ai_recruiter_assignment.py.
+
+2026-08-06: this file used to also cover GET/PATCH /admin/tenant/ai-
+config, a confirmed-dead duplicate of the real /admin/ai-config
+endpoint (deleted from ai_recruiter_assignment.py). Those 4 tests moved
+to tests/test_tenant_ai_config_api.py instead of being deleted outright
+-- /admin/ai-config is the real, frontend-wired endpoint and had zero
+test coverage of its own before this.
 
 Throwaway SQLite app, throwaway JWT keys, real RBAC seed -- never the
 real database.
@@ -108,37 +114,3 @@ def test_get_candidate_assignment_404_for_unknown_candidate(client):
     assert resp.status_code == 404
 
 
-def test_admin_config_get_allowed_for_super_user(client):
-    resp = client.get(
-        "/admin/tenant/ai-config",
-        headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com', 'Super User')}"},
-    )
-    assert resp.status_code == 200
-    assert resp.json()["ai_agent_name"] == "Thunder"
-
-
-def test_admin_config_get_forbidden_for_recruiter(client):
-    resp = client.get(
-        "/admin/tenant/ai-config",
-        headers={"Authorization": f"Bearer {_token_for('recruiter@blitzenx.com', 'Recruiter')}"},
-    )
-    assert resp.status_code == 403
-
-
-def test_admin_config_patch_updates_for_super_user(client):
-    resp = client.patch(
-        "/admin/tenant/ai-config",
-        json={"ai_agent_name": "Nova", "ai_agent_persona": "I am Nova, a custom bot."},
-        headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com', 'Super User')}"},
-    )
-    assert resp.status_code == 200
-    assert resp.json()["ai_agent_name"] == "Nova"
-
-
-def test_admin_config_patch_forbidden_for_recruiter(client):
-    resp = client.patch(
-        "/admin/tenant/ai-config",
-        json={"ai_agent_name": "Sneaky", "ai_agent_persona": "..."},
-        headers={"Authorization": f"Bearer {_token_for('recruiter@blitzenx.com', 'Recruiter')}"},
-    )
-    assert resp.status_code == 403

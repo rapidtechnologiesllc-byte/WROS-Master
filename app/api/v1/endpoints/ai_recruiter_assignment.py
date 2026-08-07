@@ -30,16 +30,12 @@ from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models.user import Users
 from app.schemas.ai_recruiter_assignment import (
     AIAssignmentResponse,
-    TenantAIConfigResponse,
-    TenantAIConfigUpdateRequest,
     TenantThunderEnabledResponse,
     TenantThunderEnabledUpdateRequest,
 )
 from app.services.ai_conversation_service import (
     DEFAULT_THUNDER_DISPLAY_NAME,
-    DEFAULT_THUNDER_PERSONA_TEXT,
     get_active_ai_assignment,
-    resolve_thunder_config,
 )
 
 router = APIRouter(tags=["ai-recruiter-assignment"])
@@ -74,44 +70,6 @@ def get_candidate_ai_assignment(
         assigned_at=assignment.assigned_at,
         is_active=assignment.is_active,
     )
-
-
-@router.get(
-    "/admin/tenant/ai-config",
-    response_model=TenantAIConfigResponse,
-    summary="Get this org's Thunder name/persona config — Super User only",
-    dependencies=[Depends(require_permission("tenant.ai_config"))],
-)
-def get_tenant_ai_config(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    config = resolve_thunder_config(db, current_user.UserID)
-    return TenantAIConfigResponse(ai_agent_name=config["name"], ai_agent_persona=config["persona"])
-
-
-@router.patch(
-    "/admin/tenant/ai-config",
-    response_model=TenantAIConfigResponse,
-    summary="Update this org's Thunder name/persona — Super User only",
-    dependencies=[Depends(require_permission("tenant.ai_config"))],
-    description=(
-        "BR-03: persona changes affect every future Thunder prompt for this "
-        "org's candidates. Lead BA written sign-off is a process control outside "
-        "this API, not something this endpoint enforces mechanically."
-    ),
-)
-def update_tenant_ai_config(
-    body: TenantAIConfigUpdateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    current_user.ai_agent_name = body.ai_agent_name.strip() or DEFAULT_THUNDER_DISPLAY_NAME
-    current_user.ai_agent_persona = body.ai_agent_persona.strip() or DEFAULT_THUNDER_PERSONA_TEXT
-    db.add(current_user)
-    db.commit()
-
-    return TenantAIConfigResponse(ai_agent_name=current_user.ai_agent_name, ai_agent_persona=current_user.ai_agent_persona)
 
 
 @router.get(
