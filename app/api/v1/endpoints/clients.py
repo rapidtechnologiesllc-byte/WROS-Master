@@ -23,14 +23,16 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
-from app.models.client import Client
+from app.models.client import Client, ClientContact
 from app.models.user import Users
 from app.schemas.client import (
+    ClientContactAddRequest, ClientContactResponse, ClientContactsListResponse,
     ClientCreateRequest, ClientCreateResponse, ClientDetailResponse, ClientListItem,
     ClientListResponse, ClientUpdateRequest,
 )
 from app.services.client_service import (
-    ClientValidationError, DuplicateClientError, create_client, update_client_details,
+    ClientValidationError, DuplicateClientError, add_client_contact, create_client,
+    update_client_details,
 )
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -112,8 +114,8 @@ def create_client_endpoint(
             country=body.country,
             website=body.website,
             billing_currency=body.billing_currency,
-            hiring_manager=body.hiring_manager.dict(),
-            timesheet_approver=body.timesheet_approver.dict(),
+            hiring_manager=body.hiring_manager.dict() if body.hiring_manager else None,
+            timesheet_approver=body.timesheet_approver.dict() if body.timesheet_approver else None,
         )
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -132,6 +134,40 @@ def get_client_endpoint(
     if not client:
         raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
     return client
+
+
+@router.get("/{client_id}/contacts", response_model=ClientContactsListResponse)
+def list_client_contacts_endpoint(
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    contacts = db.query(ClientContact).filter(ClientContact.client_id == client_id).all()
+    return ClientContactsListResponse(contacts=contacts)
+
+
+@router.post("/{client_id}/contacts", response_model=ClientContactResponse, status_code=201)
+def add_client_contact_endpoint(
+    client_id: str,
+    body: ClientContactAddRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    try:
+        contact = add_client_contact(
+            db, client, name=body.name, email=body.email, role_type=body.role_type, phone=body.phone,
+        )
+    except DuplicateClientError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ClientValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return contact
 
 
 @router.patch("/{client_id}", response_model=ClientDetailResponse)

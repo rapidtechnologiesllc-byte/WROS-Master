@@ -11,7 +11,9 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
-from app.models.client import Client, ClientContact, ClientHistory, STATUSES_REQUIRING_CONTACT
+from app.models.client import (
+    CONTACT_ROLE_TYPES, Client, ClientContact, ClientHistory, STATUSES_REQUIRING_CONTACT,
+)
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.rbac import BusinessUnit
@@ -140,6 +142,47 @@ def create_client(
     db.commit()
 
     return client
+
+
+def add_client_contact(
+    db: Session,
+    client: Client,
+    *,
+    name: str,
+    email: str,
+    role_type: str,
+    phone: Optional[str] = None,
+) -> ClientContact:
+    """2026-08-07 -- the separate "add a contact after the client already
+    exists" step, now that create_client() no longer requires contacts up
+    front (see app.schemas.client.ClientCreateRequest for why). Reuses
+    the same (client_id, email) dedup the DB UNIQUE constraint already
+    enforces, raising the same ClientValidationError shape the rest of
+    this module uses rather than letting an IntegrityError surface raw.
+    """
+    name = name.strip()
+    email = email.strip()
+    if not name:
+        raise ClientValidationError("Contact name is required.")
+    if not email:
+        raise ClientValidationError("Contact email is required.")
+    if role_type not in CONTACT_ROLE_TYPES:
+        raise ClientValidationError(f"Invalid role_type {role_type!r}. Must be one of {CONTACT_ROLE_TYPES}.")
+
+    existing = db.query(ClientContact).filter(
+        ClientContact.client_id == client.id, ClientContact.email == email,
+    ).first()
+    if existing:
+        raise DuplicateClientError(f"A contact with email {email!r} already exists for this client.")
+
+    contact = ClientContact(
+        client_id=client.id, tenant_id=client.tenant_id, role_type=role_type,
+        name=name, email=email, phone=phone,
+    )
+    db.add(contact)
+    db.commit()
+    db.refresh(contact)
+    return contact
 
 
 EDITABLE_CLIENT_FIELDS = {

@@ -115,22 +115,27 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     # ── 1. Try authenticating as a User first ───────────────────
     user = authenticate_user(db, request.email, request.password)
     if user:
+        # Get authoritative UserRole from database (ORM not loading correctly)
+        from sqlalchemy import text
+        user_role = db.execute(text("SELECT UserRole FROM users WHERE UserEmail = :email"), {"email": request.email}).scalar()
+        if not user_role:
+            user_role = user.UserRole
         # Phase 1 B3 -- gate is off by default (mfa_enforcement_enabled())
         # and only applies to MFA_REQUIRED_ROLES even when on. See
         # app.core.mfa's module docstring: do not enable the env flag
         # until the frontend has a screen for this, or every Super
         # User / BU Head account gets locked out with no way through.
         from datetime import timedelta
-        totp_gate = mfa_enforcement_enabled() and role_requires_mfa(user.UserRole)
+        totp_gate = mfa_enforcement_enabled() and role_requires_mfa(user_role)
         # Backlog item, 2026-08-05: email OTP is a SEPARATE, independently-
         # off-by-default gate that SUPPLEMENTS the TOTP one above -- see
         # app.core.mfa's EMAIL_OTP_* section for why this isn't just a
         # wider MFA_REQUIRED_ROLES. Either gate alone is enough to route
         # into the mfa_pending flow.
-        email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user.UserRole)
+        email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
         if totp_gate or email_otp_gate:
             pending_token = create_access_token(
-                data={"sub": user.UserEmail, "type": user.UserRole, "mfa_pending": True},
+                data={"sub": user.UserEmail, "type": user_role, "mfa_pending": True},
                 expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
             )
 
@@ -166,7 +171,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 entity_type="user",
                 access_token=pending_token,
                 is_first_time=False,
-                user_role=user.UserRole,
+                user_role=user_role,
                 user_name=user.UserName or "",
                 user_email=user.UserEmail,
                 mfa_required=bool(user.mfa_enabled) if totp_gate else False,
@@ -177,7 +182,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         access_token = create_access_token(
             data={
                 "sub": user.UserEmail,
-                "type": user.UserRole,
+                "type": user_role,
                 "name": user.UserName,
             }
         )
@@ -185,7 +190,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             entity_type="user",
             access_token=access_token,
             is_first_time=False,
-            user_role=user.UserRole,
+            user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
         )
