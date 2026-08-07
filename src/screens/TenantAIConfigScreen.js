@@ -64,7 +64,6 @@ export default function TenantAIConfigScreen() {
       ) : null}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Tenant AI Configuration</h1>
           <p className="text-sm text-gray-500">
             All of Thunder's settings for this org, in one place. Last updated{" "}
             {config.updated_at ? new Date(config.updated_at).toLocaleString() : "never"}

@@ -262,7 +262,6 @@ export default function ClientManagementScreen() {
   return (
     <div className="space-y-4 p-6">
       <Card
-        title="Client Management"
         subtitle="Add and edit client accounts. Business Unit ownership is locked to whoever sources the client and is not editable here."
         icon={<Building2 className="h-4 w-4" />}
         right={

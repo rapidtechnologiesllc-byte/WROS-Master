@@ -151,7 +151,6 @@ export default function AdminSettingsScreen() {
   return (
     <div className="mx-auto flex max-w-5xl gap-6 p-6">
       <aside className="w-52 shrink-0">
-        <h1 className="mb-4 text-lg font-bold text-bx-navy">Admin Settings</h1>
         <nav className="space-y-1">
           {CATEGORIES.map((cat) => (
             <button
