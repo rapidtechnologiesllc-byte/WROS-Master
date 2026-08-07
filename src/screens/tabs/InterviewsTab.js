@@ -369,12 +369,12 @@ export default function InterviewsTab({ candidateId }) {
       await completeInterviewIfAllPanelDone(selectedInterview);
       setSubmitNotice("Feedback submitted successfully");
       setSubmitNoticeType("success");
-      window.setTimeout(() => closeSubmitModal(), 1000);
+      setSubmitting(false);
+      closeSubmitModal();
     } catch (err) {
       console.error("Failed to submit feedback", err);
       setSubmitNotice(err?.message || "Failed to submit feedback");
       setSubmitNoticeType("error");
-    } finally {
       setSubmitting(false);
     }
   };
@@ -412,11 +412,11 @@ export default function InterviewsTab({ candidateId }) {
       });
       await fetchData();
       await completeInterviewIfAllPanelDone(selectedInterview);
+      setSubmitting(false);
       closeSkipModal();
     } catch (err) {
       console.error("Failed to skip feedback", err);
       setSkipError(err?.message || "Failed to mark as not attended");
-    } finally {
       setSubmitting(false);
     }
   };
