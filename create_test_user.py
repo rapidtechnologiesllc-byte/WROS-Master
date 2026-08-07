@@ -14,7 +14,7 @@ from app.core.security import get_password_hash
 DB_PATH = "local_dev.sqlite3"
 
 def create_test_users():
-    """Create test users with bcrypt-hashed passwords."""
+    """Create test users with bcrypt-hashed passwords and tenant assignment."""
 
     test_users = [
         {
@@ -41,12 +41,23 @@ def create_test_users():
     cursor = conn.cursor()
 
     try:
+        # Get the default tenant (BlitzenX local dev)
+        cursor.execute("SELECT id FROM tenants LIMIT 1")
+        tenant_result = cursor.fetchone()
+        tenant_id = tenant_result[0] if tenant_result else None
+
+        if not tenant_id:
+            print("[ERROR] No tenant found in database. Please create a tenant first.")
+            return
+
+        print(f"Using tenant ID: {tenant_id}")
+        print()
+
         for user in test_users:
             email = user["email"]
 
             # Delete existing user
             cursor.execute("DELETE FROM users WHERE UserEmail = ?", (email,))
-            print(f"Deleted existing user: {email}")
 
             # Create new user with bcrypt-hashed password
             user_id = str(uuid.uuid4())
@@ -55,8 +66,8 @@ def create_test_users():
 
             cursor.execute("""
                 INSERT INTO users
-                (UserID, UserEmail, UserPassword, UserName, UserRole, CreatedAt, mfa_enabled, digest_enabled, thunder_enabled)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (UserID, UserEmail, UserPassword, UserName, UserRole, CreatedAt, tenant_id, mfa_enabled, digest_enabled, thunder_enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 user_id,
                 email,
@@ -64,6 +75,7 @@ def create_test_users():
                 user["name"],
                 user["role"],
                 created_at,
+                tenant_id,
                 0,
                 0,
                 0
@@ -73,10 +85,11 @@ def create_test_users():
             print(f"  Name: {user['name']}")
             print(f"  Role: {user['role']}")
             print(f"  Password: {user['password']}")
+            print(f"  Tenant ID: {tenant_id}")
             print()
 
         conn.commit()
-        print("[OK] All users created successfully!")
+        print("[OK] All users created and assigned to tenant successfully!")
 
     except Exception as e:
         print(f"[ERROR] Error: {e}")
