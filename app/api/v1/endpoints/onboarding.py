@@ -124,8 +124,10 @@ def create_candidate(
     # unaffected by this change.
     candidate_id = candidate.candidateID
 
+    # Must commit before creating related records to ensure candidate exists
     db.commit()
     db.refresh(candidate)
+
     # Create candidate status
     candidate_status = CandidateStatus(
         candidateID=candidate_id,
@@ -135,6 +137,10 @@ def create_candidate(
         updatedAt=datetime.now(),
     )
     db.add(candidate_status)
+    # CRITICAL: Must commit status before queuing background tasks.
+    # Background tasks run in a fresh session and need to find BOTH
+    # the candidate AND its status record. Without this commit,
+    # background tasks see incomplete data or 404 candidate not found.
     db.commit()
 
     # Bulk-insert education records if provided
@@ -356,22 +362,45 @@ def get_candidate_by_id(
     Returns all profile data including personal info form, education,
     experience, Aadhar, and PAN records.
 
+    BU scoping only applies AFTER a candidate is submitted to a job
+    (gains a CandidateOwnership record). Newly created candidates are
+    in the Org Pool by default and visible to all HR users. A
+    bu_restricted role (HR Manager) can only reach BU-owned candidates
+    AFTER they've been submitted to a job in that BU.
+
     Raises:
         HTTPException 404: If no candidate with the given ID exists, or
-        the candidate exists but is outside the caller's own Business
-        Unit (a bu_restricted role must not be able to reach another
-        BU's candidate by navigating straight to this URL even though
-        the candidate list already filters them out -- see
-        app.core.bu_scope's module docstring).
+        the candidate has been submitted to a job outside the caller's
+        Business Unit and the caller is bu_restricted.
     """
-    candidate = apply_bu_scope_to_candidate_query(
-        db, db.query(Candidate).filter(Candidate.candidateID == candidate_id), current_user=user,
-    ).first()
+    # First, fetch the candidate without BU scoping. A candidate just
+    # created is not yet in any BU's scope -- BU ownership only applies
+    # after submission to a job creates a CandidateOwnership record.
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(
             status_code=404,
             detail=f"Candidate with ID '{candidate_id}' not found"
         )
+
+    # Check if candidate has been submitted to a job (has CandidateOwnership).
+    # If so, apply BU scoping to respect job-level ownership.
+    from app.models.candidate_ownership import CandidateOwnership
+    ownership = db.query(CandidateOwnership).filter(
+        CandidateOwnership.candidateID == candidate_id
+    ).first()
+
+    if ownership:
+        # Candidate is submitted to a job and has BU ownership. Apply BU scoping.
+        candidate_scoped = apply_bu_scope_to_candidate_query(
+            db, db.query(Candidate).filter(Candidate.candidateID == candidate_id), current_user=user,
+        ).first()
+        if not candidate_scoped:
+            # Candidate exists but is outside caller's BU
+            raise HTTPException(
+                status_code=404,
+                detail=f"Candidate with ID '{candidate_id}' not found"
+            )
 
     # Construct display name
     name_parts = [
