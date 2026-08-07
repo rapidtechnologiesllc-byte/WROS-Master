@@ -327,7 +327,6 @@ class ChangePasswordRequest(BaseModel):
 
 class AdminResetPasswordRequest(BaseModel):
     """Admin-only password reset - no current password required"""
-    user_id: str
     new_password: str
 
 

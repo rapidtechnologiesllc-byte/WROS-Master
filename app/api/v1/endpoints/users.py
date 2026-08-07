@@ -25,6 +25,7 @@ from app.schemas.user import (
     ChangePasswordRequest, HrMeResponse,
     SingleUserResponse, HiringManagerAssignedCandidateResponse,
     DigestPreferenceRequest, DigestPreferenceResponse,
+    AdminResetPasswordRequest,
 )
 from app.utils.uniq_id_generator import user_id_generator
 
