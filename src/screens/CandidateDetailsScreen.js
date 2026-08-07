@@ -1156,12 +1156,13 @@ ${formattedJD}
                       ? "Unarchive"
                       : "Archive"}
                   </Button>
-                  <div className="relative" ref={scheduleMenuRef}>
-                    <Button
-                      onClick={() => setShowScheduleMenu((prev) => !prev)}
-                    >
-                      Schedule
-                    </Button>
+                  {selectedJobId && (
+                    <div className="relative" ref={scheduleMenuRef}>
+                      <Button
+                        onClick={() => setShowScheduleMenu((prev) => !prev)}
+                      >
+                        Schedule
+                      </Button>
 
                     {showScheduleMenu && (
                       <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
@@ -1181,7 +1182,8 @@ ${formattedJD}
                         </button>
                       </div>
                     )}
-                  </div>
+                    </div>
+                  )}
 
                   <button
                     type="button"
