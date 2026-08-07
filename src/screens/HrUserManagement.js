@@ -169,11 +169,11 @@ export default function HrUserManagement() {
     setError("");
     try {
       const response = await fetch(
-        `/api/v1/admin/users/${adminResetForm.user_id}/reset-password`,
+        `/api/v1/hr/admin/users/${adminResetForm.user_id}/reset-password`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: adminResetForm.user_id, new_password: adminResetForm.new_password })
+          body: JSON.stringify({ new_password: adminResetForm.new_password })
         }
       );
       if (!response.ok) {
