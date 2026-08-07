@@ -54,8 +54,7 @@ export default function Dashboard({
     <div className="space-y-4">
       <Card title="Dashboard" icon={<LayoutDashboard className="h-4 w-4" />} />
 
-      <div className="grid gap-4">
-        <InterventionQueueWidget />
+      <InterventionQueueWidget />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard

@@ -36,6 +36,7 @@ const formatUsdCents = (cents) =>
 
 const LINE_TYPES = ["CORE", "SPECIALITY"];
 const CLIENT_TIERS = ["PLATINUM", "GOLD", "SILVER", "STANDARD"];
+const CLIENT_STATUSES = ["PROSPECT", "ACTIVE", "ON_HOLD", "INACTIVE", "PENDING_VERIFICATION"];
 const BILLING_CURRENCIES = ["USD", "INR", "GBP", "EUR", "CAD", "AUD"];
 const COUNTRIES = [
   "United States", "India", "United Kingdom", "Canada", "Australia",
