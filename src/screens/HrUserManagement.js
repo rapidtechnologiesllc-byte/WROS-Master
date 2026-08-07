@@ -168,11 +168,15 @@ export default function HrUserManagement() {
     setBusy(true);
     setError("");
     try {
+      const token = localStorage.getItem("hrms_token");
       const response = await fetch(
         `/api/v1/hr/admin/users/${adminResetForm.user_id}/reset-password`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` })
+          },
           body: JSON.stringify({ new_password: adminResetForm.new_password })
         }
       );
