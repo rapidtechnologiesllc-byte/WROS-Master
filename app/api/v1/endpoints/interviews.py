@@ -1384,15 +1384,15 @@ def get_panel_members(
 ):
     """
     Get all members of a specific panel.
-    
+
     Args:
         panel_id: ID of the panel
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         List of PanelMemberWithDetails
-        
+
     Raises:
         HTTPException: If panel not found
     """
@@ -1402,21 +1402,26 @@ def get_panel_members(
             status_code=404,
             detail=f"Interview panel with ID {panel_id} not found"
         )
-    
+
     members = db.query(PanelMember).filter(PanelMember.panel_id == panel_id).all()
-    
+
     results = []
     for member in members:
         interviewer = db.query(Users).filter(Users.UserID == member.interviewer_id).first()
         if interviewer:
+            bu_name = None
+            if interviewer.business_unit:
+                bu_name = interviewer.business_unit.name
             results.append(PanelMemberWithDetails(
                 id=member.id,
                 panel_id=member.panel_id,
                 interviewer_id=member.interviewer_id,
                 interviewer_name=interviewer.UserName or "N/A",
-                interviewer_email=interviewer.UserEmail
+                interviewer_email=interviewer.UserEmail,
+                interviewer_role=interviewer.UserRole,
+                business_unit_name=bu_name
             ))
-    
+
     return results
 
 

@@ -76,6 +76,8 @@ class PanelMemberWithDetails(BaseModel):
     interviewer_id: str
     interviewer_name: str
     interviewer_email: str
+    interviewer_role: Optional[str] = None
+    business_unit_name: Optional[str] = None
 
 
 # ============================================
