@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Briefcase } from "lucide-react";
 import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
@@ -17,6 +18,7 @@ export default function JobCreate({
   mode = "create",
   initialJob = null,
 }) {
+  const navigate = useNavigate();
   const isReadOnly = mode === "view";
   const [title, setTitle] = useState("");
   const [positionType, setPositionType] = useState("");

@@ -41,22 +41,27 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [addingProspect, setAddingProspect] = useState(false);
-  const [newProspectName, setNewProspectName] = useState("");
+  const [newProspectWebsite, setNewProspectWebsite] = useState("");
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
   const handleAddProspect = async () => {
-    if (!newProspectName.trim()) return;
+    if (!newProspectWebsite.trim()) {
+      setError("Website is required to create a prospect client.");
+      return;
+    }
     try {
       const created = await createClient({
-        company_name: newProspectName.trim(),
+        company_name: newProspectWebsite.trim(),
+        website: newProspectWebsite.trim(),
         line_type: "SPECIALITY",
         billing_currency: "USD",
       });
       await reloadClients();
       setForm((f) => ({ ...f, clientId: created.id }));
       setAddingProspect(false);
-      setNewProspectName("");
+      setNewProspectWebsite("");
+      setError("");
     } catch (err) {
       setError(err.message || "Failed to add prospect client.");
     }
@@ -134,9 +139,9 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
                 <div className="mt-1 flex gap-1">
                   <input
                     className="w-full rounded-lg border px-2 py-1 text-xs"
-                    placeholder="New prospect name"
-                    value={newProspectName}
-                    onChange={(e) => setNewProspectName(e.target.value)}
+                    placeholder="Website (e.g. acme.com)"
+                    value={newProspectWebsite}
+                    onChange={(e) => setNewProspectWebsite(e.target.value)}
                   />
                   <Button variant="secondary" onClick={handleAddProspect}>Add</Button>
                 </div>
