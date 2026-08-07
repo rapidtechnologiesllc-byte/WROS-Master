@@ -247,6 +247,9 @@ function OfferLettersScreen() {
   ];
   return (
     <PageContainer>
+      <div className="rounded-2xl border bg-white p-4 shadow-sm mb-4">
+        <div className="text-lg font-bold text-gray-900">Offer Letters</div>
+      </div>
       <StatsContainer>
         <Row gutter={[16, 16]}>
           <Col span={4}>
