@@ -86,7 +86,7 @@ const NAV_ITEMS = {
   // pipeline (S-236/237), gated the same as the rest of Finance via
   // revenue.view server-side.
   opportunityPipeline: { path: ROUTES.OPPORTUNITY_PIPELINE, label: "Opportunity Pipeline", icon: TrendingUp },
-  executiveRevenueDashboard: { path: ROUTES.EXECUTIVE_REVENUE_DASHBOARD, label: "Executive Revenue Dashboard", icon: LineChart },
+  executiveRevenueDashboard: { path: ROUTES.EXECUTIVE_REVENUE_DASHBOARD, label: "Executive Revenue", icon: LineChart },
   financeOperations: { path: ROUTES.FINANCE_OPERATIONS, label: "Finance Operations", icon: BadgeDollarSign },
   rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },

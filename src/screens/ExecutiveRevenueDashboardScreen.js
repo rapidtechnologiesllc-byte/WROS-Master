@@ -337,7 +337,7 @@ export default function ExecutiveRevenueDashboardScreen() {
   return (
     <div className="space-y-4 p-6">
       <Card
-        title="Executive Revenue Dashboard"
+        title="Executive Revenue"
         subtitle="Pipeline, won, lost, and weighted forecast -- every figure calls the same shared calculation as the Opportunity Pipeline."
         icon={<LineChart className="h-4 w-4" />}
       >
