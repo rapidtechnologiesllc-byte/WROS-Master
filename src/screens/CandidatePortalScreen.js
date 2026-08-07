@@ -14,7 +14,7 @@
 // Mobile-first (BR-03): single column, large touch targets, built for
 // a 375px-wide screen since this is primarily opened via a WhatsApp
 // link tap on a phone.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calendar, MessageSquare, User as UserIcon, Zap, Home as HomeIcon } from "lucide-react";
 import cx from "../utils/cx";
 import {
@@ -23,10 +23,17 @@ import {
   getPortalInterviews,
   getPortalMessages,
   getPortalProfileFields,
+  pollPortalMessages,
   requestPortalReschedule,
   sendPortalReply,
   updatePortalProfile,
 } from "../services/api/candidatePortal";
+
+// S-346, 2026-08-06: how often the Messages tab checks for new messages
+// arriving on another channel (e.g. a WhatsApp reply) while the portal
+// is open. No WebSocket infra in this codebase -- this is the
+// documented long-poll fallback, not a placeholder for a future one.
+const MESSAGE_POLL_INTERVAL_MS = 8000;
 
 const TABS = [
   { key: "home", label: "Home", icon: HomeIcon },
@@ -192,12 +199,20 @@ function MessagesTab({ token, conversationId }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  // Ref, not state -- the poll interval reads this on every tick without
+  // needing to be re-created each time a new message arrives.
+  const lastMessageIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     getPortalMessages(token)
       .then((res) => {
-        if (!cancelled) setMessages(res.messages || []);
+        if (cancelled) return;
+        const initial = res.messages || [];
+        setMessages(initial);
+        if (initial.length) {
+          lastMessageIdRef.current = Math.max(...initial.map((m) => Number(m.id) || 0));
+        }
       })
       .catch(() => {
         if (!cancelled) setMessages([]);
@@ -207,16 +222,56 @@ function MessagesTab({ token, conversationId }) {
     };
   }, [token]);
 
+  // S-346 real-time fix, 2026-08-06: the backend has always supported
+  // this poll endpoint (after_id) -- nothing on this screen ever called
+  // it, so a reply arriving on another channel while the tab was open
+  // never showed up without a manual reload. Skipped entirely until
+  // conversationId is known (no conversation to poll yet).
+  useEffect(() => {
+    if (!conversationId) return undefined;
+    let cancelled = false;
+
+    const poll = () => {
+      pollPortalMessages(token, conversationId, lastMessageIdRef.current)
+        .then((res) => {
+          if (cancelled) return;
+          const fresh = res.messages || [];
+          if (!fresh.length) return;
+          lastMessageIdRef.current = Math.max(lastMessageIdRef.current, ...fresh.map((m) => Number(m.id) || 0));
+          setMessages((prev) => {
+            const existingIds = new Set((prev || []).map((m) => m.id));
+            const toAppend = fresh.filter((m) => !existingIds.has(m.id));
+            return toAppend.length ? [...(prev || []), ...toAppend] : prev;
+          });
+        })
+        // Silent on failure -- a missed poll tick isn't worth surfacing
+        // an error for; the next tick tries again.
+        .catch(() => {});
+    };
+
+    const intervalId = setInterval(poll, MESSAGE_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [token, conversationId]);
+
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || !conversationId || sending) return;
     setSending(true);
     setError("");
     try {
-      await sendPortalReply(token, conversationId, body);
+      const res = await sendPortalReply(token, conversationId, body);
+      // Real id from the send response, not a fake local one -- 2026-08-06:
+      // now that polling exists (see the effect above), a fake string id
+      // would never match the real numeric id the next poll tick returns,
+      // producing a visible duplicate bubble once that tick lands.
+      const sentId = Number(res?.message_id) || 0;
+      if (sentId) lastMessageIdRef.current = Math.max(lastMessageIdRef.current, sentId);
       setMessages((prev) => [
         ...(prev || []),
-        { id: `local-${Date.now()}`, sender_type: "CANDIDATE", message_body: body, channel: "PORTAL" },
+        { id: sentId || `local-${Date.now()}`, sender_type: "CANDIDATE", message_body: body, channel: "PORTAL" },
       ]);
       setDraft("");
     } catch (err) {
