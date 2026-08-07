@@ -553,12 +553,12 @@ export default function InterviewsTab({ candidateId }) {
           await fetchData();
         }
       }
-      window.setTimeout(() => closeRescheduleModal(), 700);
+      setRescheduling(false);
+      closeRescheduleModal();
     } catch (err) {
       console.error("Failed to reschedule interview", err);
       toast.error("Failed to reschedule interview");
       setRescheduleNoticeType("error");
-    } finally {
       setRescheduling(false);
     }
   };
@@ -593,11 +593,11 @@ export default function InterviewsTab({ candidateId }) {
       await fetchData();
       toast.success("Interview cancelled successfully");
       setCancelNoticeType("success");
-      window.setTimeout(() => closeCancelModal(), 700);
+      setCancelling(false);
+      closeCancelModal();
     } catch (err) {
       console.error("Failed to cancel interview", err);
       toast.error("Failed to cancel interview");
-    } finally {
       setCancelling(false);
     }
   };
@@ -869,10 +869,16 @@ function InterviewRoundCard({
                 : hasSubmitted
                   ? "border-green-200 bg-green-50 text-green-700"
                   : "border-yellow-200 bg-yellow-50 text-yellow-700";
+              const roleAndBU = [member?.interviewer_role, member?.business_unit_name]
+                .filter(Boolean)
+                .join(" • ") || "";
               return (
                 <div key={`member-${interviewerId || member?.id}`} className={`rounded-lg border px-3 py-2 text-sm ${statusStyles}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium">{member?.interviewer_name || member?.interviewer_email || "Panel Member"}</span>
+                    <div>
+                      <div className="font-medium">{member?.interviewer_name || member?.interviewer_email || "Panel Member"}</div>
+                      {roleAndBU && <div className="text-xs opacity-75">{roleAndBU}</div>}
+                    </div>
                     <span className="text-xs font-semibold">{statusLabel}</span>
                   </div>
                   {hasSkipped && panelFeedback?.comments && (
@@ -957,9 +963,13 @@ function PanelMembers({ members }) {
       <div className="flex flex-wrap gap-2">
         {members.map((member, index) => {
           const label = member?.interviewer_name || member?.user_name || member?.name || `Member ${index + 1}`;
+          const roleAndBU = [member?.interviewer_role, member?.business_unit_name]
+            .filter(Boolean)
+            .join(" • ") || "";
+          const fullLabel = roleAndBU ? `${label} (${roleAndBU})` : label;
           return (
             <span key={member?.id || member?.interviewer_id || `${label}-${index}`} className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
-              {label}
+              {fullLabel}
             </span>
           );
         })}
