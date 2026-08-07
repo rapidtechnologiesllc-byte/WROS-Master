@@ -36,7 +36,10 @@ const formatUsdCents = (cents) =>
 
 const LINE_TYPES = ["CORE", "SPECIALITY"];
 const CLIENT_TIERS = ["PLATINUM", "GOLD", "SILVER", "STANDARD"];
-const CLIENT_STATUSES = ["PROSPECT", "ACTIVE", "ON_HOLD", "INACTIVE", "PENDING_VERIFICATION"];
+// Shared with Opportunity.stage - single source of truth
+// Must match backend PIPELINE_STATUSES in app/models/opportunity.py and app/models/client.py
+const PIPELINE_STATUSES = ["QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST"];
+const CLIENT_STATUSES = PIPELINE_STATUSES;  // Client.status uses same values as Opportunity.stage
 const BILLING_CURRENCIES = ["USD", "INR", "GBP", "EUR", "CAD", "AUD"];
 const COUNTRIES = [
   "United States", "India", "United Kingdom", "Canada", "Australia",

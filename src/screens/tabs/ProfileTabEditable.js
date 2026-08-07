@@ -305,14 +305,18 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoDisplay
-              label="HR Manager"
-              value={users.find(u => u.id === profile.assigned_hr_manager_id)?.first_name + " " + (users.find(u => u.id === profile.assigned_hr_manager_id)?.last_name || "")}
-            />
-            <InfoDisplay
-              label="Report Manager"
-              value={users.find(u => u.id === profile.assigned_report_manager_id)?.first_name + " " + (users.find(u => u.id === profile.assigned_report_manager_id)?.last_name || "")}
-            />
+            {Array.isArray(users) && (
+              <>
+                <InfoDisplay
+                  label="HR Manager"
+                  value={users.find(u => u.id === profile.assigned_hr_manager_id) ? `${users.find(u => u.id === profile.assigned_hr_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_hr_manager_id)?.last_name || ""}` : "—"}
+                />
+                <InfoDisplay
+                  label="Report Manager"
+                  value={users.find(u => u.id === profile.assigned_report_manager_id) ? `${users.find(u => u.id === profile.assigned_report_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_report_manager_id)?.last_name || ""}` : "—"}
+                />
+              </>
+            )}
           </div>
         )}
       </EditableSection>
