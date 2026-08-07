@@ -198,35 +198,74 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
 
     stages = []
 
-    # Stage 1: ENGAGED
-    stages.append({
-        "stage_name": "ENGAGED", "stage_label": "Engaged", "status": statuses[0],
-        "entered_at": conversation.created_at if conversation else None,
-        "exited_at": first_reply.created_at if first_reply else None,
-        "metrics": {
-            "channel": conversation.channel_preference if conversation else None,
-            "response_time_hours": (
-                round((first_reply.created_at - conversation.created_at).total_seconds() / 3600, 1)
-                if conversation and first_reply else None
-            ),
-        },
-    })
+    try:
+        # Stage 1: ENGAGED
+        response_time = None
+        if conversation and first_reply:
+            try:
+                response_time = round((first_reply.created_at - conversation.created_at).total_seconds() / 3600, 1)
+            except (TypeError, AttributeError) as e:
+                from app.core.logging import logger
+                logger.warning(f"[Journey] Stage 1 (ENGAGED) response_time calc failed for {candidate_id}: {e}")
 
-    # Stage 2: QUALIFYING
-    stages.append({
-        "stage_name": "QUALIFYING", "stage_label": "Qualifying", "status": statuses[1],
-        "entered_at": first_reply.created_at if first_reply else None,
-        "exited_at": earliest_score.calculated_at if earliest_score else None,
-        "metrics": {
-            "profile_completeness_pct": round(100 * (TOTAL_PROFILE_FIELDS - len(missing_fields)) / TOTAL_PROFILE_FIELDS),
-            "missing_fields_count": len(missing_fields),
-            "days_in_stage": (
-                ((earliest_score.calculated_at if earliest_score else datetime.utcnow()) - first_reply.created_at).days
-                if first_reply else None
-            ),
-            "thunder_message_count": _thunder_message_count(db, conversation),
-        },
-    })
+        stages.append({
+            "stage_name": "ENGAGED", "stage_label": "Engaged", "status": statuses[0],
+            "entered_at": conversation.created_at if conversation else None,
+            "exited_at": first_reply.created_at if first_reply else None,
+            "metrics": {
+                "channel": conversation.channel_preference if conversation else None,
+                "response_time_hours": response_time,
+            },
+        })
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[Journey] Stage 1 (ENGAGED) failed for {candidate_id}: {e}", exc_info=True)
+        raise
+
+    try:
+        # Stage 2: QUALIFYING
+        profile_completeness_pct = None
+        if TOTAL_PROFILE_FIELDS > 0:
+            try:
+                profile_completeness_pct = round(100 * (TOTAL_PROFILE_FIELDS - len(missing_fields)) / TOTAL_PROFILE_FIELDS)
+            except (ZeroDivisionError, TypeError) as e:
+                from app.core.logging import logger
+                logger.warning(f"[Journey] Stage 2 (QUALIFYING) profile_completeness calc failed for {candidate_id}: TOTAL={TOTAL_PROFILE_FIELDS}, missing={len(missing_fields)}, error={e}")
+        else:
+            from app.core.logging import logger
+            logger.warning(f"[Journey] Stage 2 (QUALIFYING) TOTAL_PROFILE_FIELDS is 0 for {candidate_id}")
+
+        days_in_stage = None
+        if first_reply:
+            try:
+                stage_end_time = earliest_score.calculated_at if earliest_score else datetime.utcnow()
+                days_in_stage = (stage_end_time - first_reply.created_at).days
+            except (TypeError, AttributeError) as e:
+                from app.core.logging import logger
+                logger.warning(f"[Journey] Stage 2 (QUALIFYING) days_in_stage calc failed for {candidate_id}: {e}")
+
+        thunder_count = None
+        try:
+            thunder_count = _thunder_message_count(db, conversation)
+        except Exception as e:
+            from app.core.logging import logger
+            logger.warning(f"[Journey] Stage 2 (QUALIFYING) thunder_message_count failed for {candidate_id}: {e}")
+
+        stages.append({
+            "stage_name": "QUALIFYING", "stage_label": "Qualifying", "status": statuses[1],
+            "entered_at": first_reply.created_at if first_reply else None,
+            "exited_at": earliest_score.calculated_at if earliest_score else None,
+            "metrics": {
+                "profile_completeness_pct": profile_completeness_pct,
+                "missing_fields_count": len(missing_fields),
+                "days_in_stage": days_in_stage,
+                "thunder_message_count": thunder_count,
+            },
+        })
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[Journey] Stage 2 (QUALIFYING) failed for {candidate_id}: {e}", exc_info=True)
+        raise
 
     # Stage 3: SCREENED
     stages.append({
@@ -269,20 +308,33 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
         },
     })
 
-    # Stage 6: PREBOARDING
-    received_count = sum(1 for d in documents if d.status in ("RECEIVED", "VERIFIED"))
-    days_until_start = (offer.joining_date - date.today()).days if offer and offer.joining_date else None
-    stages.append({
-        "stage_name": "PREBOARDING", "stage_label": "Preboarding", "status": statuses[5],
-        "entered_at": offer.responded_at if offer and offer.offer_status == "Accepted" else None,
-        "exited_at": employee.created_at if employee else None,
-        "metrics": {
-            "joining_readiness_score": joining_score.readiness_score if joining_score else None,
-            "documents_received": received_count,
-            "documents_total": len(documents),
-            "days_until_start": days_until_start,
-        },
-    })
+    try:
+        # Stage 6: PREBOARDING
+        received_count = sum(1 for d in documents if d.status in ("RECEIVED", "VERIFIED"))
+
+        days_until_start = None
+        if offer and offer.joining_date:
+            try:
+                days_until_start = (offer.joining_date - date.today()).days
+            except (TypeError, AttributeError) as e:
+                from app.core.logging import logger
+                logger.warning(f"[Journey] Stage 6 (PREBOARDING) days_until_start calc failed for {candidate_id}: joining_date={offer.joining_date}, error={e}")
+
+        stages.append({
+            "stage_name": "PREBOARDING", "stage_label": "Preboarding", "status": statuses[5],
+            "entered_at": offer.responded_at if offer and offer.offer_status == "Accepted" else None,
+            "exited_at": employee.created_at if employee else None,
+            "metrics": {
+                "joining_readiness_score": joining_score.readiness_score if joining_score else None,
+                "documents_received": received_count,
+                "documents_total": len(documents),
+                "days_until_start": days_until_start,
+            },
+        })
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[Journey] Stage 6 (PREBOARDING) failed for {candidate_id}: {e}", exc_info=True)
+        raise
 
     # Stage 7: JOINED
     stages.append({
