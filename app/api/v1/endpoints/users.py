@@ -699,6 +699,60 @@ def change_password(
     )
 
 
+@router.put(
+    "/admin/users/{user_id}/reset-password",
+    response_model=DeleteResponse,
+    summary="Admin force reset user password",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def admin_reset_password(
+    user_id: str,
+    request: AdminResetPasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Admin-only password reset endpoint. No current password required.
+
+    This endpoint allows admins to reset any user's password without
+    knowing their current password - fixing the logical flaw that admins
+    shouldn't need to know user passwords to reset them.
+
+    Args:
+        user_id: The user whose password to reset
+        request: AdminResetPasswordRequest with new_password
+
+    Raises:
+        404 if user not found
+        400 if new password is invalid
+    """
+    from app.core.security import verify_password
+
+    # Find target user
+    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User with ID '{user_id}' not found"
+        )
+
+    # Prevent setting the same password
+    if verify_password(request.new_password, target_user.UserPassword):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different from the current password"
+        )
+
+    # Force reset the password
+    target_user.UserPassword = get_password_hash(request.new_password)
+    db.commit()
+
+    return DeleteResponse(
+        status="Success",
+        message=f"Password reset successfully for user {user_id}"
+    )
+
+
 # ============================================================
 # User Section
 # ============================================================
