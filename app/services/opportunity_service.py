@@ -67,17 +67,20 @@ def create_opportunity(
 def _update_client_status_from_opportunities(db: Session, client_id: str) -> None:
     """Auto-sync client status to match its most-advanced opportunity stage.
 
-    Stage hierarchy: WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST
-    Client.status reflects the highest stage across all its opportunities.
-    Valid Client statuses: PROSPECT, ACTIVE, ON_HOLD, INACTIVE, PENDING_VERIFICATION
+    Direct 1:1 mapping: Opportunity.stage values == Client.status values
+    (QUALIFICATION, PROSPECT, PROPOSAL, NEGOTIATION, CONTRACT, ACTIVE, LOST)
+
+    Precedence: ACTIVE > CONTRACT > NEGOTIATION > PROPOSAL > PROSPECT > QUALIFICATION > LOST
+    Client.status reflects the highest-stage opportunity across all linked opportunities.
     """
-    STAGE_PRIORITY = {"WON": 5, "NEGOTIATION": 4, "PROPOSAL": 3, "QUALIFICATION": 2, "LOST": 1}
-    STAGE_TO_CLIENT_STATUS = {
-        "WON": "ACTIVE",  # Won opportunity = active client
-        "NEGOTIATION": "ON_HOLD",  # Under negotiation = on hold
-        "PROPOSAL": "ON_HOLD",  # Proposal sent = on hold pending response
-        "QUALIFICATION": "PROSPECT",  # Qualifying = prospect
-        "LOST": "PROSPECT",  # Lost opportunity = back to prospect (may re-engage)
+    STAGE_PRIORITY = {
+        "ACTIVE": 7,
+        "CONTRACT": 6,
+        "NEGOTIATION": 5,
+        "PROPOSAL": 4,
+        "PROSPECT": 3,
+        "QUALIFICATION": 2,
+        "LOST": 1,
     }
 
     # Get highest-priority stage across all opportunities for this client
@@ -92,12 +95,10 @@ def _update_client_status_from_opportunities(db: Session, client_id: str) -> Non
     )
 
     if highest_stage:
-        new_status = STAGE_TO_CLIENT_STATUS.get(highest_stage)
-        if new_status:
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if client and client.status != new_status:
-                client.status = new_status
-                db.add(client)
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client and client.status != highest_stage:
+            client.status = highest_stage
+            db.add(client)
 
 
 def transition_stage(

@@ -33,8 +33,11 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-OPPORTUNITY_STAGES = ("QUALIFICATION", "PROPOSAL", "NEGOTIATION", "WON", "LOST")
-CLOSED_STAGES = ("WON", "LOST")
+# Shared pipeline statuses used for both Opportunity.stage and Client.status
+# Single source of truth: if either changes, both must change
+PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST")
+OPPORTUNITY_STAGES = PIPELINE_STATUSES
+CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # Contract won/active or lost
 
 
 class Opportunity(Base):

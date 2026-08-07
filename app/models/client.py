@@ -44,7 +44,10 @@ def _new_uuid() -> str:
 
 CLIENT_TYPES = ("DIRECT", "MSP", "VMS")
 CLIENT_TIERS = ("PLATINUM", "GOLD", "SILVER", "STANDARD")
-CLIENT_STATUSES = ("PROSPECT", "ACTIVE", "ON_HOLD", "INACTIVE", "PENDING_VERIFICATION")
+# Shared with Opportunity.stage - single source of truth
+# If stages change, update both here and app.models.opportunity
+PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST")
+CLIENT_STATUSES = PIPELINE_STATUSES  # Client.status uses same values as Opportunity.stage
 BILLING_CURRENCIES = ("USD", "INR", "GBP", "EUR", "CAD", "AUD")
 CONTACT_ROLE_TYPES = ("HIRING_MANAGER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY", "TIMESHEET_APPROVER")
 
