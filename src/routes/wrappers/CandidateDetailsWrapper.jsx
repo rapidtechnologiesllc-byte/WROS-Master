@@ -49,7 +49,8 @@ export default function CandidateDetailsWrapper({
           await refreshCandidates();
           toast.success("Candidate Updated")
         } catch (err) {
-          toast.error("Failed to update candidate.");
+          console.error("Failed to update candidate:", err);
+          toast.error(err?.message || "Failed to update candidate.");
         }
       }}
     />

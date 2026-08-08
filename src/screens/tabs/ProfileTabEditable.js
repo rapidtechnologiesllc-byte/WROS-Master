@@ -117,11 +117,10 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
         updatePayload.assigned_report_manager_id = editForm.assigned_report_manager_id || null;
       }
 
-      await updateCandidate(candidateId, updatePayload);
+      await onRefresh?.(candidateId, updatePayload);
       toast.success("Profile updated successfully");
       setEditingSection(null);
       setEditForm({});
-      onRefresh?.(candidateId, updatePayload);
     } catch (err) {
       toast.error(err?.message || "Failed to save changes");
     } finally {
