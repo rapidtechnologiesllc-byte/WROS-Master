@@ -176,7 +176,7 @@ const CandidateAssignJobModal = ({
     );
   }, [jobs, selectedJobId]);
 
-  // Auto-load Client Owner based on selected job
+  // Auto-load Client Owner and Submit To based on selected job
   useEffect(() => {
     if (selectedJob) {
       const clientOwner = selectedJob?.client_owner_name ||
@@ -184,12 +184,17 @@ const CandidateAssignJobModal = ({
                          selectedJob?.client_contact_person ||
                          selectedJob?.contact_person_name ||
                          "";
-      if (clientOwner) {
-        setFormData((prev) => ({
-          ...prev,
-          primarySales: clientOwner,
-        }));
-      }
+
+      // Determine Submit To based on company type
+      const companyName = selectedJob?.company_name || selectedJob?.companyName || "";
+      const isInternalJob = companyName?.toLowerCase().includes("blitzenx");
+      const submitTo = isInternalJob ? "BU Head" : "L1 Interview → L2 Interview → Client Partner";
+
+      setFormData((prev) => ({
+        ...prev,
+        primarySales: clientOwner,
+        submitTo: submitTo,
+      }));
     }
   }, [selectedJob]);
 
