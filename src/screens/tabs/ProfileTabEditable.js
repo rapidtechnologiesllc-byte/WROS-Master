@@ -58,10 +58,10 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
     setEditingSection(section);
     // Pre-populate form with current values
     setEditForm({
-      first_name: profile.first_name || "",
-      middle_name: profile.middle_name || "",
-      last_name: profile.last_name || "",
-      email: profile.email || "",
+      first_name: profile.candidate_first_name || "",
+      middle_name: profile.candidate_middle_name || "",
+      last_name: profile.candidate_last_name || "",
+      email: profile.candidate_email || "",
       mobile: profile.candidate_mobile || profile.phone || "",
       gender: profile.candidate_gender || "",
       dob: profile.candidate_date_of_birth || "",
@@ -175,10 +175,10 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <InfoDisplay label="First Name" value={profile.first_name} />
-            <InfoDisplay label="Middle Name" value={profile.middle_name} />
-            <InfoDisplay label="Last Name" value={profile.last_name} />
-            <InfoDisplay label="Email" value={profile.email} />
+            <InfoDisplay label="First Name" value={profile.candidate_first_name} />
+            <InfoDisplay label="Middle Name" value={profile.candidate_middle_name} />
+            <InfoDisplay label="Last Name" value={profile.candidate_last_name} />
+            <InfoDisplay label="Email" value={profile.candidate_email} />
             <InfoDisplay label="Mobile" value={profile.candidate_mobile || profile.phone} />
             <InfoDisplay label="Job Title" value={profile.candidate_job_title} />
           </div>
