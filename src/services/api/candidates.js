@@ -66,8 +66,13 @@ export const updateCandidate = async (candidateId, payload) => {
     body.candidate_skills = Array.isArray(payload.candidate_skills)
       ? payload.candidate_skills.join(", ")
       : payload.candidate_skills;
-  if (payload?.candidate_joining_date != null)
-    body.candidate_joining_date = payload.candidate_joining_date;
+  if (payload?.candidate_joining_date != null) {
+    // Only send if it's a valid date format (YYYY-MM-DD), not days text
+    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(payload.candidate_joining_date);
+    if (isValidDate) {
+      body.candidate_joining_date = payload.candidate_joining_date;
+    }
+  }
   if (payload?.candidate_expected_salary != null)
     body.candidate_expected_salary = payload.candidate_expected_salary;
   if (payload?.candidate_current_salary != null)
