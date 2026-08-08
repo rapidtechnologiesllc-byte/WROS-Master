@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import { getCandidateById } from "../services/api/candidates";
 import { UserMinus } from "lucide-react";
 import MoveStageDrawer from "../components/ui/MoveStageDrawer";
+import JobDetails from "./JobDetails";
 
 const TABS = ["Candidates", "Job Info", "Job Analytics"];
 
@@ -639,37 +640,7 @@ export default function JobWorkspaceScreen({
           </div>
         </>
       ) : activeTab === "Job Info" ? (
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="mb-3 text-lg font-bold text-slate-900">
-            Job Description
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border bg-slate-50 p-3">
-              <div className="text-xs font-semibold text-slate-500">Job ID</div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">
-                {job?.id || "—"}
-              </div>
-            </div>
-            <div className="rounded-xl border bg-slate-50 p-3">
-              <div className="text-xs font-semibold text-slate-500">
-                Job Title
-              </div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">
-                {job?.title || "—"}
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-xl border bg-white p-4">
-            <div className="mb-2 text-xs font-semibold text-slate-500">
-              Description
-            </div>
-            <div className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-              <ReactMarkdown>
-                {job?.jobDescription || "No job description available."}
-              </ReactMarkdown>
-            </div>
-          </div>
-        </div>
+        <JobDetails job={job} candidates={candidates} mode="view" />
       ) : activeTab === "Job Analytics" ? (
         <>
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">
