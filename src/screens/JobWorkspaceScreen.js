@@ -714,34 +714,6 @@ export default function JobWorkspaceScreen({
             </div>
           </div>
 
-          <div class="w-full rounded-xl border bg-gray-50 p-6 text-sm text-gray-700 shadow-sm">
-            <div class="flex items-center justify-between">
-              <h2 class="font-bold">Hiring team</h2>
-            </div>
-            <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <p class="text-gray-500 text-sm">Recruiters</p>
-                <p class="mt-2 text-gray-700 font-medium">
-                  {job?.contactPerson || "-"}
-                </p>
-              </div>
-              <div>
-                <p class="text-gray-500 text-sm">Hiring managers</p>
-                <div class="mt-2 flex items-center gap-2">
-                  {/* <div class="flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-semibold">
-                    GA
-                  </div> */}
-                  <span class="text-gray-800 text-sm">
-                    {job?.hiringManagerName || "-"}
-                  </span>
-                </div>
-              </div>
-              <div class="text-left md:text-right">
-                <p class="text-gray-500 text-sm">Interview panel members</p>
-                <p class="mt-2 text-gray-700 font-medium">NA</p>
-              </div>
-            </div>
-          </div>
         </>
       ) : (
         <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600 shadow-sm">
