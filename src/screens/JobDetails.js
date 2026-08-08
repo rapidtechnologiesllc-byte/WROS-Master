@@ -520,6 +520,25 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                 </div>
               </div>
             </div>
+
+            {/* Hiring Team */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Hiring Team</h3>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Recruiters</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.contactPerson || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Hiring Managers</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.hiringManager || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Interview Panel</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">-</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
