@@ -149,6 +149,15 @@ class AgentRegistry:
         is_logging=True,
     )
 
+    FLASH_ORCHESTRATION_ENGINE = AgentInfo(
+        name="Flash Orchestration Engine",
+        tier=AgentTier.CORE,
+        status=AgentStatus.OPERATIONAL,
+        description="Daily command coordination: analyzes HTD pipeline + opportunity health + agent state. Issues directives to partners on what to do TODAY. Escalates to CEO when critical.",
+        has_route=True,
+        is_logging=True,
+    )
+
     # HR/Employee agents
     ONBOARDING_AGENT = AgentInfo(
         name="Onboarding Agent",
@@ -298,6 +307,7 @@ class AgentRegistry:
         RECRUITMENT_AGENT,
         SUPERVISOR_AGENT,
         THUNDER_AGENT,
+        FLASH_ORCHESTRATION_ENGINE,
         # Resource
         RESOURCE_MANAGEMENT_AGENT,
         CORE_PULL_AGENT,
