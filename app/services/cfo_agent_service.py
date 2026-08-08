@@ -9,9 +9,10 @@ from app.models.user import Users
 from app.services.pnl_service import get_org_pnl_summary, get_bu_pnl
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.reserve_fund_service import get_reserve_fund_status
+from app.core.agent_logging import log_agent_execution
 
 
-def get_org_financial_snapshot(db: Session, year_month: str = None) -> dict:
+def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: str = None) -> dict:
     """
     Get organization-wide financial snapshot for CFO (requires Finance role + CEO access).
 
