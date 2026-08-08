@@ -986,6 +986,44 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register HTD pipeline accountability scheduler: {exc}")
 
+        # ── Daily: FLASH_DAILY_COORDINATION_JOB (8:15 AM EST) ──────────────────
+        # Flash orchestration engine: analyze all agent data and issue directives.
+        # Runs after HTD Pipeline (8:05) so has all pipeline data ready.
+        # Issues directives to partners on what to do TODAY.
+        # Escalates to CEO if critical issues found.
+        # 8:15 AM EST = 13:15 UTC
+        try:
+            from app.core.database import SessionLocal
+            from app.services.flash_orchestration_engine import FlashOrchestrationEngine
+
+            async def _run_flash_coordination():
+                db = SessionLocal()
+                try:
+                    result = await FlashOrchestrationEngine.daily_flash_coordination(
+                        tenant_id="default",
+                        db=db
+                    )
+                    partners_with_action = len(result.get("partner_directives", []))
+                    critical = result.get("summary", {}).get("critical_alerts", 0)
+                    high = result.get("summary", {}).get("high_alerts", 0)
+                    logger.info(f"[scheduler] Flash Coordination: {partners_with_action} partners have directives, {critical} critical, {high} high alerts")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Flash coordination error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_flash_coordination,
+                trigger="cron",
+                hour=13,  # 8:15 AM EST = 13:15 UTC
+                minute=15,
+                id="flash_daily_coordination_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled Flash daily coordination job (8:15 AM EST / 13:15 UTC)")
+        except Exception as exc:
+            logger.warning(f"Could not register Flash coordination scheduler: {exc}")
+
         # ── Weekly (Thursday): PARTNER_SUCCESS_AGENT_JOB ────────────────────
         # Thursday morning before CEO call: Partners get final validation check
         # "Here's your week. Here's what you'll tell the CEO."
