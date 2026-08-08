@@ -4,7 +4,15 @@ import { Button, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
 
-export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view", candidates = [] }) {
+const getContactPersonName = (job) => {
+  if (!job) return "-";
+  // Use the contact_person_name field from API if available
+  if (job.contact_person_name) return job.contact_person_name;
+  // Fallback to the contactPerson ID if name not available
+  return job.contactPerson || "-";
+};
+
+export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view", candidates = [], defaultTab = "details" }) {
   const [editingSection, setEditingSection] = useState(null);
   const [title, setTitle] = useState(job.title || "");
   const [positionType, setPositionType] = useState(job.positionType || "");
@@ -28,11 +36,15 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   const [skillsText, setSkillsText] = useState((job.skills || []).join(", "));
   const [hmOneLiner, setHmOneLiner] = useState(job.hiringManagerOneLiner || "");
   const [internalJD, setInternalJD] = useState(job.internalJD || job.jobDescription || "");
-  const [activeTab, setActiveTab] = useState("details");
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [candidateQuery, setCandidateQuery] = useState("");
   const [candidateStageFilter, setCandidateStageFilter] = useState("All");
 
   const CANDIDATE_STAGES = ["All", "Sourced", "Recruiter Screening", "L1 Interview", "Pre-Onboarding", "Hired", "Archived"];
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   const jobMetrics = useMemo(() => {
     const submitted = candidates.filter(c => c.job_id === job.id)?.length || 0;
@@ -200,7 +212,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             <div className="grid gap-3 md:grid-cols-2">
               <Info label="Company / Client" value={job.companyClient} />
               <Info label="Company Type" value={job.companyType} />
-              <Info label="Contact Person" value={job.contactPerson} />
+              <Info label="Contact Person" value={getContactPersonName(job)} />
               <Info label="Division" value={job.division} />
             </div>
             {mode !== "view" && (
@@ -547,11 +559,13 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
               <div className="space-y-4">
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase">Recruiters</div>
-                  <div className="text-sm font-medium text-gray-900 mt-1">{job.contactPerson || "-"}</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{getContactPersonName(job)}</div>
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase">Hiring Managers</div>
-                  <div className="text-sm font-medium text-gray-900 mt-1">{job.hiringManager || "-"}</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">
+                    {job.hiring_manager_name || job.hiringManager || "-"}
+                  </div>
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase">Interview Panel</div>

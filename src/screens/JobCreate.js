@@ -361,6 +361,7 @@ export default function JobCreate({
       { label: "No. of Positions", value: noOfPositions },
       { label: "Start Date", value: startDate },
       { label: "End Date", value: endDate },
+      { label: "Pay Range", value: payAmount },
     ];
     const missing = required
       .filter(
@@ -384,6 +385,7 @@ export default function JobCreate({
       return;
     }
     try {
+      const payRangeString = payAmount ? `${payCurrency} ${payFrequency} ${payAmount}` : null;
       const payload = {
         job_title: title?.trim(),
         job_description: internalJD?.trim(),
@@ -399,6 +401,7 @@ export default function JobCreate({
         end_date: endDate,
         hiring_manager_id: hmUserId || null,
         reporting_manager_id: rmUserId || null,
+        salary_range: payRangeString,
       };
       const data = await createJob(payload);
       const createdId = data?.job_id;

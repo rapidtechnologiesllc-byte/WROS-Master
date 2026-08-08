@@ -309,6 +309,18 @@ const CandidateAssignJobModal = ({
     };
   };
   const isEmptyValue = (value) => !String(value ?? "").trim();
+
+  const parseExperience = (exp) => {
+    if (!exp) return 0;
+    const match = String(exp).match(/\d+/);
+    return match ? parseInt(match[0]) : 0;
+  };
+
+  const parsePayAmount = (pay) => {
+    if (!pay) return 0;
+    return parseFloat(String(pay).replace(/[^\d.]/g, "")) || 0;
+  };
+
   const validateForm = () => {
     if (!candidateId) {
       toast.error("Please select a candidate");
@@ -337,6 +349,29 @@ const CandidateAssignJobModal = ({
       toast.error("Please enter agreed pay rate");
       return false;
     }
+
+    // Validate Experience Level
+    if (selectedJob && candidateDetails) {
+      const jobRequiredExp = parseExperience(selectedJob?.experienceLevel || selectedJob?.experience_level || "0");
+      const candidateExp = parseExperience(candidateDetails?.candidate_experience || candidateDetails?.experience || "0");
+
+      if (jobRequiredExp > 0 && candidateExp < jobRequiredExp) {
+        toast.warning(`⚠️ Candidate has ${candidateExp} years experience but job requires ${jobRequiredExp} years. Please confirm before proceeding.`);
+        // Don't block submission, just warn
+      }
+    }
+
+    // Validate Pay Range
+    if (selectedJob && formData?.agreedPayRate) {
+      const jobPayMax = parsePayAmount(selectedJob?.salaryRange || selectedJob?.pay_range || "0");
+      const candidatePayRate = parsePayAmount(formData?.agreedPayRate);
+
+      if (jobPayMax > 0 && candidatePayRate > jobPayMax) {
+        toast.error(`❌ Candidate's agreed pay rate ($${candidatePayRate}) exceeds job's maximum pay range ($${jobPayMax}). Candidate is out of budget.`);
+        return false;
+      }
+    }
+
     return true;
   };
 

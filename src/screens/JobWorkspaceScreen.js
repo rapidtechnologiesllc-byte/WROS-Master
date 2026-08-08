@@ -12,7 +12,7 @@ import { UserMinus } from "lucide-react";
 import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 import JobDetails from "./JobDetails";
 
-const TABS = ["Job Info", "Job Analytics"];
+const TABS = ["Job Details", "Candidates", "Job Analytics"];
 
 const getStageLabel = (candidate) => {
   const status = String(candidate?.pipelineStatus || candidate?.status || "")
@@ -377,8 +377,10 @@ export default function JobWorkspaceScreen({
         </div>
       </div>
 
-      {activeTab === "Job Info" ? (
-        <JobDetails job={job} candidates={candidates} mode="view" />
+      {activeTab === "Job Details" ? (
+        <JobDetails job={job} candidates={candidates} mode="view" defaultTab="details" />
+      ) : activeTab === "Candidates" ? (
+        <JobDetails job={job} candidates={candidates} mode="view" defaultTab="candidates" />
       ) : activeTab === "Job Analytics" ? (
         <>
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">
