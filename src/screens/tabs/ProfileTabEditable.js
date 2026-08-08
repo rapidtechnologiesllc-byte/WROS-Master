@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, Save, X, Loader } from "lucide-react";
+import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download } from "lucide-react";
 import { Button, Input, Select, Card } from "../../components/ui";
 import RateField from "../../components/ui/RateField";
 import { toast } from "react-toastify";
@@ -34,6 +34,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   const [notes, setNotes] = useState([]);
   const [noteInput, setNoteInput] = useState("");
 
+  // Resume state
+  const [resumeExpanded, setResumeExpanded] = useState(false);
+  const [resumeData, setResumeData] = useState(null);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -46,6 +50,16 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         setData(candidateData);
         setCandidateFullDetails(fullDetails);
         setUsers(userList || []);
+
+        // Load resume data
+        try {
+          const docs = await getCandidateDocuments(candidateId);
+          if (docs && docs.resume) {
+            setResumeData(docs.resume);
+          }
+        } catch (docErr) {
+          console.warn("Could not load resume:", docErr?.message);
+        }
       } catch (err) {
         setError(err?.message || "Failed to load profile");
       } finally {
@@ -412,6 +426,47 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </div>
         )}
       </EditableSection>
+
+      {/* Resume Section */}
+      {resumeData && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setResumeExpanded(!resumeExpanded)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                {resumeExpanded ? (
+                  <ChevronDown className="h-5 w-5 text-gray-600" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 text-gray-600" />
+                )}
+              </button>
+              <h3 className="text-sm font-semibold text-gray-900">RESUME</h3>
+            </div>
+            {resumeData?.file_url && (
+              <a
+                href={resumeData.file_url}
+                download
+                className="flex items-center gap-2 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-xs font-medium text-gray-700"
+              >
+                <Download className="h-4 w-4" />
+                Download Resume
+              </a>
+            )}
+          </div>
+          {resumeData?.file_name && (
+            <div className="text-xs text-blue-600 mb-3 hover:text-blue-700 cursor-pointer">
+              {resumeData.file_name}
+            </div>
+          )}
+          {resumeExpanded && resumeData?.content && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 max-h-96 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap">
+              {resumeData.content}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Education Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
