@@ -8,7 +8,6 @@ import { listClients, getBusinessUnitAssignments } from "../services/api/clients
 import { toast } from "react-toastify";
 import {
   listBusinessUnits,
-  getDepartmentsByBusinessUnit,
 } from "../services/api/rbac";
 import { Steps } from "antd";
 import { ROUTES } from "../utils/Routes";
@@ -50,8 +49,6 @@ export default function JobCreate({
   const [externalJD, setExternalJD] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [departmentListState, setDepartmentList] = useState([]);
-  const [selectedDept, setSelectedDept] = useState("");
   const [businessUnitList, setBusinessUnitList] = useState([]);
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [clientList, setClientList] = useState([]);
@@ -103,28 +100,8 @@ export default function JobCreate({
   }, []);
 
   useEffect(() => {
-    const loadDepartments = async () => {
-      if (!selectedBusinessUnit) {
-        setDepartmentList([]);
-        setSelectedDept("");
-        return;
-      }
-      try {
-        const departments =
-          await getDepartmentsByBusinessUnit(selectedBusinessUnit);
-        setDepartmentList(departments);
-        setSelectedDept("");
-      } catch (err) {
-        console.error("Failed to load departments:", err);
-        setDepartmentList([]);
-      }
-    };
-    loadDepartments();
-  }, [selectedBusinessUnit]);
-
-  useEffect(() => {
     const loadHrUsers = async () => {
-      if (!selectedBusinessUnit || !selectedDept) {
+      if (!selectedBusinessUnit) {
         setHrUsers([]);
         return;
       }
@@ -132,10 +109,7 @@ export default function JobCreate({
       const businessUnitName =
         businessUnitList?.find((bu) => bu?.id === Number(selectedBusinessUnit))
           ?.name ?? "";
-      const departmentName =
-        departmentListState?.find((dept) => dept?.id === Number(selectedDept))
-          ?.name ?? "";
-      if (!businessUnitName || !departmentName) {
+      if (!businessUnitName) {
         setHrUsers([]);
         return;
       }
@@ -143,7 +117,6 @@ export default function JobCreate({
         const response = await searchUsers({
           user_role: "HR",
           business_unit: businessUnitName,
-          department: departmentName,
         });
 
         setHrUsers(Array.isArray(response?.users) ? response.users : []);
@@ -155,9 +128,7 @@ export default function JobCreate({
     loadHrUsers();
   }, [
     selectedBusinessUnit,
-    selectedDept,
     businessUnitList,
-    departmentListState,
   ]);
 
   // Selecting a client auto-resolves its Business Unit -- one less
@@ -283,7 +254,14 @@ export default function JobCreate({
     loadClients();
   }, []);
 
-  // Auto-detect if job is internal or external based on company name
+  // Auto-set company to BlitzenX when internal role is selected
+  useEffect(() => {
+    if (isInternalRole === true) {
+      setCompanyClient("BlitzenX");
+    }
+  }, [isInternalRole]);
+
+  // Auto-detect internal/external when company changes
   useEffect(() => {
     if (companyClient) {
       const isInternal = String(companyClient).toLowerCase().includes("blitzenx");
@@ -296,14 +274,6 @@ export default function JobCreate({
     ...(clientList?.map((client) => ({
       label: client?.company_name,
       value: client?.company_name,
-    })) || []),
-  ];
-
-  const deptOptions = [
-    { label: "Please select department", value: "", disabled: true },
-    ...(departmentListState?.map((dept) => ({
-      label: dept?.name,
-      value: dept?.id,
     })) || []),
   ];
 
@@ -512,12 +482,6 @@ export default function JobCreate({
                 value={selectedBusinessUnit}
                 onChange={(value) => setSelectedBusinessUnit(value)}
                 options={buOptions}
-              />
-              <Select
-                label="Department"
-                value={selectedDept}
-                onChange={(value) => setSelectedDept(value)}
-                options={deptOptions}
               />
               <Input
                 label="Location *"
