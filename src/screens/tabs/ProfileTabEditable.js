@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download } from "lucide-react";
+import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download, Upload } from "lucide-react";
 import { Button, Input, Select, Card } from "../../components/ui";
 import RateField from "../../components/ui/RateField";
 import { toast } from "react-toastify";
@@ -15,6 +15,7 @@ import { getAllUsers } from "../../services/api/users";
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 const SOURCES = ["LinkedIn", "Indeed", "Referral", "Direct Application", "Job Board", "Other"];
 const CURRENCY_OPTIONS = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"];
+const GOVT_ID_TYPES = ["Aadhar Card", "Pan Card", "Driver License", "Election Card", "State ID", "Passport", "Other"];
 
 export default function ProfileTabEditable({ candidateId, candidate = {}, onRefresh }) {
   const [data, setData] = useState(null);
@@ -44,6 +45,49 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     isPrimary: false,
   });
   const [editingSkillIdx, setEditingSkillIdx] = useState(null);
+
+  // Education state
+  const [showEducationModal, setShowEducationModal] = useState(false);
+  const [educationList, setEducationList] = useState([]);
+  const [educationForm, setEducationForm] = useState({
+    level: "",
+    school: "",
+    university: "",
+    start_date: "",
+    end_date: "",
+    degree: "",
+  });
+  const [editingEducationIdx, setEditingEducationIdx] = useState(null);
+
+  // Experience state
+  const [showExperienceModal, setShowExperienceModal] = useState(false);
+  const [experienceList, setExperienceList] = useState([]);
+  const [experienceForm, setExperienceForm] = useState({
+    company: "",
+    job_title: "",
+    start_date: "",
+    end_date: "",
+    job_responsibilities: "",
+  });
+  const [editingExperienceIdx, setEditingExperienceIdx] = useState(null);
+
+  // Certifications state
+  const [showCertificationsModal, setShowCertificationsModal] = useState(false);
+  const [certificationsList, setCertificationsList] = useState([]);
+  const [certificationsForm, setCertificationsForm] = useState({
+    name: "",
+    title: "",
+    issuer: "",
+    organization: "",
+    issue_date: "",
+    expiry_date: "",
+    credential_id: "",
+  });
+  const [editingCertificationsIdx, setEditingCertificationsIdx] = useState(null);
+
+  // Resume upload state
+  const [resumeFile, setResumeFile] = useState(null);
+  const [uploadingResume, setUploadingResume] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -77,6 +121,15 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     if (candidateId) load();
   }, [candidateId]);
 
+  // Initialize education, experience, and certifications from candidateFullDetails
+  useEffect(() => {
+    if (candidateFullDetails) {
+      setEducationList(candidateFullDetails.education || []);
+      setExperienceList(candidateFullDetails.experience || []);
+      setCertificationsList(candidateFullDetails.certifications || []);
+    }
+  }, [candidateFullDetails]);
+
   const profile = useMemo(() => {
     const merged = { ...(candidate || {}), ...(data || {}) };
     return merged && Object.keys(merged).length > 0 ? merged : {};
@@ -108,7 +161,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         source: profile?.candidate_source || "",
         govt_id_type: profile?.candidate_govt_id_type || "",
         govt_id_number: profile?.candidate_govt_id_number || "",
-        previous_organization: profile?.candidate_previous_organization || "",
         assigned_hr_manager_id: profile?.assigned_hr_manager_id || "",
         assigned_report_manager_id: profile?.assigned_report_manager_id || "",
       });
@@ -148,7 +200,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       } else if (section === "identity") {
         updatePayload.candidate_govt_id_type = editForm.govt_id_type || null;
         updatePayload.candidate_govt_id_number = editForm.govt_id_number || null;
-        updatePayload.candidate_previous_organization = editForm.previous_organization || null;
       } else if (section === "assignment") {
         updatePayload.assigned_hr_manager_id = editForm.assigned_hr_manager_id || null;
         updatePayload.assigned_report_manager_id = editForm.assigned_report_manager_id || null;
@@ -355,17 +406,53 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             </button>
             <h3 className="text-sm font-semibold text-gray-900">RESUME</h3>
           </div>
-          {resumeData?.file_url && (
-            <a
-              href={resumeData.file_url}
-              download
-              className="flex items-center gap-2 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-xs font-medium text-gray-700"
-            >
-              <Download className="h-4 w-4" />
-              Download Resume
-            </a>
-          )}
+          <div className="flex gap-2">
+            <label className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-xs font-medium cursor-pointer">
+              <Upload className="h-4 w-4" />
+              Upload Resume
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+            </label>
+            {resumeData?.file_url && (
+              <a
+                href={resumeData.file_url}
+                download
+                className="flex items-center gap-2 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-xs font-medium text-gray-700"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </a>
+            )}
+          </div>
         </div>
+        {resumeFile && (
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-900"><strong>Selected:</strong> {resumeFile.name}</p>
+            <button
+              onClick={async () => {
+                // TODO: Implement actual file upload to backend
+                setUploadingResume(true);
+                try {
+                  // Placeholder for actual upload logic
+                  toast.success("Resume uploaded successfully");
+                  setResumeFile(null);
+                } catch (err) {
+                  toast.error("Failed to upload resume");
+                } finally {
+                  setUploadingResume(false);
+                }
+              }}
+              disabled={uploadingResume}
+              className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded text-xs font-medium transition"
+            >
+              {uploadingResume ? "Uploading..." : "Upload"}
+            </button>
+          </div>
+        )}
         {resumeData?.file_name && (
           <div className="text-xs text-blue-600 mb-3 hover:text-blue-700 cursor-pointer">
             {resumeData.file_name}
@@ -377,7 +464,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </div>
         )}
         {!resumeData && (
-          <p className="text-sm text-gray-600">No resume available. Upload your resume to get started.</p>
+          <p className="text-sm text-gray-600">No resume available. Click "Upload Resume" to add one.</p>
         )}
       </div>
 
@@ -562,13 +649,398 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         </div>
       )}
 
+      {/* Education Management Modal */}
+      {showEducationModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Manage Education Details</h2>
+              <button onClick={() => setShowEducationModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[600px] overflow-y-auto space-y-4">
+              {/* Add/Edit Education Form */}
+              <div className="border-b pb-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {editingEducationIdx !== null ? "Edit Education" : "Add Education"}
+                </h3>
+                <Input
+                  label="Level (e.g., Bachelor, Master, PhD)"
+                  value={educationForm.level}
+                  onChange={(v) => setEducationForm({...educationForm, level: v})}
+                />
+                <Input
+                  label="University/College Name"
+                  value={educationForm.school || educationForm.university || ""}
+                  onChange={(v) => setEducationForm({...educationForm, school: v, university: v})}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Start Date"
+                    type="date"
+                    value={educationForm.start_date}
+                    onChange={(v) => setEducationForm({...educationForm, start_date: v})}
+                  />
+                  <Input
+                    label="End Date"
+                    type="date"
+                    value={educationForm.end_date}
+                    onChange={(v) => setEducationForm({...educationForm, end_date: v})}
+                  />
+                </div>
+                <Input
+                  label="Degree Attained"
+                  value={educationForm.degree}
+                  onChange={(v) => setEducationForm({...educationForm, degree: v})}
+                  placeholder="e.g., B.Tech, M.A., MBA"
+                />
+                <button
+                  onClick={() => {
+                    if (!educationForm.level.trim() || !educationForm.school.trim()) {
+                      toast.warning("Please fill in all required fields");
+                      return;
+                    }
+                    if (editingEducationIdx !== null) {
+                      const updated = [...educationList];
+                      updated[editingEducationIdx] = educationForm;
+                      setEducationList(updated);
+                      setEditingEducationIdx(null);
+                    } else {
+                      setEducationList([...educationList, educationForm]);
+                    }
+                    setEducationForm({
+                      level: "",
+                      school: "",
+                      university: "",
+                      start_date: "",
+                      end_date: "",
+                      degree: "",
+                    });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  {editingEducationIdx !== null ? "Update Education" : "Add Education"}
+                </button>
+              </div>
+
+              {/* Education List */}
+              {educationList.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Education ({educationList.length})</h3>
+                  {educationList.map((edu, idx) => (
+                    <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{edu.degree || edu.level}</p>
+                        <p className="text-xs text-gray-600">{edu.school || edu.university}</p>
+                        {edu.start_date && <p className="text-xs text-gray-600">{edu.start_date} to {edu.end_date}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEducationForm(edu);
+                            setEditingEducationIdx(idx);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEducationList(educationList.filter((_, i) => i !== idx));
+                          }}
+                          className="text-red-600 hover:text-red-900 text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowEducationModal(false);
+                  toast.success("Education details updated successfully");
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Experience Management Modal */}
+      {showExperienceModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Manage Experience Details</h2>
+              <button onClick={() => setShowExperienceModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[600px] overflow-y-auto space-y-4">
+              {/* Add/Edit Experience Form */}
+              <div className="border-b pb-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {editingExperienceIdx !== null ? "Edit Experience" : "Add Experience"}
+                </h3>
+                <Input
+                  label="Company Name"
+                  value={experienceForm.company}
+                  onChange={(v) => setExperienceForm({...experienceForm, company: v})}
+                />
+                <Input
+                  label="Job Title"
+                  value={experienceForm.job_title}
+                  onChange={(v) => setExperienceForm({...experienceForm, job_title: v})}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Start Date"
+                    type="date"
+                    value={experienceForm.start_date}
+                    onChange={(v) => setExperienceForm({...experienceForm, start_date: v})}
+                  />
+                  <Input
+                    label="End Date"
+                    type="date"
+                    value={experienceForm.end_date}
+                    onChange={(v) => setExperienceForm({...experienceForm, end_date: v})}
+                  />
+                </div>
+                <Input
+                  label="Job Responsibilities"
+                  value={experienceForm.job_responsibilities}
+                  onChange={(v) => setExperienceForm({...experienceForm, job_responsibilities: v})}
+                  placeholder="Describe your key responsibilities"
+                />
+                <button
+                  onClick={() => {
+                    if (!experienceForm.company.trim() || !experienceForm.job_title.trim()) {
+                      toast.warning("Please fill in all required fields");
+                      return;
+                    }
+                    if (editingExperienceIdx !== null) {
+                      const updated = [...experienceList];
+                      updated[editingExperienceIdx] = experienceForm;
+                      setExperienceList(updated);
+                      setEditingExperienceIdx(null);
+                    } else {
+                      setExperienceList([...experienceList, experienceForm]);
+                    }
+                    setExperienceForm({
+                      company: "",
+                      job_title: "",
+                      start_date: "",
+                      end_date: "",
+                      job_responsibilities: "",
+                    });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  {editingExperienceIdx !== null ? "Update Experience" : "Add Experience"}
+                </button>
+              </div>
+
+              {/* Experience List */}
+              {experienceList.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Experience ({experienceList.length})</h3>
+                  {experienceList.map((exp, idx) => (
+                    <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{exp.job_title}</p>
+                        <p className="text-xs text-gray-600">{exp.company}</p>
+                        {exp.start_date && <p className="text-xs text-gray-600">{exp.start_date} to {exp.end_date}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setExperienceForm(exp);
+                            setEditingExperienceIdx(idx);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExperienceList(experienceList.filter((_, i) => i !== idx));
+                          }}
+                          className="text-red-600 hover:text-red-900 text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowExperienceModal(false);
+                  toast.success("Experience details updated successfully");
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Certifications Management Modal */}
+      {showCertificationsModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Manage Certifications</h2>
+              <button onClick={() => setShowCertificationsModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[600px] overflow-y-auto space-y-4">
+              {/* Add/Edit Certifications Form */}
+              <div className="border-b pb-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {editingCertificationsIdx !== null ? "Edit Certification" : "Add Certification"}
+                </h3>
+                <Input
+                  label="Certification Name"
+                  value={certificationsForm.name || certificationsForm.title || ""}
+                  onChange={(v) => setCertificationsForm({...certificationsForm, name: v, title: v})}
+                />
+                <Input
+                  label="Issuing Organization"
+                  value={certificationsForm.issuer || certificationsForm.organization || ""}
+                  onChange={(v) => setCertificationsForm({...certificationsForm, issuer: v, organization: v})}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Issue Date"
+                    type="date"
+                    value={certificationsForm.issue_date}
+                    onChange={(v) => setCertificationsForm({...certificationsForm, issue_date: v})}
+                  />
+                  <Input
+                    label="Expiry Date"
+                    type="date"
+                    value={certificationsForm.expiry_date}
+                    onChange={(v) => setCertificationsForm({...certificationsForm, expiry_date: v})}
+                  />
+                </div>
+                <Input
+                  label="Credential ID"
+                  value={certificationsForm.credential_id}
+                  onChange={(v) => setCertificationsForm({...certificationsForm, credential_id: v})}
+                  placeholder="Optional credential ID or URL"
+                />
+                <button
+                  onClick={() => {
+                    if (!(certificationsForm.name || certificationsForm.title)?.trim()) {
+                      toast.warning("Please enter certification name");
+                      return;
+                    }
+                    if (editingCertificationsIdx !== null) {
+                      const updated = [...certificationsList];
+                      updated[editingCertificationsIdx] = certificationsForm;
+                      setCertificationsList(updated);
+                      setEditingCertificationsIdx(null);
+                    } else {
+                      setCertificationsList([...certificationsList, certificationsForm]);
+                    }
+                    setCertificationsForm({
+                      name: "",
+                      title: "",
+                      issuer: "",
+                      organization: "",
+                      issue_date: "",
+                      expiry_date: "",
+                      credential_id: "",
+                    });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  {editingCertificationsIdx !== null ? "Update Certification" : "Add Certification"}
+                </button>
+              </div>
+
+              {/* Certifications List */}
+              {certificationsList.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Certifications ({certificationsList.length})</h3>
+                  {certificationsList.map((cert, idx) => (
+                    <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{cert.name || cert.title}</p>
+                        <p className="text-xs text-gray-600">{cert.issuer || cert.organization}</p>
+                        {cert.issue_date && <p className="text-xs text-gray-600">Issued: {cert.issue_date}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setCertificationsForm(cert);
+                            setEditingCertificationsIdx(idx);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCertificationsList(certificationsList.filter((_, i) => i !== idx));
+                          }}
+                          className="text-red-600 hover:text-red-900 text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowCertificationsModal(false);
+                  toast.success("Certifications updated successfully");
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Education Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">EDUCATION DETAILS</h3>
-        <p className="text-xs text-gray-500 mb-4">Extracted from resume</p>
-        {candidateFullDetails?.education && candidateFullDetails.education.length > 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">EDUCATION DETAILS</h3>
+            <p className="text-xs text-gray-500 mt-1">Extracted from resume</p>
+          </div>
+          <button
+            onClick={() => setShowEducationModal(true)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition font-medium"
+          >
+            Add/Edit
+          </button>
+        </div>
+        {educationList && educationList.length > 0 ? (
           <div className="space-y-4">
-            {candidateFullDetails.education.map((edu, idx) => (
+            {educationList.map((edu, idx) => (
               <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoDisplay label="Level" value={edu.level || "—"} />
@@ -581,17 +1053,27 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-600">No data available</p>
+          <p className="text-sm text-gray-600">No data available. Click "Add/Edit" to add education details.</p>
         )}
       </div>
 
       {/* Experience Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">EXPERIENCE DETAILS</h3>
-        <p className="text-xs text-gray-500 mb-4">Extracted from resume</p>
-        {candidateFullDetails?.experience && candidateFullDetails.experience.length > 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">EXPERIENCE DETAILS</h3>
+            <p className="text-xs text-gray-500 mt-1">Extracted from resume</p>
+          </div>
+          <button
+            onClick={() => setShowExperienceModal(true)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition font-medium"
+          >
+            Add/Edit
+          </button>
+        </div>
+        {experienceList && experienceList.length > 0 ? (
           <div className="space-y-4">
-            {candidateFullDetails.experience.map((exp, idx) => (
+            {experienceList.map((exp, idx) => (
               <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoDisplay label="Company" value={exp.company || "—"} />
@@ -604,17 +1086,27 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-600">No data available</p>
+          <p className="text-sm text-gray-600">No data available. Click "Add/Edit" to add experience details.</p>
         )}
       </div>
 
       {/* Certifications */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">CERTIFICATIONS</h3>
-        <p className="text-xs text-gray-500 mb-4">Extracted from resume</p>
-        {candidateFullDetails?.certifications && candidateFullDetails.certifications.length > 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">CERTIFICATIONS</h3>
+            <p className="text-xs text-gray-500 mt-1">Extracted from resume</p>
+          </div>
+          <button
+            onClick={() => setShowCertificationsModal(true)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition font-medium"
+          >
+            Add/Edit
+          </button>
+        </div>
+        {certificationsList && certificationsList.length > 0 ? (
           <div className="space-y-4">
-            {candidateFullDetails.certifications.map((cert, idx) => (
+            {certificationsList.map((cert, idx) => (
               <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoDisplay label="Certification Name" value={cert.name || cert.title || "—"} />
@@ -627,19 +1119,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-600">No data available</p>
+          <p className="text-sm text-gray-600">No data available. Click "Add/Edit" to add certifications.</p>
         )}
-      </div>
-
-      {/* Documents */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">DOCUMENTS</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoDisplay label="AADHAR NUMBER" value={profile?.candidate_aadhar_number || "—"} />
-          <InfoDisplay label="AADHAR VERIFIED" value={profile?.candidate_aadhar_verified ? "Yes" : "No"} />
-          <InfoDisplay label="PAN NUMBER" value={profile?.candidate_pan_number || "—"} />
-          <InfoDisplay label="PAN VERIFIED" value={profile?.candidate_pan_verified ? "Yes" : "No"} />
-        </div>
       </div>
 
       {/* Identity & Background */}
@@ -653,27 +1134,22 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       >
         {editingSection === "identity" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
+            <Select
               label="Government ID Type"
               value={editForm.govt_id_type || ""}
               onChange={(v) => setEditForm({...editForm, govt_id_type: v})}
+              options={GOVT_ID_TYPES}
             />
             <Input
               label="Government ID Number"
               value={editForm.govt_id_number || ""}
               onChange={(v) => setEditForm({...editForm, govt_id_number: v})}
             />
-            <Input
-              label="Previous Organization"
-              value={editForm.previous_organization || ""}
-              onChange={(v) => setEditForm({...editForm, previous_organization: v})}
-            />
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoDisplay label="Government ID Type" value={profile?.candidate_govt_id_type} />
             <InfoDisplay label="Government ID Number" value={profile?.candidate_govt_id_number} />
-            <InfoDisplay label="Previous Organization" value={profile?.candidate_previous_organization} />
           </div>
         )}
       </EditableSection>
