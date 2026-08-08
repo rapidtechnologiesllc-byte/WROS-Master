@@ -880,6 +880,74 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register weekly timesheet draft creation scheduler: {exc}")
 
+        # ── Daily: AGENT_DAILY_STANDUP_JOB (8:00 AM EST) ─────────────────────
+        # Sequential agent reporting with validation. Each agent reports
+        # yesterday's metrics in priority order. System validates each update.
+        # 8:00 AM EST = 13:00 UTC (EST is UTC-5)
+        try:
+            from app.core.database import SessionLocal
+            from app.services.agent_daily_standup_service import AgentDailyStandup
+
+            async def _run_agent_standup():
+                db = SessionLocal()
+                try:
+                    result = await AgentDailyStandup.generate_standup_report(
+                        tenant_id="default",  # Will be called per-tenant in production
+                        db=db
+                    )
+                    if result.get("agent_reports"):
+                        logger.info(f"[scheduler] Agent daily standup: {len(result['agent_reports'])} agents reported, {len(result.get('validation_issues', []))} issues flagged")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Agent daily standup error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_agent_standup,
+                trigger="cron",
+                hour=13,  # 8 AM EST = 13:00 UTC
+                minute=0,
+                id="agent_daily_standup_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled agent daily standup job (8:00 AM EST / 13:00 UTC)")
+        except Exception as exc:
+            logger.warning(f"Could not register agent daily standup scheduler: {exc}")
+
+        # ── Daily: AGENT_SCRUM_OF_SCRUMS_JOB (8:30 AM EST) ──────────────────
+        # Flash + CEO + Feedback + Partners (Troy, Curtis) sync.
+        # 8:30 AM EST = 13:30 UTC
+        try:
+            from app.core.database import SessionLocal
+            from app.services.agent_daily_standup_service import AgentDailyStandup
+
+            async def _run_scrum_of_scrums():
+                db = SessionLocal()
+                try:
+                    result = await AgentDailyStandup.scrum_of_scrums(
+                        tenant_id="default",  # Will be called per-tenant in production
+                        db=db
+                    )
+                    critical_count = len(result.get("ceo_directives", []))
+                    if critical_count > 0:
+                        logger.info(f"[scheduler] Scrum of Scrums: {critical_count} CEO directives issued")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Scrum of Scrums error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_scrum_of_scrums,
+                trigger="cron",
+                hour=13,  # 8:30 AM EST = 13:30 UTC
+                minute=30,
+                id="agent_scrum_of_scrums_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled agent scrum of scrums job (8:30 AM EST / 13:30 UTC)")
+        except Exception as exc:
+            logger.warning(f"Could not register agent scrum of scrums scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
