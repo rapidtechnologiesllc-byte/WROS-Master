@@ -32,9 +32,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   // Form state
   const [editForm, setEditForm] = useState({});
 
-  // Determine if candidate is at corporate level (not submitted to any job)
-  const isAtCorporateLevel = !profile?.has_job_submission;
-
   // Resume state
   const [resumeExpanded, setResumeExpanded] = useState(false);
   const [resumeData, setResumeData] = useState(null);
@@ -138,6 +135,9 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     const merged = { ...(candidate || {}), ...(data || {}) };
     return merged && Object.keys(merged).length > 0 ? merged : {};
   }, [candidate, data]);
+
+  // Determine if candidate is at corporate level (not submitted to any job)
+  const isAtCorporateLevel = !profile?.has_job_submission;
 
   const handleEditSection = (section) => {
     try {

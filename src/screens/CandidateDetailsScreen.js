@@ -1404,10 +1404,68 @@ ${formattedJD}
             )}
           </div>
           {!limitedMode && (
-            <div className="bg-white border rounded-2xl shadow-sm h-fit flex flex-col">
-              <div className="border-b px-5 py-4">
-                <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
+            <div className="space-y-5">
+              {/* Users & BU Details Panel */}
+              <div className="bg-white border rounded-2xl shadow-sm">
+                <div className="border-b px-5 py-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Users & BU Details</h3>
+                </div>
+                <div className="px-5 py-4 space-y-4 text-xs">
+                  {/* Recruiter */}
+                  <div>
+                    <div className="text-gray-600 font-medium mb-1">Recruiter</div>
+                    <div className="text-gray-900 font-semibold">{candidate?.assigned_recruiter_name || "—"}</div>
+                  </div>
+
+                  {/* Business Unit */}
+                  <div className="border-t pt-3">
+                    <div className="text-gray-600 font-medium mb-1">Business Unit</div>
+                    <div className="text-gray-900 font-semibold">{candidate?.business_unit_id || "—"}</div>
+                  </div>
+
+                  {/* Other Users - Only if not at corporate level */}
+                  {candidate?.has_job_submission && (
+                    <>
+                      <div className="border-t pt-3">
+                        <div className="text-gray-600 font-medium mb-1">HR Manager</div>
+                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_manager_name || "—"}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-gray-600 font-medium mb-1">Hiring Manager</div>
+                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hiring_manager_name || "—"}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-gray-600 font-medium mb-1">HR BP</div>
+                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_bp_name || "—"}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-gray-600 font-medium mb-1">BU Head</div>
+                        <div className="text-gray-900 font-semibold">{candidate?.assigned_bu_head_name || "—"}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-gray-600 font-medium mb-1">Report Manager</div>
+                        <div className="text-gray-900 font-semibold">{candidate?.assigned_report_manager_name || "—"}</div>
+                      </div>
+                    </>
+                  )}
+
+                  {!candidate?.has_job_submission && (
+                    <div className="border-t pt-3">
+                      <p className="text-gray-500 italic text-xs">Additional users will appear as the candidate proceeds through the recruitment process.</p>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Notes Panel */}
+              <div className="bg-white border rounded-2xl shadow-sm h-fit flex flex-col">
+                <div className="border-b px-5 py-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
+                </div>
 
               {/* Note Input */}
               <div className="border-b px-5 py-3">
@@ -1461,6 +1519,7 @@ ${formattedJD}
                   </div>
                 )}
               </div>
+            </div>
             </div>
           )}
         </div>
