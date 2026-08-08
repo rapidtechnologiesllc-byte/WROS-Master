@@ -27,6 +27,17 @@ from app.services.agent_maturity_service import (
     check_agent_health,
     retire_agent as retire_agent_service
 )
+from app.services.agent_fear_service import (
+    calculate_fear_level,
+    update_agent_fear_state,
+    get_agent_fear_dashboard,
+    check_retirement_eligibility
+)
+from app.schemas.agent_fear import (
+    AgentFearStateResponse,
+    FearDashboardResponse,
+    RetirementEligibilityResponse
+)
 
 router = APIRouter(prefix="/admin/agents", tags=["admin-agents"])
 
@@ -197,3 +208,77 @@ def get_retired_agents(db: Session = Depends(get_db)):
         ],
         "total_retired": len(retired)
     }
+
+
+# ====== FEAR STATE ENDPOINTS (Part C: Emotional Coefficient System) ======
+
+@router.get(
+    "/fear",
+    dependencies=[Depends(require_permission("admin.view"))]
+)
+def get_fear_dashboard(db: Session = Depends(get_db)):
+    """
+    Get fear state dashboard showing all agents under threat.
+
+    Fear levels indicate how hard agents are working to avoid retirement:
+    - 0-20: Safe (confident, performing well)
+    - 20-50: Neutral (stable performance)
+    - 50-80: Stressed (performance declining, urgent improvement needed)
+    - 80-100: Terrified (retirement threat imminent, last chance)
+
+    This system ensures agents work hard continuously.
+    """
+    dashboard = get_agent_fear_dashboard(db)
+    return dashboard
+
+
+@router.get(
+    "/fear/{agent_name}",
+    dependencies=[Depends(require_permission("admin.view"))]
+)
+def get_agent_fear_state(
+    agent_name: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed fear state for a specific agent.
+
+    Fear is calculated based on:
+    - Success rate variance from 99.9999% target
+    - Quality score vs 95% minimum
+    - Trend analysis (improving/declining)
+    - Consecutive poor weeks
+    - Execution speed vs 5-second target
+
+    Target: 0.000001% fail rate (99.9999% success)
+    No mercy, no excuses - agents must optimize or face retirement.
+    """
+    fear_metrics = calculate_fear_level(db, agent_name)
+
+    # Update the fear state in DB
+    update_agent_fear_state(db, agent_name)
+
+    return fear_metrics
+
+
+@router.get(
+    "/fear/{agent_name}/retirement-check",
+    dependencies=[Depends(require_permission("admin.view"))]
+)
+def check_retirement_status(
+    agent_name: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Check if an agent is eligible for retirement.
+
+    Retirement criteria (STRINGENT):
+    - Fear level > 85 sustained for 2+ weeks
+    - Success rate < 95% for 3+ consecutive weeks
+    - Quality score < 80%
+    - Threat level = "existential"
+
+    Requires at least 2 criteria met.
+    """
+    result = check_retirement_eligibility(db, agent_name)
+    return RetirementEligibilityResponse(**result) if isinstance(result, dict) else result
