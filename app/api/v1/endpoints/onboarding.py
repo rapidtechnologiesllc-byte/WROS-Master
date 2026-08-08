@@ -724,7 +724,7 @@ def get_candidates_by_my_bu(
 
 @router.put(
     "/hr/update_candidate/{candidate_id}",
-    response_model=CandidateCreateResponse,
+    response_model=CandidateCompleteResponse,
     dependencies=[Depends(require_permission("candidate.edit"))],
 )
 def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
@@ -782,10 +782,6 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.candidateJobTitle = request.candidate_job_title
     if request.candidate_employee_type is not None:
         candidate.candidateEmployeeType = request.candidate_employee_type
-    if request.assigned_hr_manager_id is not None:
-        candidate.assignedHRManagerID = request.assigned_hr_manager_id
-    if request.assigned_report_manager_id is not None:
-        candidate.assignedReportManagerID = request.assigned_report_manager_id
 
     # Update CandidateInfoForm when personal info fields are updated
     personal_info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).first()
@@ -812,6 +808,11 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         )
 
     # Return full candidate object so frontend doesn't need separate refresh GET
+    # Convert skills list to comma-separated string if it's a list
+    skills_str = candidate.candidateSkills
+    if isinstance(skills_str, list):
+        skills_str = ", ".join(filter(None, skills_str)) if skills_str else None
+
     return CandidateCompleteResponse(
         candidate_id=candidate.candidateID,
         candidate_name=f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
@@ -824,7 +825,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_date_of_birth=candidate.candidateDateOfBirth,
         candidate_job_title=candidate.candidateJobTitle,
         candidate_experience=candidate.candidateExperience,
-        candidate_skills=candidate.candidateSkills or [],
+        candidate_skills=skills_str,
         candidate_current_location=candidate.candidateCurrentLocation,
         candidate_joining_date=candidate.candidateJoiningDate,
         candidate_expected_salary=candidate.candidateExpectedSalary,
@@ -832,9 +833,6 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_current_salary=candidate.candidateCurrentSalary,
         candidate_current_salary_type=getattr(candidate, 'candidateCurrentSalaryType', None),
         candidate_source=candidate.candidateSource,
-        business_unit_id=candidate.businessUnitID,
-        assigned_hr_manager_id=candidate.assigned_hr_manager_id,
-        assigned_report_manager_id=candidate.assigned_report_manager_id,
     )
 
 

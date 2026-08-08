@@ -237,3 +237,56 @@ def bulk_approve(db: Session, timesheets: List[Timesheet], approved_by: Optional
         except InvalidTimesheetTransition as exc:
             failed.append({"id": ts.id, "reason": str(exc)})
     return {"approved": approved, "failed": failed}
+
+
+def create_weekly_draft_batch(db: Session) -> dict:
+    """
+    Auto-creates weekly timesheet drafts for all active employees.
+    Runs weekly (Monday 00:00 UTC) to pre-populate timesheets.
+    Idempotent: if a timesheet already exists for an employee+week, it's skipped.
+
+    Returns: dict with counts (created, skipped, errors)
+    """
+    from datetime import datetime, timedelta
+    from app.models.employee import Employee
+    from app.models.resource_management import EmployeeAllocation
+
+    today = date.today()
+    # Calculate the Monday of the current week
+    week_starting_date = today - timedelta(days=today.weekday())
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    # Get all active employees with active allocations
+    allocations = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.status == "ACTIVE"
+    ).all()
+
+    for allocation in allocations:
+        try:
+            timesheet = create_weekly_draft(
+                db, allocation, week_starting_date, tenant_id=allocation.tenant_id
+            )
+            # Check if this is a newly created timesheet or an existing one
+            if timesheet.created_at and (datetime.utcnow() - timesheet.created_at).total_seconds() < 300:
+                created += 1
+            else:
+                skipped += 1
+        except Exception as exc:
+            errors.append({
+                "allocation_id": allocation.id,
+                "employee_id": allocation.employee_id,
+                "error": str(exc)
+            })
+
+    db.commit()
+
+    return {
+        "created": created,
+        "skipped": skipped,
+        "errors": len(errors),
+        "error_details": errors if errors else None,
+        "week_starting": str(week_starting_date)
+    }
