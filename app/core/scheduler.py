@@ -849,6 +849,37 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register AR follow-up scheduler: {exc}")
 
+        # ── Weekly (Monday 00:00 UTC): TIMESHEET_DRAFT_CREATION_JOB (EPIC-05) ─
+        # Auto-creates weekly timesheet drafts for all active employees every
+        # Monday at midnight UTC. Employees can also trigger on-demand via
+        # GET /my/timesheet/current which creates if not found for current week.
+        try:
+            from app.core.database import SessionLocal
+            from app.services.timesheet_service import create_weekly_draft_batch
+
+            async def _run_weekly_draft_creation():
+                db = SessionLocal()
+                try:
+                    result = create_weekly_draft_batch(db)
+                    logger.info(f"[scheduler] Weekly timesheet draft creation: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Weekly timesheet draft creation error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_weekly_draft_creation,
+                trigger="cron",
+                day_of_week=0,
+                hour=0,
+                minute=0,
+                id="weekly_timesheet_draft_creation_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled weekly timesheet draft creation job (Monday 00:00 UTC)")
+        except Exception as exc:
+            logger.warning(f"Could not register weekly timesheet draft creation scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

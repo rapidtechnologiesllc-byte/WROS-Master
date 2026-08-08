@@ -143,7 +143,9 @@ class CandidateCompleteResponse(BaseModel):
     candidate_joining_date: date | None = None
     candidate_current_location: str | None = None
     candidate_current_salary: str | None = None
+    candidate_current_salary_type: str | None = None
     candidate_expected_salary: str | None = None
+    candidate_expected_salary_type: str | None = None
     # ── Employee type ────────────────────────────────────────────────────────
     candidate_employee_type: str | None = None
     # ── S-030/HRMS-0430 -- Resume Completeness Score. Denormalized read of
