@@ -161,6 +161,21 @@ const CandidateAssignJobModal = ({
     }
   }, [candidateDetails, showUdfModal]);
 
+  const jobOptions = useMemo(() => {
+    return jobs?.map((job) => ({
+      label: `${job?.company_name || job?.companyName || "N/A"} | ${
+        job?.title || job?.job_title || "Untitled Job"
+      } | ${job?.id || job?.job_id}`,
+      value: job?.id || job?.job_id,
+    }));
+  }, [jobs]);
+
+  const selectedJob = useMemo(() => {
+    return jobs?.find(
+      (job) => String(job?.id || job?.job_id) === String(selectedJobId),
+    );
+  }, [jobs, selectedJobId]);
+
   // Auto-load Client Owner based on selected job
   useEffect(() => {
     if (selectedJob) {
@@ -177,21 +192,6 @@ const CandidateAssignJobModal = ({
       }
     }
   }, [selectedJob]);
-
-  const jobOptions = useMemo(() => {
-    return jobs?.map((job) => ({
-      label: `${job?.company_name || job?.companyName || "N/A"} | ${
-        job?.title || job?.job_title || "Untitled Job"
-      } | ${job?.id || job?.job_id}`,
-      value: job?.id || job?.job_id,
-    }));
-  }, [jobs]);
-
-  const selectedJob = useMemo(() => {
-    return jobs?.find(
-      (job) => String(job?.id || job?.job_id) === String(selectedJobId),
-    );
-  }, [jobs, selectedJobId]);
 
   useEffect(() => {
     let isMounted = true;
