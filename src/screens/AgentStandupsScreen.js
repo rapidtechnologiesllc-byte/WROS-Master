@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, AlertTriangle, Check, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { toast } from "react-toastify";
-import { Card, Button, Tabs } from "../components/ui";
-import { apiRequest } from "../services/api";
+import { Tabs } from "antd";
+import { Card, Button, Input, TextArea, Select } from "../components/ui";
+import { apiRequest } from "../services/api/client";
 
 export default function AgentStandupsScreen() {
   const [dashboard, setDashboard] = useState(null);
@@ -19,8 +20,8 @@ export default function AgentStandupsScreen() {
     setLoading(true);
     setError("");
     try {
-      const res = await apiRequest("GET", "/admin/agent-standups/dashboard");
-      setDashboard(res);
+      const { data } = await apiRequest("/admin/agent-standups/dashboard", { method: "GET" });
+      setDashboard(data);
     } catch (err) {
       setError(err.message || "Failed to load standup dashboard");
     } finally {
@@ -31,8 +32,8 @@ export default function AgentStandupsScreen() {
   const loadAgentDetails = async (agentName) => {
     setLoadingDetails(true);
     try {
-      const res = await apiRequest("GET", `/admin/agent-standups/agent/${agentName}/details`);
-      setAgentDetails(res);
+      const { data } = await apiRequest(`/admin/agent-standups/agent/${agentName}/details`, { method: "GET" });
+      setAgentDetails(data);
     } catch (err) {
       toast.error(`Failed to load details for ${agentName}`);
     } finally {
@@ -58,9 +59,12 @@ export default function AgentStandupsScreen() {
 
     setSubmittingFeedback(true);
     try {
-      await apiRequest("POST", `/admin/agent-standups/provide-feedback/${selectedAgent}`, {
-        feedback_text: feedbackText,
-        action: feedbackAction
+      await apiRequest(`/admin/agent-standups/provide-feedback/${selectedAgent}`, {
+        method: "POST",
+        body: JSON.stringify({
+          feedback_text: feedbackText,
+          action: feedbackAction
+        })
       });
       toast.success(`Feedback sent to ${selectedAgent}`);
       setFeedbackText("");
