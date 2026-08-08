@@ -401,25 +401,25 @@ export default function CandidateDetailsScreen({
     }
   }, [candidate?.id, limitedMode]);
 
-  // Load full candidate details to populate all form fields
-  useEffect(() => {
-    const loadFullCandidateDetails = async () => {
-      try {
-        const candidateId = candidate?.candidate_id ?? candidate?.id ?? candidate?._id;
-        if (candidateId) {
-          const fullCandidate = await getCandidateById(candidateId);
-          if (fullCandidate && onUpdateCandidate) {
-            onUpdateCandidate(fullCandidate);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch full candidate details:", error);
-      }
-    };
-    if (candidate?.id && !limitedMode) {
-      loadFullCandidateDetails();
-    }
-  }, [candidate?.id, limitedMode, onUpdateCandidate]);
+  // Load full candidate details to populate all form fields (commented out - CandidateDetailsWrapper already loads this)
+  // useEffect(() => {
+  //   const loadFullCandidateDetails = async () => {
+  //     try {
+  //       const candidateId = candidate?.candidate_id ?? candidate?.id ?? candidate?._id;
+  //       if (candidateId) {
+  //         const fullCandidate = await getCandidateById(candidateId);
+  //         if (fullCandidate && onUpdateCandidate) {
+  //           onUpdateCandidate(fullCandidate);  // This was calling onUpdateCandidate(fullCandidate) with 1 arg instead of 2
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.error("Failed to fetch full candidate details:", error);
+  //     }
+  //   };
+  //   if (candidate?.id && !limitedMode) {
+  //     loadFullCandidateDetails();
+  //   }
+  // }, [candidate?.id, limitedMode, onUpdateCandidate]);
 
   const handleTemplateChange = async (id) => {
     setSelectedTemplate(id);
