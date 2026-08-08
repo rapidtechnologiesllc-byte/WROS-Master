@@ -434,15 +434,6 @@ const CandidateAssignJobModal = ({
                 </div>
 
                 <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-start">
-                  <button
-                    type="button"
-                    onClick={() => setShowUdfModal(true)}
-                    disabled={isAssigning}
-                    className="rounded-lg px-2 py-1 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    UDFs
-                  </button>
-
                   <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm">
                     <p className="text-xs font-medium uppercase text-gray-500">
                       Selected Job
@@ -694,13 +685,6 @@ const CandidateAssignJobModal = ({
             </div>
           </div>
         </Card>
-        {showUdfModal && (
-          <UdfModal
-            udfData={udfData}
-            onChange={updateUdfField}
-            onClose={() => setShowUdfModal(false)}
-          />
-        )}
       </div>
     </div>
   );

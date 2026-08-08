@@ -340,8 +340,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       </EditableSection>
 
       {/* Resume Section */}
-      {resumeData && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <button
@@ -378,7 +377,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Skills */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
