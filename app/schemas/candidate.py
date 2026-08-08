@@ -125,6 +125,9 @@ class CandidateCompleteResponse(BaseModel):
     # ── Core identity ────────────────────────────────────────────────────────
     candidate_id: str
     candidate_name: str
+    candidate_first_name: str | None = None
+    candidate_middle_name: str | None = None
+    candidate_last_name: str | None = None
     candidate_email: str
     candidate_mobile: str | None = None
     candidate_role: str | None = None
