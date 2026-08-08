@@ -140,6 +140,15 @@ class AgentRegistry:
         is_logging=False,  # TODO: wire logging
     )
 
+    HTD_PIPELINE_AGENT = AgentInfo(
+        name="HTD Pipeline Accountability Agent",
+        tier=AgentTier.RESOURCE,
+        status=AgentStatus.OPERATIONAL,
+        description="Tracks SPECIALTY→CORE conversion pipeline. Shows partner CORE capacity forecast, identifies bottlenecks, triggers HTD hiring when development too slow.",
+        has_route=True,
+        is_logging=False,  # TODO: wire logging
+    )
+
     # HR/Employee agents
     ONBOARDING_AGENT = AgentInfo(
         name="Onboarding Agent",
@@ -292,6 +301,7 @@ class AgentRegistry:
         # Resource
         RESOURCE_MANAGEMENT_AGENT,
         CORE_PULL_AGENT,
+        HTD_PIPELINE_AGENT,
         # Finance
         CFO_AGENT,
         CEO_AGENT,

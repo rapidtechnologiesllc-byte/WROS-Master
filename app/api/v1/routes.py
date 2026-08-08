@@ -89,6 +89,7 @@ from app.api.v1.endpoints.agent_standups import router as agent_standups_router
 from app.api.v1.endpoints.agent_standups_dashboard import router as agent_standups_dashboard_router
 from app.api.v1.endpoints.agent_daily_standup import router as agent_daily_standup_router
 from app.api.v1.endpoints.opportunity_tracker import router as opportunity_tracker_router
+from app.api.v1.endpoints.htd_pipeline_accountability import router as htd_pipeline_accountability_router
 
 router = fastapi.APIRouter()
 
@@ -180,4 +181,5 @@ router.include_router(router=opportunity_tracker_router)
 router.include_router(router=flash_interview_router)
 router.include_router(router=hiring_workflow_router)
 router.include_router(router=defect_reporting_router)
-router.include_router(router=agent_maturity_router)
+router.include_router(router=agent_maturity_router)
+router.include_router(router=htd_pipeline_accountability_router)

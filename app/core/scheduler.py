@@ -948,6 +948,44 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register agent scrum of scrums scheduler: {exc}")
 
+        # ── Daily: HTD_PIPELINE_ACCOUNTABILITY_JOB (8:05 AM EST) ─────────────────
+        # SPECIALTY→CORE conversion pipeline health for each partner/BU.
+        # Runs daily so Flash sees where CORE talent is being developed.
+        # Triggers HTD hiring recommendations if internal development too slow.
+        # 8:05 AM EST = 13:05 UTC
+        try:
+            from app.core.database import SessionLocal
+            from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
+            from app.models.business_units import BusinessUnit
+
+            async def _run_htd_pipeline_tracking():
+                db = SessionLocal()
+                try:
+                    result = await HTDPipelineAccountabilityAgent.partners_conversion_health(
+                        tenant_id="default",
+                        db=db
+                    )
+                    critical = len(result.get("critical_alerts", []))
+                    at_risk = len(result.get("at_risk_units", []))
+                    if critical > 0 or at_risk > 0:
+                        logger.info(f"[scheduler] HTD Pipeline: {critical} critical (no dev pipeline), {at_risk} at-risk (< 50% CORE)")
+                except Exception as exc:
+                    logger.error(f"[scheduler] HTD pipeline tracking error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_htd_pipeline_tracking,
+                trigger="cron",
+                hour=13,  # 8:05 AM EST = 13:05 UTC
+                minute=5,
+                id="htd_pipeline_accountability_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled HTD pipeline accountability job (8:05 AM EST / 13:05 UTC)")
+        except Exception as exc:
+            logger.warning(f"Could not register HTD pipeline accountability scheduler: {exc}")
+
         # ── Weekly (Thursday): PARTNER_SUCCESS_AGENT_JOB ────────────────────
         # Thursday morning before CEO call: Partners get final validation check
         # "Here's your week. Here's what you'll tell the CEO."
