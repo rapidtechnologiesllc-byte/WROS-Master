@@ -948,6 +948,44 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register agent scrum of scrums scheduler: {exc}")
 
+        # ── Weekly (Thursday): PARTNER_SUCCESS_AGENT_JOB ────────────────────
+        # Thursday morning before CEO call: Partners get final validation check
+        # "Here's your week. Here's what you'll tell the CEO."
+        # Not daily nagging - just once-per-week reality check with action items
+        try:
+            from app.core.database import SessionLocal
+            from app.services.partner_success_agent_service import PartnerSuccessAgent
+
+            async def _run_partner_success_check():
+                db = SessionLocal()
+                try:
+                    # Check all partners: Troy, Curtis, Avinash
+                    for partner_key in ["troy", "curtis", "avinash"]:
+                        result = await PartnerSuccessAgent.thursday_ceo_prep(
+                            tenant_id="default",
+                            partner_key=partner_key,
+                            db=db
+                        )
+                        if result.get("action_items"):
+                            logger.info(f"[scheduler] Partner Success ({partner_key}): {len(result['action_items'])} items, {result['this_week']['revenue_closed_usd']:,.0f} closed this week")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Partner success check error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_partner_success_check,
+                trigger="cron",
+                day_of_week=3,  # Thursday (0=Monday, 3=Thursday)
+                hour=7,         # 7 AM EST = 12:00 UTC (before CEO weekly call)
+                minute=0,
+                id="partner_success_thursday_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled partner success check (Thursday 7 AM EST / 12:00 UTC - before CEO call)")
+        except Exception as exc:
+            logger.warning(f"Could not register partner success scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
