@@ -59,6 +59,12 @@ export default function JobCreate({
   const [isInternalRole, setIsInternalRole] = useState(null); // null = auto-detect, true = internal, false = external
   const storedRole = localStorage.getItem("permission_role");
 
+  // Ask Flash Modal state
+  const [showAskFlash, setShowAskFlash] = useState(false);
+  const [flashQuestions, setFlashQuestions] = useState([]);
+  const [flashAnswers, setFlashAnswers] = useState({});
+  const [isAnswering, setIsAnswering] = useState(false);
+
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
@@ -302,40 +308,91 @@ export default function JobCreate({
     }
     setIsGenerating(true);
     try {
-      const data = await generateJobDescription({
-        job_title: title,
-        job_description: oneLiner,
-        job_experience: experienceLevel,
-        job_location: location,
+      // Step 1: Call agent to get clarifying questions
+      const questionResponse = await fetch("/jobs/generate-with-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_description_oneliner: oneLiner })
       });
-      const generated = (data?.generated_job_description || "").trim();
-      if (!generated) {
-        throw new Error("AI did not return a job description.");
+
+      if (!questionResponse.ok) {
+        throw new Error("Failed to generate questions");
       }
-      setInternalJD(generated);
-      if (Array.isArray(data?.job_skills) && data.job_skills.length) {
-        setSkills(data.job_skills.join(", "));
+
+      const { questions, job_title, estimated_experience } = await questionResponse.json();
+
+      // Store questions and show modal
+      setFlashQuestions(questions || []);
+      setFlashAnswers({}); // Reset answers
+      setShowAskFlash(true);
+
+      toast.info("Answer the questions to generate the complete job details.");
+    } catch (err) {
+      toast.error(err?.message || "Failed to generate questions.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAnswerSubmit = async () => {
+    // Validate all required questions are answered
+    const missingAnswers = flashQuestions
+      .filter(q => q.required)
+      .filter(q => !flashAnswers[q.field])
+      .map(q => q.question);
+
+    if (missingAnswers.length > 0) {
+      toast.error(`Please answer: ${missingAnswers.join(", ")}`);
+      return;
+    }
+
+    setIsAnswering(true);
+    try {
+      // Step 2: Call agent with answers to generate complete job
+      const completeResponse = await fetch("/jobs/generate-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_description_oneliner: hmOneLiner.trim(),
+          answers: flashAnswers
+        })
+      });
+
+      if (!completeResponse.ok) {
+        throw new Error("Failed to generate complete job");
       }
-      // Auto-populate job title and experience if generated
-      if (data?.job_title && !title) {
-        setTitle(data.job_title);
-      }
-      if (data?.job_experience && !experienceLevel) {
-        // Parse "3-5 years" or "5+ years" to extract the first number
+
+      const data = await completeResponse.json();
+
+      // Auto-populate all fields from agent response
+      if (data?.job_title) setTitle(data.job_title);
+      if (data?.position_type) setPositionType(data.position_type);
+      if (data?.pay_range) setPayAmount(data.pay_range);
+      if (data?.job_open_date) setStartDate(data.job_open_date);
+      if (data?.job_location) setLocation(data.job_location);
+
+      if (data?.job_experience) {
         const expMatch = String(data.job_experience).match(/(\d+)/);
         if (expMatch) {
           const years = Math.min(20, Math.max(1, Number(expMatch[1])));
           setExperienceLevel(years);
         }
       }
-      if (data?.job_location && !location) {
-        setLocation(data.job_location);
+
+      if (data?.generated_job_description) {
+        setInternalJD(data.generated_job_description);
       }
-      toast.success("Overview + Roles generated.");
+
+      if (Array.isArray(data?.job_skills) && data.job_skills.length) {
+        setSkills(data.job_skills.join(", "));
+      }
+
+      setShowAskFlash(false);
+      toast.success("Job details generated and auto-populated!");
     } catch (err) {
-      toast.error(err?.message || "Failed to generate job description.");
+      toast.error(err?.message || "Failed to generate complete job.");
     } finally {
-      setIsGenerating(false);
+      setIsAnswering(false);
     }
   };
 
@@ -624,6 +681,90 @@ export default function JobCreate({
           </div>
         )}
       </Card>
+
+      {/* Ask Flash Modal */}
+      {showAskFlash && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold mb-4">📋 Job Details - Quick Questions</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Answer these questions to help us generate the complete job posting:
+            </p>
+
+            <div className="space-y-4">
+              {flashQuestions.map((question) => (
+                <div key={question.field}>
+                  <label className="block text-sm font-medium mb-2">
+                    {question.question}
+                    {question.required && <span className="text-red-500">*</span>}
+                  </label>
+
+                  {question.type === "select" ? (
+                    <select
+                      value={flashAnswers[question.field] || ""}
+                      onChange={(e) =>
+                        setFlashAnswers({
+                          ...flashAnswers,
+                          [question.field]: e.target.value
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select an option...</option>
+                      {question.options?.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : question.type === "date" ? (
+                    <input
+                      type="date"
+                      value={flashAnswers[question.field] || ""}
+                      onChange={(e) =>
+                        setFlashAnswers({
+                          ...flashAnswers,
+                          [question.field]: e.target.value
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={flashAnswers[question.field] || ""}
+                      onChange={(e) =>
+                        setFlashAnswers({
+                          ...flashAnswers,
+                          [question.field]: e.target.value
+                        })
+                      }
+                      placeholder="Enter your answer..."
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex gap-2 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => setShowAskFlash(false)}
+                disabled={isAnswering}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAnswerSubmit}
+                disabled={isAnswering}
+              >
+                {isAnswering ? "Generating..." : "Generate Job"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
