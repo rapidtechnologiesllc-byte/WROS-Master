@@ -44,11 +44,21 @@ export default function CandidateDetailsWrapper({
       onUpdateCandidate={async (id, payload) => {
         try {
           await updateCandidate(id, payload);
-          const updatedCandidate = await fetchCandidateById(id);
-          if (updatedCandidate) {
-            setCandidate(updatedCandidate);
+          try {
+            const updatedCandidate = await fetchCandidateById(id);
+            if (updatedCandidate && Object.keys(updatedCandidate).length > 0) {
+              setCandidate(updatedCandidate);
+            }
+          } catch (fetchErr) {
+            console.warn("Could not refresh candidate data:", fetchErr?.message);
           }
-          await refreshCandidates();
+          if (typeof refreshCandidates === "function") {
+            try {
+              await refreshCandidates();
+            } catch (refreshErr) {
+              console.warn("Could not refresh candidates list:", refreshErr?.message);
+            }
+          }
           toast.success("Candidate Updated")
         } catch (err) {
           console.error("Failed to update candidate:", err);
