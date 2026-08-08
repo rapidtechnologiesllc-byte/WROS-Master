@@ -121,7 +121,7 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
       toast.success("Profile updated successfully");
       setEditingSection(null);
       setEditForm({});
-      onRefresh?.();
+      onRefresh?.(candidateId, updatePayload);
     } catch (err) {
       toast.error(err?.message || "Failed to save changes");
     } finally {
