@@ -136,9 +136,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     return merged && Object.keys(merged).length > 0 ? merged : {};
   }, [candidate, data]);
 
-  // Determine if candidate is at corporate level (not submitted to any job)
-  const isAtCorporateLevel = !profile?.has_job_submission;
-
   const handleEditSection = (section) => {
     try {
       if (!profile || Object.keys(profile).length === 0) {
@@ -165,12 +162,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         source: profile?.candidate_source || "",
         govt_id_type: profile?.candidate_govt_id_type || "",
         govt_id_number: profile?.candidate_govt_id_number || "",
-        assigned_recruiter_id: profile?.assigned_recruiter_id || "",
-        assigned_hr_manager_id: profile?.assigned_hr_manager_id || "",
-        assigned_report_manager_id: profile?.assigned_report_manager_id || "",
-        assigned_hiring_manager_id: profile?.assigned_hiring_manager_id || "",
-        assigned_bu_head_id: profile?.assigned_bu_head_id || "",
-        assigned_hr_bp_id: profile?.assigned_hr_bp_id || "",
       });
     } catch (err) {
       console.error("Error loading edit form:", err);
@@ -208,13 +199,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       } else if (section === "identity") {
         updatePayload.candidate_govt_id_type = editForm.govt_id_type || null;
         updatePayload.candidate_govt_id_number = editForm.govt_id_number || null;
-      } else if (section === "assignment") {
-        updatePayload.assigned_recruiter_id = editForm.assigned_recruiter_id || null;
-        updatePayload.assigned_hr_manager_id = editForm.assigned_hr_manager_id || null;
-        updatePayload.assigned_report_manager_id = editForm.assigned_report_manager_id || null;
-        updatePayload.assigned_hiring_manager_id = editForm.assigned_hiring_manager_id || null;
-        updatePayload.assigned_bu_head_id = editForm.assigned_bu_head_id || null;
-        updatePayload.assigned_hr_bp_id = editForm.assigned_hr_bp_id || null;
       }
 
       if (onRefresh) {
@@ -1167,154 +1151,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         )}
       </EditableSection>
 
-      {/* Recruitment Assignment & Business Unit */}
-      <EditableSection
-        title="Recruitment Assignment"
-        subtitle={isAtCorporateLevel ? "Corporate Level - Recruiter Assignment" : "Users Involved in Recruitment & Delivery"}
-        isEditing={editingSection === "assignment"}
-        isSaving={savingSection === "assignment"}
-        onEdit={() => handleEditSection("assignment")}
-        onCancel={handleCancelEdit}
-        onSave={() => handleSaveSection("assignment")}
-      >
-        {editingSection === "assignment" ? (
-          <div className="space-y-6">
-            {/* Always show Recruiter */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-700 mb-3 uppercase">Recruiter</h4>
-              <Select
-                label="Recruiter"
-                value={editForm.assigned_recruiter_id || ""}
-                onChange={(v) => setEditForm({...editForm, assigned_recruiter_id: v})}
-                options={userOptions}
-              />
-            </div>
-
-            {/* Business Unit (Read-only in edit mode) */}
-            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase">Business Unit</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-600">BU ID</div>
-                  <div className="text-sm font-medium text-gray-900">{profile?.business_unit_id || "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-600">Assigned</div>
-                  <div className="text-sm font-medium text-gray-900">{profile?.created_at ? new Date(profile?.created_at).toLocaleDateString() : "—"}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Conditional fields - only if not at corporate level */}
-            {!isAtCorporateLevel && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-700 mb-3 uppercase">Job-Related Roles</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Select
-                    label="HR Manager"
-                    value={editForm.assigned_hr_manager_id || ""}
-                    onChange={(v) => setEditForm({...editForm, assigned_hr_manager_id: v})}
-                    options={userOptions}
-                  />
-                  <Select
-                    label="HR Business Partner (BP)"
-                    value={editForm.assigned_hr_bp_id || ""}
-                    onChange={(v) => setEditForm({...editForm, assigned_hr_bp_id: v})}
-                    options={userOptions}
-                  />
-                  <Select
-                    label="Hiring Manager"
-                    value={editForm.assigned_hiring_manager_id || ""}
-                    onChange={(v) => setEditForm({...editForm, assigned_hiring_manager_id: v})}
-                    options={userOptions}
-                  />
-                  <Select
-                    label="BU Head"
-                    value={editForm.assigned_bu_head_id || ""}
-                    onChange={(v) => setEditForm({...editForm, assigned_bu_head_id: v})}
-                    options={userOptions}
-                  />
-                  <Select
-                    label="Report Manager"
-                    value={editForm.assigned_report_manager_id || ""}
-                    onChange={(v) => setEditForm({...editForm, assigned_report_manager_id: v})}
-                    options={userOptions}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Recruiter - Always shown */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-700 mb-3 uppercase">Recruiter</h4>
-              <InfoDisplay
-                label="Recruiter"
-                value={users.find(u => u.id === profile?.assigned_recruiter_id)
-                  ? `${users.find(u => u.id === profile?.assigned_recruiter_id)?.first_name} ${users.find(u => u.id === profile?.assigned_recruiter_id)?.last_name || ""}`
-                  : "—"}
-              />
-            </div>
-
-            {/* Business Unit */}
-            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="text-xs font-semibold text-gray-700 mb-3 uppercase">Business Unit</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoDisplay label="BU ID" value={profile?.business_unit_id || "—"} />
-                <InfoDisplay label="Assigned on" value={profile?.created_at ? new Date(profile?.created_at).toLocaleDateString() : "—"} />
-              </div>
-            </div>
-
-            {/* Conditional fields - only if not at corporate level */}
-            {!isAtCorporateLevel && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-700 mb-3 uppercase">Job-Related Roles</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Array.isArray(users) && (
-                    <>
-                      <InfoDisplay
-                        label="HR Manager"
-                        value={users.find(u => u.id === profile?.assigned_hr_manager_id)
-                          ? `${users.find(u => u.id === profile?.assigned_hr_manager_id)?.first_name} ${users.find(u => u.id === profile?.assigned_hr_manager_id)?.last_name || ""}`
-                          : "—"}
-                      />
-                      <InfoDisplay
-                        label="HR Business Partner"
-                        value={users.find(u => u.id === profile?.assigned_hr_bp_id)
-                          ? `${users.find(u => u.id === profile?.assigned_hr_bp_id)?.first_name} ${users.find(u => u.id === profile?.assigned_hr_bp_id)?.last_name || ""}`
-                          : "—"}
-                      />
-                      <InfoDisplay
-                        label="Hiring Manager"
-                        value={users.find(u => u.id === profile?.assigned_hiring_manager_id)
-                          ? `${users.find(u => u.id === profile?.assigned_hiring_manager_id)?.first_name} ${users.find(u => u.id === profile?.assigned_hiring_manager_id)?.last_name || ""}`
-                          : "—"}
-                      />
-                      <InfoDisplay
-                        label="BU Head"
-                        value={users.find(u => u.id === profile?.assigned_bu_head_id)
-                          ? `${users.find(u => u.id === profile?.assigned_bu_head_id)?.first_name} ${users.find(u => u.id === profile?.assigned_bu_head_id)?.last_name || ""}`
-                          : "—"}
-                      />
-                      <InfoDisplay
-                        label="Report Manager"
-                        value={users.find(u => u.id === profile?.assigned_report_manager_id)
-                          ? `${users.find(u => u.id === profile?.assigned_report_manager_id)?.first_name} ${users.find(u => u.id === profile?.assigned_report_manager_id)?.last_name || ""}`
-                          : "—"}
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {isAtCorporateLevel && (
-              <p className="text-xs text-gray-500 italic">Additional users (HR Manager, Hiring Manager, BU Head, HR BP, Report Manager) will appear as the candidate proceeds through the recruitment process.</p>
-            )}
-          </div>
-        )}
-      </EditableSection>
     </div>
   );
 }
