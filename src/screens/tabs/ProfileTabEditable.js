@@ -82,6 +82,9 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         current_salary_type: profile?.candidate_current_salary_type || "$/Year",
         current_location: profile?.candidate_current_location || "",
         source: profile?.candidate_source || "",
+        govt_id_type: profile?.candidate_govt_id_type || "",
+        govt_id_number: profile?.candidate_govt_id_number || "",
+        previous_organization: profile?.candidate_previous_organization || "",
         assigned_hr_manager_id: profile?.assigned_hr_manager_id || "",
         assigned_report_manager_id: profile?.assigned_report_manager_id || "",
       });
@@ -122,6 +125,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_expected_salary_type = editForm.expected_salary_type || null;
         updatePayload.candidate_current_salary = editForm.current_salary || null;
         updatePayload.candidate_current_salary_type = editForm.current_salary_type || null;
+      } else if (section === "identity") {
+        updatePayload.candidate_govt_id_type = editForm.govt_id_type || null;
+        updatePayload.candidate_govt_id_number = editForm.govt_id_number || null;
+        updatePayload.candidate_previous_organization = editForm.previous_organization || null;
       } else if (section === "assignment") {
         updatePayload.assigned_hr_manager_id = editForm.assigned_hr_manager_id || null;
         updatePayload.assigned_report_manager_id = editForm.assigned_report_manager_id || null;
@@ -294,7 +301,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               onChange={(v) => setEditForm({...editForm, skills: v})}
             />
             <Input
-              label="Available to Join"
+              label="Notice Period"
               type="date"
               value={editForm.joining_date || ""}
               onChange={(v) => setEditForm({...editForm, joining_date: v})}
@@ -321,7 +328,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoDisplay label="Experience" value={profile?.candidate_experience} suffix=" years" />
             <InfoDisplay label="Skills" value={Array.isArray(profile?.candidate_skills) ? profile?.candidate_skills.join(", ") : profile?.candidate_skills} />
-            <InfoDisplay label="Available to Join" value={profile?.candidate_joining_date} />
+            <InfoDisplay label="Notice Period" value={profile?.candidate_joining_date} />
             <div />
             <InfoDisplay
               label="Expected Salary"
@@ -331,6 +338,42 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               label="Current Salary"
               value={profile?.candidate_current_salary ? `${profile?.candidate_current_salary} ${profile?.candidate_current_salary_type || '$/Year'}` : null}
             />
+          </div>
+        )}
+      </EditableSection>
+
+      {/* Identity & Background */}
+      <EditableSection
+        title="Identity & Background"
+        isEditing={editingSection === "identity"}
+        isSaving={savingSection === "identity"}
+        onEdit={() => handleEditSection("identity")}
+        onCancel={handleCancelEdit}
+        onSave={() => handleSaveSection("identity")}
+      >
+        {editingSection === "identity" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Government ID Type"
+              value={editForm.govt_id_type || ""}
+              onChange={(v) => setEditForm({...editForm, govt_id_type: v})}
+            />
+            <Input
+              label="Government ID Number"
+              value={editForm.govt_id_number || ""}
+              onChange={(v) => setEditForm({...editForm, govt_id_number: v})}
+            />
+            <Input
+              label="Previous Organization"
+              value={editForm.previous_organization || ""}
+              onChange={(v) => setEditForm({...editForm, previous_organization: v})}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InfoDisplay label="Government ID Type" value={profile?.candidate_govt_id_type} />
+            <InfoDisplay label="Government ID Number" value={profile?.candidate_govt_id_number} />
+            <InfoDisplay label="Previous Organization" value={profile?.candidate_previous_organization} />
           </div>
         )}
       </EditableSection>
