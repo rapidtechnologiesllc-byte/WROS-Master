@@ -29,6 +29,10 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   const [hmOneLiner, setHmOneLiner] = useState(job.hiringManagerOneLiner || "");
   const [internalJD, setInternalJD] = useState(job.internalJD || job.jobDescription || "");
   const [activeTab, setActiveTab] = useState("details");
+  const [candidateQuery, setCandidateQuery] = useState("");
+  const [candidateStageFilter, setCandidateStageFilter] = useState("All");
+
+  const CANDIDATE_STAGES = ["All", "Sourced", "Recruiter Screening", "L1 Interview", "Pre-Onboarding", "Hired", "Archived"];
 
   const jobMetrics = useMemo(() => {
     const submitted = candidates.filter(c => c.job_id === job.id)?.length || 0;
@@ -364,39 +368,108 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
 
           {/* Candidates Tab */}
           {activeTab === "candidates" && (
-            <div className="space-y-3">
-              {candidates.filter(c => c.job_id === job.id).length > 0 ? (
-                candidates.filter(c => c.job_id === job.id).map((candidate) => (
-                  <div key={candidate.id} className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-sm transition">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{candidate.name || candidate.candidate_first_name + ' ' + candidate.candidate_last_name}</h4>
-                        <p className="text-sm text-gray-500">{candidate.email}</p>
-                        <div className="mt-2 flex gap-2 flex-wrap">
-                          <span className={cx(pill, "text-xs")} style={{
-                            backgroundColor: candidate.status?.toLowerCase() === 'hired' ? '#dcfce7' :
-                                             candidate.status?.toLowerCase() === 'interviewed' ? '#fef3c7' :
-                                             '#e0e7ff',
-                            borderColor: candidate.status?.toLowerCase() === 'hired' ? '#86efac' :
-                                         candidate.status?.toLowerCase() === 'interviewed' ? '#fcd34d' :
-                                         '#a5b4fc',
-                            color: candidate.status?.toLowerCase() === 'hired' ? '#166534' :
-                                   candidate.status?.toLowerCase() === 'interviewed' ? '#92400e' :
-                                   '#312e81'
-                          }}>
-                            {candidate.status || 'Submitted'}
-                          </span>
+            <div className="space-y-4">
+              {/* Stage Filters */}
+              <div className="flex gap-2 flex-wrap">
+                {CANDIDATE_STAGES.map((stage) => (
+                  <button
+                    key={stage}
+                    onClick={() => setCandidateStageFilter(stage)}
+                    className={cx(
+                      "px-3 py-2 rounded-lg text-sm font-medium transition",
+                      candidateStageFilter === stage
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    )}
+                  >
+                    {stage}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Box */}
+              <div>
+                <Input
+                  label="Search candidates"
+                  value={candidateQuery}
+                  onChange={setCandidateQuery}
+                  placeholder="Name, email, or phone..."
+                />
+              </div>
+
+              {/* Candidates List */}
+              <div className="space-y-3">
+                {candidates
+                  .filter(c => c.job_id === job.id)
+                  .filter(c => {
+                    const matchesQuery = !candidateQuery ||
+                      (c.candidate_first_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                      (c.candidate_last_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                      (c.candidateEmail || c.email || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                      (c.phone || '').includes(candidateQuery);
+
+                    const matchesStage = candidateStageFilter === "All" ||
+                      (c.status || 'Sourced').toLowerCase().replace(' ', '-') === candidateStageFilter.toLowerCase().replace(' ', '-');
+
+                    return matchesQuery && matchesStage;
+                  })
+                  .length > 0 ? (
+                  candidates
+                    .filter(c => c.job_id === job.id)
+                    .filter(c => {
+                      const matchesQuery = !candidateQuery ||
+                        (c.candidate_first_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                        (c.candidate_last_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                        (c.candidateEmail || c.email || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                        (c.phone || '').includes(candidateQuery);
+
+                      const matchesStage = candidateStageFilter === "All" ||
+                        (c.status || 'Sourced').toLowerCase().replace(' ', '-') === candidateStageFilter.toLowerCase().replace(' ', '-');
+
+                      return matchesQuery && matchesStage;
+                    })
+                    .map((candidate) => (
+                      <div key={candidate.id} className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-sm transition">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900">
+                              {candidate.candidate_first_name || candidate.name} {candidate.candidate_last_name}
+                            </h4>
+                            <p className="text-sm text-gray-500">{candidate.candidateEmail || candidate.email}</p>
+                            <p className="text-xs text-gray-400 mt-1">{candidate.phone}</p>
+                            <div className="mt-2 flex gap-2 flex-wrap">
+                              <span className={cx(pill, "text-xs")} style={{
+                                backgroundColor: candidate.status?.toLowerCase() === 'hired' ? '#dcfce7' :
+                                                 candidate.status?.toLowerCase() === 'interviewed' ? '#fef3c7' :
+                                                 candidate.status?.toLowerCase().includes('screening') ? '#dbeafe' :
+                                                 '#e0e7ff',
+                                borderColor: candidate.status?.toLowerCase() === 'hired' ? '#86efac' :
+                                             candidate.status?.toLowerCase() === 'interviewed' ? '#fcd34d' :
+                                             candidate.status?.toLowerCase().includes('screening') ? '#7dd3fc' :
+                                             '#a5b4fc',
+                                color: candidate.status?.toLowerCase() === 'hired' ? '#166534' :
+                                       candidate.status?.toLowerCase() === 'interviewed' ? '#92400e' :
+                                       candidate.status?.toLowerCase().includes('screening') ? '#075985' :
+                                       '#312e81'
+                              }}>
+                                {candidate.status || 'Sourced'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+                    <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">
+                      {candidates.filter(c => c.job_id === job.id).length === 0
+                        ? "No candidates submitted for this job yet"
+                        : "No candidates match your search"}
+                    </p>
                   </div>
-                ))
-              ) : (
-                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-                  <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">No candidates submitted yet</p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>
