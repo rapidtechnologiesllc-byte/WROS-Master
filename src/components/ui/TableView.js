@@ -57,13 +57,14 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
         const formattedJobs = result?.jobs?.map((item) => ({
           id: item?.job_id,
           title: item?.job_title,
-          companyType: item?.company_type,
-          dept: item?.department_id || "-",
+          companyType: item?.company_type || item?.positionType || "Full Time",
+          clientName: item?.company_name || item?.companyName || "-",
+          dept: item?.department_name || item?.dept || (item?.department_id ? `Dept ${item?.department_id}` : "-"),
           location: item?.job_location,
-          hiringManagerName: item?.hiring_manager_id || "-",
+          hiringManagerName: item?.hiring_manager_name || item?.hiringManager || item?.hiring_manager_id || "-",
           openPositions: item?.no_of_positions,
           experienceLevel: item?.job_experience,
-          status: item?.job_status,
+          status: item?.job_status || item?.jobStatus || "Draft",
         }));
 
         setTableData(formattedJobs || []);
@@ -99,9 +100,14 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
     {
       title: "Type",
       dataIndex: "companyType",
-      render: (val) => <Tag color="blue">{val}</Tag>,
+      render: (val) => <Tag color="blue">{val || "-"}</Tag>,
     },
-    { title: "Client / Dept", dataIndex: "dept" },
+    {
+      title: "Client / Dept",
+      render: (text, record) => (
+        <span>{record?.clientName || record?.dept || "-"}</span>
+      )
+    },
     { title: "Location", dataIndex: "location" },
     {
       title: "Hiring Manager",
@@ -137,12 +143,35 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
           setDrawerOpen(false);
         }}
       />
-      <Table
-        columns={columns}
-        dataSource={filtered ? filtered : tableData}
-        pagination={false}
-        rowKey="id"
-      />
+      {view === "table" ? (
+        <Table
+          columns={columns}
+          dataSource={filtered ? filtered : tableData}
+          pagination={false}
+          rowKey="id"
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {(filtered || tableData)?.map((job) => (
+            <div
+              key={job?.id}
+              className="rounded-lg border border-gray-200 bg-white p-4 hover:shadow-md transition cursor-pointer"
+              onClick={() => (onViewJob ? onViewJob(job?.id) : onOpenJob(job?.id))}
+            >
+              <h3 className="font-semibold text-gray-900">{job?.title}</h3>
+              <p className="text-sm text-gray-600 mt-1">{job?.location}</p>
+              <div className="mt-3 flex justify-between text-xs">
+                <span className="text-gray-600">Type: {job?.companyType || "-"}</span>
+                <span className="text-gray-600">Exp: {job?.experienceLevel}</span>
+              </div>
+              <div className="mt-2 text-xs">
+                <p className="text-gray-600">Manager: {job?.hiringManagerName}</p>
+                <p className="text-gray-600 mt-1">Status: <span className={job?.status === "Open" ? "text-green-600 font-semibold" : ""}>{job?.status}</span></p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -60,6 +60,7 @@ export default function JobCreate({
   const [resolvedHrManager, setResolvedHrManager] = useState(null);
   const [hiringManagers, setHiringManagers] = useState([]);
   const [current, setCurrent] = useState(0);
+  const [isInternalRole, setIsInternalRole] = useState(null); // null = auto-detect, true = internal, false = external
   const storedRole = localStorage.getItem("permission_role");
 
   useEffect(() => {
@@ -282,6 +283,14 @@ export default function JobCreate({
     loadClients();
   }, []);
 
+  // Auto-detect if job is internal or external based on company name
+  useEffect(() => {
+    if (companyClient) {
+      const isInternal = String(companyClient).toLowerCase().includes("blitzenx");
+      setIsInternalRole(isInternal);
+    }
+  }, [companyClient]);
+
   const clientOptions = [
     { label: "Select client", value: "", disabled: true },
     ...(clientList?.map((client) => ({
@@ -402,6 +411,7 @@ export default function JobCreate({
         hiring_manager_id: hmUserId || null,
         reporting_manager_id: rmUserId || null,
         salary_range: payRangeString,
+        is_internal_role: isInternalRole, // true = internal (BU Head), false = external (Partner)
       };
       const data = await createJob(payload);
       const createdId = data?.job_id;
