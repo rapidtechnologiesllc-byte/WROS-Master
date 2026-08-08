@@ -376,6 +376,9 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               {resumeData.content}
             </div>
           )}
+          {!resumeData && (
+            <p className="text-sm text-gray-600">No resume available. Upload your resume to get started.</p>
+          )}
         </div>
       </div>
 
