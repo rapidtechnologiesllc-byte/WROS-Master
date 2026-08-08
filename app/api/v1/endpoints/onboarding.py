@@ -811,10 +811,30 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             detail=f"Failed to update candidate: {str(e)}"
         )
 
-    return CandidateCreateResponse(
+    # Return full candidate object so frontend doesn't need separate refresh GET
+    return CandidateCompleteResponse(
         candidate_id=candidate.candidateID,
-        candidate_is_first_time=False,
-        candidate_password=""
+        candidate_name=f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+        candidate_first_name=candidate.candidateFirstName,
+        candidate_middle_name=candidate.candidateMiddleName,
+        candidate_last_name=candidate.candidateLastName,
+        candidate_email=candidate.candidateEmail,
+        candidate_mobile=candidate.candidateMobile,
+        candidate_gender=candidate.candidateGender,
+        candidate_date_of_birth=candidate.candidateDateOfBirth,
+        candidate_job_title=candidate.candidateJobTitle,
+        candidate_experience=candidate.candidateExperience,
+        candidate_skills=candidate.candidateSkills or [],
+        candidate_current_location=candidate.candidateCurrentLocation,
+        candidate_joining_date=candidate.candidateJoiningDate,
+        candidate_expected_salary=candidate.candidateExpectedSalary,
+        candidate_expected_salary_type=getattr(candidate, 'candidateExpectedSalaryType', None),
+        candidate_current_salary=candidate.candidateCurrentSalary,
+        candidate_current_salary_type=getattr(candidate, 'candidateCurrentSalaryType', None),
+        candidate_source=candidate.candidateSource,
+        business_unit_id=candidate.businessUnitID,
+        assigned_hr_manager_id=candidate.assigned_hr_manager_id,
+        assigned_report_manager_id=candidate.assigned_report_manager_id,
     )
 
 
