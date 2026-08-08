@@ -58,32 +58,37 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   }, [candidate, data]);
 
   const handleEditSection = (section) => {
-    if (!profile || Object.keys(profile).length === 0) {
-      toast.error("Profile data not loaded yet. Please wait.");
-      return;
+    try {
+      if (!profile || Object.keys(profile).length === 0) {
+        toast.error("Profile data not loaded yet. Please wait.");
+        return;
+      }
+      setEditingSection(section);
+      setEditForm({
+        first_name: profile?.candidate_first_name || "",
+        middle_name: profile?.candidate_middle_name || "",
+        last_name: profile?.candidate_last_name || "",
+        email: profile?.candidate_email || "",
+        mobile: profile?.candidate_mobile || "",
+        gender: profile?.candidate_gender || "",
+        dob: profile?.candidate_date_of_birth || "",
+        job_title: profile?.candidate_job_title || "",
+        experience: profile?.candidate_experience || "",
+        skills: profile?.candidate_skills?.join(", ") || "",
+        joining_date: profile?.candidate_joining_date || "",
+        expected_salary: profile?.candidate_expected_salary || "",
+        expected_salary_type: profile?.candidate_expected_salary_type || "$/Year",
+        current_salary: profile?.candidate_current_salary || "",
+        current_salary_type: profile?.candidate_current_salary_type || "$/Year",
+        current_location: profile?.candidate_current_location || "",
+        source: profile?.candidate_source || "",
+        assigned_hr_manager_id: profile?.assigned_hr_manager_id || "",
+        assigned_report_manager_id: profile?.assigned_report_manager_id || "",
+      });
+    } catch (err) {
+      console.error("Error loading edit form:", err);
+      toast.error("Error loading form data. Please refresh and try again.");
     }
-    setEditingSection(section);
-    setEditForm({
-      first_name: profile.candidate_first_name || "",
-      middle_name: profile.candidate_middle_name || "",
-      last_name: profile.candidate_last_name || "",
-      email: profile.candidate_email || "",
-      mobile: profile.candidate_mobile || "",
-      gender: profile.candidate_gender || "",
-      dob: profile.candidate_date_of_birth || "",
-      job_title: profile.candidate_job_title || "",
-      experience: profile.candidate_experience || "",
-      skills: profile.candidate_skills?.join(", ") || "",
-      joining_date: profile.candidate_joining_date || "",
-      expected_salary: profile.candidate_expected_salary || "",
-      expected_salary_type: profile.candidate_expected_salary_type || "$/Year",
-      current_salary: profile.candidate_current_salary || "",
-      current_salary_type: profile.candidate_current_salary_type || "$/Year",
-      current_location: profile.candidate_current_location || "",
-      source: profile.candidate_source || "",
-      assigned_hr_manager_id: profile.assigned_hr_manager_id || "",
-      assigned_report_manager_id: profile.assigned_report_manager_id || "",
-    });
   };
 
   const handleCancelEdit = () => {
