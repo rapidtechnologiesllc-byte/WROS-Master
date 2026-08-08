@@ -401,6 +401,17 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
               <div className="space-y-3">
                 {candidates
                   .filter(c => {
+                    // Filter by job association: check multiple possible field names
+                    const jobMatch = (c.job_id === job.id) ||
+                                     (c.jobId === job.id) ||
+                                     (c.opportunity_id === job.id) ||
+                                     (c.opportunityId === job.id) ||
+                                     (job.id && !job.id) || // fallback: if no job.id, show all (shouldn't happen)
+                                     false; // strict: must be associated with this job
+
+                    // If candidate is not associated with this job, exclude it
+                    if (!jobMatch && job.id) return false;
+
                     const matchesQuery = !candidateQuery ||
                       (c.candidate_first_name || c.firstName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
                       (c.candidate_last_name || c.lastName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
@@ -415,6 +426,15 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                   .length > 0 ? (
                   candidates
                     .filter(c => {
+                      // Filter by job association
+                      const jobMatch = (c.job_id === job.id) ||
+                                       (c.jobId === job.id) ||
+                                       (c.opportunity_id === job.id) ||
+                                       (c.opportunityId === job.id) ||
+                                       false;
+
+                      if (!jobMatch && job.id) return false;
+
                       const matchesQuery = !candidateQuery ||
                         (c.candidate_first_name || c.firstName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
                         (c.candidate_last_name || c.lastName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
