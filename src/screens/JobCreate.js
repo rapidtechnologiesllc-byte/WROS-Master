@@ -316,6 +316,21 @@ export default function JobCreate({
       if (Array.isArray(data?.job_skills) && data.job_skills.length) {
         setSkills(data.job_skills.join(", "));
       }
+      // Auto-populate job title and experience if generated
+      if (data?.job_title && !title) {
+        setTitle(data.job_title);
+      }
+      if (data?.job_experience && !experienceLevel) {
+        // Parse "3-5 years" or "5+ years" to extract the first number
+        const expMatch = String(data.job_experience).match(/(\d+)/);
+        if (expMatch) {
+          const years = Math.min(20, Math.max(1, Number(expMatch[1])));
+          setExperienceLevel(years);
+        }
+      }
+      if (data?.job_location && !location) {
+        setLocation(data.job_location);
+      }
       toast.success("Overview + Roles generated.");
     } catch (err) {
       toast.error(err?.message || "Failed to generate job description.");
