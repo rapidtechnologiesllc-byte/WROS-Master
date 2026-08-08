@@ -20,6 +20,8 @@ from app.models.candidate import (
 )
 from app.schemas.user import (
     GenerateJobDescriptionRequest, GenerateJobDescriptionResponse,
+    GenerateJobWithAgentRequest, GenerateJobWithAgentResponse,
+    GenerateJobCompleteRequest, GenerateJobCompleteResponse,
     JobCreateRequest, JobCreateResponse,
     JobUpdateRequest, JobResponse,
     AllJobsResponse, DeleteResponse,
@@ -37,6 +39,8 @@ from app.utils.uniq_id_generator import user_id_generator, job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
 from app.api.v1.endpoints.documents import _upload_document_helper
+from app.services.recruitment_job_creation_service import get_recruitment_job_agent
+from app.models.agent_execution_log import AgentExecutionLog
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -70,23 +74,23 @@ def generate_job_description(
 ):
     """
     Generate job description using AI.
-    
+
     Args:
         request: Job description generation request
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         Job description generation response
     """
     # Generate job description using AI
     result = generate_job_description_with_state(
-        request.job_title, 
+        request.job_title,
         request.job_description,  # Using job_skills as the one-liner description
-        request.job_experience, 
+        request.job_experience,
         request.job_location
     )
-    
+
     # Build response - extract the generated_description string from the result
     return GenerateJobDescriptionResponse(
         job_title=result['job_title'],
@@ -95,6 +99,125 @@ def generate_job_description(
         job_experience=result['experience'],
         job_location=result['location']
     )
+
+
+@router.post(
+    "/generate-with-agent",
+    response_model=GenerateJobWithAgentResponse,
+    dependencies=[Depends(require_permission("job.create"))],
+)
+def generate_job_with_agent(
+    request: GenerateJobWithAgentRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Step 1: Recruitment agent analyzes one-liner and generates clarifying questions.
+
+    Args:
+        request: Job one-liner description
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        Clarifying questions for user to answer
+    """
+    try:
+        agent = get_recruitment_job_agent()
+        result = agent.generate_clarifying_questions(request.job_description_oneliner)
+
+        # Log agent action
+        log_entry = AgentExecutionLog(
+            tenant_id=user.UserID,
+            agent_name="Recruitment",
+            action_taken="generate_clarifying_questions",
+            action_data={
+                "one_liner": request.job_description_oneliner,
+                "questions_count": len(result.get("questions", []))
+            },
+            success=True
+        )
+        db.add(log_entry)
+        db.commit()
+
+        return GenerateJobWithAgentResponse(
+            job_title=result.get("job_title", "Job Title"),
+            estimated_experience=result.get("estimated_experience", ""),
+            questions=result.get("questions", [])
+        )
+    except Exception as err:
+        log_entry = AgentExecutionLog(
+            tenant_id=user.UserID,
+            agent_name="Recruitment",
+            action_taken="generate_clarifying_questions",
+            action_data={"one_liner": request.job_description_oneliner},
+            success=False,
+            error_message=str(err)
+        )
+        db.add(log_entry)
+        db.commit()
+        raise
+
+
+@router.post(
+    "/generate-complete",
+    response_model=GenerateJobCompleteResponse,
+    dependencies=[Depends(require_permission("job.create"))],
+)
+def generate_job_complete(
+    request: GenerateJobCompleteRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin)
+):
+    """
+    Step 2: Recruitment agent generates complete job with all fields populated.
+
+    Args:
+        request: One-liner + answers to clarifying questions
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        Complete job data with all fields populated
+    """
+    try:
+        agent = get_recruitment_job_agent()
+        result = agent.generate_complete_job(
+            request.job_description_oneliner,
+            request.answers
+        )
+
+        # Log agent action
+        log_entry = AgentExecutionLog(
+            tenant_id=user.UserID,
+            agent_name="Recruitment",
+            action_taken="generate_complete_job",
+            action_data={
+                "one_liner": request.job_description_oneliner,
+                "answers_count": len(request.answers),
+                "job_title": result.get("job_title")
+            },
+            success=True
+        )
+        db.add(log_entry)
+        db.commit()
+
+        return GenerateJobCompleteResponse(**result)
+    except Exception as err:
+        log_entry = AgentExecutionLog(
+            tenant_id=user.UserID,
+            agent_name="Recruitment",
+            action_taken="generate_complete_job",
+            action_data={
+                "one_liner": request.job_description_oneliner,
+                "answers_count": len(request.answers)
+            },
+            success=False,
+            error_message=str(err)
+        )
+        db.add(log_entry)
+        db.commit()
+        raise
 
 
 @router.get(

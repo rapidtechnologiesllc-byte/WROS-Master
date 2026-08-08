@@ -271,6 +271,37 @@ class GenerateJobDescriptionResponse(BaseModel):
     job_experience: str
     job_location: str
 
+# Agent-based Job Creation Schemas
+class ClarifyingQuestion(BaseModel):
+    field: str
+    question: str
+    options: Optional[list[str]] = None
+    required: bool = True
+    type: str = "text"  # text, select, date
+
+class GenerateJobWithAgentRequest(BaseModel):
+    job_description_oneliner: str
+
+class GenerateJobWithAgentResponse(BaseModel):
+    job_title: str
+    estimated_experience: str
+    questions: list[ClarifyingQuestion]
+
+class GenerateJobCompleteRequest(BaseModel):
+    job_description_oneliner: str
+    answers: dict[str, str]  # field -> user answer
+
+class GenerateJobCompleteResponse(BaseModel):
+    job_title: str
+    generated_job_description: str
+    job_skills: list[str]
+    job_experience: str
+    job_location: str
+    position_type: str
+    pay_range: str
+    job_open_date: Optional[str] = None
+    contract_duration: Optional[str] = None
+
 # Update Schemas
 class JobUpdateRequest(BaseModel):
     job_title: Optional[str] = None
