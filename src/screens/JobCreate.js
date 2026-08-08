@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Briefcase } from "lucide-react";
 import { generateJobDescription, createJob } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
+import RateField from "../components/ui/RateField";
 import { searchUsers } from "../services/api/users";
 import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
 import { toast } from "react-toastify";
@@ -29,10 +30,8 @@ export default function JobCreate({
   const [dept, setDept] = useState("Digital");
   const [location, setLocation] = useState("Remote");
   const [experienceLevel, setExperienceLevel] = useState("");
-  const [payRange, setPayRange] = useState("");
-  const [payCurrency, setPayCurrency] = useState("INR");
-  const [payFrequency, setPayFrequency] = useState("Annual");
   const [payAmount, setPayAmount] = useState("");
+  const [payRateType, setPayRateType] = useState("$/Year");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [skills, setSkills] = useState("");
@@ -192,30 +191,29 @@ export default function JobCreate({
   useEffect(() => {
     if (!initialJob || mode !== "view") return;
     const parsePay = (value) => {
-      const next = { currency: "USD", frequency: "Annual", amount: "" };
+      const next = { rateType: "$/Year", amount: "" };
       if (!value) return next;
-      const parts = String(value).trim().split(/\s+/);
-      if (parts[0] === "USD" || parts[0] === "INR") next.currency = parts[0];
-      if (parts[1] === "Hourly" || parts[1] === "Annual")
-        next.frequency = parts[1];
-      if (parts.length >= 3) next.amount = parts.slice(2).join(" ");
+      // Parse "150 $/Year" format
+      const match = String(value).trim().match(/^(\d+(?:\.\d+)?)\s*([\$₹]\/\w+)$/);
+      if (match) {
+        next.amount = match[1];
+        next.rateType = match[2];
+      }
       return next;
     };
-    const parsedPay = parsePay(initialJob.payRange || "");
-    setTitle(initialJob.title || "");
-    setPositionType(initialJob.positionType || "");
+    const parsedPay = parsePay(initialJob.salary_range || "");
+    setTitle(initialJob.job_title || "");
+    setPositionType(initialJob.company_type || "");
     setPriority(initialJob.priority || "");
-    setCompanyClient(initialJob.companyClient || "");
-    setCompanyType(initialJob.companyType || "");
-    setContactPerson(initialJob.contactPerson || "");
+    setCompanyClient(initialJob.company_name || "");
+    setCompanyType(initialJob.company_type || "");
+    setContactPerson(initialJob.contact_person || "");
     setDivision(initialJob.division || "");
     setDept(initialJob.dept || "");
-    setLocation(initialJob.location || "");
-    setExperienceLevel(initialJob.experienceLevel || "");
-    setPayRange(initialJob.payRange || "");
-    setPayCurrency(parsedPay.currency);
-    setPayFrequency(parsedPay.frequency);
+    setLocation(initialJob.job_location || "");
+    setExperienceLevel(initialJob.job_experience || "");
     setPayAmount(parsedPay.amount);
+    setPayRateType(parsedPay.rateType);
     setStartDate(initialJob.startDate || "");
     setEndDate(initialJob.endDate || "");
     setSkills((initialJob.skills || []).join(", "));
@@ -364,10 +362,8 @@ export default function JobCreate({
       return;
     }
     try {
-      // Format: "150 $/Year" or "150 ₹/Annual" for easy comparison with Expected Salary
-      const payRangeString = payAmount ?
-        `${payAmount} ${payCurrency === "INR" ? "₹" : "$"}/${payFrequency === "Hourly" ? "Hr" : payFrequency === "Weekly" ? "Week" : "Year"}`
-        : null;
+      // Format: "150 $/Year" for easy comparison with Expected Salary
+      const payRangeString = payAmount ? `${payAmount} ${payRateType}` : null;
       const payload = {
         job_title: title?.trim(),
         job_description: internalJD?.trim(),
@@ -418,12 +414,23 @@ export default function JobCreate({
           <fieldset disabled={isReadOnly}>
             <div className="md:col-span-2 mt-2">
               <TextArea
-                label="Hiring Manager 1-Liner "
+                label="Hiring Manager 1-Liner + Skills"
                 value={hmOneLiner}
                 onChange={setHmOneLiner}
-                rows={2}
-                placeholder="Include job_title, job_experience, job_location to generate JD"
+                rows={3}
+                placeholder="Include job_title, job_experience, job_location, and comma-separated skills to generate JD (e.g., React, Node.js, AWS)"
               />
+            </div>
+            <div className="md:col-span-2">
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={generateInternalOverviewAndRolesFromApi}
+                  disabled={isGenerating || !hmOneLiner.trim()}
+                >
+                  {isGenerating ? "Generating..." : "Generate Overview + Roles"}
+                </Button>
+              </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <Input label="Job Title *" value={title} onChange={setTitle} />
@@ -438,38 +445,6 @@ export default function JobCreate({
                 value={priority}
                 onChange={setPriority}
                 options={["Low", "High"]}
-              />
-              <Select
-                label="HR * (auto-assigned from Business Unit, override if needed)"
-                value={contactPerson}
-                onChange={setContactPerson}
-                options={[
-                  { label: "Select HR", value: "" },
-                  ...(resolvedHrManager?.user_id
-                    ? [{
-                        label: `${resolvedHrManager.name} (${resolvedHrManager.email})`,
-                        value: resolvedHrManager.user_id,
-                      }]
-                    : []),
-                  ...(hrUsers
-                    ?.filter((user) => user?.user_id !== resolvedHrManager?.user_id)
-                    .map((user) => ({
-                      label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
-                      value: user?.user_id ?? "",
-                    })) ?? []),
-                ]}
-              />
-              <Input
-                label="BU Head (auto-resolved, informational)"
-                value={
-                  resolvedBuHead
-                    ? `${resolvedBuHead.name} (${resolvedBuHead.email})`
-                    : selectedBusinessUnit
-                    ? "Not assigned for this BU"
-                    : ""
-                }
-                onChange={() => {}}
-                disabled={true}
               />
               <Select
                 label="Role Type *"
@@ -489,12 +464,14 @@ export default function JobCreate({
                   { label: "External Role (Partner/Client)", value: "external" },
                 ]}
               />
-              <Select
-                label="Company / Client *"
-                value={companyClient}
-                onChange={setCompanyClient}
-                options={clientOptions}
-              />
+              {isInternalRole === false && (
+                <Select
+                  label="Company / Client *"
+                  value={companyClient}
+                  onChange={setCompanyClient}
+                  options={clientOptions}
+                />
+              )}
               <Select
                 label="Business Unit"
                 value={selectedBusinessUnit}
@@ -541,58 +518,15 @@ export default function JobCreate({
                 ]}
               />
               <div className="md:col-span-2">
-                <div className="mb-1 text-xs font-semibold text-gray-700">
-                  Pay Range *
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Select
-                    label="Currency"
-                    value={payCurrency}
-                    onChange={(value) => {
-                      setPayCurrency(value);
-                      if (value === "INR") {
-                        setPayFrequency("Annual");
-                      }
-                    }}
-                    options={["INR", "USD"]}
-                  />
-                  <Select
-                    label="Frequency"
-                    value={payFrequency}
-                    onChange={setPayFrequency}
-                    options={["Hourly", "Weekly", "Annual"]}
-                  />
-                  <Input
-                    label={
-                      payFrequency === "Hourly"
-                        ? "Amount (Hourly)"
-                        : payFrequency === "Weekly"
-                          ? "Amount (Weekly)"
-                          : "Amount (Annual)"
-                    }
-                    value={payAmount}
-                    onChange={(value) => {
-                      setPayAmount(value);
-                      const normalized = value ? String(value).trim() : "";
-                      const next = normalized
-                        ? `${payAmount} ${payCurrency === "INR" ? "₹" : "$"}/${payFrequency === "Hourly" ? "Hr" : payFrequency === "Weekly" ? "Week" : "Year"}`
-                        : "";
-                      setPayRange(next);
-                    }}
-                    type="number"
-                  />
-                </div>
-                {payAmount && (
-                  <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
-                    <div className="text-xs font-semibold text-gray-600 mb-1">Formatted Pay Range (for comparison):</div>
-                    <div className="text-lg font-semibold text-blue-900">
-                      {payAmount} {payCurrency === "INR" ? "₹" : "$"}/{payFrequency === "Hourly" ? "Hr" : payFrequency === "Weekly" ? "Week" : "Year"}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      This matches candidate's Expected Salary format for easy 1:1 comparison
-                    </div>
-                  </div>
-                )}
+                <RateField
+                  label="Pay Range"
+                  value={payAmount}
+                  rateType={payRateType}
+                  onValueChange={setPayAmount}
+                  onRateTypeChange={setPayRateType}
+                  required={true}
+                  rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"]}
+                />
               </div>
               <Input
                 label="Start Date *"
@@ -612,24 +546,6 @@ export default function JobCreate({
       case 1:
         return (
           <>
-            <div className="md:col-span-2 mt-2">
-              <Input
-                label="Skills (comma separated) *"
-                value={skills}
-                onChange={setSkills}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={generateInternalOverviewAndRolesFromApi}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? "Generating..." : "Generate Overview + Roles"}
-                </Button>
-              </div>
-            </div>
             <div className="mt-2 md:col-span-2">
               <TextArea
                 label="Internal Job Description *"
