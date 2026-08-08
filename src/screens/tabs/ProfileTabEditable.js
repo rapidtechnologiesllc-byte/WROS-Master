@@ -372,8 +372,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               onChange={(v) => setEditForm({...editForm, skills: v})}
             />
             <Input
-              label="Notice Period"
-              type="date"
+              label="Notice Period (days)"
+              placeholder="e.g., 30, 45, 60"
               value={editForm.joining_date || ""}
               onChange={(v) => setEditForm({...editForm, joining_date: v})}
             />
