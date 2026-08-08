@@ -153,11 +153,13 @@ class JobResponse(BaseModel):
     company_type: Optional[str] = None
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
+    contact_person_name: Optional[str] = None
     job_status: Optional[str] = None
     no_of_positions: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     hiring_manager_id: Optional[str] = None
+    hiring_manager_name: Optional[str] = None
     recuriter_id: Optional[str] = None
     business_unit: Optional[int] = None
     department_id: Optional[int] = None
