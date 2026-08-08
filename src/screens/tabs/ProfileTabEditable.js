@@ -16,7 +16,7 @@ const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 const SOURCES = ["LinkedIn", "Indeed", "Referral", "Direct Application", "Job Board", "Other"];
 const CURRENCY_OPTIONS = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"];
 
-export default function ProfileTabEditable({ candidateId, candidate, onRefresh }) {
+export default function ProfileTabEditable({ candidateId, candidate = {}, onRefresh }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
