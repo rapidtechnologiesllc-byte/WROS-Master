@@ -324,7 +324,18 @@ const CandidateAssignJobModal = ({
 
   const parsePayAmount = (pay) => {
     if (!pay) return 0;
-    return parseFloat(String(pay).replace(/[^\d.]/g, "")) || 0;
+    // Extract numeric value from formatted strings like "150 $/Year" or "150000 INR Annual"
+    const match = String(pay).match(/(\d+(?:\.\d+)?)/);
+    return match ? parseFloat(match[0]) : 0;
+  };
+
+  const getPayFrequency = (payStr) => {
+    if (!payStr) return null;
+    const str = String(payStr).toLowerCase();
+    if (str.includes("hour") || str.includes("hr") || str.includes("/hr")) return "Hourly";
+    if (str.includes("week")) return "Weekly";
+    if (str.includes("year") || str.includes("annual") || str.includes("/year")) return "Annual";
+    return "Annual"; // default
   };
 
   const validateForm = () => {
@@ -369,12 +380,39 @@ const CandidateAssignJobModal = ({
 
     // Validate Pay Range
     if (selectedJob && formData?.agreedPayRate) {
-      const jobPayMax = parsePayAmount(selectedJob?.salaryRange || selectedJob?.pay_range || "0");
-      const candidatePayRate = parsePayAmount(formData?.agreedPayRate);
+      const jobPayStr = selectedJob?.salaryRange || selectedJob?.pay_range || selectedJob?.salary_range || "0";
+      const jobPayAmount = parsePayAmount(jobPayStr);
+      const jobPayFreq = getPayFrequency(jobPayStr);
 
-      if (jobPayMax > 0 && candidatePayRate > jobPayMax) {
-        toast.error(`❌ Candidate's agreed pay rate ($${candidatePayRate}) exceeds job's maximum pay range ($${jobPayMax}). Candidate is out of budget.`);
-        return false;
+      const candidatePayStr = formData?.agreedPayRate;
+      const candidatePayAmount = parsePayAmount(candidatePayStr);
+      const candidatePayFreq = getPayFrequency(candidatePayStr);
+
+      // Only compare if both have amounts
+      if (jobPayAmount > 0 && candidatePayAmount > 0) {
+        // Show comparison info
+        const jobDisplay = `${jobPayAmount} ${jobPayFreq}`;
+        const candidateDisplay = `${candidatePayAmount} ${candidatePayFreq}`;
+
+        // Simple numeric comparison (ideally should normalize to same frequency, but this is a basic check)
+        // For strict validation, if same frequency, can compare directly
+        if (jobPayFreq === candidatePayFreq && candidatePayAmount > jobPayAmount) {
+          toast.error(
+            `⚠️ Budget Alert:\n` +
+            `Candidate asking: ${candidateDisplay}\n` +
+            `Job budget: ${jobDisplay}\n` +
+            `Candidate is OUT OF BUDGET. Proceed with caution.`
+          );
+          return false;
+        } else if (jobPayFreq !== candidatePayFreq) {
+          // Different frequencies - just warn, don't block
+          toast.warning(
+            `⚠️ Pay Frequency Mismatch:\n` +
+            `Candidate: ${candidateDisplay}\n` +
+            `Job Budget: ${jobDisplay}\n` +
+            `Please verify the amounts match before proceeding.`
+          );
+        }
       }
     }
 
