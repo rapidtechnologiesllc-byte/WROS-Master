@@ -83,6 +83,7 @@ from app.api.v1.endpoints.agents import router as agents_router
 from app.api.v1.endpoints.flash_interview import router as flash_interview_router
 from app.api.v1.endpoints.hiring_workflow import router as hiring_workflow_router
 from app.api.v1.endpoints.defect_reporting import router as defect_reporting_router
+from app.api.v1.endpoints.agent_maturity import router as agent_maturity_router
 
 router = fastapi.APIRouter()
 
@@ -168,4 +169,5 @@ router.include_router(router=activity_timeline_router)
 router.include_router(router=agents_router)
 router.include_router(router=flash_interview_router)
 router.include_router(router=hiring_workflow_router)
-router.include_router(router=defect_reporting_router)
+router.include_router(router=defect_reporting_router)
+router.include_router(router=agent_maturity_router)
