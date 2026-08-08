@@ -12,6 +12,7 @@ import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
 import AdminAgentStateDashboard from "./AdminAgentStateDashboard";
+import AgentStandupsScreen from "./AgentStandupsScreen";
 
 const GREETING_CHANNELS = ["BOTH_PARALLEL", "WHATSAPP_FIRST", "EMAIL_FIRST"];
 
@@ -93,6 +94,11 @@ export default function TenantAIConfigScreen() {
       key: "dashboard",
       label: "Agent Dashboard",
       children: <AdminAgentStateDashboard />
+    },
+    {
+      key: "standups",
+      label: "Standups & Scrum",
+      children: <AgentStandupsScreen />
     }
   ];
 
