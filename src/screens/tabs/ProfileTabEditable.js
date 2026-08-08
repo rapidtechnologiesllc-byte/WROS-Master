@@ -197,12 +197,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <InfoDisplay label="First Name" value={profile.candidate_first_name} />
-            <InfoDisplay label="Middle Name" value={profile.candidate_middle_name} />
-            <InfoDisplay label="Last Name" value={profile.candidate_last_name} />
-            <InfoDisplay label="Email" value={profile.candidate_email} />
-            <InfoDisplay label="Mobile" value={profile.candidate_mobile} />
-            <InfoDisplay label="Job Title" value={profile.candidate_job_title} />
+            <InfoDisplay label="First Name" value={profile?.candidate_first_name} />
+            <InfoDisplay label="Middle Name" value={profile?.candidate_middle_name} />
+            <InfoDisplay label="Last Name" value={profile?.candidate_last_name} />
+            <InfoDisplay label="Email" value={profile?.candidate_email} />
+            <InfoDisplay label="Mobile" value={profile?.candidate_mobile} />
+            <InfoDisplay label="Job Title" value={profile?.candidate_job_title} />
           </div>
         )}
       </EditableSection>
@@ -244,10 +244,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoDisplay label="Gender" value={profile.candidate_gender} />
-            <InfoDisplay label="Date of Birth" value={profile.candidate_date_of_birth} />
-            <InfoDisplay label="Current Location" value={profile.candidate_current_location} />
-            <InfoDisplay label="Source" value={profile.candidate_source} />
+            <InfoDisplay label="Gender" value={profile?.candidate_gender} />
+            <InfoDisplay label="Date of Birth" value={profile?.candidate_date_of_birth} />
+            <InfoDisplay label="Current Location" value={profile?.candidate_current_location} />
+            <InfoDisplay label="Source" value={profile?.candidate_source} />
           </div>
         )}
       </EditableSection>
@@ -299,17 +299,17 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoDisplay label="Experience" value={profile.candidate_experience} suffix=" years" />
-            <InfoDisplay label="Skills" value={Array.isArray(profile.candidate_skills) ? profile.candidate_skills.join(", ") : profile.candidate_skills} />
-            <InfoDisplay label="Available to Join" value={profile.candidate_joining_date} />
+            <InfoDisplay label="Experience" value={profile?.candidate_experience} suffix=" years" />
+            <InfoDisplay label="Skills" value={Array.isArray(profile?.candidate_skills) ? profile?.candidate_skills.join(", ") : profile?.candidate_skills} />
+            <InfoDisplay label="Available to Join" value={profile?.candidate_joining_date} />
             <div />
             <InfoDisplay
               label="Expected Salary"
-              value={profile.candidate_expected_salary ? `${profile.candidate_expected_salary} ${profile.candidate_expected_salary_type || '$/Year'}` : null}
+              value={profile?.candidate_expected_salary ? `${profile?.candidate_expected_salary} ${profile?.candidate_expected_salary_type || '$/Year'}` : null}
             />
             <InfoDisplay
               label="Current Salary"
-              value={profile.candidate_current_salary ? `${profile.candidate_current_salary} ${profile.candidate_current_salary_type || '$/Year'}` : null}
+              value={profile?.candidate_current_salary ? `${profile?.candidate_current_salary} ${profile?.candidate_current_salary_type || '$/Year'}` : null}
             />
           </div>
         )}
@@ -346,14 +346,14 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               <>
                 <InfoDisplay
                   label="HR Manager"
-                  value={users.find(u => u.id === profile.assigned_hr_manager_id)
-                    ? `${users.find(u => u.id === profile.assigned_hr_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_hr_manager_id)?.last_name || ""}`
+                  value={users.find(u => u.id === profile?.assigned_hr_manager_id)
+                    ? `${users.find(u => u.id === profile?.assigned_hr_manager_id)?.first_name} ${users.find(u => u.id === profile?.assigned_hr_manager_id)?.last_name || ""}`
                     : "—"}
                 />
                 <InfoDisplay
                   label="Report Manager"
-                  value={users.find(u => u.id === profile.assigned_report_manager_id)
-                    ? `${users.find(u => u.id === profile.assigned_report_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_report_manager_id)?.last_name || ""}`
+                  value={users.find(u => u.id === profile?.assigned_report_manager_id)
+                    ? `${users.find(u => u.id === profile?.assigned_report_manager_id)?.first_name} ${users.find(u => u.id === profile?.assigned_report_manager_id)?.last_name || ""}`
                     : "—"}
                 />
               </>
@@ -369,8 +369,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Protected</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoDisplay label="Business Unit" value={profile.business_unit_id || "—"} />
-          <InfoDisplay label="Assigned on" value={profile.created_at ? new Date(profile.created_at).toLocaleDateString() : "—"} />
+          <InfoDisplay label="Business Unit" value={profile?.business_unit_id || "—"} />
+          <InfoDisplay label="Assigned on" value={profile?.created_at ? new Date(profile?.created_at).toLocaleDateString() : "—"} />
         </div>
         <p className="text-xs text-gray-500 mt-3">Business Unit is locked to the assigning user's BU and cannot be changed.</p>
       </div>
