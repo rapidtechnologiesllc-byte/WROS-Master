@@ -58,6 +58,10 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   }, [candidate, data]);
 
   const handleEditSection = (section) => {
+    if (!profile || Object.keys(profile).length === 0) {
+      toast.error("Profile data not loaded yet. Please wait.");
+      return;
+    }
     setEditingSection(section);
     setEditForm({
       first_name: profile.candidate_first_name || "",
@@ -118,7 +122,12 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
         updatePayload.assigned_report_manager_id = editForm.assigned_report_manager_id || null;
       }
 
-      await onRefresh?.(candidateId, updatePayload);
+      if (onRefresh) {
+        await onRefresh(candidateId, updatePayload);
+      } else {
+        // Fallback: call updateCandidate directly if onRefresh not provided
+        await updateCandidate(candidateId, updatePayload);
+      }
       toast.success("Profile updated successfully");
       setEditingSection(null);
       setEditForm({});
