@@ -280,6 +280,9 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
         candidate_response = CandidateCompleteResponse(
             candidate_id=candidate.candidateID,
             candidate_name=candidate_name,
+            candidate_first_name=candidate.candidateFirstName,
+            candidate_middle_name=candidate.candidateMiddleName,
+            candidate_last_name=candidate.candidateLastName,
             candidate_email=candidate.candidateEmail,
             candidate_mobile=candidate.candidateMobile,
             candidate_role=candidate.candidateRole,
@@ -437,6 +440,9 @@ def get_candidate_by_id(
     return CandidateCompleteResponse(
         candidate_id=candidate.candidateID,
         candidate_name=candidate_name,
+        candidate_first_name=candidate.candidateFirstName,
+        candidate_middle_name=candidate.candidateMiddleName,
+        candidate_last_name=candidate.candidateLastName,
         candidate_email=candidate.candidateEmail,
         candidate_mobile=candidate.candidateMobile,
         candidate_role=candidate.candidateRole,
@@ -631,6 +637,9 @@ def get_candidates_by_my_bu(
         candidates_data.append(CandidateCompleteResponse(
             candidate_id=candidate.candidateID,
             candidate_name=candidate_name,
+            candidate_first_name=candidate.candidateFirstName,
+            candidate_middle_name=candidate.candidateMiddleName,
+            candidate_last_name=candidate.candidateLastName,
             candidate_email=candidate.candidateEmail,
             candidate_mobile=candidate.candidateMobile,
             candidate_role=candidate.candidateRole,
