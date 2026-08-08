@@ -401,10 +401,10 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           )}
         </div>
 
-        {/* Right Sidebar - Activity & Quick Stats */}
+        {/* Right Sidebar - Pipeline Activity & Timeline Summary */}
         <div className="lg:col-span-1">
           <div className="space-y-3 sticky top-4">
-            {/* Activity Metrics */}
+            {/* Pipeline Activity Metrics */}
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <h3 className="text-base font-semibold text-gray-900 mb-4">Pipeline Activity</h3>
               <div className="space-y-3">
@@ -429,30 +429,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
               </div>
             </div>
 
-            {/* Client & Contact Info */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">Client Details</h3>
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase">Company</div>
-                  <div className="text-sm font-medium text-gray-900 mt-1">{job.companyClient || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase">Contact Person</div>
-                  <div className="text-sm font-medium text-gray-900 mt-1">{job.contactPerson || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase">Division</div>
-                  <div className="text-sm font-medium text-gray-900 mt-1">{job.division || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase">Company Type</div>
-                  <div className="text-sm font-medium text-gray-900 mt-1">{job.companyType || "-"}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Timeline Summary */}
+            {/* Timeline Quick View */}
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <h3 className="text-base font-semibold text-gray-900 mb-4">Timeline</h3>
               <div className="space-y-3">
