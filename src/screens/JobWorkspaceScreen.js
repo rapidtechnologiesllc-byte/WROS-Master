@@ -378,9 +378,9 @@ export default function JobWorkspaceScreen({
       </div>
 
       {activeTab === "Job Details" ? (
-        <JobDetails job={job} candidates={candidates} mode="view" defaultTab="details" />
+        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="details" />
       ) : activeTab === "Candidates" ? (
-        <JobDetails job={job} candidates={candidates} mode="view" defaultTab="candidates" />
+        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="candidates" />
       ) : activeTab === "Job Analytics" ? (
         <>
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">
