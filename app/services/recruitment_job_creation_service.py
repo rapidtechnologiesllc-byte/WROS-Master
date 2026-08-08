@@ -16,18 +16,62 @@ Logs all actions to agent_execution_log for maturity tracking.
 from typing import Dict, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview")
+llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-2.0-flash")
 
 
 class RecruitmentJobCreationAgent:
     """
     Recruitment agent for generating clarifying questions and complete job data.
     """
+
+    def _extract_content(self, response) -> str:
+        """Extract text content from LLM response, handling various formats."""
+        if isinstance(response.content, str):
+            return response.content
+        elif isinstance(response.content, list):
+            return ''.join(
+                part['text'] if isinstance(part, dict) and 'text' in part else str(part)
+                for part in response.content
+            )
+        else:
+            return str(response.content)
+
+    def _parse_json_response(self, content: str) -> Optional[Dict]:
+        """Parse JSON from LLM response, handling markdown and extra text."""
+        try:
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+
+            if json_start == -1 or json_end <= json_start:
+                return None
+
+            json_str = content[json_start:json_end]
+            parsed = json.loads(json_str)
+
+            self._validate_response_structure(parsed)
+            return parsed
+        except (json.JSONDecodeError, ValueError) as e:
+            return None
+
+    def _validate_response_structure(self, data: Dict) -> None:
+        """Validate that the response has required fields."""
+        required_keys = {"job_title", "estimated_experience", "questions"}
+        if not required_keys.issubset(set(data.keys())):
+            raise ValueError(f"Missing required keys: {required_keys - set(data.keys())}")
+
+        if not isinstance(data["questions"], list) or len(data["questions"]) == 0:
+            raise ValueError("questions must be a non-empty list")
+
+        for q in data["questions"]:
+            required_q_keys = {"field", "question", "required", "type"}
+            if not required_q_keys.issubset(set(q.keys())):
+                raise ValueError(f"Question missing required keys: {required_q_keys - set(q.keys())}")
 
     def generate_clarifying_questions(self, one_liner: str) -> Dict:
         """
@@ -36,127 +80,74 @@ class RecruitmentJobCreationAgent:
 
         Returns:
             {
+                "job_title": "Guidewire Developer",
+                "estimated_experience": "3-5 years",
                 "questions": [
                     {
                         "field": "position_type",
                         "question": "Is this position Full-time or Contract?",
                         "options": ["Full time", "Contract"],
-                        "required": True
+                        "required": true,
+                        "type": "select"
                     },
                     ...
-                ],
-                "identified_title": "Guidewire Developer",
-                "estimated_experience": "3-5 years"
+                ]
             }
         """
-        prompt = f"""
-        A hiring manager just entered this minimal job requirement one-liner:
-        "{one_liner}"
+        prompt = f"""You are a job creation assistant helping recruiters post positions. Analyze this job requirement:
 
-        Based on this, identify:
-        1. The likely job title (without location or seniority modifiers)
-        2. Estimated required experience level (e.g., "3-5 years")
-        3. What additional information is needed to create a complete, high-quality job posting
+Job One-liner: "{one_liner}"
 
-        Generate 3-4 clarifying questions to ask the user. Each question should have:
-        - A clear field name
-        - A natural language question
-        - Available options (if applicable)
-        - Whether it's required (True/False)
+Identify the job title (no location or seniority), and estimated experience level.
+Then generate 4 clarifying questions for the recruiter to create a complete job posting.
 
-        For Position Type, ask if Full-time or Contract.
-        For Job Open Date, ask when to post (date picker).
-        For Pay Range, ask salary/rate range.
-        For Duration, ask if permanent or contract length.
+CRITICAL: Respond ONLY with valid JSON, no other text. Start with {{ and end with }}.
 
-        Respond in this exact JSON format:
+{{
+    "job_title": "<extracted job title, no location/level modifier>",
+    "estimated_experience": "<e.g., 3-5 years>",
+    "questions": [
         {{
-            "job_title": "Guidewire Developer",
-            "estimated_experience": "3-5 years",
-            "questions": [
-                {{
-                    "field": "position_type",
-                    "question": "Is this a Full-time or Contract position?",
-                    "options": ["Full time", "Contract"],
-                    "required": true,
-                    "type": "select"
-                }},
-                {{
-                    "field": "job_open_date",
-                    "question": "When should we post this job?",
-                    "options": null,
-                    "required": true,
-                    "type": "date"
-                }},
-                {{
-                    "field": "pay_range",
-                    "question": "What is the salary/rate range for this role?",
-                    "options": null,
-                    "required": true,
-                    "type": "text"
-                }},
-                {{
-                    "field": "contract_duration",
-                    "question": "If contract, what is the expected duration?",
-                    "options": ["3 months", "6 months", "12 months", "Permanent"],
-                    "required": false,
-                    "type": "select"
-                }}
-            ]
+            "field": "position_type",
+            "question": "Is this a Full-time or Contract position?",
+            "options": ["Full time", "Contract"],
+            "required": true,
+            "type": "select"
+        }},
+        {{
+            "field": "job_open_date",
+            "question": "When should this job be posted?",
+            "options": null,
+            "required": true,
+            "type": "date"
+        }},
+        {{
+            "field": "pay_range",
+            "question": "What is the salary/rate range (e.g., 100k-150k or $45-55/hr)?",
+            "options": null,
+            "required": true,
+            "type": "text"
+        }},
+        {{
+            "field": "contract_duration",
+            "question": "For contracts, what is the expected duration?",
+            "options": ["3 months", "6 months", "12 months", "18 months", "Permanent"],
+            "required": false,
+            "type": "select"
         }}
-        """
+    ]
+}}
+
+Do not include any explanation, markdown, or extra text. JSON only."""
 
         response = llm.invoke(prompt)
-        if isinstance(response.content, str):
-            content = response.content
-        elif isinstance(response.content, list):
-            content = ''.join(
-                part['text'] if isinstance(part, dict) and 'text' in part else str(part)
-                for part in response.content
-            )
-        else:
-            content = str(response.content)
+        content = self._extract_content(response)
 
-        # Parse JSON response
-        import json
-        try:
-            # Extract JSON from response (may have markdown formatting)
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            if json_start != -1 and json_end > json_start:
-                json_str = content[json_start:json_end]
-                return json.loads(json_str)
-        except json.JSONDecodeError:
-            pass
+        result = self._parse_json_response(content)
+        if result:
+            return result
 
-        # Fallback structure
-        return {
-            "job_title": "Job Title",
-            "estimated_experience": "Unknown",
-            "questions": [
-                {
-                    "field": "position_type",
-                    "question": "Is this a Full-time or Contract position?",
-                    "options": ["Full time", "Contract"],
-                    "required": True,
-                    "type": "select"
-                },
-                {
-                    "field": "job_open_date",
-                    "question": "When should we post this job?",
-                    "options": None,
-                    "required": True,
-                    "type": "date"
-                },
-                {
-                    "field": "pay_range",
-                    "question": "What is the salary/rate range?",
-                    "options": None,
-                    "required": True,
-                    "type": "text"
-                }
-            ]
-        }
+        raise ValueError(f"Failed to generate valid questions from LLM response: {content[:200]}")
 
     def generate_complete_job(
         self,
