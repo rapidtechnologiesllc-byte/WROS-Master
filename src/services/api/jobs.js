@@ -13,6 +13,25 @@ export const generateJobDescription = async (payload) => {
   return data;
 };
 
+export const generateJobWithAgent = async (jobDescriptionOneliner) => {
+  const { data } = await apiRequest("/jobs/generate-with-agent", {
+    method: "POST",
+    body: JSON.stringify({ job_description_oneliner: jobDescriptionOneliner }),
+  });
+  return data;
+};
+
+export const generateJobComplete = async (jobDescriptionOneliner, answers) => {
+  const { data } = await apiRequest("/jobs/generate-complete", {
+    method: "POST",
+    body: JSON.stringify({
+      job_description_oneliner: jobDescriptionOneliner,
+      answers,
+    }),
+  });
+  return data;
+};
+
 export const createJob = async (payload) => {
   const { data } = await apiRequest("/jobs/create_job", {
     method: "POST",

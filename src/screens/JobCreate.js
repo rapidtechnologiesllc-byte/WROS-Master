@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Briefcase } from "lucide-react";
-import { generateJobDescription, createJob } from "../services/api/jobs";
+import {
+  generateJobDescription,
+  createJob,
+  generateJobWithAgent,
+  generateJobComplete,
+} from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import RateField from "../components/ui/RateField";
 import { searchUsers } from "../services/api/users";
@@ -289,6 +294,36 @@ export default function JobCreate({
     })) || []),
   ];
 
+  // The Pay Range "Amount" field is numeric-only, but the Ask Flash question
+  // invites free-text answers like "100k-150k" or "$45-55/hr". Reduce that to
+  // a single number (average of a range, "k" expanded) plus a best-guess rate
+  // type, instead of silently leaving the field blank on anything non-numeric.
+  const parsePayRangeAnswer = (value) => {
+    const result = { amount: "", rateType: null };
+    if (!value) return result;
+    const text = String(value).trim();
+
+    const numbers = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(k)?/gi)]
+      .map((m) => Number(m[1]) * (m[2] ? 1000 : 1))
+      .filter((n) => !Number.isNaN(n) && n > 0);
+    if (!numbers.length) return result;
+
+    const amount = numbers.length > 1
+      ? (numbers[0] + numbers[1]) / 2
+      : numbers[0];
+    result.amount = String(Math.round(amount));
+
+    const isRupee = /₹|inr|rs\.?\b/i.test(text);
+    const symbol = isRupee ? "₹" : "$";
+    if (/\/\s*hr|hour/i.test(text)) result.rateType = `${symbol}/Hour`;
+    else if (/\/\s*day|daily/i.test(text)) result.rateType = `${symbol}/Day`;
+    else if (/\/\s*wk|week/i.test(text)) result.rateType = `${symbol}/Week`;
+    else if (/\/\s*mo|month/i.test(text)) result.rateType = `${symbol}/Month`;
+    else if (/\/\s*yr|year|annual/i.test(text)) result.rateType = `${symbol}/Year`;
+
+    return result;
+  };
+
   const normalizeJobStatusForApi = (uiStatus) => {
     const raw = String(uiStatus || "").trim();
     const lower = raw.toLowerCase();
@@ -309,17 +344,7 @@ export default function JobCreate({
     setIsGenerating(true);
     try {
       // Step 1: Call agent to get clarifying questions
-      const questionResponse = await fetch("/jobs/generate-with-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_description_oneliner: oneLiner })
-      });
-
-      if (!questionResponse.ok) {
-        throw new Error("Failed to generate questions");
-      }
-
-      const { questions, job_title, estimated_experience } = await questionResponse.json();
+      const { questions, job_title, estimated_experience } = await generateJobWithAgent(oneLiner);
 
       // Store questions and show modal
       setFlashQuestions(questions || []);
@@ -349,27 +374,22 @@ export default function JobCreate({
     setIsAnswering(true);
     try {
       // Step 2: Call agent with answers to generate complete job
-      const completeResponse = await fetch("/jobs/generate-complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          job_description_oneliner: hmOneLiner.trim(),
-          answers: flashAnswers
-        })
-      });
-
-      if (!completeResponse.ok) {
-        throw new Error("Failed to generate complete job");
-      }
-
-      const data = await completeResponse.json();
+      const data = await generateJobComplete(hmOneLiner.trim(), flashAnswers);
 
       // Auto-populate all fields from agent response
       if (data?.job_title) setTitle(data.job_title);
       if (data?.position_type) setPositionType(data.position_type);
-      if (data?.pay_range) setPayAmount(data.pay_range);
+      if (data?.pay_range) {
+        const parsedPay = parsePayRangeAnswer(data.pay_range);
+        if (parsedPay.amount) setPayAmount(parsedPay.amount);
+        if (parsedPay.rateType) setPayRateType(parsedPay.rateType);
+      }
       if (data?.job_open_date) setStartDate(data.job_open_date);
       if (data?.job_location) setLocation(data.job_location);
+      if (data?.role_type) {
+        setIsInternalRole(!/external/i.test(data.role_type));
+      }
+      if (data?.client_name) setCompanyClient(data.client_name);
 
       if (data?.job_experience) {
         const expMatch = String(data.job_experience).match(/(\d+)/);
@@ -410,7 +430,7 @@ export default function JobCreate({
       { label: "No. of Positions", value: noOfPositions },
       { label: "Start Date", value: startDate },
       { label: "End Date", value: endDate },
-      { label: "Pay Range", value: payAmount },
+      { label: "Pay Rate", value: payAmount },
     ];
     const missing = required
       .filter(
@@ -440,7 +460,7 @@ export default function JobCreate({
         job_title: title?.trim(),
         job_description: internalJD?.trim(),
         job_skills: skills?.trim(),
-        job_experience: experienceLevel?.trim(),
+        job_experience: String(experienceLevel ?? "").trim(),
         job_location: location?.trim(),
         company_type: companyType?.trim(),
         company_name: companyClient?.trim(),
@@ -594,7 +614,7 @@ export default function JobCreate({
             {/* Job Timeline & Compensation */}
             <div className="grid gap-3 md:grid-cols-3 mt-4">
               <RateField
-                label="Pay Range *"
+                label="Pay Rate *"
                 value={payAmount}
                 rateType={payRateType}
                 onValueChange={setPayAmount}
@@ -692,14 +712,37 @@ export default function JobCreate({
             </p>
 
             <div className="space-y-4">
-              {flashQuestions.map((question) => (
+              {flashQuestions
+                .filter(
+                  (q) =>
+                    q.field !== "client_name" ||
+                    /external/i.test(flashAnswers.role_type || "")
+                )
+                .map((question) => (
                 <div key={question.field}>
                   <label className="block text-sm font-medium mb-2">
                     {question.question}
                     {question.required && <span className="text-red-500">*</span>}
                   </label>
 
-                  {question.type === "select" ? (
+                  {question.field === "client_name" ? (
+                    <select
+                      value={flashAnswers[question.field] || ""}
+                      onChange={(e) =>
+                        setFlashAnswers({
+                          ...flashAnswers,
+                          [question.field]: e.target.value
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {clientOptions.map((option) => (
+                        <option key={option.value} value={option.value} disabled={option.disabled}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : question.type === "select" ? (
                     <select
                       value={flashAnswers[question.field] || ""}
                       onChange={(e) =>
@@ -729,6 +772,40 @@ export default function JobCreate({
                       }
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                  ) : question.type === "pay_rate" ? (
+                    (() => {
+                      // Matches the same "<amount> <symbol>/<unit>" format the
+                      // real Pay Rate field on the form uses (parsePay above),
+                      // so the answer needs no extra parsing on submit.
+                      const current = flashAnswers[question.field] || "";
+                      const match = current.match(/^(\d+(?:\.\d+)?)?\s*([\$₹]\/\w+)?$/);
+                      const currentAmount = match?.[1] || "";
+                      const currentRateType = match?.[2] || "$/Year";
+                      const updateComposite = (amount, rateType) => {
+                        const composite = amount ? `${amount} ${rateType}` : "";
+                        setFlashAnswers({ ...flashAnswers, [question.field]: composite });
+                      };
+                      return (
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={currentAmount}
+                            onChange={(e) => updateComposite(e.target.value, currentRateType)}
+                            placeholder="Amount"
+                            className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <select
+                            value={currentRateType}
+                            onChange={(e) => updateComposite(currentAmount, e.target.value)}
+                            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            {["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"].map((rt) => (
+                              <option key={rt} value={rt}>{rt}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <input
                       type="text"
