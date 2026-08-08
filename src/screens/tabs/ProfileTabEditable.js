@@ -133,6 +133,17 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         // Fallback: call updateCandidate directly if onRefresh not provided
         await updateCandidate(candidateId, updatePayload);
       }
+
+      // Force refresh of local data after successful update
+      try {
+        const refreshedData = await getCandidateById(candidateId);
+        if (refreshedData) {
+          setData(refreshedData);
+        }
+      } catch (refreshErr) {
+        console.warn("Could not refresh local profile data:", refreshErr?.message);
+      }
+
       toast.success("Profile updated successfully");
       setEditingSection(null);
       setEditForm({});
