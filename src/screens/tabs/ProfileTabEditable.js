@@ -134,15 +134,24 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         await updateCandidate(candidateId, updatePayload);
       }
 
-      // Force refresh of local data after successful update
-      try {
-        const refreshedData = await getCandidateById(candidateId);
-        if (refreshedData) {
-          setData(refreshedData);
+      // Force complete refresh of ALL candidate data after successful update
+      // Small delay ensures server has processed the update
+      setTimeout(async () => {
+        try {
+          const [refreshedData, fullDetails] = await Promise.all([
+            getCandidateById(candidateId),
+            getHrCandidateFullDetails(candidateId),
+          ]);
+          if (refreshedData && Object.keys(refreshedData).length > 0) {
+            setData(refreshedData);
+          }
+          if (fullDetails) {
+            setCandidateFullDetails(fullDetails);
+          }
+        } catch (refreshErr) {
+          console.warn("Could not refresh complete profile data:", refreshErr?.message);
         }
-      } catch (refreshErr) {
-        console.warn("Could not refresh local profile data:", refreshErr?.message);
-      }
+      }, 300);
 
       toast.success("Profile updated successfully");
       setEditingSection(null);
