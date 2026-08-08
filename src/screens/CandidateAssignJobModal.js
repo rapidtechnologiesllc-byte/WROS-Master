@@ -185,9 +185,15 @@ const CandidateAssignJobModal = ({
                          selectedJob?.contact_person_name ||
                          "";
 
-      // Determine Submit To based on company type
-      const companyName = selectedJob?.company_name || selectedJob?.companyName || "";
-      const isInternalJob = companyName?.toLowerCase().includes("blitzenx");
+      // Determine Submit To based on is_internal_role flag or company name
+      let isInternalJob = selectedJob?.is_internal_role;
+
+      // Fallback to company name if is_internal_role not set
+      if (isInternalJob === null || isInternalJob === undefined) {
+        const companyName = selectedJob?.company_name || selectedJob?.companyName || "";
+        isInternalJob = companyName?.toLowerCase().includes("blitzenx");
+      }
+
       const submitTo = isInternalJob ? "BU Head" : "L1 Interview → L2 Interview → Client Partner";
 
       setFormData((prev) => ({
