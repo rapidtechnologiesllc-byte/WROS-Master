@@ -22,7 +22,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-2.0-flash")
+# max_retries=1: the default backoff (2s/4s/8s/16s) burns ~30s and extra quota
+# on every call before falling back — fail fast instead so _get_fallback_response
+# kicks in immediately when the free-tier daily quota (20 req/day) is exhausted.
+llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
 
 
 class RecruitmentJobCreationAgent:
@@ -59,6 +62,13 @@ class RecruitmentJobCreationAgent:
         except (json.JSONDecodeError, ValueError) as e:
             return None
 
+    # These field names are contractual: generate_complete_job() reads answers
+    # back out by these exact keys, so every response must include them.
+    REQUIRED_QUESTION_FIELDS = {
+        "position_type", "job_open_date", "pay_range", "contract_duration",
+        "role_type", "client_name",
+    }
+
     def _validate_response_structure(self, data: Dict) -> None:
         """Validate that the response has required fields."""
         required_keys = {"job_title", "estimated_experience", "questions"}
@@ -68,10 +78,76 @@ class RecruitmentJobCreationAgent:
         if not isinstance(data["questions"], list) or len(data["questions"]) == 0:
             raise ValueError("questions must be a non-empty list")
 
+        present_fields = set()
         for q in data["questions"]:
             required_q_keys = {"field", "question", "required", "type"}
             if not required_q_keys.issubset(set(q.keys())):
                 raise ValueError(f"Question missing required keys: {required_q_keys - set(q.keys())}")
+            present_fields.add(q["field"])
+
+        missing = self.REQUIRED_QUESTION_FIELDS - present_fields
+        if missing:
+            raise ValueError(f"Response is missing contractually required question fields: {missing}")
+
+    def _get_fallback_response(self, one_liner: str) -> Dict:
+        """Return default questions when LLM fails."""
+        title = one_liner.split("with")[0].strip().title() if "with" in one_liner else one_liner.title()
+        exp = "3-5 years"
+        if "senior" in one_liner.lower():
+            exp = "5-8 years"
+        elif "junior" in one_liner.lower():
+            exp = "0-2 years"
+        elif "lead" in one_liner.lower() or "principal" in one_liner.lower():
+            exp = "8+ years"
+
+        return {
+            "job_title": title,
+            "estimated_experience": exp,
+            "questions": [
+                {
+                    "field": "position_type",
+                    "question": "Is this a Full-time or Contract position?",
+                    "options": ["Full time", "Contract"],
+                    "required": True,
+                    "type": "select"
+                },
+                {
+                    "field": "job_open_date",
+                    "question": "When should this job be posted?",
+                    "options": None,
+                    "required": True,
+                    "type": "date"
+                },
+                {
+                    "field": "pay_range",
+                    "question": "What is the Pay Rate for this role?",
+                    "options": None,
+                    "required": True,
+                    "type": "pay_rate"
+                },
+                {
+                    "field": "contract_duration",
+                    "question": "For contracts, what is the expected duration?",
+                    "options": ["3 months", "6 months", "12 months", "18 months", "Permanent"],
+                    "required": False,
+                    "type": "select"
+                },
+                {
+                    "field": "role_type",
+                    "question": "Is this an Internal (BlitzenX) role or an External (Partner/Client) role?",
+                    "options": ["Internal", "External"],
+                    "required": True,
+                    "type": "select"
+                },
+                {
+                    "field": "client_name",
+                    "question": "If External, which client/partner is this role for?",
+                    "options": None,
+                    "required": False,
+                    "type": "text"
+                }
+            ]
+        }
 
     def generate_clarifying_questions(self, one_liner: str) -> Dict:
         """
@@ -82,72 +158,52 @@ class RecruitmentJobCreationAgent:
             {
                 "job_title": "Guidewire Developer",
                 "estimated_experience": "3-5 years",
-                "questions": [
-                    {
-                        "field": "position_type",
-                        "question": "Is this position Full-time or Contract?",
-                        "options": ["Full time", "Contract"],
-                        "required": true,
-                        "type": "select"
-                    },
-                    ...
-                ]
+                "questions": [...]
             }
         """
-        prompt = f"""You are a job creation assistant helping recruiters post positions. Analyze this job requirement:
+        prompt = f"""You are a job creation assistant. Analyze this job requirement and respond ONLY with valid JSON (no other text):
 
-Job One-liner: "{one_liner}"
+"{one_liner}"
 
-Identify the job title (no location or seniority), and estimated experience level.
-Then generate 4 clarifying questions for the recruiter to create a complete job posting.
+Extract the job title (no location/seniority modifiers) and estimate the required experience level.
 
-CRITICAL: Respond ONLY with valid JSON, no other text. Start with {{ and end with }}.
+Your "questions" array MUST include these 6 questions with these EXACT "field" values —
+do not rename, remove, or skip any of them, and do not change their "field" value:
+  - field "position_type": ask whether the role is Full-time or Contract
+  - field "job_open_date": ask when the job should be posted
+  - field "pay_range": ask for the Pay Rate (this matches the "Pay Rate" Amount + rate-type field on the job creation form; use "type": "pay_rate", not "text")
+  - field "contract_duration": ask the expected contract duration (only relevant if Contract)
+  - field "role_type": ask whether this is an Internal (BlitzenX) role or an External (Partner/Client) role
+  - field "client_name": ask which client/partner this is for (only relevant if role_type is External; not required)
 
+You MAY add up to 2 additional job-specific questions after those 6 (e.g. about
+required certifications, tech stack, or domain modules) using field names of your choosing.
+
+Respond with exactly this JSON shape:
 {{
-    "job_title": "<extracted job title, no location/level modifier>",
+    "job_title": "<title>",
     "estimated_experience": "<e.g., 3-5 years>",
     "questions": [
-        {{
-            "field": "position_type",
-            "question": "Is this a Full-time or Contract position?",
-            "options": ["Full time", "Contract"],
-            "required": true,
-            "type": "select"
-        }},
-        {{
-            "field": "job_open_date",
-            "question": "When should this job be posted?",
-            "options": null,
-            "required": true,
-            "type": "date"
-        }},
-        {{
-            "field": "pay_range",
-            "question": "What is the salary/rate range (e.g., 100k-150k or $45-55/hr)?",
-            "options": null,
-            "required": true,
-            "type": "text"
-        }},
-        {{
-            "field": "contract_duration",
-            "question": "For contracts, what is the expected duration?",
-            "options": ["3 months", "6 months", "12 months", "18 months", "Permanent"],
-            "required": false,
-            "type": "select"
-        }}
+        {{"field": "position_type", "question": "Is this Full-time or Contract?", "options": ["Full time", "Contract"], "required": true, "type": "select"}},
+        {{"field": "job_open_date", "question": "When should this job be posted?", "options": null, "required": true, "type": "date"}},
+        {{"field": "pay_range", "question": "What is the Pay Rate for this role?", "options": null, "required": true, "type": "pay_rate"}},
+        {{"field": "contract_duration", "question": "For contracts, expected duration?", "options": ["3 months", "6 months", "12 months", "18 months", "Permanent"], "required": false, "type": "select"}},
+        {{"field": "role_type", "question": "Is this an Internal (BlitzenX) role or an External (Partner/Client) role?", "options": ["Internal", "External"], "required": true, "type": "select"}},
+        {{"field": "client_name", "question": "If External, which client/partner is this role for?", "options": null, "required": false, "type": "text"}}
     ]
-}}
+}}"""
 
-Do not include any explanation, markdown, or extra text. JSON only."""
+        try:
+            response = llm.invoke(prompt)
+            content = self._extract_content(response)
+            result = self._parse_json_response(content)
+            if result:
+                return result
+        except Exception as e:
+            import sys
+            print(f"LLM call failed, using fallback: {type(e).__name__}", file=sys.stderr)
 
-        response = llm.invoke(prompt)
-        content = self._extract_content(response)
-
-        result = self._parse_json_response(content)
-        if result:
-            return result
-
-        raise ValueError(f"Failed to generate valid questions from LLM response: {content[:200]}")
+        return self._get_fallback_response(one_liner)
 
     def generate_complete_job(
         self,
@@ -189,12 +245,27 @@ Do not include any explanation, markdown, or extra text. JSON only."""
         job_open_date = answers.get("job_open_date", "")
         contract_duration = answers.get("contract_duration", "")
         location = answers.get("location", "Remote")
+        experience = answers.get("experience", "")
+        role_type = answers.get("role_type", "Internal")
+        client_name = answers.get("client_name", "") if "external" in role_type.lower() else ""
+
+        # Any answers beyond the fixed contractual fields (e.g. certifications,
+        # tech stack, domain modules from the LLM's follow-up questions) get
+        # folded into the one-liner so the JD generator has that context too —
+        # otherwise those answers would be silently discarded.
+        fixed_fields = self.REQUIRED_QUESTION_FIELDS | {"location", "experience"}
+        extra_context = "; ".join(
+            f"{field.replace('_', ' ')}: {value}"
+            for field, value in answers.items()
+            if field not in fixed_fields and value
+        )
+        enriched_oneliner = f"{one_liner}. {extra_context}" if extra_context else one_liner
 
         # Use existing job description generator for complete JD
         result = generate_job_description_with_state(
             job_title="",  # Will be inferred
-            job_description_oneliner=one_liner,
-            experience="",  # Will be inferred
+            job_description_oneliner=enriched_oneliner,
+            experience=experience,  # Will be inferred if not provided
             location=location
         )
 
@@ -207,7 +278,9 @@ Do not include any explanation, markdown, or extra text. JSON only."""
             "position_type": position_type,
             "pay_range": pay_range,
             "job_open_date": job_open_date,
-            "contract_duration": contract_duration
+            "contract_duration": contract_duration,
+            "role_type": role_type,
+            "client_name": client_name
         }
 
 

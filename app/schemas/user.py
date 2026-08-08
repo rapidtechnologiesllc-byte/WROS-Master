@@ -301,6 +301,8 @@ class GenerateJobCompleteResponse(BaseModel):
     pay_range: str
     job_open_date: Optional[str] = None
     contract_duration: Optional[str] = None
+    role_type: Optional[str] = None
+    client_name: Optional[str] = None
 
 # Update Schemas
 class JobUpdateRequest(BaseModel):
