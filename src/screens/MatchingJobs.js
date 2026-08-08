@@ -26,7 +26,7 @@ export default function MatchingJobs({ candidate, jobs, onApply }) {
     <div className="grid gap-4">
       <Card title="Matching Jobs" icon={<Briefcase className="h-4 w-4" />}>
         <div className="mb-3 text-sm text-gray-700">
-          Candidate: <span className="font-semibold">{candidate.name}</span> (
+          Candidate: <span className="font-semibold">{candidate.candidate_name}</span> (
           {candidate.id})
         </div>
 
