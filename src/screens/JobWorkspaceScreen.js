@@ -340,7 +340,41 @@ export default function JobWorkspaceScreen({
               {job?.title || "Job Workspace"}
             </div>
             <div className="mt-1 text-xs text-slate-500">
-              {job?.location || "—"} - {job?.experienceLevel || "—"}
+              {job?.location || "—"} - {job?.experienceLevel || "—"} years
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {/* Role Type Indicator */}
+              {job?.is_internal_role === true && (
+                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
+                  Internal Role
+                </span>
+              )}
+              {job?.is_internal_role === false && (
+                <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">
+                  External Role
+                </span>
+              )}
+
+              {/* Days Remaining Indicator */}
+              {job?.end_date && (() => {
+                const endDate = new Date(job.end_date);
+                const today = new Date();
+                const daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+                const isUrgent = daysRemaining <= 7;
+                const isPast = daysRemaining < 0;
+
+                return (
+                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                    isPast
+                      ? 'bg-red-100 text-red-800'
+                      : isUrgent
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {isPast ? `${Math.abs(daysRemaining)} days overdue` : `${daysRemaining} days remaining`}
+                  </span>
+                );
+              })()}
             </div>
           </div>
           <div className="flex items-center gap-2">

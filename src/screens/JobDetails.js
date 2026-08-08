@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Briefcase, Edit2, Users, CheckCircle, Clock, BarChart3 } from "lucide-react";
+import { Edit2, Users, CheckCircle, Clock, BarChart3 } from "lucide-react";
 import { Button, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
@@ -106,28 +106,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
 
   return (
     <div className="space-y-4">
-      {/* Header with Status & Metrics */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Briefcase className="h-5 w-5 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
-            <p className="text-sm text-gray-500">{job.dept} • {job.location}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <StatusBadge status={job.status} />
-          {job.noOfPositions && (
-            <div className="px-3 py-1 bg-gray-100 rounded-full text-sm font-medium text-gray-700">
-              {job.noOfPositions} Opening{job.noOfPositions > 1 ? 's' : ''}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Two-Column Layout: Details + Metrics */}
+      {/* Two-Column Layout: Details + Metrics (header is in JobWorkspaceScreen) */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Main Content - 2/3 width */}
         <div className="lg:col-span-2">
