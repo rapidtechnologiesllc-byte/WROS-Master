@@ -53,7 +53,8 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   }, [candidateId]);
 
   const profile = useMemo(() => {
-    return { ...(candidate || {}), ...(data || {}) };
+    const merged = { ...(candidate || {}), ...(data || {}) };
+    return merged && Object.keys(merged).length > 0 ? merged : {};
   }, [candidate, data]);
 
   const handleEditSection = (section) => {
