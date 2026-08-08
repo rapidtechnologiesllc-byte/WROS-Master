@@ -63,7 +63,9 @@ export const updateCandidate = async (candidateId, payload) => {
   if (payload?.candidate_experience != null)
     body.candidate_experience = payload.candidate_experience;
   if (payload?.candidate_skills != null)
-    body.candidate_skills = payload.candidate_skills;
+    body.candidate_skills = Array.isArray(payload.candidate_skills)
+      ? payload.candidate_skills.join(", ")
+      : payload.candidate_skills;
   if (payload?.candidate_joining_date != null)
     body.candidate_joining_date = payload.candidate_joining_date;
   if (payload?.candidate_expected_salary != null)
