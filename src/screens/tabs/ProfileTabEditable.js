@@ -30,6 +30,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   // Form state
   const [editForm, setEditForm] = useState({});
 
+  // Notes state
+  const [notes, setNotes] = useState([]);
+  const [noteInput, setNoteInput] = useState("");
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -97,6 +101,24 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   const handleCancelEdit = () => {
     setEditingSection(null);
     setEditForm({});
+  };
+
+  const handleAddNote = () => {
+    if (!noteInput.trim()) {
+      toast.warning("Please enter a note");
+      return;
+    }
+    const newNote = {
+      id: Date.now(),
+      text: noteInput.trim(),
+      timestamp: new Date().toLocaleString(),
+    };
+    setNotes([newNote, ...notes]);
+    setNoteInput("");
+  };
+
+  const handleDeleteNote = (noteId) => {
+    setNotes(notes.filter(n => n.id !== noteId));
   };
 
   const handleSaveSection = async (section) => {
@@ -233,6 +255,55 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </div>
         )}
       </EditableSection>
+
+      {/* Notes Section */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">NOTES</h3>
+        <div className="space-y-4">
+          {/* Note Input */}
+          <div className="flex gap-2">
+            <textarea
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              placeholder="Add a note here..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={handleAddNote}
+              disabled={!noteInput.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition text-sm font-medium"
+            >
+              Add Note
+            </button>
+          </div>
+
+          {/* Notes List */}
+          {notes.length > 0 && (
+            <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
+              {notes.map((note) => (
+                <div key={note.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-900">{note.text}</p>
+                      <p className="text-xs text-gray-500 mt-1">{note.timestamp}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="text-gray-400 hover:text-red-600 transition"
+                      title="Delete note"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Personal Information */}
       <EditableSection
