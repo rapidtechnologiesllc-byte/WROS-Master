@@ -107,7 +107,7 @@ import CEOFYProgressScreen from "../screens/CEOFYProgressScreen";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
-import AdminAgentFearDashboard from "../screens/AdminAgentFearDashboard";
+import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -522,7 +522,7 @@ export default function AppRoutes() {
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
-            <Route path="admin/agent-fear-dashboard" element={<AdminAgentFearDashboard />} />
+            <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
 
             <Route
               path="candidates"
@@ -759,7 +759,7 @@ export default function AppRoutes() {
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
-            <Route path="admin/agent-fear-dashboard" element={<AdminAgentFearDashboard />} />
+            <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
           <Route
             path="candidates"
             element={

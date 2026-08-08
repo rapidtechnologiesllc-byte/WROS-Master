@@ -8,8 +8,10 @@
 import { useEffect, useState } from "react";
 import { Bot, Clock, Gauge, Mail, Power, RefreshCw } from "lucide-react";
 import { toast } from "react-toastify";
+import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
+import AdminAgentStateDashboard from "./AdminAgentStateDashboard";
 
 const GREETING_CHANNELS = ["BOTH_PARALLEL", "WHATSAPP_FIRST", "EMAIL_FIRST"];
 
@@ -57,30 +59,49 @@ export default function TenantAIConfigScreen() {
     );
   }
 
-  return (
-    <div className="grid gap-4">
-      {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
-      ) : null}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500">
-            All of Thunder's settings for this org, in one place. Last updated{" "}
-            {config.updated_at ? new Date(config.updated_at).toLocaleString() : "never"}
-            {config.updated_by ? ` by ${config.updated_by}` : ""}.
-          </p>
-        </div>
-        <Button variant="ghost" onClick={load}>
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </Button>
-      </div>
+  const tabItems = [
+    {
+      key: "config",
+      label: "Thunder Configuration",
+      children: (
+        <div className="grid gap-4">
+          {error ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+          ) : null}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">
+                All of Thunder's settings for this org, in one place. Last updated{" "}
+                {config.updated_at ? new Date(config.updated_at).toLocaleString() : "never"}
+                {config.updated_by ? ` by ${config.updated_by}` : ""}.
+              </p>
+            </div>
+            <Button variant="ghost" onClick={load}>
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
+          </div>
 
-      <IdentitySection config={config} save={save} />
-      <EngagementTimingSection config={config} save={save} />
-      <SlaSection config={config} save={save} />
-      <DigestSection config={config} save={save} />
-      <GlobalControlsSection config={config} save={save} />
-    </div>
+          <IdentitySection config={config} save={save} />
+          <EngagementTimingSection config={config} save={save} />
+          <SlaSection config={config} save={save} />
+          <DigestSection config={config} save={save} />
+          <GlobalControlsSection config={config} save={save} />
+        </div>
+      )
+    },
+    {
+      key: "dashboard",
+      label: "Agent Dashboard",
+      children: <AdminAgentStateDashboard />
+    }
+  ];
+
+  return (
+    <Tabs
+      items={tabItems}
+      defaultActiveKey="config"
+      style={{ backgroundColor: "#fff", borderRadius: "8px", padding: "16px" }}
+    />
   );
 }
 
