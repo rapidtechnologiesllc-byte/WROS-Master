@@ -143,6 +143,24 @@ const CandidateAssignJobModal = ({
   const [selectedHr1Id, setSelectedHr1Id] = useState("");
   const [selectedHr2Id, setSelectedHr2Id] = useState("");
 
+  // Auto-load UDF fields with candidate information
+  useEffect(() => {
+    if (candidateDetails && showUdfModal) {
+      setUdfData((prev) => ({
+        ...prev,
+        dateOfBirth: candidateDetails?.candidate_date_of_birth || candidateDetails?.dob || "",
+        totalExperience: candidateDetails?.candidate_experience || candidateDetails?.experience || "",
+        relevantExperience: candidateDetails?.candidate_relevant_experience || "",
+        govtIdType: candidateDetails?.candidate_govt_id_type || "",
+        govtIdNumber: candidateDetails?.candidate_govt_id_number || "",
+        previousOrganization: candidateDetails?.candidate_previous_organization || "",
+        educationalQualification: candidateDetails?.candidate_education || candidateDetails?.candidate_educational_qualification || "",
+        collegeOrUniversity: candidateDetails?.candidate_college || candidateDetails?.candidate_college_or_university || "",
+        noticePeriod: candidateDetails?.candidate_notice_period || "",
+      }));
+    }
+  }, [candidateDetails, showUdfModal]);
+
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => ({
       label: `${job?.company_name || job?.companyName || "N/A"} | ${
