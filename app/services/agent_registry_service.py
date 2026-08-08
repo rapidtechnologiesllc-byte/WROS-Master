@@ -131,6 +131,15 @@ class AgentRegistry:
         is_logging=False,  # TODO: wire logging
     )
 
+    OPPORTUNITY_TRACKER_AGENT = AgentInfo(
+        name="Opportunity Tracker Agent",
+        tier=AgentTier.FINANCE,
+        status=AgentStatus.OPERATIONAL,
+        description="Sales pipeline tracking toward $100M revenue target. Logs opportunities, monitors deal progression, alerts on stalls, escalates at-risk deals to Flash.",
+        has_route=True,
+        is_logging=False,  # TODO: wire logging
+    )
+
     # HR/Employee agents
     ONBOARDING_AGENT = AgentInfo(
         name="Onboarding Agent",
@@ -287,6 +296,7 @@ class AgentRegistry:
         CFO_AGENT,
         CEO_AGENT,
         PARTNER_ROI_AGENT,
+        OPPORTUNITY_TRACKER_AGENT,
         # HR
         ONBOARDING_AGENT,
         BUDDY_PROGRAM_AGENT,
