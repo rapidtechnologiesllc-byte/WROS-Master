@@ -8,8 +8,10 @@ import os
 load_dotenv()
 
 # Initialize the LLM
+# max_retries=1: fail fast instead of the default exponential backoff (which
+# burns 30s+ and extra free-tier quota per call) so callers can fall back quickly.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview")
+llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", max_retries=1)
 
 
 # Define the state structure
@@ -221,12 +223,63 @@ def generate_job_description_with_state(
         "generated_description": "",
         "skills_needed": []
     }
-    
+
     # Create and run the workflow
     app = create_job_description_workflow()
-    final_state = app.invoke(initial_state)
-    
-    return final_state
+    try:
+        final_state = app.invoke(initial_state)
+        return final_state
+    except Exception:
+        # LLM unavailable (quota exhausted, network, etc.) — degrade to a
+        # usable draft rather than 500ing the whole job-creation flow.
+        return _fallback_job_description(initial_state)
+
+
+def _clean_title(raw: str) -> str:
+    """Strip seniority/location modifiers and trailing experience clauses from a raw title guess."""
+    import re
+    title = re.split(r"\bwith\b|\d+[\s-]*(to|-)[\s-]*\d+\s*years?|\d+\+?\s*years?", raw, flags=re.IGNORECASE)[0]
+    for word in ("Senior", "Junior", "Lead", "Principal", "Remote", "On-site", "Onsite", "Hybrid"):
+        title = re.sub(rf"\b{word}\b", "", title, flags=re.IGNORECASE)
+    return " ".join(title.split()).title() or raw.title()
+
+
+def _fallback_job_description(state: JobDescriptionState) -> dict:
+    """Best-effort job description when the LLM is unavailable."""
+    title = state.get("job_title") or _clean_title(state["job_description_oneliner"])
+    experience = state.get("experience") or "3-5 years"
+    location = state.get("location") or "Remote"
+
+    description = (
+        f"We are looking for an experienced {title} to join our team.\n\n"
+        f"About the Role:\n{state['job_description_oneliner']}\n\n"
+        "Key Responsibilities:\n"
+        f"- Deliver high-quality {title} work aligned with project and client requirements\n"
+        "- Collaborate with cross-functional teams to plan, execute, and deliver on schedule\n"
+        "- Follow established engineering/domain best practices and coding or process standards\n"
+        "- Communicate progress, risks, and blockers proactively to stakeholders\n"
+        "- Participate in reviews, testing, and continuous improvement of deliverables\n\n"
+        "Requirements:\n"
+        f"- {experience} of relevant hands-on experience\n"
+        f"- Based {location}, available to work with the assigned team's hours\n"
+        "- Strong communication and problem-solving skills\n\n"
+        "Note: This is a starter draft — refine the details above before publishing."
+    )
+
+    # No LLM available to extract skills from context, so fall back to the
+    # job title's own words plus baseline professional skills — never an
+    # empty list, since the form has no manual Skills input as a backstop.
+    title_skills = [w for w in title.split() if len(w) > 2]
+    skills = list(dict.fromkeys(title_skills + ["Communication", "Problem Solving", "Team Collaboration"]))
+
+    return {
+        **state,
+        "job_title": title,
+        "experience": experience,
+        "location": location,
+        "generated_description": description,
+        "skills_needed": skills,
+    }
 
 
 # Legacy function for backward compatibility
