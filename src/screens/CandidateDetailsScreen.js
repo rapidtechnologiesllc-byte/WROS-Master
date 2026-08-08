@@ -138,6 +138,7 @@ export default function CandidateDetailsScreen({
   const [updatedStatus, setUpdatedStatus] = useState(null);
   const [notes, setNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
+  const [noteInput, setNoteInput] = useState("");
   const [showNotesMenu, setShowNotesMenu] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -985,6 +986,29 @@ ${formattedJD}
       setSavingNote(false);
     }
   };
+
+  const handleAddNote = async () => {
+    if (!noteInput?.trim()) {
+      return;
+    }
+    try {
+      setSavingNote(true);
+      await createCandidateNote(candidate?.id, {
+        content: noteInput?.trim(),
+        category: "General",
+      });
+      const updatedNotes = await getCandidateNotes(candidate?.id);
+      setNotes(updatedNotes?.notes || []);
+      setNoteInput("");
+      toast.success("Note added successfully");
+    } catch (error) {
+      console.error("Failed to save candidate note", error);
+      toast.error("Failed to save note");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   const handleArchiveToggle = async () => {
     try {
       const currentStatus = candidate?.accountStatus || statusData?.status;
@@ -1380,12 +1404,32 @@ ${formattedJD}
             )}
           </div>
           {!limitedMode && (
-            <div className="bg-white border rounded-2xl shadow-sm h-fit">
+            <div className="bg-white border rounded-2xl shadow-sm h-fit flex flex-col">
               <div className="border-b px-5 py-4">
                 <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
               </div>
 
-              <div className="max-h-[600px] overflow-y-auto">
+              {/* Note Input */}
+              <div className="border-b px-5 py-3">
+                <textarea
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="Add a note..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs resize-none"
+                  rows={2}
+                />
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={handleAddNote}
+                    disabled={!noteInput.trim()}
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition font-medium"
+                  >
+                    Add Note
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[500px] overflow-y-auto flex-1">
                 {loadingNotes ? (
                   <div className="p-5 text-sm text-gray-500">
                     Loading notes...
