@@ -110,32 +110,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Main Content - 2/3 width */}
         <div className="lg:col-span-2">
-          {/* Tab Navigation */}
-          <div className="flex gap-0 border-b border-gray-200 mb-4">
-            <button
-              onClick={() => setActiveTab("details")}
-              className={cx(
-                "px-4 py-3 text-sm font-semibold border-b-2 transition",
-                activeTab === "details"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-600 hover:text-gray-900"
-              )}
-            >
-              Job Details
-            </button>
-            <button
-              onClick={() => setActiveTab("candidates")}
-              className={cx(
-                "px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2",
-                activeTab === "candidates"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-600 hover:text-gray-900"
-              )}
-            >
-              <Users className="h-4 w-4" />
-              Candidates ({jobMetrics.submitted})
-            </button>
-          </div>
+          {/* Tab navigation removed - JobWorkspaceScreen manages tabs */}
 
           {/* Details Tab */}
           {activeTab === "details" && (
