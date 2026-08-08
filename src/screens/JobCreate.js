@@ -394,7 +394,10 @@ export default function JobCreate({
       return;
     }
     try {
-      const payRangeString = payAmount ? `${payCurrency} ${payFrequency} ${payAmount}` : null;
+      // Format: "150 $/Year" or "150 ₹/Annual" for easy comparison with Expected Salary
+      const payRangeString = payAmount ?
+        `${payAmount} ${payCurrency === "INR" ? "₹" : "$"}/${payFrequency === "Hourly" ? "Hr" : payFrequency === "Weekly" ? "Week" : "Year"}`
+        : null;
       const payload = {
         job_title: title?.trim(),
         job_description: internalJD?.trim(),
@@ -557,7 +560,7 @@ export default function JobCreate({
               />
               <div className="md:col-span-2">
                 <div className="mb-1 text-xs font-semibold text-gray-700">
-                  Pay Range
+                  Pay Range *
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <Select
@@ -590,13 +593,24 @@ export default function JobCreate({
                       setPayAmount(value);
                       const normalized = value ? String(value).trim() : "";
                       const next = normalized
-                        ? `${payCurrency} ${payFrequency} ${normalized}`
+                        ? `${payAmount} ${payCurrency === "INR" ? "₹" : "$"}/${payFrequency === "Hourly" ? "Hr" : payFrequency === "Weekly" ? "Week" : "Year"}`
                         : "";
                       setPayRange(next);
                     }}
                     type="number"
                   />
                 </div>
+                {payAmount && (
+                  <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                    <div className="text-xs font-semibold text-gray-600 mb-1">Formatted Pay Range (for comparison):</div>
+                    <div className="text-lg font-semibold text-blue-900">
+                      {payAmount} {payCurrency === "INR" ? "₹" : "$"}/{payFrequency === "Hourly" ? "Hr" : payFrequency === "Weekly" ? "Week" : "Year"}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      This matches candidate's Expected Salary format for easy 1:1 comparison
+                    </div>
+                  </div>
+                )}
               </div>
               <Input
                 label="Start Date *"
