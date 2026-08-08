@@ -153,12 +153,21 @@ const CandidateAssignJobModal = ({
   }, [candidateDetails, showUdfModal]);
 
   const jobOptions = useMemo(() => {
-    return jobs?.map((job) => ({
-      label: `${job?.company_name || job?.companyName || "N/A"} | ${
-        job?.title || job?.job_title || "Untitled Job"
-      } | ${job?.id || job?.job_id}`,
-      value: job?.id || job?.job_id,
-    }));
+    return jobs?.map((job) => {
+      // Try multiple sources for company/client name
+      const companyName = job?.company_name ||
+                         job?.companyName ||
+                         job?.client_name ||
+                         job?.clientName ||
+                         "(No Client Name)";
+
+      return {
+        label: `${companyName} | ${
+          job?.title || job?.job_title || "Untitled Job"
+        } | ${job?.id || job?.job_id}`,
+        value: job?.id || job?.job_id,
+      };
+    });
   }, [jobs]);
 
   const selectedJob = useMemo(() => {
