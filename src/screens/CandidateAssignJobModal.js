@@ -54,7 +54,6 @@ const INITIAL_UDF_STATE = {
   govtIdNumber: "",
   previousOrganization: "",
   relevantExperience: "",
-  reviewForSubmission: "",
   noticePeriod: "",
 };
 
@@ -265,7 +264,6 @@ const CandidateAssignJobModal = ({
     govt_id_number: udfData?.govtIdNumber?.trim() || null,
     previous_organization: udfData?.previousOrganization?.trim() || null,
     relevant_experience: udfData?.relevantExperience?.trim() || null,
-    review_for_submission: udfData?.reviewForSubmission || null,
     notice_period: udfData?.noticePeriod?.trim() || null,
   });
   const buildSubmitActivityPayload = () => {
@@ -907,13 +905,6 @@ function UdfModal({ udfData, onChange, onClose }) {
               label="Relevant experience e.g 10Y 5M"
               value={udfData?.relevantExperience}
               onChange={(value) => onChange?.("relevantExperience", value)}
-            />
-
-            <UdfSelect
-              label="Review the details for submission"
-              value={udfData?.reviewForSubmission}
-              onChange={(value) => onChange?.("reviewForSubmission", value)}
-              options={["Yes", "No", "Pending"]}
             />
 
             <UdfInput
