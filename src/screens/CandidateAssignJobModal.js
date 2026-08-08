@@ -496,15 +496,7 @@ const CandidateAssignJobModal = ({
                   onChange={(value) => updateFormField("submitTo", value)}
                   disabled={isAssigning}
                 />
-                <SelectWrapper>
-                  <Label>Primary HR</Label>
-                  <StyledSelect
-                    value={selectedHr1Id}
-                    onChange={setSelectedHr1Id}
-                    options={hrOptions}
-                    placeholder="Select HR"
-                  />
-                </SelectWrapper>
+                {/* Primary HR selection removed - not needed until onboarding stage */}
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <FormInput
