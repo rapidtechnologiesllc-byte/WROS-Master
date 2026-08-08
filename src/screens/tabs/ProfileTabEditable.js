@@ -397,18 +397,56 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         </div>
       )}
 
+      {/* Skills */}
+      <EditableSection
+        title="Skills"
+        subtitle="Extracted from resume"
+        isEditing={editingSection === "skills"}
+        isSaving={savingSection === "skills"}
+        onEdit={() => handleEditSection("skills")}
+        onCancel={handleCancelEdit}
+        onSave={() => handleSaveSection("skills")}
+      >
+        {editingSection === "skills" ? (
+          <div className="space-y-4">
+            <Input
+              label="Skills (comma-separated)"
+              value={editForm.skills || ""}
+              onChange={(v) => setEditForm({...editForm, skills: v})}
+              placeholder="e.g., Java, Python, React, Project Management"
+            />
+          </div>
+        ) : (
+          <div>
+            {profile?.candidate_skills && profile.candidate_skills.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {(Array.isArray(profile.candidate_skills) ? profile.candidate_skills : profile.candidate_skills.split(", ")).map((skill, idx) => (
+                  <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                    {skill.trim()}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">No skills available</p>
+            )}
+          </div>
+        )}
+      </EditableSection>
+
       {/* Education Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">EDUCATION DETAILS</h3>
+        <p className="text-xs text-gray-500 mb-4">Extracted from resume</p>
         {candidateFullDetails?.education && candidateFullDetails.education.length > 0 ? (
           <div className="space-y-4">
             {candidateFullDetails.education.map((edu, idx) => (
               <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InfoDisplay label="School/University" value={edu.school || edu.university} />
-                  <InfoDisplay label="Degree" value={edu.degree} />
-                  <InfoDisplay label="Field of Study" value={edu.field_of_study} />
-                  <InfoDisplay label="Graduation Year" value={edu.graduation_year} />
+                  <InfoDisplay label="Level" value={edu.level || "—"} />
+                  <InfoDisplay label="University/College" value={edu.school || edu.university || "—"} />
+                  <InfoDisplay label="Start Date" value={edu.start_date || "—"} />
+                  <InfoDisplay label="End Date" value={edu.end_date || "—"} />
+                  <InfoDisplay label="Degree Attained" value={edu.degree || "—"} />
                 </div>
               </div>
             ))}
@@ -421,15 +459,40 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       {/* Experience Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">EXPERIENCE DETAILS</h3>
+        <p className="text-xs text-gray-500 mb-4">Extracted from resume</p>
         {candidateFullDetails?.experience && candidateFullDetails.experience.length > 0 ? (
           <div className="space-y-4">
             {candidateFullDetails.experience.map((exp, idx) => (
               <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InfoDisplay label="Company" value={exp.company} />
-                  <InfoDisplay label="Job Title" value={exp.job_title} />
-                  <InfoDisplay label="Start Date" value={exp.start_date} />
-                  <InfoDisplay label="End Date" value={exp.end_date} />
+                  <InfoDisplay label="Company" value={exp.company || "—"} />
+                  <InfoDisplay label="Job Title" value={exp.job_title || "—"} />
+                  <InfoDisplay label="Start Date" value={exp.start_date || "—"} />
+                  <InfoDisplay label="End Date" value={exp.end_date || "—"} />
+                  <InfoDisplay label="Job Responsibilities" value={exp.job_responsibilities || "—"} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">No data available</p>
+        )}
+      </div>
+
+      {/* Certifications */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">CERTIFICATIONS</h3>
+        <p className="text-xs text-gray-500 mb-4">Extracted from resume</p>
+        {candidateFullDetails?.certifications && candidateFullDetails.certifications.length > 0 ? (
+          <div className="space-y-4">
+            {candidateFullDetails.certifications.map((cert, idx) => (
+              <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoDisplay label="Certification Name" value={cert.name || cert.title || "—"} />
+                  <InfoDisplay label="Issuing Organization" value={cert.issuer || cert.organization || "—"} />
+                  <InfoDisplay label="Issue Date" value={cert.issue_date || cert.date || "—"} />
+                  <InfoDisplay label="Expiry Date" value={cert.expiry_date || "—"} />
+                  <InfoDisplay label="Credential ID" value={cert.credential_id || "—"} />
                 </div>
               </div>
             ))}
