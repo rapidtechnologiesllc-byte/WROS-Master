@@ -342,6 +342,59 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         )}
       </EditableSection>
 
+      {/* Education Details */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">EDUCATION DETAILS</h3>
+        {candidateFullDetails?.education && candidateFullDetails.education.length > 0 ? (
+          <div className="space-y-4">
+            {candidateFullDetails.education.map((edu, idx) => (
+              <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoDisplay label="School/University" value={edu.school || edu.university} />
+                  <InfoDisplay label="Degree" value={edu.degree} />
+                  <InfoDisplay label="Field of Study" value={edu.field_of_study} />
+                  <InfoDisplay label="Graduation Year" value={edu.graduation_year} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">No data available</p>
+        )}
+      </div>
+
+      {/* Experience Details */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">EXPERIENCE DETAILS</h3>
+        {candidateFullDetails?.experience && candidateFullDetails.experience.length > 0 ? (
+          <div className="space-y-4">
+            {candidateFullDetails.experience.map((exp, idx) => (
+              <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoDisplay label="Company" value={exp.company} />
+                  <InfoDisplay label="Job Title" value={exp.job_title} />
+                  <InfoDisplay label="Start Date" value={exp.start_date} />
+                  <InfoDisplay label="End Date" value={exp.end_date} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">No data available</p>
+        )}
+      </div>
+
+      {/* Documents */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">DOCUMENTS</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InfoDisplay label="AADHAR NUMBER" value={profile?.candidate_aadhar_number || "—"} />
+          <InfoDisplay label="AADHAR VERIFIED" value={profile?.candidate_aadhar_verified ? "Yes" : "No"} />
+          <InfoDisplay label="PAN NUMBER" value={profile?.candidate_pan_number || "—"} />
+          <InfoDisplay label="PAN VERIFIED" value={profile?.candidate_pan_verified ? "Yes" : "No"} />
+        </div>
+      </div>
+
       {/* Identity & Background */}
       <EditableSection
         title="Identity & Background"
