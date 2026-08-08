@@ -14,11 +14,11 @@ const CandidateActionMenu = ({
   const navigate = useNavigate();
 
   const handleSendEmail = () => {
-    const email = candidate.email?.trim();
+    const email = candidate.candidate_email?.trim();
     if (!email) return;
 
     const subject = encodeURIComponent("Regarding your application");
-    const body = encodeURIComponent(`Hi ${candidate.name || "Candidate"},\n\n`);
+    const body = encodeURIComponent(`Hi ${candidate.candidate_name || "Candidate"},\n\n`);
     const to = encodeURIComponent(email);
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
     const mailtoUrl = `mailto:${to}?subject=${subject}&body=${body}`;
@@ -62,7 +62,7 @@ const CandidateActionMenu = ({
             disabled={!candidate?.phone}
             onClick={() => {
               if (!candidate?.phone) return;
-              const cleanedPhone = candidate.phone.replace(/\D/g, "");
+              const cleanedPhone = candidate.candidate_mobile.replace(/\D/g, "");
               if (!cleanedPhone) {
                 return;
               }

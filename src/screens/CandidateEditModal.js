@@ -51,27 +51,27 @@ export default function CandidateEditModal({
   const candidateId = candidate?.id;
   const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState(
-    candidate?.jobTitle || "",
+    candidate?.candidate_job_title || "",
   );
   const [firstName, setFirstName] = useState(initialName.firstName);
   const [middleName, setMiddleName] = useState(initialName.middleName);
   const [lastName, setLastName] = useState(initialName.lastName);
-  const [email, setEmail] = useState(candidate?.email || "");
-  const [mobile, setMobile] = useState(candidate?.phone || "");
-  const [gender, setGender] = useState(candidate?.gender || "");
-  const [dob, setDob] = useState(candidate?.dob || "");
-  const [source, setSource] = useState(candidate?.source || "");
-  const [experience, setExperience] = useState(candidate?.experience || "");
+  const [email, setEmail] = useState(candidate?.candidate_email || "");
+  const [mobile, setMobile] = useState(candidate?.candidate_mobile || "");
+  const [gender, setGender] = useState(candidate?.candidate_gender || "");
+  const [dob, setDob] = useState(candidate?.candidate_date_of_birth || "");
+  const [source, setSource] = useState(candidate?.candidate_source || "");
+  const [experience, setExperience] = useState(candidate?.candidate_experience || "");
   const [skills, setSkills] = useState("");
-  const [joiningDate, setJoiningDate] = useState(candidate?.joiningDate || "");
+  const [joiningDate, setJoiningDate] = useState(candidate?.candidate_joining_date || "");
   const [expectedSalary, setExpectedSalary] = useState(
-    candidate?.expectedSalary || "",
+    candidate?.candidate_expected_salary || "",
   );
   const [currentSalary, setCurrentSalary] = useState(
-    candidate?.currentSalary || "",
+    candidate?.candidate_current_salary || "",
   );
   const [currentLocation, setCurrentLocation] = useState(
-    candidate?.currentLocation || "",
+    candidate?.candidate_current_location || "",
   );
   const [assignedHrManagerId, setAssignedHrManagerId] = useState(
     candidate?.assignedHrManagerId || "",
@@ -92,37 +92,37 @@ export default function CandidateEditModal({
   const [employeeType, setEmployeeType] = useState("");
 
   useEffect(() => {
-    const nameParts = splitFullName(candidate?.name || "");
+    const nameParts = splitFullName(candidate?.candidate_name || "");
     setFirstName(nameParts.firstName);
     setMiddleName(nameParts.middleName);
     setLastName(nameParts.lastName);
-    setEmail(candidate?.email || "");
-    setCandidateJobTitle(candidate?.jobTitle || "");
-    setMobile(candidate?.phone || "");
-    setGender(candidate?.gender || "");
-    setDob(candidate?.dob || "");
-    setSource(candidate?.source || "");
-    setExperience(candidate?.experience || "");
+    setEmail(candidate?.candidate_email || "");
+    setCandidateJobTitle(candidate?.candidate_job_title || "");
+    setMobile(candidate?.candidate_mobile || "");
+    setGender(candidate?.candidate_gender || "");
+    setDob(candidate?.candidate_date_of_birth || "");
+    setSource(candidate?.candidate_source || "");
+    setExperience(candidate?.candidate_experience || "");
     setSkills(
-      Array.isArray(candidate?.skills)
-        ? candidate.skills.join(", ")
-        : candidate?.skills || "",
+      Array.isArray(candidate?.candidate_skills)
+        ? candidate.candidate_skills.join(", ")
+        : candidate?.candidate_skills || "",
     );
-    setJoiningDate(candidate?.joiningDate || "");
-    setExpectedSalary(candidate?.expectedSalary || "");
-    setCurrentSalary(candidate?.currentSalary || "");
-    setCurrentLocation(candidate?.currentLocation || "");
-    setAssignedHrManagerId(candidate?.assignedHrManagerId || "");
-    setAssignedReportManagerId(candidate?.assignedReportManagerId || "");
+    setJoiningDate(candidate?.candidate_joining_date || "");
+    setExpectedSalary(candidate?.candidate_expected_salary || "");
+    setCurrentSalary(candidate?.candidate_current_salary || "");
+    setCurrentLocation(candidate?.candidate_current_location || "");
+    setAssignedHrManagerId(candidate?.assigned_hr_manager_id || "");
+    setAssignedReportManagerId(candidate?.assigned_report_manager_id || "");
     setResumeFile(null);
     setResumeParsing(false);
     setActionNotice("");
     setAccountStatusEdit(candidate?.status || "Active");
 
     setPipelineStatusEdit(
-      candidate?.pipelineStatus || candidate?.pipeline_status || "Applied",
+      candidate?.pipline_status || candidate?.pipeline_status || "Applied",
     );
-  }, [candidateId, candidate?.status, candidate?.pipelineStatus]);
+  }, [candidateId, candidate?.status, candidate?.pipline_status, candidate?.pipeline_status]);
 
   const handleResumeFileChange = async (event) => {
     const file = event.target.files?.[0] || null;

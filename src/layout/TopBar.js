@@ -291,7 +291,7 @@ export default function TopBar({
                           className="flex w-full flex-col rounded-xl px-3 py-2 text-left hover:bg-gray-50"
                         >
                           <span className="text-sm font-medium">
-                            {candidate.name}
+                            {candidate.candidate_name}
                           </span>
 
                           {candidate.jobTitle && (
@@ -301,7 +301,7 @@ export default function TopBar({
                           )}
 
                           <span className="text-xs text-gray-500">
-                            {candidate.email}
+                            {candidate.candidate_email}
                           </span>
                         </button>
                       ))}

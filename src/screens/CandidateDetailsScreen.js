@@ -842,7 +842,7 @@ ${formattedJD}
             ?.filter(Boolean) ?? [];
 
         await sendPlainEmail({
-          toEmail: candidate.email,
+          toEmail: candidate.candidate_email,
           subject: scheduleForm.emailSubject.trim(),
           bodyContent: buildFaceToFaceEmailBody(jobDescription),
           isHtml: false,
@@ -1117,20 +1117,20 @@ ${formattedJD}
                 <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-gray-500">
                   {candidate?.email ? (
                     <a
-                      href={`mailto:${candidate.email}`}
+                      href={`mailto:${candidate.candidate_email}`}
                       className="truncate text-blue-600 hover:underline"
                     >
-                      {candidate.email}
+                      {candidate.candidate_email}
                     </a>
                   ) : (
                     <span>-</span>
                   )}
                   {candidate?.phone ? (
                     <a
-                      href={`tel:${candidate.phone}`}
+                      href={`tel:${candidate.candidate_mobile}`}
                       className="hover:underline"
                     >
-                      {candidate.phone}
+                      {candidate.candidate_mobile}
                     </a>
                   ) : (
                     <span>-</span>
@@ -1252,7 +1252,7 @@ ${formattedJD}
                     <Mail className="w-5 h-5 text-gray-600" />
                   </button>
                   <a
-                    href={candidate?.phone ? `tel:${candidate.phone}` : undefined}
+                    href={candidate?.phone ? `tel:${candidate.candidate_mobile}` : undefined}
                     className={`p-2 rounded-xl border border-gray-200 transition ${
                       candidate?.phone
                         ? "hover:bg-gray-100"
@@ -1270,7 +1270,7 @@ ${formattedJD}
                     disabled={!candidate?.phone}
                     onClick={() => {
                       if (!candidate?.phone) return;
-                      const cleanedPhone = candidate.phone.replace(/\D/g, "");
+                      const cleanedPhone = candidate.candidate_mobile.replace(/\D/g, "");
                       if (!cleanedPhone) {
                         showNotice("Invalid phone number", "error");
                         return;
