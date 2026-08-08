@@ -44,6 +44,8 @@ export default function CandidateDetailsWrapper({
       onUpdateCandidate={async (id, payload) => {
         try {
           await updateCandidate(id, payload);
+          const updatedCandidate = await fetchCandidateById(id);
+          setCandidate(updatedCandidate);
           await refreshCandidates();
           toast.success("Candidate Updated")
         } catch (err) {
