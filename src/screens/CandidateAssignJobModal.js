@@ -52,12 +52,8 @@ const INITIAL_FORM_STATE = {
 const INITIAL_UDF_STATE = {
   govtIdType: "",
   govtIdNumber: "",
-  dateOfBirth: "",
   previousOrganization: "",
-  totalExperience: "",
   relevantExperience: "",
-  educationalQualification: "",
-  collegeOrUniversity: "",
   reviewForSubmission: "",
   noticePeriod: "",
 };
@@ -143,19 +139,15 @@ const CandidateAssignJobModal = ({
   const [selectedHr1Id, setSelectedHr1Id] = useState("");
   const [selectedHr2Id, setSelectedHr2Id] = useState("");
 
-  // Auto-load UDF fields with candidate information
+  // Auto-load unique UDF fields with candidate information (non-overlapping fields only)
   useEffect(() => {
     if (candidateDetails && showUdfModal) {
       setUdfData((prev) => ({
         ...prev,
-        dateOfBirth: candidateDetails?.candidate_date_of_birth || candidateDetails?.dob || "",
-        totalExperience: candidateDetails?.candidate_experience || candidateDetails?.experience || "",
         relevantExperience: candidateDetails?.candidate_relevant_experience || "",
         govtIdType: candidateDetails?.candidate_govt_id_type || "",
         govtIdNumber: candidateDetails?.candidate_govt_id_number || "",
         previousOrganization: candidateDetails?.candidate_previous_organization || "",
-        educationalQualification: candidateDetails?.candidate_education || candidateDetails?.candidate_educational_qualification || "",
-        collegeOrUniversity: candidateDetails?.candidate_college || candidateDetails?.candidate_college_or_university || "",
         noticePeriod: candidateDetails?.candidate_notice_period || "",
       }));
     }
@@ -271,12 +263,8 @@ const CandidateAssignJobModal = ({
   const buildUdfPayload = () => ({
     govt_id_type: udfData?.govtIdType || null,
     govt_id_number: udfData?.govtIdNumber?.trim() || null,
-    date_of_birth: udfData?.dateOfBirth || null,
     previous_organization: udfData?.previousOrganization?.trim() || null,
-    total_experience: udfData?.totalExperience?.trim() || null,
     relevant_experience: udfData?.relevantExperience?.trim() || null,
-    educational_qualification: udfData?.educationalQualification || null,
-    college_or_university: udfData?.collegeOrUniversity?.trim() || null,
     review_for_submission: udfData?.reviewForSubmission || null,
     notice_period: udfData?.noticePeriod?.trim() || null,
   });
@@ -910,52 +898,15 @@ function UdfModal({ udfData, onChange, onClose }) {
             />
 
             <UdfInput
-              label="Date of Birth"
-              type="date"
-              value={udfData?.dateOfBirth}
-              onChange={(value) => onChange?.("dateOfBirth", value)}
-            />
-
-            <UdfInput
               label="Name of previous organization"
               value={udfData?.previousOrganization}
               onChange={(value) => onChange?.("previousOrganization", value)}
             />
 
             <UdfInput
-              label="Total experience e.g 10Y 5M"
-              value={udfData?.totalExperience}
-              onChange={(value) => onChange?.("totalExperience", value)}
-            />
-
-            <UdfInput
               label="Relevant experience e.g 10Y 5M"
               value={udfData?.relevantExperience}
               onChange={(value) => onChange?.("relevantExperience", value)}
-            />
-
-            <UdfSelect
-              label="Educational qualification"
-              value={udfData?.educationalQualification}
-              onChange={(value) =>
-                onChange?.("educationalQualification", value)
-              }
-              options={[
-                "B.Tech",
-                "B.E",
-                "B.Sc",
-                "M.Tech",
-                "MCA",
-                "MBA",
-                "Diploma",
-                "Other",
-              ]}
-            />
-
-            <UdfInput
-              label="Name of college / University"
-              value={udfData?.collegeOrUniversity}
-              onChange={(value) => onChange?.("collegeOrUniversity", value)}
             />
 
             <UdfSelect
