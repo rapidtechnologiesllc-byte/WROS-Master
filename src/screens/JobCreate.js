@@ -517,28 +517,32 @@ export default function JobCreate({
                   })) ?? []),
                 ]}
               />
-              <div className="md:col-span-2">
-                <RateField
-                  label="Pay Range"
-                  value={payAmount}
-                  rateType={payRateType}
-                  onValueChange={setPayAmount}
-                  onRateTypeChange={setPayRateType}
-                  required={true}
-                  rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"]}
-                />
-              </div>
+            </div>
+
+            {/* Job Timeline & Compensation */}
+            <div className="grid gap-3 md:grid-cols-3 mt-4">
+              <RateField
+                label="Pay Range *"
+                value={payAmount}
+                rateType={payRateType}
+                onValueChange={setPayAmount}
+                onRateTypeChange={setPayRateType}
+                required={true}
+                rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"]}
+              />
               <Input
-                label="Start Date *"
+                label="Job Open Date (Posted) *"
                 value={startDate}
                 onChange={setStartDate}
                 type="date"
+                placeholder="When to post the job"
               />
               <Input
-                label="End Date *"
+                label="Close Date (Deadline) *"
                 value={endDate}
                 onChange={setEndDate}
                 type="date"
+                placeholder="When to stop accepting applications"
               />
             </div>
           </fieldset>
