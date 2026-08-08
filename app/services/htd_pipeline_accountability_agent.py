@@ -23,6 +23,7 @@ from app.models.employee import Employee
 from app.models.htd_phase_gate import HTDPhaseGate, HTD_GATE_PHASES
 from app.models.business_units import BusinessUnit
 from app.models.user import Users
+from app.services.performance_store_service import write_performance_event
 
 
 class HTDPipelineAccountabilityAgent:
@@ -151,7 +152,7 @@ class HTDPipelineAccountabilityAgent:
                     "timeline": "Can hire external CORE in weeks, vs 90 days to develop internal",
                 })
 
-            return {
+            result = {
                 "status": "success",
                 "bu": bu.name,
                 "bu_id": bu.id,
@@ -216,6 +217,25 @@ class HTDPipelineAccountabilityAgent:
                 ),
             }
 
+            # Log to performance store for Flash audit trail
+            write_performance_event(
+                db,
+                event_type="HTD_PIPELINE_TRACKING",
+                tenant_id=tenant_id,
+                event_data={
+                    "bu_name": bu.name,
+                    "bu_id": bu_id,
+                    "core_certified": len(core_certified),
+                    "specialty_in_development": len(specialty_in_htd),
+                    "core_ratio_pct": result["core_ratio"]["current_pct"],
+                    "core_forecast": core_forecast,
+                    "recommendations_count": len(recommendations),
+                    "critical_alerts": len([r for r in recommendations if r["priority"] == "CRITICAL"]),
+                },
+            )
+
+            return result
+
         except Exception as e:
             raise
 
@@ -271,7 +291,7 @@ class HTDPipelineAccountabilityAgent:
             at_risk_bu = [bu for bu in bu_health if bu["core_pct"] < 50 and bu["core_pct"] > 0]
             healthy_bu = [bu for bu in bu_health if bu["core_pct"] >= 60]
 
-            return {
+            result = {
                 "status": "success",
                 "date": datetime.now().date().isoformat(),
                 "summary": {
@@ -285,6 +305,30 @@ class HTDPipelineAccountabilityAgent:
                 "at_risk_units": at_risk_bu,
                 "healthy_units": healthy_bu,
             }
+
+            # Log to performance store for daily tracking
+            write_performance_event(
+                db,
+                event_type="HTD_PARTNERS_HEALTH_CHECK",
+                tenant_id=tenant_id,
+                event_data={
+                    "total_bu": len(bu_health),
+                    "critical_alerts": len(critical_bu),
+                    "at_risk": len(at_risk_bu),
+                    "healthy": len(healthy_bu),
+                    "bu_breakdown": [
+                        {
+                            "bu_name": bu["bu_name"],
+                            "bu_id": bu["bu_id"],
+                            "core_pct": bu["core_pct"],
+                            "core_certified": bu["core_certified"],
+                        }
+                        for bu in bu_health_sorted
+                    ],
+                },
+            )
+
+            return result
 
         except Exception as e:
             raise

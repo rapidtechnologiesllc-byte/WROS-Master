@@ -146,7 +146,7 @@ class AgentRegistry:
         status=AgentStatus.OPERATIONAL,
         description="Tracks SPECIALTY→CORE conversion pipeline. Shows partner CORE capacity forecast, identifies bottlenecks, triggers HTD hiring when development too slow.",
         has_route=True,
-        is_logging=False,  # TODO: wire logging
+        is_logging=True,
     )
 
     # HR/Employee agents
