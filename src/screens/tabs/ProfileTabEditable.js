@@ -16,6 +16,7 @@ const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 const SOURCES = ["LinkedIn", "Indeed", "Referral", "Direct Application", "Job Board", "Other"];
 const CURRENCY_OPTIONS = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"];
 const GOVT_ID_TYPES = ["Aadhar Card", "Pan Card", "Driver License", "Election Card", "State ID", "Passport", "Other"];
+const EDUCATION_LEVELS = ["High School", "Diploma", "Bachelor", "Master", "PhD", "Postdoctoral", "Other"];
 
 export default function ProfileTabEditable({ candidateId, candidate = {}, onRefresh }) {
   const [data, setData] = useState(null);
@@ -666,10 +667,11 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 <h3 className="text-sm font-semibold text-gray-900">
                   {editingEducationIdx !== null ? "Edit Education" : "Add Education"}
                 </h3>
-                <Input
-                  label="Level (e.g., Bachelor, Master, PhD)"
+                <Select
+                  label="Education Level"
                   value={educationForm.level}
                   onChange={(v) => setEducationForm({...educationForm, level: v})}
+                  options={EDUCATION_LEVELS}
                 />
                 <Input
                   label="University/College Name"
