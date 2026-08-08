@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class TenantAIConfigResponse(BaseModel):
     tenant_id: str
-    ai_agent_name: str
+    ai_agent_name: Optional[str] = "Thunder"
     ai_agent_persona: Optional[str]
     digest_enabled: bool
     thunder_enabled: bool
