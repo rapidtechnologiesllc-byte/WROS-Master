@@ -5,6 +5,7 @@
 // task); Priority only orders within that guaranteed set. Upcoming
 // Urgent tasks (not due today) show separately, never mixed in.
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Card, Button, Input, Select } from "../components/ui";
 import {
@@ -27,13 +28,18 @@ function isOverdue(task, now) {
   return task.due_date && new Date(task.due_date) < now && task.status !== "COMPLETED";
 }
 
-function TaskRow({ task, now, onComplete, onConfirmUrgent }) {
+function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate }) {
   const overdue = isOverdue(task, now);
   return (
     <tr className="border-b border-bx-border last:border-0">
       <td className="py-2 px-3 text-xs text-gray-500">#{task.id}</td>
       <td className="py-2 px-3">
-        <div className="text-sm font-medium text-bx-slate">{task.title}</div>
+        <button
+          onClick={() => onNavigate(task.title)}
+          className="text-sm font-medium text-blue-600 hover:underline cursor-pointer text-left"
+        >
+          {task.title}
+        </button>
         {task.priority_challenged && (
           <div className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-bx px-2 py-1 inline-flex items-center gap-2">
             Thunder: {task.priority_challenge_note}
@@ -72,6 +78,7 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent }) {
 }
 
 export default function MyTasksScreen() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +125,22 @@ export default function MyTasksScreen() {
       load();
     } catch {
       toast.error("Could not confirm.");
+    }
+  };
+
+  const handleNavigateTask = (title) => {
+    if (title.includes("Submit feedback")) {
+      navigate("/interviews");
+    } else if (title.includes("Submit Offer")) {
+      navigate("/offer-letters");
+    } else if (title.includes("Review candidate")) {
+      navigate("/candidates");
+    } else if (title.includes("Timesheet")) {
+      navigate("/my-timesheet");
+    } else if (title.includes("Interview")) {
+      navigate("/interviews");
+    } else {
+      toast.warning("No action configured for this task type.");
     }
   };
 
@@ -259,7 +282,7 @@ export default function MyTasksScreen() {
                   <tr><td colSpan={7} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
                 ) : (
                   tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} />
+                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} />
                   ))
                 )}
               </tbody>
@@ -273,7 +296,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} />
                     ))}
                   </tbody>
                 </table>

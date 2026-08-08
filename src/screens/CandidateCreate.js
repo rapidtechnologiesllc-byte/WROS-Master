@@ -405,6 +405,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!lastName.trim()) newErrors.lastName = "Last Name is required.";
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
+    else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
     if (!email.trim()) newErrors.email = "Email is required.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -783,7 +784,7 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div className="md:col-span-2">
             <div className="mb-1 text-xs font-semibold text-gray-700">
-              Current Location
+              Current Location *
             </div>
             <LocationCascadeSelect value={locationValue} onChange={setLocationValue} />
           </div>
