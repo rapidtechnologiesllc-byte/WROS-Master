@@ -34,6 +34,17 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   const [resumeExpanded, setResumeExpanded] = useState(false);
   const [resumeData, setResumeData] = useState(null);
 
+  // Skills state
+  const [showSkillsModal, setShowSkillsModal] = useState(false);
+  const [skills, setSkills] = useState([]);
+  const [skillForm, setSkillForm] = useState({
+    name: "",
+    yearsOfExperience: "",
+    lastUsedDate: "",
+    isPrimary: false,
+  });
+  const [editingSkillIdx, setEditingSkillIdx] = useState(null);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -398,40 +409,185 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       )}
 
       {/* Skills */}
-      <EditableSection
-        title="Skills"
-        subtitle="Extracted from resume"
-        isEditing={editingSection === "skills"}
-        isSaving={savingSection === "skills"}
-        onEdit={() => handleEditSection("skills")}
-        onCancel={handleCancelEdit}
-        onSave={() => handleSaveSection("skills")}
-      >
-        {editingSection === "skills" ? (
-          <div className="space-y-4">
-            <Input
-              label="Skills (comma-separated)"
-              value={editForm.skills || ""}
-              onChange={(v) => setEditForm({...editForm, skills: v})}
-              placeholder="e.g., Java, Python, React, Project Management"
-            />
-          </div>
-        ) : (
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            {profile?.candidate_skills && profile.candidate_skills.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {(Array.isArray(profile.candidate_skills) ? profile.candidate_skills : profile.candidate_skills.split(", ")).map((skill, idx) => (
-                  <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {skill.trim()}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600">No skills available</p>
-            )}
+            <h3 className="text-sm font-semibold text-gray-900">SKILLS</h3>
+            <p className="text-xs text-gray-500 mt-1">Extracted from resume - Select top 5-10 skills</p>
           </div>
-        )}
-      </EditableSection>
+          <button
+            onClick={() => setShowSkillsModal(true)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition font-medium"
+          >
+            Manage Skills
+          </button>
+        </div>
+
+        <div>
+          {skills && skills.length > 0 ? (
+            <div className="space-y-2">
+              {skills.map((skill, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                  {skill.isPrimary && <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded font-semibold">Primary</span>}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{skill.name}</p>
+                    <p className="text-xs text-gray-600">
+                      {skill.yearsOfExperience && `${skill.yearsOfExperience} years`}
+                      {skill.yearsOfExperience && skill.lastUsedDate && " • "}
+                      {skill.lastUsedDate && `Last used: ${skill.lastUsedDate}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">No skills selected. Click "Manage Skills" to add your top skills.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Skills Management Modal */}
+      {showSkillsModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Manage Skills</h2>
+              <button onClick={() => setShowSkillsModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[600px] overflow-y-auto space-y-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Select your top 5-10 skills from your resume. Mark your primary skill and add years of experience and last used date.
+              </p>
+
+              {/* Add New Skill Form */}
+              <div className="border-b pb-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {editingSkillIdx !== null ? "Edit Skill" : "Add New Skill"}
+                </h3>
+                <Input
+                  label="Skill Name"
+                  value={skillForm.name}
+                  onChange={(v) => setSkillForm({...skillForm, name: v})}
+                  placeholder="e.g., React, Project Management"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Years of Experience"
+                    type="number"
+                    value={skillForm.yearsOfExperience}
+                    onChange={(v) => setSkillForm({...skillForm, yearsOfExperience: v})}
+                    placeholder="e.g., 5"
+                  />
+                  <Input
+                    label="Last Used Date"
+                    type="date"
+                    value={skillForm.lastUsedDate}
+                    onChange={(v) => setSkillForm({...skillForm, lastUsedDate: v})}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={skillForm.isPrimary}
+                    onChange={(e) => setSkillForm({...skillForm, isPrimary: e.target.checked})}
+                    className="w-4 h-4"
+                  />
+                  <label className="text-sm text-gray-700">Mark as Primary Skill</label>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!skillForm.name.trim()) {
+                      toast.warning("Please enter skill name");
+                      return;
+                    }
+                    if (editingSkillIdx !== null) {
+                      const updated = [...skills];
+                      updated[editingSkillIdx] = skillForm;
+                      setSkills(updated);
+                      setEditingSkillIdx(null);
+                    } else {
+                      setSkills([...skills, skillForm]);
+                    }
+                    setSkillForm({ name: "", yearsOfExperience: "", lastUsedDate: "", isPrimary: false });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  {editingSkillIdx !== null ? "Update Skill" : "Add Skill"}
+                </button>
+              </div>
+
+              {/* Skills List */}
+              {skills.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Skills ({skills.length})</h3>
+                  {skills.map((skill, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {skill.name}
+                          {skill.isPrimary && <span className="ml-2 text-orange-600 font-semibold">(Primary)</span>}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {skill.yearsOfExperience && `${skill.yearsOfExperience} years`}
+                          {skill.yearsOfExperience && skill.lastUsedDate && " • "}
+                          {skill.lastUsedDate && `Last used: ${skill.lastUsedDate}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSkillForm(skill);
+                            setEditingSkillIdx(idx);
+                          }}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setSkills(skills.filter((_, i) => i !== idx))}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t bg-gray-50 px-6 py-4 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowSkillsModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition text-sm font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  if (skills.length === 0) {
+                    toast.warning("Please add at least one skill");
+                    return;
+                  }
+                  const primarySkill = skills.find(s => s.isPrimary);
+                  if (!primarySkill) {
+                    toast.warning("Please mark a primary skill");
+                    return;
+                  }
+                  setShowSkillsModal(false);
+                  toast.success("Skills updated successfully");
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                Save Skills
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Education Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
