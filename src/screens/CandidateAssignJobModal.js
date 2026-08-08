@@ -161,6 +161,23 @@ const CandidateAssignJobModal = ({
     }
   }, [candidateDetails, showUdfModal]);
 
+  // Auto-load Client Owner based on selected job
+  useEffect(() => {
+    if (selectedJob) {
+      const clientOwner = selectedJob?.client_owner_name ||
+                         selectedJob?.clientOwnerName ||
+                         selectedJob?.client_contact_person ||
+                         selectedJob?.contact_person_name ||
+                         "";
+      if (clientOwner) {
+        setFormData((prev) => ({
+          ...prev,
+          primarySales: clientOwner,
+        }));
+      }
+    }
+  }, [selectedJob]);
+
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => ({
       label: `${job?.company_name || job?.companyName || "N/A"} | ${
@@ -542,10 +559,11 @@ const CandidateAssignJobModal = ({
                 />
 
                 <FormInput
-                  label="Primary Sales"
+                  label="Client Owner"
                   value={formData?.primarySales}
                   onChange={(value) => updateFormField("primarySales", value)}
                   disabled={isAssigning}
+                  placeholder="Auto-populated from selected job's client"
                 />
               </SectionCard>
 
