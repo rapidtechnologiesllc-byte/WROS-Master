@@ -472,6 +472,24 @@ export default function JobCreate({
                 disabled={true}
               />
               <Select
+                label="Role Type *"
+                value={isInternalRole === null ? "" : isInternalRole ? "internal" : "external"}
+                onChange={(value) => {
+                  if (value === "internal") {
+                    setIsInternalRole(true);
+                  } else if (value === "external") {
+                    setIsInternalRole(false);
+                  } else {
+                    setIsInternalRole(null);
+                  }
+                }}
+                options={[
+                  { label: "Select Role Type", value: "", disabled: true },
+                  { label: "Internal Role (BlitzenX)", value: "internal" },
+                  { label: "External Role (Partner/Client)", value: "external" },
+                ]}
+              />
+              <Select
                 label="Company / Client *"
                 value={companyClient}
                 onChange={setCompanyClient}
