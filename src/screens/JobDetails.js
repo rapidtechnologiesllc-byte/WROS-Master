@@ -400,55 +400,53 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
               {/* Candidates List */}
               <div className="space-y-3">
                 {candidates
-                  .filter(c => c.job_id === job.id)
                   .filter(c => {
                     const matchesQuery = !candidateQuery ||
-                      (c.candidate_first_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
-                      (c.candidate_last_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                      (c.candidate_first_name || c.firstName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                      (c.candidate_last_name || c.lastName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
                       (c.candidateEmail || c.email || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
                       (c.phone || '').includes(candidateQuery);
 
                     const matchesStage = candidateStageFilter === "All" ||
-                      (c.status || 'Sourced').toLowerCase().replace(' ', '-') === candidateStageFilter.toLowerCase().replace(' ', '-');
+                      (c.status || 'Sourced').toLowerCase().includes(candidateStageFilter.toLowerCase());
 
                     return matchesQuery && matchesStage;
                   })
                   .length > 0 ? (
                   candidates
-                    .filter(c => c.job_id === job.id)
                     .filter(c => {
                       const matchesQuery = !candidateQuery ||
-                        (c.candidate_first_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
-                        (c.candidate_last_name || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                        (c.candidate_first_name || c.firstName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
+                        (c.candidate_last_name || c.lastName || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
                         (c.candidateEmail || c.email || '').toLowerCase().includes(candidateQuery.toLowerCase()) ||
                         (c.phone || '').includes(candidateQuery);
 
                       const matchesStage = candidateStageFilter === "All" ||
-                        (c.status || 'Sourced').toLowerCase().replace(' ', '-') === candidateStageFilter.toLowerCase().replace(' ', '-');
+                        (c.status || 'Sourced').toLowerCase().includes(candidateStageFilter.toLowerCase());
 
                       return matchesQuery && matchesStage;
                     })
                     .map((candidate) => (
-                      <div key={candidate.id} className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-sm transition">
+                      <div key={candidate.id || candidate.candidateID} className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-sm transition">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
                             <h4 className="font-semibold text-gray-900">
-                              {candidate.candidate_first_name || candidate.name} {candidate.candidate_last_name}
+                              {candidate.candidate_first_name || candidate.firstName || candidate.candidateFirstName || candidate.name} {candidate.candidate_last_name || candidate.lastName || candidate.candidateLastName || ''}
                             </h4>
                             <p className="text-sm text-gray-500">{candidate.candidateEmail || candidate.email}</p>
                             <p className="text-xs text-gray-400 mt-1">{candidate.phone}</p>
                             <div className="mt-2 flex gap-2 flex-wrap">
                               <span className={cx(pill, "text-xs")} style={{
                                 backgroundColor: candidate.status?.toLowerCase() === 'hired' ? '#dcfce7' :
-                                                 candidate.status?.toLowerCase() === 'interviewed' ? '#fef3c7' :
+                                                 candidate.status?.toLowerCase().includes('interviewed') ? '#fef3c7' :
                                                  candidate.status?.toLowerCase().includes('screening') ? '#dbeafe' :
                                                  '#e0e7ff',
                                 borderColor: candidate.status?.toLowerCase() === 'hired' ? '#86efac' :
-                                             candidate.status?.toLowerCase() === 'interviewed' ? '#fcd34d' :
+                                             candidate.status?.toLowerCase().includes('interviewed') ? '#fcd34d' :
                                              candidate.status?.toLowerCase().includes('screening') ? '#7dd3fc' :
                                              '#a5b4fc',
                                 color: candidate.status?.toLowerCase() === 'hired' ? '#166534' :
-                                       candidate.status?.toLowerCase() === 'interviewed' ? '#92400e' :
+                                       candidate.status?.toLowerCase().includes('interviewed') ? '#92400e' :
                                        candidate.status?.toLowerCase().includes('screening') ? '#075985' :
                                        '#312e81'
                               }}>
@@ -463,7 +461,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                   <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
                     <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-gray-600">
-                      {candidates.filter(c => c.job_id === job.id).length === 0
+                      {candidates.length === 0
                         ? "No candidates submitted for this job yet"
                         : "No candidates match your search"}
                     </p>
