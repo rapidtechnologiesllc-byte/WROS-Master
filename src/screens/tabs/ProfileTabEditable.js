@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Edit2, Save, X, Loader } from "lucide-react";
 import { Button, Input, Select, Card } from "../../components/ui";
+import RateField from "../../components/ui/RateField";
 import { toast } from "react-toastify";
 import {
   getCandidateById,
@@ -13,6 +14,7 @@ import { getAllUsers } from "../../services/api/users";
 
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 const SOURCES = ["LinkedIn", "Indeed", "Referral", "Direct Application", "Job Board", "Other"];
+const CURRENCY_OPTIONS = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"];
 
 export default function ProfileTabEditable({ candidateId, candidate, onRefresh }) {
   const [data, setData] = useState(null);
@@ -21,11 +23,11 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   const [users, setUsers] = useState([]);
   const [candidateFullDetails, setCandidateFullDetails] = useState(null);
 
-  // Edit mode state - per section
+  // Edit mode state
   const [editingSection, setEditingSection] = useState(null);
   const [savingSection, setSavingSection] = useState(null);
 
-  // Form state for editable sections
+  // Form state
   const [editForm, setEditForm] = useState({});
 
   useEffect(() => {
@@ -56,13 +58,12 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
 
   const handleEditSection = (section) => {
     setEditingSection(section);
-    // Pre-populate form with current values
     setEditForm({
       first_name: profile.candidate_first_name || "",
       middle_name: profile.candidate_middle_name || "",
       last_name: profile.candidate_last_name || "",
       email: profile.candidate_email || "",
-      mobile: profile.candidate_mobile || profile.phone || "",
+      mobile: profile.candidate_mobile || "",
       gender: profile.candidate_gender || "",
       dob: profile.candidate_date_of_birth || "",
       job_title: profile.candidate_job_title || "",
@@ -70,7 +71,9 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
       skills: profile.candidate_skills?.join(", ") || "",
       joining_date: profile.candidate_joining_date || "",
       expected_salary: profile.candidate_expected_salary || "",
+      expected_salary_type: profile.candidate_expected_salary_type || "$/Year",
       current_salary: profile.candidate_current_salary || "",
+      current_salary_type: profile.candidate_current_salary_type || "$/Year",
       current_location: profile.candidate_current_location || "",
       source: profile.candidate_source || "",
       assigned_hr_manager_id: profile.assigned_hr_manager_id || "",
@@ -84,28 +87,31 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   };
 
   const handleSaveSection = async (section) => {
-    console.log(`[ProfileTabEditable] Saving section: ${section}, candidateId: ${candidateId}`);
     setSavingSection(section);
     try {
       const updatePayload = {};
 
       if (section === "basic") {
-        updatePayload.candidate_first_name = editForm.first_name;
-        updatePayload.candidate_middle_name = editForm.middle_name;
-        updatePayload.candidate_last_name = editForm.last_name;
-        updatePayload.candidate_mobile = editForm.mobile;
-        updatePayload.candidate_job_title = editForm.job_title;
+        updatePayload.candidate_first_name = editForm.first_name || null;
+        updatePayload.candidate_middle_name = editForm.middle_name || null;
+        updatePayload.candidate_last_name = editForm.last_name || null;
+        updatePayload.candidate_mobile = editForm.mobile || null;
+        updatePayload.candidate_job_title = editForm.job_title || null;
       } else if (section === "personal") {
-        updatePayload.candidate_gender = editForm.gender;
-        updatePayload.candidate_date_of_birth = editForm.dob;
-        updatePayload.candidate_current_location = editForm.current_location;
-        updatePayload.candidate_source = editForm.source;
+        updatePayload.candidate_gender = editForm.gender || null;
+        updatePayload.candidate_date_of_birth = editForm.dob || null;
+        updatePayload.candidate_current_location = editForm.current_location || null;
+        updatePayload.candidate_source = editForm.source || null;
       } else if (section === "professional") {
-        updatePayload.candidate_experience = editForm.experience;
-        updatePayload.candidate_skills = editForm.skills.split(",").map(s => s.trim()).filter(Boolean);
-        updatePayload.candidate_joining_date = editForm.joining_date;
-        updatePayload.candidate_expected_salary = editForm.expected_salary;
-        updatePayload.candidate_current_salary = editForm.current_salary;
+        updatePayload.candidate_experience = editForm.experience || null;
+        updatePayload.candidate_skills = editForm.skills
+          ? editForm.skills.split(",").map(s => s.trim()).filter(Boolean)
+          : null;
+        updatePayload.candidate_joining_date = editForm.joining_date || null;
+        updatePayload.candidate_expected_salary = editForm.expected_salary || null;
+        updatePayload.candidate_expected_salary_type = editForm.expected_salary_type || null;
+        updatePayload.candidate_current_salary = editForm.current_salary || null;
+        updatePayload.candidate_current_salary_type = editForm.current_salary_type || null;
       } else if (section === "assignment") {
         updatePayload.assigned_hr_manager_id = editForm.assigned_hr_manager_id || null;
         updatePayload.assigned_report_manager_id = editForm.assigned_report_manager_id || null;
@@ -125,7 +131,9 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
 
   if (loading) return <div className="p-6 text-center text-gray-500">Loading profile...</div>;
 
-  const userOptions = Array.isArray(users) ? users.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` })) : [];
+  const userOptions = Array.isArray(users)
+    ? users.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+    : [];
 
   return (
     <div className="space-y-4">
@@ -179,7 +187,7 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
             <InfoDisplay label="Middle Name" value={profile.candidate_middle_name} />
             <InfoDisplay label="Last Name" value={profile.candidate_last_name} />
             <InfoDisplay label="Email" value={profile.candidate_email} />
-            <InfoDisplay label="Mobile" value={profile.candidate_mobile || profile.phone} />
+            <InfoDisplay label="Mobile" value={profile.candidate_mobile} />
             <InfoDisplay label="Job Title" value={profile.candidate_job_title} />
           </div>
         )}
@@ -257,15 +265,22 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
               value={editForm.joining_date || ""}
               onChange={(v) => setEditForm({...editForm, joining_date: v})}
             />
-            <Input
+            <div />
+            <RateField
               label="Expected Salary"
-              value={editForm.expected_salary || ""}
-              onChange={(v) => setEditForm({...editForm, expected_salary: v})}
+              value={editForm.expected_salary}
+              rateType={editForm.expected_salary_type}
+              onValueChange={(v) => setEditForm({...editForm, expected_salary: v})}
+              onRateTypeChange={(v) => setEditForm({...editForm, expected_salary_type: v})}
+              rateTypeOptions={CURRENCY_OPTIONS}
             />
-            <Input
+            <RateField
               label="Current Salary"
-              value={editForm.current_salary || ""}
-              onChange={(v) => setEditForm({...editForm, current_salary: v})}
+              value={editForm.current_salary}
+              rateType={editForm.current_salary_type}
+              onValueChange={(v) => setEditForm({...editForm, current_salary: v})}
+              onRateTypeChange={(v) => setEditForm({...editForm, current_salary_type: v})}
+              rateTypeOptions={CURRENCY_OPTIONS}
             />
           </div>
         ) : (
@@ -273,13 +288,20 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
             <InfoDisplay label="Experience" value={profile.candidate_experience} suffix=" years" />
             <InfoDisplay label="Skills" value={Array.isArray(profile.candidate_skills) ? profile.candidate_skills.join(", ") : profile.candidate_skills} />
             <InfoDisplay label="Available to Join" value={profile.candidate_joining_date} />
-            <InfoDisplay label="Expected Salary" value={profile.candidate_expected_salary} />
-            <InfoDisplay label="Current Salary" value={profile.candidate_current_salary} />
+            <div />
+            <InfoDisplay
+              label="Expected Salary"
+              value={profile.candidate_expected_salary ? `${profile.candidate_expected_salary} ${profile.candidate_expected_salary_type || '$/Year'}` : null}
+            />
+            <InfoDisplay
+              label="Current Salary"
+              value={profile.candidate_current_salary ? `${profile.candidate_current_salary} ${profile.candidate_current_salary_type || '$/Year'}` : null}
+            />
           </div>
         )}
       </EditableSection>
 
-      {/* Recruitment Assignment (BU-scoped visibility) */}
+      {/* Recruitment Assignment (BU-scoped) */}
       <EditableSection
         title="Recruitment Assignment"
         subtitle="Assigned HR Manager and Report Manager (BU-scoped)"
@@ -310,11 +332,15 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
               <>
                 <InfoDisplay
                   label="HR Manager"
-                  value={users.find(u => u.id === profile.assigned_hr_manager_id) ? `${users.find(u => u.id === profile.assigned_hr_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_hr_manager_id)?.last_name || ""}` : "—"}
+                  value={users.find(u => u.id === profile.assigned_hr_manager_id)
+                    ? `${users.find(u => u.id === profile.assigned_hr_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_hr_manager_id)?.last_name || ""}`
+                    : "—"}
                 />
                 <InfoDisplay
                   label="Report Manager"
-                  value={users.find(u => u.id === profile.assigned_report_manager_id) ? `${users.find(u => u.id === profile.assigned_report_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_report_manager_id)?.last_name || ""}` : "—"}
+                  value={users.find(u => u.id === profile.assigned_report_manager_id)
+                    ? `${users.find(u => u.id === profile.assigned_report_manager_id)?.first_name} ${users.find(u => u.id === profile.assigned_report_manager_id)?.last_name || ""}`
+                    : "—"}
                 />
               </>
             )}
@@ -322,7 +348,7 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
         )}
       </EditableSection>
 
-      {/* Business Unit (Read-only - protected) */}
+      {/* Business Unit (Read-only) */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm opacity-75">
         <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
           Business Unit
@@ -338,7 +364,6 @@ export default function ProfileTabEditable({ candidateId, candidate, onRefresh }
   );
 }
 
-// Reusable section component with edit toggle
 function EditableSection({ title, subtitle, children, isEditing, isSaving, onEdit, onCancel, onSave }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -383,7 +408,6 @@ function EditableSection({ title, subtitle, children, isEditing, isSaving, onEdi
   );
 }
 
-// Display info with consistent styling
 function InfoDisplay({ label, value, suffix = "" }) {
   return (
     <div>
