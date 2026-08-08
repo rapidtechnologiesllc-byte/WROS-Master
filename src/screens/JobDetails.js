@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { Briefcase, Edit2 } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Briefcase, Edit2, Users, CheckCircle, Clock, BarChart3 } from "lucide-react";
 import { Button, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
 
-export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view" }) {
+export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view", candidates = [] }) {
   const [editingSection, setEditingSection] = useState(null);
   const [title, setTitle] = useState(job.title || "");
   const [positionType, setPositionType] = useState(job.positionType || "");
@@ -28,6 +28,14 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   const [skillsText, setSkillsText] = useState((job.skills || []).join(", "));
   const [hmOneLiner, setHmOneLiner] = useState(job.hiringManagerOneLiner || "");
   const [internalJD, setInternalJD] = useState(job.internalJD || job.jobDescription || "");
+  const [activeTab, setActiveTab] = useState("details");
+
+  const jobMetrics = useMemo(() => {
+    const submitted = candidates.filter(c => c.job_id === job.id)?.length || 0;
+    const interviewed = candidates.filter(c => c.job_id === job.id && c.status?.toLowerCase() === 'interviewed')?.length || 0;
+    const hired = candidates.filter(c => c.job_id === job.id && c.status?.toLowerCase() === 'hired')?.length || 0;
+    return { submitted, interviewed, hired };
+  }, [job.id, candidates]);
 
   useEffect(() => {
     const parsePay = (value) => {
@@ -82,8 +90,8 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header with Status & Metrics */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-100 rounded-lg">
             <Briefcase className="h-5 w-5 text-blue-600" />
@@ -93,9 +101,50 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             <p className="text-sm text-gray-500">{job.dept} • {job.location}</p>
           </div>
         </div>
-        <StatusBadge status={job.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={job.status} />
+          {job.noOfPositions && (
+            <div className="px-3 py-1 bg-gray-100 rounded-full text-sm font-medium text-gray-700">
+              {job.noOfPositions} Opening{job.noOfPositions > 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Two-Column Layout: Details + Metrics */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Main Content - 2/3 width */}
+        <div className="lg:col-span-2">
+          {/* Tab Navigation */}
+          <div className="flex gap-0 border-b border-gray-200 mb-4">
+            <button
+              onClick={() => setActiveTab("details")}
+              className={cx(
+                "px-4 py-3 text-sm font-semibold border-b-2 transition",
+                activeTab === "details"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              )}
+            >
+              Job Details
+            </button>
+            <button
+              onClick={() => setActiveTab("candidates")}
+              className={cx(
+                "px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2",
+                activeTab === "candidates"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Candidates ({jobMetrics.submitted})
+            </button>
+          </div>
+
+          {/* Details Tab */}
+          {activeTab === "details" && (
+            <div className="space-y-4">
       {/* Basic Information */}
       <CardBlock title="Basic Information" subtitle="Job title, position type, and priority">
         {editingSection === "basic" ? (
@@ -310,6 +359,122 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           <Button onClick={onSubmit}>Submit to internal hiring team</Button>
         </div>
       )}
+            </div>
+          )}
+
+          {/* Candidates Tab */}
+          {activeTab === "candidates" && (
+            <div className="space-y-3">
+              {candidates.filter(c => c.job_id === job.id).length > 0 ? (
+                candidates.filter(c => c.job_id === job.id).map((candidate) => (
+                  <div key={candidate.id} className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-sm transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{candidate.name || candidate.candidate_first_name + ' ' + candidate.candidate_last_name}</h4>
+                        <p className="text-sm text-gray-500">{candidate.email}</p>
+                        <div className="mt-2 flex gap-2 flex-wrap">
+                          <span className={cx(pill, "text-xs")} style={{
+                            backgroundColor: candidate.status?.toLowerCase() === 'hired' ? '#dcfce7' :
+                                             candidate.status?.toLowerCase() === 'interviewed' ? '#fef3c7' :
+                                             '#e0e7ff',
+                            borderColor: candidate.status?.toLowerCase() === 'hired' ? '#86efac' :
+                                         candidate.status?.toLowerCase() === 'interviewed' ? '#fcd34d' :
+                                         '#a5b4fc',
+                            color: candidate.status?.toLowerCase() === 'hired' ? '#166534' :
+                                   candidate.status?.toLowerCase() === 'interviewed' ? '#92400e' :
+                                   '#312e81'
+                          }}>
+                            {candidate.status || 'Submitted'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+                  <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">No candidates submitted yet</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Sidebar - Activity & Quick Stats */}
+        <div className="lg:col-span-1">
+          <div className="space-y-3 sticky top-4">
+            {/* Activity Metrics */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Pipeline Activity</h3>
+              <div className="space-y-3">
+                <MetricCard
+                  icon={Users}
+                  label="Submitted"
+                  value={jobMetrics.submitted}
+                  color="bg-blue-50 text-blue-600"
+                />
+                <MetricCard
+                  icon={Clock}
+                  label="Interviewed"
+                  value={jobMetrics.interviewed}
+                  color="bg-yellow-50 text-yellow-600"
+                />
+                <MetricCard
+                  icon={CheckCircle}
+                  label="Hired"
+                  value={jobMetrics.hired}
+                  color="bg-green-50 text-green-600"
+                />
+              </div>
+            </div>
+
+            {/* Client & Contact Info */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Client Details</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Company</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.companyClient || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Contact Person</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.contactPerson || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Division</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.division || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Company Type</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.companyType || "-"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline Summary */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Timeline</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Start Date</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.startDate || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">End Date</div>
+                  <div className="text-sm font-medium text-gray-900 mt-1">{job.endDate || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Status</div>
+                  <div className="mt-1">
+                    <StatusBadge status={job.status} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -331,6 +496,20 @@ function Info({ label, value }) {
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
       <span className="text-xs uppercase tracking-wide text-gray-500">{label}</span>
       <div className="font-medium text-sm text-gray-900 mt-1">{value || "-"}</div>
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, color }) {
+  return (
+    <div className={cx("rounded-lg p-3", color)}>
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-xs font-semibold text-gray-600">{label}</div>
+          <div className="text-2xl font-bold mt-1">{value}</div>
+        </div>
+        <Icon className="h-5 w-5 opacity-60" />
+      </div>
     </div>
   );
 }
