@@ -40,39 +40,46 @@ export const createCandidateAssignment = async ({
 };
 
 export const updateCandidate = async (candidateId, payload) => {
+  if (!payload) {
+    throw new Error("Update payload is required");
+  }
   const body = {};
-  if (payload.candidate_job_title != null)
+  if (payload?.candidate_job_title != null)
     body.candidate_job_title = payload.candidate_job_title;
-  if (payload.candidate_first_name != null)
+  if (payload?.candidate_first_name != null)
     body.candidate_first_name = payload.candidate_first_name;
-  if (payload.candidate_middle_name != null)
+  if (payload?.candidate_middle_name != null)
     body.candidate_middle_name = payload.candidate_middle_name;
-  if (payload.candidate_last_name != null)
+  if (payload?.candidate_last_name != null)
     body.candidate_last_name = payload.candidate_last_name;
-  if (payload.candidate_mobile != null)
+  if (payload?.candidate_mobile != null)
     body.candidate_mobile = payload.candidate_mobile;
-  if (payload.candidate_gender != null)
+  if (payload?.candidate_gender != null)
     body.candidate_gender = payload.candidate_gender;
-  if (payload.candidate_date_of_birth != null)
+  if (payload?.candidate_date_of_birth != null)
     body.candidate_date_of_birth = payload.candidate_date_of_birth;
-  if (payload.candidate_source != null)
+  if (payload?.candidate_source != null)
     body.candidate_source = payload.candidate_source;
-  if (payload.candidate_experience != null)
+  if (payload?.candidate_experience != null)
     body.candidate_experience = payload.candidate_experience;
-  if (payload.candidate_skills != null)
+  if (payload?.candidate_skills != null)
     body.candidate_skills = payload.candidate_skills;
-  if (payload.candidate_joining_date != null)
+  if (payload?.candidate_joining_date != null)
     body.candidate_joining_date = payload.candidate_joining_date;
-  if (payload.candidate_expected_salary != null)
+  if (payload?.candidate_expected_salary != null)
     body.candidate_expected_salary = payload.candidate_expected_salary;
-  if (payload.candidate_current_salary != null)
+  if (payload?.candidate_current_salary != null)
     body.candidate_current_salary = payload.candidate_current_salary;
-  if (payload.candidate_current_location != null)
+  if (payload?.candidate_current_location != null)
     body.candidate_current_location = payload.candidate_current_location;
-  if (payload.assigned_hr_manager_id != null)
+  if (payload?.assigned_hr_manager_id != null)
     body.assigned_hr_manager_id = payload.assigned_hr_manager_id;
-  if (payload.assigned_report_manager_id != null)
+  if (payload?.assigned_report_manager_id != null)
     body.assigned_report_manager_id = payload.assigned_report_manager_id;
+  if (payload?.candidate_expected_salary_type != null)
+    body.candidate_expected_salary_type = payload.candidate_expected_salary_type;
+  if (payload?.candidate_current_salary_type != null)
+    body.candidate_current_salary_type = payload.candidate_current_salary_type;
 
   console.log(`[updateCandidate] Calling PUT /onboarding/hr/update_candidate/${candidateId}`, body);
   const { data } = await apiRequest(
