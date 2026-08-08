@@ -71,25 +71,25 @@ def generate_description_node(state: JobDescriptionState) -> JobDescriptionState
 def extract_skills_node(state: JobDescriptionState) -> JobDescriptionState:
     """
     Node to extract required skills from the generated job description.
-    
+
     Args:
         state: Current state containing generated_description
-        
+
     Returns:
         Updated state with skills_needed list
     """
     prompt = f"""
     Analyze the following job description and extract a list of key technical and soft skills required for this role.
-    
+
     Job Title: {state['job_title']}
     Job Description:
     {state['generated_description']}
-    
+
     Please provide a concise list of 8-12 essential skills. Include both technical skills and soft skills.
     Format your response as a comma-separated list of skills only, without numbering or bullet points.
     Example: Python, JavaScript, Team Leadership, Communication, Problem Solving
     """
-    
+
     response = llm.invoke(prompt)
     # Handle response.content being either a string or list (varies by model version)
     if isinstance(response.content, str):
@@ -105,9 +105,61 @@ def extract_skills_node(state: JobDescriptionState) -> JobDescriptionState:
     # Parse the comma-separated skills into a list
     skills_text = content.strip()
     skills_list = [skill.strip() for skill in skills_text.split(',')]
-    
+
     state['skills_needed'] = skills_list
-    
+
+    return state
+
+
+def infer_metadata_node(state: JobDescriptionState) -> JobDescriptionState:
+    """
+    Node to infer job title and experience level from the one-liner when not provided.
+
+    Args:
+        state: Current state with generated_description
+
+    Returns:
+        Updated state with inferred job_title and experience
+    """
+    # Only infer if the values are empty
+    if not state.get('job_title') or not state.get('experience'):
+        prompt = f"""
+        Based on this one-liner job description and the generated job description below, extract:
+        1. The job title ONLY (without location, seniority level, or remote/on-site info). Examples: "Guidewire Developer", "Data Scientist", "Full Stack Engineer" (NOT "Remote Guidewire Developer" or "Senior Guidewire Developer")
+        2. The experience level required in years (e.g., "3-5 years", "5+ years", "2 years", "Entry level")
+
+        One-liner: {state['job_description_oneliner']}
+
+        Generated Description:
+        {state['generated_description']}
+
+        Respond EXACTLY in this format with no extra text:
+        JOB_TITLE: [title only, no location or seniority]
+        EXPERIENCE: [years required]
+        """
+
+        response = llm.invoke(prompt)
+        if isinstance(response.content, str):
+            content = response.content
+        elif isinstance(response.content, list):
+            content = ''.join(
+                part['text'] if isinstance(part, dict) and 'text' in part else str(part)
+                for part in response.content
+            )
+        else:
+            content = str(response.content)
+
+        # Parse the response
+        lines = content.strip().split('\n')
+        for line in lines:
+            if line.startswith('JOB_TITLE:') and not state.get('job_title'):
+                title = line.replace('JOB_TITLE:', '').strip()
+                # Clean up any remaining location/seniority keywords
+                title = title.replace('Remote ', '').replace('On-site ', '').replace('Hybrid ', '').strip()
+                state['job_title'] = title
+            elif line.startswith('EXPERIENCE:') and not state.get('experience'):
+                state['experience'] = line.replace('EXPERIENCE:', '').strip()
+
     return state
 
 
@@ -115,21 +167,23 @@ def extract_skills_node(state: JobDescriptionState) -> JobDescriptionState:
 def create_job_description_workflow():
     """
     Creates and compiles the LangGraph workflow for job description generation.
-    
+
     Returns:
         Compiled workflow graph
     """
     workflow = StateGraph(JobDescriptionState)
-    
+
     # Add nodes to the graph
     workflow.add_node("generate_description", generate_description_node)
     workflow.add_node("extract_skills", extract_skills_node)
-    
+    workflow.add_node("infer_metadata", infer_metadata_node)
+
     # Define the flow
     workflow.set_entry_point("generate_description")
     workflow.add_edge("generate_description", "extract_skills")
-    workflow.add_edge("extract_skills", END)
-    
+    workflow.add_edge("extract_skills", "infer_metadata")
+    workflow.add_edge("infer_metadata", END)
+
     # Compile the graph
     return workflow.compile()
 
