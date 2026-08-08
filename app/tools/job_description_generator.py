@@ -4,6 +4,8 @@ from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
 import os
 
+from app.data.job_description_templates import JOB_DESCRIPTION_TEMPLATES
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -224,6 +226,13 @@ def generate_job_description_with_state(
         "skills_needed": []
     }
 
+    # Known-role templates take priority over the LLM entirely -- no quota
+    # usage, no variance, and no dependency on Gemini being up. See
+    # app/data/job_description_templates.py for how to add more roles.
+    template = _find_template(job_title, job_description_oneliner)
+    if template:
+        return _apply_template(template, initial_state)
+
     # Create and run the workflow
     app = create_job_description_workflow()
     try:
@@ -242,6 +251,34 @@ def _clean_title(raw: str) -> str:
     for word in ("Senior", "Junior", "Lead", "Principal", "Remote", "On-site", "Onsite", "Hybrid"):
         title = re.sub(rf"\b{word}\b", "", title, flags=re.IGNORECASE)
     return " ".join(title.split()).title() or raw.title()
+
+
+def _find_template(job_title: str, job_description_oneliner: str):
+    """Look up a known-role template by normalized title. See job_description_templates.py."""
+    candidates = [job_title, _clean_title(job_description_oneliner) if job_description_oneliner else ""]
+    for candidate in candidates:
+        key = (candidate or "").strip().lower()
+        if key in JOB_DESCRIPTION_TEMPLATES:
+            return JOB_DESCRIPTION_TEMPLATES[key]
+    return None
+
+
+def _apply_template(template: dict, state: JobDescriptionState) -> dict:
+    """Fill a known-role template's {location}/{experience} placeholders with the real values."""
+    title = state.get("job_title") or _clean_title(state["job_description_oneliner"])
+    experience = state.get("experience") or "3-5 years"
+    location = state.get("location") or "Remote"
+
+    description = template["description"].format(location=location, experience=experience)
+
+    return {
+        **state,
+        "job_title": title,
+        "experience": experience,
+        "location": location,
+        "generated_description": description,
+        "skills_needed": list(template["skills"]),
+    }
 
 
 def _fallback_job_description(state: JobDescriptionState) -> dict:
