@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Tag, Button, Table, Spin, Alert, Row, Col, Statistic, Progress, Drawer } from 'antd';
 import { AlertOutlined, ThunderboltOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { apiCall } from '../services/api';
+import { getAgentFearDashboard, getAgentFearState } from '../services/api/adminDashboard';
 
 const AgentFearDashboard = () => {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ const AgentFearDashboard = () => {
   const fetchFearDashboard = async () => {
     try {
       setLoading(true);
-      const response = await apiCall('GET', '/admin/agents/fear');
+      const response = await getAgentFearDashboard();
       if (response.agents_under_threat) {
         setAgents(response.agents_under_threat);
         setStats({
@@ -40,7 +40,7 @@ const AgentFearDashboard = () => {
 
   const fetchAgentDetail = async (agentName) => {
     try {
-      const response = await apiCall('GET', `/admin/agents/fear/${agentName}`);
+      const response = await getAgentFearState(agentName);
       setSelectedAgent(response);
       setDrawerVisible(true);
     } catch (error) {
