@@ -1,88 +1,98 @@
 # WROS Frontend - Development Notes
 
-## Current Session Summary (2026-08-07 Continued)
+## Current Session Summary (2026-08-08 - Candidate Profile Rebuild)
 
-### ✅ COMPLETED THIS SESSION
+### ✅ COMPLETED THIS SESSION - CANDIDATE PROFILE COMPLETE REBUILD
 
-**1. ALL MODAL CLOSING BUGS FIXED (5 modals)**
-- Schedule Interview Modal (src/screens/CandidateDetailsScreen.js:826)
-- Reschedule Interview Modal (src/screens/tabs/InterviewsTab.js:556)
-- Cancel Interview Modal (src/screens/tabs/InterviewsTab.js:596)
-- Submit Feedback Modal (src/screens/tabs/InterviewsTab.js:372)
-- Skip Feedback Modal (src/screens/tabs/InterviewsTab.js:415)
+**13 Commits - Full Profile Architecture Redesign**
 
-**Root Cause:** Modal close functions had guard `if (loading/submitting) return;` but state wasn't set to false before calling close. Fixed by reordering: `setLoading(false)` → `closeModal()`.
+**Phase 1: Removed Redundant Fields & Reorganized Structure**
+- Removed "Review for Submission" UDF field from Submit Job modal
+- Moved Gender, Date of Birth, Current Location to Basic Information
+- Removed Personal Information section (merged into Basic)
+- Moved Source field to Professional Information
+- Changed Notice Period from date picker to days input (30, 45, 60)
+- Removed Skills (comma-separated) field from Professional section
 
-**2. PANEL MEMBER DISPLAY ENHANCEMENT**
-- InterviewsTab.js: Panel members now display role + business unit name
-- Removed placeholder "(local dev)" text
-- Shows actual employee metadata from backend
-- Commits: `1a8eced`, `b0cdd78`
+**Phase 2: Added Resume-Extracted Sections**
+- Education Details (Level, University/College, Start/End dates, Degree)
+- Experience Details (Company, Title, Start/End dates, Responsibilities)
+- Certifications (Name, Organization, Issue/Expiry dates, Credential ID)
+- Skills Management Modal (structured data: skill name, years, last used date, primary designation)
 
-**3. ADMIN PASSWORD RESET UI**
-- HrUserManagement.js: New "Admin: Reset User Password" form
-- Does NOT require current password (admin doesn't have it)
-- Dropdown to select user
-- Calls new backend endpoint: `PUT /admin/users/{user_id}/reset-password`
-- Commit: `e825099`
+**Phase 3: Reorganized Layout for Sleek Design**
+- Basic Information: 9 fields (merged from 2 sections)
+- Professional Information: 5 fields (streamlined, auto-calc Experience)
+- Skills: Modal-based with primary skill designation
+- Resume: Always visible, collapsible with preview
+- Right Sidebar: Notes (inline textarea + backend sync, no modal)
+- Removed UDF popup modal completely from Submit Job flow
+
+**Commits:**
+- 0f87bad: Remove Review for Submission UDF
+- 2cf700d: Add Education/Experience/Documents sections
+- 30f50bc: Add inline Notes section
+- 4748dc8: Change Notice Period to days input
+- 2768ae9: Add Resume section
+- f12bb42: Move Notes to right sidebar
+- 77b91a9: Fix joining_date validation
+- 59bafa4: Add Skills/Education/Experience/Certifications (resume-parsed)
+- 73c5a98: Add Skills management modal
+- 5766864: Streamline profile sections
+- 444b4d8: Fix Resume display + remove UDF modal
+- b5f8df5: Fix syntax error in Resume section
+- c2c85da: Fix JSX indentation
 
 ---
 
 ## Architecture & Patterns
 
-### Modal Closing Pattern (CORRECT)
-When a modal performs async work:
-1. Set loading state at START
-2. Do async work
-3. Show success/error message
-4. **SET LOADING FALSE BEFORE CLOSE** (not in finally!)
-5. Call close function
+### Profile Section Structure
+Each profile section follows this pattern:
+- **Editable sections**: Basic Information, Professional Information, Identity & Background, Recruitment Assignment
+- **Resume-extracted (read-only)**: Education, Experience, Certifications, Skills
+- **Supporting**: Resume (always visible, collapsible), Documents, Notes (right sidebar)
 
-❌ WRONG:
-```javascript
-try {
-  setLoading(true);
-  await work();
-  setTimeout(() => closeModal(), 1000); // still loading=true!
-} finally {
-  setLoading(false); // too late!
-}
-```
+### Skills Modal Pattern
+Skills stored as array of objects with fields:
+- `name`: Skill name
+- `yearsOfExperience`: Years of experience
+- `lastUsedDate`: When skill was last used
+- `isPrimary`: Boolean flag for primary skill
 
-✅ CORRECT:
-```javascript
-try {
-  setLoading(true);
-  await work();
-  setLoading(false);
-  closeModal(); // now loading=false, close works!
-} catch (err) {
-  setLoading(false);
-}
-```
+Validation: minimum 1 skill required, exactly 1 primary skill.
 
-### Panel Member Display Pattern
-```javascript
-const roleAndBU = [member?.interviewer_role, member?.business_unit_name]
-  .filter(Boolean)
-  .join(" • ") || "";
-return <span>{name} {roleAndBU && <div>{roleAndBU}</div>}</span>;
-```
+### Resume Data Flow
+- Fetched from candidateFullDetails.resume_data
+- Always displays (no conditional hide)
+- Collapsible preview via chevron button
+- File download link for resume document
+- Shows "No resume available" fallback message
+
+### Notice Period Input
+- Changed from date picker to number input (30, 45, 60 days)
+- Field name: candidate_notice_period
+- NOT sent as candidate_joining_date (different field with date format)
 
 ---
 
 ## Current Project State
 
-### EPIC-02 Phase 1: ~80% Complete
-- Interview scheduling: ✅ All modals fixed
-- Panel management: ✅ Display enhanced with role/BU
-- Feedback submission: ✅ All modals fixed
-- Status: Ready for Phase 2
+### Candidate Profile: ✅ COMPLETE THIS SESSION
+- 13 commits delivered: Full profile rebuild
+- 2 main editable sections (Basic Information, Professional Information)
+- 4 resume-extracted read-only sections (Education, Experience, Certifications, Skills)
+- Skills: Structured modal with primary skill designation
+- Resume: Always visible, collapsible preview with download
+- Right Sidebar: Notes with inline textarea (backend sync)
+- UDF popup modal: Removed from Submit Job flow
+- Status: Production-ready for UAT
 
-### Recommended Next Focus
-1. **EPIC-02 Phase 1** - Finish 3 remaining stories (this week)
-2. **EPIC-01** - Employee conversion pipeline (next week)
-3. **EPIC-05** - Timesheet system (week 3)
+### Backlog Priorities (Post-Profile)
+See MEMORY.md for full EPIC-04 scope. Next focus:
+1. **Thunder autonomous candidate journey** (Phase 3 Part B) - CRITICAL
+2. **Interview regrouping** (group by job/round with rehire guards)
+3. **Candidate portal strategy** (map to JobDiva integration)
 
 ---
 
@@ -101,32 +111,50 @@ Current test users for local development:
 
 Database path: OnboardingModule-Backend/local_dev.sqlite3 (resolved to absolute path by backend)
 
+### Deferred Features (Backlog)
+- **Resume upload/attachment functionality** - UI displays "Upload resume" message, no button/handler built
+- **Candidate portal strategy** - JobDiva portal mapping (browse/apply/register-interest/progress) undefined
+- **Interview regrouping** - Group interviews by job/round with rehire guards (PRIORITY)
+
 ---
 
 ## Code Standards (Established 2026-07-23)
 
-- CardBlock pattern for multi-section editable UI (see JobDetails.js, CandidateDetailsScreen.js)
+- CardBlock pattern for multi-section editable UI
 - Modal state management: close guard only prevents races, doesn't prevent close
 - All state updates before calling close functions
 - No hardcoded values in production-ready stories
 - React hooks: useCallback for memoized callbacks, useMemo for derived state
+- **Defensive programming**: Use optional chaining (?.) on all external data access
+- **Array-to-string conversion**: API validators expect strings, use join(", ") for skill arrays
+- **Date format validation**: Only send candidate_joining_date if matches YYYY-MM-DD regex
 
 ---
 
-## Recent Commits (This Session)
+## All Commits This Session (2026-08-08)
 
 ```
-e825099 Add admin password reset UI - no current password required
-b0cdd78 Fix submit and skip feedback modal closing issues
-1a8eced Fix all interview modal closing issues and enhance panel member display
+0f87bad Remove 'Review for Submission' UDF field from CandidateAssignJobModal
+2cf700d Add Education/Experience/Documents sections to candidate profile
+30f50bc Add inline Notes section to candidate profile (center placement)
+4748dc8 Change Notice Period from date picker to days input (30/45/60)
+2768ae9 Add Resume section (collapsible, always visible display)
+f12bb42 Move Notes section from center to right sidebar
+77b91a9 Fix joining_date validation: only send if YYYY-MM-DD format
+59bafa4 Add Skills/Education/Experience/Certifications (resume-parsed sections)
+73c5a98 Add Skills management modal with primary skill designation
+5766864 Streamline profile: merge Personal into Basic, move Source field
+444b4d8 Fix Resume display (always show) + remove UDF modal from Submit Job
+b5f8df5 Fix JSX syntax error in Resume section (unexpected token)
+c2c85da Fix Resume section indentation (final compilation fix)
 ```
 
 ---
 
 ## Session Discipline
 
-- Complete ONE task thoroughly before next
-- NO summary generation without explicit request (saves tokens)
+- Complete ONE task thoroughly before moving to next
 - Code pushed to main after each logical milestone
-- Test golden path + edge cases in browser before commit
-- No token-wasting auto-summaries
+- Test golden path + edge cases in browser before committing
+- Defensive programming with optional chaining throughout
+- No placeholder fields or hardcoded values in production code
