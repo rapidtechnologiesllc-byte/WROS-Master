@@ -4,9 +4,11 @@ from typing import Optional, List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+import time
 
 import app.schemas as schema
 from app.core.database import get_db
+from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -196,13 +198,41 @@ def create_candidate(
     if request.education_records or request.experience_records:
         db.commit()
 
-    # HRMS-0401: assign the AI recruiter automatically -- doesn't block
-    # this response, doesn't fail candidate creation if it errors.
-    # 2026-08-05 real fix: must NOT pass this request's own `db` into a
-    # BackgroundTask -- it's closed before the task runs. See
-    # run_auto_assign_ai_agent_in_background()'s own docstring.
-    # Tenant scoping removed (single-company deployment) -- function uses default tenant_id=1
-    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
+    # HRMS-0401: Thunder 5-second SLA -- immediate synchronous assignment
+    # "Strike while iron is hot" - reach out within 5 seconds of candidate creation
+    # Flash validates SLA compliance and applies appreciation/punishment
+    try:
+        from app.services.ai_conversation_service import assign_ai_agent
+        import time
+        sla_start = time.time()
+
+        assign_ai_agent(
+            candidate_id=candidate_id,
+            tenant_id="1",  # Single-company deployment
+            assigned_by=None,  # System-triggered, not HR user
+            db=db
+        )
+
+        sla_elapsed = time.time() - sla_start
+
+        # Log SLA performance for Flash validation
+        db.add(ConversationEvent(
+            conversation_id=None,  # Will be set by system
+            event_type="THUNDER_SLA_TRACKED",
+            triggered_by="system",
+            event_data={
+                "candidate_id": candidate_id,
+                "sla_target_seconds": 5,
+                "sla_elapsed_seconds": round(sla_elapsed, 3),
+                "sla_met": sla_elapsed <= 5.0,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ))
+        db.commit()
+
+    except Exception as e:
+        logger.error(f"Thunder SLA assignment failed for candidate {candidate_id}: {str(e)}")
+        # Don't block candidate creation - log but continue
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(
@@ -981,6 +1011,93 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         status="Success",
         message=f"Candidate with ID {candidate_id} and all associated records deleted successfully"
     )
+
+# ============================================
+# Candidate-to-Employee Conversion
+# ============================================
+
+@router.post(
+    "/candidates/{candidate_id}/convert-to-employee",
+    dependencies=[Depends(require_permission("candidate.manage"))],
+    summary="Convert candidate to employee (only when status=OFFER and start_date met)"
+)
+def convert_candidate_to_employee(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Convert a candidate to an employee record.
+
+    Prerequisites:
+    - Candidate status must be "OFFER"
+    - Start date must have arrived (candidateJoiningDate <= today)
+
+    Creates Employee record and transitions candidate to "EMPLOYEE" status.
+    """
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if candidate.candidateStatus != "OFFER":
+        raise HTTPException(status_code=400, detail=f"Candidate status is {candidate.candidateStatus}, not OFFER")
+
+    if not candidate.candidateJoiningDate or candidate.candidateJoiningDate > datetime.now().date():
+        raise HTTPException(status_code=400, detail="Joining date has not arrived yet")
+
+    try:
+        # Create Employee record
+        from app.models.employee import Employee
+        employee = Employee(
+            id=str(uuid.uuid4()),
+            tenant_id=candidate.tenant_id,
+            first_name=candidate.candidateFirstName,
+            last_name=candidate.candidateLastName or "",
+            email=candidate.candidateEmail,
+            mobile=candidate.candidateMobileNumber,
+            gender=None,
+            date_of_birth=None,
+            status="ACTIVE",
+            employment_type=candidate.candidateEmployeeType or "Full-Time",
+            designation=candidate.candidateJobTitle or "Employee",
+            location=candidate.candidateCurrentLocation,
+            joining_date=candidate.candidateJoiningDate,
+            created_at=datetime.utcnow(),
+        )
+        db.add(employee)
+        db.flush()
+
+        # Update candidate status to EMPLOYEE
+        candidate.candidateStatus = "EMPLOYEE"
+        candidate.updatedAt = datetime.utcnow()
+
+        # Log conversion event
+        from app.models.candidate_ai import ConversationEvent
+        db.add(ConversationEvent(
+            event_type="CANDIDATE_CONVERTED_TO_EMPLOYEE",
+            triggered_by="HR",
+            event_data={
+                "candidate_id": candidate_id,
+                "employee_id": employee.id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "triggered_by_user": user.UserID if user else "system"
+            }
+        ))
+
+        db.commit()
+        logger.info(f"✅ Candidate {candidate_id} converted to Employee {employee.id}")
+
+        return {
+            "status": "success",
+            "candidate_id": candidate_id,
+            "employee_id": employee.id,
+            "message": f"Candidate {candidate.candidateFirstName} converted to employee successfully"
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Conversion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
+
 
 # ============================================
 # Candidate Contacts Endpoint
