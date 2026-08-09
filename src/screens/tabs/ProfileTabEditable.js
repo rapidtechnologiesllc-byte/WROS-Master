@@ -334,9 +334,15 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Experience (Years)"
+              type="number"
+              min="0"
+              max="99"
               value={editForm.experience || ""}
-              onChange={(v) => setEditForm({...editForm, experience: v})}
-              disabled
+              onChange={(v) => {
+                const numVal = v === "" ? "" : String(Math.max(0, Math.min(99, parseInt(v) || 0)));
+                setEditForm({...editForm, experience: numVal});
+              }}
+              placeholder="e.g., 5"
             />
             <Select
               label="Source"

@@ -198,14 +198,14 @@ export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
   return (data, response);
 };
 
-export const submitCandidateToJob = async (candidate_id, demand_id) => {
+export const submitCandidateToJob = async (candidate_id, job_id) => {
   const { data, response } = await apiRequest(
     "/submissions",
     {
       method: "POST",
       body: JSON.stringify({
         candidate_id: candidate_id,
-        demand_id: demand_id,
+        demand_id: job_id || job_id, // job_id is the demand_id in this context
         submission_rank: 1,
         source: "hrms",
       }),
