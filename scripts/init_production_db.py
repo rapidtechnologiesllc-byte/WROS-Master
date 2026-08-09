@@ -19,6 +19,10 @@ For existing databases with data, use Alembic migrations instead:
 
 import os
 import sys
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.pool import StaticPool
@@ -70,7 +74,7 @@ def init_production_db():
         # Create all tables
         print("Creating tables...")
         Base.metadata.create_all(bind=engine)
-        print("✓ Database initialized successfully")
+        print("[OK] Database initialized successfully")
 
         # Verify tables were created
         with engine.connect() as conn:
@@ -84,10 +88,10 @@ def init_production_db():
 
             row = result.fetchone()
             table_count = row[0] if row else 0
-            print(f"✓ {table_count} tables created")
+            print(f"[OK] {table_count} tables created")
 
         engine.dispose()
-        print("\n✅ Database initialization complete!")
+        print("\n[SUCCESS] Database initialization complete!")
         print("\nNext steps:")
         print("1. Verify database connectivity from your application")
         print("2. Run migrations if adding new schema: alembic upgrade head")
