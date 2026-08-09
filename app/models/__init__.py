@@ -110,7 +110,6 @@ from app.models.activity_feed_read_state import ActivityFeedReadState
 from app.models.recruiter_intervention_queue import RecruiterInterventionQueue
 from app.models.candidate_engagement_metrics import CandidateEngagementMetrics
 from app.models.bulk_engagement import BulkEngagementJob, BulkEngagementError
-from app.models.tenant_ai_config import TenantAIConfig, TenantAIConfigChangeLog
 from app.models.event_log import EventLog
 from app.models.agent_execution_log import AgentExecutionLog
 from app.models.preboarding_touchpoint import PreboardingTouchpoint

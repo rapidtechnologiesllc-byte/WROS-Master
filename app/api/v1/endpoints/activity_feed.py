@@ -56,6 +56,19 @@ def mark_activity_feed_read_all(candidate_id: Optional[str] = Query(default=None
     return MarkAllReadResponse(marked_count=count)
 
 
+@router.get("/standup", dependencies=[Depends(require_permission("candidate.view"))])
+def get_daily_standup(days: int = Query(default=1, ge=1, le=30), db: Session = Depends(get_db)):
+    """
+    Get daily standup report showing:
+    - How many candidates Thunder reached
+    - SLA compliance (met vs missed)
+    - Success rate percentage
+    - List of all candidates contacted with timestamps
+    """
+    from app.services.daily_standup_service import get_daily_standup
+    return get_daily_standup(db, days=days)
+
+
 @router.get("/flash/standup", dependencies=[Depends(require_permission("candidate.view"))])
 def get_flash_standup_report(days: int = Query(default=1, ge=1, le=30), db: Session = Depends(get_db)):
     """
