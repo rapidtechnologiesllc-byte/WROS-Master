@@ -56,7 +56,7 @@ def get_all_agents_performance(
 
 @router.get("/by-tier/{tier}")
 def get_agents_by_tier(
-    tier: str = Query(..., description="Tier: tier_1_core, tier_2_resource, tier_3_finance, etc."),
+    tier: str,
     db: Session = Depends(get_db),
 ):
     """Get agents by tier."""
@@ -71,7 +71,7 @@ def get_agents_by_tier(
 
 @router.get("/by-domain/{domain}")
 def get_agents_by_domain(
-    domain: str = Query(..., description="Domain: recruitment, resource_management, finance, etc."),
+    domain: str,
     db: Session = Depends(get_db),
 ):
     """Get agents by domain (recruitment, resource management, finance, etc.)."""
