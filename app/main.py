@@ -16,6 +16,13 @@ from app.middleware import setup_cors, RequestLoggingMiddleware
 # process startup. See app.core.tenant_context's module docstring.
 from app.core import tenant_context as _tenant_context  # noqa: F401
 
+# Agent State models — imported here so Base.metadata.create_all() finds them
+from app.models import agent_state_target  # noqa: F401
+from app.models import agent_phalanx  # noqa: F401
+
+# Referral models — imported here for database table creation
+from app.models import referral  # noqa: F401
+
 
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable

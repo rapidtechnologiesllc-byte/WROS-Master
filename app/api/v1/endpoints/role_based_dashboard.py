@@ -1,0 +1,173 @@
+"""Role-Based Dashboard API endpoints."""
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.database import get_db
+from app.models.user import Users
+from app.services.role_based_dashboard_service import RoleBasedDashboardService
+
+router = APIRouter(prefix="/dashboard", tags=["Role-Based Dashboard"])
+
+
+@router.get("/my-dashboard")
+def get_my_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Get personalized dashboard for current user based on their role.
+
+    Returns:
+    - CEO: Strategic view (all agents, KPI, risk, forecast)
+    - Recruiter: Recruitment pipeline (Thunder, interviews, offers)
+    - HR: Employee lifecycle (retention, onboarding, culture)
+    - Finance: Revenue tracking (pipeline, ARR, margins)
+    - Manager: Team operations (utilization, deployment, performance)
+    - Employee: Personal (timesheet, tasks, performance)
+    """
+
+    try:
+        dashboard = RoleBasedDashboardService.get_dashboard_for_role(
+            db=db,
+            user=current_user,
+            tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else None
+        )
+
+        return {
+            "status": "success",
+            "user_email": current_user.UserEmail,
+            "user_role": current_user.UserRole,
+            "dashboard": dashboard,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ceo-strategic")
+def get_ceo_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    CEO Strategic Dashboard - All agents, risks, forecast.
+
+    Required: CEO or Admin role
+    """
+
+    try:
+        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only CEO/Admin can view strategic dashboard"
+            )
+
+        dashboard = RoleBasedDashboardService._ceo_dashboard(db, None)
+
+        return {
+            "status": "success",
+            "dashboard_type": "CEO_STRATEGIC",
+            "dashboard": dashboard,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/recruiter-pipeline")
+def get_recruiter_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Recruiter Pipeline Dashboard - Thunder, candidates, interviews, offers.
+
+    Required: Recruiter role
+    """
+
+    try:
+        if current_user.UserRole not in ["Super User", "Admin", "Recruiter"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only Recruiters can view pipeline dashboard"
+            )
+
+        dashboard = RoleBasedDashboardService._recruiter_dashboard(db, None)
+
+        return {
+            "status": "success",
+            "dashboard_type": "RECRUITER_PIPELINE",
+            "dashboard": dashboard,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/hr-people")
+def get_hr_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    HR People Dashboard - Retention, onboarding, culture, wellbeing.
+
+    Required: HR Manager role
+    """
+
+    try:
+        if current_user.UserRole not in ["Super User", "Admin", "HR Manager"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only HR Managers can view people dashboard"
+            )
+
+        dashboard = RoleBasedDashboardService._hr_dashboard(db, None)
+
+        return {
+            "status": "success",
+            "dashboard_type": "HR_PEOPLE",
+            "dashboard": dashboard,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/finance-revenue")
+def get_finance_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Finance Revenue Dashboard - Pipeline, revenue, margins, cash.
+
+    Required: Finance role
+    """
+
+    try:
+        if current_user.UserRole not in ["Super User", "Admin", "Finance"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only Finance staff can view revenue dashboard"
+            )
+
+        dashboard = RoleBasedDashboardService._finance_dashboard(db, None)
+
+        return {
+            "status": "success",
+            "dashboard_type": "FINANCE_REVENUE",
+            "dashboard": dashboard,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

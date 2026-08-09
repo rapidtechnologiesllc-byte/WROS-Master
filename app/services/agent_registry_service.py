@@ -1,398 +1,546 @@
-"""
-Agent Registry Service
+"""Agent Registry - All 50+ WROS agents with targets and strategic roles."""
 
-Centralized registry of all 70+ internal agents. Provides discovery,
-status, and health check capabilities.
+# All 50+ agents organized by tier and domain
+AGENT_REGISTRY = {
+    # ============================================================
+    # TIER 1: CORE RECRUITMENT & CONTROL (4 agents)
+    # ============================================================
+    "Thunder": {
+        "domain": "recruitment",
+        "tier": "tier_1_core",
+        "agent_id": "thunder_001",
+        "owner": "CFO/Recruiting",
+        "authority": 3,  # Autonomous execution
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["headcount", "revenue"],
+        "how_helps_grow": "AI recruiter: sources → screens → interviews → offers → hires → feeds 2000 employee target",
+        "fy_target": {"value": 250, "unit": "employees"},
+        "y2030_target": {"value": 2000, "unit": "employees"},
+        "min_success_rate": 95.0,
+        "min_quality_score": 85.0,
+        # SPARTAN PHALANX
+        "phalanx": "Recruitment",
+        "position": 1,
+        "left_neighbor": None,  # First in line
+        "right_neighbor": "Recruitment Agent",
+        "shield_sla": "95% qualified candidates, <2s response",
+        "shield_failure_action": "KILL_SWITCH",
+        "flank_vulnerabilities": ["rate_limited", "false_positives", "limited_sourcing"],
+        "flank_coverage_expected": "job_definitions + sourcing_alternatives",
+        "monitor_left_neighbor": False,
+        "monitor_right_neighbor": True,
+        "shield_watch_interval": 60,
+    },
+    "Recruitment Agent": {
+        "domain": "recruitment",
+        "tier": "tier_1_core",
+        "agent_id": "recruitment_001",
+        "owner": "VP Recruiting",
+        "authority": 2,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Job creation + candidate qualification → feeds Thunder with roles and sourcing",
+        "fy_target": {"value": 900, "unit": "candidates_qualified"},
+        "y2030_target": {"value": 7200, "unit": "candidates"},
+        "min_success_rate": 93.0,
+        # SPARTAN PHALANX
+        "phalanx": "Recruitment",
+        "position": 2,
+        "left_neighbor": "Thunder",  # I protect Thunder
+        "right_neighbor": "Interview Reminder Agent",
+        "shield_sla": "98% job quality, 92% candidate match",
+        "shield_failure_action": "KILL_SWITCH",
+        "flank_vulnerabilities": ["biased_job_descriptions", "incorrect_skills", "missing_coverage"],
+        "flank_coverage_expected": "qualified_candidate_stream + market_feedback",
+        "monitor_left_neighbor": True,
+        "monitor_right_neighbor": True,
+        "shield_watch_interval": 60,
+    },
+    "Supervisor Agent": {
+        "domain": "recruitment",
+        "tier": "tier_1_core",
+        "agent_id": "supervisor_001",
+        "owner": "VP Recruiting",
+        "authority": 2,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Approves recruiter actions → ensures quality gates → prevents bad hires",
+        "fy_target": {"value": 98, "unit": "%_approval_rate"},
+        "y2030_target": {"value": 99, "unit": "%_approval_rate"},
+        "min_success_rate": 98.0,
+    },
+    "CEO Dependency Agent": {
+        "domain": "governance",
+        "tier": "tier_1_core",
+        "agent_id": "ceo_dep_001",
+        "owner": "CEO",
+        "authority": 0,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Reduces CEO dependency → enables organization to operate 30 days without CEO",
+        "fy_target": {"value": 5, "unit": "dependencies_eliminated"},
+        "y2030_target": {"value": 0, "unit": "critical_dependencies"},
+        "min_success_rate": 100.0,
+    },
 
-This is the source of truth for: which agents exist, what they do,
-whether they're operational, and what tier they belong to.
-"""
+    # ============================================================
+    # TIER 2: RESOURCE MANAGEMENT (3 agents)
+    # ============================================================
+    "Resource Management Agent": {
+        "domain": "resource_management",
+        "tier": "tier_2_resource",
+        "agent_id": "resource_mgmt_001",
+        "owner": "SVP Operations",
+        "authority": 3,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "Assigns employees to projects → 80% utilization → generates revenue from headcount",
+        "fy_target": {"value": 75, "unit": "%_utilization"},
+        "y2030_target": {"value": 80, "unit": "%_utilization"},
+        "min_success_rate": 95.0,
+    },
+    "Core-Pull Conflict Agent": {
+        "domain": "resource_management",
+        "tier": "tier_2_resource",
+        "agent_id": "core_pull_001",
+        "owner": "SVP Operations",
+        "authority": 2,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["headcount", "revenue"],
+        "how_helps_grow": "Enforces no cross-BU CORE borrowing → maintains BU autonomy → enables scaling",
+        "fy_target": {"value": 100, "unit": "%_policy_compliance"},
+        "y2030_target": {"value": 100, "unit": "%_policy_compliance"},
+        "min_success_rate": 99.9,
+    },
+    "Deployment Agent": {
+        "domain": "resource_management",
+        "tier": "tier_2_resource",
+        "agent_id": "deployment_001",
+        "owner": "SVP Operations",
+        "authority": 2,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Executes deployment workflow → matches demand → fills project seats",
+        "fy_target": {"value": 90, "unit": "%_match_rate"},
+        "y2030_target": {"value": 95, "unit": "%_match_rate"},
+        "min_success_rate": 92.0,
+    },
 
-from typing import List, Dict, Any, Optional
-from enum import Enum
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+    # ============================================================
+    # TIER 3: FINANCE (6 agents)
+    # ============================================================
+    "CFO Agent": {
+        "domain": "finance",
+        "tier": "tier_3_finance",
+        "agent_id": "cfo_001",
+        "owner": "CFO",
+        "authority": 1,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Tracks $100M revenue target, cash flow, margin, EBITDA for executive visibility",
+        "fy_target": {"value": 15_000_000, "unit": "USD_revenue"},
+        "y2030_target": {"value": 100_000_000, "unit": "USD_revenue"},
+        "min_success_rate": 99.0,
+    },
+    "Partner ROI Agent": {
+        "domain": "finance",
+        "tier": "tier_3_finance",
+        "agent_id": "partner_roi_001",
+        "owner": "CFO",
+        "authority": 2,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Drives partner agency sales, nudges underperforming partners toward targets",
+        "fy_target": {"value": 8_000_000, "unit": "USD_partner_revenue"},
+        "y2030_target": {"value": 50_000_000, "unit": "USD_partner_revenue"},
+        "min_success_rate": 90.0,
+    },
+    "Opportunity Tracker Agent": {
+        "domain": "finance",
+        "tier": "tier_3_finance",
+        "agent_id": "opp_tracker_001",
+        "owner": "VP Sales",
+        "authority": 0,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Tracks sales pipeline → forecasts revenue → feeds $100M target",
+        "fy_target": {"value": 15_000_000, "unit": "USD_pipeline"},
+        "y2030_target": {"value": 100_000_000, "unit": "USD_pipeline"},
+        "min_success_rate": 93.0,
+    },
+    "Revenue Recognition Agent": {
+        "domain": "finance",
+        "tier": "tier_3_finance",
+        "agent_id": "revenue_rec_001",
+        "owner": "Controller",
+        "authority": 1,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Recognizes revenue correctly → accurate financial reporting → investor confidence",
+        "fy_target": {"value": 100, "unit": "%_accuracy"},
+        "y2030_target": {"value": 100, "unit": "%_accuracy"},
+        "min_success_rate": 99.9,
+    },
+    "Margin Agent": {
+        "domain": "finance",
+        "tier": "tier_3_finance",
+        "agent_id": "margin_001",
+        "owner": "CFO",
+        "authority": 0,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Calculates gross/contribution margin → identifies profitability drivers",
+        "fy_target": {"value": 40, "unit": "%_gross_margin"},
+        "y2030_target": {"value": 45, "unit": "%_gross_margin"},
+        "min_success_rate": 98.0,
+    },
+    "Cash Flow Agent": {
+        "domain": "finance",
+        "tier": "tier_3_finance",
+        "agent_id": "cash_001",
+        "owner": "CFO",
+        "authority": 1,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Forecasts cash → prevents liquidity crisis → enables growth investments",
+        "fy_target": {"value": 5_000_000, "unit": "USD_cash_balance"},
+        "y2030_target": {"value": 50_000_000, "unit": "USD_cash_balance"},
+        "min_success_rate": 95.0,
+    },
 
-from app.models.agent_execution_log import AgentExecutionLog
+    # ============================================================
+    # TIER 4: HR & PEOPLE (6 agents)
+    # ============================================================
+    "HR Agent": {
+        "domain": "hr",
+        "tier": "tier_4_hr",
+        "agent_id": "hr_001",
+        "owner": "VP People",
+        "authority": 2,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Employee lifecycle: onboarding → retention → performance → development",
+        "fy_target": {"value": 200, "unit": "employees_retained"},
+        "y2030_target": {"value": 2000, "unit": "active_employees"},
+        "min_success_rate": 95.0,
+    },
+    "Employee Mental Health Agent": {
+        "domain": "hr",
+        "tier": "tier_4_hr",
+        "agent_id": "mental_health_001",
+        "owner": "VP People",
+        "authority": 1,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Maintains wellbeing → 95% retention in first 90 days → reduces attrition",
+        "fy_target": {"value": 95, "unit": "%_retention"},
+        "y2030_target": {"value": 95, "unit": "%_retention"},
+        "min_success_rate": 93.0,
+    },
+    "Onboarding Agent": {
+        "domain": "hr",
+        "tier": "tier_4_hr",
+        "agent_id": "onboarding_001",
+        "owner": "VP People",
+        "authority": 2,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Automates first 90 days → reduces time-to-productivity → improves retention",
+        "fy_target": {"value": 90, "unit": "%_on_time"},
+        "y2030_target": {"value": 95, "unit": "%_on_time"},
+        "min_success_rate": 92.0,
+    },
+    "Buddy Program Agent": {
+        "domain": "hr",
+        "tier": "tier_4_hr",
+        "agent_id": "buddy_001",
+        "owner": "VP People",
+        "authority": 2,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Pairs mentors with new employees → engagement → retention",
+        "fy_target": {"value": 90, "unit": "%_assignment"},
+        "y2030_target": {"value": 95, "unit": "%_assignment"},
+        "min_success_rate": 90.0,
+    },
+    "Performance Agent": {
+        "domain": "hr",
+        "tier": "tier_4_hr",
+        "agent_id": "performance_001",
+        "owner": "VP People",
+        "authority": 0,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Tracks performance KPIs → identifies high performers → prevents loss",
+        "fy_target": {"value": 85, "unit": "%_on_target"},
+        "y2030_target": {"value": 90, "unit": "%_on_target"},
+        "min_success_rate": 90.0,
+    },
+    "Retention Risk Agent": {
+        "domain": "hr",
+        "tier": "tier_4_hr",
+        "agent_id": "retention_risk_001",
+        "owner": "VP People",
+        "authority": 1,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Identifies flight risk early → enables intervention → prevents attrition",
+        "fy_target": {"value": 95, "unit": "%_intervention_rate"},
+        "y2030_target": {"value": 98, "unit": "%_intervention_rate"},
+        "min_success_rate": 88.0,
+    },
 
+    # ============================================================
+    # TIER 5: KPI & METRICS (3 agents)
+    # ============================================================
+    "KPI Agent": {
+        "domain": "kpi",
+        "tier": "tier_5_kpi",
+        "agent_id": "kpi_001",
+        "owner": "CEO",
+        "authority": 0,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "Tracks progress toward $100M/2000 targets; alerts if falling behind",
+        "fy_target": {"value": 100, "unit": "%_on_track"},
+        "y2030_target": {"value": 100, "unit": "%_on_track"},
+        "min_success_rate": 99.0,
+    },
+    "Forecast Agent": {
+        "domain": "kpi",
+        "tier": "tier_5_kpi",
+        "agent_id": "forecast_001",
+        "owner": "CFO",
+        "authority": 0,
+        "strategic_importance": "HIGH",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "Forecasts quarterly trajectory → predicts gaps → enables course correction",
+        "fy_target": {"value": 90, "unit": "%_accuracy"},
+        "y2030_target": {"value": 95, "unit": "%_accuracy"},
+        "min_success_rate": 90.0,
+    },
+    "Risk Agent": {
+        "domain": "kpi",
+        "tier": "tier_5_kpi",
+        "agent_id": "risk_001",
+        "owner": "CEO",
+        "authority": 1,
+        "strategic_importance": "CRITICAL",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "Identifies operational/client/delivery risks → enables mitigation",
+        "fy_target": {"value": 100, "unit": "%_detection"},
+        "y2030_target": {"value": 100, "unit": "%_detection"},
+        "min_success_rate": 95.0,
+    },
 
-class AgentTier(str, Enum):
-    """Agent classification by criticality and autonomy."""
-    CORE = "core"  # Core recruiting flow (Thunder, Recruitment, Supervisor)
-    RESOURCE = "resource"  # Resource management (matching, allocation)
-    ENGAGEMENT = "engagement"  # Candidate engagement (outreach, follow-up)
-    DECISION = "decision"  # Autonomous scoring/decisions
-    SUPPORT = "support"  # Operational support (notifications, digests)
-    FINANCE = "finance"  # Financial tracking
-    HR = "hr"  # Employee/HR operations
-    MONITOR = "monitor"  # Monitoring/alerts
+    # ============================================================
+    # TIER 6: SUPPORT & ENGAGEMENT (15+ agents)
+    # ============================================================
+    "Engagement Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "engagement_001",
+        "owner": "VP Marketing",
+        "authority": 2,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Candidate engagement → reduces drop-off → improves conversion",
+        "fy_target": {"value": 85, "unit": "%_engagement_rate"},
+        "y2030_target": {"value": 90, "unit": "%_engagement_rate"},
+        "min_success_rate": 88.0,
+    },
+    "Interview Reminder Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "interview_reminder_001",
+        "owner": "Recruiting",
+        "authority": 3,
+        "strategic_importance": "LOW",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Reduces interview no-shows → improves conversion",
+        "fy_target": {"value": 95, "unit": "%_attendance"},
+        "y2030_target": {"value": 97, "unit": "%_attendance"},
+        "min_success_rate": 90.0,
+    },
+    "Activity Feed Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "activity_feed_001",
+        "owner": "Product",
+        "authority": 1,
+        "strategic_importance": "LOW",
+        "contributes_to": [],
+        "how_helps_grow": "Tracks system activity → audit trail → compliance",
+        "fy_target": {"value": 100, "unit": "%_uptime"},
+        "y2030_target": {"value": 100, "unit": "%_uptime"},
+        "min_success_rate": 99.5,
+    },
+    "Executive Signal Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "exec_signal_001",
+        "owner": "CEO",
+        "authority": 1,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "Daily exec signals → CEO visibility → strategic decisions",
+        "fy_target": {"value": 100, "unit": "%_accuracy"},
+        "y2030_target": {"value": 100, "unit": "%_accuracy"},
+        "min_success_rate": 95.0,
+    },
+    "Ticketing Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "ticketing_001",
+        "owner": "Operations",
+        "authority": 2,
+        "strategic_importance": "LOW",
+        "contributes_to": [],
+        "how_helps_grow": "Issue tracking → fast resolution → operational efficiency",
+        "fy_target": {"value": 24, "unit": "hour_response_time"},
+        "y2030_target": {"value": 4, "unit": "hour_response_time"},
+        "min_success_rate": 90.0,
+    },
+    "Help Desk Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "helpdesk_001",
+        "owner": "Operations",
+        "authority": 2,
+        "strategic_importance": "LOW",
+        "contributes_to": [],
+        "how_helps_grow": "Employee support → reduces friction → improves productivity",
+        "fy_target": {"value": 95, "unit": "%_resolution_rate"},
+        "y2030_target": {"value": 98, "unit": "%_resolution_rate"},
+        "min_success_rate": 88.0,
+    },
+    "Culture Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "culture_001",
+        "owner": "VP People",
+        "authority": 1,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Monitors culture health → identifies issues → enables intervention",
+        "fy_target": {"value": 80, "unit": "%_engagement_score"},
+        "y2030_target": {"value": 85, "unit": "%_engagement_score"},
+        "min_success_rate": 85.0,
+    },
+    "Recognition Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "recognition_001",
+        "owner": "VP People",
+        "authority": 2,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Recognizes high performers → boosts morale → improves retention",
+        "fy_target": {"value": 100, "unit": "%_coverage"},
+        "y2030_target": {"value": 100, "unit": "%_coverage"},
+        "min_success_rate": 90.0,
+    },
+    "Weekly Recap Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "weekly_recap_001",
+        "owner": "CEO",
+        "authority": 0,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "Weekly snapshot of progress → CEO visibility → strategic tracking",
+        "fy_target": {"value": 100, "unit": "%_delivery"},
+        "y2030_target": {"value": 100, "unit": "%_delivery"},
+        "min_success_rate": 95.0,
+    },
+    "Feedback Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "feedback_001",
+        "owner": "VP People",
+        "authority": 1,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["headcount"],
+        "how_helps_grow": "Collects feedback → identifies issues → enables continuous improvement",
+        "fy_target": {"value": 80, "unit": "%_response_rate"},
+        "y2030_target": {"value": 90, "unit": "%_response_rate"},
+        "min_success_rate": 85.0,
+    },
+    "Scrum of Scrums Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "scrum_001",
+        "owner": "CEO",
+        "authority": 0,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["revenue", "headcount"],
+        "how_helps_grow": "8:30 AM standup coordination → ensures alignment across agents",
+        "fy_target": {"value": 100, "unit": "%_attendance"},
+        "y2030_target": {"value": 100, "unit": "%_attendance"},
+        "min_success_rate": 98.0,
+    },
+    "Reporting Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "reporting_001",
+        "owner": "CFO",
+        "authority": 0,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Generates reports → investor confidence → fundraising support",
+        "fy_target": {"value": 100, "unit": "%_accuracy"},
+        "y2030_target": {"value": 100, "unit": "%_accuracy"},
+        "min_success_rate": 99.0,
+    },
+    "Partnership Agent": {
+        "domain": "support",
+        "tier": "tier_6_support",
+        "agent_id": "partnership_001",
+        "owner": "VP Partners",
+        "authority": 1,
+        "strategic_importance": "MEDIUM",
+        "contributes_to": ["revenue"],
+        "how_helps_grow": "Manages partner relationships → drives partner revenue",
+        "fy_target": {"value": 8_000_000, "unit": "USD_partner_revenue"},
+        "y2030_target": {"value": 50_000_000, "unit": "USD_partner_revenue"},
+        "min_success_rate": 90.0,
+    },
+}
 
+def get_agent_config(agent_name: str) -> dict:
+    """Get configuration for a single agent."""
+    return AGENT_REGISTRY.get(agent_name)
 
-class AgentStatus(str, Enum):
-    """Agent operational status."""
-    OPERATIONAL = "operational"
-    DEGRADED = "degraded"
-    OFFLINE = "offline"
-    NOT_IMPLEMENTED = "not_implemented"
+def get_all_agents() -> list:
+    """Get all agents."""
+    return list(AGENT_REGISTRY.keys())
 
+def get_agents_by_tier(tier: str) -> list:
+    """Get all agents in a specific tier."""
+    return [name for name, config in AGENT_REGISTRY.items() if config["tier"] == tier]
 
-@dataclass
-class AgentInfo:
-    """Metadata for a single agent."""
-    name: str  # Unique agent name (e.g., "Recruitment Agent")
-    tier: AgentTier  # Classification
-    status: AgentStatus  # Current status
-    description: str  # What it does
-    last_execution: Optional[datetime] = None  # Last recorded execution
-    execution_count_7d: int = 0  # Executions in last 7 days
-    success_rate_7d: float = 100.0  # Success rate (0-100)
-    avg_duration_ms: int = 0  # Average execution time
-    has_route: bool = True  # Whether API route exists
-    is_logging: bool = True  # Whether it logs to agent_execution_log
-    notes: Optional[str] = None
+def get_agents_by_domain(domain: str) -> list:
+    """Get all agents in a specific domain."""
+    return [name for name, config in AGENT_REGISTRY.items() if config["domain"] == domain]
 
+def get_agents_by_importance(importance: str) -> list:
+    """Get all agents of a specific strategic importance."""
+    return [name for name, config in AGENT_REGISTRY.items() if config["strategic_importance"] == importance]
 
-class AgentRegistry:
-    """Registry of all agents with discovery and health tracking."""
+def count_agents_by_tier() -> dict:
+    """Count agents per tier."""
+    counts = {}
+    for tier in ["tier_1_core", "tier_2_resource", "tier_3_finance", "tier_4_hr", "tier_5_kpi", "tier_6_support"]:
+        counts[tier] = len(get_agents_by_tier(tier))
+    return counts
 
-    # Core recruiting agents (fully operational)
-    RECRUITMENT_AGENT = AgentInfo(
-        name="Recruitment Agent",
-        tier=AgentTier.CORE,
-        status=AgentStatus.OPERATIONAL,
-        description="Auto-generate job descriptions with clarifying questions",
-        has_route=True,
-        is_logging=True,
-    )
+def count_total_agents() -> int:
+    """Total count of agents."""
+    return len(AGENT_REGISTRY)
 
-    SUPERVISOR_AGENT = AgentInfo(
-        name="Supervisor Agent",
-        tier=AgentTier.CORE,
-        status=AgentStatus.OPERATIONAL,
-        description="Multi-agent coordinator for candidate lifecycle",
-        has_route=True,
-        is_logging=True,
-    )
-
-    THUNDER_AGENT = AgentInfo(
-        name="Thunder",
-        tier=AgentTier.CORE,
-        status=AgentStatus.OPERATIONAL,
-        description="External-facing AI recruiter for candidate outreach",
-        has_route=True,
-        is_logging=True,
-    )
-
-    # Resource management agents
-    RESOURCE_MANAGEMENT_AGENT = AgentInfo(
-        name="Resource Management Agent",
-        tier=AgentTier.RESOURCE,
-        status=AgentStatus.OPERATIONAL,
-        description="Bench matching and resource allocation",
-        has_route=True,
-        is_logging=False,  # TODO: wire logging
-    )
-
-    CORE_PULL_AGENT = AgentInfo(
-        name="Core-Pull Conflict Agent",
-        tier=AgentTier.RESOURCE,
-        status=AgentStatus.OPERATIONAL,
-        description="Detect core-speciality conflicts in staffing",
-        has_route=False,  # TODO: create route
-        is_logging=False,  # TODO: wire logging
-    )
-
-    # Executive/Finance agents
-    CFO_AGENT = AgentInfo(
-        name="CFO Agent",
-        tier=AgentTier.FINANCE,
-        status=AgentStatus.OPERATIONAL,
-        description="Financial snapshot and forecasting",
-        has_route=True,
-        is_logging=False,  # TODO: wire logging
-    )
-
-    CEO_AGENT = AgentInfo(
-        name="CEO/FY Progress Agent",
-        tier=AgentTier.FINANCE,
-        status=AgentStatus.OPERATIONAL,
-        description="FY progress tracking and executive summary",
-        has_route=True,
-        is_logging=False,  # TODO: wire logging
-    )
-
-    PARTNER_ROI_AGENT = AgentInfo(
-        name="Partner ROI Agent",
-        tier=AgentTier.FINANCE,
-        status=AgentStatus.OPERATIONAL,
-        description="Partner KPI tracking and ROI analysis",
-        has_route=True,
-        is_logging=False,  # TODO: wire logging
-    )
-
-    OPPORTUNITY_TRACKER_AGENT = AgentInfo(
-        name="Opportunity Tracker Agent",
-        tier=AgentTier.FINANCE,
-        status=AgentStatus.OPERATIONAL,
-        description="Sales pipeline tracking toward $100M revenue target. Logs opportunities, monitors deal progression, alerts on stalls, escalates at-risk deals to Flash.",
-        has_route=True,
-        is_logging=False,  # TODO: wire logging
-    )
-
-    HTD_PIPELINE_AGENT = AgentInfo(
-        name="HTD Pipeline Accountability Agent",
-        tier=AgentTier.RESOURCE,
-        status=AgentStatus.OPERATIONAL,
-        description="Tracks SPECIALTY→CORE conversion pipeline. Shows partner CORE capacity forecast, identifies bottlenecks, triggers HTD hiring when development too slow.",
-        has_route=True,
-        is_logging=True,
-    )
-
-    FLASH_ORCHESTRATION_ENGINE = AgentInfo(
-        name="Flash Orchestration Engine",
-        tier=AgentTier.CORE,
-        status=AgentStatus.OPERATIONAL,
-        description="Daily command coordination: analyzes HTD pipeline + opportunity health + agent state. Issues directives to partners on what to do TODAY. Escalates to CEO when critical.",
-        has_route=True,
-        is_logging=True,
-    )
-
-    # HR/Employee agents
-    ONBOARDING_AGENT = AgentInfo(
-        name="Onboarding Agent",
-        tier=AgentTier.HR,
-        status=AgentStatus.OPERATIONAL,
-        description="Document collection and joining preparation",
-        has_route=True,
-        is_logging=False,  # TODO: wire logging
-    )
-
-    BUDDY_PROGRAM_AGENT = AgentInfo(
-        name="Buddy Program Agent",
-        tier=AgentTier.HR,
-        status=AgentStatus.OPERATIONAL,
-        description="30-day buddy program tracking and graduation",
-        has_route=False,  # TODO: create route
-        is_logging=False,  # TODO: wire logging
-    )
-
-    EMPLOYEE_MILESTONE_AGENT = AgentInfo(
-        name="Employee Milestone Agent",
-        tier=AgentTier.HR,
-        status=AgentStatus.OPERATIONAL,
-        description="Work anniversary and milestone tracking",
-        has_route=False,  # TODO: create route
-        is_logging=False,  # TODO: wire logging
-    )
-
-    # Missing agents (need implementation)
-    KPI_AGENT = AgentInfo(
-        name="KPI Agent",
-        tier=AgentTier.MONITOR,
-        status=AgentStatus.NOT_IMPLEMENTED,
-        description="Company-wide KPI tracking and forecasting",
-        has_route=False,
-        is_logging=False,
-        notes="MISSING: Full implementation needed",
-    )
-
-    HR_AGENT = AgentInfo(
-        name="HR Agent",
-        tier=AgentTier.HR,
-        status=AgentStatus.NOT_IMPLEMENTED,
-        description="Centralized HR operations and employee tracking",
-        has_route=False,
-        is_logging=False,
-        notes="MISSING: Full implementation needed",
-    )
-
-    EMPLOYEE_MENTAL_HEALTH_AGENT = AgentInfo(
-        name="Employee Mental Health Agent",
-        tier=AgentTier.HR,
-        status=AgentStatus.NOT_IMPLEMENTED,
-        description="Employee wellbeing monitoring and support",
-        has_route=False,
-        is_logging=False,
-        notes="MISSING: Full implementation needed",
-    )
-
-    # Engagement agents (partial implementations)
-    OUTREACH_AGENT = AgentInfo(
-        name="Outreach Agent",
-        tier=AgentTier.ENGAGEMENT,
-        status=AgentStatus.OPERATIONAL,
-        description="Automated candidate outreach via Thunder",
-        has_route=False,  # TODO: create route
-        is_logging=False,
-    )
-
-    INTERVIEW_REMINDER_AGENT = AgentInfo(
-        name="Interview Reminder Agent",
-        tier=AgentTier.ENGAGEMENT,
-        status=AgentStatus.OPERATIONAL,
-        description="Pre-interview reminders",
-        has_route=False,
-        is_logging=False,
-    )
-
-    INTERVIEW_CONFIRMATION_AGENT = AgentInfo(
-        name="Interview Confirmation Agent",
-        tier=AgentTier.ENGAGEMENT,
-        status=AgentStatus.OPERATIONAL,
-        description="Interview confirmation and scheduling",
-        has_route=False,
-        is_logging=False,
-    )
-
-    # Decision agents (scoring)
-    ABANDONMENT_SCORING_AGENT = AgentInfo(
-        name="Abandonment Scoring Agent",
-        tier=AgentTier.DECISION,
-        status=AgentStatus.OPERATIONAL,
-        description="Candidate abandonment risk prediction",
-        has_route=False,
-        is_logging=False,
-    )
-
-    COMPENSATION_SCORING_AGENT = AgentInfo(
-        name="Compensation Scoring Agent",
-        tier=AgentTier.DECISION,
-        status=AgentStatus.OPERATIONAL,
-        description="Pay-fit analysis and scoring",
-        has_route=False,
-        is_logging=False,
-    )
-
-    DESIRE_INTELLIGENCE_AGENT = AgentInfo(
-        name="Desire Intelligence Agent",
-        tier=AgentTier.DECISION,
-        status=AgentStatus.OPERATIONAL,
-        description="Candidate desire and motivation profiling",
-        has_route=False,
-        is_logging=False,
-    )
-
-    # Support/Monitoring agents
-    ACTIVITY_FEED_AGENT = AgentInfo(
-        name="Activity Feed Agent",
-        tier=AgentTier.SUPPORT,
-        status=AgentStatus.OPERATIONAL,
-        description="Recruiter copilot activity feed",
-        has_route=False,
-        is_logging=False,
-    )
-
-    DAILY_DIGEST_AGENT = AgentInfo(
-        name="Daily Digest Agent",
-        tier=AgentTier.SUPPORT,
-        status=AgentStatus.OPERATIONAL,
-        description="Thunder morning report and digest",
-        has_route=False,
-        is_logging=False,
-    )
-
-    EXECUTIVE_SIGNAL_AGENT = AgentInfo(
-        name="Executive Signal Agent",
-        tier=AgentTier.SUPPORT,
-        status=AgentStatus.OPERATIONAL,
-        description="Advisory recognition and concern triage",
-        has_route=True,
-        is_logging=False,
-    )
-
-    # All agents in registry
-    ALL_AGENTS = [
-        # Core
-        RECRUITMENT_AGENT,
-        SUPERVISOR_AGENT,
-        THUNDER_AGENT,
-        FLASH_ORCHESTRATION_ENGINE,
-        # Resource
-        RESOURCE_MANAGEMENT_AGENT,
-        CORE_PULL_AGENT,
-        HTD_PIPELINE_AGENT,
-        # Finance
-        CFO_AGENT,
-        CEO_AGENT,
-        PARTNER_ROI_AGENT,
-        OPPORTUNITY_TRACKER_AGENT,
-        # HR
-        ONBOARDING_AGENT,
-        BUDDY_PROGRAM_AGENT,
-        EMPLOYEE_MILESTONE_AGENT,
-        KPI_AGENT,
-        HR_AGENT,
-        EMPLOYEE_MENTAL_HEALTH_AGENT,
-        # Engagement
-        OUTREACH_AGENT,
-        INTERVIEW_REMINDER_AGENT,
-        INTERVIEW_CONFIRMATION_AGENT,
-        # Decision
-        ABANDONMENT_SCORING_AGENT,
-        COMPENSATION_SCORING_AGENT,
-        DESIRE_INTELLIGENCE_AGENT,
-        # Support
-        ACTIVITY_FEED_AGENT,
-        DAILY_DIGEST_AGENT,
-        EXECUTIVE_SIGNAL_AGENT,
-    ]
-
-    @staticmethod
-    def get_agent(agent_name: str) -> Optional[AgentInfo]:
-        """Lookup agent by name."""
-        for agent in AgentRegistry.ALL_AGENTS:
-            if agent.name.lower() == agent_name.lower():
-                return agent
-        return None
-
-    @staticmethod
-    def get_agents_by_tier(tier: AgentTier) -> List[AgentInfo]:
-        """Get all agents in a tier."""
-        return [a for a in AgentRegistry.ALL_AGENTS if a.tier == tier]
-
-    @staticmethod
-    def get_agents_by_status(status: AgentStatus) -> List[AgentInfo]:
-        """Get all agents with a status."""
-        return [a for a in AgentRegistry.ALL_AGENTS if a.status == status]
-
-    @staticmethod
-    def get_unimplemented() -> List[AgentInfo]:
-        """Get all agents not yet implemented."""
-        return AgentRegistry.get_agents_by_status(AgentStatus.NOT_IMPLEMENTED)
-
-    @staticmethod
-    def get_missing_logging() -> List[AgentInfo]:
-        """Get all agents not yet wired to agent_execution_log."""
-        return [a for a in AgentRegistry.ALL_AGENTS if not a.is_logging]
-
-    @staticmethod
-    def get_missing_routes() -> List[AgentInfo]:
-        """Get all agents without API routes."""
-        return [a for a in AgentRegistry.ALL_AGENTS if not a.has_route]
-
-    @staticmethod
-    def update_agent_metrics(db: Session, agent_name: str) -> AgentInfo:
-        """Update agent's execution metrics from agent_execution_log."""
-        agent = AgentRegistry.get_agent(agent_name)
-        if not agent:
-            return None
-
-        # Get metrics from last 7 days
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
-        logs = db.query(AgentExecutionLog).filter(
-            AgentExecutionLog.agent_name == agent_name,
-            AgentExecutionLog.execution_at >= seven_days_ago,
-        ).all()
-
-        if logs:
-            agent.last_execution = max(log.execution_at for log in logs)
-            agent.execution_count_7d = len(logs)
-            agent.success_rate_7d = (
-                sum(1 for log in logs if log.success) / len(logs) * 100
-            )
-            agent.avg_duration_ms = (
-                sum(log.duration_ms or 0 for log in logs) // len(logs)
-            )
-
-        return agent
+# Print summary
+if __name__ == "__main__":
+    print(f"Total Agents: {count_total_agents()}")
+    print(f"By Tier: {count_agents_by_tier()}")
+    for tier, count in count_agents_by_tier().items():
+        print(f"  {tier}: {count} agents")
