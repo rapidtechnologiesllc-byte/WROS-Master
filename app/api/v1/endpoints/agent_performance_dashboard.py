@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.agent_performance_dashboard_service import AgentPerformanceDashboard
-from app.core.dependencies import get_current_user_or_none
+# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
 
 router = APIRouter(prefix="/dashboard/agents", tags=["agent-dashboard"])
 
