@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.core.agent_logging import log_agent_execution
-from app.models.employees import Employees
-from app.models.invoices import Invoices
-from app.models.candidates import Candidates
-from app.models.jobs import Jobs
+from app.models.employee import Employee
+from app.models.invoice import Invoice
+from app.models.candidate import Candidate
+from app.models.project import Project
 
 
 class KPIAgent:
@@ -85,23 +85,23 @@ class KPIAgent:
             year_2030 = 2030
 
             # ====== EMPLOYEE METRICS ======
-            current_employees = db.query(func.count(Employees.EmployeeID)).filter(
-                Employees.tenant_id == tenant_id,
-                Employees.OnBoardingStatus == "Joined"
+            current_employees = db.query(func.count(Employee.EmployeeID)).filter(
+                Employee.tenant_id == tenant_id,
+                Employee.OnBoardingStatus == "Joined"
             ).scalar() or 0
 
             # Calculate 7-day and 30-day hiring rate
             seven_days_ago = datetime.utcnow() - timedelta(days=7)
             thirty_days_ago = datetime.utcnow() - timedelta(days=30)
 
-            employees_7d = db.query(func.count(Employees.EmployeeID)).filter(
-                Employees.tenant_id == tenant_id,
-                Employees.CreatedOn >= seven_days_ago,
+            employees_7d = db.query(func.count(Employee.EmployeeID)).filter(
+                Employee.tenant_id == tenant_id,
+                Employee.CreatedOn >= seven_days_ago,
             ).scalar() or 0
 
-            employees_30d = db.query(func.count(Employees.EmployeeID)).filter(
-                Employees.tenant_id == tenant_id,
-                Employees.CreatedOn >= thirty_days_ago,
+            employees_30d = db.query(func.count(Employee.EmployeeID)).filter(
+                Employee.tenant_id == tenant_id,
+                Employee.CreatedOn >= thirty_days_ago,
             ).scalar() or 0
 
             # Monthly growth rate (extrapolate from 7d to 30d)
@@ -124,19 +124,19 @@ class KPIAgent:
             next_month = (month_start + timedelta(days=32)).replace(day=1)
 
             # Current month revenue (from invoices marked as paid)
-            current_month_revenue_cents = db.query(func.sum(Invoices.InvoiceTotal)).filter(
-                Invoices.tenant_id == tenant_id,
-                Invoices.InvoiceDate >= month_start,
-                Invoices.InvoiceDate < next_month,
-                Invoices.Status == "Paid"
+            current_month_revenue_cents = db.query(func.sum(Invoice.InvoiceTotal)).filter(
+                Invoice.tenant_id == tenant_id,
+                Invoice.InvoiceDate >= month_start,
+                Invoice.InvoiceDate < next_month,
+                Invoice.Status == "Paid"
             ).scalar() or 0
 
             # YTD revenue
             ytd_start = current_month.replace(month=1, day=1)
-            ytd_revenue_cents = db.query(func.sum(Invoices.InvoiceTotal)).filter(
-                Invoices.tenant_id == tenant_id,
-                Invoices.InvoiceDate >= ytd_start,
-                Invoices.Status == "Paid"
+            ytd_revenue_cents = db.query(func.sum(Invoice.InvoiceTotal)).filter(
+                Invoice.tenant_id == tenant_id,
+                Invoice.InvoiceDate >= ytd_start,
+                Invoice.Status == "Paid"
             ).scalar() or 0
 
             # Monthly growth rate
@@ -164,28 +164,28 @@ class KPIAgent:
             revenue_on_track = projected_revenue_2030_cents >= KPIAgent.TARGET_REVENUE_2030 * 0.8  # 80% target
 
             # ====== RECRUITING METRICS ======
-            open_positions = db.query(func.count(Jobs.JobID)).filter(
-                Jobs.tenant_id == tenant_id,
-                Jobs.JobStatus == "Open"
+            open_positions = db.query(func.count(Project.ProjectID)).filter(
+                Project.tenant_id == tenant_id,
+                Project.ProjectStatus == "Open"
             ).scalar() or 0
 
-            candidates_in_pipeline = db.query(func.count(Candidates.CandidateID)).filter(
-                Candidates.tenant_id == tenant_id,
-                Candidates.CandidateStatus.in_(["Intake", "Screening", "Interview", "Offer"]),
+            candidates_in_pipeline = db.query(func.count(Candidate.CandidateID)).filter(
+                Candidate.tenant_id == tenant_id,
+                Candidate.CandidateStatus.in_(["Intake", "Screening", "Interview", "Offer"]),
             ).scalar() or 0
 
-            placements_30d = db.query(func.count(Employees.EmployeeID)).filter(
-                Employees.tenant_id == tenant_id,
-                Employees.CreatedOn >= thirty_days_ago,
+            placements_30d = db.query(func.count(Employee.EmployeeID)).filter(
+                Employee.tenant_id == tenant_id,
+                Employee.CreatedOn >= thirty_days_ago,
             ).scalar() or 0
 
             avg_placements_monthly = placements_30d / (30.0 / 30.0)  # 30d extrapolation
 
             # ====== UTILIZATION METRICS ======
             # Billable utilization: (employees with active assignments) / total employees
-            billable_count = db.query(func.count(Employees.EmployeeID)).filter(
-                Employees.tenant_id == tenant_id,
-                Employees.OnBoardingStatus == "Joined",
+            billable_count = db.query(func.count(Employee.EmployeeID)).filter(
+                Employee.tenant_id == tenant_id,
+                Employee.OnBoardingStatus == "Joined",
                 # Note: check for active allocations if that table exists
             ).scalar() or 1
 

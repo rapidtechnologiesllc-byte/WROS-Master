@@ -5,8 +5,8 @@ from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.kpi_agent_service import KPIAgent
-from app.services.hr_agent_service import HRAgent
-from app.services.employee_mental_health_agent_service import EmployeeMentalHealthAgent
+# from app.services.hr_agent_service import HRAgent
+# from app.services.employee_mental_health_agent_service import EmployeeMentalHealthAgent
 
 router = APIRouter(prefix="/agents", tags=["Agent Operations"])
 
