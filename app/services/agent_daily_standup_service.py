@@ -243,9 +243,9 @@ class AgentDailyStandup:
             thunder_success_rate = (thunder_success / thunder_executions * 100) if thunder_executions > 0 else 0
 
             # Get CEO insights
-            standup = await AgentDailyStandup.generate_standup_report(
-                tenant_id=tenant_id,
-                db=db
+            standup = AgentDailyStandup.generate_standup_report(
+                db=db,
+                tenant_id=tenant_id
             )
 
             # Flash's responsibilities
