@@ -24,8 +24,8 @@ from app.models.project import Project
 
 def get_current_headcount(db: Session) -> int:
     """Get current active employee count."""
-    return db.query(func.count(Employee.EmployeeID)).filter(
-        Employee.EmployeeStatus == "ACTIVE"
+    return db.query(func.count(Employee.id)).filter(
+        Employee.status == "ACTIVE"
     ).scalar() or 0
 
 
@@ -50,9 +50,9 @@ def get_monthly_growth_rate(db: Session, months_back: int = 3) -> float:
 
     for i in range(months_back, 0, -1):
         target_date = datetime.utcnow() - timedelta(days=30 * i)
-        count = db.query(func.count(Employee.EmployeeID)).filter(
+        count = db.query(func.count(Employee.id)).filter(
             Employee.created_at <= target_date,
-            Employee.EmployeeStatus == "ACTIVE"
+            Employee.status == "ACTIVE"
         ).scalar() or 0
         headcounts.append(count)
 
@@ -100,9 +100,9 @@ def get_metrics_by_tier(db: Session) -> Dict[str, Any]:
 
     tiers = {}
     for bu in db.query(BusinessUnit).all():
-        bu_employees = db.query(func.count(Employee.EmployeeID)).filter(
+        bu_employees = db.query(func.count(Employee.id)).filter(
             Employee.business_unit_id == bu.id,
-            Employee.EmployeeStatus == "ACTIVE"
+            Employee.status == "ACTIVE"
         ).scalar() or 0
 
         bu_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(

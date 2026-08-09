@@ -32,11 +32,11 @@ def get_employee_status_summary(db: Session, tenant_id: Optional[str] = None) ->
         query = query.filter(Employee.tenant_id == tenant_id)
 
     total = query.count()
-    active = query.filter(Employee.EmployeeStatus == "ACTIVE").count()
-    training = query.filter(Employee.EmployeeStatus == "TRAINING").count()
-    onboarding = query.filter(Employee.EmployeeStatus == "ONBOARDING").count()
-    inactive = query.filter(Employee.EmployeeStatus == "INACTIVE").count()
-    departed = query.filter(Employee.EmployeeStatus == "DEPARTED").count()
+    active = query.filter(Employee.status == "ACTIVE").count()
+    training = query.filter(Employee.status == "TRAINING").count()
+    onboarding = query.filter(Employee.status == "ONBOARDING").count()
+    inactive = query.filter(Employee.status == "INACTIVE").count()
+    departed = query.filter(Employee.status == "DEPARTED").count()
 
     return {
         "total_employees": total,
@@ -51,7 +51,7 @@ def get_employee_status_summary(db: Session, tenant_id: Optional[str] = None) ->
 
 def get_employee_kpis(db: Session, employee_id: str) -> Dict[str, Any]:
     """Get KPI tracking for a specific employee."""
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
 
     if not employee:
         return {"error": "Employee not found"}
@@ -74,21 +74,21 @@ def get_employee_kpis(db: Session, employee_id: str) -> Dict[str, Any]:
 
     return {
         "employee_id": employee_id,
-        "name": f"{employee.FirstName} {employee.LastName}",
-        "status": employee.EmployeeStatus,
-        "role": employee.Role,
+        "name": f"{employee.first_name} {employee.last_name}",
+        "status": employee.status,
+        "role": employee.designation if hasattr(employee, 'designation') else None,
         "business_unit": employee.business_unit_id,
-        "start_date": employee.StartDate.isoformat() if employee.StartDate else None,
+        "start_date": employee.joining_date.isoformat() if hasattr(employee, 'joining_date') and employee.joining_date else None,
         "current_allocation": current_allocation,
         "utilization_pct": _calculate_utilization(db, employee_id),
         "engagement_score": _calculate_engagement_score(db, employee_id),
-        "performance_rating": employee.PerformanceRating if hasattr(employee, 'PerformanceRating') else None
+        "performance_rating": None  # Performance rating not available in current schema
     }
 
 
 def get_attrition_risks(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Identify employees at risk of attrition based on engagement and tenure."""
-    query = db.query(Employee).filter(Employee.EmployeeStatus == "ACTIVE")
+    query = db.query(Employee).filter(Employee.status == "ACTIVE")
     if tenant_id:
         query = query.filter(Employee.tenant_id == tenant_id)
 
@@ -111,7 +111,7 @@ def get_attrition_risks(db: Session, tenant_id: Optional[str] = None) -> List[Di
 
 def get_development_needs(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Identify employees ready for development or promotion."""
-    query = db.query(Employee).filter(Employee.EmployeeStatus == "ACTIVE")
+    query = db.query(Employee).filter(Employee.status == "ACTIVE")
     if tenant_id:
         query = query.filter(Employee.tenant_id == tenant_id)
 
@@ -134,7 +134,7 @@ def get_development_needs(db: Session, tenant_id: Optional[str] = None) -> List[
 
 def get_engagement_metrics(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get org-wide engagement metrics."""
-    query = db.query(Employee).filter(Employee.EmployeeStatus == "ACTIVE")
+    query = db.query(Employee).filter(Employee.status == "ACTIVE")
     if tenant_id:
         query = query.filter(Employee.tenant_id == tenant_id)
 
@@ -219,7 +219,7 @@ def _calculate_utilization(db: Session, employee_id: str) -> float:
 
 def _calculate_engagement_score(db: Session, employee_id: str) -> float:
     """Calculate engagement score (0-100) based on various factors."""
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
 
     if not employee:
         return 0
@@ -244,7 +244,7 @@ def _calculate_engagement_score(db: Session, employee_id: str) -> float:
 def _calculate_attrition_risk(db: Session, employee_id: str) -> float:
     """Calculate attrition risk score (0-100, higher = more at-risk)."""
     engagement = _calculate_engagement_score(db, employee_id)
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
 
     if not engagement:
         return 100  # No engagement data = high risk
@@ -264,7 +264,7 @@ def _calculate_readiness_score(db: Session, employee_id: str) -> float:
     engagement = _calculate_engagement_score(db, employee_id)
     utilization = _calculate_utilization(db, employee_id)
 
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
 
     if not employee:
         return 0
@@ -304,7 +304,7 @@ def _get_attrition_factors(db: Session, employee_id: str) -> List[str]:
     if utilization < 20:
         factors.append("Low utilization (possible bench time)")
 
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if employee and employee.StartDate:
         months = (datetime.utcnow() - employee.StartDate).days / 30
         if 6 < months < 18:

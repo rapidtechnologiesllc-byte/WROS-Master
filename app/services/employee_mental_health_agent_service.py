@@ -27,7 +27,7 @@ def get_stress_indicators(db: Session, employee_id: str) -> Dict[str, Any]:
     """Identify stress indicators for an employee."""
     from app.models.employee_allocation import EmployeeAllocation
 
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
 
     if not employee:
         return {"error": "Employee not found"}
@@ -72,7 +72,7 @@ def get_stress_indicators(db: Session, employee_id: str) -> Dict[str, Any]:
 
     return {
         "employee_id": employee_id,
-        "name": f"{employee.FirstName} {employee.LastName}",
+        "name": f"{employee.first_name} {employee.last_name}",
         "indicators": indicators,
         "risk_level": _calculate_wellbeing_risk(indicators),
         "stress_score": _calculate_stress_score(indicators)
@@ -86,7 +86,7 @@ def get_wellbeing_score(db: Session, employee_id: str) -> float:
     engagement = _calculate_engagement_score(db, employee_id)
     utilization = _calculate_utilization(db, employee_id)
 
-    employee = db.query(Employee).filter(Employee.EmployeeID == employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
 
     if not employee:
         return 0
@@ -109,7 +109,7 @@ def get_wellbeing_score(db: Session, employee_id: str) -> float:
 
 def get_burnout_risks(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Identify employees at risk of burnout."""
-    query = db.query(Employee).filter(Employee.EmployeeStatus == "ACTIVE")
+    query = db.query(Employee).filter(Employee.status == "ACTIVE")
     if tenant_id:
         query = query.filter(Employee.tenant_id == tenant_id)
 
@@ -179,7 +179,7 @@ def get_wellness_recommendations(db: Session, employee_id: str) -> List[Dict[str
 
 def get_team_wellbeing_snapshot(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get wellbeing snapshot for entire team or BU."""
-    query = db.query(Employee).filter(Employee.EmployeeStatus == "ACTIVE")
+    query = db.query(Employee).filter(Employee.status == "ACTIVE")
     if tenant_id:
         query = query.filter(Employee.tenant_id == tenant_id)
 
