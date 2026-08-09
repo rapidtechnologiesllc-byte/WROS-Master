@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getConversationThread,
   getMissingFields,
-  assignAgent,
   sendManualMessage,
   takeOverConversation,
   handBackConversation,
@@ -37,8 +36,6 @@ export default function MessagesTab({ candidateId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [missingFields, setMissingFields] = useState(null);
-  const [missingLoading, setMissingLoading] = useState(false);
-  const [assigning, setAssigning] = useState(false);
   const [polling, setPolling] = useState(false);
 
   const fetchThread = useCallback(async () => {
@@ -78,21 +75,7 @@ export default function MessagesTab({ candidateId }) {
     fetchMissingFields();
   }, [fetchMissingFields]);
 
-  const handleAssignAgent = async () => {
-    if (!candidateId) return;
-    try {
-      setAssigning(true);
-      await assignAgent(candidateId);
-      toast.success("AI recruiter assigned");
-      await fetchThread();
-      await fetchMissingFields();
-    } catch (err) {
-      console.error("Failed to assign AI agent", err);
-      toast.error(err?.message || "Failed to assign AI agent");
-    } finally {
-      setAssigning(false);
-    }
-  };
+  // AI recruiter auto-assigned - no manual assignment needed
 
   const handleCheckReply = async () => {
     if (!candidateId) return;
@@ -171,19 +154,15 @@ export default function MessagesTab({ candidateId }) {
         </div>
       )}
 
-      {candidateId ? (
-        <ThunderAssignmentSection candidateId={candidateId} onChanged={fetchThread} />
-      ) : null}
+      {/* AI recruiter auto-assigned on candidate creation */}
       {candidateId ? <ThunderMemorySection candidateId={candidateId} /> : null}
       {candidateId ? <ThunderActivitySection candidateId={candidateId} /> : null}
       {candidateId ? <EngagementMetricsSection candidateId={candidateId} /> : null}
 
       {!conversations.length ? (
-        <EmptyState
-          onAssign={handleAssignAgent}
-          assigning={assigning}
-          missingLoading={missingLoading}
-        />
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
+          <p className="text-sm text-gray-500">No messages yet</p>
+        </div>
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap justify-end gap-2">
@@ -198,14 +177,6 @@ export default function MessagesTab({ candidateId }) {
                 {polling ? "Checking..." : "Check for Reply"}
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleAssignAgent}
-              disabled={assigning}
-              className="inline-flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-60"
-            >
-              {assigning ? "Reassigning..." : "Reassign AI Recruiter"}
-            </button>
           </div>
           {conversations.map((conv) => (
             <ConversationCard
@@ -603,31 +574,6 @@ function SectionHeader({ title, subtitle }) {
     <div className="flex flex-col gap-1">
       <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
       <p className="text-sm text-gray-500">{subtitle}</p>
-    </div>
-  );
-}
-
-function EmptyState({ onAssign, assigning, missingLoading }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
-      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-sm">
-        💬
-      </div>
-      <h3 className="text-sm font-semibold text-gray-900">
-        No AI recruiter conversation yet
-      </h3>
-      <p className="mt-1 text-sm text-gray-500">
-        Assign the AI recruiter to start collecting missing information from
-        this candidate automatically.
-      </p>
-      <button
-        type="button"
-        onClick={onAssign}
-        disabled={assigning || missingLoading}
-        className="mt-4 inline-flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-60"
-      >
-        {assigning ? "Assigning..." : "Assign AI Recruiter"}
-      </button>
     </div>
   );
 }
