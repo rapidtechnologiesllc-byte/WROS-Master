@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 
 from app.core.logging import logger
@@ -11,7 +11,7 @@ from app.core.logging import logger
 jobstores = {
     'default': MemoryJobStore()
 }
-scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
+scheduler = BackgroundScheduler(jobstores=jobstores, timezone="UTC")
 
 def start_scheduler():
     """Start the APScheduler instance."""
