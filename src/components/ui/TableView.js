@@ -98,15 +98,9 @@ const TableView = ({ job, onViewJob, onOpenJob }) => {
       ),
     },
     {
-      title: "Type",
-      dataIndex: "companyType",
-      render: (val) => <Tag color="blue">{val || "-"}</Tag>,
-    },
-    {
-      title: "Client / Dept",
-      render: (text, record) => (
-        <span>{record?.clientName || record?.dept || "-"}</span>
-      )
+      title: "Client",
+      dataIndex: "clientName",
+      render: (val, record) => <span>{val || record?.dept || "-"}</span>,
     },
     { title: "Location", dataIndex: "location" },
     {
