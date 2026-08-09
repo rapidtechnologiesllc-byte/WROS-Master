@@ -1035,28 +1035,35 @@ def convert_candidate_to_employee(
 
     Creates Employee record and transitions candidate to "EMPLOYEE" status.
     """
+    from app.models.candidate import CandidateStatus
+    from app.models.employee import Employee
+
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    if candidate.candidateStatus != "OFFER":
-        raise HTTPException(status_code=400, detail=f"Candidate status is {candidate.candidateStatus}, not OFFER")
+    candidate_status = db.query(CandidateStatus).filter(
+        CandidateStatus.candidateID == candidate_id
+    ).first()
+
+    if not candidate_status or candidate_status.piplineStatus != "OFFER":
+        current_status = candidate_status.piplineStatus if candidate_status else "Unknown"
+        raise HTTPException(status_code=400, detail=f"Candidate status is {current_status}, not OFFER")
 
     if not candidate.candidateJoiningDate or candidate.candidateJoiningDate > datetime.now().date():
         raise HTTPException(status_code=400, detail="Joining date has not arrived yet")
 
     try:
         # Create Employee record
-        from app.models.employee import Employee
         employee = Employee(
             id=str(uuid.uuid4()),
-            tenant_id=candidate.tenant_id,
+            tenant_id=candidate.tenant_id or "default",
             first_name=candidate.candidateFirstName,
             last_name=candidate.candidateLastName or "",
             email=candidate.candidateEmail,
-            mobile=candidate.candidateMobileNumber,
-            gender=None,
-            date_of_birth=None,
+            mobile=candidate.candidateMobile,
+            gender=candidate.candidateGender,
+            date_of_birth=candidate.candidateDateOfBirth,
             status="ACTIVE",
             employment_type=candidate.candidateEmployeeType or "Full-Time",
             designation=candidate.candidateJobTitle or "Employee",
@@ -1068,8 +1075,9 @@ def convert_candidate_to_employee(
         db.flush()
 
         # Update candidate status to EMPLOYEE
-        candidate.candidateStatus = "EMPLOYEE"
-        candidate.updatedAt = datetime.utcnow()
+        candidate_status.piplineStatus = "EMPLOYEE"
+        candidate_status.status = "EMPLOYEE"
+        candidate_status.updatedAt = datetime.utcnow()
 
         # Log conversion event
         from app.models.candidate_ai import ConversationEvent
