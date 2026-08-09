@@ -1070,6 +1070,39 @@ def shutdown_scheduler():
         logger.info("APScheduler shutdown completed")
 
 
+        # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
+
+            async def _run_thunder_autonomous():
+                db = SessionLocal()
+                try:
+                    result = run_thunder_autonomous_cycle(db)
+                    if result.get("status") == "success":
+                        if result.get("candidates_contacted") or result.get("sequences_advanced"):
+                            logger.info(f"[scheduler] Thunder autonomous: {result}")
+                    elif result.get("status") == "paused":
+                        logger.debug("[scheduler] Thunder paused (kill switch active)")
+                    else:
+                        logger.error(f"[scheduler] Thunder autonomous error: {result.get('error')}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Thunder autonomous error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_thunder_autonomous,
+                trigger="interval",
+                minutes=5,
+                id="thunder_autonomous_loop",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled Thunder autonomous loop (every 5 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
+
+
 def add_job(func, trigger, **kwargs):
     """Add a scheduled job."""
     return scheduler.add_job(func, trigger, **kwargs)
