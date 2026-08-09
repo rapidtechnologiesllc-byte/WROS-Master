@@ -37,7 +37,7 @@ def get_ytd_revenue(db: Session, year: Optional[int] = None) -> int:
     fy_start = datetime(year, 1, 1)
     fy_end = datetime(year, 12, 31)
 
-    return db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+    return db.query(func.sum(Invoice.total_usd_cents)).filter(
         Invoice.created_at >= fy_start,
         Invoice.created_at <= fy_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -105,7 +105,7 @@ def get_metrics_by_tier(db: Session) -> Dict[str, Any]:
             Employee.status == "ACTIVE"
         ).scalar() or 0
 
-        bu_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+        bu_revenue = db.query(func.sum(Invoice.total_usd_cents)).filter(
             Invoice.business_unit_id == bu.id,
             Invoice.status.in_(["APPROVED", "SENT", "PAID"])
         ).scalar() or 0
