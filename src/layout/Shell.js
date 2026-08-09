@@ -112,6 +112,9 @@ const NAV_ITEMS = {
   // Read is broader (any internal user); the backend enforces the real
   // Admin-only write gate, same posture as every other Admin item here.
   adminSettings: { path: ROUTES.ADMIN_SETTINGS, label: "Admin Settings", icon: Settings },
+  // Admin Weekly Recap Dashboard -- CEO/Director weekly executive summary
+  // (weekly agent health, pipeline status, performance metrics).
+  adminWeeklyRecap: { path: ROUTES.ADMIN_WEEKLY_RECAP, label: "Weekly Recap", icon: BarChart3 },
   // S-014/HRMS-0414 -- template.manage-gated activate action lives on
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
@@ -158,7 +161,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings"],
+    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
   },
 ];
 

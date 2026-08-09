@@ -51,4 +51,5 @@ export const ROUTES = {
   CFO_DASHBOARD: "/cfo-dashboard",
   ERROR_LOG: "/admin/error-log",
   ADMIN_SETTINGS: "/admin/settings",
+  ADMIN_WEEKLY_RECAP: "/admin/weekly-recap",
 };
