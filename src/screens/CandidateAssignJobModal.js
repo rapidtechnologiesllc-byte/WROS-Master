@@ -445,11 +445,14 @@ const CandidateAssignJobModal = ({
           performed_by_name: performedBy,
           event_at: appliedDateTime,
         });
-        await createHrAssignment({
-          candidate_id: candidateId,
-          hr1_id: selectedHr1Id,
-          hr2_id: selectedHr2Id || "",
-        });
+        // Only create HR assignment if hr1_id is provided
+        if (selectedHr1Id) {
+          await createHrAssignment({
+            candidate_id: candidateId,
+            hr1_id: selectedHr1Id,
+            hr2_id: selectedHr2Id || "",
+          });
+        }
         toast.success("Job submitted successfully ✅");
         await onAssignSuccess?.();
         onClose?.();
