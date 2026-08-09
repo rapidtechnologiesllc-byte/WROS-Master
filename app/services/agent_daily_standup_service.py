@@ -16,9 +16,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.core.agent_logging import log_agent_execution
+from app.utils.agent_logger import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
-from app.services.agent_registry_service import AgentRegistry, AgentTier
 
 
 class AgentDailyStandup:
@@ -28,50 +27,40 @@ class AgentDailyStandup:
     STANDUP_TIME_EST = "08:00"  # 8:00 AM EST
     SCRUM_TIME_EST = "08:30"    # 8:30 AM EST
 
-    # Standup ordering: agents report sequentially in priority order
-    STANDUP_ORDER = [
+    # Agent tier mapping
+    AGENT_TIERS = {
         # Tier 1: Core recruiting (must report first)
-        "Thunder",
-        "Recruitment Agent",
-        "Supervisor Agent",
-
-        # Tier 2: Resource & allocation (impacts placements)
-        "Resource Management Agent",
-        "Core-Pull Conflict Agent",
-
-        # Tier 3: Finance & business (revenue/costs)
-        "CFO Agent",
-        "CEO/FY Progress Agent",
-        "Partner ROI Agent",
-
-        # Tier 4: Employee/HR (people ops)
-        "Onboarding Agent",
-        "HR Agent",
-        "Employee Mental Health Agent",
-        "Buddy Program Agent",
-        "Employee Milestone Agent",
-
-        # Tier 5: KPI tracking (strategic)
-        "KPI Agent",
-
+        "Thunder": "tier_1_core",
+        "Recruitment Agent": "tier_1_core",
+        "Supervisor Agent": "tier_1_core",
+        # Tier 2: Resource & allocation
+        "Resource Management Agent": "tier_2_resource",
+        "Core-Pull Conflict Agent": "tier_2_resource",
+        # Tier 3: Finance & business
+        "CFO Agent": "tier_3_finance",
+        "CEO/FY Progress Agent": "tier_3_finance",
+        "Partner ROI Agent": "tier_3_finance",
+        # Tier 4: Employee/HR
+        "Onboarding Agent": "tier_4_hr",
+        "HR Agent": "tier_4_hr",
+        "Employee Mental Health Agent": "tier_4_hr",
+        "Buddy Program Agent": "tier_4_hr",
+        # Tier 5: KPI tracking
+        "KPI Agent": "tier_5_kpi",
         # Tier 6: Support & engagement
-        "Engagement/Outreach Agent",
-        "Interview Reminder Agent",
-        "Activity Feed Agent",
-        "Executive Signal Agent",
+        "Engagement/Outreach Agent": "tier_6_support",
+        "Interview Reminder Agent": "tier_6_support",
+        "Activity Feed Agent": "tier_6_support",
+        "Executive Signal Agent": "tier_6_support",
+    }
 
-        # Tier 7: Scoring & decisions (informational)
-        "Abandonment Scoring Agent",
-        "Compensation Scoring Agent",
-        "Desire Intelligence Agent",
-    ]
+    # Standup ordering: agents report sequentially in priority order
+    STANDUP_ORDER = list(AGENT_TIERS.keys())
 
     @staticmethod
-    @log_agent_execution("Agent Standup Coordinator", "generate_standup_report")
-    async def generate_standup_report(
-        tenant_id: str,
+    def generate_standup_report(
         db: Session,
-        **kwargs
+        tenant_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         8:00 AM EST: Sequential standup where each agent reports.
@@ -96,9 +85,7 @@ class AgentDailyStandup:
             )
 
             for agent_name in AgentDailyStandup.STANDUP_ORDER:
-                agent = AgentRegistry.get_agent(agent_name)
-                if not agent:
-                    continue
+                agent_tier = AgentDailyStandup.AGENT_TIERS.get(agent_name, "unknown")
 
                 # Get this agent's logs for yesterday
                 agent_logs = logs_query.filter(
@@ -131,15 +118,15 @@ class AgentDailyStandup:
                 validation_concerns = []
 
                 # Q1: If agent didn't run, why?
-                if execution_count == 0 and agent.status.value == "operational":
+                if execution_count == 0 and agent_tier.startswith("tier_1"):
                     validation_concerns.append({
-                        "question": "Agent marked operational but no executions yesterday. Is it alive?",
+                        "question": "Tier 1 agent not running. CRITICAL: Is it alive?",
                         "severity": "critical",
                         "requires_investigation": True
                     })
 
                 # Q2: If success rate dropped significantly
-                if success_rate < 80 and agent.tier.value in ["core", "resource", "finance"]:
+                if success_rate < 80 and agent_tier in ["tier_1_core", "tier_2_resource", "tier_3_finance"]:
                     validation_concerns.append({
                         "question": f"Critical tier agent at {success_rate:.0f}% success. Root cause?",
                         "severity": "critical",
@@ -164,7 +151,7 @@ class AgentDailyStandup:
 
                 entry = {
                     "agent_name": agent_name,
-                    "tier": agent.tier.value,
+                    "tier": agent_tier,
                     "status": status,
                     "severity": severity,
                     "executions": execution_count,
@@ -185,10 +172,11 @@ class AgentDailyStandup:
 
             # Aggregate by tier
             tier_summary = {}
-            for tier in AgentTier:
-                tier_agents = [e for e in standup_entries if e["tier"] == tier.value]
+            unique_tiers = set(e["tier"] for e in standup_entries)
+            for tier in unique_tiers:
+                tier_agents = [e for e in standup_entries if e["tier"] == tier]
                 if tier_agents:
-                    tier_summary[tier.value] = {
+                    tier_summary[tier] = {
                         "agent_count": len(tier_agents),
                         "healthy": sum(1 for a in tier_agents if a["status"] == "healthy"),
                         "degraded": sum(1 for a in tier_agents if a["status"] == "degraded"),
@@ -216,11 +204,9 @@ class AgentDailyStandup:
             raise
 
     @staticmethod
-    @log_agent_execution("Agent Standups Coordinator", "scrum_of_scrums")
-    async def scrum_of_scrums(
-        tenant_id: str,
+    def scrum_of_scrums(
         db: Session,
-        **kwargs
+        tenant_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         8:30 AM EST: Scrum of Scrums with key agents.
