@@ -9,6 +9,37 @@
 
 ---
 
+## PRODUCTION READINESS AUDIT (2026-08-09)
+
+### Audit Findings:
+**✅ WORKING SCREENS:**
+- Dashboard (loads, displays data)
+- Candidates list (loads, displays 60 candidates from DB)
+- Add Candidate form (loads)
+- Job creation (accessible)
+- Admin UI (accessible)
+
+**⚠️ BROKEN ENDPOINTS (404 errors, need backend implementation):**
+1. `GET /sla/breaches?is_resolved=false` - SLA monitoring endpoint missing
+2. `/candidates/{id}/engagement-metrics` - Engagement metrics endpoint missing
+3. Multiple /admin/agents/* endpoints returning 404s
+4. `/offer-letter/all` - Offer letters endpoint returning 404s
+
+**🔴 CRITICAL FRONTEND/BACKEND INTEGRATION ISSUES:**
+1. Many API endpoints exist in code but endpoints don't respond (404s)
+2. CORS is configured but some requests still blocked
+3. Candidate status workflow incomplete (no conversion flow)
+4. Employee project assignment missing (blocks timesheet access)
+
+### Next Steps Before Production:
+1. **IMMEDIATE:** Implement missing endpoints for SLA, engagement-metrics, offers
+2. **HIGH:** Add Candidate→Employee conversion button to CandidateDetailsScreen
+3. **HIGH:** Add Employee→Project assignment to ProjectsScreen
+4. **MEDIUM:** Fix 404 errors on agent endpoints
+5. **MEDIUM:** Implement engagement metrics API
+
+---
+
 ## CRITICAL BLOCKERS (2026-08-09)
 
 ### 🚨 BLOCKER 1: Candidate-to-Employee Conversion Flow is Broken
