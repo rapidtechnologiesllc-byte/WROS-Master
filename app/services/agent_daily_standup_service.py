@@ -63,13 +63,14 @@ class AgentDailyStandup:
         tenant_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        8:00 AM EST: Sequential standup where each agent reports.
+        8:00 AM EST: Sequential standup where each agent reports BUSINESS OUTCOMES.
 
         Each agent reports:
-        - Yesterday's executions and success rate
-        - Key metric movement (up/down/flat)
-        - Blockers or issues
-        - Progress toward 2000 employee / $100M target
+        - Recruitment: candidates reached, responses, patterns, personas, interviews, offers
+        - Resource: employee allocations, utilization, project assignments
+        - Finance: revenue pipeline, invoicing, cost tracking
+        - HR: onboarding, retention, wellness, engagement
+        - KPI: progress toward $100M revenue / 2000 employees
 
         System validates each report and flags inconsistencies.
         """
