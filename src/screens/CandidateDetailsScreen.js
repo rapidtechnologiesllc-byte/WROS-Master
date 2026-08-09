@@ -712,6 +712,28 @@ ${jobDescription}
 `;
   };
 
+  const handleConvertToEmployee = async () => {
+    if (!candidate?.id) {
+      showNotice("Candidate details are missing", "error");
+      return;
+    }
+    try {
+      const response = await apiRequest(`/onboarding/hr/candidate/${candidate.id}/convert-to-employee`, {
+        method: "POST",
+        body: JSON.stringify({
+          candidate_id: candidate.id,
+          joining_date: candidate.candidateJoiningDate,
+        }),
+      });
+      showNotice("Candidate converted to employee successfully", "success");
+      // Refresh candidate data
+      const updatedCandidate = await getCandidateById(candidate.id);
+      setCandidate(updatedCandidate);
+    } catch (error) {
+      showNotice("Failed to convert candidate to employee: " + error.message, "error");
+    }
+  };
+
   const handleScheduleInterview = async () => {
     if (!candidate?.id) {
       showNotice("Candidate details are missing", "error");
@@ -1197,6 +1219,20 @@ ${formattedJD}
                     className="h-[46px] border-blue-100 bg-blue-50 text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
                   >
                     Create Offer
+                  </Button>
+                )}
+
+              {(currentRole === "HR Manager" ||
+                currentRole === "HR Operations") &&
+                candidate?.pipelineStatus === "Offer" &&
+                candidate?.candidateJoiningDate &&
+                new Date(candidate?.candidateJoiningDate) <= new Date() && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleConvertToEmployee()}
+                    className="h-[46px] border-green-100 bg-green-50 text-green-700 transition-all duration-200 hover:border-green-200 hover:bg-green-100"
+                  >
+                    Convert to Employee
                   </Button>
                 )}
 
