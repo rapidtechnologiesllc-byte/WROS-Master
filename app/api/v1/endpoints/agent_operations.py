@@ -4,9 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
-from app.services.kpi_agent_service import KPIAgent
-# from app.services.hr_agent_service import HRAgent
-# from app.services.employee_mental_health_agent_service import EmployeeMentalHealthAgent
+from app.services import kpi_agent_service, hr_agent_service, employee_mental_health_agent_service
 
 router = APIRouter(prefix="/agents", tags=["Agent Operations"])
 
@@ -16,7 +14,7 @@ router = APIRouter(prefix="/agents", tags=["Agent Operations"])
 # ============================================================================
 
 @router.get("/kpi/daily-kpis", dependencies=[Depends(require_permission("admin.view"))])
-async def get_daily_kpis(
+def get_daily_kpis(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -26,7 +24,7 @@ async def get_daily_kpis(
     Requires: admin.view (CEO, Super User, Finance)
     """
     try:
-        kpis = await KPIAgent.calculate_daily_kpis(
+        kpis = kpi_agent_service.calculate_daily_kpis(
             tenant_id=current_user.tenant_id,
             db=db
         )
@@ -35,18 +33,15 @@ async def get_daily_kpis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/kpi/dashboard", dependencies=[Depends(require_permission("admin.view"))])
-async def get_kpi_dashboard(
+@router.get("/kpi/alerts", dependencies=[Depends(require_permission("admin.view"))])
+def get_kpi_alerts(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get formatted KPI dashboard for executive viewing."""
+    """Get KPI alerts for off-track metrics."""
     try:
-        dashboard = await KPIAgent.get_kpi_dashboard(
-            tenant_id=current_user.tenant_id,
-            db=db
-        )
-        return dashboard
+        alerts = kpi_agent_service.get_kpi_alerts(db=db)
+        return {"status": "success", "data": alerts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -55,66 +50,66 @@ async def get_kpi_dashboard(
 # HR Agent Endpoints
 # ============================================================================
 
-@router.get("/hr/employee-overview", dependencies=[Depends(require_permission("hr.view"))])
-async def get_employee_overview(
+@router.get("/hr/dashboard", dependencies=[Depends(require_permission("hr.view"))])
+def get_hr_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get high-level employee population overview."""
+    """Get comprehensive HR dashboard."""
     try:
-        overview = await HRAgent.get_employee_overview(
+        dashboard = hr_agent_service.get_hr_dashboard(
             tenant_id=current_user.tenant_id,
             db=db
         )
-        return overview
+        return {"status": "success", "data": dashboard}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/hr/attrition-risk", dependencies=[Depends(require_permission("hr.view"))])
-async def detect_attrition_risk(
+@router.get("/hr/attrition-risks", dependencies=[Depends(require_permission("hr.view"))])
+def detect_attrition_risks(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Detect employees at risk of attrition."""
     try:
-        at_risk = await HRAgent.detect_attrition_risk(
+        at_risk = hr_agent_service.get_attrition_risks(
             tenant_id=current_user.tenant_id,
             db=db
         )
-        return at_risk
+        return {"status": "success", "data": at_risk}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/hr/onboarding-status", dependencies=[Depends(require_permission("hr.view"))])
-async def get_onboarding_status(
+@router.get("/hr/development-needs", dependencies=[Depends(require_permission("hr.view"))])
+def get_development_needs(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Get detailed onboarding pipeline status."""
+    """Get employees ready for development or promotion."""
     try:
-        status = await HRAgent.get_onboarding_status(
+        needs = hr_agent_service.get_development_needs(
             tenant_id=current_user.tenant_id,
             db=db
         )
-        return status
+        return {"status": "success", "data": needs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/hr/schedule-reviews", dependencies=[Depends(require_permission("hr.manage"))])
-async def schedule_reviews(
+@router.get("/hr/engagement-metrics", dependencies=[Depends(require_permission("hr.view"))])
+def get_engagement_metrics(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Schedule performance reviews based on tenure."""
+    """Get org-wide engagement metrics."""
     try:
-        reviews = await HRAgent.schedule_reviews(
+        metrics = hr_agent_service.get_engagement_metrics(
             tenant_id=current_user.tenant_id,
             db=db
         )
-        return reviews
+        return {"status": "success", "data": metrics}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -123,53 +118,76 @@ async def schedule_reviews(
 # Employee Mental Health Agent Endpoints
 # ============================================================================
 
-@router.get("/wellness/scan-all", dependencies=[Depends(require_permission("hr.view"))])
-async def scan_all_wellness(
+@router.get("/wellness/dashboard", dependencies=[Depends(require_permission("hr.view"))])
+def get_wellness_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Scan all employees for mental health and wellbeing indicators."""
+    """Get comprehensive mental health and wellbeing dashboard."""
     try:
-        scan = await EmployeeMentalHealthAgent.scan_all_employees(
+        dashboard = employee_mental_health_agent_service.get_mental_health_dashboard(
             tenant_id=current_user.tenant_id,
             db=db
         )
-        return scan
+        return {"status": "success", "data": dashboard}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/wellness/assess/{employee_id}", dependencies=[Depends(require_permission("hr.view"))])
-async def assess_employee_wellness(
-    employee_id: str,
+@router.get("/wellness/team-snapshot", dependencies=[Depends(require_permission("hr.view"))])
+def get_team_wellbeing(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Assess individual employee's wellness and burnout risk."""
+    """Get team wellbeing snapshot."""
     try:
-        assessment = await EmployeeMentalHealthAgent.assess_employee_wellness(
+        snapshot = employee_mental_health_agent_service.get_team_wellbeing_snapshot(
             tenant_id=current_user.tenant_id,
-            employee_id=employee_id,
             db=db
         )
-        return assessment
+        return {"status": "success", "data": snapshot}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/wellness/checkin/{employee_id}", dependencies=[Depends(require_permission("hr.manage"))])
-async def send_wellness_checkin(
+@router.get("/wellness/burnout-risks", dependencies=[Depends(require_permission("hr.view"))])
+def get_burnout_risks(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Identify employees at burnout risk."""
+    try:
+        risks = employee_mental_health_agent_service.get_burnout_risks(
+            tenant_id=current_user.tenant_id,
+            db=db
+        )
+        return {"status": "success", "data": risks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/wellness/employee/{employee_id}", dependencies=[Depends(require_permission("hr.view"))])
+def get_employee_wellness(
     employee_id: str,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Send wellness check-in survey to employee."""
+    """Get individual employee wellness assessment."""
     try:
-        checkin = await EmployeeMentalHealthAgent.send_wellness_checkin(
-            tenant_id=current_user.tenant_id,
-            employee_id=employee_id,
-            db=db
+        indicators = employee_mental_health_agent_service.get_stress_indicators(
+            db=db,
+            employee_id=employee_id
         )
-        return {"status": "success", "data": checkin}
+        recommendations = employee_mental_health_agent_service.get_wellness_recommendations(
+            db=db,
+            employee_id=employee_id
+        )
+        return {
+            "status": "success",
+            "data": {
+                "indicators": indicators,
+                "recommendations": recommendations
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
