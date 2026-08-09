@@ -1672,15 +1672,14 @@ ${formattedJD}
                     subtitle="Select panel members and define interview timing."
                   >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <FormField
+                      <SelectField
                         label="Interview Type"
-                        value={
-                          scheduleType === "online"
-                            ? "Online Interview"
-                            : "Face to Face Interview"
-                        }
-                        readOnly
-                      />
+                        value={scheduleType}
+                        onChange={(e) => setScheduleType(e.target.value)}
+                      >
+                        <option value="inperson">Face to Face Interview</option>
+                        <option value="online">Online Interview (Microsoft Teams)</option>
+                      </SelectField>
                       <FormField
                         label="Candidate ID"
                         value={candidate?.id || ""}
