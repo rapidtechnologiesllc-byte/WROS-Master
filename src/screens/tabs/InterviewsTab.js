@@ -83,7 +83,7 @@ const getFeedbackBreakdown = (feedbackList = []) => {
   return { submittedInterviewerIds, skippedInterviewerIds, doneInterviewerIds, feedbackByInterviewerId };
 };
 
-export default function InterviewsTab({ candidateId }) {
+export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
   const [panelMembersMap, setPanelMembersMap] = useState({});
@@ -646,10 +646,23 @@ export default function InterviewsTab({ candidateId }) {
 
         <SectionCard title="Interviews by Job">
           {!interviews.length ? (
-            <EmptyState
-              title="No interview activity yet"
-              subtitle="Once an interview is scheduled for this candidate, its schedule and feedback will appear here together."
-            />
+            <div className="space-y-4">
+              <EmptyState
+                title="No interview activity yet"
+                subtitle="Once an interview is scheduled for this candidate, its schedule and feedback will appear here together."
+              />
+              {onScheduleInterview && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={onScheduleInterview}
+                    className="inline-flex items-center rounded-xl bg-orange-500 px-6 py-2 text-sm font-medium text-white transition hover:bg-orange-600"
+                  >
+                    Schedule Interview
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-6">
               {jobGroups.map((group) => (

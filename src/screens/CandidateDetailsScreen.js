@@ -1428,7 +1428,10 @@ ${formattedJD}
               <MessagesTab candidateId={candidate?.id} />
             )}
             {activeTab === "interview" && !limitedMode && (
-              <InterviewsTab candidateId={candidate?.id} />
+              <InterviewsTab
+                candidateId={candidate?.id}
+                onScheduleInterview={() => setShowScheduleModal(true)}
+              />
             )}
             {activeTab === "intelligence" && !limitedMode && (
               <IntelligenceTab candidateId={candidate?.id} currentRole={currentRole} />
