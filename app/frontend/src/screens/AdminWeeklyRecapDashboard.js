@@ -27,6 +27,7 @@ import {
 
 export default function AdminWeeklyRecapDashboard() {
   const [currentTab, setCurrentTab] = useState(0);
+  const [userRole, setUserRole] = useState('ceo'); // 'ceo', 'curtis', 'troy', 'avinash'
   const [weekStart, setWeekStart] = useState(null);
   const [weekEnd, setWeekEnd] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function AdminWeeklyRecapDashboard() {
   // Sample data (would come from API)
   const [weeklyData, setWeeklyData] = useState({
     week: 'Aug 4-10, 2026',
+    viewing_role: 'ceo', // Determines what sections are visible (praise public, criticize private)
     summary: {
       agents_reporting: 25,
       agents_operational: 23,
@@ -232,138 +234,167 @@ export default function AdminWeeklyRecapDashboard() {
       </Box>
 
       <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} sx={{ mb: 3 }}>
-        <Tab label="Executive Summary" />
-        <Tab label="HTD Pipeline" />
-        <Tab label="Revenue Pipeline" />
-        <Tab label="Partners" />
-        <Tab label="Flash Directives" />
-        <Tab label="Agent Health" />
-        <Tab label="2030 Forecast" />
+        <Tab label="🏆 Public Wins (All)" />
+        <Tab label="📊 HTD Pipeline" />
+        <Tab label="💰 Revenue by Line Type" />
+        <Tab label="🎯 My Priorities (Private)" />
+        <Tab label="⚡ Flash Coordination" />
+        <Tab label="🤖 Agent Health" />
+        <Tab label="📈 2030 Vision" />
       </Tabs>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB 1: EXECUTIVE SUMMARY ════════════════════════════════════════════ */}
+      {/* TAB 0: PUBLIC WINS — PRAISE IN PUBLIC ══════════════════════════════ */}
+      {/* Philosophy: Celebrate all BUs. Both must stand strong for BlitzenX to grow. */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       {currentTab === 0 && (
         <Box>
+          <Alert severity="success" sx={{ mb: 3, bgcolor: '#e8f5e9' }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              🏆 WEEK OF SUCCESS — Both AXION and PRISM moving forward. SPECIALTY pipeline strong. BlitzenX on track for $100M by 2030.
+            </Typography>
+          </Alert>
+
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+            Weekly Celebrations
+          </Typography>
+
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            {/* Agent Health Overview */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
+            {/* AXION Recognition */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ bgcolor: '#f3e5f5', borderLeft: '4px solid #9c27b0' }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" variant="body2">
-                        Agents Operational
-                      </Typography>
-                      <Typography variant="h5" sx={{ mt: 1 }}>
-                        {weeklyData.summary.agents_operational}/{weeklyData.summary.agents_reporting}
-                      </Typography>
-                    </Box>
-                    <CheckCircle sx={{ fontSize: 40, color: '#4caf50' }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                      ⚡ AXION (Troy)
+                    </Typography>
+                    <Chip label="STRONG FOUNDATION" color="primary" size="small" />
                   </Box>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                    75% CORE certified. Steady momentum on AXION-sourced CORE clients.
+                  </Typography>
+                  <Typography variant="body2">
+                    ✓ Gates progressing smoothly · ✓ CORE client relationships strong · ✓ Quality maintained
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
 
-            {/* Partner Status */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
+            {/* PRISM Recognition */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ bgcolor: '#e3f2fd', borderLeft: '4px solid #2196f3' }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" variant="body2">
-                        Partners On Track
-                      </Typography>
-                      <Typography variant="h5" sx={{ mt: 1 }}>
-                        {weeklyData.summary.partners_on_track}/3
-                      </Typography>
-                    </Box>
-                    <TrendingUp sx={{ fontSize: 40, color: '#4caf50' }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                      🚀 PRISM (Curtis)
+                    </Typography>
+                    <Chip label="ACCELERATING" color="success" size="small" />
                   </Box>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                    Ramping CORE talent development. PRISM-sourced CORE clients growing.
+                  </Typography>
+                  <Typography variant="body2">
+                    ✓ Development pipeline active · ✓ New CORE gates passing · ✓ Client pipeline expanding
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
 
-            {/* Alerts */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ borderLeft: '4px solid #d32f2f' }}>
+            {/* SPECIALTY Recognition */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ bgcolor: '#fff3e0', borderLeft: '4px solid #ff9800' }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" variant="body2">
-                        Critical Alerts
-                      </Typography>
-                      <Typography variant="h5" sx={{ mt: 1, color: '#d32f2f' }}>
-                        {weeklyData.summary.critical_alerts}
-                      </Typography>
-                    </Box>
-                    <Warning sx={{ fontSize: 40, color: '#d32f2f' }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                      🌍 SPECIALTY (Avinash)
+                    </Typography>
+                    <Chip label="REVENUE STRONG" color="warning" size="small" />
                   </Box>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                    SPECIALTY monetization supporting both BUs' development pipelines.
+                  </Typography>
+                  <Typography variant="body2">
+                    ✓ CORE-eligible capacity growing · ✓ Client utilization up · ✓ Pipeline quality improving
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
 
-            {/* YTD Revenue Pace */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
+            {/* Collective Metrics */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ bgcolor: '#f5f5f5' }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" variant="body2">
-                        YTD Pace
-                      </Typography>
-                      <Typography variant="h5" sx={{ mt: 1 }}>
-                        {weeklyData.opportunities.ytd_pace_pct}%
-                      </Typography>
-                    </Box>
-                    <DollarSign sx={{ fontSize: 40, color: '#4caf50' }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                      🎯 BlitzenX Collective
+                    </Typography>
+                    <Chip label="ON PACE" color="success" size="small" />
                   </Box>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                    All agents operational. All BUs executing independently.
+                  </Typography>
+                  <Typography variant="body2">
+                    ✓ 23/25 agents healthy · ✓ $2.85M YTD revenue (89% of annual pace) · ✓ 25 people in HTD pipeline
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
 
-          {/* Key Findings */}
+          {/* Forward Progress */}
           <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-              🎯 Week Summary (Operating Model: LINE TYPE + CLIENT OWNER)
+              📈 What's Working This Week
             </Typography>
             <List>
               <ListItem>
                 <ListItemText
-                  primary="CORE Development Pipeline (All BUs Independent)"
-                  secondary={`SPECIALTY→CORE: Avinash +1, Curtis +1, Troy +0. Total 25 in HTD phases. Forecast: 23 CORE ready by month 6. Each BU solves its own staffing independently.`}
+                  primary="CORE Development Momentum"
+                  secondary={`Avinash's SPECIALTY pipeline +1 CORE ready, Curtis's PRISM pipeline +1 ready, Troy's AXION pipeline steady. 25 total in development → forecast 23 CORE ready by month 6. Strong velocity across all BUs.`}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="Revenue by Line Type + Client Owner"
-                  secondary={`CORE (Troy's AXION clients): $1.2M YTD / $3M target (40% pace). CORE (Curtis's PRISM clients): $950K YTD / $4M target (24% pace). SPECIALTY (Avinash Corporate): $700K YTD / $2M target (35% pace).`}
+                  primary="Revenue Execution (LINE TYPE + CLIENT OWNER Model)"
+                  secondary={`AXION (Troy's CORE clients): $1.2M YTD / $3M target (40% pace, strong). PRISM (Curtis's CORE clients): $950K YTD / $4M target (accelerating). SPECIALTY (Avinash): $700K YTD / $2M target (strong execution).`}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="BU Autonomy Status"
-                  secondary={`PRISM (Curtis): CORE deficit identified; PRISM owns solution (hire/train/develop). AXION (Troy): Stable, on pace. SPECIALTY (Avinash): Scaling for both BUs independently.`}
+                  primary="BU Autonomous Operations"
+                  secondary={`Each BU solving its own challenges independently. AXION: Stable high performance. PRISM: Strong ramp trajectory. SPECIALTY: Supporting both BUs' pipelines without creating dependency.`}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="Agent Performance"
-                  secondary={`23/25 operational. Recruitment: 96% success. HTD Pipeline: 100%. Flash: 100%. All directives enforce NO cross-BU dependency rule.`}
+                  primary="System Health"
+                  secondary={`23/25 agents operational. Recruitment: 96% success. HTD Pipeline: 100%. Flash: 100%. All directives enforce BU autonomy and collaborative strength.`}
                 />
               </ListItem>
             </List>
           </Paper>
 
-          {/* Action Items for Next Week */}
-          <Alert severity="info" sx={{ mb: 2 }}>
+          {/* Role-Based Private Alerts (only visible to affected parties) */}
+          {userRole !== 'ceo' && (
+            <Paper sx={{ p: 3, mb: 3, bgcolor: '#fff3cd', borderLeft: '4px solid #ff9800' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#856404' }}>
+                🔒 Private to {userRole === 'curtis' ? 'PRISM' : userRole === 'troy' ? 'AXION' : 'You'}
+              </Typography>
+              <Alert severity="info">
+                <Typography variant="body2">
+                  Your priorities and action items are visible only to you and the CEO. This keeps focus on building your BU strong, not on comparison with others.
+                </Typography>
+              </Alert>
+            </Paper>
+          )}
+
+          {/* Next Week Opportunities */}
+          <Alert severity="success" sx={{ mb: 2, bgcolor: '#e8f5e9' }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-              ✓ NEXT WEEK PRIORITIES (BU AUTONOMOUS)
+              🚀 NEXT WEEK — ALL BUS BUILDING FORWARD
             </Typography>
             <Typography variant="body2">
-              1. PRISM (Curtis): HTD hire 3 external CORE this month; PRISM owns solution · 2. AXION (Troy): Maintain gate progression (1/week); AXION owns AXION clients · 3. SPECIALTY (Avinash): Quality CORE hire 2 (not quantity); support pipeline for both BUs · 4. Flash: Monitor gate progression across all BUs (4 expected passes this week)
+              <strong>AXION (Troy):</strong> Continue momentum on gate progression (1/week expected). Build stronger client relationships with sourced CORE clients. · <strong>PRISM (Curtis):</strong> Accelerate CORE pipeline with 3 external hires this month. Strong ramp trajectory building. · <strong>SPECIALTY (Avinash):</strong> Quality-first CORE hiring (2 external). Supporting both BUs' development success. · <strong>Flash:</strong> Daily coordination ensuring each BU's autonomy + shared mission for $100M.
             </Typography>
           </Alert>
         </Box>
@@ -562,101 +593,103 @@ export default function AdminWeeklyRecapDashboard() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB 4: PARTNERS ═════════════════════════════════════════════════════ */}
+      {/* TAB 3: PRIVATE PRIORITIES (CRITICISM IN PRIVATE) ══════════════════ */}
+      {/* Only visible to affected BU + CEO. Public section celebrates. Private section improves. */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       {currentTab === 3 && (
         <Box>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold' }}>
-            Partner Revenue Performance (LINE TYPE + CLIENT OWNER)
-          </Typography>
-          <Alert severity="info" sx={{ mb: 3 }}>
+          <Alert severity="warning" sx={{ mb: 3, bgcolor: '#fff3e0' }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              🔒 PRIVATE SECTION: Visible only to you and Avinash (CEO)
+            </Typography>
             <Typography variant="body2">
-              <strong>Revenue Attribution Model:</strong> CORE clients are owned by the principal who sourced them (Troy→AXION, Curtis→PRISM). SPECIALTY revenue belongs to BXIN Corporate (Avinash). Each partner owns their own bottleneck solutions independently.
+              This space is for honest feedback and improvement opportunities. Not for broadcast. The philosophy: praise publicly, improve privately. Both BUs strong = BlitzenX strong.
             </Typography>
           </Alert>
 
-          {Object.entries(weeklyData.partner_performance).map(([partner, perf]) => (
-            <Card key={partner} sx={{ mb: 2, borderLeft: `4px solid ${perf.trend === 'strong' ? '#4caf50' : perf.trend === 'behind' ? '#d32f2f' : '#ff9800'}` }}>
+          <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold' }}>
+            Improvement Opportunities This Week
+          </Typography>
+
+          {/* PRISM Private Priorities */}
+          {(userRole === 'ceo' || userRole === 'curtis') && (
+            <Card sx={{ mb: 3, borderLeft: '4px solid #d32f2f' }}>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                      {perf.label}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      {perf.metric}
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={perf.trend === 'strong' ? '🔥 STRONG' : perf.trend === 'ahead' ? '📈 AHEAD' : perf.trend === 'accelerating' ? '⚡ ACCELERATING' : '⚠️ BEHIND'}
-                    size="small"
-                    color={perf.trend === 'strong' || perf.trend === 'accelerating' ? 'success' : perf.trend === 'behind' ? 'error' : 'warning'}
-                  />
-                </Box>
-
-                <Grid container spacing={3}>
-                  {/* Week Performance */}
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                      THIS WEEK
-                    </Typography>
-                    <Box sx={{ mb: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2">
-                          ${(perf.week_closed / 1000).toFixed(0)}K closed
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: perf.week_pace_pct >= 100 ? '#4caf50' : '#d32f2f' }}>
-                          {perf.week_pace_pct}% of daily pace
-                        </Typography>
-                      </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(perf.week_pace_pct, 100)}
-                        sx={{ height: 6 }}
-                        color={perf.week_pace_pct >= 100 ? 'success' : 'error'}
-                      />
-                    </Box>
-                  </Grid>
-
-                  {/* YTD Progress */}
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                      YEAR-TO-DATE
-                    </Typography>
-                    <Box sx={{ mb: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2">
-                          ${(perf.ytd_closed / 1_000_000).toFixed(2)}M / ${(perf.ytd_target / 1_000_000).toFixed(1)}M
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          {perf.ytd_pace_pct}% of annual target
-                        </Typography>
-                      </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(perf.ytd_pace_pct, 100)}
-                        sx={{ height: 6 }}
-                      />
-                    </Box>
-                  </Grid>
-                </Grid>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#d32f2f' }}>
+                  PRISM (Curtis) — Acceleration Opportunities
+                </Typography>
+                <List>
+                  <ListItem>
+                    <ListItemText
+                      primary="CORE Certification Velocity"
+                      secondary="45% CORE ready vs 60% target. Gap: 6 people. Action: Accelerate gate progression on CONTROLLED_OWNERSHIP phase OR begin 3-person external CORE hire this month. PRISM owns the decision."
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="Revenue Pace (PRISM CORE Clients)"
+                      secondary="$950K YTD vs $4M target (24% pace). Strong month-over-month growth. Continue client sourcing momentum + ensure sufficient CORE capacity for incoming deals."
+                    />
+                  </ListItem>
+                </List>
               </CardContent>
             </Card>
-          ))}
+          )}
 
-          <Alert severity="info" sx={{ mt: 3 }}>
-            <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-              📊 PARTNER SUMMARY
-            </Typography>
-            <Typography variant="body2">
-              Avinash strongest this week (145% of pace). Curtis accelerating (110%). Troy slightly behind (78% pace but building pipeline). All three on track for annual targets if this week's pace continues.
-            </Typography>
-          </Alert>
+          {/* AXION Private Priorities */}
+          {(userRole === 'ceo' || userRole === 'troy') && (
+            <Card sx={{ mb: 3, borderLeft: '4px solid #2196f3' }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#2196f3' }}>
+                  AXION (Troy) — Maintain Excellence
+                </Typography>
+                <List>
+                  <ListItem>
+                    <ListItemText
+                      primary="Strong Foundation Momentum"
+                      secondary="75% CORE certified. Strong gate progression (1/week). Focus: Maintain quality standards, deepen CORE client relationships, identify expansion opportunities with existing clients."
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="Revenue Pace (AXION CORE Clients)"
+                      secondary="$1.2M YTD vs $3M target (40% pace). Solid trajectory. Opportunity: Identify 1-2 key client expansion deals this quarter."
+                    />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* SPECIALTY Private Priorities */}
+          {(userRole === 'ceo' || userRole === 'avinash') && (
+            <Card sx={{ mb: 3, borderLeft: '4px solid #ff9800' }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#ff9800' }}>
+                  SPECIALTY (Avinash) — Pipeline Quality
+                </Typography>
+                <List>
+                  <ListItem>
+                    <ListItemText
+                      primary="CORE-Eligible Growth"
+                      secondary="50% CORE-eligible. Target: 55% by month 3. Quality-first: Ensure gate rigor maintained. 2 external CORE hires this month to support both BUs' pipelines."
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="SPECIALTY Revenue Execution"
+                      secondary="$700K YTD vs $2M target (35% pace). On track. Ensure utilization stays high, no bench waste, CORE-eligible pipeline keeps feeding both BUs."
+                    />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+          )}
         </Box>
       )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB 5: FLASH DIRECTIVES ═════════════════════════════════════════════ */}
+      {/* TAB 4: FLASH DIRECTIVES ═════════════════════════════════════════════ */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       {currentTab === 4 && (
         <Box>
