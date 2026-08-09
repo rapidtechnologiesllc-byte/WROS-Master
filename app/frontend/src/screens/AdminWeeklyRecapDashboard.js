@@ -510,7 +510,7 @@ export default function AdminWeeklyRecapDashboard() {
                     Week Closed
                   </Typography>
                   <Typography variant="h5" sx={{ mt: 1 }}>
-                    ${(weeklyData.opportunities.week_closed / 1000).toFixed(0)}K
+                    ${((weeklyData?.opportunities?.week_closed || 0) / 1000).toFixed(0)}K
                   </Typography>
                   <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
                     {weeklyData.opportunities.week_closed_count} deal(s)
@@ -526,10 +526,10 @@ export default function AdminWeeklyRecapDashboard() {
                     Total Pipeline
                   </Typography>
                   <Typography variant="h5" sx={{ mt: 1 }}>
-                    ${(weeklyData.opportunities.total_pipeline / 1_000_000).toFixed(1)}M
+                    ${((weeklyData?.opportunities?.total_pipeline || 0) / 1_000_000).toFixed(1)}M
                   </Typography>
                   <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
-                    Weighted: ${(weeklyData.opportunities.weighted_pipeline / 1_000_000).toFixed(1)}M
+                    Weighted: ${((weeklyData?.opportunities?.weighted_pipeline || 0) / 1_000_000).toFixed(1)}M
                   </Typography>
                 </CardContent>
               </Card>
@@ -577,7 +577,7 @@ export default function AdminWeeklyRecapDashboard() {
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography variant="body2">
-                    ${(weeklyData.opportunities.ytd_closed / 1_000_000).toFixed(2)}M / ${(weeklyData.opportunities.ytd_target / 1_000_000).toFixed(1)}M
+                    ${((weeklyData?.opportunities?.ytd_closed || 0) / 1_000_000).toFixed(2)}M / ${((weeklyData?.opportunities?.ytd_target || 0) / 1_000_000).toFixed(1)}M
                   </Typography>
                   <Chip label={`${weeklyData.opportunities.ytd_pace_pct}%`} color="success" size="small" />
                 </Box>
@@ -824,7 +824,7 @@ export default function AdminWeeklyRecapDashboard() {
                   🎯 Target
                 </Typography>
                 <Typography variant="h3" sx={{ color: '#1976d2', fontWeight: 'bold', mb: 1 }}>
-                  ${(weeklyData.forecast_2030.target / 1_000_000).toFixed(0)}M
+                  ${((weeklyData?.forecast_2030?.target || 0) / 1_000_000).toFixed(0)}M
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   Required by March 31, 2030
@@ -838,7 +838,7 @@ export default function AdminWeeklyRecapDashboard() {
                   📈 Current Run Rate
                 </Typography>
                 <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  ${(weeklyData.forecast_2030.annual_run_rate / 1_000_000).toFixed(1)}M/year
+                  ${((weeklyData?.forecast_2030?.annual_run_rate || 0) / 1_000_000).toFixed(1)}M/year
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   Based on YTD performance
@@ -858,7 +858,7 @@ export default function AdminWeeklyRecapDashboard() {
                   Current Annual Target
                 </Typography>
                 <Typography variant="h6" sx={{ mt: 0.5 }}>
-                  ${(weeklyData.forecast_2030.annual_target / 1_000_000).toFixed(1)}M
+                  ${((weeklyData?.forecast_2030?.annual_target || 0) / 1_000_000).toFixed(1)}M
                 </Typography>
               </Grid>
 

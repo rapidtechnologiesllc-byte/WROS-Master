@@ -313,7 +313,7 @@ export default function AdminDailyFlashDashboard() {
                       Total Pipeline
                     </Typography>
                     <Typography variant="h5" sx={{ mt: 1 }}>
-                      ${(opportunityData.total_pipeline_usd / 1_000_000).toFixed(1)}M
+                      ${((opportunityData?.total_pipeline_usd || 0) / 1_000_000).toFixed(1)}M
                     </Typography>
                   </Paper>
                 </Grid>
@@ -324,7 +324,7 @@ export default function AdminDailyFlashDashboard() {
                       Probability-Weighted
                     </Typography>
                     <Typography variant="h5" sx={{ mt: 1 }}>
-                      ${(opportunityData.weighted_pipeline_usd / 1_000_000).toFixed(1)}M
+                      ${((opportunityData?.weighted_pipeline_usd || 0) / 1_000_000).toFixed(1)}M
                     </Typography>
                   </Paper>
                 </Grid>
@@ -406,8 +406,8 @@ export default function AdminDailyFlashDashboard() {
                           </Typography>
                           <Typography variant="h6">
                             $
-                            {partner.annual_target_usd
-                              ? (partner.annual_target_usd / 1_000_000).toFixed(1)
+                            {(partner?.annual_target_usd || 0) > 0
+                              ? ((partner?.annual_target_usd || 0) / 1_000_000).toFixed(1)
                               : '?'}
                             M
                           </Typography>
