@@ -35,6 +35,7 @@ const INITIAL_FORM_STATE = {
   timeZone: "Asia/Kolkata",
   recruitedBy: "",
   primarySales: "",
+  contactPerson: "",
   positionType: "",
   quotedBillRate: "",
   quotedBillRateType: "$/Hour",
@@ -137,6 +138,7 @@ const CandidateAssignJobModal = ({
   const [hrOptions, setHrOptions] = useState([]);
   const [selectedHr1Id, setSelectedHr1Id] = useState("");
   const [selectedHr2Id, setSelectedHr2Id] = useState("");
+  const [contactPersonOptions, setContactPersonOptions] = useState([]);
 
   // Auto-load unique UDF fields with candidate information (non-overlapping fields only)
   useEffect(() => {
@@ -176,7 +178,7 @@ const CandidateAssignJobModal = ({
     );
   }, [jobs, selectedJobId]);
 
-  // Auto-load Client Owner and Submit To based on selected job
+  // Auto-load all job data when selected job changes
   useEffect(() => {
     if (selectedJob) {
       const clientOwner = selectedJob?.client_owner_name ||
@@ -185,22 +187,87 @@ const CandidateAssignJobModal = ({
                          selectedJob?.contact_person_name ||
                          "";
 
+      // Get Contact Person (supports comma-separated multiple values)
+      const contactPerson = selectedJob?.contact_person_name ||
+                           selectedJob?.contactPerson ||
+                           selectedJob?.contact_person ||
+                           "";
+
+      // Get Hiring Manager
+      const hiringManager = selectedJob?.hiring_manager_name ||
+                           selectedJob?.hiringManager ||
+                           selectedJob?.hiring_manager ||
+                           "";
+
+      // Get Department
+      const department = selectedJob?.dept ||
+                        selectedJob?.department_name ||
+                        selectedJob?.department ||
+                        "";
+
+      // Get Hiring Team (could be comma-separated)
+      const hiringTeam = selectedJob?.hiring_team ||
+                        selectedJob?.hiringTeam ||
+                        "";
+
+      // Parse pay information from job
+      let payAmount = "";
+      let payFrequency = "Annual";
+      let payCurrency = "USD";
+
+      const payRange = selectedJob?.payRange ||
+                       selectedJob?.pay_range ||
+                       selectedJob?.salary_range || "";
+
+      if (payRange) {
+        const payParts = String(payRange).trim().split(/\s+/);
+        // Try to extract: "USD Annual 150000" or "150000 $/Hour"
+        if (payParts[0] === "USD" || payParts[0] === "INR") {
+          payCurrency = payParts[0];
+        }
+        if (payParts.includes("Annual") || payParts.includes("Hourly")) {
+          payFrequency = payParts.includes("Annual") ? "Annual" : "Hourly";
+        }
+        // Extract numeric amount (first number found)
+        const numMatch = payRange.match(/\d+/);
+        if (numMatch) {
+          payAmount = numMatch[0];
+        }
+      }
+
       // Determine Submit To based on is_internal_role flag or company name
       let isInternalJob = selectedJob?.is_internal_role;
-
-      // Fallback to company name if is_internal_role not set
       if (isInternalJob === null || isInternalJob === undefined) {
         const companyName = selectedJob?.company_name || selectedJob?.companyName || "";
         isInternalJob = companyName?.toLowerCase().includes("blitzenx");
       }
-
       const submitTo = isInternalJob ? "BU Head" : "L1 Interview → L2 Interview → Client Partner";
+
+      // Get current user for auto-population
+      const currentUserName = localStorage?.getItem?.("hrms_user_name") || "";
 
       setFormData((prev) => ({
         ...prev,
         primarySales: clientOwner,
         submitTo: submitTo,
+        recruitedBy: currentUserName, // Auto-populate current user
+        agreedPayRate: payAmount,
+        agreedPayRateType: payCurrency === "INR" ? "INR/Year" : payFrequency === "Hourly" ? "$/Hour" : "$/Year",
       }));
+
+      // Set contact person options for dropdown (parse comma-separated)
+      if (contactPerson) {
+        const persons = String(contactPerson)
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+
+        const options = persons.map((person) => ({
+          label: person,
+          value: person,
+        }));
+        setContactPersonOptions(options);
+      }
     }
   }, [selectedJob]);
 
@@ -302,6 +369,7 @@ const CandidateAssignJobModal = ({
       timezone: formData?.timeZone,
       recruited_by: formData?.recruitedBy,
       primary_sales: formData?.primarySales,
+      contact_person: formData?.contactPerson,
       position_type: formData?.positionType,
       quoted_bill_rate: formData?.quotedBillRate,
       agreed_bill_rate: formData?.agreedBillRate,
@@ -556,15 +624,28 @@ const CandidateAssignJobModal = ({
                   </SelectWrapper>
                 )}
 
-                <FormInput
-                  label="Submit To"
+                <FormSelect
+                  label="Submit To (Person/Role)"
+                  required
                   value={formData?.submitTo}
                   onChange={(value) => updateFormField("submitTo", value)}
+                  options={[
+                    ...(selectedJob?.hiring_manager_name || selectedJob?.hiringManager ? [
+                      { label: `Hiring Manager: ${selectedJob?.hiring_manager_name || selectedJob?.hiringManager}`, value: selectedJob?.hiring_manager_name || selectedJob?.hiringManager }
+                    ] : []),
+                    ...(selectedJob?.client_owner_name || selectedJob?.clientOwnerName ? [
+                      { label: `Client Partner: ${selectedJob?.client_owner_name || selectedJob?.clientOwnerName}`, value: selectedJob?.client_owner_name || selectedJob?.clientOwnerName }
+                    ] : []),
+                    ...(selectedJob?.bu_head_name || selectedJob?.buHeadName ? [
+                      { label: `BU Head: ${selectedJob?.bu_head_name || selectedJob?.buHeadName}`, value: selectedJob?.bu_head_name || selectedJob?.buHeadName }
+                    ] : []),
+                  ]}
                   disabled={isAssigning}
+                  placeholder="Select person to submit to"
                 />
                 {/* Primary HR selection removed - not needed until onboarding stage */}
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <FormInput
                     label="Submittal Date"
                     type="date"
@@ -586,33 +667,71 @@ const CandidateAssignJobModal = ({
                     }
                     disabled={isAssigning}
                   />
-                </div>
 
-                <FormSelect
-                  label="Time Zone"
-                  required
-                  value={formData?.timeZone}
-                  onChange={(value) => updateFormField("timeZone", value)}
-                  options={TIME_ZONE_OPTIONS?.map((zone) => ({
-                    label: zone,
-                    value: zone,
-                  }))}
-                  disabled={isAssigning}
-                />
+                  <FormSelect
+                    label="Time Zone"
+                    required
+                    value={formData?.timeZone}
+                    onChange={(value) => updateFormField("timeZone", value)}
+                    options={TIME_ZONE_OPTIONS?.map((zone) => ({
+                      label: zone,
+                      value: zone,
+                    }))}
+                    disabled={isAssigning}
+                  />
+                </div>
 
                 <FormInput
                   label="Recruited By"
                   value={formData?.recruitedBy}
                   onChange={(value) => updateFormField("recruitedBy", value)}
                   disabled={isAssigning}
+                  placeholder="Auto-populated from current user"
                 />
 
                 <FormInput
-                  label="Client Owner"
+                  label="Client Name"
+                  value={selectedJob?.company_name || selectedJob?.companyName || selectedJob?.clientName || ""}
+                  disabled={true}
+                  placeholder="Auto-populated from selected job"
+                />
+
+                <FormInput
+                  label="Client Owner / Partner"
                   value={formData?.primarySales}
                   onChange={(value) => updateFormField("primarySales", value)}
                   disabled={isAssigning}
-                  placeholder="Auto-populated from selected job's client"
+                  placeholder="Auto-populated from selected job"
+                />
+
+                <FormInput
+                  label="Department"
+                  value={selectedJob?.dept || selectedJob?.department_name || ""}
+                  disabled={true}
+                  placeholder="Auto-populated from selected job"
+                />
+
+                <FormSelect
+                  label="Contact Person (Multiple)"
+                  value={formData?.contactPerson || ""}
+                  onChange={(value) => updateFormField("contactPerson", value)}
+                  options={contactPersonOptions}
+                  disabled={isAssigning}
+                  placeholder="Select from available contacts"
+                />
+
+                <FormInput
+                  label="Hiring Manager"
+                  value={selectedJob?.hiring_manager_name || selectedJob?.hiringManager || ""}
+                  disabled={true}
+                  placeholder="Auto-populated from selected job"
+                />
+
+                <FormInput
+                  label="Hiring Team"
+                  value={selectedJob?.hiring_team || selectedJob?.hiringTeam || ""}
+                  disabled={true}
+                  placeholder="Auto-populated from selected job"
                 />
               </SectionCard>
 
