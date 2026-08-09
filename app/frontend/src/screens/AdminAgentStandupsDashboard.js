@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Tabs, Spin, Alert, Button, Space } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Table, Tag, Tabs, Spin, Alert, Button, Space, Progress } from 'antd';
+import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined, ReloadOutlined, UserOutlined, PhoneOutlined, FileTextOutlined, TeamOutlined, DollarOutlined, TrophyOutlined } from '@ant-design/icons';
 import { apiCall } from '../utils/api';
 
 const AdminAgentStandupsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [businessMetrics, setBusinessMetrics] = useState(null);
   const [error, setError] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(30000);
 
@@ -14,6 +15,13 @@ const AdminAgentStandupsDashboard = () => {
       setLoading(true);
       const response = await apiCall('GET', '/admin/agent-standups/dashboard');
       setData(response);
+      // Try to fetch business metrics if endpoint exists
+      try {
+        const metrics = await apiCall('GET', '/business-metrics/daily-standup');
+        setBusinessMetrics(metrics);
+      } catch (e) {
+        // Endpoint may not exist yet, continue without it
+      }
       setError(null);
     } catch (err) {
       setError(err.message || 'Failed to fetch standup data');
@@ -248,7 +256,7 @@ const AdminAgentStandupsDashboard = () => {
   return (
     <div style={{ padding: '20px' }}>
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>🤖 Agent Standups & Scrum of Scrums</h1>
+        <h1>Daily Business Standup - Progress Toward $100M / 2000 Employees</h1>
         <Space>
           <span style={{ fontSize: '12px', color: '#999' }}>
             Auto-refresh: {refreshInterval / 1000}s
@@ -263,6 +271,121 @@ const AdminAgentStandupsDashboard = () => {
           </Button>
         </Space>
       </div>
+
+      {businessMetrics && (
+        <Card title="TODAY'S BUSINESS OUTCOMES" style={{ marginBottom: '20px' }} loading={loading}>
+          <Row gutter={[16, 16]}>
+            {/* Recruitment Metrics */}
+            <Col xs={24} sm={12} md={6}>
+              <Card size="small" style={{ height: '100%' }}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                  <UserOutlined style={{ fontSize: '24px', color: '#1890ff' }} />
+                </div>
+                <Statistic
+                  title="Candidates in Pipeline"
+                  value={businessMetrics.recruitment?.total_in_pipeline || 0}
+                  suffix="qualified"
+                />
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  <div>Created: {businessMetrics.recruitment?.candidates_created || 0}</div>
+                  <div>Conversion: {businessMetrics.recruitment?.conversion_rate || 0}%</div>
+                </div>
+              </Card>
+            </Col>
+
+            {/* Interview Metrics */}
+            <Col xs={24} sm={12} md={6}>
+              <Card size="small" style={{ height: '100%' }}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                  <PhoneOutlined style={{ fontSize: '24px', color: '#52c41a' }} />
+                </div>
+                <Statistic
+                  title="Interviews Scheduled"
+                  value={businessMetrics.interviews?.interviews_scheduled || 0}
+                  suffix="scheduled"
+                />
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  <div>Completed: {businessMetrics.interviews?.interviews_completed || 0}</div>
+                  <div>Completion Rate: {businessMetrics.interviews?.completion_rate || 0}%</div>
+                </div>
+              </Card>
+            </Col>
+
+            {/* Offer Metrics */}
+            <Col xs={24} sm={12} md={6}>
+              <Card size="small" style={{ height: '100%' }}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                  <FileTextOutlined style={{ fontSize: '24px', color: '#faad14' }} />
+                </div>
+                <Statistic
+                  title="Offers"
+                  value={businessMetrics.offers?.offers_accepted || 0}
+                  suffix="accepted"
+                />
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  <div>Created: {businessMetrics.offers?.offers_created || 0}</div>
+                  <div>Acceptance: {businessMetrics.offers?.acceptance_rate || 0}%</div>
+                </div>
+              </Card>
+            </Col>
+
+            {/* Onboarding Metrics */}
+            <Col xs={24} sm={12} md={6}>
+              <Card size="small" style={{ height: '100%' }}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                  <TeamOutlined style={{ fontSize: '24px', color: '#f5222d' }} />
+                </div>
+                <Statistic
+                  title="Active Employees"
+                  value={businessMetrics.onboarding?.active_employees || 0}
+                  suffix="headcount"
+                />
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  <div>Target: 2,000</div>
+                  <div>Progress: {Math.round((businessMetrics.onboarding?.active_employees || 0) / 20)}%</div>
+                </div>
+              </Card>
+            </Col>
+
+            {/* Allocation Metrics */}
+            <Col xs={24} sm={12} md={6}>
+              <Card size="small" style={{ height: '100%' }}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                  <TrophyOutlined style={{ fontSize: '24px', color: '#722ed1' }} />
+                </div>
+                <Statistic
+                  title="Avg Utilization"
+                  value={businessMetrics.resource_allocation?.avg_utilization_pct || 0}
+                  suffix="%"
+                />
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  <div>Allocated: {businessMetrics.resource_allocation?.employees_allocated || 0} employees</div>
+                  <div>Target: 80%</div>
+                </div>
+              </Card>
+            </Col>
+
+            {/* Revenue Metrics */}
+            <Col xs={24} sm={12} md={6}>
+              <Card size="small" style={{ height: '100%' }}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                  <DollarOutlined style={{ fontSize: '24px', color: '#13c2c2' }} />
+                </div>
+                <Statistic
+                  title="Revenue (Today)"
+                  value={businessMetrics.revenue?.revenue_created_usd || 0}
+                  prefix="$"
+                  suffix="/day"
+                />
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  <div>Paid: ${businessMetrics.revenue?.revenue_paid_usd || 0}</div>
+                  <div>Target: $100M/year</div>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        </Card>
+      )}
 
       {/* Daily Standup Summary */}
       <Card title="📊 Daily Standup Report" style={{ marginBottom: '20px' }} loading={loading}>
