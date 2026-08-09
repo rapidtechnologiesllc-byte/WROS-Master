@@ -1,11 +1,12 @@
 """
-KPI Agent Service
+KPI Agent Service - Complete Implementation
 
 Tracks company-wide KPIs and forecasts progress to strategic goals:
-- 2000 employees by 2030
+- 2,000 employees by 2030
 - $100M annual revenue by 2030
+- Monthly 2× growth rate
 
-The KPI Agent runs daily at midnight IST, analyzes current state,
+The KPI Agent runs daily at midnight, analyzes current state,
 forecasts trajectory, and escalates to CEO Agent if off-track.
 """
 
@@ -14,278 +15,231 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
-from app.core.agent_logging import log_agent_execution
+from app.utils.agent_logger import log_agent_execution
 from app.models.employee import Employee
 from app.models.invoice import Invoice
 from app.models.candidate import Candidate
 from app.models.project import Project
 
 
-class KPIAgent:
-    """Company-wide KPI tracking and forecasting agent."""
+def get_current_headcount(db: Session) -> int:
+    """Get current active employee count."""
+    return db.query(func.count(Employee.EmployeeID)).filter(
+        Employee.EmployeeStatus == "ACTIVE"
+    ).scalar() or 0
 
-    # Strategic targets for 2030
-    TARGET_EMPLOYEES_2030 = 2000
-    TARGET_REVENUE_2030 = 100_000_000  # $100M in USD cents
-    TARGET_YEAR = 2030
 
-    @staticmethod
-    @log_agent_execution("KPI Agent", "calculate_daily_kpis")
-    async def calculate_daily_kpis(
-        tenant_id: str,
-        db: Session,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        Calculate current state and forecast for all strategic KPIs.
+def get_ytd_revenue(db: Session, year: Optional[int] = None) -> int:
+    """Get YTD revenue in USD cents."""
+    if not year:
+        year = datetime.utcnow().year
 
-        Returns:
-          {
-            "date": "2026-08-08",
-            "metrics": {
-              "employees": {
-                "current": 42,
-                "target_2030": 2000,
-                "monthly_growth_rate": 3.2,  # percent
-                "projected_2030": 1850,
-                "on_track": false,
-              },
-              "revenue": {
-                "current_month_usd": 156000.50,
-                "current_month_rate_annual": 1872000,
-                "annual_revenue_ytd": 987500,
-                "target_2030": 100000000,
-                "monthly_growth_rate": 8.5,
-                "projected_2030": 87500000,
-                "on_track": false,
-              },
-              "recruiting": {
-                "open_positions": 18,
-                "candidates_in_pipeline": 147,
-                "avg_time_to_hire_days": 22,
-                "placements_this_month": 3,
-                "placements_monthly_avg": 2.1,
-              },
-              "utilization": {
-                "billable_utilization": 78.5,
-                "bench_count": 4,
-                "bench_percentage": 8.7,
-              },
-            },
-            "alerts": [
-              {"severity": "warning", "message": "Employee growth at 1.2%/month, need 4.8% to hit 2030 target"},
-              {"severity": "warning", "message": "Revenue growth at 6.1%/month, need 7.2% to hit 2030 target"},
-            ],
-            "status": "forecasting_off_track"
-          }
-        """
-        try:
-            # Get current timestamp
-            today = datetime.utcnow().date()
-            year_2030 = 2030
+    fy_start = datetime(year, 1, 1)
+    fy_end = datetime(year, 12, 31)
 
-            # ====== EMPLOYEE METRICS ======
-            current_employees = db.query(func.count(Employee.EmployeeID)).filter(
-                Employee.tenant_id == tenant_id,
-                Employee.OnBoardingStatus == "Joined"
-            ).scalar() or 0
+    return db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+        Invoice.created_at >= fy_start,
+        Invoice.created_at <= fy_end,
+        Invoice.status.in_(["APPROVED", "SENT", "PAID"])
+    ).scalar() or 0
 
-            # Calculate 7-day and 30-day hiring rate
-            seven_days_ago = datetime.utcnow() - timedelta(days=7)
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
 
-            employees_7d = db.query(func.count(Employee.EmployeeID)).filter(
-                Employee.tenant_id == tenant_id,
-                Employee.CreatedOn >= seven_days_ago,
-            ).scalar() or 0
+def get_monthly_growth_rate(db: Session, months_back: int = 3) -> float:
+    """Calculate average monthly employee growth rate (percent)."""
+    headcounts = []
 
-            employees_30d = db.query(func.count(Employee.EmployeeID)).filter(
-                Employee.tenant_id == tenant_id,
-                Employee.CreatedOn >= thirty_days_ago,
-            ).scalar() or 0
+    for i in range(months_back, 0, -1):
+        target_date = datetime.utcnow() - timedelta(days=30 * i)
+        count = db.query(func.count(Employee.EmployeeID)).filter(
+            Employee.created_at <= target_date,
+            Employee.EmployeeStatus == "ACTIVE"
+        ).scalar() or 0
+        headcounts.append(count)
 
-            # Monthly growth rate (extrapolate from 7d to 30d)
-            monthly_employee_growth_rate = (employees_30d / 30.0 * max(current_employees, 1) * 100) if current_employees > 0 else 0
+    if len(headcounts) < 2 or headcounts[0] == 0:
+        return 0.0
 
-            # Forecast to 2030
-            years_to_2030 = year_2030 - datetime.utcnow().year
-            if monthly_employee_growth_rate > 0:
-                # Compound growth
-                monthly_factor = 1 + (monthly_employee_growth_rate / 100)
-                projected_employees_2030 = current_employees * (monthly_factor ** (years_to_2030 * 12))
-            else:
-                projected_employees_2030 = current_employees
+    total_growth = sum(
+        ((headcounts[i] - headcounts[i-1]) / headcounts[i-1] * 100)
+        for i in range(1, len(headcounts))
+    )
 
-            employee_on_track = projected_employees_2030 >= KPIAgent.TARGET_EMPLOYEES_2030 * 0.8  # 80% target
+    return total_growth / (len(headcounts) - 1)
 
-            # ====== REVENUE METRICS ======
-            current_month = datetime.utcnow()
-            month_start = current_month.replace(day=1)
-            next_month = (month_start + timedelta(days=32)).replace(day=1)
 
-            # Current month revenue (from invoices marked as paid)
-            current_month_revenue_cents = db.query(func.sum(Invoice.InvoiceTotal)).filter(
-                Invoice.tenant_id == tenant_id,
-                Invoice.InvoiceDate >= month_start,
-                Invoice.InvoiceDate < next_month,
-                Invoice.Status == "Paid"
-            ).scalar() or 0
+def forecast_2030_headcount(current: int, monthly_growth_rate: float) -> int:
+    """Forecast headcount at 2030 based on current growth rate."""
+    months_remaining = (
+        (datetime(2030, 12, 31) - datetime.utcnow()).days // 30
+    )
 
-            # YTD revenue
-            ytd_start = current_month.replace(month=1, day=1)
-            ytd_revenue_cents = db.query(func.sum(Invoice.InvoiceTotal)).filter(
-                Invoice.tenant_id == tenant_id,
-                Invoice.InvoiceDate >= ytd_start,
-                Invoice.Status == "Paid"
-            ).scalar() or 0
+    projected = current * ((1 + monthly_growth_rate / 100) ** months_remaining)
+    return int(projected)
 
-            # Monthly growth rate
-            if ytd_revenue_cents > 0:
-                current_month_revenue_usd = current_month_revenue_cents / 100
-                monthly_growth_rate = (current_month_revenue_usd / (ytd_revenue_cents / 100)) * 100
-            else:
-                current_month_revenue_usd = 0
-                monthly_growth_rate = 0
 
-            # Annualized revenue
-            days_into_year = (current_month - ytd_start).days
-            if days_into_year > 0:
-                annualized_revenue_cents = int(ytd_revenue_cents * (365 / days_into_year))
-            else:
-                annualized_revenue_cents = 0
+def forecast_2030_revenue(ytd_revenue: int, current_year: int) -> int:
+    """Forecast annual revenue at 2030 based on current trajectory."""
+    if current_year == 2026:
+        year_progress_pct = (datetime.utcnow() - datetime(2026, 1, 1)).days / 365 * 100
+        if year_progress_pct == 0:
+            return 0
 
-            # Forecast to 2030
-            if monthly_growth_rate > 0:
-                monthly_factor = 1 + (monthly_growth_rate / 100)
-                projected_revenue_2030_cents = annualized_revenue_cents * (monthly_factor ** (years_to_2030 * 12))
-            else:
-                projected_revenue_2030_cents = annualized_revenue_cents
+        annual_run_rate = int(ytd_revenue / (year_progress_pct / 100))
 
-            revenue_on_track = projected_revenue_2030_cents >= KPIAgent.TARGET_REVENUE_2030 * 0.8  # 80% target
+        # Simple forecast: assume 2× YoY growth
+        years_to_2030 = 2030 - current_year
+        projected = annual_run_rate * (2 ** years_to_2030)
+        return projected
 
-            # ====== RECRUITING METRICS ======
-            open_positions = db.query(func.count(Project.ProjectID)).filter(
-                Project.tenant_id == tenant_id,
-                Project.ProjectStatus == "Open"
-            ).scalar() or 0
+    return 0
 
-            candidates_in_pipeline = db.query(func.count(Candidate.CandidateID)).filter(
-                Candidate.tenant_id == tenant_id,
-                Candidate.CandidateStatus.in_(["Intake", "Screening", "Interview", "Offer"]),
-            ).scalar() or 0
 
-            placements_30d = db.query(func.count(Employee.EmployeeID)).filter(
-                Employee.tenant_id == tenant_id,
-                Employee.CreatedOn >= thirty_days_ago,
-            ).scalar() or 0
+def get_metrics_by_tier(db: Session) -> Dict[str, Any]:
+    """Get KPI breakdown by BU (AXION, PRISM)."""
+    from app.models.business_unit import BusinessUnit
 
-            avg_placements_monthly = placements_30d / (30.0 / 30.0)  # 30d extrapolation
+    tiers = {}
+    for bu in db.query(BusinessUnit).all():
+        bu_employees = db.query(func.count(Employee.EmployeeID)).filter(
+            Employee.business_unit_id == bu.id,
+            Employee.EmployeeStatus == "ACTIVE"
+        ).scalar() or 0
 
-            # ====== UTILIZATION METRICS ======
-            # Billable utilization: (employees with active assignments) / total employees
-            billable_count = db.query(func.count(Employee.EmployeeID)).filter(
-                Employee.tenant_id == tenant_id,
-                Employee.OnBoardingStatus == "Joined",
-                # Note: check for active allocations if that table exists
-            ).scalar() or 1
+        bu_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+            Invoice.business_unit_id == bu.id,
+            Invoice.status.in_(["APPROVED", "SENT", "PAID"])
+        ).scalar() or 0
 
-            billable_utilization = (billable_count / max(current_employees, 1) * 100) if current_employees > 0 else 0
-            bench_count = current_employees - billable_count
-            bench_percentage = (bench_count / max(current_employees, 1) * 100) if current_employees > 0 else 0
-
-            # ====== ALERTS ======
-            alerts = []
-
-            # Employee growth alert
-            required_employee_growth_rate = (
-                (KPIAgent.TARGET_EMPLOYEES_2030 / max(current_employees, 1)) ** (1 / (years_to_2030 * 12)) - 1
-            ) * 100
-            if monthly_employee_growth_rate < required_employee_growth_rate:
-                alerts.append({
-                    "severity": "warning",
-                    "message": f"Employee growth at {monthly_employee_growth_rate:.1f}%/month, "
-                               f"need {required_employee_growth_rate:.1f}% to hit 2030 target of {KPIAgent.TARGET_EMPLOYEES_2030}"
-                })
-
-            # Revenue growth alert
-            if annualized_revenue_cents > 0:
-                required_revenue_growth_rate = (
-                    (KPIAgent.TARGET_REVENUE_2030 / annualized_revenue_cents) ** (1 / years_to_2030) - 1
-                ) * 100
-                if monthly_growth_rate < required_revenue_growth_rate:
-                    alerts.append({
-                        "severity": "warning",
-                        "message": f"Revenue growth at {monthly_growth_rate:.1f}%/month, "
-                                   f"need {required_revenue_growth_rate:.1f}% to hit 2030 target"
-                    })
-
-            # Utilization alert
-            if billable_utilization < 75:
-                alerts.append({
-                    "severity": "info",
-                    "message": f"Billable utilization at {billable_utilization:.1f}%, "
-                               f"bench has {bench_count} employees"
-                })
-
-            # Determine overall status
-            status = "on_track" if (employee_on_track and revenue_on_track) else "forecasting_off_track"
-            if len(alerts) > 1:
-                status = "needs_action"
-
-            return {
-                "date": today.isoformat(),
-                "metrics": {
-                    "employees": {
-                        "current": current_employees,
-                        "target_2030": KPIAgent.TARGET_EMPLOYEES_2030,
-                        "monthly_growth_rate": round(monthly_employee_growth_rate, 2),
-                        "projected_2030": int(projected_employees_2030),
-                        "on_track": employee_on_track,
-                    },
-                    "revenue": {
-                        "current_month_usd": round(current_month_revenue_usd, 2),
-                        "current_month_rate_annual_usd": round(current_month_revenue_usd * 12, 2),
-                        "annual_revenue_ytd_usd": round(ytd_revenue_cents / 100, 2),
-                        "annualized_revenue_usd": round(annualized_revenue_cents / 100, 2),
-                        "target_2030_usd": KPIAgent.TARGET_REVENUE_2030 / 100,
-                        "monthly_growth_rate": round(monthly_growth_rate, 2),
-                        "projected_2030_usd": round(projected_revenue_2030_cents / 100, 2),
-                        "on_track": revenue_on_track,
-                    },
-                    "recruiting": {
-                        "open_positions": open_positions,
-                        "candidates_in_pipeline": candidates_in_pipeline,
-                        "placements_this_month": placements_30d,
-                        "placements_monthly_avg": round(avg_placements_monthly, 1),
-                    },
-                    "utilization": {
-                        "billable_utilization_percent": round(billable_utilization, 1),
-                        "bench_count": bench_count,
-                        "bench_percentage": round(bench_percentage, 1),
-                    },
-                },
-                "alerts": alerts,
-                "status": status,
-                "forecasted_2030": {
-                    "employees": int(projected_employees_2030),
-                    "revenue_usd": round(projected_revenue_2030_cents / 100, 2),
-                }
-            }
-
-        except Exception as e:
-            raise
-
-    @staticmethod
-    async def get_kpi_dashboard(
-        tenant_id: str,
-        db: Session,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Get formatted KPI dashboard for CEO/executive viewing."""
-        kpis = await KPIAgent.calculate_daily_kpis(tenant_id=tenant_id, db=db)
-
-        return {
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "data": kpis
+        tiers[bu.name or f"BU_{bu.id}"] = {
+            "headcount": bu_employees,
+            "revenue_usd_cents": bu_revenue,
+            "revenue_usd": bu_revenue / 100 if bu_revenue else 0
         }
+
+    return tiers
+
+
+def calculate_daily_kpis(db: Session, tenant_id: str = "system") -> Dict[str, Any]:
+    """
+    Calculate current state and forecast for all strategic KPIs.
+
+    Returns comprehensive KPI snapshot with current metrics and 2030 forecasts.
+    """
+    today = datetime.utcnow()
+    current_employees = get_current_headcount(db)
+    ytd_revenue = get_ytd_revenue(db)
+    monthly_growth = get_monthly_growth_rate(db)
+
+    projected_employees_2030 = forecast_2030_headcount(current_employees, monthly_growth)
+    projected_revenue_2030 = forecast_2030_revenue(ytd_revenue, today.year)
+
+    # Calculate pace vs target
+    days_elapsed = (today - datetime(today.year, 1, 1)).days
+    days_in_year = 365
+    year_progress_pct = (days_elapsed / days_in_year) * 100
+
+    # Revenue pace
+    annual_run_rate = int(ytd_revenue / (year_progress_pct / 100)) if year_progress_pct > 0 else 0
+    revenue_target_2026 = 5_000_000_00  # $5M
+    revenue_pace_pct = (annual_run_rate / revenue_target_2026 * 100) if revenue_target_2026 > 0 else 0
+
+    # Headcount pace (2030: 2000 employees, so 2026 interim target ~150)
+    headcount_target_2026 = 150
+    headcount_pace_pct = (current_employees / headcount_target_2026 * 100) if headcount_target_2026 > 0 else 0
+
+    result = {
+        "date": today.isoformat(),
+        "year": today.year,
+        "year_progress_pct": round(year_progress_pct, 1),
+        "metrics": {
+            "employees": {
+                "current": current_employees,
+                "target_2026": 150,
+                "target_2030": 2000,
+                "monthly_growth_rate": round(monthly_growth, 2),
+                "projected_2030": projected_employees_2030,
+                "pace_vs_2026_target_pct": round(headcount_pace_pct, 1),
+                "status": "ON_TRACK" if headcount_pace_pct >= year_progress_pct * 0.9 else "BEHIND"
+            },
+            "revenue": {
+                "ytd_usd": ytd_revenue / 100 if ytd_revenue else 0,
+                "ytd_usd_cents": ytd_revenue,
+                "annual_run_rate_usd": annual_run_rate / 100 if annual_run_rate else 0,
+                "annual_run_rate_usd_cents": annual_run_rate,
+                "target_2026_usd": 5_000_000,
+                "target_2030_usd": 100_000_000,
+                "projected_2030_usd": projected_revenue_2030 / 100 if projected_revenue_2030 else 0,
+                "projected_2030_usd_cents": projected_revenue_2030,
+                "pace_vs_2026_target_pct": round(revenue_pace_pct, 1),
+                "status": "ON_TRACK" if revenue_pace_pct >= year_progress_pct * 0.9 else "BEHIND"
+            }
+        },
+        "by_tier": get_metrics_by_tier(db),
+        "health_score": _calculate_health_score(headcount_pace_pct, revenue_pace_pct)
+    }
+
+    log_agent_execution(
+        db=db,
+        agent_name="KPI Agent",
+        action_taken="calculate_daily_kpis",
+        tenant_id=tenant_id,
+        action_data={
+            "current_employees": current_employees,
+            "ytd_revenue_usd_cents": ytd_revenue,
+            "monthly_growth_rate": monthly_growth,
+            "health_score": result["health_score"]
+        },
+        success=True,
+    )
+
+    return result
+
+
+def _calculate_health_score(headcount_pace: float, revenue_pace: float) -> int:
+    """Calculate overall organizational health score (0-100)."""
+    avg_pace = (headcount_pace + revenue_pace) / 2
+    if avg_pace >= 100:
+        return 100
+    elif avg_pace >= 90:
+        return 85
+    elif avg_pace >= 75:
+        return 70
+    elif avg_pace >= 50:
+        return 55
+    else:
+        return 40
+
+
+def get_kpi_alerts(db: Session) -> List[Dict[str, Any]]:
+    """Generate alerts for KPIs that are off-track."""
+    kpis = calculate_daily_kpis(db)
+    alerts = []
+
+    # Employee growth alert
+    if kpis["metrics"]["employees"]["status"] == "BEHIND":
+        alerts.append({
+            "severity": "HIGH",
+            "metric": "Employee Growth",
+            "message": f"Headcount pace at {kpis['metrics']['employees']['pace_vs_2026_target_pct']:.1f}% vs {kpis['year_progress_pct']:.1f}% FY progress",
+            "recommendation": "Accelerate hiring pipeline"
+        })
+
+    # Revenue alert
+    if kpis["metrics"]["revenue"]["status"] == "BEHIND":
+        alerts.append({
+            "severity": "HIGH",
+            "metric": "Revenue Growth",
+            "message": f"Revenue pace at {kpis['metrics']['revenue']['pace_vs_2026_target_pct']:.1f}% vs {kpis['year_progress_pct']:.1f}% FY progress",
+            "recommendation": "Accelerate sales pipeline and close rates"
+        })
+
+    log_agent_execution(
+        db=db,
+        agent_name="KPI Agent",
+        action_taken="get_kpi_alerts",
+        tenant_id="system",
+        action_data={"alert_count": len(alerts)},
+        success=True,
+    )
+
+    return alerts

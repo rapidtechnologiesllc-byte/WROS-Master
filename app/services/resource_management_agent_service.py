@@ -60,6 +60,7 @@ from app.services.core_pull_service import detect_core_pull_conflict
 from app.services.employee_allocation_service import allocate_employee_to_project
 from app.services.notification_service import send_notification
 from app.services.resource_management_service import get_current_bench_pool, is_staffing_eligible
+from app.utils.agent_logger import log_agent_execution
 
 # Reuses the same Gemini pattern as every other LLM call in this codebase
 # (thunder_service.py, ai_conversation_service.py) rather than the story
@@ -382,10 +383,24 @@ def run_bench_scan(
             recommendations.append(recommendation)
     db.flush()
 
-    return {
+    result = {
         "core_pull_events_triggered": len(core_pull_events),
         "recommendations_created": len(recommendations),
     }
+
+    log_agent_execution(
+        db=db,
+        agent_name="Resource Management Agent",
+        action_taken="run_bench_scan",
+        tenant_id=str(tenant_id) if tenant_id else "system",
+        action_data={
+            "core_pull_events_triggered": len(core_pull_events),
+            "recommendations_created": len(recommendations),
+        },
+        success=True,
+    )
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +441,22 @@ def start_pursuing_recommendation(
     recommendation.pursued_by = actor_user_id
     recommendation.pursued_at = datetime.utcnow()
     db.add(recommendation)
+
+    log_agent_execution(
+        db=db,
+        agent_name="Resource Management Agent",
+        action_taken="start_pursuing_recommendation",
+        tenant_id=str(recommendation.tenant_id),
+        action_data={
+            "recommendation_id": recommendation.id,
+            "employee_id": recommendation.employee_id,
+            "demand_id": recommendation.demand_id,
+            "confidence_pct": float(recommendation.confidence_pct),
+            "pursued_by": actor_user_id,
+        },
+        success=True,
+    )
+
     return recommendation
 
 
@@ -458,6 +489,21 @@ def approve_bench_recommendation(
     recommendation.reviewed_at = datetime.utcnow()
     db.add(recommendation)
 
+    log_agent_execution(
+        db=db,
+        agent_name="Resource Management Agent",
+        action_taken="approve_bench_recommendation",
+        tenant_id=str(recommendation.tenant_id),
+        action_data={
+            "recommendation_id": recommendation.id,
+            "employee_id": recommendation.employee_id,
+            "demand_id": recommendation.demand_id,
+            "allocation_id": allocation.id if allocation else None,
+            "reviewed_by": actor_user_id,
+        },
+        success=True,
+    )
+
     return allocation
 
 
@@ -475,4 +521,20 @@ def reject_bench_recommendation(
     recommendation.reviewed_by = actor_user_id
     recommendation.reviewed_at = datetime.utcnow()
     db.add(recommendation)
+
+    log_agent_execution(
+        db=db,
+        agent_name="Resource Management Agent",
+        action_taken="reject_bench_recommendation",
+        tenant_id=str(recommendation.tenant_id),
+        action_data={
+            "recommendation_id": recommendation.id,
+            "employee_id": recommendation.employee_id,
+            "demand_id": recommendation.demand_id,
+            "previous_status": recommendation.status,
+            "reviewed_by": actor_user_id,
+        },
+        success=True,
+    )
+
     return recommendation

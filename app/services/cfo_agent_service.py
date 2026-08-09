@@ -9,7 +9,7 @@ from app.models.user import Users
 from app.services.pnl_service import get_org_pnl_summary, get_bu_pnl
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.reserve_fund_service import get_reserve_fund_status
-from app.core.agent_logging import log_agent_execution
+from app.utils.agent_logger import log_agent_execution
 
 
 def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: str = None) -> dict:
@@ -71,7 +71,7 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
         Invoice.created_at < period_end
     ).scalar() or 0
 
-    return {
+    result = {
         "period": year_month,
         "total_revenue_usd": total_revenue / 100 if total_revenue else 0,
         "total_revenue_usd_cents": total_revenue,
@@ -88,6 +88,22 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
         "revenue_leakage_hours": leakage,
         "open_disputes_count": disputes
     }
+
+    log_agent_execution(
+        db=db,
+        agent_name="CFO Agent",
+        action_taken="get_org_financial_snapshot",
+        tenant_id=tenant_id or "system",
+        action_data={
+            "period": year_month,
+            "total_revenue_usd_cents": total_revenue,
+            "gross_margin_pct": result.get("gross_margin_pct", 0),
+            "net_position_usd_cents": result.get("net_position_usd_cents", 0),
+        },
+        success=True,
+    )
+
+    return result
 
 
 def get_cfo_alerts(db: Session) -> list:
