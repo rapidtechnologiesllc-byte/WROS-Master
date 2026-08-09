@@ -279,3 +279,51 @@ def check_retirement_eligibility(db: Session, agent_name: str) -> dict:
         "success_rate": maturity.success_rate,
         "quality_score": maturity.quality_score
     }
+
+
+def initialize_default_agents(db: Session) -> None:
+    """Initialize database with default agents if none exist."""
+    existing_count = db.query(AgentMaturityLevel).count()
+    if existing_count > 0:
+        return  # Already initialized
+
+    # Create default agents
+    agent_configs = [
+        {"name": "Thunder", "tier": 1, "success_rate": 92, "quality": 88},
+        {"name": "Recruitment Agent", "tier": 1, "success_rate": 88, "quality": 85},
+        {"name": "Resource Manager", "tier": 2, "success_rate": 85, "quality": 82},
+        {"name": "CFO Agent", "tier": 2, "success_rate": 96, "quality": 94},
+        {"name": "KPI Agent", "tier": 2, "success_rate": 79, "quality": 75},
+        {"name": "HR Agent", "tier": 2, "success_rate": 81, "quality": 78},
+        {"name": "Mental Health Agent", "tier": 2, "success_rate": 87, "quality": 90},
+        {"name": "Help Desk Agent", "tier": 3, "success_rate": 78, "quality": 80},
+        {"name": "Flash Orchestrator", "tier": 1, "success_rate": 91, "quality": 89},
+    ]
+
+    for config in agent_configs:
+        maturity = AgentMaturityLevel(
+            agent_name=config["name"],
+            tenant_id="system",
+            maturity_level=75 + (config["success_rate"] - 80),
+            success_rate=config["success_rate"],
+            quality_score=config["quality"],
+            is_active=True,
+            is_retired=False,
+            trend_direction="stable",
+            weeks_at_this_level=2,
+            last_calculated_at=datetime.utcnow()
+        )
+        db.add(maturity)
+
+        fear_state = AgentFearState(
+            agent_name=config["name"],
+            tenant_id="system",
+            fear_level=max(20, 100 - config["success_rate"]),
+            threat_level="none" if config["success_rate"] > 85 else "warning",
+            is_under_threat=config["success_rate"] < 85,
+            motivation_state="motivated" if config["success_rate"] > 90 else "neutral",
+            weeks_until_retirement=None
+        )
+        db.add(fear_state)
+
+    db.commit()
