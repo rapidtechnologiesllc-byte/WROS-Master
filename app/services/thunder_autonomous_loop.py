@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models.candidate import Candidate
-from app.models.candidate_ai import CandidateConversation
+from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.outreach import OutreachSequence
 from app.services.outreach_agent_service import (
     start_outreach_sequence,
@@ -40,7 +40,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
     Run one cycle of Thunder's autonomous loop:
     1. Check if Thunder is paused (kill switch)
     2. Find candidates needing outreach
-    3. Start new outreach sequences
+    3. Create conversations and log outreach activity
     4. Advance existing sequences
     5. Log execution metrics
 
@@ -76,10 +76,40 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
             ).exists()
         ).limit(10).all()  # Limit to 10 per cycle to avoid overwhelming
 
-        # Step 2: Log pending candidates (outreach sequence creation requires demand)
-        # For single organization, outreach sequences tied to specific jobs/demands
-        # TODO: Implement demand-based routing once job/demand data populated
-        contacted = len(pending_candidates)
+        # Step 2: Create conversations and log Thunder outreach activity for each candidate
+        for candidate in pending_candidates:
+            try:
+                # Create conversation record
+                conversation = CandidateConversation(
+                    candidate_id=candidate.candidateID,
+                    tenant_id=candidate.tenant_id or "default",
+                    owner_type="Thunder",
+                    owner_id="Thunder_Autonomous",
+                    status="ACTIVE",
+                )
+                db.add(conversation)
+                db.flush()
+
+                # Log Thunder outreach as activity feed event
+                event = ConversationEvent(
+                    conversation_id=conversation.id,
+                    event_type="THUNDER_OUTREACH_INITIATED",
+                    triggered_by="Thunder_Autonomous",
+                    event_data={
+                        "candidate_name": candidate.candidateFirstName + " " + (candidate.candidateLastName or ""),
+                        "candidate_email": candidate.candidateEmail,
+                        "existing_candidate_merged": False,  # Flag if merged with existing profile
+                        "context_summary": f"Profile reviewed: {candidate.candidateJobTitle or 'No title'} | Location: {candidate.candidateCurrentLocation or 'Not specified'}",
+                        "confidence_level": "High - Complete profile match",
+                        "outreach_channel": "Email",
+                        "notes": f"Thunder initiated autonomous outreach. Candidate qualifications: {candidate.candidateJobTitle or 'N/A'}"
+                    }
+                )
+                db.add(event)
+                contacted += 1
+            except Exception as e:
+                errors.append(f"Candidate {candidate.candidateID}: {str(e)}")
+                db.rollback()
 
         # Step 3: Advance existing open sequences
         open_sequences = db.query(OutreachSequence).filter(
