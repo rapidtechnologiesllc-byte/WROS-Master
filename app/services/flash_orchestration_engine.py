@@ -33,7 +33,42 @@ from app.services.performance_store_service import write_performance_event
 
 
 class FlashOrchestrationEngine:
-    """Daily coordination of all 70+ agents toward $100M revenue target."""
+    """Daily coordination of all 70+ agents toward $100M revenue target.
+
+    ABSOLUTE RULE: NO CROSS-BU RESOURCE SHARING EVER.
+
+    Each business unit solves its own bottlenecks independently:
+    - If AXION needs CORE capacity → AXION hires/trains/develops
+    - If PRISM needs CORE capacity → PRISM hires/trains/develops
+    - SPECIALTY supports both BUs' pipelines but doesn't substitute for BU autonomy
+
+    Every directive is validated to ensure it respects this rule.
+    """
+
+    @staticmethod
+    def validate_no_cross_bu_borrowing(directive: Dict[str, Any]) -> bool:
+        """
+        Validate that a directive doesn't violate the NO CROSS-BU RESOURCE SHARING rule.
+
+        Forbidden patterns:
+        - "support other BUs"
+        - "borrow from another BU"
+        - "pull resources from another BU"
+        - Any suggestion of inter-BU resource movement
+
+        Returns: True if directive is valid (no cross-BU borrowing), False otherwise.
+        """
+        forbidden_phrases = [
+            "support other", "borrow", "pull from", "share with", "cross-bu",
+            "help another", "assist other", "backup from", "redistribute",
+        ]
+
+        directive_str = str(directive).lower()
+        for phrase in forbidden_phrases:
+            if phrase in directive_str:
+                return False
+
+        return True
 
     @staticmethod
     @log_agent_execution("Flash Orchestration Engine", "daily_coordination")
@@ -96,14 +131,16 @@ class FlashOrchestrationEngine:
                         "severity": "CRITICAL",
                         "type": "NO_DEVELOPMENT_PIPELINE",
                         "message": f"{bu.name}: ZERO people in HTD pipeline. No CORE talent being developed.",
-                        "action": "HTD: Hire external CORE immediately. No internal pipeline to draw from.",
+                        "action": f"{bu.name} owns solution: HTD hire external CORE immediately. No internal pipeline to draw from.",
                     })
                     directives.append({
                         "priority": 1,
                         "directive": "HTD_HIRE_EXTERNAL_CORE",
-                        "reason": f"No development pipeline. Market supply needed.",
+                        "reason": f"No development pipeline. {bu.name} must source external market supply.",
                         "target_hire_count": max(0, int(total_people * 0.6) - core_certified),
                         "timeline_days": 30,
+                        "bu_autonomous": True,
+                        "cross_bu_forbidden": "NO: This is {bu.name}'s independent responsibility. Do not borrow from other BUs.",
                     })
 
                 # BOTTLENECK 2: Development pipeline exists but low CORE conversion forecast
@@ -112,17 +149,19 @@ class FlashOrchestrationEngine:
                         "severity": "HIGH",
                         "type": "CORE_DEFICIT",
                         "message": f"{bu.name}: Only {core_pct}% CORE (target: 60%). {in_development} in development but forecast too low.",
-                        "action": "Accelerate HTD: Hire external + accelerate gate progression in development pipeline.",
+                        "action": f"{bu.name} owns solution: Accelerate HTD (hire external + gate progression)",
                     })
                     directives.append({
                         "priority": 2,
                         "directive": "ACCELERATE_CORE_DEVELOPMENT",
-                        "reason": f"Behind 60% CORE target at {core_pct}%.",
+                        "reason": f"{bu.name} behind 60% CORE target at {core_pct}%. {bu.name} must solve independently.",
                         "actions": [
                             "Accelerate gate progression for people in CONTROLLED_OWNERSHIP phase",
                             "Hire 5-10 external CORE to bridge gap",
                             "Double-check gate decisions at last phase (CORE_ELIGIBILITY_REVIEW) for any quick passes",
                         ],
+                        "bu_autonomous": True,
+                        "cross_bu_forbidden": f"NO: {bu.name} solves its own CORE deficit. No borrowing from other BUs allowed.",
                     })
 
                 # BOTTLENECK 3: Stalled opportunities (can't staff them)
@@ -139,8 +178,8 @@ class FlashOrchestrationEngine:
                             alerts.append({
                                 "severity": "HIGH",
                                 "type": "STALLED_DEAL_LIKELY_STAFFING",
-                                "message": f"{bu.name}: ${opp.get('deal_size_usd', 0):,} deal ({opp.get('client_name')}) stalled {opp.get('days_stalled', 0)} days. Likely need CORE staffing.",
-                                "action": "Pull CORE resource from lower priority work OR recommend HTD external hire to close this deal.",
+                                "message": f"{bu.name}: ${opp.get('deal_size_usd', 0):,} deal ({opp.get('client_name')}) stalled {opp.get('days_stalled', 0)} days. CORE staffing constraint likely.",
+                                "action": f"{bu.name} owns solution: (A) Reallocate CORE from lower priority {bu.name} work, OR (B) {bu.name} HTD external hire to close deal",
                             })
 
                 # BOTTLENECK 4: Agent performance issues
@@ -162,7 +201,16 @@ class FlashOrchestrationEngine:
                         "flash_directives": directives,
                     })
 
-            # 3. ESCALATE TO CEO IF CRITICAL
+            # 3. VALIDATE ALL DIRECTIVES — NO CROSS-BU RESOURCE BORROWING
+            for partner_directive in partner_directives:
+                for directive in partner_directive.get("flash_directives", []):
+                    if not FlashOrchestrationEngine.validate_no_cross_bu_borrowing(directive):
+                        raise ValueError(
+                            f"INVALID DIRECTIVE: Cross-BU borrowing detected in {partner_directive['bu_name']} directive: {directive}. "
+                            f"RULE: Each BU solves its own capacity gaps independently. No cross-BU resource sharing allowed."
+                        )
+
+            # 4. ESCALATE TO CEO IF CRITICAL
             critical_count = len([a for p in partner_directives for a in p["alerts"] if a["severity"] == "CRITICAL"])
             high_count = len([a for p in partner_directives for a in p["alerts"] if a["severity"] == "HIGH"])
 
@@ -209,12 +257,17 @@ class FlashOrchestrationEngine:
 
 
 def generate_flash_summary(directives: List[Dict], critical: int, high: int) -> str:
-    """Generate Flash's daily summary message."""
+    """
+    Generate Flash's daily summary message.
+
+    Operating Model Principle: Every directive enforces that each BU solves its own
+    bottlenecks independently. There is NO cross-BU resource borrowing, ever.
+    """
     if critical > 0:
-        return f"🚨 {critical} CRITICAL ALERTS require immediate CEO escalation. Directives issued to {len(directives)} partners."
+        return f"🚨 {critical} CRITICAL ALERTS require immediate CEO escalation. Directives issued to {len(directives)} partners (each owns their own solution)."
     elif high > 0:
-        return f"⚠️ {high} HIGH-priority issues flagged. {len(directives)} partners have action items. Monitor closely."
+        return f"⚠️ {high} HIGH-priority issues flagged. {len(directives)} partners have action items (autonomous solutions). Monitor closely."
     elif directives:
-        return f"✓ All partners have development plans. {len(directives)} active coordination items. On track."
+        return f"✓ All partners have development plans. {len(directives)} active coordination items. Each BU owns its solution. On track."
     else:
         return "✓ All systems healthy. No immediate actions required."
