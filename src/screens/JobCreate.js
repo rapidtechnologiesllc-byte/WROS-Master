@@ -31,7 +31,6 @@ export default function JobCreate({
   const [companyClient, setCompanyClient] = useState("");
   const [companyType, setCompanyType] = useState("");
   const [contactPerson, setContactPerson] = useState("");
-  const [division, setDivision] = useState("");
   const [dept, setDept] = useState("Digital");
   const [location, setLocation] = useState("Remote");
   const [experienceLevel, setExperienceLevel] = useState("");
@@ -219,7 +218,6 @@ export default function JobCreate({
     setCompanyClient(initialJob.company_name || "");
     setCompanyType(initialJob.company_type || "");
     setContactPerson(initialJob.contact_person || "");
-    setDivision(initialJob.division || "");
     setDept(initialJob.dept || "");
     setLocation(initialJob.job_location || "");
     setExperienceLevel(initialJob.job_experience || "");
@@ -556,14 +554,19 @@ export default function JobCreate({
                   { label: "External Role (Partner/Client)", value: "external" },
                 ]}
               />
-              {isInternalRole === false && (
-                <Select
-                  label="Company / Client *"
-                  value={companyClient}
-                  onChange={setCompanyClient}
-                  options={clientOptions}
-                />
-              )}
+              <Select
+                label="Company / Client *"
+                value={companyClient}
+                onChange={(value) => {
+                  setCompanyClient(value);
+                  // Auto-populate companyType from selected client's line_type
+                  const selectedClient = clientList.find(c => c.company_name === value);
+                  if (selectedClient?.line_type) {
+                    setCompanyType(selectedClient.line_type);
+                  }
+                }}
+                options={clientOptions}
+              />
               <Select
                 label="Business Unit"
                 value={selectedBusinessUnit}
