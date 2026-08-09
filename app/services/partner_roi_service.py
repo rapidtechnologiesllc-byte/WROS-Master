@@ -11,6 +11,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.demand import Demand
 from app.services.pnl_service import get_bu_pnl
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
+from app.utils.agent_logger import log_agent_execution
 
 
 def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> dict:
@@ -128,7 +129,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
     # 8. P&L (from pnl_service)
     pnl_margin = pnl.get("margin_pct", 0) if pnl else 0
 
-    return {
+    result = {
         "partner_id": partner_id,
         "partner_name": partner.UserName,
         "bu_id": bu_id,
@@ -147,6 +148,22 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
         "billable_hours": billable_hours,
         "allocated_headcount": allocated_employees
     }
+
+    log_agent_execution(
+        db=db,
+        agent_name="Partner ROI Agent",
+        action_taken="get_partner_kpis",
+        tenant_id=partner_id,
+        action_data={
+            "bu_id": bu_id,
+            "revenue_usd_cents": revenue_usd_cents,
+            "gross_margin_pct": pnl_margin,
+            "new_logos": new_clients
+        },
+        success=True,
+    )
+
+    return result
 
 
 def get_partner_trend(db: Session, partner_id: str, months_back: int = 6) -> list:

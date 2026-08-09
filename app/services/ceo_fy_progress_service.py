@@ -9,6 +9,7 @@ from app.models.client import Client
 from app.models.opportunity import Opportunity
 from app.models.invoice import Invoice
 from app.services.pnl_service import get_org_pnl_summary
+from app.utils.agent_logger import log_agent_execution
 
 
 def get_fy_targets(db: Session) -> dict:
@@ -174,6 +175,23 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
             "status": "ON_TRACK" if margin_progress_pct >= fy_progress_pct * 0.9 else "BEHIND"
         }
     }
+
+    result_dict = {
+        "fy_year": fy_year,
+        "headcount_progress": total_headcount,
+        "revenue_progress_usd_cents": ytd_revenue,
+        "margin_pct": margin_pct,
+        "fy_progress_pct": fy_progress_pct
+    }
+
+    log_agent_execution(
+        db=db,
+        agent_name="CEO/FY Progress Agent",
+        action_taken="get_fy_progress",
+        tenant_id="system",
+        action_data=result_dict,
+        success=True,
+    )
 
 
 def get_fy_executive_summary(db: Session) -> dict:
