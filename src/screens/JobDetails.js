@@ -557,6 +557,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             </div>
           </div>
         </div>
+        }
       </div>
     </div>
   );
