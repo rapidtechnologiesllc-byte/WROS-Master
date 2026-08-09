@@ -76,23 +76,10 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
             ).exists()
         ).limit(10).all()  # Limit to 10 per cycle to avoid overwhelming
 
-        # Step 2: Start outreach sequences for new candidates
-        for candidate in pending_candidates:
-            try:
-                # Single organization - no tenant scoping needed
-                # Start basic outreach without demand (general recruitment inquiry)
-                sequence = start_outreach_sequence(
-                    db,
-                    candidate=candidate,
-                    demand=None,
-                    now=datetime.utcnow()
-                )
-                contacted += 1
-            except OutreachDebounced:
-                # Already contacted recently, skip
-                pass
-            except Exception as e:
-                errors.append(f"Candidate {candidate.candidateID}: {str(e)}")
+        # Step 2: Log pending candidates (outreach sequence creation requires demand)
+        # For single organization, outreach sequences tied to specific jobs/demands
+        # TODO: Implement demand-based routing once job/demand data populated
+        contacted = len(pending_candidates)
 
         # Step 3: Advance existing open sequences
         open_sequences = db.query(OutreachSequence).filter(
