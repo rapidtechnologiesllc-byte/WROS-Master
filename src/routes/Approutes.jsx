@@ -108,6 +108,7 @@ import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
+import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -523,6 +524,7 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
+            <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
 
             <Route
               path="candidates"
@@ -760,6 +762,7 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
+            <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
           <Route
             path="candidates"
             element={

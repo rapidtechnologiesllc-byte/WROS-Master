@@ -202,6 +202,7 @@ export default function TopBar({
       "/admin/ai-config": ["AI Configuration"],
       "/admin/error-log": ["Error Log"],
       "/admin/settings": ["Admin Settings"],
+      "/admin/weekly-recap": ["Weekly Recap"],
       "/buddy-program": ["Buddy Program"],
       "/executive-signal": ["Executive Signal"],
     };
