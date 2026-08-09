@@ -119,7 +119,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           {activeTab === "details" && (
             <div className="space-y-4">
       {/* Basic Information */}
-      <CardBlock title="Basic Information" subtitle="Job title, position type, and priority">
+      <CardBlock title="Basic Information" subtitle="Job title, position type, priority, and pay range">
         {editingSection === "basic" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Job Title *" value={title} onChange={setTitle} />
@@ -128,6 +128,19 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             <Select label="Priority" value={priority} onChange={setPriority}
               options={["Low", "High"]} />
             <Input label="Department" value={dept} onChange={setDept} />
+            <Select label="Currency" value={payCurrency} onChange={(value) => {
+              setPayCurrency(value);
+              if (value === "INR") setPayFrequency("Annual");
+            }} options={["USD", "INR"]} />
+            <Select label="Pay Frequency" value={payFrequency} onChange={setPayFrequency}
+              options={payCurrency === "USD" ? ["Hourly", "Annual"] : ["Annual"]} />
+            <Input label={payFrequency === "Hourly" ? "Pay Amount (Hourly)" : "Pay Amount (Annual)"}
+              value={payAmount} onChange={(value) => {
+                setPayAmount(value);
+                const normalized = value ? String(value).trim() : "";
+                const next = normalized ? `${payCurrency} ${payFrequency} ${normalized}` : "";
+                setPayRange(next);
+              }} type="number" />
             <div className="md:col-span-2 flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSection}>Cancel</Button>
               <Button onClick={() => saveSection("basic")}>Save</Button>
@@ -140,6 +153,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
               <Info label="Position Type" value={job.positionType} />
               <Info label="Priority" value={job.priority} />
               <Info label="Department" value={job.dept} />
+              <Info label="Pay Range" value={job.payRange} />
             </div>
             {mode !== "view" && (
               <Button variant="ghost" size="sm" onClick={() => setEditingSection("basic")}
@@ -174,43 +188,6 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             </div>
             {mode !== "view" && (
               <Button variant="ghost" size="sm" onClick={() => setEditingSection("company")}
-                className="mt-3">
-                <Edit2 className="h-4 w-4 mr-1" /> Edit
-              </Button>
-            )}
-          </div>
-        )}
-      </CardBlock>
-
-      {/* Compensation */}
-      <CardBlock title="Compensation" subtitle="Pay range and salary information">
-        {editingSection === "compensation" ? (
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-3">
-              <Select label="Currency" value={payCurrency} onChange={(value) => {
-                setPayCurrency(value);
-                if (value === "INR") setPayFrequency("Annual");
-              }} options={["USD", "INR"]} />
-              <Select label="Frequency" value={payFrequency} onChange={setPayFrequency}
-                options={payCurrency === "USD" ? ["Hourly", "Annual"] : ["Annual"]} />
-              <Input label={payFrequency === "Hourly" ? "Amount (Hourly)" : "Amount (Annual)"}
-                value={payAmount} onChange={(value) => {
-                  setPayAmount(value);
-                  const normalized = value ? String(value).trim() : "";
-                  const next = normalized ? `${payCurrency} ${payFrequency} ${normalized}` : "";
-                  setPayRange(next);
-                }} type="number" />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={cancelSection}>Cancel</Button>
-              <Button onClick={() => saveSection("compensation")}>Save</Button>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <Info label="Pay Range" value={job.payRange} />
-            {mode !== "view" && (
-              <Button variant="ghost" size="sm" onClick={() => setEditingSection("compensation")}
                 className="mt-3">
                 <Edit2 className="h-4 w-4 mr-1" /> Edit
               </Button>
