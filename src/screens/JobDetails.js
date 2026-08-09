@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { Edit2, Users, CheckCircle, Clock, BarChart3 } from "lucide-react";
+import { Edit2, Users, CheckCircle, Clock, BarChart3, Send } from "lucide-react";
 import { Button, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
+import { useNavigate } from "react-router-dom";
+import { ROUTES } from "../utils/Routes";
 
 const getContactPersonName = (job) => {
   if (!job) return "-";
@@ -13,6 +15,7 @@ const getContactPersonName = (job) => {
 };
 
 export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view", candidates = [], defaultTab = "details" }) {
+  const navigate = useNavigate();
   const [editingSection, setEditingSection] = useState(null);
   const [title, setTitle] = useState(job.title || "");
   const [positionType, setPositionType] = useState(job.positionType || "");
@@ -439,6 +442,27 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                                 {candidate.status || 'Sourced'}
                               </span>
                             </div>
+                          </div>
+                          <div className="flex gap-2 flex-col">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => navigate(`${ROUTES.CANDIDATES}/${candidate.candidateID || candidate.id}`, { state: { jobId: job.id } })}
+                              className="whitespace-nowrap"
+                            >
+                              View
+                            </Button>
+                            {candidate.status?.toLowerCase() !== 'hired' && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => navigate(`${ROUTES.CANDIDATES}/${candidate.candidateID || candidate.id}?action=submit`, { state: { jobId: job.id } })}
+                                className="whitespace-nowrap flex items-center gap-1"
+                              >
+                                <Send className="h-3 w-3" />
+                                Submit
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
