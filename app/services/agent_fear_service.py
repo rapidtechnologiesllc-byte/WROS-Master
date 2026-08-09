@@ -309,9 +309,7 @@ def initialize_default_agents(db: Session) -> None:
             quality_score=config["quality"],
             is_active=True,
             is_retired=False,
-            trend_direction="stable",
-            weeks_at_this_level=2,
-            last_calculated_at=datetime.utcnow()
+            trend_direction="stable"
         )
         db.add(maturity)
 
