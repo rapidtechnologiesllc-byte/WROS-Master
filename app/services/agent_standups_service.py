@@ -19,7 +19,6 @@ from sqlalchemy import func
 
 from app.core.agent_logging import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
-from app.services.agent_registry_service import AgentRegistry, AgentTier
 
 
 class AgentStandupsCoordinator:
