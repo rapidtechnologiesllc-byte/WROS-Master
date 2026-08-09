@@ -84,7 +84,8 @@ export default function AdminWeeklyRecapDashboard() {
       ytd_pace_pct: 89,
     },
     partner_performance: {
-      curtis: {
+      curtis_core: {
+        label: 'Curtis (PRISM CORE)',
         ytd_closed: 950000,
         ytd_target: 4000000,
         ytd_pace_pct: 24,
@@ -92,8 +93,10 @@ export default function AdminWeeklyRecapDashboard() {
         week_closed: 85000,
         week_pace_pct: 110,
         trend: 'accelerating',
+        metric: 'CORE clients sourced by Curtis',
       },
-      troy: {
+      troy_core: {
+        label: 'Troy (AXION CORE)',
         ytd_closed: 1200000,
         ytd_target: 3000000,
         ytd_pace_pct: 40,
@@ -101,8 +104,10 @@ export default function AdminWeeklyRecapDashboard() {
         week_closed: 45000,
         week_pace_pct: 78,
         trend: 'behind',
+        metric: 'CORE clients sourced by Troy',
       },
-      avinash: {
+      avinash_specialty: {
+        label: 'Avinash (BXIN SPECIALTY)',
         ytd_closed: 700000,
         ytd_target: 2000000,
         ytd_pace_pct: 35,
@@ -110,40 +115,45 @@ export default function AdminWeeklyRecapDashboard() {
         week_closed: 55000,
         week_pace_pct: 145,
         trend: 'strong',
+        metric: 'SPECIALTY revenue (125% of BXIN cost target)',
       },
     },
     flash_directives: [
       {
-        partner: 'Curtis',
+        partner: 'Curtis (PRISM Principal)',
         directive: 'ACCELERATE_CORE_DEVELOPMENT',
-        reason: 'Only 45% CORE (target 60%). 12 in development, forecast 11 CORE by month 6.',
+        reason: 'PRISM CORE clients: Only 45% staffing ready (target 60%). 12 in development, forecast 11 CORE by month 6. Revenue gap: $950K YTD vs $4M target.',
         actions: [
+          'PRISM HTD: Hire 3 external CORE this month (PRISM autonomous responsibility)',
           'Accelerate gates for CONTROLLED_OWNERSHIP phase',
-          'HTD: Hire 3 external CORE this month',
           'Increase interview pace from 2/week to 4/week',
+          '⚠️ NO cross-BU resource borrowing: PRISM solves PRISM demand independently',
         ],
         status: 'IN_PROGRESS',
         week_issued: 'Aug 4',
       },
       {
-        partner: 'Troy',
-        directive: 'MAINTAIN_MOMENTUM',
-        reason: '75% CORE. On pace for 2030 target. No issues flagged.',
+        partner: 'Troy (AXION Principal)',
+        directive: 'MAINTAIN_CORE_EXCELLENCE',
+        reason: 'AXION CORE clients: 75% staffing ready. Strong foundation. Revenue on pace: $1.2M YTD vs $3M target.',
         actions: [
-          'Continue gate progression (1/week passing through CORE_ELIGIBILITY_REVIEW)',
-          'Support other BUs if able (cross-BU backup)',
+          'AXION: Continue gate progression (1/week passing through CORE_ELIGIBILITY_REVIEW)',
+          'Monitor AXION-owned clients for expansion opportunities',
+          'Focus on quality: maintain CORE certification standards',
+          '⚠️ NO cross-BU resource sharing: AXION owns AXION solutions',
         ],
         status: 'ACTIVE',
         week_issued: 'Aug 4',
       },
       {
-        partner: 'Avinash',
-        directive: 'SCALE_CAREFULLY',
-        reason: '50% CORE at smaller team size. Need to maintain quality while growing.',
+        partner: 'Avinash (BXIN Corporate / SPECIALTY)',
+        directive: 'SCALE_SPECIALTY_FOR_CORE_PIPELINE',
+        reason: 'SPECIALTY monetization: 50% CORE-eligible. Revenue on pace: $700K YTD vs $2M target (125% of BXIN cost goal).',
         actions: [
-          'Hire 2 external CORE (not quantity, quality)',
-          'No SPECIALTY scaling until CORE ratio reaches 55%',
-          'Mentoring role: help Curtis accelerate (Troy stable)',
+          'SPECIALTY: Hire 2 external CORE (not quantity, quality)',
+          'Monitor SPECIALTY → CORE conversion pipeline for both BUs',
+          'NO SPECIALTY scaling until CORE-eligible ratio reaches 55%',
+          '⚠️ SPECIALTY supports BOTH BUs independently; revenue belongs to Corporate, not BUs',
         ],
         status: 'IN_PROGRESS',
         week_issued: 'Aug 4',
@@ -317,31 +327,31 @@ export default function AdminWeeklyRecapDashboard() {
           {/* Key Findings */}
           <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-              🎯 Week Summary
+              🎯 Week Summary (Operating Model: LINE TYPE + CLIENT OWNER)
             </Typography>
             <List>
               <ListItem>
                 <ListItemText
-                  primary="CORE Talent Development"
-                  secondary={`Avinash +1, Curtis +1, Troy +0. Total pipeline: 25 people in HTD phases. Forecast: 23 CORE by month 6.`}
+                  primary="CORE Development Pipeline (All BUs Independent)"
+                  secondary={`SPECIALTY→CORE: Avinash +1, Curtis +1, Troy +0. Total 25 in HTD phases. Forecast: 23 CORE ready by month 6. Each BU solves its own staffing independently.`}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="Revenue Progress"
-                  secondary={`YTD: $2.85M / $3.2M (89% of pace). Week closed: $450K. On track for ~$3.4M annual (vs $3.5M target).`}
+                  primary="Revenue by Line Type + Client Owner"
+                  secondary={`CORE (Troy's AXION clients): $1.2M YTD / $3M target (40% pace). CORE (Curtis's PRISM clients): $950K YTD / $4M target (24% pace). SPECIALTY (Avinash Corporate): $700K YTD / $2M target (35% pace).`}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="Bottlenecks Identified"
-                  secondary={`Curtis: CORE deficit (45%). Troy: Stable (75%). Avinash: Scaling carefully (50%). Flash issued 3 directives.`}
+                  primary="BU Autonomy Status"
+                  secondary={`PRISM (Curtis): CORE deficit identified; PRISM owns solution (hire/train/develop). AXION (Troy): Stable, on pace. SPECIALTY (Avinash): Scaling for both BUs independently.`}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
                   primary="Agent Performance"
-                  secondary={`23/25 operational. Recruitment agent: 96% success (1 minor issue). HTD Pipeline: 100%. Flash: 100%.`}
+                  secondary={`23/25 operational. Recruitment: 96% success. HTD Pipeline: 100%. Flash: 100%. All directives enforce NO cross-BU dependency rule.`}
                 />
               </ListItem>
             </List>
@@ -350,10 +360,10 @@ export default function AdminWeeklyRecapDashboard() {
           {/* Action Items for Next Week */}
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-              ✓ NEXT WEEK PRIORITIES
+              ✓ NEXT WEEK PRIORITIES (BU AUTONOMOUS)
             </Typography>
             <Typography variant="body2">
-              1. Curtis: HTD hire 3 external CORE (targeting this month) · 2. Troy: Maintain momentum, support Curtis · 3. Avinash: Quality hire 2 CORE (not quantity) · 4. Flash: Monitor gate progression (4 expected passes this week)
+              1. PRISM (Curtis): HTD hire 3 external CORE this month; PRISM owns solution · 2. AXION (Troy): Maintain gate progression (1/week); AXION owns AXION clients · 3. SPECIALTY (Avinash): Quality CORE hire 2 (not quantity); support pipeline for both BUs · 4. Flash: Monitor gate progression across all BUs (4 expected passes this week)
             </Typography>
           </Alert>
         </Box>
@@ -365,8 +375,13 @@ export default function AdminWeeklyRecapDashboard() {
       {currentTab === 1 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold' }}>
-            SPECIALTY → CORE Conversion Weekly Trend
+            SPECIALTY → CORE Conversion Weekly Trend (Each BU Independent)
           </Typography>
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>⚠️ BU Autonomous Development:</strong> Each principal (Troy, Curtis, Avinash) owns their own CORE development pipeline and must solve capacity gaps independently. NO cross-BU resource sharing. If PRISM needs CORE faster, PRISM hires/trains. If AXION needs CORE, AXION solves it. SPECIALTY pipeline supports both BUs' needs but doesn't substitute for BU autonomy.
+            </Typography>
+          </Alert>
 
           <TableContainer component={Paper}>
             <Table>
@@ -552,16 +567,26 @@ export default function AdminWeeklyRecapDashboard() {
       {currentTab === 3 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold' }}>
-            Partner Performance This Week
+            Partner Revenue Performance (LINE TYPE + CLIENT OWNER)
           </Typography>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>Revenue Attribution Model:</strong> CORE clients are owned by the principal who sourced them (Troy→AXION, Curtis→PRISM). SPECIALTY revenue belongs to BXIN Corporate (Avinash). Each partner owns their own bottleneck solutions independently.
+            </Typography>
+          </Alert>
 
           {Object.entries(weeklyData.partner_performance).map(([partner, perf]) => (
             <Card key={partner} sx={{ mb: 2, borderLeft: `4px solid ${perf.trend === 'strong' ? '#4caf50' : perf.trend === 'behind' ? '#d32f2f' : '#ff9800'}` }}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography variant="h6" sx={{ textTransform: 'capitalize', fontWeight: 'bold' }}>
-                    {partner}
-                  </Typography>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                      {perf.label}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      {perf.metric}
+                    </Typography>
+                  </Box>
                   <Chip
                     label={perf.trend === 'strong' ? '🔥 STRONG' : perf.trend === 'ahead' ? '📈 AHEAD' : perf.trend === 'accelerating' ? '⚡ ACCELERATING' : '⚠️ BEHIND'}
                     size="small"
