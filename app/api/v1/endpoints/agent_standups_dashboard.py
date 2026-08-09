@@ -4,24 +4,23 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
-from app.services.agent_standups_service import AgentStandupsCoordinator
+from app.services.agent_daily_standup_service import AgentDailyStandup
 
 router = APIRouter(prefix="/admin/agent-standups", tags=["Agent Standups Dashboard"])
 
 
 @router.get("/dashboard", dependencies=[Depends(require_permission("admin.view"))])
-async def get_standups_dashboard(
+def get_standups_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    CEO Dashboard: Daily standup + scrum of scrums + weekly feedback all in one view.
+    CEO Dashboard: Daily standup + scrum of scrums view.
 
-    Combines:
-    - Daily standup report (all 70+ agents)
-    - Scrum of scrums (Thunder + Flask → CEO Agent)
-    - Weekly feedback (performance reviews)
-    - Manual feedback button for CEO to provide feedback
+    Shows:
+    - Daily standup report (all agents with performance metrics)
+    - Scrum of Scrums (Flash, CEO, Partner Agents coordination)
+    - Validation concerns requiring CEO attention
 
     Required: admin.view (CEO/Super User only)
     """
@@ -32,20 +31,15 @@ async def get_standups_dashboard(
                 detail="Only CEO/Super User can view Agent Standups Dashboard"
             )
 
-        # Get all three reports
-        daily_standup = await AgentStandupsCoordinator.generate_daily_standup_report(
-            tenant_id=current_user.tenant_id,
-            db=db
+        # Get standup and scrum reports
+        daily_standup = AgentDailyStandup.generate_standup_report(
+            db=db,
+            tenant_id=current_user.tenant_id
         )
 
-        scrum = await AgentStandupsCoordinator.scrum_of_scrums(
-            tenant_id=current_user.tenant_id,
-            db=db
-        )
-
-        feedback = await AgentStandupsCoordinator.weekly_feedback_session(
-            tenant_id=current_user.tenant_id,
-            db=db
+        scrum = AgentDailyStandup.scrum_of_scrums(
+            db=db,
+            tenant_id=current_user.tenant_id
         )
 
         return {
@@ -54,13 +48,11 @@ async def get_standups_dashboard(
             "viewer_role": current_user.UserRole,
             "daily_standup": daily_standup,
             "scrum_of_scrums": scrum,
-            "weekly_feedback": feedback,
             "actions_available": [
                 "view_agent_details",
                 "escalate_agent",
                 "provide_feedback",
-                "restart_agent",
-                "replace_agent"
+                "restart_agent"
             ]
         }
 
