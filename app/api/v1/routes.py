@@ -68,7 +68,6 @@ from app.api.v1.endpoints.risk_dashboard import router as risk_dashboard_router
 from app.api.v1.endpoints.engagement_metrics import router as engagement_metrics_router
 from app.api.v1.endpoints.thunder_analytics import router as thunder_analytics_router
 from app.api.v1.endpoints.bulk_engagement import router as bulk_engagement_router
-from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_router
 from app.api.v1.endpoints.event_log import router as event_log_router
 from app.api.v1.endpoints.tasks import router as tasks_router
 from app.api.v1.endpoints.tickets import router as tickets_router
@@ -169,7 +168,6 @@ router.include_router(router=risk_dashboard_router)
 router.include_router(router=engagement_metrics_router)
 router.include_router(router=thunder_analytics_router)
 router.include_router(router=bulk_engagement_router)
-router.include_router(router=tenant_ai_config_router)
 router.include_router(router=event_log_router)
 router.include_router(router=tasks_router)
 router.include_router(router=tickets_router)

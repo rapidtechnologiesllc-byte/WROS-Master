@@ -72,3 +72,122 @@ def get_flash_panel_comparison(
         return {"status": "success", "data": comparison}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{interview_id}/coaching-email", dependencies=[Depends(require_permission("candidate.manage"))])
+def send_coaching_email_to_panel_member(
+    interview_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Send coaching email to a panel member with Flash's assessment insights.
+
+    Includes:
+    - Hiring manager's personalized coaching feedback
+    - Flash's assessment (technical, communication, problem-solving, culture fit scores)
+    - Comparison context showing where Flash and panel member agree/disagree
+    - Suggested focus areas for future interviews
+
+    Permissions: candidate.manage (Hiring Manager, BU Head, CEO)
+    """
+    try:
+        from app.services.email_service import EmailService
+
+        panel_member_name = payload.get("panel_member_name", "Panel Member")
+        panel_member_email = payload.get("panel_member_email")
+        coaching_message = payload.get("coaching_message", "")
+        candidate_name = payload.get("candidate_name", "Candidate")
+        flash_analysis = payload.get("flash_analysis", {})
+
+        if not panel_member_email:
+            raise HTTPException(status_code=400, detail="Panel member email is required")
+
+        # Build coaching email
+        subject = f"Interview Coaching: {candidate_name} - Flash & Panel Insights"
+
+        body = f"""
+Hi {panel_member_name},
+
+Thank you for your thorough feedback on {candidate_name}'s interview. To support your growth as an interviewer, here's how Flash's AI analysis compares with your assessment:
+
+---
+
+FLASH AI ASSESSMENT:
+Technical: {flash_analysis.get('technical_score', 'N/A')}/100
+Communication: {flash_analysis.get('communication_score', 'N/A')}/100
+Problem-Solving: {flash_analysis.get('problem_solving_score', 'N/A')}/100
+Culture Fit: {flash_analysis.get('culture_fit_score', 'N/A')}/100
+
+Recommendation: {flash_analysis.get('recommendation', 'N/A')} ({flash_analysis.get('confidence_pct', 0)}% confidence)
+
+Rationale: {flash_analysis.get('rationale', 'N/A')}
+
+Strengths identified by Flash:
+{chr(10).join(['- ' + s for s in flash_analysis.get('strengths', [])])}
+
+Concerns identified by Flash:
+{chr(10).join(['- ' + c for c in flash_analysis.get('concerns', [])])}
+
+Next Steps: {flash_analysis.get('next_steps', 'N/A')}
+
+---
+
+COACHING FEEDBACK FROM HIRING MANAGER:
+
+{coaching_message}
+
+---
+
+This feedback is designed to help you refine your interview assessment skills. Areas where you and Flash diverge may indicate:
+
+1. Context You Have: You may have seen something in person that the transcript didn't fully capture
+2. Blind Spots: Flash's detailed analysis may have caught something worth noticing in future interviews
+3. Growth Areas: Consider reviewing transcripts of interviews where you and Flash strongly disagreed
+
+Looking forward to seeing your continued growth as an interviewer.
+
+Best regards,
+BlitzenX Hiring System
+
+---
+Interview ID: {interview_id}
+Candidate: {candidate_name}
+"""
+
+        # Send email
+        EmailService.send_email(
+            to_email=panel_member_email,
+            subject=subject,
+            body=body,
+            is_html=False
+        )
+
+        # Log event
+        from app.models.candidate_ai import ConversationEvent
+        from datetime import datetime
+
+        db.add(ConversationEvent(
+            conversation_id=None,
+            event_type="COACHING_EMAIL_SENT",
+            triggered_by="hiring_manager",
+            event_data={
+                "interview_id": interview_id,
+                "panel_member_email": panel_member_email,
+                "panel_member_name": panel_member_name,
+                "candidate_name": candidate_name,
+                "coaching_sent_by": current_user.email if hasattr(current_user, 'email') else "system",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ))
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": f"Coaching email sent to {panel_member_name}",
+            "recipient": panel_member_email
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
