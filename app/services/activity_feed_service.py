@@ -77,6 +77,8 @@ ACTIVITY_EVENT_SEVERITY = {
     "escalation_triggered": "ACTION_REQUIRED",
     # S-075/HRMS-0475 BR-02 -- PauseExpiryJob's auto-resume notification.
     "THUNDER_AUTO_RESUMED": "INFO",
+    # Thunder autonomous outreach with context (search, merge, notes, confidence)
+    "THUNDER_OUTREACH_INITIATED": "INFO",
 }
 ACTIVITY_EVENT_TYPES = tuple(ACTIVITY_EVENT_SEVERITY.keys())
 
@@ -124,6 +126,18 @@ def _build_summary(db: Session, event: ConversationEvent, candidate_name: str) -
         return f"Thunder escalated {candidate_name} -- {reason}. Human review required."
     if event.event_type == "THUNDER_AUTO_RESUMED":
         return f"Thunder has automatically resumed for {candidate_name} -- pause duration expired."
+    if event.event_type == "THUNDER_OUTREACH_INITIATED":
+        merge_info = ""
+        if data.get("existing_candidate_merged"):
+            merge_info = " Found and merged with existing profile. "
+        context = data.get("context_summary", "")
+        confidence = data.get("confidence_level", "")
+        detail = ""
+        if context:
+            detail = f" Context: {context}"
+        if confidence:
+            detail += f" (Confidence: {confidence})"
+        return f"Thunder initiated outreach to {candidate_name}.{merge_info}Searched profile, reviewed notes, reached out as recruiter with full context.{detail}"
     return f"Thunder activity for {candidate_name}."
 
 
