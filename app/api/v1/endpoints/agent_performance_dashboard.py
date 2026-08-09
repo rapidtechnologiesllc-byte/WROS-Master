@@ -3,13 +3,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.dependencies import require_permission
 from app.services.agent_performance_dashboard_service import AgentPerformanceDashboard
 # from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
 
 router = APIRouter(prefix="/dashboard/agents", tags=["agent-dashboard"])
 
 
-@router.get("/all")
+@router.get("/all", dependencies=[Depends(require_permission("agent.view"))])
 def get_all_agents_performance(
     db: Session = Depends(get_db),
 ):
@@ -54,7 +55,7 @@ def get_all_agents_performance(
     return AgentPerformanceDashboard.get_all_agents_performance(db)
 
 
-@router.get("/by-tier/{tier}")
+@router.get("/by-tier/{tier}", dependencies=[Depends(require_permission("agent.view"))])
 def get_agents_by_tier(
     tier: str,
     db: Session = Depends(get_db),
@@ -69,7 +70,7 @@ def get_agents_by_tier(
     }
 
 
-@router.get("/by-domain/{domain}")
+@router.get("/by-domain/{domain}", dependencies=[Depends(require_permission("agent.view"))])
 def get_agents_by_domain(
     domain: str,
     db: Session = Depends(get_db),
@@ -84,7 +85,7 @@ def get_agents_by_domain(
     }
 
 
-@router.get("/at-risk")
+@router.get("/at-risk", dependencies=[Depends(require_permission("agent.view"))])
 def get_at_risk_agents(
     db: Session = Depends(get_db),
 ):
@@ -105,7 +106,7 @@ def get_at_risk_agents(
     }
 
 
-@router.get("/healthy")
+@router.get("/healthy", dependencies=[Depends(require_permission("agent.view"))])
 def get_healthy_agents(
     db: Session = Depends(get_db),
 ):
@@ -124,7 +125,7 @@ def get_healthy_agents(
     }
 
 
-@router.get("/critical")
+@router.get("/critical", dependencies=[Depends(require_permission("agent.view"))])
 def get_critical_agents(
     db: Session = Depends(get_db),
 ):
@@ -144,7 +145,7 @@ def get_critical_agents(
     }
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(require_permission("agent.view"))])
 def get_progress_summary(
     db: Session = Depends(get_db),
 ):
@@ -179,7 +180,7 @@ def get_progress_summary(
     return AgentPerformanceDashboard.get_progress_summary(db)
 
 
-@router.get("/dashboard/executive")
+@router.get("/dashboard/executive", dependencies=[Depends(require_permission("agent.view"))])
 def get_executive_dashboard(
     db: Session = Depends(get_db),
 ):
