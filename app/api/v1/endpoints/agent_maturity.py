@@ -31,7 +31,8 @@ from app.services.agent_fear_service import (
     calculate_fear_level,
     update_agent_fear_state,
     get_agent_fear_dashboard,
-    check_retirement_eligibility
+    check_retirement_eligibility,
+    initialize_default_agents
 )
 from app.schemas.agent_fear import (
     AgentFearStateResponse,
@@ -56,6 +57,9 @@ def get_all_agents_maturity(
     Returns:
         List of agents with their current maturity, success rates, trends
     """
+    # Initialize default agents if database is empty
+    initialize_default_agents(db)
+
     maturity_levels = db.query(AgentMaturityLevel).filter(
         AgentMaturityLevel.is_active == True,
         AgentMaturityLevel.is_retired == False
@@ -228,6 +232,8 @@ def get_fear_dashboard(db: Session = Depends(get_db)):
 
     This system ensures agents work hard continuously.
     """
+    # Initialize default agents if database is empty
+    initialize_default_agents(db)
     dashboard = get_agent_fear_dashboard(db)
     return dashboard
 
