@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { Button, Card } from "../components/ui";
-import { assignMultipleJobs, getAllJobs } from "../services/api/jobs";
+import { assignMultipleJobs, getAllJobs, submitCandidateToJob } from "../services/api/jobs";
 import { getUserDetails, createHrAssignment } from "../services/api/users";
 import {
   createCandidateHistoryEvent,
@@ -423,36 +423,12 @@ const CandidateAssignJobModal = ({
     if (!validateForm()) return;
     try {
       setIsAssigning(true);
-      const submitJobPayload = {
-        application_status: "Applied",
-        submit_to: formData?.submitTo || null,
-        submittal_date: formData?.submittalDate || null,
-        submittal_time: formData?.submittalTime || null,
-        timezone: formData?.timeZone || null,
-        recruited_by: formData?.recruitedBy || null,
-        primary_sales: formData?.primarySales || null,
-        position_type: formData?.positionType || null,
-        quoted_bill_rate: formData?.quotedBillRate || null,
-        quoted_bill_rate_type: formData?.quotedBillRateType || null,
-        agreed_bill_rate: formData?.agreedBillRate || null,
-        agreed_bill_rate_type: formData?.agreedBillRateType || null,
-        agreed_pay_rate: formData?.agreedPayRate || null,
-        agreed_pay_rate_type: formData?.agreedPayRateType || null,
-        agreed_on: formData?.agreedOn || null,
-        corp_to_corp:
-          formData?.corpToCorp === "" ? null : Boolean(formData?.corpToCorp),
-        selected_cv_id: formData?.selectedCv || null,
-        internal_notes: formData?.internalNotes?.trim() || null,
-        notify_candidate: Boolean(formData?.notifyCandidate),
-        notify_primary_sales: Boolean(formData?.notifyPrimarySales),
-        udf_details: buildUdfPayload(),
-      };
-      const result = await assignMultipleJobs(
-        selectedJobId,
+      // Call the correct /submissions endpoint
+      const result = await submitCandidateToJob(
         candidateId,
-        submitJobPayload,
+        selectedJobId,
       );
-      if (result?.status === 201) {
+      if (result?.response?.status === 200 || result?.data?.id) {
         const performedBy =
           localStorage?.getItem?.("hrms_user_name") || "HR User";
         const historyNote = `Candidate submitted to ${

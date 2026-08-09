@@ -198,6 +198,22 @@ export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
   return (data, response);
 };
 
+export const submitCandidateToJob = async (candidate_id, demand_id) => {
+  const { data, response } = await apiRequest(
+    "/submissions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        candidate_id: candidate_id,
+        demand_id: demand_id,
+        submission_rank: 1,
+        source: "hrms",
+      }),
+    },
+  );
+  return { data, response };
+};
+
 export const jobsFilter = async (parameters) => {
   const { data } = await apiRequest(
     `/jobs/filter${parameters ? `?${parameters}` : ""}`,
