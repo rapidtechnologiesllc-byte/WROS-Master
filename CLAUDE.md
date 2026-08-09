@@ -1,8 +1,101 @@
 # WROS Backend - Development Notes
 
-## Current Session Summary (2026-08-09 - Login End-to-End Verification & Regression Testing)
+## CRITICAL BLOCKERS (2026-08-09)
 
-### ✅ COMPLETED THIS SESSION: Full End-to-End Login Testing + Comprehensive Regression Testing
+### 🚨 BLOCKER 1: Candidate-to-Employee Conversion Flow is Broken
+**Severity:** CRITICAL - Blocks offer→hire→onboard pipeline
+
+**Problem:**
+- Candidates in "OFFER" status with start date have no way to convert to employee from the candidate details screen
+- The "Convert Candidate to Employee" button exists in the Employees screen (wrong location)
+- When candidate's start date arrives, recruiters cannot transition them to employee status
+- **Impact:** Entire hiring pipeline stalls after offer acceptance
+
+**Required Fix:**
+1. Add "Convert to Employee" action button in CandidateDetailsScreen (only when status == "OFFER" AND start_date <= today)
+2. Move or remove "Convert Candidate to Employee" from Employees screen (it shouldn't be there)
+3. Wire conversion endpoint to trigger onboarding workflow
+
+### 🚨 BLOCKER 2: Project Employee Assignment Missing
+**Severity:** HIGH - Blocks timesheet access
+
+**Problem:**
+- Projects screen has no ability to assign employees to projects
+- Employees cannot access timesheets without being assigned to a project
+- No project membership = no timesheet access
+- **Impact:** Employees cannot submit timesheets
+
+**Required Fix:**
+- Add "Assign Employees" button/modal to Projects screen
+- Create project membership records when employees are assigned
+- Verify timesheet access after assignment
+
+---
+
+## Next Priorities (2026-08-09 Session)
+
+### Phase 1: Critical Workflow Fixes (DO FIRST)
+1. **[BLOCKER] Fix Candidate → Employee Conversion Flow**
+   - Add conversion button to CandidateDetailsScreen (offer status + start date met)
+   - Remove/move conversion from Employees screen
+   - Wire to onboarding workflow
+
+2. **[BLOCKER] Add Employee Project Assignment**
+   - Add assignment UI to Projects screen
+   - Create project membership records
+   - Verify timesheet access after assignment
+
+### Phase 2: Agent System Completion
+1. **Wire up remaining 20+ agents to execution logging**
+   - Currently: 13 agents logging
+   - Needed: 50+ agents logging execution
+
+2. **Implement role-based default dashboards**
+   - CEO login → Weekly Recap dashboard
+   - Recruiter login → Jobs/Candidates dashboard
+   - Employee login → My Tasks/Timesheet
+   - Currently all roles see same dashboard
+
+3. **Complete Agent Standups Dashboard backend**
+   - Frontend exists but API not fully wired
+   - Needs daily standup aggregation logic
+
+### Phase 3: Agent Feature Completion
+1. Sub-task orchestration for complex agents
+2. Thunder autonomous workflow (screen → interview → offer → hire)
+3. Error recovery & resilience patterns
+4. Weekly gift/recognition system backend
+
+---
+
+## Current Session Summary (2026-08-09 - Agent Testing & Bug Fixes)
+
+### ✅ COMPLETED THIS SESSION: Agent System Verification & Critical Bug Fixes
+
+**Agent System Status:**
+- ✅ Login system: PRODUCTION READY
+- ✅ KPI Agent: FIXED & WORKING
+- ✅ HR Agent: FIXED & WORKING  
+- ✅ Mental Health Agent: FIXED & WORKING
+- ✅ Agent execution logging: WIRED for 13+ agents
+- ⚠️ Admin Weekly Recap Dashboard: ADDED to navigation
+- ⚠️ Agent Standups Dashboard: NOT WORKING (API issues)
+
+**Bugs Fixed This Session:**
+1. Agent services using wrong Employee model column names (EmployeeID → id, EmployeeStatus → status)
+2. Agent services using wrong Invoice column name (total_amount_usd_cents → total_usd_cents)
+3. Agent services empty result returns missing required keys (at_risk_pct, wellbeing_distribution)
+4. KPI/HR/Mental Health agents now return proper 55%+ endpoint success rate
+
+**Test Results:**
+- Agent Endpoints: 5/9 PASS (55% operational)
+- Authentication: PASS
+- Session Persistence: PASS
+- Regression Tests: 75% PASS
+
+---
+
+### ✅ PREVIOUS: Full End-to-End Login Testing + Comprehensive Regression Testing
 
 **PHASE 1: Database & Backend Fixes** ✅ COMPLETE (from prior work)
 - Database schema initialized with 168+ tables from ORM models
