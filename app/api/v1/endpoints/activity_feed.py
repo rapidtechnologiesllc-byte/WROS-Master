@@ -54,3 +54,13 @@ def mark_activity_feed_read_all(candidate_id: Optional[str] = Query(default=None
     tenant_id = resolve_default_tenant_id(db)
     count = mark_all_read(db, tenant_id, candidate_id=candidate_id)
     return MarkAllReadResponse(marked_count=count)
+
+
+@router.get("/flash/standup", dependencies=[Depends(require_permission("candidate.view"))])
+def get_flash_standup_report(days: int = Query(default=1, ge=1, le=30), db: Session = Depends(get_db)):
+    """
+    Get Flash's daily standup report on Thunder's SLA compliance.
+    Shows appreciations, punishments, and success rate.
+    """
+    from app.services.flash_sla_validation import get_daily_standup_report
+    return get_daily_standup_report(db, days=days)
