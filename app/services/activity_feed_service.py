@@ -79,6 +79,8 @@ ACTIVITY_EVENT_SEVERITY = {
     "THUNDER_AUTO_RESUMED": "INFO",
     # Thunder autonomous outreach with context (search, merge, notes, confidence)
     "THUNDER_OUTREACH_INITIATED": "INFO",
+    # Thunder AI message sent (email/WhatsApp to candidate)
+    "ai_message_sent": "INFO",
 }
 ACTIVITY_EVENT_TYPES = tuple(ACTIVITY_EVENT_SEVERITY.keys())
 
@@ -138,6 +140,14 @@ def _build_summary(db: Session, event: ConversationEvent, candidate_name: str) -
         if confidence:
             detail += f" (Confidence: {confidence})"
         return f"Thunder initiated outreach to {candidate_name}.{merge_info}Searched profile, reviewed notes, reached out as recruiter with full context.{detail}"
+    if event.event_type == "ai_message_sent":
+        channel = data.get("channel", "email").upper()
+        message_type = data.get("message_type", "message")
+        subject = data.get("subject", "")
+        if message_type == "missing_fields_request":
+            fields_count = len(data.get("missing_fields", []))
+            return f"Thunder sent {channel} to {candidate_name} requesting {fields_count} missing profile field(s). Subject: {subject}"
+        return f"Thunder sent {channel} to {candidate_name}."
     return f"Thunder activity for {candidate_name}."
 
 
