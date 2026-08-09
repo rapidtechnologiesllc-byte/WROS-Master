@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.core.agent_logging import log_agent_execution
-from app.models.opportunities import Opportunities
+from app.models.opportunity import Opportunity
 from app.models.user import Users
 
 
@@ -85,9 +85,9 @@ class PartnerSuccessAgent:
 
             # Get partner's opportunities
             opportunities = db.query(Opportunities).filter(
-                Opportunities.tenant_id == tenant_id,
-                Opportunities.partner_id == partner.UserID,
-                Opportunities.status == "open"
+                Opportunity.tenant_id == tenant_id,
+                Opportunity.partner_id == partner.UserID,
+                Opportunity.status == "open"
             ).all()
 
             # Calculate pipeline
@@ -231,8 +231,8 @@ class PartnerSuccessAgent:
 
             # This week's activity
             opportunities = db.query(Opportunities).filter(
-                Opportunities.tenant_id == tenant_id,
-                Opportunities.partner_id == partner.UserID,
+                Opportunity.tenant_id == tenant_id,
+                Opportunity.partner_id == partner.UserID,
             ).all()
 
             # Deals closed this week

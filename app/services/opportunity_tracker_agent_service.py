@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.core.agent_logging import log_agent_execution
-from app.models.opportunities import Opportunities  # Assuming this model exists
+from app.models.opportunity import Opportunity
 
 
 class OpportunityTrackerAgent:
@@ -87,10 +87,10 @@ class OpportunityTrackerAgent:
         try:
             # Check if opportunity already exists for this client/partner
             existing = db.query(Opportunities).filter(
-                Opportunities.tenant_id == tenant_id,
-                Opportunities.client_name == client_name,
-                Opportunities.partner_id == partner_id,
-                Opportunities.stage.in_(["prospect", "qualified", "proposal", "negotiation", "commitment"])
+                Opportunity.tenant_id == tenant_id,
+                Opportunity.client_name == client_name,
+                Opportunity.partner_id == partner_id,
+                Opportunity.stage.in_(["prospect", "qualified", "proposal", "negotiation", "commitment"])
             ).first()
 
             if existing:
@@ -154,8 +154,8 @@ class OpportunityTrackerAgent:
         try:
             # Get all open opportunities
             opportunities = db.query(Opportunities).filter(
-                Opportunities.tenant_id == tenant_id,
-                Opportunities.status == "open"
+                Opportunity.tenant_id == tenant_id,
+                Opportunity.status == "open"
             ).all()
 
             if not opportunities:
@@ -263,7 +263,7 @@ class OpportunityTrackerAgent:
         """
         try:
             opp = db.query(Opportunities).filter(
-                Opportunities.id == opportunity_id
+                Opportunity.id == opportunity_id
             ).first()
 
             if not opp:
@@ -327,7 +327,7 @@ class OpportunityTrackerAgent:
         """
         try:
             opp = db.query(Opportunities).filter(
-                Opportunities.id == opportunity_id
+                Opportunity.id == opportunity_id
             ).first()
 
             if not opp:

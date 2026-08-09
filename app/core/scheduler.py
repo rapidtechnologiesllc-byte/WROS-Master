@@ -956,7 +956,7 @@ def start_scheduler():
         try:
             from app.core.database import SessionLocal
             from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
-            from app.models.business_units import BusinessUnit
+            from app.models.rbac import BusinessUnit
 
             async def _run_htd_pipeline_tracking():
                 db = SessionLocal()
