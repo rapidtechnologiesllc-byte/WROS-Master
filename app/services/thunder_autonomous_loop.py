@@ -69,14 +69,12 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
     errors = []
 
     try:
-        # Step 1: Find candidates pending outreach (PENDING status, no active conversation)
+        # Step 1: Find candidates pending outreach (no active conversation = never contacted)
+        # Query: all candidates without an existing CandidateConversation record
         pending_candidates = db.query(Candidate).filter(
-            and_(
-                Candidate.status == "PENDING",
-                ~db.query(CandidateConversation).filter(
-                    CandidateConversation.candidate_id == Candidate.candidateID
-                ).exists()
-            )
+            ~db.query(CandidateConversation).filter(
+                CandidateConversation.candidate_id == Candidate.candidateID
+            ).exists()
         ).limit(10).all()  # Limit to 10 per cycle to avoid overwhelming
 
         # Step 2: Start outreach sequences for new candidates
