@@ -116,18 +116,18 @@ def get_burnout_risks(db: Session, tenant_id: Optional[str] = None) -> List[Dict
     burnout_risks = []
 
     for emp in query.all():
-        indicators = get_stress_indicators(db, emp.EmployeeID)
+        indicators = get_stress_indicators(db, emp.id)
 
         if indicators.get("risk_level") in ["HIGH", "CRITICAL"]:
             stress_score = indicators.get("stress_score", 0)
 
             burnout_risks.append({
-                "employee_id": emp.EmployeeID,
+                "employee_id": emp.id,
                 "name": f"{emp.FirstName} {emp.LastName}",
                 "burnout_score": stress_score,
                 "risk_level": indicators["risk_level"],
                 "stress_indicators": [k for k, v in indicators["indicators"].items() if v],
-                "wellbeing_score": get_wellbeing_score(db, emp.EmployeeID),
+                "wellbeing_score": get_wellbeing_score(db, emp.id),
                 "recommended_support": _get_support_recommendations(indicators["indicators"], stress_score)
             })
 
@@ -189,11 +189,14 @@ def get_team_wellbeing_snapshot(db: Session, tenant_id: Optional[str] = None) ->
         return {
             "team_size": 0,
             "average_wellbeing_score": 0,
-            "employees_at_risk": 0,
-            "burnout_risks_identified": 0
+            "wellbeing_distribution": {"excellent": 0, "moderate": 0, "at_risk": 0},
+            "wellbeing_trend": "STABLE",
+            "burnout_risks_identified": 0,
+            "top_burnout_risks": [],
+            "recommended_interventions": []
         }
 
-    wellbeing_scores = [get_wellbeing_score(db, emp.EmployeeID) for emp in employees]
+    wellbeing_scores = [get_wellbeing_score(db, emp.id) for emp in employees]
     average_wellbeing = sum(wellbeing_scores) / len(wellbeing_scores) if wellbeing_scores else 0
 
     at_risk = sum(1 for score in wellbeing_scores if score < 40)

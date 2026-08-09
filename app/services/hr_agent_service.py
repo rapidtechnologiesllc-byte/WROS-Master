@@ -142,12 +142,13 @@ def get_engagement_metrics(db: Session, tenant_id: Optional[str] = None) -> Dict
     if not employees:
         return {
             "average_engagement_score": 0,
-            "employees_high_engagement": 0,
-            "employees_at_risk": 0,
-            "engagement_trend": "STABLE"
+            "engagement_distribution": {"high": 0, "medium": 0, "low": 0},
+            "total_active_employees": 0,
+            "high_engagement_pct": 0,
+            "at_risk_pct": 0
         }
 
-    engagement_scores = [_calculate_engagement_score(db, emp.EmployeeID) for emp in employees]
+    engagement_scores = [_calculate_engagement_score(db, emp.id) for emp in employees]
     avg_engagement = sum(engagement_scores) / len(engagement_scores) if engagement_scores else 0
 
     high_engagement = sum(1 for score in engagement_scores if score > 70)
