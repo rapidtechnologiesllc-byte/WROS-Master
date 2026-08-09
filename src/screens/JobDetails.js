@@ -5,6 +5,7 @@ import cx from "../utils/cx";
 import { pill } from "../utils/pill";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
+import { listClients } from "../services/api/clients";
 
 const getContactPersonName = (job) => {
   if (!job) return "-";
@@ -17,13 +18,13 @@ const getContactPersonName = (job) => {
 export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view", candidates = [], defaultTab = "details" }) {
   const navigate = useNavigate();
   const [editingSection, setEditingSection] = useState(null);
+  const [clientList, setClientList] = useState([]);
   const [title, setTitle] = useState(job.title || "");
   const [positionType, setPositionType] = useState(job.positionType || "");
   const [priority, setPriority] = useState(job.priority || "");
   const [companyClient, setCompanyClient] = useState(job.companyClient || "");
   const [companyType, setCompanyType] = useState(job.companyType || "");
   const [contactPerson, setContactPerson] = useState(job.contactPerson || "");
-  const [division, setDivision] = useState(job.division || "");
   const [dept, setDept] = useState(job.dept || "");
   const [location, setLocation] = useState(job.location || "");
   const [experienceLevel, setExperienceLevel] = useState(job.experienceLevel || "");
@@ -49,6 +50,18 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
     setActiveTab(defaultTab);
   }, [defaultTab]);
 
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const result = await listClients();
+        setClientList(result?.clients || []);
+      } catch (err) {
+        console.warn("Could not load clients:", err?.message);
+      }
+    };
+    loadClients();
+  }, []);
+
   const jobMetrics = useMemo(() => {
     const submitted = candidates.filter(c => c.job_id === job.id)?.length || 0;
     const interviewed = candidates.filter(c => c.job_id === job.id && c.status?.toLowerCase() === 'interviewed')?.length || 0;
@@ -73,7 +86,6 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
     setCompanyClient(job.companyClient || "");
     setCompanyType(job.companyType || "");
     setContactPerson(job.contactPerson || "");
-    setDivision(job.division || "");
     setDept(job.dept || "");
     setLocation(job.location || "");
     setExperienceLevel(job.experienceLevel || "");
@@ -110,9 +122,9 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   return (
     <div className="space-y-4">
       {/* Two-Column Layout: Details + Metrics (header is in JobWorkspaceScreen) */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Main Content - 2/3 width */}
-        <div className="lg:col-span-2">
+      <div className={`grid gap-4 ${activeTab === "candidates" ? "lg:grid-cols-1" : "lg:grid-cols-3"}`}>
+        {/* Main Content - 2/3 width, full width for candidates */}
+        <div className={`${activeTab === "candidates" ? "lg:col-span-1" : "lg:col-span-2"}`}>
           {/* Tab navigation removed - JobWorkspaceScreen manages tabs */}
 
           {/* Details Tab */}
@@ -169,10 +181,26 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
       <CardBlock title="Company & Contact" subtitle="Client details and point of contact">
         {editingSection === "company" ? (
           <div className="grid gap-3 md:grid-cols-2">
-            <Input label="Company / Client" value={companyClient} onChange={setCompanyClient} />
-            <Input label="Company Type" value={companyType} onChange={setCompanyType} />
-            <Input label="Contact Person" value={contactPerson} onChange={setContactPerson} />
-            <Input label="Division" value={division} onChange={setDivision} />
+            <Select
+              label="Company / Client *"
+              value={companyClient}
+              onChange={(value) => {
+                setCompanyClient(value);
+                const selectedClient = clientList.find(c => c.company_name === value);
+                if (selectedClient?.line_type) {
+                  setCompanyType(selectedClient.line_type);
+                }
+              }}
+              options={[
+                { label: "Select client", value: "", disabled: true },
+                ...(clientList?.map((client) => ({
+                  label: client?.company_name,
+                  value: client?.company_name,
+                })) || []),
+              ]}
+            />
+            <Input label="Company Type (Line Type)" value={companyType} onChange={setCompanyType} disabled />
+            <Input label="Contact Person (Comma-separated for multiple)" value={contactPerson} onChange={setContactPerson} />
             <div className="md:col-span-2 flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSection}>Cancel</Button>
               <Button onClick={() => saveSection("company")}>Save</Button>
@@ -182,9 +210,8 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           <div>
             <div className="grid gap-3 md:grid-cols-2">
               <Info label="Company / Client" value={job.companyClient} />
-              <Info label="Company Type" value={job.companyType} />
+              <Info label="Company Type (Line Type)" value={job.companyType} />
               <Info label="Contact Person" value={getContactPersonName(job)} />
-              <Info label="Division" value={job.division} />
             </div>
             {mode !== "view" && (
               <Button variant="ghost" size="sm" onClick={() => setEditingSection("company")}
@@ -459,8 +486,8 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           )}
         </div>
 
-        {/* Right Sidebar - Pipeline Activity & Timeline Summary */}
-        <div className="lg:col-span-1">
+        {/* Right Sidebar - Pipeline Activity & Timeline Summary (hidden on candidates tab) */}
+        {activeTab !== "candidates" && <div className="lg:col-span-1">
           <div className="space-y-3 sticky top-4">
             {/* Pipeline Activity Metrics */}
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
