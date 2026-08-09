@@ -35,7 +35,6 @@ class ThunderAutonomousLoopError(Exception):
     pass
 
 
-@log_agent_execution("Thunder Autonomous Loop", "cycle")
 def run_thunder_autonomous_cycle(db: Session) -> dict:
     """
     Run one cycle of Thunder's autonomous loop:
@@ -80,14 +79,12 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
         # Step 2: Start outreach sequences for new candidates
         for candidate in pending_candidates:
             try:
-                # Get first job associated with candidate (if any)
-                # For now, just create basic outreach
+                # Single organization - no tenant scoping needed
+                # Start basic outreach without demand (general recruitment inquiry)
                 sequence = start_outreach_sequence(
                     db,
                     candidate=candidate,
-                    demand_id=None,  # General outreach
-                    tenant_id="system",
-                    conversation_tenant_id=candidate.tenantid or "system",
+                    demand=None,
                     now=datetime.utcnow()
                 )
                 contacted += 1
@@ -113,7 +110,6 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                         sequence=sequence,
                         candidate=candidate,
                         demand=None,
-                        conversation_tenant_id=candidate.tenantid or "system",
                         now=datetime.utcnow()
                     )
                     advanced += 1
