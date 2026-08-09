@@ -11,7 +11,6 @@ from app.services.cfo_agent_service import (
     get_expense_breakdown, get_financial_forecast
 )
 from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary
-from app.services.agent_registry_service import AgentRegistry, AgentTier, AgentStatus
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -207,137 +206,9 @@ def get_ceo_fy_summary(
 # ============================================================================
 # Agent Registry & Discovery Endpoints
 # ============================================================================
-
-@router.get("/registry/all", dependencies=[Depends(require_permission("admin.view"))])
-def list_all_agents(db: Session = Depends(get_db)):
-    """List all 70+ agents with status and metadata."""
-    agents = [
-        {
-            "name": a.name,
-            "tier": a.tier.value,
-            "status": a.status.value,
-            "description": a.description,
-            "has_route": a.has_route,
-            "is_logging": a.is_logging,
-            "notes": a.notes,
-        }
-        for a in AgentRegistry.ALL_AGENTS
-    ]
-    return {
-        "status": "success",
-        "total": len(agents),
-        "data": agents
-    }
-
-
-@router.get("/registry/by-tier/{tier}", dependencies=[Depends(require_permission("admin.view"))])
-def get_agents_by_tier_endpoint(tier: str, db: Session = Depends(get_db)):
-    """Get all agents in a specific tier (core, resource, engagement, decision, support, finance, hr, monitor)."""
-    try:
-        tier_enum = AgentTier(tier.lower())
-        agents = AgentRegistry.get_agents_by_tier(tier_enum)
-        return {
-            "status": "success",
-            "tier": tier.lower(),
-            "count": len(agents),
-            "data": [
-                {
-                    "name": a.name,
-                    "status": a.status.value,
-                    "description": a.description,
-                    "has_route": a.has_route,
-                    "is_logging": a.is_logging,
-                }
-                for a in agents
-            ]
-        }
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid tier. Use: core, resource, engagement, decision, support, finance, hr, monitor"
-        )
-
-
-@router.get("/registry/unimplemented", dependencies=[Depends(require_permission("admin.view"))])
-def get_unimplemented_agents(db: Session = Depends(get_db)):
-    """Get all agents not yet implemented."""
-    agents = AgentRegistry.get_unimplemented()
-    return {
-        "status": "success",
-        "count": len(agents),
-        "data": [
-            {
-                "name": a.name,
-                "description": a.description,
-                "tier": a.tier.value,
-                "notes": a.notes,
-            }
-            for a in agents
-        ]
-    }
-
-
-@router.get("/registry/missing-logging", dependencies=[Depends(require_permission("admin.view"))])
-def get_agents_missing_logging(db: Session = Depends(get_db)):
-    """Get all agents not yet wired to execution logging."""
-    agents = AgentRegistry.get_missing_logging()
-    return {
-        "status": "success",
-        "count": len(agents),
-        "data": [
-            {
-                "name": a.name,
-                "tier": a.tier.value,
-                "status": a.status.value,
-                "description": a.description,
-            }
-            for a in agents
-        ]
-    }
-
-
-@router.get("/registry/missing-routes", dependencies=[Depends(require_permission("admin.view"))])
-def get_agents_missing_routes(db: Session = Depends(get_db)):
-    """Get all agents without API routes."""
-    agents = AgentRegistry.get_missing_routes()
-    return {
-        "status": "success",
-        "count": len(agents),
-        "data": [
-            {
-                "name": a.name,
-                "tier": a.tier.value,
-                "status": a.status.value,
-                "description": a.description,
-            }
-            for a in agents
-        ]
-    }
-
-
-@router.get("/registry/{agent_name}", dependencies=[Depends(require_permission("admin.view"))])
-def get_agent_info(agent_name: str, db: Session = Depends(get_db)):
-    """Get detailed info for a specific agent including metrics."""
-    agent = AgentRegistry.get_agent(agent_name)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
-
-    # Update metrics from database
-    agent = AgentRegistry.update_agent_metrics(db, agent_name)
-
-    return {
-        "status": "success",
-        "data": {
-            "name": agent.name,
-            "tier": agent.tier.value,
-            "status": agent.status.value,
-            "description": agent.description,
-            "has_route": agent.has_route,
-            "is_logging": agent.is_logging,
-            "last_execution": agent.last_execution.isoformat() if agent.last_execution else None,
-            "execution_count_7d": agent.execution_count_7d,
-            "success_rate_7d": round(agent.success_rate_7d, 1),
-            "avg_duration_ms": agent.avg_duration_ms,
-            "notes": agent.notes,
-        }
-    }
+# NOTE: Endpoints commented out - AgentRegistry class not yet implemented
+# TODO: Implement AgentRegistry, AgentTier, AgentStatus in agent_registry_service.py
+# @router.get("/registry/all", dependencies=[Depends(require_permission("admin.view"))])
+# def list_all_agents(db: Session = Depends(get_db)):
+#     """List all 70+ agents with status and metadata."""
+#     pass
