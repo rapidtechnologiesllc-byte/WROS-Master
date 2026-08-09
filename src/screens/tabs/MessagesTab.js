@@ -36,6 +36,7 @@ export default function MessagesTab({ candidateId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [missingFields, setMissingFields] = useState(null);
+  const [missingLoading, setMissingLoading] = useState(false);
   const [polling, setPolling] = useState(false);
 
   const fetchThread = useCallback(async () => {

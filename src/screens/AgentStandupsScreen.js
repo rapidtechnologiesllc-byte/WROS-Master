@@ -149,7 +149,7 @@ export default function AgentStandupsScreen() {
                       {data.critical}✗
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Avg: {data.avg_success_rate.toFixed(0)}%</p>
+                  <p className="text-xs text-gray-500 mt-2">Avg: {((data?.avg_success_rate || 0)).toFixed(0)}%</p>
                 </div>
               ))}
             </div>
