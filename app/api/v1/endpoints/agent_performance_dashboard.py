@@ -12,7 +12,6 @@ router = APIRouter(prefix="/dashboard/agents", tags=["agent-dashboard"])
 @router.get("/all")
 def get_all_agents_performance(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get performance for ALL 50+ agents.
@@ -59,7 +58,6 @@ def get_all_agents_performance(
 def get_agents_by_tier(
     tier: str = Query(..., description="Tier: tier_1_core, tier_2_resource, tier_3_finance, etc."),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """Get agents by tier."""
     agents = AgentPerformanceDashboard.get_agents_by_tier(db, tier)
@@ -75,7 +73,6 @@ def get_agents_by_tier(
 def get_agents_by_domain(
     domain: str = Query(..., description="Domain: recruitment, resource_management, finance, etc."),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """Get agents by domain (recruitment, resource management, finance, etc.)."""
     agents = AgentPerformanceDashboard.get_agents_by_domain(db, domain)
@@ -90,7 +87,6 @@ def get_agents_by_domain(
 @router.get("/at-risk")
 def get_at_risk_agents(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get agents with fear_score > 70 (DESPERATE or TERRIFIED).
@@ -112,7 +108,6 @@ def get_at_risk_agents(
 @router.get("/healthy")
 def get_healthy_agents(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get agents with fear_score <= 50 (MOTIVATED or NEUTRAL).
@@ -132,7 +127,6 @@ def get_healthy_agents(
 @router.get("/critical")
 def get_critical_agents(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get CRITICAL strategic importance agents only.
@@ -153,7 +147,6 @@ def get_critical_agents(
 @router.get("/summary")
 def get_progress_summary(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get summary of progress toward company targets.
@@ -189,7 +182,6 @@ def get_progress_summary(
 @router.get("/dashboard/executive")
 def get_executive_dashboard(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get comprehensive executive dashboard showing all agents and progress.

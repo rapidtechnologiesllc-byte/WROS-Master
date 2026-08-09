@@ -13,7 +13,6 @@ router = APIRouter(prefix="/phalanx", tags=["phalanx"])
 @router.get("/formations")
 def get_phalanx_formations(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
 ):
     """
     Get all phalanx formations and their status.
@@ -40,8 +39,7 @@ def get_phalanx_formations(
 def get_phalanx_status(
     phalanx_name: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
-):
+    ):
     """
     Get detailed status of a specific phalanx formation.
 
@@ -64,8 +62,7 @@ def get_phalanx_status(
 def initialize_phalanx(
     phalanx_name: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
-):
+    ):
     """Initialize a phalanx formation with agent positions."""
 
     # Check if user is admin
@@ -102,8 +99,7 @@ def update_agent_shield(
     quality_score: float = Query(..., ge=0, le=100),
     confidence: float = Query(..., ge=0, le=100),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
-):
+    ):
     """
     Update an agent's shield metrics and check formation integrity.
 
@@ -136,8 +132,7 @@ def update_agent_shield(
 def get_formation_integrity(
     phalanx_name: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
-):
+    ):
     """
     Get phalanx formation integrity analysis.
 
@@ -161,8 +156,7 @@ def get_formation_integrity(
 @router.get("/dashboard/phalanx-wall")
 def get_phalanx_wall_dashboard(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user_or_none),
-):
+    ):
     """
     Get the complete Phalanx Wall dashboard showing all formations.
 
