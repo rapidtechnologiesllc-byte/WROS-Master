@@ -397,26 +397,44 @@ if url.startswith("sqlite:///./"):
 
 ---
 
+## SESSION UPDATE: Login Fixed - Email→Password Step Working ✅
+
+**BREAKTHROUGH:** Email-to-password form progression fixed! 
+- Direct JavaScript trigger of handleNext() now correctly advances to password field
+- Password field renders with readonly email display and password input
+- Form state management working correctly (handleNext just changes step, no API call needed)
+
+**API VERIFIED WORKING:**
+- POST /auth/login responding with Status 200 ✅
+- Direct fetch returns valid JWT access_token ✅
+- User authentication (bcrypt) verified working ✅
+- Database connected and test users present ✅
+
+**REMAINING ISSUE:** 
+React login component's apiRequest wrapper failing on form submission
+- When user manually triggers form: browser shows "Failed to fetch" / "connection refused"
+- When direct JavaScript fetch is called: works perfectly, Status 200
+- Suggests issue with headers, CORS, or how apiRequest wraps the fetch
+
+---
+
 ## OPEN ITEMS FOR NEXT SESSION
 
-### 🔴 CRITICAL BLOCKERS
+### 🔴 CRITICAL BLOCKER
 
-1. **Frontend React Login Component - NOT PROGRESSING PAST EMAIL FIELD**
-   - **Status:** API connection verified working (POST /auth/login returns 200)
-   - **Problem:** Frontend form stays on email field even after successful backend authentication
-   - **Investigation Done:** Backend logs confirm successful login (21:02:33)
-   - **Next Steps:**
-     - Debug React component state management in login flow
-     - Check if response is being handled correctly by React
-     - Verify token is stored in localStorage after successful login
-     - Test if redirect/navigation is working after authentication
-   - **Files to Check:** OnboardingModule-Frontend-main/src/services/api/auth.js, login component
-
-2. **Password Field Not Appearing After Email Submission**
-   - **Current Flow:** Email field → Click Next → (should show password field) → Stays on email field
-   - **Verified:** Backend is receiving and processing the POST request successfully
-   - **Likely Cause:** React component not handling response or advancing to next step
-   - **Action:** Review login form component logic (two-step form: email first, then password)
+1. **React Component's apiRequest Wrapper - Form Submission Failing**
+   - **Status:** API itself works (confirmed via direct fetch), issue is in React wrapper
+   - **Problem:** Form submit → apiRequest → fetch fails with "connection refused"
+   - **Verified Working:** Direct fetch to localhost:8080/auth/login returns Status 200
+   - **Root Cause:** Likely in services/api/client.js apiRequest() function
+     - Check headers configuration (CORS, Content-Type)
+     - Verify REACT_APP_API_BASE_URL env var is set to http://localhost:8080
+     - Check if response interceptor or error handling is swallowing the response
+   - **Files to Debug:** 
+     - OnboardingModule-Frontend-main/src/services/api/client.js (apiRequest function)
+     - OnboardingModule-Frontend-main/src/services/api/auth.js (login wrapper)
+     - Check .env.development for API_BASE_URL setting
+   - **Solution Path:** Fix apiRequest to handle requests the same way direct fetch does
 
 ### ⚠️ HIGH PRIORITY
 
