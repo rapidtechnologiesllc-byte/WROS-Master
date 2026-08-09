@@ -1062,20 +1062,12 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register partner success scheduler: {exc}")
 
-
-def shutdown_scheduler():
-    """Shutdown the APScheduler instance."""
-    if scheduler.running:
-        scheduler.shutdown()
-        logger.info("APScheduler shutdown completed")
-
-
         # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
         try:
             from app.core.database import SessionLocal
             from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
 
-            async def _run_thunder_autonomous():
+            def _run_thunder_autonomous():
                 db = SessionLocal()
                 try:
                     result = run_thunder_autonomous_cycle(db)
@@ -1101,6 +1093,13 @@ def shutdown_scheduler():
             logger.info("[OK] Scheduled Thunder autonomous loop (every 5 min)")
         except Exception as exc:
             logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
+
+
+def shutdown_scheduler():
+    """Shutdown the APScheduler instance."""
+    if scheduler.running:
+        scheduler.shutdown()
+        logger.info("APScheduler shutdown completed")
 
 
 def add_job(func, trigger, **kwargs):

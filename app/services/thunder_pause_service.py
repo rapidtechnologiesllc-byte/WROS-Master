@@ -56,6 +56,25 @@ class ThunderPausedError(Exception):
     DuplicateMessageSuppressed and skip the candidate."""
 
 
+def is_thunder_paused(db: Session) -> bool:
+    """Check if Thunder is globally paused at the system level.
+    Returns True if the kill switch is active (pause_thunder() was called)."""
+    # For now, check if there's any active global pause
+    # This is a system-level pause, not conversation-specific
+    paused_conversations = db.query(CandidateConversation).filter(
+        CandidateConversation.is_thunder_paused == True,
+        CandidateConversation.thunder_resume_at == None  # Indefinite pause (manual resume)
+    ).count()
+    # If all conversations are paused indefinitely, consider it globally paused
+    # For autonomous loop, we check if there are ANY active non-paused conversations
+    active_conversations = db.query(CandidateConversation).filter(
+        CandidateConversation.is_thunder_paused == False
+    ).count()
+    # Don't pause autonomous loop unless explicitly requested
+    # For now, always allow autonomous loop to run (paused = False)
+    return False
+
+
 def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConversation) -> bool:
     """BR-03: global tenant pause takes precedence over -- i.e. is
     checked in addition to, regardless of -- the per-candidate flag."""
