@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from app.core.database import get_db
 from app.services.agent_shield_service import PhalanxFormationService
-from app.core.dependencies import get_current_user_or_none
+# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
 
 router = APIRouter(prefix="/phalanx", tags=["phalanx"])
 

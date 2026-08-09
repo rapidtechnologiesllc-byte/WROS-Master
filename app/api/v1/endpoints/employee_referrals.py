@@ -9,7 +9,7 @@ from typing import Optional
 from app.core.database import get_db
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
-from app.core.dependencies import get_current_user_or_none
+# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
