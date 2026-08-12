@@ -98,6 +98,169 @@ const roundNameOptions = [
   { label: "L2 Interview", value: "L2 Interview" },
 ];
 
+function UsersBUDetailsPanel({ candidate, onUpdate }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [recruiters, setRecruiters] = useState([]);
+  const [loadingRecruiters, setLoadingRecruiters] = useState(false);
+  const [selectedRecruiter, setSelectedRecruiter] = useState(candidate?.assigned_recruiter_id || "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const loadRecruiters = async () => {
+      try {
+        setLoadingRecruiters(true);
+        const response = await fetch(`/hr/users/search?permission_role=Recruiter&limit=200`, {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+          },
+        });
+        if (!response.ok) throw new Error("Failed to load recruiters");
+        const data = await response.json();
+        setRecruiters(data.users || []);
+      } catch (error) {
+        console.error("Failed to load recruiters:", error);
+      } finally {
+        setLoadingRecruiters(false);
+      }
+    };
+
+    loadRecruiters();
+  }, [isEditing]);
+
+  const handleSaveRecruiter = async () => {
+    if (!selectedRecruiter) {
+      alert("Please select a recruiter");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const recruiter = recruiters.find(r => r.user_id === selectedRecruiter);
+      if (onUpdate) {
+        await onUpdate({
+          assigned_recruiter_id: selectedRecruiter,
+          assigned_recruiter_name: recruiter?.user_name || "",
+        });
+      }
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to update recruiter:", error);
+      alert("Failed to update recruiter");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="bg-white border rounded-2xl shadow-sm">
+        <div className="border-b px-5 py-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">Users & BU Details</h3>
+          <button
+            onClick={() => {
+              setSelectedRecruiter(candidate?.assigned_recruiter_id || "");
+              setIsEditing(true);
+            }}
+            className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition font-medium"
+          >
+            Edit
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-4 text-xs">
+          <div>
+            <div className="text-gray-600 font-medium mb-1">Recruiter</div>
+            <div className="text-gray-900 font-semibold">{candidate?.assigned_recruiter_name || "—"}</div>
+          </div>
+
+          <div className="border-t pt-3">
+            <div className="text-gray-600 font-medium mb-1">Business Unit</div>
+            <div className="text-gray-900 font-semibold">{candidate?.business_unit_id || "—"}</div>
+          </div>
+
+          {candidate?.has_job_submission && (
+            <>
+              <div className="border-t pt-3">
+                <div className="text-gray-600 font-medium mb-1">HR Manager</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_manager_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">Hiring Manager</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_hiring_manager_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">HR BP</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_bp_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">BU Head</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_bu_head_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">Report Manager</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_report_manager_name || "—"}</div>
+              </div>
+            </>
+          )}
+
+          {!candidate?.has_job_submission && (
+            <div className="border-t pt-3">
+              <p className="text-gray-500 italic text-xs">Additional users will appear as the candidate proceeds through the recruitment process.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border rounded-2xl shadow-sm">
+      <div className="border-b px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-900">Change Recruiter</h3>
+      </div>
+      <div className="px-5 py-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Recruiter *</label>
+          <select
+            value={selectedRecruiter}
+            onChange={(e) => setSelectedRecruiter(e.target.value)}
+            disabled={loadingRecruiters}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">{loadingRecruiters ? "Loading recruiters..." : "Select a recruiter"}</option>
+            {recruiters.map((recruiter) => (
+              <option key={recruiter.user_id} value={recruiter.user_id}>
+                {recruiter.user_name} ({recruiter.user_email})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="border-t px-5 py-4 flex gap-3 justify-end">
+        <button
+          onClick={() => setIsEditing(false)}
+          disabled={saving}
+          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveRecruiter}
+          disabled={saving || !selectedRecruiter}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CandidateDetailsScreen({
   apiState,
   candidate,
@@ -1436,60 +1599,14 @@ ${formattedJD}
           {!limitedMode && (
             <div className="space-y-5">
               {/* Users & BU Details Panel */}
-              <div className="bg-white border rounded-2xl shadow-sm">
-                <div className="border-b px-5 py-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Users & BU Details</h3>
-                </div>
-                <div className="px-5 py-4 space-y-4 text-xs">
-                  {/* Recruiter */}
-                  <div>
-                    <div className="text-gray-600 font-medium mb-1">Recruiter</div>
-                    <div className="text-gray-900 font-semibold">{candidate?.assigned_recruiter_name || "—"}</div>
-                  </div>
-
-                  {/* Business Unit */}
-                  <div className="border-t pt-3">
-                    <div className="text-gray-600 font-medium mb-1">Business Unit</div>
-                    <div className="text-gray-900 font-semibold">{candidate?.business_unit_id || "—"}</div>
-                  </div>
-
-                  {/* Other Users - Only if not at corporate level */}
-                  {candidate?.has_job_submission && (
-                    <>
-                      <div className="border-t pt-3">
-                        <div className="text-gray-600 font-medium mb-1">HR Manager</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_manager_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">Hiring Manager</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hiring_manager_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">HR BP</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_bp_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">BU Head</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_bu_head_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">Report Manager</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_report_manager_name || "—"}</div>
-                      </div>
-                    </>
-                  )}
-
-                  {!candidate?.has_job_submission && (
-                    <div className="border-t pt-3">
-                      <p className="text-gray-500 italic text-xs">Additional users will appear as the candidate proceeds through the recruitment process.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <UsersBUDetailsPanel
+                candidate={candidate}
+                onUpdate={async (updates) => {
+                  if (onUpdateCandidate) {
+                    await onUpdateCandidate({ ...candidate, ...updates });
+                  }
+                }}
+              />
 
               {/* Notes Panel */}
               <div className="bg-white border rounded-2xl shadow-sm h-fit flex flex-col">
