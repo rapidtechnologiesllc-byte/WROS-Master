@@ -509,3 +509,40 @@ Client→Owner auto-default needs a real Client.owner field built first —
 flagged for next session, not rushed before this push.
 
 ---
+
+## [FEATURE-2026-08-12T7] Table Column Customization & Sorting — Missing from ALL screens
+
+**Reported by:** Avinash (2026-08-12)
+**Timestamp:** 2026-08-12
+**Type:** Feature request (architectural gap, Day 2)
+**Severity:** HIGH — blocks autonomous data exploration
+**Screens affected:** Clients, Candidates, Opportunities, Employees, Projects, Jobs, Allocations, Demands, Invoices, Expenses, and 10+ more
+
+**Description:**
+
+*"for example what if i want to add additional columns, or sort by something — none of them are available. you need to do this in almost all screens. might be a day 2 item but something very important is missed by you."*
+
+Confirmed: No table in the system supports:
+1. **Column visibility toggle** — newly exposed fields (business_unit_name, account_manager_name, line_type on Clients; probability_pct on Opportunities; department, bu_id on Employees) render in API responses but have no UI toggle to show/hide them in the list view.
+2. **Sorting** — every table is hard-wired to a single sort order (e.g. `order_by(Client.company_name)`, `order_by(Opportunity.created_at.desc())`), no way for a user to click a column header to sort.
+3. **Filtering** — limited to fixed filter controls on individual screens (Client status filter in ClientManagementScreen, Opportunity stage filter in OpportunityPipelineScreen), not a generalized filterable-column pattern.
+
+**Impact:**
+- Users can't customize views to their workflow — violates autonomy principle
+- Data discovery is constrained to whatever the UI builder decided to show
+- Each new field exposed at the API (business_unit_name, Client Owner, line_type, etc.) requires the field to be hard-coded into a row template — no way for a user to opt-in dynamically
+- Blocks real-world usability: users need to filter by BU, sort by Client status/tier/owner, add/remove columns per task
+
+**Architectural shape for Day 2:**
+1. Create a shared `<DataTable>` component that accepts:
+   - `columns`: Array of {key, label, sortable?, filterable?, visible?, type}
+   - `rows`: Data array
+   - `onColumnToggle`, `onSort`, `onFilter` callbacks
+   - Persistence: Save user's column preferences to localStorage per screen
+2. Migrate all existing hardcoded tables (Client list, Candidate list, Opportunity pipeline list view, Employees, Projects, etc.) to use this component.
+3. Wire column names from API response schemas — a field in the API response can be surfaced as a column toggle without code changes (no "add customer_id, add tier, add bu_id" code commits — it's metadata-driven).
+4. Extend to Kanban (Opportunity Pipeline stage columns should be sortable, filterable, draggable).
+
+**Status:** OPEN — scoped as Day 2/architectural work. Blocks autonomous workflows until implemented.
+
+---
