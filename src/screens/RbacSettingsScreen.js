@@ -173,7 +173,7 @@ export default function RbacSettingsScreen() {
       setRoles(Array.isArray(rolesRes) ? rolesRes : []);
       setPermissions(Array.isArray(permsRes) ? permsRes : []);
       setBusinessUnits(Array.isArray(buRes) ? buRes : []);
-      setUsers(Array.isArray(usersRes?.users) ? usersRes.users : []);
+      setUsers(Array.isArray(usersRes) ? usersRes : []);
       setDepartment(departmentRes);
     } catch (err) {
       setError(err.message || "Failed to load RBAC data.");

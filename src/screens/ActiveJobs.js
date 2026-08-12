@@ -59,7 +59,7 @@ export default function ActiveJobs({ onCreate, onOpenJob, onViewJob, onDeleteJob
         getAllUsers()
       ]);
       const list = Array.isArray(jobsRes?.jobs) ? jobsRes.jobs : [];
-      const users = usersRes?.users || [];
+      const users = usersRes || [];
       setJobs(list.map((j) => mapJobFromApi(j, users)));
     } catch (err) {
       setError(err.message || "Failed to load active jobs.");

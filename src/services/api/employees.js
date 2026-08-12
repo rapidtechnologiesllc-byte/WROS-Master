@@ -10,9 +10,12 @@ export const createEmployee = async (payload) => {
   return data;
 };
 
+// 2026-08-12: unwrapped here (same fix and same reason as getAllUsers()
+// in services/api/users.js) -- backend returns {employees: [...]}, this
+// now always returns a plain array so callers don't each re-unwrap it.
 export const getAllEmployees = async () => {
   const { data } = await apiRequest("/employees", { method: "GET" });
-  return data;
+  return data?.employees || [];
 };
 
 export const getBenchPool = async () => {

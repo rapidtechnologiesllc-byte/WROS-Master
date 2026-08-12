@@ -111,7 +111,7 @@ export default function InterviewStatus({
         // Load interviewer list for feedback form.
         const res = await getAllUsers();
         if (!isMounted) return;
-        const users = (res?.users || []).map((u) => ({
+        const users = (res || []).map((u) => ({
           id: u.user_id,
           name: u.user_name || u.user_email,
           email: u.user_email

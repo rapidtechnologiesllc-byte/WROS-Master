@@ -304,16 +304,7 @@ export default function CandidateDetailsScreen({
       try {
         setLoadingUsers(true);
         const res = await getAllUsers();
-        const userList = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.users)
-            ? res.users
-            : Array.isArray(res?.items)
-              ? res.items
-              : Array.isArray(res?.data)
-                ? res.data
-                : [];
-        setUsers(userList);
+        setUsers(Array.isArray(res) ? res : []);
       } catch (err) {
         console.error("Failed to fetch users", err);
         showNotice("Failed to load panel members", "error");

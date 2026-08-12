@@ -66,7 +66,7 @@ export default function HrUserManagement() {
         getHrMe(),
         listRoles()
       ]);
-      setUsers(Array.isArray(usersRes?.users) ? usersRes.users : []);
+      setUsers(Array.isArray(usersRes) ? usersRes : []);
       setMe(meRes || null);
       const nextRoles = Array.isArray(rolesRes) ? rolesRes : [];
       setRbacRoles(nextRoles);

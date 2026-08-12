@@ -764,7 +764,7 @@ export default function EmployeeDirectoryScreen() {
         benchPoolOnly ? getBenchPool() : getAllEmployees(),
         getBenchAgingAlerts(),
       ]);
-      setEmployees(empRes?.employees || []);
+      setEmployees(Array.isArray(empRes) ? empRes : (empRes?.employees || []));
       setAlerts(alertRes?.alerts || []);
     } catch (err) {
       setError(err.message || "Failed to load employees.");
