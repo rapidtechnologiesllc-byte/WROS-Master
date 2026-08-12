@@ -1405,3 +1405,196 @@ class EmailService:
             logger.error(f"[EmailService] notify_timesheet_approved error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+    # ------------------------------------------------------------------
+    # Interview Feedback Notifications (DEFECT-13 CRITICAL)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def send_interview_feedback_notification_individual(
+        recipient_email: str,
+        recipient_name: str,
+        recipient_role: str,
+        candidate_name: str,
+        candidate_id: str,
+        interview_date: str,
+        interview_id: str,
+        position_title: str,
+        feedback_giver: str,
+        all_panel_members: list,
+        feedback_summary: str = None,
+    ) -> bool:
+        """
+        Send INDIVIDUAL, ROLE-SPECIFIC notification when interview feedback is submitted.
+        Each stakeholder gets a personalized email based on their hierarchy role.
+
+        Roles handled:
+        - Hiring Manager: Gets executive summary, can take action
+        - BU Head: Gets strategic overview
+        - Panel Member: Gets feedback confirmation
+        - HR Manager: Gets administrative notification
+        - Recruiting Manager: Gets recruitment workflow update
+        """
+        try:
+            access_token = EmailService._get_token()
+
+            # Generate role-specific subject and body
+            subject, body_inner = EmailService._generate_feedback_notification(
+                recipient_role=recipient_role,
+                candidate_name=candidate_name,
+                position_title=position_title,
+                feedback_giver=feedback_giver,
+                interview_date=interview_date,
+                all_panel_members=all_panel_members,
+                feedback_summary=feedback_summary,
+            )
+
+            # Build complete HTML email
+            full_html = f"""
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: Segoe UI, Arial, sans-serif; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ border-bottom: 3px solid #0078d4; padding-bottom: 15px; margin-bottom: 20px; }}
+                    .logo {{ color: #0078d4; font-size: 24px; font-weight: bold; }}
+                    .content {{ margin: 20px 0; line-height: 1.6; }}
+                    .section {{ margin: 15px 0; padding: 15px; background: #f5f5f5; border-left: 4px solid #0078d4; }}
+                    .button {{ display: inline-block; background: #0078d4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 15px 0; }}
+                    .footer {{ color: #666; font-size: 12px; border-top: 1px solid #eee; padding-top: 15px; margin-top: 30px; }}
+                    .badge {{ display: inline-block; background: #e7f3ff; color: #0078d4; padding: 4px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 5px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">BX BLITZENX</div>
+                    </div>
+                    <div class="content">
+                        <p>Hello {recipient_name},</p>
+                        {body_inner}
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated notification from BlitzenX HRMS.</p>
+                        <p>Interview ID: {interview_id} | Candidate: {candidate_name}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Send via Microsoft Graph
+            payload = {
+                "message": {
+                    "subject": subject,
+                    "body": {
+                        "contentType": "HTML",
+                        "content": full_html,
+                    },
+                    "toRecipients": [{"emailAddress": {"address": recipient_email}}],
+                    "ccRecipients": [{"emailAddress": {"address": "hr_desk@blitzenx.com"}}],
+                },
+                "saveToSentItems": "true",
+            }
+
+            EmailService._graph_post(
+                "https://graph.microsoft.com/v1.0/me/sendMail",
+                payload,
+                access_token,
+            )
+
+            logger.info(f"Interview feedback notification sent to {recipient_role} ({recipient_email})")
+            return True
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[EmailService] send_interview_feedback_notification error: {e}")
+            return False
+
+    @staticmethod
+    def _generate_feedback_notification(
+        recipient_role: str,
+        candidate_name: str,
+        position_title: str,
+        feedback_giver: str,
+        interview_date: str,
+        all_panel_members: list,
+        feedback_summary: str = None,
+    ) -> tuple:
+        """Generate role-specific subject line and body for interview feedback notification."""
+
+        panel_list = ", ".join(all_panel_members) if all_panel_members else "Interview Panel"
+
+        if recipient_role == "Hiring Manager":
+            subject = f"Interview Feedback Received: {candidate_name} for {position_title}"
+            body = f"""
+            <div class="section">
+                <p><strong>Interview feedback has been submitted</strong> for your candidate:</p>
+                <p><strong>Candidate:</strong> {candidate_name}<br>
+                <strong>Position:</strong> {position_title}<br>
+                <strong>Interview Date:</strong> {interview_date}<br>
+                <strong>Feedback From:</strong> {feedback_giver}</p>
+                <p>All Panel Members: <em>{panel_list}</em></p>
+            </div>
+            <p><a class="button" href="https://wros.blitzenx.com/interviews">View Interview Feedback</a></p>
+            <p>This feedback is now available for review. You can make hiring decisions based on the panel's feedback.</p>
+            """
+
+        elif recipient_role == "BU Head":
+            subject = f"Interview Feedback Submitted: {candidate_name} ({position_title})"
+            body = f"""
+            <div class="section">
+                <p><strong>Candidate Interview Feedback Submitted</strong></p>
+                <p><strong>Candidate:</strong> {candidate_name}<br>
+                <strong>Position:</strong> {position_title}<br>
+                <strong>Feedback Date:</strong> {interview_date}</p>
+                <p><span class="badge">FEEDBACK RECEIVED</span></p>
+            </div>
+            <p><a class="button" href="https://wros.blitzenx.com/interviews">Review All Feedback</a></p>
+            <p>Hiring managers have been notified and can proceed with next steps.</p>
+            """
+
+        elif recipient_role == "Panel Member":
+            subject = f"Interview Feedback Confirmation: {candidate_name}"
+            body = f"""
+            <div class="section">
+                <p><strong>Thank you for your interview feedback!</strong></p>
+                <p>Your feedback for <strong>{candidate_name}</strong> (Position: {position_title}) has been recorded.</p>
+                <p><strong>Interview Date:</strong> {interview_date}<br>
+                <strong>Panel Members:</strong> {panel_list}</p>
+            </div>
+            <p>The hiring team will review all feedback and make a decision shortly.</p>
+            """
+
+        elif recipient_role == "HR Manager":
+            subject = f"Interview Feedback Received: {candidate_name}"
+            body = f"""
+            <div class="section">
+                <p><strong>New Interview Feedback Submitted</strong></p>
+                <p><strong>Candidate:</strong> {candidate_name}<br>
+                <strong>Position:</strong> {position_title}<br>
+                <strong>Interviewer:</strong> {feedback_giver}<br>
+                <strong>Interview Date:</strong> {interview_date}</p>
+                <p><strong>Panel Members:</strong><br>{chr(10).join([f"• {member}" for member in all_panel_members])}</p>
+            </div>
+            <p><a class="button" href="https://wros.blitzenx.com/admin/interviews">Review in Admin Portal</a></p>
+            <p>All feedback is now available for HR workflow processing.</p>
+            """
+
+        else:  # Default for Recruiting Manager or other roles
+            subject = f"Interview Update: {candidate_name} - {position_title}"
+            body = f"""
+            <div class="section">
+                <p><strong>Interview Process Update</strong></p>
+                <p><strong>Candidate:</strong> {candidate_name}<br>
+                <strong>Position:</strong> {position_title}<br>
+                <strong>Last Update:</strong> Feedback received from {feedback_giver}</p>
+                <p><strong>Interview Date:</strong> {interview_date}</p>
+            </div>
+            <p><a class="button" href="https://wros.blitzenx.com/interviews">View Interview Status</a></p>
+            <p>Next steps are being determined by the hiring team.</p>
+            """
+
+        return subject, body
+

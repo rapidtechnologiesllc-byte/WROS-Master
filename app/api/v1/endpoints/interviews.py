@@ -221,138 +221,35 @@ def _notify_feedback_submitted(
     db: Session,
 ) -> None:
     """
-    Send a branded notification email when a panel member submits feedback.
+    DEFECT-13 CRITICAL: Send INDIVIDUAL, ROLE-SPECIFIC notifications when feedback is submitted.
 
-    Recipients:
-      TO  — Hiring Manager (resolved via panel → job → hiringManagerID)
-      CC  — All other panel members + any HR user linked via CandidateAssignment
+    Each stakeholder gets a personalized email based on their position in the org hierarchy:
+    - Hiring Manager: Gets executive summary, can take action
+    - BU Head: Gets strategic overview
+    - Panel Members: Get feedback confirmation
+    - HR Manager: Gets administrative notification
 
-    The email is fire-and-forget; failures are logged but never raise.
+    Fire-and-forget; failures are logged but never raise.
     """
     try:
-        candidate = db.query(Candidate).filter(
-            Candidate.candidateID == interview.candidate_id
-        ).first()
-        candidate_name = _candidate_display_name(candidate) if candidate else interview.candidate_id
-
-        panel = db.query(InterviewPanel).filter(
-            InterviewPanel.id == interview.panel_id
-        ).first()
-        round_name = panel.round_name if panel else "Interview"
-        submitter_name = submitter.UserName or submitter.UserEmail
-
-        # ── Resolve Hiring Manager ─────────────────────────────────────────
-        hm_email: str | None = None
-        hm_name: str = "Hiring Manager"
-
-        if panel and panel.job_id:
-            job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
-            if job and job.hiringManagerID:
-                hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
-                if hm:
-                    hm_email = hm.UserEmail
-                    hm_name  = hm.UserName or "Hiring Manager"
-
-        if not hm_email and candidate and candidate.job_id:
-            job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
-            if job and job.hiringManagerID:
-                hm = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
-                if hm:
-                    hm_email = hm.UserEmail
-                    hm_name  = hm.UserName or "Hiring Manager"
-
-        # ── Build CC list: all panel members + HR from CandidateAssignment ─
-        cc_emails: list[str] = []
-
-        if panel:
-            members = db.query(PanelMember).filter(
-                PanelMember.panel_id == panel.id
-            ).all()
-            for m in members:
-                if m.interviewer_id == submitter.UserID:
-                    continue          # submitter is already in TO or irrelevant
-                u = db.query(Users).filter(Users.UserID == m.interviewer_id).first()
-                if u and u.UserEmail and u.UserEmail not in cc_emails:
-                    cc_emails.append(u.UserEmail)
-
-        # HR from CandidateAssignment
-        assignment = db.query(CandidateAssignment).filter(
-            CandidateAssignment.candidate_id == interview.candidate_id
-        ).first()
-        if assignment and assignment.hiring_manager_id:
-            hr_user = db.query(Users).filter(
-                Users.UserID == assignment.hiring_manager_id
-            ).first()
-            if hr_user and hr_user.UserEmail and hr_user.UserEmail not in cc_emails:
-                cc_emails.append(hr_user.UserEmail)
-
-        # Remove HM from CC if they're already the TO recipient
-        if hm_email:
-            cc_emails = [e for e in cc_emails if e != hm_email]
-
-        # ── Score summary ──────────────────────────────────────────────────
-        total_score = (
-            (feedback.technical_score or 0)
-            + (feedback.communication_score or 0)
-            + (feedback.problem_solving_score or 0)
-            + (feedback.culture_fit_score or 0)
-        )
-        interview_date = (
-            interview.start_time.strftime("%d %b %Y, %I:%M %p")
-            if interview.start_time else "N/A"
+        from app.services.interview_feedback_notification_service import (
+            InterviewFeedbackNotificationService
         )
 
-        metadata = {
-            "Candidate":        candidate_name,
-            "Round":            round_name,
-            "Interview Date":   interview_date,
-            "Submitted By":     submitter_name,
-            "Recommendation":   feedback.recommendation or "—",
-            "Overall Score":    f"{total_score} / 40",
-            "Technical":        f"{feedback.technical_score or 0} / 10",
-            "Communication":    f"{feedback.communication_score or 0} / 10",
-            "Problem Solving":  f"{feedback.problem_solving_score or 0} / 10",
-            "Culture Fit":      f"{feedback.culture_fit_score or 0} / 10",
-        }
-
-        heading = f"Interview Feedback Submitted — {candidate_name} | {round_name}"
-        message = (
-            f"<strong>{submitter_name}</strong> has submitted their interview feedback "
-            f"for candidate <strong>{candidate_name}</strong> ({round_name} round).<br><br>"
-            f"Please log in to the HRMS portal to review the complete feedback details."
+        # Trigger the notification service
+        InterviewFeedbackNotificationService.notify_feedback_submitted(
+            db=db,
+            interview_id=interview.id,
+            feedback_summary=feedback.recommendation or "Feedback submitted",
         )
 
-        # ── Send to HM (or fall back to panel-wide CC if HM not found) ────
-        to_email = hm_email
-        to_name  = hm_name
-        if not to_email and cc_emails:
-            to_email = cc_emails.pop(0)
-            u = db.query(Users).filter(Users.UserEmail == to_email).first()
-            to_name  = (u.UserName if u else None) or "Team"
-
-        if to_email:
-            EmailService.send_event_notification(
-                to_email=to_email,
-                recipient_name=to_name,
-                event_type="action_required",
-                heading=heading,
-                message=message,
-                cc_emails=cc_emails if cc_emails else None,
-                metadata=metadata,
-                triggered_by_name=submitter_name,
-            )
-            logger.info(
-                f"[FeedbackNotify] Feedback notification sent to HM {to_email} "
-                f"| CC: {cc_emails} | Interview #{interview.id}"
-            )
-        else:
-            logger.warning(
-                f"[FeedbackNotify] No recipient found for feedback notification "
-                f"on interview #{interview.id}."
-            )
+        logger.info(
+            f"[FeedbackNotify-DEFECT13] Individual role-specific notifications sent "
+            f"for interview #{interview.id}"
+        )
 
     except Exception as exc:
-        logger.warning(f"[FeedbackNotify] Non-critical notification error: {exc}")
+        logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
 
 
 # ---------------------------------------------------------------------------
