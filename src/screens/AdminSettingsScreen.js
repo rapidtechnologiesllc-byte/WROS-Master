@@ -148,6 +148,10 @@ export default function AdminSettingsScreen() {
     );
   }
 
+  if (!panel) {
+    return <div className="p-6 text-sm text-gray-500">No settings available.</div>;
+  }
+
   return (
     <div className="mx-auto flex max-w-5xl gap-6 p-6">
       <aside className="w-52 shrink-0">
