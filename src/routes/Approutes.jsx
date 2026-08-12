@@ -6,7 +6,6 @@ import InterviewSchedule from "../screens/InterviewSchedule";
 import InterviewStatus from "../screens/InterviewStatus";
 import InterviewAnalytics from "../screens/InterviewAnalytics";
 import HrUserManagement from "../screens/HrUserManagement";
-import UsersLifecycleScreen from "../screens/UsersLifecycleScreen";
 import JobCreate from "../screens/JobCreate";
 import JobDetails from "../screens/JobDetails";
 import JobsOverview from "../screens/JobsOverview";
@@ -18,6 +17,7 @@ import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import RbacSettingsScreen from "../screens/RbacSettingsScreen";
+import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
 import { getAllInterviews, updateInterview } from "../services/api/interviews";
@@ -73,7 +73,6 @@ import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
-import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
@@ -110,6 +109,7 @@ import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
+import UsersLifecycleScreen from "../screens/UsersLifecycleScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
