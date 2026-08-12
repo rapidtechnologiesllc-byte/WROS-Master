@@ -5,7 +5,6 @@ import ActiveJobs from "../screens/ActiveJobs";
 import InterviewSchedule from "../screens/InterviewSchedule";
 import InterviewStatus from "../screens/InterviewStatus";
 import InterviewAnalytics from "../screens/InterviewAnalytics";
-import HrUserManagement from "../screens/HrUserManagement";
 import JobCreate from "../screens/JobCreate";
 import JobDetails from "../screens/JobDetails";
 import JobsOverview from "../screens/JobsOverview";
@@ -16,7 +15,7 @@ import OfferScreen from "../screens/OfferScreen";
 import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
-import RbacSettingsScreen from "../screens/RbacSettingsScreen";
+import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
@@ -906,8 +905,7 @@ export default function AppRoutes() {
             }
           />
           <Route path="/offers" element={<OfferLettersScreen />} />
-          <Route path="hr-users" element={<HrUserManagement />} />
-          <Route path="rbac" element={<RbacSettingsScreen />} />
+          <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
         </Route>
       </Routes>
       <ToastContainer position="top-right" autoClose={3000} />
