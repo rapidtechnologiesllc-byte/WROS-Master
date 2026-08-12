@@ -187,11 +187,58 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 email_otp_required=email_otp_gate,
             )
 
+        # Fetch multi-role data and permissions (2026-08-12 RBAC)
+        roles_list = []
+        permissions_list = []
+        business_unit_id = getattr(user, 'business_unit_id', None)
+        business_unit_name = None
+
+        try:
+            # Query user_roles for multi-role support
+            from sqlalchemy import text as sql_text
+            user_roles_result = db.execute(
+                sql_text("""
+                    SELECT DISTINCT r.id, r.name, r.permissions
+                    FROM user_roles ur
+                    JOIN roles r ON ur.role_id = r.id
+                    WHERE ur.user_id = :user_id
+                """),
+                {"user_id": user.UserID}
+            ).fetchall()
+
+            if user_roles_result:
+                for role_id, role_name, permissions_json in user_roles_result:
+                    roles_list.append(role_name)
+                    if permissions_json:
+                        import json
+                        try:
+                            perms = json.loads(permissions_json) if isinstance(permissions_json, str) else permissions_json
+                            if isinstance(perms, dict):
+                                for module, verbs in perms.items():
+                                    for verb in (verbs if isinstance(verbs, list) else [verbs]):
+                                        perm_str = f"{module}.{verb}" if verb != "*" else f"{module}.*"
+                                        if perm_str not in permissions_list:
+                                            permissions_list.append(perm_str)
+                        except:
+                            pass
+
+            # Get business unit name
+            if business_unit_id:
+                bu_result = db.execute(
+                    sql_text("SELECT bu_name FROM business_units WHERE id = :id"),
+                    {"id": business_unit_id}
+                ).scalar()
+                business_unit_name = bu_result
+        except Exception as e:
+            logger.warning(f"[LOGIN] Failed to fetch multi-role data: {e}")
+
         access_token = create_access_token(
             data={
                 "sub": user.UserEmail,
                 "type": user_role,
                 "name": user.UserName,
+                "roles": roles_list,
+                "permissions": permissions_list,
             }
         )
         return UnifiedLoginResponse(
@@ -201,6 +248,10 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
+            business_unit_id=business_unit_id,
+            business_unit_name=business_unit_name,
+            roles=roles_list,
+            permissions=permissions_list,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
