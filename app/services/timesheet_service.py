@@ -24,6 +24,8 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import logger
+from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.task import Task
 from app.models.timesheet import (
@@ -32,6 +34,7 @@ from app.models.timesheet import (
     Timesheet,
     TimesheetEntry,
 )
+from app.services.email_service import EmailService
 
 
 class AllocationNotActive(Exception):
@@ -200,6 +203,37 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
     timesheet.approved_by = approved_by
     timesheet.approved_at = datetime.utcnow()
     db.add(timesheet)
+
+    # HRMS-0902: Send approval notifications to employee and approver.
+    # This is async-friendly but runs inline for now (no event bus).
+    # Notification failures do NOT block the approval.
+    try:
+        employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
+        if employee and employee.email:
+            # Calculate total hours from timesheet entries
+            total_hours = sum(entry.hours or 0 for entry in timesheet.entries)
+            week_starting = timesheet.week_starting_date.strftime("%Y-%m-%d") if timesheet.week_starting_date else "unknown"
+
+            # Get approver name (fallback to ID if not found)
+            approver_name = approved_by or "HR/Manager"
+            if approved_by:
+                approver = db.query(Employee).filter(Employee.email == approved_by).first()
+                if approver:
+                    approver_name = f"{approver.first_name} {approver.last_name}".strip() or approver_name
+
+            EmailService.notify_timesheet_approved(
+                employee_email=employee.email,
+                employee_name=f"{employee.first_name} {employee.last_name}".strip() or "Employee",
+                approver_email=approved_by or "admin@blitzenx.com",
+                approver_name=approver_name,
+                week_starting_date=week_starting,
+                total_hours=total_hours,
+            )
+            logger.info(f"[Timesheet] Approval notifications sent for timesheet {timesheet.id}")
+    except Exception as e:
+        # Log but don't raise — notifications should never block business logic
+        logger.warning(f"[Timesheet] Failed to send approval notifications for {timesheet.id}: {e}")
+
     return timesheet
 
 
