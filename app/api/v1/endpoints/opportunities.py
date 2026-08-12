@@ -51,11 +51,17 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         db.query(Employee).filter(Employee.id == opportunity.owner_employee_id).first()
         if opportunity.owner_employee_id else None
     )
+    client_owner = (
+        db.query(Users).filter(Users.UserID == opportunity.client_owner_id).first()
+        if opportunity.client_owner_id else None
+    )
     return OpportunityItem(
         id=opportunity.id, client_id=opportunity.client_id,
         client_name=client.company_name if client else None,
         owner_employee_id=opportunity.owner_employee_id,
         owner_name=(f"{owner.first_name} {owner.last_name}".strip() if owner else None),
+        client_owner_id=opportunity.client_owner_id,
+        client_owner_name=(f"{client_owner.first_name} {client_owner.last_name}".strip() if client_owner else None),
         stage=opportunity.stage, revenue_value_usd_cents=opportunity.revenue_value_usd_cents,
         revenue_value_native=opportunity.revenue_value_native, currency=opportunity.currency,
         probability_pct=opportunity.probability_pct,

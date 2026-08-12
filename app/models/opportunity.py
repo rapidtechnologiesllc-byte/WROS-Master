@@ -47,6 +47,7 @@ class Opportunity(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
     owner_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
 
     stage = Column(
