@@ -476,11 +476,10 @@ export default function AppRoutes() {
               />
             }
           >
-            <Route index element={
-              (normalizedRole === "SUPER_USER" || normalizedRole === "ADMIN")
-                ? <AdminWeeklyRecapDashboard />
-                : <MyWorkspace onLogout={handleLogout} />
-            } />
+            {/* TODO: Create proper CEO dashboard using our UI components (Card, Table, StatusBadge)
+                AdminWeeklyRecapDashboard imports Ant Design which isn't available.
+                For now, use MyWorkspace for all roles. */}
+            <Route index element={<MyWorkspace onLogout={handleLogout} />} />
 
             <Route path="thunder" element={<ThunderChatScreen />} />
 
