@@ -97,11 +97,13 @@ from app.api.v1.endpoints.agent_kill_switch import router as agent_kill_switch_r
 from app.api.v1.endpoints.spartan_phalanx import router as spartan_phalanx_router
 from app.api.v1.endpoints.agent_performance_dashboard import router as agent_performance_dashboard_router
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
+from app.api.v1.endpoints.org_structure import router as org_structure_router
 
 router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
 router.include_router(router=rbac_router)
+router.include_router(router=org_structure_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
 router.include_router(router=onboarding_router)

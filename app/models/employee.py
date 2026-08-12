@@ -120,6 +120,9 @@ class Employee(Base):
     bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     manager_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
 
+    # Organizational hierarchy position (links to org_nodes for approval chains, role-based access)
+    org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
+
     current_title = Column(String(200), nullable=True)
     current_skills = Column(Text, nullable=True)  # JSON-encoded array; see current_skills_list()/set_current_skills()
     total_experience_months = Column(Integer, nullable=True)
@@ -163,6 +166,8 @@ class Employee(Base):
     created_by = Column(String(50), nullable=True)
 
     manager = relationship("Employee", remote_side=[id], foreign_keys=[manager_id])
+    # OrgNode relationship for approval chains and role-based access
+    org_node = relationship("OrgNode", foreign_keys=[org_node_id])
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "employee_number", name="uq_employee_number_per_tenant"),
