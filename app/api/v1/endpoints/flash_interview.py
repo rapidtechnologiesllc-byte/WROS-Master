@@ -5,6 +5,7 @@ from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.flash_transcript_service import FlashTranscriptService
+from app.services.flash_interview_analysis_service import compare_panel_vs_flash
 
 router = APIRouter(prefix="/flash/interviews", tags=["Flash Interview Analysis"])
 
