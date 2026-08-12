@@ -204,6 +204,7 @@ export default function RevenueScreen() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [lastScannedAt, setLastScannedAt] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -215,6 +216,8 @@ export default function RevenueScreen() {
       ]);
       setFlags(flagsRes?.flags || []);
       setAlerts(alertsRes?.alerts || []);
+      // Set timestamp to current time when data is loaded (autonomous scan results)
+      setLastScannedAt(new Date());
     } catch (err) {
       setError(err.message || "Failed to load revenue data.");
     } finally {
@@ -250,7 +253,13 @@ export default function RevenueScreen() {
         {error ? (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
         ) : null}
-        <ScanLeakageForm onScanned={load} />
+
+        {lastScannedAt ? (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            Scanned at: {lastScannedAt.toLocaleString()}
+          </div>
+        ) : null}
+
         <div className="mt-4 grid gap-2">
           {loading ? (
             <div className="py-4 text-center text-sm text-gray-500">Loading…</div>
@@ -259,6 +268,11 @@ export default function RevenueScreen() {
           ) : (
             flags.map((f) => <LeakageFlagRow key={f.id} flag={f} onChanged={load} />)
           )}
+        </div>
+
+        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div className="mb-2 text-xs font-semibold uppercase text-gray-600">Re-scan a specific project</div>
+          <ScanLeakageForm onScanned={load} />
         </div>
       </Card>
 

@@ -77,6 +77,10 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
       setError("Expense date is required.");
       return;
     }
+    if (!form.receiptRef?.trim()) {
+      setError("Receipt reference is required.");
+      return;
+    }
     if ((form.purpose === "CLIENT_CURRENT" || form.purpose === "CLIENT_PROSPECT") && !form.clientId) {
       setError("Client is required for this purpose.");
       return;
@@ -173,7 +177,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
         <Input label="Amount (USD)" value={form.amount} onChange={set("amount")} placeholder="450.00" />
         <Input label="Expense Date" type="date" value={form.expenseDate} onChange={set("expenseDate")} />
         <Input label="Location" value={form.location} onChange={set("location")} />
-        <Input label="Receipt Ref" value={form.receiptRef} onChange={set("receiptRef")} />
+        <Input label="Receipt Ref *" value={form.receiptRef} onChange={set("receiptRef")} placeholder="Invoice ID, email ref, or file name" required />
       </div>
       <div className="mt-3">
         <TextArea label="Description" value={form.description} onChange={set("description")} rows={2} />
@@ -221,18 +225,41 @@ export default function MyExpensesScreen() {
     load();
   }, []);
 
-  const rows = expenses.map((e) => ({
-    date: e.expense_date,
-    purpose: e.purpose.replace("_", " "),
-    subject: e.conference_name || e.investment_label || (e.client_id ? "Client" : "—"),
-    category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
-    amount: formatUsdCents(e.amount_usd_cents),
-    status: (
-      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-        {e.payment_status}
-      </span>
-    ),
-  }));
+  const rows = expenses.map((e) => {
+    // Workflow: Employee logs → (waiting for manager approval) → Finance review → Marked paid
+    let statusDisplay = e.payment_status;
+    let statusColor = "bg-gray-100 text-gray-700";
+
+    if (e.approval_status === "PENDING" || !e.approval_status) {
+      statusDisplay = "Pending Manager Approval";
+      statusColor = "bg-amber-100 text-amber-800";
+    } else if (e.approval_status === "APPROVED" && e.payment_status === "PENDING") {
+      statusDisplay = "Finance Review";
+      statusColor = "bg-blue-100 text-blue-800";
+    } else if (e.payment_status === "APPROVED") {
+      statusDisplay = "Approved";
+      statusColor = "bg-emerald-100 text-emerald-800";
+    } else if (e.payment_status === "REIMBURSED") {
+      statusDisplay = "Reimbursed";
+      statusColor = "bg-emerald-100 text-emerald-800";
+    } else if (e.payment_status === "REJECTED") {
+      statusDisplay = "Rejected";
+      statusColor = "bg-rose-100 text-rose-800";
+    }
+
+    return {
+      date: e.expense_date,
+      purpose: e.purpose.replace("_", " "),
+      subject: e.conference_name || e.investment_label || (e.client_id ? "Client" : "—"),
+      category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
+      amount: formatUsdCents(e.amount_usd_cents),
+      status: (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor}`}>
+          {statusDisplay}
+        </span>
+      ),
+    };
+  });
 
   return (
     <div className="space-y-4 p-6">
