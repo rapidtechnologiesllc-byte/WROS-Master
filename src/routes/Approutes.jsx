@@ -109,7 +109,6 @@ import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
-import UsersLifecycleScreen from "../screens/UsersLifecycleScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -905,7 +904,6 @@ export default function AppRoutes() {
           />
           <Route path="/offers" element={<OfferLettersScreen />} />
           <Route path="hr-users" element={<HrUserManagement />} />
-          <Route path="users" element={<UsersLifecycleScreen />} />
           <Route path="rbac" element={<RbacSettingsScreen />} />
         </Route>
       </Routes>
