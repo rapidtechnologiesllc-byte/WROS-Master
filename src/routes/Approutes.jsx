@@ -476,7 +476,11 @@ export default function AppRoutes() {
               />
             }
           >
-            <Route index element={<MyWorkspace onLogout={handleLogout} />} />
+            <Route index element={
+              (normalizedRole === "SUPER_USER" || normalizedRole === "ADMIN")
+                ? <AdminWeeklyRecapDashboard />
+                : <MyWorkspace onLogout={handleLogout} />
+            } />
 
             <Route path="thunder" element={<ThunderChatScreen />} />
 
