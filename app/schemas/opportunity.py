@@ -14,6 +14,7 @@ class OpportunityCreateRequest(BaseModel):
     currency: str = "USD"
     revenue_value_native: Optional[int] = None
     owner_employee_id: Optional[str] = None
+    client_owner_id: Optional[str] = None
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
 
@@ -24,6 +25,8 @@ class OpportunityItem(BaseModel):
     client_name: Optional[str] = None
     owner_employee_id: Optional[str] = None
     owner_name: Optional[str] = None
+    client_owner_id: Optional[str] = None
+    client_owner_name: Optional[str] = None
     stage: str
     revenue_value_usd_cents: int
     revenue_value_native: Optional[int]
