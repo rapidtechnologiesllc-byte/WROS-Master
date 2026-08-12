@@ -301,3 +301,16 @@ export const getMyHmCandidateReview = async () => {
   });
   return data;
 };
+
+// Get Flash interview analysis (AI-powered assessment from Teams transcript)
+export const getFlashAnalysisForInterview = async (interviewId) => {
+  try {
+    const { data } = await apiRequest(`/flash/interviews/${interviewId}/analysis`, {
+      method: "GET",
+    });
+    return data?.data || null;
+  } catch (err) {
+    console.warn(`Failed to load Flash analysis for interview ${interviewId}:`, err);
+    return null;
+  }
+};
