@@ -62,6 +62,11 @@ from app.services.revenue_leakage_service import (
     resolve_reconciliation_alert,
     scan_project_revenue_leakage,
 )
+from app.services.revenue_scanning_service import (
+    get_recent_scan_results,
+    get_scan_statistics,
+    run_daily_revenue_scan_job,
+)
 
 router = APIRouter(prefix="/revenue", tags=["revenue"])
 
@@ -122,13 +127,50 @@ def log_leakage_reason(
     return _flag_to_item(flag)
 
 
-@router.get("/leakage", response_model=LeakageFlagsResponse, summary="List active (unresolved) leakage flags")
+@router.get("/leakage", response_model=LeakageFlagsResponse, summary="List active (unresolved) leakage flags (cached from daily scan)")
 def list_leakage_flags(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
+    """
+    Returns cached revenue leakage results from the daily autonomous scan.
+    No manual project UUID entry needed — results are cached and updated daily (02:00 UTC).
+
+    The manual "rescan specific project" action is available via POST /revenue/leakage/scan.
+    """
     flags = get_active_leakage_flags(db, tenant_id=current_user.tenant_id)
     return LeakageFlagsResponse(flags=[_flag_to_item(f) for f in flags])
+
+
+@router.get("/leakage/statistics", response_model=dict, summary="Get revenue leakage statistics and totals")
+def get_leakage_statistics(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Returns aggregate statistics about revenue leakage:
+    - Total active leakage flags
+    - Total unbilled hours across all projects
+    - Estimated value of unbilled revenue (advisory only)
+    - Number of affected projects
+    """
+    stats = get_scan_statistics(db, tenant_id=current_user.tenant_id)
+    return stats
+
+
+@router.post("/leakage/rescan-all", response_model=dict, summary="Manually trigger full revenue scan (secondary action)")
+def rescan_all_projects(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Manually trigger a full scan of all projects for revenue leakage.
+    This is a secondary action — the primary flow uses the daily cached results from GET /revenue/leakage.
+
+    Returns scan results and updates the cache for subsequent requests.
+    """
+    result = run_daily_revenue_scan_job(db)
+    return result
 
 
 @router.post(

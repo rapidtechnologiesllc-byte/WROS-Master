@@ -9,8 +9,13 @@ their portal and add their expense").
 BU attribution is derived from the logger's own business_unit_id at
 creation time, never freely settable, same discipline as
 app.services.client_service.create_client().
+
+PRIORITY-3 (2026-08-12): Expense Approval Chain
+- Receipt reference is mandatory (NOT NULL)
+- Manager approval step before Finance review
+- Flow: Employee logs (receipt required) → Manager approves (via Task) → Finance reviews → marks paid
 """
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -20,6 +25,7 @@ from app.models.client import Client, ClientHistory
 from app.models.expense import CLIENT_DIRECTED_PURPOSES, ExpenseRecord
 from app.models.invoice import Invoice
 from app.models.user import Users
+from app.models.org_structure import OrgNode
 
 FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
@@ -36,6 +42,7 @@ def log_expense(
     expense_category: str,
     amount_usd_cents: int,
     expense_date: date,
+    receipt_ref: str,  # PRIORITY-3: Receipt is now mandatory (not optional)
     client_id: Optional[str] = None,
     conference_name: Optional[str] = None,
     investment_label: Optional[str] = None,
@@ -43,10 +50,20 @@ def log_expense(
     trip_label: Optional[str] = None,
     location: Optional[str] = None,
     description: Optional[str] = None,
-    receipt_ref: Optional[str] = None,
 ) -> ExpenseRecord:
+    """PRIORITY-3: Create an expense with mandatory receipt reference.
+
+    Flow:
+    1. Employee logs expense (receipt_ref required)
+    2. Manager approval task created (manager found via org_node_id)
+    3. After manager approves task, expense moves to Finance review
+    4. Finance approves and marks as reimbursed
+    """
     if amount_usd_cents <= 0:
         raise ExpenseValidationError("amount_usd_cents must be positive.")
+
+    if not receipt_ref or not receipt_ref.strip():
+        raise ExpenseValidationError("receipt_ref is mandatory for all expenses.")
 
     if purpose in CLIENT_DIRECTED_PURPOSES:
         if not client_id:
@@ -74,11 +91,73 @@ def log_expense(
         travel_type=travel_type, trip_label=trip_label, amount_usd_cents=amount_usd_cents,
         location=location, description=description, receipt_ref=receipt_ref,
         expense_date=expense_date,
+        manager_approval_status="PENDING",  # PRIORITY-3: Start with pending manager approval
     )
     db.add(expense)
+    db.flush()
+
+    # PRIORITY-3: Create manager approval task
+    _create_manager_approval_task(db, expense, logged_by_user)
+
     db.commit()
     db.refresh(expense)
     return expense
+
+
+def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
+    """PRIORITY-3: Find the employee's manager via org hierarchy.
+
+    Uses org_node_id relationship to find the employee's manager.
+    If no manager found, returns None (will be handled in approval task creation).
+    """
+    if not hasattr(employee_user, 'org_node_id') or not employee_user.org_node_id:
+        return None
+
+    # Get the employee's org node
+    org_node = db.query(OrgNode).filter(OrgNode.id == employee_user.org_node_id).first()
+    if not org_node or not org_node.parent_id:
+        return None
+
+    # Get the parent node (manager's org node)
+    manager_node = db.query(OrgNode).filter(OrgNode.id == org_node.parent_id).first()
+    if not manager_node or not manager_node.user_id:
+        return None
+
+    # Return the manager user
+    return db.query(Users).filter(Users.UserID == manager_node.user_id).first()
+
+
+def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users) -> None:
+    """PRIORITY-3: Create a Task for the manager to approve the expense.
+
+    Task is assigned to the employee's manager (found via org hierarchy).
+    If manager not found, assigns to Finance inbox as fallback.
+    """
+    from app.services.task_service import create_task
+
+    manager = _get_employee_manager(db, employee_user)
+    manager_user_id = manager.UserID if manager else None
+
+    create_task(
+        db,
+        title=f"Approve expense: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
+        description=(
+            f"Employee {employee_user.UserID} has logged an expense for your approval.\n"
+            f"Category: {expense.expense_category}\n"
+            f"Amount: ${expense.amount_usd_cents / 100:,.2f}\n"
+            f"Date: {expense.expense_date}\n"
+            f"Receipt: {expense.receipt_ref}\n"
+            f"Please review and approve before it moves to Finance."
+        ),
+        priority="MEDIUM",
+        tenant_id=expense.tenant_id,
+        assigned_to_user_id=manager_user_id,
+        expense_id=expense.id,
+    )
+    logger.info(
+        f"[ExpenseService] Manager approval task created for expense {expense.id} "
+        f"(assigned to {manager_user_id or 'fallback'})"
+    )
 
 
 def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
@@ -92,11 +171,53 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     return query.order_by(Users.UserID).first()
 
 
+def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
+    """PRIORITY-3: Manager approval step in the expense workflow.
+
+    Called when the manager approves the expense via the Task interface.
+    After manager approval, the expense is submitted to Finance for review.
+
+    Flow:
+    1. Employee logs (manager_approval_status = PENDING)
+    2. Manager approves (manager_approval_status = APPROVED) ← THIS FUNCTION
+    3. Finance reviews (payment_status changes)
+    4. Finance marks as REIMBURSED
+    """
+    if expense.manager_approval_status != "PENDING":
+        raise ExpenseValidationError(
+            f"Expense {expense.id} manager approval must be PENDING, not {expense.manager_approval_status}"
+        )
+
+    expense.manager_approval_status = "APPROVED"
+    expense.manager_approved_by = approved_by
+    expense.manager_approved_at = datetime.utcnow()
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+
+    logger.info(
+        f"[ExpenseService] Manager approval completed for expense {expense.id} "
+        f"(approved by {approved_by}), now ready for Finance review"
+    )
+    return expense
+
+
 def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
-    """Avinash's explicit rule, 2026-08-05: approval isn't the end of
+    """PRIORITY-3: Finance approval step (only after manager approval).
+
+    Avinash's explicit rule, 2026-08-05: approval isn't the end of
     the flow -- accounts@blitzenx.com gets notified, and a real Task
     tracks "mark it paid once paid" so it doesn't just vanish into an
-    approved-but-forgotten state."""
+    approved-but-forgotten state.
+
+    PRIORITY-3: Now requires manager approval first (manager_approval_status == "APPROVED").
+    """
+    if expense.manager_approval_status != "APPROVED":
+        raise ExpenseValidationError(
+            f"Cannot approve expense {expense.id} for Finance until manager approves "
+            f"(current status: {expense.manager_approval_status})"
+        )
+
     expense.payment_status = "APPROVED"
     expense.approved_by = approved_by
     db.add(expense)

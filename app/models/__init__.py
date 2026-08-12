@@ -29,7 +29,8 @@ from app.models.candidate import (
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
-from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit, Department
+from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
+from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
 from app.models.employee import (
     Employee,
     EmployeeEmploymentHistory,
@@ -167,7 +168,12 @@ __all__ = [
     "Permission",
     "RolePermission",
     "BusinessUnit",
+    # Organizational Hierarchy
     "Department",
+    "OrgNode",
+    "OrgPosition",
+    "ApprovalChain",
+    "PartnerBUAssignment",
     # Employee (HRMS-0101 / 0101-REV, Phase 2 Domain 3)
     "Employee",
     "EmployeeEmploymentHistory",

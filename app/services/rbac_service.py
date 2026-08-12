@@ -1,5 +1,6 @@
 """
 RBAC Service — permission checking, role management, and seed data.
+Uses expanded HubSpot-style module×verb permission model.
 """
 from typing import Dict, List, Optional, Set
 from sqlalchemy.orm import Session
@@ -12,6 +13,9 @@ from app.schemas.rbac import (
     UserPermissionSummary
 )
 from app.core.logging import logger
+from app.services.rbac_expanded_permissions import (
+    generate_all_permissions, get_role_permissions, MODULES, VERB_MATRIX
+)
 
 
 # ---------------------------------------------------------------------------
@@ -271,13 +275,29 @@ class RBACService:
     @staticmethod
     def seed_roles_and_permissions(db: Session) -> None:
         """
-        Idempotently seed all 12 roles, their attributes, all permissions,
-        and the role-permission mappings into the database.
+        Idempotently seed all 12+ roles, their attributes, all permissions
+        (both legacy coarse + new expanded module×verb), and role-permission mappings.
         Called once at application startup.
+        Uses expanded HubSpot-style permissions from rbac_expanded_permissions.py.
         """
         try:
-            # 1. Seed permissions
+            # 1. Seed EXPANDED module×verb permissions from rbac_expanded_permissions.py
+            # These replace the coarse 28-permission model
+            expanded_perms = generate_all_permissions()
             perm_map: Dict[str, Permission] = {}
+
+            for p_data in expanded_perms:
+                existing = db.query(Permission).filter(Permission.name == p_data["name"]).first()
+                if not existing:
+                    perm = Permission(name=p_data["name"], description=p_data["description"])
+                    db.add(perm)
+                    db.flush()
+                    perm_map[perm.name] = perm
+                else:
+                    perm_map[existing.name] = existing
+
+            # 2. Also seed LEGACY coarse permissions (for backward compatibility with existing code)
+            # These coexist with the expanded permissions but are gradually deprecated
             for p_data in PERMISSIONS_SEED:
                 existing = db.query(Permission).filter(Permission.name == p_data["name"]).first()
                 if not existing:
@@ -288,7 +308,7 @@ class RBACService:
                 else:
                     perm_map[existing.name] = existing
 
-            # 2. Seed roles + attributes + role-permissions
+            # 3. Seed roles + attributes + role-permissions
             for r_data in ROLES_SEED:
                 role = db.query(Role).filter(Role.name == r_data["name"]).first()
                 if not role:
@@ -307,9 +327,22 @@ class RBACService:
                     if not existing_attr:
                         db.add(RoleAttribute(role_id=role.id, attribute_name=attr_name, attribute_value=attr_value))
 
-                # Seed role-permissions
-                perm_names = ROLE_PERMISSIONS_SEED.get(r_data["name"], [])
-                for perm_name in perm_names:
+                # Seed EXPANDED role-permissions (module×verb based)
+                expanded_role_perms = get_role_permissions(r_data["name"])
+                for perm_name in expanded_role_perms:
+                    perm = perm_map.get(perm_name)
+                    if perm:
+                        existing_rp = (
+                            db.query(RolePermission)
+                            .filter(RolePermission.role_id == role.id, RolePermission.permission_id == perm.id)
+                            .first()
+                        )
+                        if not existing_rp:
+                            db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+
+                # Also seed LEGACY coarse permissions (backward compatibility)
+                legacy_perm_names = ROLE_PERMISSIONS_SEED.get(r_data["name"], [])
+                for perm_name in legacy_perm_names:
                     perm = perm_map.get(perm_name)
                     if perm:
                         existing_rp = (
@@ -321,7 +354,7 @@ class RBACService:
                             db.add(RolePermission(role_id=role.id, permission_id=perm.id))
 
             db.commit()
-            logger.info("[OK] RBAC roles, attributes, and permissions seeded")
+            logger.info("[OK] RBAC roles, attributes, and permissions seeded (expanded + legacy)")
 
         except Exception as exc:
             db.rollback()

@@ -119,26 +119,15 @@ class BusinessUnit(Base):
     is_active = Column(Boolean, nullable=False, default=True)
 
     # Back-reference: all departments that belong to this BU
-    departments = relationship("Department", back_populates="business_unit", lazy="select")
+    # NOTE: Uses Department from app.models.org_structure (consolidated to avoid duplicate tables)
+    departments = relationship("Department", foreign_keys="Department.business_unit_id", lazy="select")
     parent_bu = relationship("BusinessUnit", remote_side=[id], foreign_keys=[parent_bu_id])
 
     def __repr__(self) -> str:
         return f"<BusinessUnit id={self.id} name={self.name!r}>"
 
 
-class Department(Base):
-    """A department that belongs to a BusinessUnit (dependent on BU)."""
-    __tablename__ = "departments"
-
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    name = Column(String(100), unique=True, nullable=False, index=True)
-    description = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-
-    # FK — nullable so existing departments aren't broken during migration
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
-
-    business_unit = relationship("BusinessUnit", back_populates="departments", lazy="select")
-
-    def __repr__(self) -> str:
-        return f"<Department id={self.id} name={self.name!r} bu_id={self.business_unit_id}>"
+# NOTE: Department model moved to app/models/org_structure.py
+# RBAC uses the Department from org_structure which provides full organizational hierarchy support
+# with hiring managers, cost centers, and multi-level org structure.
+# This model is REMOVED to avoid table name conflicts with org_structure.Department

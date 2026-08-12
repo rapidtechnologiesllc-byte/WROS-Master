@@ -9,19 +9,19 @@ at HIGH + manager notification), and manager-approved reassignment.
 """
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from datetime import date
-
 from app.models.base import Base
 from app.models.employee import Employee
 from app.models.notification import Notification
 from app.models.prompt_execution_log import PromptExecutionLog
-from app.models.rbac import BusinessUnit, Department
+from app.models.rbac import BusinessUnit
+from app.models.org_structure import Department
 from app.models.task import Task, TaskCapacityAlert, TaskReassignmentRequest
 from app.models.tenant import Tenant
 from app.models.user import Users
@@ -82,19 +82,22 @@ def seeded(db_session):
     db_session.add(tenant)
     db_session.commit()
 
-    dept = Department(id=1, name="IT")
+    # Department now uses UUID string IDs
+    dept_id = str(uuid4())
+    bu_id = str(uuid4())
+    dept = Department(id=dept_id, tenant_id=1, business_unit_id=bu_id, name="IT")
     db_session.add(dept)
     db_session.commit()
 
-    # Manager deliberately NOT in department_id=1's own round-robin pool
+    # Manager deliberately NOT in department_id's own round-robin pool
     # (real orgs don't round-robin work to the manager themselves by
     # default) -- keeps the round-robin tests unambiguous.
     manager = _make_user(db_session, "mgr1", department_id=None, tenant_id=1)
-    u1 = _make_user(db_session, "u1", department_id=1, tenant_id=1)
-    u2 = _make_user(db_session, "u2", department_id=1, tenant_id=1)
+    u1 = _make_user(db_session, "u1", department_id=dept_id, tenant_id=1)
+    u2 = _make_user(db_session, "u2", department_id=dept_id, tenant_id=1)
     _link_employee_to_manager(db_session, "u1", manager_user_id="mgr1")
     _link_employee_to_manager(db_session, "u2", manager_user_id="mgr1")
-    return {"db": db_session, "manager": manager, "u1": u1, "u2": u2, "dept_id": 1}
+    return {"db": db_session, "manager": manager, "u1": u1, "u2": u2, "dept_id": dept_id}
 
 
 def _plausible_llm(system_prompt, user_prompt, max_tokens, temperature):
