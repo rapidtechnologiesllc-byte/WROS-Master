@@ -36,13 +36,33 @@ class InvalidStageTransition(Exception):
     pass
 
 
+# 2026-08-12, Avinash: win probability must be system-generated, never a
+# free-text field a user types a number into. Stage-based default is the
+# interim mechanism; long term this is meant to be replaced by live
+# HubSpot pipeline data (Avinash's stated "most important feature" for
+# a future session) once that integration exists -- this map is the
+# placeholder single source of truth until then, not a permanent design.
+STAGE_PROBABILITY = {
+    "QUALIFICATION": 10,
+    "PROSPECT": 25,
+    "PROPOSAL": 50,
+    "NEGOTIATION": 75,
+    "CONTRACT": 90,
+    "ACTIVE": 100,
+    "LOST": 0,
+}
+
+
+def default_probability_for_stage(stage: str) -> int:
+    return STAGE_PROBABILITY.get(stage, 0)
+
+
 def create_opportunity(
     db: Session,
     *,
     tenant_id: Optional[int],
     client_id: str,
     revenue_value_usd_cents: int,
-    probability_pct: int,
     currency: str = "USD",
     revenue_value_native: Optional[int] = None,
     owner_employee_id: Optional[str] = None,
@@ -51,14 +71,12 @@ def create_opportunity(
 ) -> Opportunity:
     if revenue_value_usd_cents <= 0:
         raise OpportunityValidationError("revenue_value_usd_cents must be positive.")
-    if not (0 <= probability_pct <= 100):
-        raise OpportunityValidationError(f"probability_pct must be 0-100, got {probability_pct}.")
 
     opportunity = Opportunity(
         tenant_id=tenant_id, client_id=client_id, owner_employee_id=owner_employee_id,
         stage=stage, revenue_value_usd_cents=revenue_value_usd_cents,
         revenue_value_native=revenue_value_native, currency=currency,
-        probability_pct=probability_pct, expected_close_date=expected_close_date,
+        probability_pct=default_probability_for_stage(stage), expected_close_date=expected_close_date,
     )
     db.add(opportunity)
     return opportunity
@@ -123,6 +141,7 @@ def transition_stage(
         raise InvalidStageTransition(f"'{new_stage}' is not a valid opportunity stage.")
 
     opportunity.stage = new_stage
+    opportunity.probability_pct = default_probability_for_stage(new_stage)
     opportunity.updated_at = datetime.utcnow()
     db.add(opportunity)
 

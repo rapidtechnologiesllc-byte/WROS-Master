@@ -1,0 +1,64 @@
+name: Deploy Backend to Production
+
+# Auto-deploys on every push to main, so branch protection on main
+# (required PRs, no force-push) matters more once this is enabled --
+# a bad push to main now reaches prod automatically, not just GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab, e.g. to test the pipeline before relying on auto-push
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy (git pull + reinstall deps + restart service)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_BACKEND_PATH }}"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Repo docs disagree on the venv folder name (.venv vs venv)
+            # depending which setup guide was followed -- use whichever exists.
+            if [ -d ".venv" ]; then
+              source .venv/bin/activate
+            else
+              source venv/bin/activate
+            fi
+            pip install -r requirements.txt
+            deactivate
+
+            # DB migrations are deliberately NOT run here. The alembic
+            # migration chain has a pre-existing break (a missing
+            # revision + two disconnected head branches) unrelated to
+            # this pipeline -- `alembic upgrade head` would fail every
+            # deploy until that's fixed. Run migrations manually for now.
+
+            sudo systemctl restart "${{ secrets.VPS_BACKEND_SERVICE }}"
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            for i in 1 2 3 4 5; do
+              if curl -sf http://127.0.0.1:8080/health > /dev/null; then
+                echo "Backend healthy after restart."
+                exit 0
+              fi
+              echo "Not up yet, retrying in 3s ($i/5)..."
+              sleep 3
+            done
+            echo "Backend did not report healthy after restart -- check: journalctl -u ${{ secrets.VPS_BACKEND_SERVICE }} -n 50"
+            exit 1

@@ -250,27 +250,48 @@ def _log_event(
     return event
 
 
-def resolve_default_tenant_id(db: Session) -> Optional[str]:
-    """
-    Shared default-tenant resolution for internal-staff-facing features
-    that need ONE consistent tenant_id regardless of which specific
-    user is logged in (S-014 templates, S-015 search) -- same "first
-    Super User by UserID" convention public_chat_service established
-    for the same reason.
+DEFAULT_TENANT_ID = "1"  # Single-company deployment -- see resolve_default_tenant_id() below.
 
-    Known real limitation, not fully resolved here: this codebase's
-    tenant_id is sometimes the org owner (a Super User) and sometimes a
-    specific recruiter (job.recuriterID/contactPerson, per create_job.
-    apply_for_job's own tenant derivation) -- true multi-tenant
-    isolation would need a real decision about which of these tenant_id
-    actually means, tracked as a known gap rather than guessed at here.
-    Every caller of this function degrades safely (falls back to a
-    hardcoded default) if the resolved tenant_id doesn't match a given
-    candidate's real one, so this is a "best consistent default" not a
-    correctness-critical resolution.
+
+def resolve_default_tenant_id(db: Session) -> str:
     """
-    owner = db.query(Users).filter(Users.UserRole == "Super User").order_by(Users.UserID.asc()).first()
-    return owner.UserID if owner else None
+    2026-08-12 real root-cause fix -- Avinash: "when i add a candidate
+    there is no work done by flash neither any notification is showing
+    up," then "dont do patch work, the tenant is the root cause... so we
+    can not face this issue ever again."
+
+    This used to dynamically resolve "the alphabetically-first Super
+    User's UserID" -- and every one of the several call sites that
+    needed a tenant_id for a real candidate conversation (auto-assign on
+    creation, manual "Assign AI Recruiter", the public chat widget's own
+    now-deleted DUPLICATE copy of this exact function in
+    public_chat_service.py) either called a slightly different version
+    of that same query, or skipped it and hardcoded their own literal
+    (a bare "1", a bare int 1, or current_user.UserID -- three different
+    values, none matching what this function itself returned). Every
+    real assignment/conversation row got written successfully; every
+    reader (chiefly /activity-feed, which joins on
+    CandidateConversation.tenant_id == this value) silently filtered all
+    of it out, because it was never comparing against the same thing
+    twice. Indistinguishable from "no work happened" without reading the
+    tables directly.
+
+    Fix: exactly one real tenant exists in this deployment (see the
+    `tenants` table, id=1) -- there is nothing left to "resolve." This
+    function now returns a fixed constant, not a query, so there is
+    structurally only one value this can ever be, everywhere it's
+    called from. Every real-candidate call site must route through this
+    function (or DEFAULT_TENANT_ID directly) -- never re-derive tenant_id
+    locally again.
+
+    Does NOT apply to app.api.v1.endpoints.thunder's Test Thunder
+    sandbox (get_test_chat_history/reset_test_chat), which deliberately
+    uses current_user.UserID as a per-tester isolation key on this same
+    column for a genuinely different purpose (keeping testers' sandbox
+    conversations from colliding with each other) -- that one strings
+    together correctly on its own and was left alone.
+    """
+    return DEFAULT_TENANT_ID
 
 
 def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, str]:
@@ -281,8 +302,20 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     BR-02: an agent name must never reach a candidate blank -- falls
     back to DEFAULT_THUNDER_DISPLAY_NAME if the tenant has no config row
     or an empty name, logging CONFIG_MISSING_USING_DEFAULT either way.
+
+    2026-08-12: `tenant_id` is accepted (for call-site compatibility --
+    callers pass whatever tenant_id is already on their conversation) but
+    deliberately NOT used to look up the settings-holder Users row
+    anymore. It used to do `Users.UserID == tenant_id`, back when
+    tenant_id meant "a specific Users.UserID" -- now that
+    resolve_default_tenant_id() returns the fixed constant "1" (see its
+    own docstring), that comparison would never match any real user and
+    Thunder would silently always fall back to hardcoded defaults,
+    quietly losing whatever name/persona an admin actually configured.
+    Decoupled: this always resolves the same designated Super User
+    directly, regardless of what tenant_id was passed.
     """
-    tenant_user = db.query(Users).filter(Users.UserID == tenant_id).first() if tenant_id else None
+    tenant_user = db.query(Users).filter(Users.UserRole == "Super User").order_by(Users.UserID.asc()).first()
 
     name = (tenant_user.ai_agent_name if tenant_user else None) or ""
     name = name.strip()
@@ -494,8 +527,6 @@ def auto_assign_ai_agent_on_creation(
     only when an HR user clicks "Assign AI Recruiter" (that manual path,
     the only one built until now, is still available for reassignment).
 
-    Tenant scoping removed (single-company deployment). Uses default tenant_id=1.
-
     Meant to be run as a FastAPI BackgroundTask from a real candidate-
     creation call site (see app.api.v1.endpoints.onboarding.create_candidate
     and app.api.v1.endpoints.create_job's public application endpoint --
@@ -504,10 +535,25 @@ def auto_assign_ai_agent_on_creation(
     something goes wrong (an unreachable mailbox, etc.) -- errors are
     logged, not raised, matching this codebase's established pattern
     for the ATS-scoring background task.
+
+    2026-08-12 real bug fix -- Avinash: "I see this notification but when
+    i add a candidate there is no work done by flash neither any
+    notification is showing up." Root cause: this used to hardcode
+    tenant_id=1 (an int), but every real reader of this data --
+    resolve_thunder_config, and critically /activity-feed's own
+    CandidateConversation.tenant_id filter -- resolves tenant_id via
+    resolve_default_tenant_id() (a Users.UserID string like
+    "U-ADMIN-LOCAL"). The literal 1 never matched that, so the
+    CandidateAIAssignment/CandidateConversation rows this creates were
+    real and correctly written, but every activity-feed query silently
+    filtered them out by joining on a tenant_id that could never equal
+    them -- indistinguishable from "no work done" without reading the
+    table directly. Using the same resolver everything else already
+    uses fixes the join, not just this one call site.
     """
+    tenant_id = resolve_default_tenant_id(db)
     try:
-        # Single-company deployment: use default tenant_id=1
-        assign_ai_agent(candidate_id=candidate_id, tenant_id=1, assigned_by=None, db=db)
+        assign_ai_agent(candidate_id=candidate_id, tenant_id=tenant_id, assigned_by=None, db=db)
     except Exception as exc:
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
@@ -537,10 +583,13 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
     and every scheduled job in app.core.scheduler -- open a fresh
     session here, never reuse the caller's.
 
-    Tenant scoping removed (single-company deployment): uses tenant_id=1."""
+    2026-08-12: tenant_id resolved via resolve_default_tenant_id(), same
+    fix and same reason as auto_assign_ai_agent_on_creation() above --
+    see that function's docstring. A hardcoded literal here would never
+    match what /activity-feed and every other real reader filter by."""
     from app.core.database import SessionLocal
     db = SessionLocal()
-    tenant_id = 1  # Single-company deployment default
+    tenant_id = resolve_default_tenant_id(db)
     try:
         auto_assign_ai_agent_on_creation(candidate_id, db)
     finally:

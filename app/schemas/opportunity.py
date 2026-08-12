@@ -5,9 +5,12 @@ from pydantic import BaseModel
 
 
 class OpportunityCreateRequest(BaseModel):
+    # probability_pct is deliberately NOT client-supplied -- 2026-08-12,
+    # Avinash: win probability must be system-generated (stage-based
+    # default, see opportunity_service.STAGE_PROBABILITY), never manual
+    # entry. Server derives and stores it from `stage` on create/transition.
     client_id: str
     revenue_value_usd_cents: int
-    probability_pct: int
     currency: str = "USD"
     revenue_value_native: Optional[int] = None
     owner_employee_id: Optional[str] = None

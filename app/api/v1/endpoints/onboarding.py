@@ -198,41 +198,23 @@ def create_candidate(
     if request.education_records or request.experience_records:
         db.commit()
 
-    # HRMS-0401: Thunder 5-second SLA -- immediate synchronous assignment
-    # "Strike while iron is hot" - reach out within 5 seconds of candidate creation
-    # Flash validates SLA compliance and applies appreciation/punishment
-    try:
-        from app.services.ai_conversation_service import assign_ai_agent
-        import time
-        sla_start = time.time()
-
-        assign_ai_agent(
-            candidate_id=candidate_id,
-            tenant_id="1",  # Single-company deployment
-            assigned_by=None,  # System-triggered, not HR user
-            db=db
-        )
-
-        sla_elapsed = time.time() - sla_start
-
-        # Log SLA performance for Flash validation
-        db.add(ConversationEvent(
-            conversation_id=None,  # Will be set by system
-            event_type="THUNDER_SLA_TRACKED",
-            triggered_by="system",
-            event_data={
-                "candidate_id": candidate_id,
-                "sla_target_seconds": 5,
-                "sla_elapsed_seconds": round(sla_elapsed, 3),
-                "sla_met": sla_elapsed <= 5.0,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        ))
-        db.commit()
-
-    except Exception as e:
-        logger.error(f"Thunder SLA assignment failed for candidate {candidate_id}: {str(e)}")
-        # Don't block candidate creation - log but continue
+    # HRMS-0401: Thunder auto-assignment on candidate creation.
+    # 2026-08-12 real bug fix -- Avinash: "when i add a candidate there
+    # is no work done by flash neither any notification is showing up."
+    # This used to call assign_ai_agent() inline with a hardcoded
+    # tenant_id="1" that never matched what /activity-feed (and every
+    # other real reader) resolves via resolve_default_tenant_id() --
+    # the assignment silently succeeded but was invisible everywhere.
+    # It also wrote a ConversationEvent(conversation_id=None, ...) that
+    # violated a NOT NULL constraint on every single call, logged as an
+    # ERROR nobody was watching. Both are root-caused and fixed in
+    # run_auto_assign_ai_agent_in_background() itself -- see its own
+    # docstring, which already named this exact call site as one of its
+    # two intended callers back on 2026-08-05 but was never actually
+    # wired here until now. Using the real, tested background-task
+    # wrapper (same one create_job.py's public application path already
+    # uses) instead of a second, separate inline copy of the same logic.
+    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(

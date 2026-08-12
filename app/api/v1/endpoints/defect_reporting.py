@@ -43,16 +43,23 @@ def report_defect(
         ensure_defect_log_exists()
 
         timestamp = datetime.utcnow().isoformat()
-        user_name = current_user.FirstName + " " + current_user.LastName if current_user else "Unknown"
+        user_name = (current_user.UserName or current_user.UserID) if current_user else "Unknown"
         defect_id = f"DEFECT-{timestamp.replace(':', '').replace('.', '')[:-4]}"
+
+        # A defect blocking a live production function is always CRITICAL,
+        # regardless of whatever severity the reporter happened to pick --
+        # enforced here, not just defaulted client-side, since that's the
+        # one severity value this actually gates on downstream.
+        severity = "CRITICAL" if report.blocking_production else report.severity
 
         # Format defect entry for markdown log
         defect_entry = f"""
-## [{defect_id}] {report.severity.upper()} - {report.affected_screen}
+## [{defect_id}] {severity.upper()} - {report.affected_screen}
 
-**Reporter:** {user_name} ({current_user.Email if current_user else "unknown"})
+**Reporter:** {user_name} ({current_user.UserEmail if current_user else "unknown"})
 **Timestamp:** {timestamp}
-**Severity:** {report.severity}
+**Severity:** {severity}
+**Blocking Production Function:** {"Yes" if report.blocking_production else "No"}
 **Screen:** {report.affected_screen}
 
 **Description:**
