@@ -12,6 +12,11 @@ export const listOpportunities = async ({ stage, clientId } = {}) => {
   return data;
 };
 
+export const listEligibleOpportunityOwners = async () => {
+  const { data } = await apiRequest("/opportunities/eligible-owners", { method: "GET" });
+  return data?.employees || [];
+};
+
 export const getPipeline = async () => {
   const { data } = await apiRequest("/opportunities/pipeline", { method: "GET" });
   return data;

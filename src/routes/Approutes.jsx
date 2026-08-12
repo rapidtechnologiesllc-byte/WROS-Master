@@ -410,7 +410,7 @@ export default function AppRoutes() {
         if (!isMounted) return;
 
         setOffers(offersRes?.offers || []);
-        setUsers(usersRes?.users || []);
+        setUsers(usersRes || []);
 
         let mappedCandidates = (candidateRes?.candidates || []).map(
           mapCandidateFromApi,
@@ -423,7 +423,7 @@ export default function AppRoutes() {
         }
 
         const mappedJobs = (jobRes?.jobs || []).map((j) =>
-          mapJobFromApi(j, usersRes?.users || []),
+          mapJobFromApi(j, usersRes || []),
         );
 
         const mappedInterviews = mapInterviews(interviewRes);

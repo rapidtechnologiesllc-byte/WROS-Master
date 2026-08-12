@@ -6,6 +6,7 @@ import { pill } from "../utils/pill";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import { listClients } from "../services/api/clients";
+import { searchUsers } from "../services/api/users";
 
 const getContactPersonName = (job) => {
   if (!job) return "-";
@@ -19,6 +20,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   const navigate = useNavigate();
   const [editingSection, setEditingSection] = useState(null);
   const [clientList, setClientList] = useState([]);
+  const [availableContacts, setAvailableContacts] = useState([]);
   const [title, setTitle] = useState(job.title || "");
   const [positionType, setPositionType] = useState(job.positionType || "");
   const [priority, setPriority] = useState(job.priority || "");
@@ -60,6 +62,19 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
       }
     };
     loadClients();
+  }, []);
+
+  useEffect(() => {
+    const loadContacts = async () => {
+      try {
+        const response = await searchUsers({ limit: 200 });
+        setAvailableContacts(Array.isArray(response?.users) ? response.users : []);
+      } catch (err) {
+        console.warn("Could not load contact people:", err?.message);
+        setAvailableContacts([]);
+      }
+    };
+    loadContacts();
   }, []);
 
   const jobMetrics = useMemo(() => {
@@ -200,7 +215,18 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
               ]}
             />
             <Input label="Company Type (Line Type)" value={companyType} onChange={setCompanyType} disabled />
-            <Input label="Contact Person (Comma-separated for multiple)" value={contactPerson} onChange={setContactPerson} />
+            <Select
+              label="Contact Person"
+              value={contactPerson}
+              onChange={setContactPerson}
+              options={[
+                { label: "Select contact person", value: "", disabled: true },
+                ...(availableContacts?.map((user) => ({
+                  label: `${user?.user_name ?? ""} (${user?.user_email ?? ""})`,
+                  value: user?.user_id ?? "",
+                })) || []),
+              ]}
+            />
             <div className="md:col-span-2 flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSection}>Cancel</Button>
               <Button onClick={() => saveSection("company")}>Save</Button>

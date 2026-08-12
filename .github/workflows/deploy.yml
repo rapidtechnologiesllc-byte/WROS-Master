@@ -1,0 +1,49 @@
+name: Deploy Frontend to Production
+
+# Auto-deploys on every push to main, so branch protection on main
+# (required PRs, no force-push) matters more once this is enabled --
+# a bad push to main now reaches prod automatically, not just GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab, e.g. to test the pipeline before relying on auto-push
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy (git pull + rebuild + restart web server)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_FRONTEND_PATH }}"
+            git fetch origin main
+            git reset --hard origin/main
+            npm install
+            npm run build
+            sudo systemctl restart "${{ secrets.VPS_FRONTEND_SERVICE }}"
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            for i in 1 2 3 4 5; do
+              if curl -sf -o /dev/null http://127.0.0.1:3005/; then
+                echo "Frontend healthy after restart."
+                exit 0
+              fi
+              echo "Not up yet, retrying in 3s ($i/5)..."
+              sleep 3
+            done
+            echo "Frontend did not respond after restart -- check: systemctl status ${{ secrets.VPS_FRONTEND_SERVICE }}, tail -f /var/log/nginx/error.log"
+            exit 1

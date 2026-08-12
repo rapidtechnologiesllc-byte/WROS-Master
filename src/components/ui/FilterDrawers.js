@@ -48,7 +48,7 @@ const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
 
     getAllUsers()
       .then((data) => {
-        const users = data?.users || [];
+        const users = data || [];
         setManagerOptions(
           users
             .filter((u) => MANAGER_ROLES.includes(u.user_role))

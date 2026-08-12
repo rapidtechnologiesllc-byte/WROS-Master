@@ -13,6 +13,14 @@ import { askFlash } from "../services/api/flash";
 import { reportDefect } from "../services/api/defects";
 import { toast } from "react-toastify";
 import cx from "../utils/cx";
+import { NAV_ITEMS } from "../layout/navItems";
+
+// Real module names, not free text -- pulled from the same nav config
+// that drives the sidebar, so "Affected Screen" always maps to an
+// actual screen instead of whatever a reporter happens to type.
+const AFFECTED_SCREEN_OPTIONS = Array.from(
+  new Set(Object.values(NAV_ITEMS).map((item) => item.label)),
+).sort((a, b) => a.localeCompare(b));
 
 export default function FlashWidget() {
   const [open, setOpen] = useState(false);
@@ -20,7 +28,7 @@ export default function FlashWidget() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportForm, setReportForm] = useState({ description: "", screen: "", severity: "MEDIUM" });
+  const [reportForm, setReportForm] = useState({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
   const [reporting, setReporting] = useState(false);
   const scrollRef = useRef(null);
 
@@ -73,15 +81,17 @@ export default function FlashWidget() {
   };
 
   const handleReportDefect = async () => {
-    if (!reportForm.description.trim() || !reportForm.screen.trim()) {
+    const screen = reportForm.screen === "Other" ? reportForm.screenOther.trim() : reportForm.screen;
+    if (!reportForm.description.trim() || !screen) {
       toast.error("Please fill in description and affected screen.");
       return;
     }
     setReporting(true);
     try {
-      await reportDefect(reportForm.description, reportForm.screen, reportForm.severity);
+      const severity = reportForm.blocking ? "CRITICAL" : reportForm.severity;
+      await reportDefect(reportForm.description, screen, severity, reportForm.blocking);
       toast.success("Issue reported! QA team will review it soon.");
-      setReportForm({ description: "", screen: "", severity: "MEDIUM" });
+      setReportForm({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
       setShowReportModal(false);
     } catch (err) {
       toast.error(err.message || "Failed to report issue.");
@@ -101,13 +111,26 @@ export default function FlashWidget() {
             <div className="space-y-3 px-4 py-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1">Affected Screen *</label>
-                <input
-                  type="text"
+                <select
                   value={reportForm.screen}
                   onChange={(e) => setReportForm({ ...reportForm, screen: e.target.value })}
-                  placeholder="e.g., Candidate Details, Dashboard"
                   className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-bx-orange"
-                />
+                >
+                  <option value="" disabled>Select the screen with the issue…</option>
+                  {AFFECTED_SCREEN_OPTIONS.map((label) => (
+                    <option key={label} value={label}>{label}</option>
+                  ))}
+                  <option value="Other">Other (not listed)</option>
+                </select>
+                {reportForm.screen === "Other" ? (
+                  <input
+                    type="text"
+                    value={reportForm.screenOther}
+                    onChange={(e) => setReportForm({ ...reportForm, screenOther: e.target.value })}
+                    placeholder="Describe which screen"
+                    className="mt-2 w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-bx-orange"
+                  />
+                ) : null}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1">Description *</label>
@@ -119,18 +142,33 @@ export default function FlashWidget() {
                   className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-bx-orange resize-none"
                 />
               </div>
+              <div className="rounded-lg border border-red-200 bg-red-50 p-2.5">
+                <label className="flex items-start gap-2 text-xs font-semibold text-red-800">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={reportForm.blocking}
+                    onChange={(e) => setReportForm({ ...reportForm, blocking: e.target.checked })}
+                  />
+                  This is blocking a production function (nobody can complete this workflow right now)
+                </label>
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1">Severity</label>
                 <select
-                  value={reportForm.severity}
+                  value={reportForm.blocking ? "CRITICAL" : reportForm.severity}
                   onChange={(e) => setReportForm({ ...reportForm, severity: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-bx-orange"
+                  disabled={reportForm.blocking}
+                  className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-bx-orange disabled:bg-gray-100 disabled:text-gray-500"
                 >
                   <option>LOW</option>
                   <option>MEDIUM</option>
                   <option>HIGH</option>
                   <option>CRITICAL</option>
                 </select>
+                {reportForm.blocking ? (
+                  <div className="mt-1 text-[11px] text-gray-500">Auto-set to CRITICAL because this is blocking production.</div>
+                ) : null}
               </div>
             </div>
             <div className="flex gap-2 border-t px-4 py-3">

@@ -1,11 +1,19 @@
 // HR user directory API wrappers.
 import { apiRequest } from "./client";
 
+// 2026-08-12 real bug fix -- Avinash: "users.map is not a function."
+// The backend returns {total_users, users: [...]} (AllUsersResponse), but
+// this used to return that wrapped object as-is, leaving every one of its
+// ~11 callers to defensively re-unwrap `.users` themselves -- most did,
+// two didn't (OpportunityPipelineScreen.js, ProfileTabEditable.js) and
+// crashed on `.map()`. Unwrapped once here, so the function's real
+// contract is "always returns a plain array" -- no caller should ever
+// need to reach into `.users` again.
 export const getAllUsers = async () => {
   const { data } = await apiRequest("/hr/users/all", {
     method: "GET",
   });
-  return data;
+  return data?.users || [];
 };
 
 export const getAssignedCandidates = async () => {

@@ -37,7 +37,6 @@ export default function JobCreate({
   const [payAmount, setPayAmount] = useState("");
   const [payRateType, setPayRateType] = useState("$/Year");
   const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
   const [skills, setSkills] = useState("");
   const [jobStatus, setJobStatus] = useState("Draft");
   const [noOfPositions, setNoOfPositions] = useState(1);
@@ -224,7 +223,6 @@ export default function JobCreate({
     setPayAmount(parsedPay.amount);
     setPayRateType(parsedPay.rateType);
     setStartDate(initialJob.startDate || "");
-    setEndDate(initialJob.endDate || "");
     setSkills((initialJob.skills || []).join(", "));
     setJobStatus(initialJob.jobStatus || initialJob.status || "Draft");
     setNoOfPositions(initialJob.noOfPositions || 1);
@@ -261,20 +259,25 @@ export default function JobCreate({
     loadClients();
   }, []);
 
-  // Auto-set company to BlitzenX when internal role is selected
+  // Role Type (Internal/External) is no longer picked on this screen --
+  // derived automatically from the selected client: blitzenx.com's own
+  // website domain (or, failing that, "BlitzenX" in the company name,
+  // for the rare client record with no website on file) means Internal;
+  // everything else is External.
   useEffect(() => {
-    if (isInternalRole === true) {
-      setCompanyClient("BlitzenX");
-    }
-  }, [isInternalRole]);
-
-  // Auto-detect internal/external when company changes
-  useEffect(() => {
-    if (companyClient) {
-      const isInternal = String(companyClient).toLowerCase().includes("blitzenx");
-      setIsInternalRole(isInternal);
-    }
-  }, [companyClient]);
+    if (!companyClient) return;
+    const selectedClient = clientList?.find((c) => c?.company_name === companyClient);
+    const domain = String(selectedClient?.website || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/$/, "");
+    const isInternal = domain
+      ? domain === "blitzenx.com"
+      : String(companyClient).toLowerCase().includes("blitzenx");
+    setIsInternalRole(isInternal);
+  }, [companyClient, clientList]);
 
   const clientOptions = [
     { label: "Select client", value: "", disabled: true },
@@ -419,15 +422,12 @@ export default function JobCreate({
     const required = [
       { label: "Job Title", value: title },
       { label: "Internal Job Description", value: internalJD },
-      { label: "Skills", value: skills },
       { label: "Experience Level", value: experienceLevel },
       { label: "Location", value: location },
       { label: "Company / Client", value: companyClient },
-      { label: "HR", value: contactPerson },
       { label: "Job Status", value: jobStatus },
       { label: "No. of Positions", value: noOfPositions },
       { label: "Start Date", value: startDate },
-      { label: "End Date", value: endDate },
       { label: "Pay Rate", value: payAmount },
     ];
     const missing = required
@@ -446,11 +446,6 @@ export default function JobCreate({
       setIsSaving(false);
       return;
     }
-    if (!contactPerson?.trim()) {
-      toast.error("Please select an HR.");
-      setIsSaving(false);
-      return;
-    }
     try {
       // Format: "150 $/Year" for easy comparison with Expected Salary
       const payRangeString = payAmount ? `${payAmount} ${payRateType}` : null;
@@ -466,7 +461,6 @@ export default function JobCreate({
         job_status: normalizeJobStatusForApi(jobStatus),
         no_of_positions: Number(noOfPositions || 0),
         start_date: startDate,
-        end_date: endDate,
         hiring_manager_id: hmUserId || null,
         reporting_manager_id: rmUserId || null,
         salary_range: payRangeString,
@@ -537,24 +531,6 @@ export default function JobCreate({
                 options={["Low", "High"]}
               />
               <Select
-                label="Role Type *"
-                value={isInternalRole === null ? "" : isInternalRole ? "internal" : "external"}
-                onChange={(value) => {
-                  if (value === "internal") {
-                    setIsInternalRole(true);
-                  } else if (value === "external") {
-                    setIsInternalRole(false);
-                  } else {
-                    setIsInternalRole(null);
-                  }
-                }}
-                options={[
-                  { label: "Select Role Type", value: "", disabled: true },
-                  { label: "Internal Role (BlitzenX)", value: "internal" },
-                  { label: "External Role (Partner/Client)", value: "external" },
-                ]}
-              />
-              <Select
                 label="Company / Client *"
                 value={companyClient}
                 onChange={(value) => {
@@ -615,7 +591,7 @@ export default function JobCreate({
             </div>
 
             {/* Job Timeline & Compensation */}
-            <div className="grid gap-3 md:grid-cols-3 mt-4">
+            <div className="grid gap-3 md:grid-cols-2 mt-4">
               <RateField
                 label="Pay Rate *"
                 value={payAmount}
@@ -631,13 +607,6 @@ export default function JobCreate({
                 onChange={setStartDate}
                 type="date"
                 placeholder="When to post the job"
-              />
-              <Input
-                label="Close Date (Deadline) *"
-                value={endDate}
-                onChange={setEndDate}
-                type="date"
-                placeholder="When to stop accepting applications"
               />
             </div>
           </fieldset>

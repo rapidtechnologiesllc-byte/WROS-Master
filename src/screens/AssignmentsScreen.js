@@ -34,7 +34,7 @@ export default function AssignmentsScreen() {
       const nextAllCandidates = Array.isArray(allCandidatesRes?.candidates)
         ? allCandidatesRes.candidates
         : [];
-      const nextUsers = Array.isArray(usersRes?.users) ? usersRes.users : [];
+      const nextUsers = Array.isArray(usersRes) ? usersRes : [];
       setAllCandidates(nextAllCandidates);
       setAllUsers(nextUsers);
       if (!candidateId && nextAllCandidates.length) {

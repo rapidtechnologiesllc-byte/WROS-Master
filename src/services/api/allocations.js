@@ -45,3 +45,8 @@ export const endAllocation = async (allocationId, endDate) => {
   });
   return data;
 };
+
+export const getAllocationDropdowns = async () => {
+  const { data } = await apiRequest(`/allocations/dropdowns/for-create`, { method: "GET" });
+  return data;
+};
