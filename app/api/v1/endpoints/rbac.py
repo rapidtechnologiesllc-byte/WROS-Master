@@ -416,6 +416,7 @@ def delete_business_unit(
     "/modules-and-verbs",
     summary="Get all modules and their applicable verbs",
     response_model=dict,
+    dependencies=[Depends(require_permission("rbac.view"))],
 )
 def get_modules_and_verbs(
     db: Session = Depends(get_db),
@@ -1103,6 +1104,7 @@ def get_business_unit_by_department(
     "/modules-and-verbs",
     summary="Get all modules and their applicable verbs for the permission grid",
     response_model=dict,
+    dependencies=[Depends(require_permission("rbac.view"))],
 )
 def get_modules_and_verbs(
     db: Session = Depends(get_db),

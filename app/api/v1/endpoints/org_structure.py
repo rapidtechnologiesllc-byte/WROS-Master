@@ -46,6 +46,7 @@ router = APIRouter(prefix="/org", tags=["Organization Structure"])
     response_model=OrgInitializeResponse,
     summary="Initialize org hierarchy for a tenant",
     description="Creates default org positions and approval chains for a new tenant",
+    dependencies=[Depends(require_permission("admin.create"))],
 )
 def initialize_org_structure(
     request: OrgInitializeRequest,
@@ -95,11 +96,11 @@ def initialize_org_structure(
     "/positions",
     response_model=List[OrgPositionResponse],
     summary="List all org positions",
-    description="Returns all organizational positions (CEO, Partner, BU Head, etc.)"
+    description="Returns all organizational positions (CEO, Partner, BU Head, etc.)",
+    dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_org_positions(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> List[OrgPositionResponse]:
     """Get all organizational positions, ordered by rank."""
     positions = db.query(OrgPosition).order_by(OrgPosition.rank).all()
@@ -110,16 +111,14 @@ def list_org_positions(
     "/nodes",
     response_model=List[OrgNodeResponse],
     summary="List org nodes for a tenant",
-    description="Returns all organizational nodes (instances of positions)"
+    description="Returns all organizational nodes (instances of positions)",
+    dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_org_nodes(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> List[OrgNodeResponse]:
     """Get all organizational nodes for the current tenant."""
-    tenant_id = current_user.get("tenant_id") if current_user else None
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No tenant context")
+    # Tenant ID is extracted from token by require_permission middleware
 
     nodes = db.query(OrgNode).filter(OrgNode.tenant_id == tenant_id).all()
     return [OrgNodeResponse.from_orm(n) for n in nodes]
@@ -129,12 +128,12 @@ def list_org_nodes(
     "/nodes/{org_node_id}",
     response_model=OrgNodeResponse,
     summary="Get a specific org node",
-    description="Returns details of a specific organizational node"
+    description="Returns details of a specific organizational node",
+    dependencies=[Depends(require_permission("admin.view"))],
 )
 def get_org_node(
     org_node_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> OrgNodeResponse:
     """Get a specific organizational node by ID."""
     node = db.query(OrgNode).filter(OrgNode.id == org_node_id).first()
@@ -147,12 +146,12 @@ def get_org_node(
     "/nodes/{org_node_id}/approvers",
     response_model=List[OrgNodeResponse],
     summary="Get approval chain for an org node",
-    description="Returns the chain of approvers up to CEO for a given org node"
+    description="Returns the chain of approvers up to CEO for a given org node",
+    dependencies=[Depends(require_permission("admin.view"))],
 )
 def get_approvers_for_node(
     org_node_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> List[OrgNodeResponse]:
     """Get the approval chain (all approvers up to CEO) for a given org node."""
     approvers_list = get_employee_approvers(db, org_node_id)
@@ -168,16 +167,14 @@ def get_approvers_for_node(
     "/departments",
     response_model=List[DepartmentResponse],
     summary="List departments for a tenant",
-    description="Returns all departments organized by business unit"
+    description="Returns all departments organized by business unit",
+    dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_departments(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> List[DepartmentResponse]:
     """Get all departments for the current tenant."""
-    tenant_id = current_user.get("tenant_id") if current_user else None
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No tenant context")
+    # Tenant ID is extracted from token by require_permission middleware
 
     departments = db.query(Department).filter(Department.tenant_id == tenant_id).all()
     return [DepartmentResponse.from_orm(d) for d in departments]
@@ -187,16 +184,14 @@ def list_departments(
     "/approval-chains",
     response_model=List[ApprovalChainResponse],
     summary="List approval chain workflows",
-    description="Returns all approval workflows for the tenant"
+    description="Returns all approval workflows for the tenant",
+    dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_approval_chains(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> List[ApprovalChainResponse]:
     """Get all approval chain configurations for the current tenant."""
-    tenant_id = current_user.get("tenant_id") if current_user else None
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No tenant context")
+    # Tenant ID is extracted from token by require_permission middleware
 
     chains = db.query(ApprovalChain).filter(
         ApprovalChain.tenant_id == tenant_id,
