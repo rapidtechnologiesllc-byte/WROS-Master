@@ -33,6 +33,7 @@ EXPENSE_PURPOSES = ("CLIENT_CURRENT", "CLIENT_PROSPECT", "CONFERENCE", "INVESTME
 EXPENSE_CATEGORIES = ("TRAVEL", "MEALS", "LODGING", "ENTERTAINMENT", "OTHER")
 TRAVEL_TYPES = ("AIRFARE", "GROUND_TRANSPORT", "HOTEL", "MEALS", "OTHER")
 EXPENSE_PAYMENT_STATUSES = ("PENDING", "APPROVED", "REIMBURSED")
+MANAGER_APPROVAL_STATUSES = ("PENDING", "APPROVED", "REJECTED")
 
 # Purposes that require a client_id -- the real fork between "spend on
 # a client relationship" (current or prospect) vs. everything else.
@@ -66,9 +67,18 @@ class ExpenseRecord(Base):
     amount_usd_cents = Column(Integer, nullable=False)
     location = Column(String(200), nullable=True)
     description = Column(Text, nullable=True)
-    receipt_ref = Column(String(300), nullable=True)
+    receipt_ref = Column(String(300), nullable=False)  # PRIORITY-3: Receipt is mandatory
     expense_date = Column(Date, nullable=False)
 
+    # PRIORITY-3: Manager approval step (Employee → Manager → Finance)
+    manager_approval_status = Column(
+        Enum(*MANAGER_APPROVAL_STATUSES, name="expense_manager_approval_status", native_enum=False, create_constraint=True),
+        nullable=False, default="PENDING",
+    )
+    manager_approved_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    manager_approved_at = Column(DateTime, nullable=True)
+
+    # Finance approval (after manager approval)
     payment_status = Column(
         Enum(*EXPENSE_PAYMENT_STATUSES, name="expense_payment_status", native_enum=False, create_constraint=True),
         nullable=False, default="PENDING",

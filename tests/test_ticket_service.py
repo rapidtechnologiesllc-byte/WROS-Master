@@ -11,6 +11,7 @@ riding the existing overdue-escalation job (not a second scan).
 import os
 import tempfile
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine
@@ -20,7 +21,8 @@ from app.models.base import Base
 from app.models.employee import Employee
 from app.models.notification import Notification
 from app.models.prompt_execution_log import PromptExecutionLog
-from app.models.rbac import BusinessUnit, Department
+from app.models.rbac import BusinessUnit
+from app.models.org_structure import Department
 from app.models.task import Task, TaskCapacityAlert, TaskReassignmentRequest
 from app.models.tenant import Tenant
 from app.models.ticket import TicketCategoryRoute, TicketDetail, TicketSLAPolicy
@@ -55,7 +57,13 @@ def db_session():
 @pytest.fixture()
 def seeded(db_session):
     db_session.add(Tenant(id=1, name="BlitzenX"))
-    db_session.add_all([Department(id=1, name="IT"), Department(id=2, name="Facilities")])
+    # Department now uses UUID string IDs
+    dept1_id = str(uuid4())
+    dept2_id = str(uuid4())
+    db_session.add_all([
+        Department(id=dept1_id, tenant_id=1, business_unit_id=str(uuid4()), name="IT"),
+        Department(id=dept2_id, tenant_id=1, business_unit_id=str(uuid4()), name="Facilities")
+    ])
     db_session.commit()
 
     creator = Users(UserID="u1", UserRole="Employee", UserName="u1", UserEmail="u1@blitzenx.com", UserPassword="x", tenant_id=1)
@@ -67,11 +75,11 @@ def seeded(db_session):
         TicketSLAPolicy(priority="HIGH", response_minutes=120, resolution_minutes=480),
         TicketSLAPolicy(priority="MEDIUM", response_minutes=480, resolution_minutes=4320),
         TicketSLAPolicy(priority="LOW", response_minutes=1440, resolution_minutes=10080),
-        TicketCategoryRoute(category="Laptop Issue", department_id=1),
-        TicketCategoryRoute(category="Office Access", department_id=2),
+        TicketCategoryRoute(category="Laptop Issue", department_id=dept1_id),
+        TicketCategoryRoute(category="Office Access", department_id=dept2_id),
     ])
     db_session.commit()
-    return {"db": db_session, "creator": creator}
+    return {"db": db_session, "creator": creator, "dept1_id": dept1_id, "dept2_id": dept2_id}
 
 
 def test_priority_derived_from_impact_urgency_matrix():

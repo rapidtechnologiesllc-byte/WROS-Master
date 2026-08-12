@@ -85,10 +85,18 @@ class Users(Base):
     # is_thunder_paused). Same "tenant_id genuinely resolves to this
     # table's own UserID" convention as ai_agent_name/digest_enabled above.
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
+    # User Lifecycle Management — termination tracking
+    terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
+    terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
+    terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
+
+    def is_active(self) -> bool:
+        """Return True if user is not terminated."""
+        return self.terminated_at is None
 
 class Jobs(Base):
     __tablename__ = "jobs"

@@ -1062,6 +1062,37 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register partner success scheduler: {exc}")
 
+        # ── Daily (02:00 UTC): REVENUE_AUTONOMOUS_SCANNING_JOB (PRIORITY-2) ───
+        # Proactively scan all active projects for revenue leakage daily.
+        # Stores results in cache (RevenueLeakageFlag table).
+        # API endpoint returns cached results by default (no manual UUID needed).
+        try:
+            from app.core.database import SessionLocal
+            from app.services.revenue_scanning_service import run_daily_revenue_scan_job
+
+            async def _run_revenue_scan():
+                db = SessionLocal()
+                try:
+                    result = run_daily_revenue_scan_job(db)
+                    if result["leakage_detected"]:
+                        logger.info(f"[scheduler] Revenue scan: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Revenue scan error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_revenue_scan,
+                trigger="cron",
+                hour=2,
+                minute=0,
+                id="daily_revenue_scan_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled daily revenue autonomous scanning job (02:00 UTC)")
+        except Exception as exc:
+            logger.warning(f"Could not register revenue scanning scheduler: {exc}")
+
         # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
         try:
             from app.core.database import SessionLocal

@@ -2,9 +2,11 @@
 RBAC Admin Endpoints — manage roles, permissions, and user role assignments.
 All routes require Super User or Admin access.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import and_, or_
+from typing import List, Optional
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
@@ -20,10 +22,14 @@ from app.schemas.rbac import (
     SetDepartmentRequest, SetDepartmentResponse,
 )
 from app.services.rbac_service import RBACService
+from app.services.rbac_expanded_permissions import MODULES, VERB_MATRIX, generate_all_permissions, get_role_permissions
+from app.services.user_lifecycle_service import UserLifecycleService
 from app.core.logging import logger
-from app.models.rbac import BusinessUnit, Department
+from app.models.rbac import BusinessUnit, Permission
+from app.models.org_structure import Department
 from app.models.user import Users, Jobs
 from app.models.candidate_ownership import CandidateOwnership
+from app.models.audit_log import AuditLog
 
 router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
@@ -400,6 +406,184 @@ def delete_business_unit(
     except Exception as exc:
         logger.error(f"Error deleting business unit: {exc}")
         raise HTTPException(status_code=500, detail="Failed to delete business unit")
+
+
+# ===========================================================================
+# Expanded Module × Verb Permissions (HubSpot-Style RBAC Grid)
+# ===========================================================================
+
+@router.get(
+    "/modules-and-verbs",
+    summary="Get all modules and their applicable verbs",
+    response_model=dict,
+)
+def get_modules_and_verbs(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return the complete module×verb matrix for building the RBAC settings grid.
+    Includes module list and verb list per module.
+
+    No permission check required — read-only data for UI rendering.
+    """
+    try:
+        return {
+            "modules": MODULES,
+            "verbs_by_module": VERB_MATRIX,
+            "all_permissions": generate_all_permissions(),
+        }
+    except Exception as exc:
+        logger.error(f"Error fetching modules and verbs: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch module data")
+
+
+@router.get(
+    "/roles-and-permissions",
+    summary="Get role-permission matrix for RBAC settings grid",
+    response_model=dict,
+)
+def get_roles_and_permissions_matrix(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return all roles with their assigned permissions in matrix format.
+    Used to render the RBAC settings grid (roles as rows, modules×verbs as columns).
+
+    Response format:
+    {
+        "roles": [
+            {"id": 1, "name": "Super User", "description": "..."},
+            {"id": 2, "name": "Partner", "description": "..."},
+            ...
+        ],
+        "permissions": [
+            {"id": 1, "name": "candidates.view", "description": "..."},
+            {"id": 2, "name": "candidates.create", "description": "..."},
+            ...
+        ],
+        "role_permissions": {
+            "1": [1, 2, 3, ...],  # role_id -> list of permission_ids
+            "2": [1, 4, 7, ...],
+            ...
+        }
+    }
+
+    No permission check required — read-only data for UI rendering.
+    """
+    try:
+        roles = RBACService.list_roles(db)
+        all_permissions = RBACService.list_permissions(db)
+
+        # Build role_permissions mapping: role_id -> list of permission_ids
+        role_permissions = {}
+        for role in roles:
+            perm_ids = [rp.permission_id for rp in role.role_permissions if rp.permission]
+            role_permissions[str(role.id)] = perm_ids
+
+        return {
+            "roles": [
+                {"id": r.id, "name": r.name, "description": r.description}
+                for r in roles
+            ],
+            "permissions": [
+                {"id": p.id, "name": p.name, "description": p.description}
+                for p in all_permissions
+            ],
+            "role_permissions": role_permissions,
+        }
+    except Exception as exc:
+        logger.error(f"Error fetching roles and permissions: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch role-permission data")
+
+
+@router.post(
+    "/grant-permission",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Grant a permission to a role (by permission name)",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def grant_permission(
+    role_id: int,
+    permission_name: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Grant a permission to a role by specifying the permission name.
+    Example: role_id=2, permission_name="candidates.view"
+
+    Query parameters:
+    - role_id: ID of the role
+    - permission_name: Name of the permission (e.g., "candidates.view")
+
+    Returns 404 if role or permission not found.
+    Returns 204 if already assigned or after assignment.
+    """
+    try:
+        RBACService.get_role_or_404(db, role_id)
+
+        # Find permission by name
+        perm = db.query(Permission).filter(Permission.name == permission_name).first()
+        if not perm:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Permission '{permission_name}' not found"
+            )
+
+        # Assign permission to role
+        RBACService.assign_permission_to_role(db, role_id, perm.id)
+        logger.info(f"Granted permission '{permission_name}' to role {role_id}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error granting permission: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to grant permission")
+
+
+@router.post(
+    "/revoke-permission",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke a permission from a role (by permission name)",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def revoke_permission(
+    role_id: int,
+    permission_name: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Revoke a permission from a role by specifying the permission name.
+    Example: role_id=2, permission_name="candidates.view"
+
+    Query parameters:
+    - role_id: ID of the role
+    - permission_name: Name of the permission (e.g., "candidates.view")
+
+    Returns 404 if role or permission not found.
+    Returns 204 if not assigned or after revocation.
+    """
+    try:
+        RBACService.get_role_or_404(db, role_id)
+
+        # Find permission by name
+        perm = db.query(Permission).filter(Permission.name == permission_name).first()
+        if not perm:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Permission '{permission_name}' not found"
+            )
+
+        # Revoke permission from role
+        RBACService.remove_permission_from_role(db, role_id, perm.id)
+        logger.info(f"Revoked permission '{permission_name}' from role {role_id}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error revoking permission: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to revoke permission")
 
 
 # ===========================================================================
@@ -909,3 +1093,448 @@ def get_business_unit_by_department(
     if not bu:
         raise HTTPException(status_code=404, detail="Linked Business Unit not found")
     return bu
+
+
+# ===========================================================================
+# RBAC Matrix & Permission Grid Management (NEW ENDPOINTS FOR UI)
+# ===========================================================================
+
+@router.get(
+    "/modules-and-verbs",
+    summary="Get all modules and their applicable verbs for the permission grid",
+    response_model=dict,
+)
+def get_modules_and_verbs(
+    db: Session = Depends(get_db),
+):
+    """
+    Return the complete module/verb matrix for building the RBAC grid UI.
+    No permission check needed (read-only data for grid population).
+    Returns: {"modules": [...], "verb_matrix": {...}}
+    """
+    return {
+        "modules": MODULES,
+        "verb_matrix": VERB_MATRIX,
+    }
+
+
+@router.get(
+    "/roles-matrix",
+    summary="Get all roles with their permissions organized by module",
+    response_model=dict,
+)
+def get_roles_matrix(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Return all roles with their permissions organized by module for the RBAC grid UI.
+    Includes role ID, name, and permissions indexed by module.verb.
+    No permission check needed (read-only data for grid).
+    """
+    roles = RBACService.list_roles(db)
+    roles_data = []
+
+    for role in roles:
+        # Get permissions for this role
+        perms = [rp.permission.name for rp in role.role_permissions if rp.permission]
+
+        # Organize permissions by module for the UI grid
+        permissions_by_module = {}
+        for module, verbs in VERB_MATRIX.items():
+            permissions_by_module[module] = {}
+            for verb in verbs:
+                perm_name = f"{module}.{verb}"
+                permissions_by_module[module][verb] = perm_name in perms
+
+        roles_data.append({
+            "id": role.id,
+            "name": role.name,
+            "description": role.description,
+            "permissions": permissions_by_module,
+        })
+
+    return {
+        "roles": roles_data,
+        "modules": MODULES,
+        "verb_matrix": VERB_MATRIX,
+    }
+
+
+@router.post(
+    "/grant-permission",
+    summary="Grant a permission to a role",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def grant_permission(
+    body: dict,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Grant a specific module.verb permission to a role.
+    Body: {"role_id": 1, "permission_name": "candidates.view"}
+    Returns: {"success": true}
+    """
+    role_id = body.get("role_id")
+    permission_name = body.get("permission_name")
+
+    if not role_id or not permission_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required fields: role_id, permission_name"
+        )
+
+    # Get or create the permission
+    perm = db.query(Permission).filter(Permission.name == permission_name).first()
+    if not perm:
+        # Auto-create if it matches the module.verb pattern
+        parts = permission_name.split(".")
+        if len(parts) == 2:
+            module, verb = parts
+            if module in VERB_MATRIX and verb in VERB_MATRIX.get(module, []):
+                perm = Permission(
+                    name=permission_name,
+                    description=f"{verb.title()} {module.replace('_', ' ')}"
+                )
+                db.add(perm)
+                db.flush()
+            else:
+                raise HTTPException(status_code=400, detail=f"Invalid permission: {permission_name}")
+        else:
+            raise HTTPException(status_code=400, detail=f"Invalid permission format: {permission_name}")
+
+    # Assign permission to role
+    try:
+        RBACService.assign_permission_to_role(db, role_id, perm.id)
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error granting permission: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to grant permission")
+
+
+@router.post(
+    "/revoke-permission",
+    summary="Revoke a permission from a role",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def revoke_permission(
+    body: dict,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Revoke a specific module.verb permission from a role.
+    Body: {"role_id": 1, "permission_name": "candidates.view"}
+    Returns: {"success": true}
+    """
+    role_id = body.get("role_id")
+    permission_name = body.get("permission_name")
+
+    if not role_id or not permission_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required fields: role_id, permission_name"
+        )
+
+    # Find the permission
+    perm = db.query(Permission).filter(Permission.name == permission_name).first()
+    if not perm:
+        raise HTTPException(status_code=404, detail=f"Permission not found: {permission_name}")
+
+    # Remove permission from role
+    try:
+        RBACService.remove_permission_from_role(db, role_id, perm.id)
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error revoking permission: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to revoke permission")
+
+
+# ===========================================================================
+# User Lifecycle Management
+# ===========================================================================
+
+@router.get(
+    "/users",
+    summary="List all users with optional filtering",
+    dependencies=[Depends(require_permission("users.view"))],
+)
+def list_users(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+    search: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),  # 'active', 'terminated', or None for all
+    role_id: Optional[int] = Query(None),
+):
+    """
+    List all users with optional filtering by name/email, status, or role.
+
+    Query Parameters:
+    - search: Search by name or email (substring match)
+    - status: 'active' or 'terminated'
+    - role_id: Filter by role ID
+    """
+    query = db.query(Users)
+
+    # Search filter
+    if search:
+        query = query.filter(
+            or_(
+                Users.UserName.ilike(f"%{search}%"),
+                Users.UserEmail.ilike(f"%{search}%"),
+            )
+        )
+
+    # Status filter
+    if status == "active":
+        query = query.filter(Users.terminated_at.is_(None))
+    elif status == "terminated":
+        query = query.filter(Users.terminated_at.isnot(None))
+
+    # Role filter
+    if role_id:
+        query = query.filter(Users.role_id == role_id)
+
+    users = query.order_by(Users.UserName).all()
+
+    return [
+        {
+            "user_id": u.UserID,
+            "user_name": u.UserName,
+            "user_email": u.UserEmail,
+            "user_role": u.UserRole,
+            "role_id": u.role_id,
+            "role_name": u.role.name if u.role else None,
+            "business_unit_id": u.business_unit_id,
+            "business_unit_name": u.business_unit.name if u.business_unit else None,
+            "department_id": u.department_id,
+            "department_name": u.department.name if u.department else None,
+            "status": "Active" if u.is_active() else "Terminated",
+            "terminated_at": u.terminated_at.isoformat() if u.terminated_at else None,
+            "created_at": u.CreatedAt.isoformat() if u.CreatedAt else None,
+        }
+        for u in users
+    ]
+
+
+@router.get(
+    "/users/{user_id}",
+    summary="Get user details",
+    dependencies=[Depends(require_permission("users.view"))],
+)
+def get_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Get detailed information about a specific user."""
+    user_obj = db.query(Users).filter(Users.UserID == user_id).first()
+    if not user_obj:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    permissions = get_role_permissions(db, user_obj.role_id) if user_obj.role_id else []
+
+    return {
+        "user_id": user_obj.UserID,
+        "user_name": user_obj.UserName,
+        "user_email": user_obj.UserEmail,
+        "user_role": user_obj.UserRole,
+        "role_id": user_obj.role_id,
+        "role_name": user_obj.role.name if user_obj.role else None,
+        "business_unit_id": user_obj.business_unit_id,
+        "business_unit_name": user_obj.business_unit.name if user_obj.business_unit else None,
+        "department_id": user_obj.department_id,
+        "department_name": user_obj.department.name if user_obj.department else None,
+        "status": "Active" if user_obj.is_active() else "Terminated",
+        "terminated_at": user_obj.terminated_at.isoformat() if user_obj.terminated_at else None,
+        "created_at": user_obj.CreatedAt.isoformat() if user_obj.CreatedAt else None,
+        "permissions": permissions,
+    }
+
+
+@router.put(
+    "/users/{user_id}",
+    summary="Update user name and email",
+    dependencies=[Depends(require_permission("users.edit"))],
+)
+def update_user(
+    user_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Update user name and/or email.
+
+    Body: {"user_name": "John Doe", "user_email": "john@example.com"}
+    """
+    user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_name = body.get("user_name")
+    user_email = body.get("user_email")
+
+    if user_name:
+        user.UserName = user_name
+
+    if user_email:
+        # Check for uniqueness
+        existing = db.query(Users).filter(
+            and_(Users.UserEmail == user_email, Users.UserID != user_id)
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.UserEmail = user_email
+
+    db.add(user)
+    db.commit()
+
+    return {
+        "user_id": user.UserID,
+        "user_name": user.UserName,
+        "user_email": user.UserEmail,
+        "message": "User updated successfully"
+    }
+
+
+@router.post(
+    "/users/{user_id}/permissions",
+    summary="Update user role (permissions)",
+    dependencies=[Depends(require_permission("users.edit"))],
+)
+def update_user_permissions(
+    user_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Update user's role and permissions.
+
+    Body: {"role_id": 2}
+    """
+    role_id = body.get("role_id")
+    if not role_id:
+        raise HTTPException(status_code=400, detail="role_id is required")
+
+    try:
+        user = UserLifecycleService.update_user_permissions(
+            db, user_id, role_id, current_user.UserID
+        )
+        return {
+            "user_id": user.UserID,
+            "role_id": user.role_id,
+            "role_name": user.role.name if user.role else None,
+            "message": "Permissions updated successfully"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/users/{user_id}/terminate",
+    summary="Terminate a user (soft-deactivate with task redistribution)",
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+def terminate_user(
+    user_id: str,
+    body: dict = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Terminate a user:
+    1. Marks user as terminated (doesn't delete)
+    2. Redistributes their active tasks via round-robin within team
+    3. Creates audit trail entries
+    4. Notifies new task assignees
+
+    Body: {"reason": "Left company"} (optional)
+    """
+    reason = None
+    if body:
+        reason = body.get("reason")
+
+    try:
+        user = UserLifecycleService.terminate_user(
+            db, user_id, current_user.UserID, reason
+        )
+        return {
+            "user_id": user.UserID,
+            "status": "Terminated",
+            "terminated_at": user.terminated_at.isoformat(),
+            "message": f"User {user.UserName} has been terminated. Tasks redistributed to team members."
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error terminating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to terminate user")
+
+
+@router.post(
+    "/users/{user_id}/reinstate",
+    summary="Reinstate a terminated user",
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+def reinstate_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Reinstate a terminated user.
+    - Clears terminated_at flag
+    - Does NOT restore old task assignments (they remain with current assignees)
+    - Creates audit trail entry
+    """
+    try:
+        user = UserLifecycleService.reinstate_user(
+            db, user_id, current_user.UserID
+        )
+        return {
+            "user_id": user.UserID,
+            "status": "Active",
+            "message": f"User {user.UserName} has been reinstated."
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error reinstating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reinstate user")
+
+
+@router.get(
+    "/users/{user_id}/audit-trail",
+    summary="Get complete audit trail for a user",
+    dependencies=[Depends(require_permission("users.view"))],
+)
+def get_user_audit_trail(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Get all audit events for a user:
+    - Creation
+    - Permission/role changes
+    - Termination/reinstatement
+    - Task reassignments (when user was terminated)
+
+    Returns list of audit records sorted by timestamp (newest first).
+    """
+    try:
+        audit_trail = UserLifecycleService.get_user_audit_trail(db, user_id)
+        return {
+            "user_id": user_id,
+            "audit_records": audit_trail,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching audit trail: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
