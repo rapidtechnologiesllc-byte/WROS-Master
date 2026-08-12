@@ -24,6 +24,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
 from app.models.client import Client, ClientContact
+from app.models.employee import Employee
+from app.models.rbac import BusinessUnit
 from app.models.user import Users
 from app.schemas.client import (
     ClientContactAddRequest, ClientContactResponse, ClientContactsListResponse,
@@ -31,11 +33,28 @@ from app.schemas.client import (
     ClientListResponse, ClientUpdateRequest,
 )
 from app.services.client_service import (
-    ClientValidationError, DuplicateClientError, add_client_contact, create_client,
-    update_client_details,
+    ClientValidationError, DuplicateClientError, add_client_contact, assign_account_manager,
+    create_client, update_client_details,
 )
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+
+
+def _bu_name_map(db: Session, bu_ids) -> dict:
+    ids = {i for i in bu_ids if i is not None}
+    if not ids:
+        return {}
+    return {b.id: b.name for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(ids)).all()}
+
+
+def _employee_name_map(db: Session, employee_ids) -> dict:
+    ids = {i for i in employee_ids if i is not None}
+    if not ids:
+        return {}
+    return {
+        e.id: f"{e.first_name} {e.last_name}".strip()
+        for e in db.query(Employee).filter(Employee.id.in_(ids)).all()
+    }
 
 
 @router.get("", response_model=ClientListResponse)
@@ -48,11 +67,21 @@ def list_clients(
     if active_only:
         query = query.filter(Client.status != "INACTIVE")
     clients = query.order_by(Client.company_name).all()
+    # 2026-08-12, Avinash: BU and Client Owner (account manager) weren't
+    # visible anywhere in the UI -- resolved names here so the frontend
+    # doesn't have to cross-reference raw IDs itself.
+    bu_names = _bu_name_map(db, (c.business_unit_id for c in clients))
+    am_names = _employee_name_map(db, (c.account_manager_employee_id for c in clients))
     return ClientListResponse(
         clients=[
             ClientListItem(
                 id=c.id, company_name=c.company_name, status=c.status,
-                business_unit_id=c.business_unit_id, line_type=c.line_type,
+                business_unit_id=c.business_unit_id,
+                business_unit_name=bu_names.get(c.business_unit_id),
+                account_manager_employee_id=c.account_manager_employee_id,
+                account_manager_name=am_names.get(c.account_manager_employee_id),
+                line_type=c.line_type,
+                website=c.website,
             )
             for c in clients
         ]
@@ -124,6 +153,21 @@ def create_client_endpoint(
     return client
 
 
+def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
+    bu_name = None
+    if client.business_unit_id is not None:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == client.business_unit_id).first()
+        bu_name = bu.name if bu else None
+    am_name = None
+    if client.account_manager_employee_id is not None:
+        am = db.query(Employee).filter(Employee.id == client.account_manager_employee_id).first()
+        am_name = f"{am.first_name} {am.last_name}".strip() if am else None
+    return ClientDetailResponse(
+        **{c: getattr(client, c) for c in ClientDetailResponse.__fields__ if hasattr(client, c)},
+        business_unit_name=bu_name, account_manager_name=am_name,
+    )
+
+
 @router.get("/{client_id}", response_model=ClientDetailResponse)
 def get_client_endpoint(
     client_id: str,
@@ -133,7 +177,7 @@ def get_client_endpoint(
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
-    return client
+    return _to_detail_response(db, client)
 
 
 @router.get("/{client_id}/contacts", response_model=ClientContactsListResponse)
@@ -180,10 +224,24 @@ def update_client_endpoint(
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    updates = body.dict(exclude_unset=True)
+    # account_manager_employee_id ("Client Owner") has its own real
+    # audit-history + notification path (assign_account_manager, HRMS-0709)
+    # -- routed here separately rather than through the generic field-set
+    # update_client_details() uses for everything else.
+    account_manager_employee_id = updates.pop("account_manager_employee_id", None)
     try:
-        client = update_client_details(db, client, body.dict(exclude_unset=True))
+        if updates:
+            client = update_client_details(db, client, updates)
+        if account_manager_employee_id is not None:
+            employee = db.query(Employee).filter(Employee.id == account_manager_employee_id).first()
+            if not employee:
+                raise HTTPException(status_code=404, detail=f"Employee {account_manager_employee_id!r} not found.")
+            client = assign_account_manager(db, client, employee, changed_by=current_user.UserID)
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ClientValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return client
+    db.commit()
+    db.refresh(client)
+    return _to_detail_response(db, client)

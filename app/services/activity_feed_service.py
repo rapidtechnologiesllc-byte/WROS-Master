@@ -144,10 +144,17 @@ def _build_summary(db: Session, event: ConversationEvent, candidate_name: str) -
         channel = data.get("channel", "email").upper()
         message_type = data.get("message_type", "message")
         subject = data.get("subject", "")
+        # 2026-08-12 real bug fix -- Avinash: "How did this happen when
+        # whatsapp is not connected." The event's own data already had
+        # delivered: false (the send genuinely failed, e.g. no WhatsApp
+        # integration configured), but this summary ignored that field
+        # and always said "sent" regardless -- a misleading activity
+        # entry claiming success for a message that never went out.
+        verb = "sent" if data.get("delivered", True) else "attempted to send (delivery failed)"
         if message_type == "missing_fields_request":
             fields_count = len(data.get("missing_fields", []))
-            return f"Thunder sent {channel} to {candidate_name} requesting {fields_count} missing profile field(s). Subject: {subject}"
-        return f"Thunder sent {channel} to {candidate_name}."
+            return f"Thunder {verb} {channel} to {candidate_name} requesting {fields_count} missing profile field(s). Subject: {subject}"
+        return f"Thunder {verb} {channel} to {candidate_name}."
     return f"Thunder activity for {candidate_name}."
 
 

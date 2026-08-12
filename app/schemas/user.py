@@ -127,7 +127,10 @@ class JobCreateRequest(BaseModel):
     job_location: str
     company_type: str
     company_name: str
-    contact_person: str
+    # Optional: not a manually-entered field on the Create Job screen
+    # (auto-populated from the selected business unit's HR assignment,
+    # when one exists) -- must not block job creation when absent.
+    contact_person: Optional[str] = None
     job_status: str
     no_of_positions: Optional[int] = None
     salary_range: Optional[str] = None
@@ -136,7 +139,6 @@ class JobCreateRequest(BaseModel):
     business_unit: Optional[int] = None
     department_id: Optional[int] = None
     start_date: Optional[date] = None
-    end_date: Optional[date] = None
 
 class JobCreateResponse(BaseModel):
     job_id: str

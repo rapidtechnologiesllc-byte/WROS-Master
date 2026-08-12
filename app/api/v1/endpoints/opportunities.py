@@ -28,6 +28,7 @@ from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
+from app.models.rbac import Permission, Role, RolePermission
 from app.models.user import Users
 from app.schemas.opportunity import (
     OpportunityCreateRequest, OpportunityItem, OpportunityListResponse,
@@ -82,7 +83,7 @@ def create_opportunity_endpoint(
         opportunity = create_opportunity(
             db, tenant_id=current_user.tenant_id, client_id=body.client_id,
             revenue_value_usd_cents=body.revenue_value_usd_cents,
-            probability_pct=body.probability_pct, currency=body.currency,
+            currency=body.currency,
             revenue_value_native=body.revenue_value_native,
             owner_employee_id=body.owner_employee_id,
             expected_close_date=body.expected_close_date, stage=body.stage,
@@ -109,6 +110,29 @@ def list_opportunities(
         query = query.filter(Opportunity.client_id == client_id)
     opportunities = query.order_by(Opportunity.created_at.desc()).all()
     return OpportunityListResponse(opportunities=[_to_item(db, o) for o in opportunities])
+
+
+@router.get("/eligible-owners")
+def list_eligible_owners(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view")),
+):
+    """Opportunity Owner options -- 2026-08-12, Avinash: "anyone with
+    access to opportunity should be in the dropdown," not the full
+    employee roster. Scoped to employees with a linked WROS user
+    account whose role actually carries revenue.view -- the exact
+    permission gating this whole Opportunity Pipeline screen."""
+    rows = (
+        db.query(Employee)
+        .join(Users, Users.UserID == Employee.wros_user_id)
+        .join(Role, Role.id == Users.role_id)
+        .join(RolePermission, RolePermission.role_id == Role.id)
+        .join(Permission, Permission.id == RolePermission.permission_id)
+        .filter(Permission.name == "revenue.view")
+        .distinct()
+        .all()
+    )
+    return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
 
 
 @router.get("/pipeline", response_model=PipelineResponse)

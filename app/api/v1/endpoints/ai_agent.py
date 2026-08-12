@@ -106,6 +106,7 @@ from app.services.ai_conversation_service import (
     process_candidate_reply,
     read_all_inbox,
     read_inbox_by_email,
+    resolve_default_tenant_id,
     SERVICE_MAILBOX,
 )
 from app.services.audit_log_service import log_audit_event
@@ -181,9 +182,15 @@ def assign_agent(
 
     **Required permission:** `candidate.edit`
     """
+    # 2026-08-12: was tenant_id=current_user.UserID -- whichever HR user
+    # clicked "Assign" became this conversation's tenant_id, a third
+    # value never matching what /activity-feed (or anything else) reads
+    # back by. assigned_by correctly stays current_user.UserID -- that's
+    # "who performed this action," a real and different field from
+    # tenant_id ("which org owns this data," always the same one here).
     result = assign_ai_agent(
         candidate_id=body.candidate_id,
-        tenant_id=current_user.UserID,
+        tenant_id=resolve_default_tenant_id(db),
         assigned_by=current_user.UserID,
         db=db,
     )

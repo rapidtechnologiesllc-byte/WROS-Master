@@ -29,7 +29,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.user import Jobs, Users
-from app.services.ai_conversation_service import assign_ai_agent
+from app.services.ai_conversation_service import assign_ai_agent, resolve_default_tenant_id
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
 from app.services.escalation_detection_service import ESCALATION_EXIT_MESSAGE, check_escalation, execute_escalation
 from app.services.objection_handling_service import ObjectionEscalatedError, handle_objection
@@ -58,28 +58,6 @@ class PublicChatSessionNotFound(Exception):
 class PublicChatNoTenantAvailable(Exception):
     """No Super User account exists to own this conversation. Real
     misconfiguration, not something to paper over with a fake tenant."""
-
-
-def _resolve_default_tenant_id(db: Session) -> Optional[str]:
-    """No logged-in user on this public surface, and a chat isn't
-    always tied to one job (a visitor can just ask "what roles do you
-    have"), so there's no job.recuriterID/contactPerson to derive from
-    (that's apply_for_job's convention, reused below when job_id IS
-    given). Falls back to the org's own Super User account -- this is a
-    single-tenant deployment, so that account IS the tenant."""
-    owner = (
-        db.query(Users)
-        .filter(Users.UserRole == "Super User")
-        .order_by(Users.UserID.asc())
-        .first()
-    )
-    return owner.UserID if owner else None
-
-
-def _resolve_tenant_id(db: Session, job: Optional[Jobs]) -> Optional[str]:
-    if job and (job.recuriterID or job.contactPerson):
-        return job.recuriterID or job.contactPerson
-    return _resolve_default_tenant_id(db)
 
 
 def _get_or_open_conversation(db: Session, candidate: Candidate, tenant_id: str) -> CandidateConversation:
@@ -182,7 +160,12 @@ def start_public_chat(
         )
         db.flush()
 
-    tenant_id = _resolve_tenant_id(db, job)
+    # 2026-08-12: was per-branch (job.recuriterID/contactPerson when a
+    # job was linked, else a locally-duplicated copy of "first Super
+    # User") -- neither value was ever read back out by anything
+    # downstream, and it diverged from what /activity-feed and every
+    # other real reader filter by. Single shared resolver now, always.
+    tenant_id = resolve_default_tenant_id(db)
     if not tenant_id:
         raise PublicChatNoTenantAvailable(
             "No Super User account exists to own this conversation -- Thunder can't be "

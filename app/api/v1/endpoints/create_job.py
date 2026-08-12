@@ -635,7 +635,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         jobStatus=job_status,          # role-based, never from request
         noOfPositions=request.no_of_positions,
         startDate=request.start_date,
-        endDate=request.end_date,
         hiringManagerID=request.hiring_manager_id,
         recuriterID=request.recuriter_id,
         business_unit_id=request.business_unit,

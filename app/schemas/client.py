@@ -9,7 +9,22 @@ class ClientListItem(BaseModel):
     company_name: str
     status: str
     business_unit_id: Optional[int] = None
+    # 2026-08-12, Avinash: BU wasn't visible anywhere in Client Management
+    # UI despite business_unit_id already being the real P&L-mapping
+    # mechanism (every Opportunity/Demand/revenue figure under a client
+    # inherits BU by joining through here -- see revenue_visibility_scope.py).
+    # Resolved name so the UI doesn't have to show/cross-reference a raw ID.
+    business_unit_name: Optional[str] = None
+    # "Client Owner" -- the field already exists (account_manager_employee_id,
+    # HRMS-0709) but was never surfaced in any screen. Same pattern as
+    # Opportunity.owner_employee_id.
+    account_manager_employee_id: Optional[str] = None
+    account_manager_name: Optional[str] = None
     line_type: Optional[str] = None
+    # Not shown/edited anywhere -- exposed only so the Create Job screen
+    # can derive Internal (BlitzenX) vs External without a per-client
+    # fetch. See JobCreate.js's client-selection effect.
+    website: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -91,6 +106,9 @@ class ClientDetailResponse(BaseModel):
     tier: str
     status: str
     business_unit_id: Optional[int]
+    business_unit_name: Optional[str] = None
+    account_manager_employee_id: Optional[str] = None
+    account_manager_name: Optional[str] = None
     billing_address: Optional[str]
     billing_currency: str
     payment_terms_days: int
@@ -107,6 +125,10 @@ class ClientDetailResponse(BaseModel):
 
 
 class ClientUpdateRequest(BaseModel):
+    # Routed separately to client_service.assign_account_manager() (real
+    # audit-history + notification side effects), not through the generic
+    # update_client_details() path -- see update_client_endpoint().
+    account_manager_employee_id: Optional[str] = None
     company_name: Optional[str] = None
     company_short_name: Optional[str] = None
     industry: Optional[str] = None

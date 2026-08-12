@@ -199,16 +199,30 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
         "user.manage", "newsletter.manage","newsletter.view","document.view","document.verify",
         "history.create","interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view",
         "revenue.view",
+        # 2026-08-12 CRITICAL defect fix -- Avinash (via Report an Issue):
+        # "HR is unable to create job, schedule interview." job.create was
+        # missing entirely (blocked job creation directly); job.view was
+        # missing from all 3 HR roles (blocked the candidate-applications
+        # lookup handleScheduleInterview() calls before it ever reaches
+        # createInterviewPanel() -- interview.manage was present all along,
+        # the schedule flow broke one step earlier). job.create added here
+        # only, matching this role's "Full HR control within BU" description
+        # (HR Operations/HRBP are explicitly scoped narrower -- read-only /
+        # own-candidates-only -- not extended to job creation without being
+        # asked; job.view added to all three since that's needed regardless).
+        "job.view", "job.create",
     ],
     "HR Operations": [
         "candidate.view", "candidate.edit", "employee.view",
         "newsletter.view","document.view","document.verify","history.create",
-        "interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view"
+        "interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view",
+        "job.view",
     ],
     "HRBP": [
         "candidate.view", "candidate.edit","newsletter.view",
         "document.view","document.verify","history.create","rbac.manage",
-        "interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view"
+        "interview.feedback","offer.manage","offer.view","offer.readiness_check","interview.manage","interview.view",
+        "job.view",
     ],
     "Recruitment Manager": [
         "candidate.view", "candidate.create", "candidate.edit",
