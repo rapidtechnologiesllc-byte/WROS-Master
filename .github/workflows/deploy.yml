@@ -32,7 +32,7 @@ jobs:
 
       - name: Run unit & integration tests
         run: |
-          pytest tests/ -v --tb=short --maxfail=3 --cov=app --cov-report=term
+          pytest tests/ -v --tb=short --maxfail=5 -x --timeout=10
         continue-on-error: false
 
       - name: Lint with flake8
