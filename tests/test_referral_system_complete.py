@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralBonus
 from app.models.employee import Employee
-from app.models.job import Job
+from app.models.user import Jobs
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
 
