@@ -32,6 +32,14 @@ import { ROUTES } from "../utils/Routes";
 import { NAV_ITEMS } from "./navItems";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
+import {
+  hasPermission,
+  getPermissions,
+  getRoles,
+  isSuperUser,
+  isAdmin,
+  canViewModule,
+} from "../utils/permissionsRbac";
 
 // Nav reorganized 2026-08-12 -- business-focused sections for clarity.
 // Sales (deal pipeline) / Project Management (execution) / Finance (billing)
@@ -83,6 +91,79 @@ function buildGroups(includedKeys) {
   })).filter((g) => g.items.length > 0);
 }
 
+// Permission-based navigation builder (2026-08-12)
+// Maps nav keys to their required permissions
+const NAV_PERMISSIONS = {
+  candidates: "recruitment.view",
+  jobs: "recruitment.view",
+  candidateReview: "recruitment.view",
+  offerLetters: "recruitment.view",
+  offerLettersListing: "recruitment.view",
+  submissions: "recruitment.view",
+  interventionQueue: "recruitment.view",
+  rehireApprovals: "recruitment.view",
+  riskDashboard: "recruitment.view",
+  thunderAnalytics: "recruitment.view",
+  bulkLaunch: "recruitment.view",
+
+  clientManagement: "business_unit.manage",
+  demandConfirmation: "recruitment.view",
+  opportunityPipeline: "business_unit.manage",
+  partnerRoi: "business_unit.manage",
+
+  employees: "employee.view",
+  employeeConversion: "employee.manage",
+  htdIntake: "recruitment.view",
+  buddyProgram: "employee.manage",
+  corePull: "resource_management.view",
+
+  projects: "project.manage",
+  allocations: "project.manage",
+  resourceManagement: "resource_management.view",
+  utilization: "project.view",
+  forecast: "project.view",
+
+  myExpenses: "invoice.view",
+  timesheets: "timesheet.view",
+  invoices: "invoice.view",
+  revenue: "reports.financial",
+  forecastVsActual: "reports.financial",
+  executiveRevenueDashboard: "reports.financial",
+  financeOperations: "finance.view",
+  ceoFyProgress: "reports.view",
+  cfoDashboard: "reports.view",
+
+  usersAccessControl: "user.manage",
+  tenantLocale: "tenant.manage",
+  tenantAiConfig: "agent.manage",
+  messageTemplates: "communication.manage",
+  ticketRoutingAdmin: "ticket.manage",
+  executiveSignal: "reports.view",
+  errorLog: "system.view",
+  adminSettings: "system.manage",
+  adminWeeklyRecap: "reports.view",
+};
+
+function buildGroupsByPermissions() {
+  const permissions = getPermissions() || [];
+  const isSuperUserFlag = isSuperUser();
+
+  const getIncludedKeys = () => {
+    if (isSuperUserFlag) {
+      // Super users see everything
+      return Object.keys(NAV_PERMISSIONS);
+    }
+
+    // Filter by permission
+    return Object.keys(NAV_PERMISSIONS).filter(key => {
+      const requiredPerm = NAV_PERMISSIONS[key];
+      return hasPermission(requiredPerm);
+    });
+  };
+
+  return buildGroups(getIncludedKeys());
+}
+
 export default function Shell({
   role,
   screen,
@@ -107,6 +188,18 @@ export default function Shell({
   const isHrOperations = normalizedRole === "HR OPERATIONS";
 
   const nav = useMemo(() => {
+    // 2026-08-12: Permission-based navigation (new RBAC system)
+    const permissions = getPermissions();
+    const rolesArray = getRoles();
+
+    // Use permission-based navigation if permissions are available
+    if (Array.isArray(permissions) && permissions.length > 0) {
+      const permissionGroups = buildGroupsByPermissions();
+      const standalone = [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet];
+      return { standalone, groups: permissionGroups };
+    }
+
+    // Fallback: Legacy role-based navigation for backward compatibility
     if (isSuperUser) {
       return {
         standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
@@ -154,7 +247,7 @@ export default function Shell({
       return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
     }
     return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
-  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
+  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations, getPermissions, buildGroupsByPermissions]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
 

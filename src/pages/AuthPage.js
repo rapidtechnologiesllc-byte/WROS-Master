@@ -82,6 +82,23 @@ export default function AuthPage() {
     if (data?.user_role) {
       localStorage.setItem("permission_role", data.user_role);
     }
+
+    // Multi-role RBAC: Store roles[] and permissions[] from login response
+    if (Array.isArray(data?.roles)) {
+      localStorage.setItem("hrms_roles", JSON.stringify(data.roles));
+    }
+    if (Array.isArray(data?.permissions)) {
+      localStorage.setItem("hrms_permissions", JSON.stringify(data.permissions));
+    }
+
+    // Store business unit info
+    if (data?.business_unit_id) {
+      localStorage.setItem("hrms_business_unit_id", String(data.business_unit_id));
+    }
+    if (data?.business_unit_name) {
+      localStorage.setItem("hrms_business_unit_name", data.business_unit_name);
+    }
+
     const entityType = String(data?.entity_type || "")
       .trim()
       .toLowerCase();

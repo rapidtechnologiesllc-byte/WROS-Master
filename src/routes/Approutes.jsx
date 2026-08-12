@@ -108,6 +108,7 @@ import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
+import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -491,6 +492,7 @@ export default function AppRoutes() {
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
+            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -730,6 +732,7 @@ export default function AppRoutes() {
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
+            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />

@@ -12,6 +12,7 @@ export const ROUTES = {
   FINANCE_OPERATIONS: "/finance-operations",
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
+  EMPLOYEE_CONVERSION: "/employee-conversion",
   SUBMISSIONS: "/submissions",
   ALLOCATIONS: "/allocations",
   PROJECTS: "/projects",

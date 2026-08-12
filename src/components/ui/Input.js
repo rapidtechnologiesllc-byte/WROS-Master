@@ -18,7 +18,7 @@ export default function Input({
         type={type}
         value={value}
         placeholder={placeholder}
-        onChange={disabled ? undefined : (e) => onChange(e.target.value)}
+        onChange={disabled ? undefined : (e) => onChange?.(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
         disabled={disabled}
