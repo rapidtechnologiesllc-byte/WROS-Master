@@ -530,6 +530,87 @@ def create_user(
     )
 
 
+@router.post(
+    "/users/create-with-roles",
+    response_model=UserResponse,
+    status_code=201,
+    summary="Create user with multi-role and BU assignment",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def create_user_with_roles(
+    user_name: str,
+    user_email: str,
+    user_password: str,
+    business_unit_id: int,
+    role_ids: list,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Create user with multiple roles and Business Unit assignment.
+
+    Supports:
+    - Multi-role assignment (e.g., Partner + BU Head + Hiring Manager)
+    - Business Unit scoping
+    - Combined permissions from all assigned roles
+
+    Requires permission: user.manage
+    """
+    from app.core.database import check_user
+    from app.models.rbac import Role
+    from app.models.user import UserRole
+
+    # Verify user can create in target BU
+    if current_user.business_unit_id != business_unit_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot create users outside your Business Unit"
+        )
+
+    # Check if email exists
+    existing = check_user(db, user_email)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
+
+    # Create user
+    new_user = Users(
+        UserID=user_id_generator(),
+        UserName=user_name,
+        UserEmail=user_email,
+        UserPassword=get_password_hash(user_password),
+        business_unit_id=business_unit_id,
+        UserRole="MultiRole"  # Indicates user has multiple roles
+    )
+    db.add(new_user)
+    db.flush()
+
+    # Assign roles
+    for role_id in role_ids:
+        # Verify role exists
+        role = db.query(Role).filter(Role.id == role_id).first()
+        if not role:
+            raise HTTPException(status_code=404, detail=f"Role {role_id} not found")
+
+        user_role = UserRole(
+            id=f"ur_{new_user.UserID}_{role_id}",
+            user_id=new_user.UserID,
+            role_id=role_id,
+            business_unit_id=business_unit_id
+        )
+        db.add(user_role)
+
+    db.commit()
+    db.refresh(new_user)
+
+    return UserResponse(
+        user_id=new_user.UserID,
+        user_name=new_user.UserName or "",
+        user_email=new_user.UserEmail,
+        user_role="MultiRole",
+        created_at=new_user.CreatedAt
+    )
+
+
 @router.put(
     "/users/{user_id}",
     response_model=UserResponse,
