@@ -85,6 +85,8 @@ export const NAV_ITEMS = {
   cfoDashboard: { path: ROUTES.CFO_DASHBOARD, label: "CFO Agent", icon: LineChart },
   rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
   hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
+  // Integrated Users Lifecycle Management -- create, edit, terminate, reinstate, permissions, audit trail
+  users: { path: ROUTES.USERS, label: "Users", icon: Users },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
   // S-077/HRMS-0477 -- unified Thunder config, Super User only server-side
