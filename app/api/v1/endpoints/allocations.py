@@ -135,22 +135,6 @@ def create_allocation(
     return _to_item(db, allocation)
 
 
-@router.get("", response_model=AllocationListResponse, summary="List allocations")
-def list_allocations(
-    employee_id: Optional[str] = None,
-    demand_id: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    query = db.query(EmployeeAllocation).filter(EmployeeAllocation.tenant_id == current_user.tenant_id)
-    if employee_id:
-        query = query.filter(EmployeeAllocation.employee_id == employee_id)
-    if demand_id:
-        query = query.filter(EmployeeAllocation.demand_id == demand_id)
-    allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
-    return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
-
-
 @router.get("/dropdowns/for-create", response_model=AllocationDropdownsResponse, summary="Get employees and demands for allocation form")
 def get_allocation_dropdowns(
     db: Session = Depends(get_db),
@@ -175,6 +159,22 @@ def get_allocation_dropdowns(
     ]
 
     return AllocationDropdownsResponse(employees=employee_items, demands=demand_items)
+
+
+@router.get("", response_model=AllocationListResponse, summary="List allocations")
+def list_allocations(
+    employee_id: Optional[str] = None,
+    demand_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    query = db.query(EmployeeAllocation).filter(EmployeeAllocation.tenant_id == current_user.tenant_id)
+    if employee_id:
+        query = query.filter(EmployeeAllocation.employee_id == employee_id)
+    if demand_id:
+        query = query.filter(EmployeeAllocation.demand_id == demand_id)
+    allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
+    return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
 
 
 @router.post("/{allocation_id}/end", response_model=AllocationItem, summary="End an allocation")
