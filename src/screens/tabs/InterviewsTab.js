@@ -23,6 +23,7 @@ import {
   deleteInterview,
   getInterviewById,
   getMyInterviews,
+  getFlashAnalysisForInterview,
 } from "../../services/api/interviews";
 import {
   deleteInterviewMail,
@@ -105,6 +106,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
 
   const [selectedInterviewId, setSelectedInterviewId] = useState(null);
   const [selectedInterviewDetails, setSelectedInterviewDetails] = useState(null);
+  const [flashAnalysis, setFlashAnalysis] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
 
@@ -427,9 +429,14 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
     setDetailsError("");
     setDetailsLoading(true);
     setSelectedInterviewDetails(null);
+    setFlashAnalysis(null);
     try {
-      const res = await getInterviewById(interviewId);
+      const [res, flashData] = await Promise.all([
+        getInterviewById(interviewId),
+        getFlashAnalysisForInterview(interviewId),
+      ]);
       setSelectedInterviewDetails(res);
+      setFlashAnalysis(flashData);
     } catch (err) {
       console.error("Failed to fetch interview details", err);
       setDetailsError("Failed to load interview details");
@@ -440,6 +447,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const closeDetailsModal = () => {
     setSelectedInterviewId(null);
     setSelectedInterviewDetails(null);
+    setFlashAnalysis(null);
     setDetailsError("");
   };
 
@@ -732,6 +740,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           loading={detailsLoading}
           error={detailsError}
           interview={selectedInterviewDetails}
+          flashAnalysis={flashAnalysis}
           panelMembers={
             panelMembersMap[selectedInterviewDetails?.panel_id]
             || panelMembersMap[interviews.find((item) => item.id === selectedInterviewId)?.panel_id]
@@ -991,7 +1000,7 @@ function PanelMembers({ members }) {
   );
 }
 
-function InterviewDetailsModal({ open, onClose, loading, error, interview, panelMembers }) {
+function InterviewDetailsModal({ open, onClose, loading, error, interview, flashAnalysis, panelMembers }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
@@ -1024,6 +1033,51 @@ function InterviewDetailsModal({ open, onClose, loading, error, interview, panel
                   <DetailRow label="Mode" value={interview?.meeting_link ? "Online Interview" : "Offline / TBD"} />
                 </div>
               </div>
+
+              {flashAnalysis && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold text-amber-900">Flash AI Analysis</h4>
+                    <span className="text-xs font-medium text-amber-700 bg-white px-2 py-1 rounded">
+                      {flashAnalysis.recommendation} • {flashAnalysis.confidence_pct}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className="bg-white rounded p-2">
+                      <div className="text-xs text-gray-600">Technical</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.technical_score}</div>
+                    </div>
+                    <div className="bg-white rounded p-2">
+                      <div className="text-xs text-gray-600">Communication</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.communication_score}</div>
+                    </div>
+                    <div className="bg-white rounded p-2">
+                      <div className="text-xs text-gray-600">Problem-Solving</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.problem_solving_score}</div>
+                    </div>
+                    <div className="bg-white rounded p-2">
+                      <div className="text-xs text-gray-600">Culture Fit</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.culture_fit_score}</div>
+                    </div>
+                  </div>
+                  {flashAnalysis.rationale && (
+                    <p className="text-sm text-amber-800 mb-3"><strong>Reasoning:</strong> {flashAnalysis.rationale}</p>
+                  )}
+                  {flashAnalysis.strengths && flashAnalysis.strengths.length > 0 && (
+                    <div className="text-sm mb-2">
+                      <strong className="text-amber-900">Strengths:</strong>
+                      <div className="text-amber-800">{flashAnalysis.strengths.join(" • ")}</div>
+                    </div>
+                  )}
+                  {flashAnalysis.concerns && flashAnalysis.concerns.length > 0 && (
+                    <div className="text-sm">
+                      <strong className="text-amber-900">Concerns:</strong>
+                      <div className="text-amber-800">{flashAnalysis.concerns.join(" • ")}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="text-sm font-semibold text-gray-900 mb-3">Panel Members</div>
                 <PanelMembers members={panelMembers} />
