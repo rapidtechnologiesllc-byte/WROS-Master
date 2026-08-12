@@ -149,6 +149,37 @@ def create_hr_assignment(
 
 
 # ---------------------------------------------------------------------------
+# GET /hr-assignments/candidates  — Get all candidates (for dashboard/admin)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/candidates",
+    response_model=HRAssignmentListResponse,
+    dependencies=[Depends(require_permission("candidate.view"))],
+    summary="Get all candidates (for dashboard display)",
+)
+def get_all_candidates(
+    db: Session = Depends(get_db),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """
+    Returns all candidates in the system with their HR assignments.
+    Used for dashboard displays and admin views that show all candidates.
+
+    **Required permission:** `candidate.view`
+    """
+    query = db.query(HRAssignment)
+    total = query.count()
+    rows = query.order_by(HRAssignment.created_at.desc()).offset(skip).limit(limit).all()
+
+    return HRAssignmentListResponse(
+        total=total,
+        assignments=[_to_response(r, db) for r in rows],
+    )
+
+
+# ---------------------------------------------------------------------------
 # GET /hr-assignments/my-candidates  — Get my assigned candidates (as HR)
 # ---------------------------------------------------------------------------
 
