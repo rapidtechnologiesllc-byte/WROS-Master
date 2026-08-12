@@ -525,6 +525,7 @@ export default function AppRoutes() {
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
 
@@ -905,7 +906,6 @@ export default function AppRoutes() {
             }
           />
           <Route path="/offers" element={<OfferLettersScreen />} />
-          <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
         </Route>
       </Routes>
       <ToastContainer position="top-right" autoClose={3000} />
