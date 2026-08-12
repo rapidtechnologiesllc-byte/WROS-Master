@@ -36,7 +36,6 @@ router = APIRouter(prefix="/rbac", tags=["RBAC"])
     "/roles",
     response_model=List[RoleListItem],
     summary="List all roles",
-    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def list_roles(
     db: Session = Depends(get_db),
@@ -109,7 +108,6 @@ def get_role(
     "/permissions",
     response_model=List[PermissionResponse],
     summary="List all permissions",
-    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def list_permissions(
     db: Session = Depends(get_db),
@@ -363,7 +361,6 @@ def create_business_unit(
     "/business-units",
     response_model=List[BusinessUnitListItem],
     summary="List all business units",
-    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def list_business_units(
     db: Session = Depends(get_db),
@@ -622,7 +619,6 @@ def create_department(
     "/departments",
     response_model=List[DepartmentListItem],
     summary="List all departments",
-    dependencies=[Depends(require_permission("rbac.manage"))],
 )
 def list_departments(
     db: Session = Depends(get_db),
