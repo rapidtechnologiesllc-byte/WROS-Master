@@ -49,11 +49,16 @@ const GROUP_DEFS = [
     keys: ["clientManagement", "demandConfirmation", "opportunityPipeline", "partnerRoi"],
   },
   {
+    label: "Workforce",
+    icon: Users2,
+    keys: ["employees", "htdIntake", "buddyProgram", "corePull"],
+  },
+  {
     label: "Project Management",
     icon: FolderKanban,
     keys: [
-      "employees", "projects", "allocations", "resourceManagement", "corePull",
-      "utilization", "forecast", "htdIntake", "buddyProgram",
+      "projects", "allocations", "resourceManagement",
+      "utilization", "forecast",
     ],
   },
   {
