@@ -73,7 +73,7 @@ import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
-import EmployeeDirectoryScreen from "../screens/EmployeeDirectoryScreen";
+import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
@@ -489,7 +489,7 @@ export default function AppRoutes() {
             <Route path="core-pull" element={<CorePullScreen />} />
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
-            <Route path="employees" element={<EmployeeDirectoryScreen />} />
+            <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -727,7 +727,7 @@ export default function AppRoutes() {
           <Route path="core-pull" element={<CorePullScreen />} />
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
-            <Route path="employees" element={<EmployeeDirectoryScreen />} />
+            <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
