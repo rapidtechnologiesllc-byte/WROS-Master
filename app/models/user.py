@@ -93,10 +93,25 @@ class Users(Base):
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
+    # Multi-role support (2026-08-12 RBAC)
+    user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", lazy="select")
 
     def is_active(self) -> bool:
         """Return True if user is not terminated."""
         return self.terminated_at is None
+
+
+class UserRole(Base):
+    """Multi-role assignment junction table (2026-08-12 RBAC)"""
+    __tablename__ = "user_roles"
+    id = Column(String(255), primary_key=True, index=True)
+    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
+
+    role = relationship("Role", foreign_keys=[role_id], lazy="select")
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
 
 class Jobs(Base):
     __tablename__ = "jobs"
