@@ -67,17 +67,20 @@ def get_db():
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Candidate
-    return db.query(Candidate).filter(Candidate.candidateEmail == email).first()
+    from sqlalchemy import func
+    return db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == email.lower()).first()
 
 def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
-    return db.query(Users).filter(Users.UserEmail == email).first()
+    from sqlalchemy import func
+    return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
-    return db.query(Users).filter(Users.UserEmail == email).first()
+    from sqlalchemy import func
+    return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def authenticate_user(db: Session, email: str, password: str):
     from app.core.security import verify_password
