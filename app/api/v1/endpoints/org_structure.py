@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
+from app.core.dependencies import require_permission
 from app.schemas.org_structure import (
     OrgPositionResponse,
     OrgNodeResponse,
