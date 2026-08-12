@@ -58,13 +58,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create SSH config
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Add host key to known_hosts
         run: |
           mkdir -p ~/.ssh
-          cat > ~/.ssh/id_rsa << 'EOF'
-          ${{ secrets.PROD_SSH_KEY }}
-          EOF
-          chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Backup current version (rollback)
