@@ -34,6 +34,7 @@ export const ROUTES = {
   JOB_DETAILS: "/jobs/details",
   JOB_WORKSPACE: "/jobs/workspace",
   HR_USERS: "/hr-users",
+  USERS: "/users",
   RBAC: "/rbac",
   OFFERS: "/offers",
   OFFERS_LISTING: "/offers-listing",

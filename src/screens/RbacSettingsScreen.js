@@ -1,1125 +1,561 @@
-// RBAC settings screen (Admin only).
-import { useEffect, useMemo, useState } from "react";
-import { Shield } from "lucide-react";
-import { Button, Card, Input, Select, StatusBadge } from "../components/ui";
-import { getAllUsers } from "../services/api/users";
+/**
+ * RBAC & User Access Management Screen
+ *
+ * Three-panel layout:
+ * - Left: Module list with search (300px)
+ * - Center: Permission grid (flex) - roles × modules × verbs
+ * - Right: User access manager (300px) - assign roles, copy templates, custom permissions
+ */
+
+import React, { useEffect, useState, useMemo } from "react";
+import { Search, Copy, Settings, AlertCircle, CheckCircle } from "lucide-react";
+import { Card, Button, Input, Select, Badge } from "../components/ui";
 import {
-  assignPermissionToRole,
+  getModulesAndVerbs,
+  getRolesMatrix,
+  grantPermission,
+  revokePermission,
   assignRoleToUser,
-  createBusinessUnit,
-  createPermission,
-  createDepartment,
-  createRole,
-  deleteBusinessUnit,
-  deletePermission,
-  deleteRole,
-  getUserBusinessUnit,
-  getUserPermissionSummary,
-  getUserRole,
-  getRoleById,
-  listBusinessUnits,
-  listPermissions,
-  listRoles,
-  removePermissionFromRole,
-  setBusinessUnitForUser,
-  revokeUserRole,
-  updateBusinessUnit,
-  updateRole,
-  departmentList,
-  setDepartmentForUser,
 } from "../services/api/rbac";
+import { getAllUsers } from "../services/api/users";
 import { toast } from "react-toastify";
 
 export default function RbacSettingsScreen() {
+  // =========================================================================
+  // State
+  // =========================================================================
+
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [moduleSearch, setModuleSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("assign"); // assign | copy | custom
 
+  // Data
+  const [modules, setModules] = useState([]);
+  const [verbMatrix, setVerbMatrix] = useState({});
   const [roles, setRoles] = useState([]);
-  const [permissions, setPermissions] = useState([]);
-  const [businessUnits, setBusinessUnits] = useState([]);
   const [users, setUsers] = useState([]);
+  const [selectedModule, setSelectedModule] = useState(null);
 
-  const [selectedRoleId, setSelectedRoleId] = useState("");
-  const [selectedPermissionId, setSelectedPermissionId] = useState("");
+  // UI selections
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedUserRoleId, setSelectedUserRoleId] = useState("");
-  const [selectedBuId, setSelectedBuId] = useState("");
+  const [selectedRoleId, setSelectedRoleId] = useState("");
+  const [sourceRoleId, setSourceRoleId] = useState(""); // For copy template
 
-  const [roleDetail, setRoleDetail] = useState(null);
-  const [userPermissionSummary, setUserPermissionSummary] = useState(null);
-  const [userRoleDetail, setUserRoleDetail] = useState(null);
-  const [userBusinessUnitDetail, setUserBusinessUnitDetail] = useState(null);
-  const [userDetailNotice, setUserDetailNotice] = useState("");
-  const [userBuUpdateId, setUserBuUpdateId] = useState("");
+  // Toggle states for permission grid
+  const [toggleStates, setToggleStates] = useState({}); // {roleId_module_verb: boolean}
+  const [toggling, setToggling] = useState({}); // {roleId_module_verb: "loading"}
 
-  const [newRole, setNewRole] = useState({ name: "", description: "" });
-  const [newPermission, setNewPermission] = useState({
-    name: "",
-    description: "",
-  });
-  const [newBu, setNewBu] = useState({ name: "", description: "" });
-  const [editRole, setEditRole] = useState({ name: "", description: "" });
-  const [editBu, setEditBu] = useState({ name: "", description: "" });
-  const [newDepartment, setNewDepartment] = useState({
-    name: "",
-    description: "",
-  });
-  const [userForDept, setUserForDept] = useState("");
-  const [department, setDepartment] = useState([]);
-  const [selectedDept, setSelectedDept] = useState("");
-
-  const roleOptions = useMemo(() => {
-    const rows = roles.map((r) => {
-      const id = String(r.id ?? "");
-      const name = String(r.name || "").trim();
-      const label = name ? `${name} (${id})` : id || "Unnamed role";
-      return { value: id, label };
-    });
-    return [{ value: "", label: "—" }, ...rows];
-  }, [roles]);
-
-  const permissionOptions = useMemo(
-    () => ["", ...permissions.map((p) => String(p.id))],
-    [permissions],
-  );
-
-  const userOptions = useMemo(() => {
-    const rows = users.map((u) => {
-      const id = String(u.user_id ?? "");
-      const name = String(u.user_name || "").trim();
-      const email = String(u.user_email || "").trim();
-      const parts = [];
-      if (name) parts.push(name);
-      if (email && email !== name) parts.push(email);
-      const label = parts.length ? parts.join(" — ") : id || "Unknown user";
-      return { value: id, label };
-    });
-    return [{ value: "", label: "—" }, ...rows];
-  }, [users]);
-
-  const buOptions = useMemo(
-    () => ["", ...businessUnits.map((b) => String(b.id))],
-    [businessUnits],
-  );
-
-  const deptOptions = [
-    { label: "Please select Department", value: "", disabled: true },
-    ...(department?.map((dept) => ({
-      label: dept?.name,
-      value: dept?.id,
-    })) || []),
-  ];
+  // =========================================================================
+  // Load Data
+  // =========================================================================
 
   useEffect(() => {
-    if (
-      selectedRoleId &&
-      !roles.some((r) => String(r.id) === String(selectedRoleId))
-    ) {
-      setSelectedRoleId("");
-      setRoleDetail(null);
-    }
-  }, [roles, selectedRoleId]);
+    loadData();
+  }, []);
 
-  useEffect(() => {
-    if (
-      selectedPermissionId &&
-      !permissions.some((p) => String(p.id) === String(selectedPermissionId))
-    ) {
-      setSelectedPermissionId("");
-    }
-  }, [permissions, selectedPermissionId]);
-
-  useEffect(() => {
-    if (
-      selectedUserId &&
-      !users.some((u) => String(u.user_id) === String(selectedUserId))
-    ) {
-      setSelectedUserId("");
-    }
-  }, [users, selectedUserId]);
-
-  useEffect(() => {
-    if (
-      selectedUserRoleId &&
-      !roles.some((r) => String(r.id) === String(selectedUserRoleId))
-    ) {
-      setSelectedUserRoleId("");
-    }
-  }, [roles, selectedUserRoleId]);
-
-  useEffect(() => {
-    if (
-      selectedBuId &&
-      !businessUnits.some((b) => String(b.id) === String(selectedBuId))
-    ) {
-      setSelectedBuId("");
-    }
-  }, [businessUnits, selectedBuId]);
-
-  const loadAll = async () => {
-    setLoading(true);
-    setError("");
+  const loadData = async () => {
     try {
-      const [rolesRes, permsRes, buRes, usersRes, departmentRes] =
-        await Promise.all([
-          listRoles(),
-          listPermissions(),
-          listBusinessUnits(),
-          getAllUsers(),
-          departmentList(),
-        ]);
-      setRoles(Array.isArray(rolesRes) ? rolesRes : []);
-      setPermissions(Array.isArray(permsRes) ? permsRes : []);
-      setBusinessUnits(Array.isArray(buRes) ? buRes : []);
-      setUsers(Array.isArray(usersRes) ? usersRes : []);
-      setDepartment(departmentRes);
+      setLoading(true);
+      setError("");
+
+      // Fetch modules and verb matrix
+      const matrixRes = await getModulesAndVerbs();
+      setModules(matrixRes.modules || []);
+      setVerbMatrix(matrixRes.verb_matrix || {});
+
+      // Fetch roles matrix
+      const rolesRes = await getRolesMatrix();
+      const rolesData = rolesRes.roles || [];
+      setRoles(rolesData);
+
+      // Initialize toggle states from roles matrix
+      const initialToggles = {};
+      rolesData.forEach((role) => {
+        Object.entries(role.permissions).forEach(([module, verbs]) => {
+          Object.entries(verbs).forEach(([verb, hasPermission]) => {
+            initialToggles[`${role.id}_${module}_${verb}`] = hasPermission;
+          });
+        });
+      });
+      setToggleStates(initialToggles);
+
+      // Fetch users
+      const usersData = await getAllUsers();
+      setUsers(usersData.data || usersData || []);
+
+      setSelectedModule(matrixRes.modules?.[0] || null);
     } catch (err) {
-      setError(err.message || "Failed to load RBAC data.");
+      console.error("Failed to load RBAC data:", err);
+      setError("Failed to load RBAC configuration. Please try again.");
+      toast.error("Failed to load RBAC data");
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshRoleDetail = async (roleId) => {
-    if (!roleId) {
-      setRoleDetail(null);
-      return;
-    }
+  // =========================================================================
+  // Permission Toggle Handler
+  // =========================================================================
+
+  const handlePermissionToggle = async (roleId, module, verb) => {
+    const key = `${roleId}_${module}_${verb}`;
+    const permissionName = `${module}.${verb}`;
+    const currentState = toggleStates[key];
+
+    // Optimistic update
+    setToggleStates((prev) => ({ ...prev, [key]: !currentState }));
+    setToggling((prev) => ({ ...prev, [key]: "loading" }));
+
     try {
-      const detail = await getRoleById(roleId);
-      setRoleDetail(detail || null);
+      if (currentState) {
+        // Revoke permission
+        await revokePermission(roleId, permissionName);
+        toast.success(`Revoked ${permissionName} from role`);
+      } else {
+        // Grant permission
+        await grantPermission(roleId, permissionName);
+        toast.success(`Granted ${permissionName} to role`);
+      }
     } catch (err) {
-      setRoleDetail(null);
-      setError(err.message || "Failed to load role details.");
+      console.error("Failed to toggle permission:", err);
+      // Revert optimistic update
+      setToggleStates((prev) => ({ ...prev, [key]: currentState }));
+      toast.error(`Failed to update permission`);
+    } finally {
+      setToggling((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  // =========================================================================
+  // User Role Assignment
+  // =========================================================================
 
-  useEffect(() => {
-    refreshRoleDetail(selectedRoleId);
-  }, [selectedRoleId]);
-  useEffect(() => {
-    if (!notice && !error) return;
-
-    const timer = setTimeout(() => {
-      setNotice("");
-      setError("");
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [notice, error]);
-
-  useEffect(() => {
-    if (!roleDetail) return;
-    setEditRole({
-      name: roleDetail.name || "",
-      description: roleDetail.description || "",
-    });
-  }, [roleDetail]);
-
-  useEffect(() => {
-    if (!selectedBuId) {
-      setEditBu({ name: "", description: "" });
+  const handleAssignRole = async () => {
+    if (!selectedUserId || !selectedRoleId) {
+      toast.warning("Please select a user and role");
       return;
     }
-    const bu = businessUnits.find((b) => String(b.id) === String(selectedBuId));
-    if (!bu) return;
-    setEditBu({ name: bu.name || "", description: bu.description || "" });
-  }, [selectedBuId, businessUnits]);
+
+    try {
+      await assignRoleToUser(selectedUserId, parseInt(selectedRoleId));
+      toast.success("Role assigned successfully");
+      setSelectedUserId("");
+      setSelectedRoleId("");
+    } catch (err) {
+      console.error("Failed to assign role:", err);
+      toast.error("Failed to assign role");
+    }
+  };
+
+  // =========================================================================
+  // Role Copy Template
+  // =========================================================================
+
+  const handleCopyRoleTemplate = async () => {
+    if (!selectedUserId || !sourceRoleId) {
+      toast.warning("Please select a user and source role");
+      return;
+    }
+
+    try {
+      // Copy all permissions from source role to target user
+      const sourceRole = roles.find((r) => r.id === parseInt(sourceRoleId));
+      if (!sourceRole) {
+        toast.error("Source role not found");
+        return;
+      }
+
+      // First assign the role
+      await assignRoleToUser(selectedUserId, parseInt(sourceRoleId));
+
+      toast.success("Role template copied to user");
+      setSelectedUserId("");
+      setSourceRoleId("");
+    } catch (err) {
+      console.error("Failed to copy role template:", err);
+      toast.error("Failed to copy role template");
+    }
+  };
+
+  // =========================================================================
+  // Derived State
+  // =========================================================================
+
+  const categoryGroups = useMemo(() => {
+    const groups = {
+      Recruitment: [
+        "candidates",
+        "jobs",
+        "interviews",
+        "offers",
+        "submissions",
+        "offer_readiness",
+        "candidate_review",
+        "bulk_launch",
+        "thunder_analytics",
+      ],
+      Sales: [
+        "clients",
+        "demand",
+        "opportunities",
+        "opportunity_pipeline",
+        "partner_roi",
+      ],
+      ProjectManagement: [
+        "employees",
+        "projects",
+        "allocations",
+        "resource_management",
+        "core_pull",
+        "utilization",
+        "forecast",
+        "buddy_program",
+        "htd_intake",
+      ],
+      Finance: [
+        "invoices",
+        "timesheets",
+        "expenses",
+        "revenue",
+        "forecasting",
+        "finance_operations",
+      ],
+      Admin: [
+        "rbac",
+        "users",
+        "tenant_config",
+        "locale",
+        "ai_config",
+        "message_templates",
+        "ticket_routing",
+        "documents",
+        "reports",
+        "tasks",
+        "notifications",
+        "error_log",
+        "admin_settings",
+        "executive_signal",
+      ],
+    };
+    return groups;
+  }, []);
+
+  const filteredModules = useMemo(() => {
+    const search = moduleSearch.toLowerCase();
+    return modules.filter((m) => m.toLowerCase().includes(search));
+  }, [modules, moduleSearch]);
+
+  const userOptions = useMemo(() => {
+    return users.map((u) => ({
+      value: u.user_id || u.UserID,
+      label: `${u.user_name || u.UserName || ""} (${u.user_email || u.UserEmail || ""})`,
+    }));
+  }, [users]);
+
+  const roleOptions = useMemo(() => {
+    return roles.map((r) => ({
+      value: r.id,
+      label: r.name,
+    }));
+  }, [roles]);
+
+  // =========================================================================
+  // Render
+  // =========================================================================
 
   if (loading) {
     return (
-      <Card title="RBAC Settings" icon={<Shield className="h-4 w-4" />}>
-        <div className="py-4 text-center text-sm text-gray-500">Loading…</div>
-      </Card>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-gray-500">Loading RBAC configuration...</div>
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      <Card title="RBAC Settings" icon={<Shield className="h-4 w-4" />}>
-        {error ? (
-          <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
-          </div>
-        ) : null}
-        {notice ? (
-          <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            {notice}
-          </div>
-        ) : null}
+    <div className="flex flex-col h-full bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <h1 className="text-2xl font-bold text-gray-900">
+          RBAC & User Access Management
+        </h1>
+        <p className="text-gray-600 mt-1">
+          Manage role permissions and user assignments across 45+ modules
+        </p>
+      </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">Create Role</div>
-            <Input
-              label="Role name"
-              value={newRole.name}
-              onChange={(v) => setNewRole((r) => ({ ...r, name: v }))}
-            />
-            <Input
-              label="Description"
-              value={newRole.description}
-              onChange={(v) => setNewRole((r) => ({ ...r, description: v }))}
-            />
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await createRole(newRole);
-                    setNewRole({ name: "", description: "" });
-                    await loadAll();
-                    setNotice("Role created.");
-                  } catch (err) {
-                    setError(err.message || "Failed to create role.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !newRole.name.trim()}
-              >
-                Create Role
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">Create Permission</div>
-            <Input
-              label="Permission name (e.g. candidate.view)"
-              value={newPermission.name}
-              onChange={(v) => setNewPermission((p) => ({ ...p, name: v }))}
-            />
-            <Input
-              label="Description"
-              value={newPermission.description}
-              onChange={(v) =>
-                setNewPermission((p) => ({ ...p, description: v }))
-              }
-            />
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await createPermission(newPermission);
-                    setNewPermission({ name: "", description: "" });
-                    await loadAll();
-                    setNotice("Permission created.");
-                  } catch (err) {
-                    setError(err.message || "Failed to create permission.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !newPermission.name.trim()}
-              >
-                Create Permission
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">
-              Create Business Unit
-            </div>
-            <Input
-              label="Business unit name"
-              value={newBu.name}
-              onChange={(v) => setNewBu((b) => ({ ...b, name: v }))}
-            />
-            <Input
-              label="Description"
-              value={newBu.description}
-              onChange={(v) => setNewBu((b) => ({ ...b, description: v }))}
-            />
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await createBusinessUnit(newBu);
-                    setNewBu({ name: "", description: "" });
-                    await loadAll();
-                    setNotice("Business unit created.");
-                  } catch (err) {
-                    setError(err.message || "Failed to create business unit.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !newBu.name.trim()}
-              >
-                Create Business Unit
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">Create Department</div>
-
-            <Input
-              label="Department name"
-              value={newDepartment.name}
-              onChange={(v) =>
-                setNewDepartment((d) => ({
-                  ...d,
-                  name: v,
-                }))
-              }
-            />
-
-            <Input
-              label="Description"
-              value={newDepartment.description}
-              onChange={(v) =>
-                setNewDepartment((d) => ({
-                  ...d,
-                  description: v,
-                }))
-              }
-            />
-
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  const departmentName = newDepartment.name.trim();
-
-                  if (!departmentName) {
-                    setError("Department name is required.");
-                    return;
-                  }
-
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-
-                  try {
-                    await createDepartment({
-                      name: departmentName,
-                      description: newDepartment.description,
-                    });
-
-                    setNewDepartment({
-                      name: "",
-                      description: "",
-                    });
-
-                    setNotice("Department created successfully.");
-                  } catch (err) {
-                    setError(err.message || "Failed to create department.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !newDepartment.name.trim()}
-              >
-                Create Department
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">Assign User Role</div>
-            <Select
-              label="User"
-              value={selectedUserId}
-              onChange={setSelectedUserId}
-              options={userOptions}
-            />
-            <Select
-              label="Role"
-              value={selectedUserRoleId}
-              onChange={setSelectedUserRoleId}
-              options={roleOptions}
-            />
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  if (!selectedUserId || !selectedUserRoleId) return;
-                  if (
-                    !users.some(
-                      (u) => String(u.user_id) === String(selectedUserId),
-                    )
-                  ) {
-                    setError("Selected user is not in backend list.");
-                    return;
-                  }
-                  if (
-                    !roles.some(
-                      (r) => String(r.id) === String(selectedUserRoleId),
-                    )
-                  ) {
-                    setError("Selected role is not in backend list.");
-                    return;
-                  }
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await assignRoleToUser(
-                      String(selectedUserId),
-                      Number(selectedUserRoleId),
-                    );
-                    setNotice("Role assigned to user.");
-                  } catch (err) {
-                    setError(err.message || "Failed to assign role.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedUserId || !selectedUserRoleId}
-              >
-                Assign Role
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">
-              Assign User Business Unit
-            </div>
-            <Select
-              label="User"
-              value={selectedUserId}
-              onChange={setSelectedUserId}
-              options={userOptions}
-            />
-            <Select
-              label="Business Unit"
-              value={selectedBuId}
-              onChange={setSelectedBuId}
-              options={buOptions}
-            />
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  if (!selectedUserId || !selectedBuId) return;
-                  if (
-                    !users.some(
-                      (u) => String(u.user_id) === String(selectedUserId),
-                    )
-                  ) {
-                    setError("Selected user is not in backend list.");
-                    return;
-                  }
-                  if (
-                    !businessUnits.some(
-                      (b) => String(b.id) === String(selectedBuId),
-                    )
-                  ) {
-                    setError("Selected business unit is not in backend list.");
-                    return;
-                  }
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await setBusinessUnitForUser(
-                      String(selectedUserId),
-                      Number(selectedBuId),
-                    );
-                    setNotice("Business unit assigned.");
-                  } catch (err) {
-                    setError(err.message || "Failed to assign business unit.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedUserId || !selectedBuId}
-              >
-                Set Business Unit
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">
-              Role Permission Mapping
-            </div>
-            <Select
-              label="Role"
-              value={selectedRoleId}
-              onChange={setSelectedRoleId}
-              options={roleOptions}
-            />
-            <Select
-              label="Permission"
-              value={selectedPermissionId}
-              onChange={setSelectedPermissionId}
-              options={permissionOptions}
-            />
-            <div className="mt-2 flex gap-2">
-              <Button
-                onClick={async () => {
-                  if (!selectedRoleId || !selectedPermissionId) return;
-                  if (
-                    !roles.some((r) => String(r.id) === String(selectedRoleId))
-                  ) {
-                    setError("Selected role is not in backend list.");
-                    return;
-                  }
-                  if (
-                    !permissions.some(
-                      (p) => String(p.id) === String(selectedPermissionId),
-                    )
-                  ) {
-                    setError("Selected permission is not in backend list.");
-                    return;
-                  }
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await assignPermissionToRole(
-                      Number(selectedRoleId),
-                      Number(selectedPermissionId),
-                    );
-                    await refreshRoleDetail(selectedRoleId);
-                    setNotice("Permission assigned to role.");
-                  } catch (err) {
-                    setError(err.message || "Failed to assign permission.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedRoleId || !selectedPermissionId}
-              >
-                Assign Permission
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">
-              Assign User Department
-            </div>
-            <Select
-              label="Select User"
-              value={userForDept}
-              onChange={setUserForDept}
-              options={userOptions}
-            />
-            <Select
-              label="Select Department"
-              value={selectedDept}
-              onChange={setSelectedDept}
-              options={deptOptions}
-            />
-            <div className="mt-2">
-              <Button
-                onClick={async () => {
-                  if (!userForDept || !selectedDept) return;
-                  if (
-                    !users.some(
-                      (u) => String(u.user_id) === String(userForDept),
-                    )
-                  ) {
-                    setError("Selected user is not in backend list.");
-                    return;
-                  }
-                  if (
-                    !department.some(
-                      (b) => String(b.id) === String(selectedDept),
-                    )
-                  ) {
-                    setError("Selected Department is not in backend list.");
-                    return;
-                  }
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await setDepartmentForUser(
-                      String(userForDept),
-                      Number(selectedDept),
-                    );
-                    toast.success("Department assigned.");
-                  } catch (err) {
-                    setError(err.message || "Failed to assign business unit.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !userForDept || !selectedDept}
-              >
-                Set Department
-              </Button>
-            </div>
-          </div>
+      {/* Error Banner */}
+      {error && (
+        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-red-700">{error}</div>
         </div>
-      </Card>
+      )}
 
-      <Card title="Maintenance Actions">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">
-              Role Update / Delete
-            </div>
-            <Select
-              label="Role"
-              value={selectedRoleId}
-              onChange={setSelectedRoleId}
-              options={roleOptions}
-            />
-            <div className="mt-2 grid gap-2">
+      {/* Main Content - Three Panel Layout */}
+      <div className="flex flex-1 gap-4 p-4 overflow-hidden">
+        {/* LEFT PANEL - Module List */}
+        <div className="w-72 bg-white rounded-lg border border-gray-200 flex flex-col overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-gray-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                label="Name"
-                value={editRole.name}
-                onChange={(v) => setEditRole((r) => ({ ...r, name: v }))}
+                placeholder="Search modules..."
+                value={moduleSearch}
+                onChange={(e) => setModuleSearch(e.target.value)}
+                className="pl-10"
               />
-              <Input
-                label="Description"
-                value={editRole.description}
-                onChange={(v) => setEditRole((r) => ({ ...r, description: v }))}
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                onClick={async () => {
-                  if (!selectedRoleId) return;
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await updateRole(Number(selectedRoleId), editRole);
-                    await refreshRoleDetail(selectedRoleId);
-                    await loadAll();
-                    setNotice("Role updated.");
-                  } catch (err) {
-                    setError(err.message || "Failed to update role.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedRoleId || !editRole.name.trim()}
-              >
-                Update Role
-              </Button>
-              <Button
-                variant="danger"
-                onClick={async () => {
-                  if (!selectedRoleId) return;
-                  if (!window.confirm("Delete this role?")) return;
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await deleteRole(Number(selectedRoleId));
-                    await loadAll();
-                    setSelectedRoleId("");
-                    setRoleDetail(null);
-                    setNotice("Role deleted.");
-                  } catch (err) {
-                    setError(err.message || "Failed to delete role.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedRoleId}
-              >
-                Delete Role
-              </Button>
             </div>
           </div>
 
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <div className="mb-2 text-sm font-semibold">
-              Permission / Business Unit / User
-            </div>
-            <Select
-              label="Permission (for delete)"
-              value={selectedPermissionId}
-              onChange={setSelectedPermissionId}
-              options={permissionOptions}
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                variant="danger"
-                onClick={async () => {
-                  if (!selectedPermissionId) return;
-                  if (!window.confirm("Delete this permission?")) return;
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await deletePermission(Number(selectedPermissionId));
-                    await loadAll();
-                    setNotice("Permission deleted.");
-                  } catch (err) {
-                    setError(err.message || "Failed to delete permission.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedPermissionId}
-              >
-                Delete Permission
-              </Button>
-            </div>
+          {/* Module Categories */}
+          <div className="flex-1 overflow-y-auto">
+            {Object.entries(categoryGroups).map(([category, categoryModules]) => {
+              const visibleInCategory = categoryModules.filter((m) =>
+                filteredModules.includes(m)
+              );
 
-            <div className="mt-4">
-              <Select
-                label="Business Unit (for update/delete)"
-                value={selectedBuId}
-                onChange={setSelectedBuId}
-                options={buOptions}
-              />
-              <div className="mt-2 grid gap-2">
-                <Input
-                  label="BU Name"
-                  value={editBu.name}
-                  onChange={(v) => setEditBu((b) => ({ ...b, name: v }))}
-                />
-                <Input
-                  label="BU Description"
-                  value={editBu.description}
-                  onChange={(v) => setEditBu((b) => ({ ...b, description: v }))}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  onClick={async () => {
-                    if (!selectedBuId) return;
-                    setBusy(true);
-                    setError("");
-                    setNotice("");
-                    try {
-                      await updateBusinessUnit(Number(selectedBuId), editBu);
-                      await loadAll();
-                      setNotice("Business unit updated.");
-                    } catch (err) {
-                      setError(
-                        err.message || "Failed to update business unit.",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                  disabled={busy || !selectedBuId || !editBu.name.trim()}
-                >
-                  Update BU
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={async () => {
-                    if (!selectedBuId) return;
-                    if (!window.confirm("Delete this business unit?")) return;
-                    setBusy(true);
-                    setError("");
-                    setNotice("");
-                    try {
-                      await deleteBusinessUnit(Number(selectedBuId));
-                      await loadAll();
-                      setSelectedBuId("");
-                      setEditBu({ name: "", description: "" });
-                      setNotice("Business unit deleted.");
-                    } catch (err) {
-                      setError(
-                        err.message || "Failed to delete business unit.",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                  disabled={busy || !selectedBuId}
-                >
-                  Delete BU
-                </Button>
-              </div>
-            </div>
+              if (visibleInCategory.length === 0 && moduleSearch) return null;
 
-            <div className="mt-4">
-              <Select
-                label="User (for role revoke)"
-                value={selectedUserId}
-                onChange={setSelectedUserId}
-                options={userOptions}
-              />
-              <div className="mt-3 flex justify-end">
-                <Button
-                  variant="danger"
-                  onClick={async () => {
-                    if (!selectedUserId) return;
-                    if (!window.confirm("Revoke this user role?")) return;
-                    setBusy(true);
-                    setError("");
-                    setNotice("");
-                    try {
-                      await revokeUserRole(String(selectedUserId));
-                      await loadAll();
-                      setNotice("User role revoked.");
-                    } catch (err) {
-                      setError(err.message || "Failed to revoke user role.");
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                  disabled={busy || !selectedUserId}
-                >
-                  Revoke User Role
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      <Card title="User RBAC Details">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border bg-gray-50 p-4">
-            <Select
-              label="User"
-              value={selectedUserId}
-              onChange={setSelectedUserId}
-              options={userOptions}
-            />
-            <Select
-              label="Update User Business Unit"
-              value={userBuUpdateId}
-              onChange={setUserBuUpdateId}
-              options={buOptions}
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (!selectedUserId) return;
-                  setBusy(true);
-                  setError("");
-                  setUserDetailNotice("");
-                  try {
-                    const summary =
-                      await getUserPermissionSummary(selectedUserId);
-                    setUserPermissionSummary(summary || null);
-                    setUserDetailNotice("Permission summary loaded.");
-                  } catch (err) {
-                    setError(err.message || "Failed to load user permissions.");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedUserId}
-              >
-                Load Permission Summary
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (!selectedUserId) return;
-                  setBusy(true);
-                  setError("");
-                  setUserDetailNotice("");
-                  try {
-                    const role = await getUserRole(selectedUserId);
-                    setUserRoleDetail(role || null);
-                    setUserDetailNotice("User role loaded.");
-                  } catch (err) {
-                    setUserRoleDetail(null);
-                    const message = String(err.message || "");
-                    if (message.toLowerCase().includes("no role assigned")) {
-                      setUserDetailNotice("No role assigned to this user.");
-                    } else {
-                      setError(message || "Failed to load user role.");
-                    }
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedUserId}
-              >
-                Load User Role
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (!selectedUserId) return;
-                  setBusy(true);
-                  setError("");
-                  setUserDetailNotice("");
-                  try {
-                    const bu = await getUserBusinessUnit(selectedUserId);
-                    setUserBusinessUnitDetail(bu || null);
-                    setUserBuUpdateId(String(bu?.id || ""));
-                    setUserDetailNotice("User business unit loaded.");
-                  } catch (err) {
-                    setUserBusinessUnitDetail(null);
-                    const message = String(err.message || "");
-                    if (
-                      message
-                        .toLowerCase()
-                        .includes("no business unit assigned")
-                    ) {
-                      setUserDetailNotice(
-                        "No business unit assigned to this user.",
-                      );
-                    } else {
-                      setError(message || "Failed to load user business unit.");
-                    }
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedUserId}
-              >
-                Load User Business Unit
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!selectedUserId || !userBuUpdateId) return;
-                  setBusy(true);
-                  setError("");
-                  setNotice("");
-                  setUserDetailNotice("");
-                  try {
-                    await updateUserBusinessUnit(
-                      selectedUserId,
-                      Number(userBuUpdateId),
-                    );
-                    const bu = await getUserBusinessUnit(selectedUserId);
-                    setUserBusinessUnitDetail(bu || null);
-                    await loadAll();
-                    setNotice("User business unit updated.");
-                  } catch (err) {
-                    setError(
-                      err.message || "Failed to update user business unit.",
-                    );
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy || !selectedUserId || !userBuUpdateId}
-              >
-                Update User BU
-              </Button>
-            </div>
-            {userDetailNotice ? (
-              <div className="mt-2 text-xs text-gray-600">
-                {userDetailNotice}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="rounded-xl border bg-white p-4 text-sm">
-            <div className="mb-2 font-semibold">Loaded User Details</div>
-            <div className="space-y-2 text-xs text-gray-700">
-              <div>
-                <span className="font-semibold">Role:</span>{" "}
-                {userRoleDetail
-                  ? `${userRoleDetail.name} (${userRoleDetail.id})`
-                  : "-"}
-              </div>
-              <div>
-                <span className="font-semibold">Business Unit:</span>{" "}
-                {userBusinessUnitDetail
-                  ? `${userBusinessUnitDetail.name} (${userBusinessUnitDetail.id})`
-                  : "-"}
-              </div>
-              <div>
-                <span className="font-semibold">Permissions:</span>{" "}
-                {userPermissionSummary?.permissions?.length || 0}
-              </div>
-              {userPermissionSummary?.permissions?.length ? (
-                <ul className="max-h-40 list-disc overflow-auto pl-5">
-                  {userPermissionSummary.permissions.map((permission) => (
-                    <li key={permission}>{permission}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      <Card title="Role Details">
-        {!selectedRoleId ? (
-          <div className="text-sm text-gray-600">Select a role to inspect.</div>
-        ) : roleDetail ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-xl border bg-white p-3">
-              <div className="mb-2 text-sm font-semibold">Attributes</div>
-              {roleDetail.attributes?.length ? (
-                <div className="space-y-1">
-                  {roleDetail.attributes.map((a) => (
-                    <div
-                      key={a.id}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span>{a.attribute_name}</span>
-                      <StatusBadge
-                        status={a.attribute_value ? "true" : "false"}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">No attributes.</div>
-              )}
-            </div>
-
-            <div className="rounded-xl border bg-white p-3">
-              <div className="mb-2 text-sm font-semibold">Permissions</div>
-              {roleDetail.permissions?.length ? (
-                <div className="space-y-1">
-                  {roleDetail.permissions.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between gap-2 text-sm"
-                    >
-                      <span>{p.name}</span>
-                      <Button
-                        variant="secondary"
-                        onClick={async () => {
-                          setBusy(true);
-                          setError("");
-                          setNotice("");
-                          try {
-                            await removePermissionFromRole(
-                              Number(selectedRoleId),
-                              Number(p.id),
-                            );
-                            await refreshRoleDetail(selectedRoleId);
-                            setNotice("Permission removed.");
-                          } catch (err) {
-                            setError(
-                              err.message || "Failed to remove permission.",
-                            );
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                        disabled={busy}
+              return (
+                <div key={category} className="border-b border-gray-100 last:border-b-0">
+                  <div className="px-4 py-2 bg-gray-50 font-semibold text-xs text-gray-700 uppercase tracking-wider">
+                    {category}
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {(visibleInCategory.length > 0 ? visibleInCategory : categoryModules).map((module) => (
+                      <button
+                        key={module}
+                        onClick={() => setSelectedModule(module)}
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors ${
+                          selectedModule === module
+                            ? "bg-blue-50 text-blue-700 border-l-2 border-blue-600"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
                       >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
+                        {module.replace(/_/g, " ")}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="text-sm text-gray-500">
-                  No permissions assigned.
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CENTER PANEL - Permission Grid */}
+        <div className="flex-1 bg-white rounded-lg border border-gray-200 flex flex-col overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Permission Grid
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Click toggles to grant or revoke permissions. Roles are rows, modules/verbs are columns.
+            </p>
+          </div>
+
+          {/* Scrollable Grid */}
+          <div className="flex-1 overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-2 text-left font-semibold text-gray-700 w-32 sticky left-0 bg-gray-50 z-10">
+                    Role
+                  </th>
+                  {selectedModule &&
+                    verbMatrix[selectedModule]?.map((verb) => (
+                      <th
+                        key={`${selectedModule}_${verb}`}
+                        className="px-3 py-2 text-center font-semibold text-gray-700 bg-gray-50 whitespace-nowrap"
+                      >
+                        {verb}
+                      </th>
+                    ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {roles.map((role) => (
+                  <tr key={role.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white z-10 border-r border-gray-200">
+                      {role.name}
+                    </td>
+                    {selectedModule &&
+                      verbMatrix[selectedModule]?.map((verb) => {
+                        const key = `${role.id}_${selectedModule}_${verb}`;
+                        const hasPermission = toggleStates[key];
+                        const isLoading = toggling[key];
+
+                        return (
+                          <td
+                            key={key}
+                            className="px-3 py-3 text-center border-r border-gray-100"
+                          >
+                            <button
+                              onClick={() =>
+                                handlePermissionToggle(
+                                  role.id,
+                                  selectedModule,
+                                  verb
+                                )
+                              }
+                              disabled={isLoading}
+                              className={`inline-flex items-center justify-center w-6 h-6 rounded border transition-all ${
+                                hasPermission
+                                  ? "bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200"
+                                  : "bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200"
+                              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                            >
+                              {hasPermission && (
+                                <CheckCircle className="w-4 h-4" />
+                              )}
+                            </button>
+                          </td>
+                        );
+                      })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* RIGHT PANEL - User Access Manager */}
+        <div className="w-80 bg-white rounded-lg border border-gray-200 flex flex-col overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              User Access Manager
+            </h2>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200">
+            {[
+              { id: "assign", label: "Assign Role" },
+              { id: "copy", label: "Copy Template" },
+              { id: "custom", label: "Custom" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === t.id
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Tab: Assign Role */}
+            {activeTab === "assign" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    User
+                  </label>
+                  <Select
+                    options={[
+                      { value: "", label: "Select a user..." },
+                      ...userOptions,
+                    ]}
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    className="w-full"
+                  />
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Role
+                  </label>
+                  <Select
+                    options={[
+                      { value: "", label: "Select a role..." },
+                      ...roleOptions,
+                    ]}
+                    value={selectedRoleId}
+                    onChange={(e) => setSelectedRoleId(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleAssignRole}
+                  className="w-full"
+                  variant="primary"
+                >
+                  Assign Role
+                </Button>
+              </div>
+            )}
+
+            {/* Tab: Copy Template */}
+            {activeTab === "copy" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    User
+                  </label>
+                  <Select
+                    options={[
+                      { value: "", label: "Select a user..." },
+                      ...userOptions,
+                    ]}
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Source Role (Template)
+                  </label>
+                  <Select
+                    options={[
+                      { value: "", label: "Select a role..." },
+                      ...roleOptions,
+                    ]}
+                    value={sourceRoleId}
+                    onChange={(e) => setSourceRoleId(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleCopyRoleTemplate}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy Template
+                </Button>
+              </div>
+            )}
+
+            {/* Tab: Custom */}
+            {activeTab === "custom" && (
+              <div className="space-y-4 text-center py-8 text-gray-500">
+                <Settings className="w-12 h-12 mx-auto opacity-50" />
+                <div>
+                  <p className="text-sm font-medium">Custom permissions</p>
+                  <p className="text-xs mt-1">
+                    Fine-grained permission assignment coming soon
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="text-sm text-gray-600">
-            Unable to load role details.
-          </div>
-        )}
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

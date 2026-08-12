@@ -221,3 +221,43 @@ export const setDepartmentForUser = async (userId, departmentId) => {
   });
   return data;
 };
+
+// ===================================================================
+// NEW: RBAC Matrix & Permission Grid Management (UI-focused endpoints)
+// ===================================================================
+
+export const getModulesAndVerbs = async () => {
+  const { data } = await apiRequest("/rbac/modules-and-verbs", {
+    method: "GET",
+  });
+  return data;
+};
+
+export const getRolesMatrix = async () => {
+  const { data } = await apiRequest("/rbac/roles-matrix", {
+    method: "GET",
+  });
+  return data;
+};
+
+export const grantPermission = async (roleId, permissionName) => {
+  const { data } = await apiRequest("/rbac/grant-permission", {
+    method: "POST",
+    body: JSON.stringify({
+      role_id: roleId,
+      permission_name: permissionName,
+    }),
+  });
+  return data;
+};
+
+export const revokePermission = async (roleId, permissionName) => {
+  const { data } = await apiRequest("/rbac/revoke-permission", {
+    method: "POST",
+    body: JSON.stringify({
+      role_id: roleId,
+      permission_name: permissionName,
+    }),
+  });
+  return data;
+};

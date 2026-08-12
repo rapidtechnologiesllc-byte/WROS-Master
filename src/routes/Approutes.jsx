@@ -6,6 +6,7 @@ import InterviewSchedule from "../screens/InterviewSchedule";
 import InterviewStatus from "../screens/InterviewStatus";
 import InterviewAnalytics from "../screens/InterviewAnalytics";
 import HrUserManagement from "../screens/HrUserManagement";
+import UsersLifecycleScreen from "../screens/UsersLifecycleScreen";
 import JobCreate from "../screens/JobCreate";
 import JobDetails from "../screens/JobDetails";
 import JobsOverview from "../screens/JobsOverview";
@@ -904,6 +905,7 @@ export default function AppRoutes() {
           />
           <Route path="/offers" element={<OfferLettersScreen />} />
           <Route path="hr-users" element={<HrUserManagement />} />
+          <Route path="users" element={<UsersLifecycleScreen />} />
           <Route path="rbac" element={<RbacSettingsScreen />} />
         </Route>
       </Routes>
