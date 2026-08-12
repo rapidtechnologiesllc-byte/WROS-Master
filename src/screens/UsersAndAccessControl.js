@@ -87,6 +87,7 @@ function UsersSection({ loading, error, users, roles }) {
   });
 
   const filteredUsers = useMemo(() => {
+    if (!Array.isArray(users)) return [];
     if (!searchTerm) return users;
     const term = searchTerm.toLowerCase();
     return users.filter(u =>
