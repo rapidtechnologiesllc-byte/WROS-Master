@@ -61,7 +61,9 @@ jobs:
       - name: Create SSH config
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
+          cat > ~/.ssh/id_rsa << 'EOF'
+          ${{ secrets.PROD_SSH_KEY }}
+          EOF
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
 
