@@ -38,7 +38,9 @@ from app.models.user import Users
 from app.schemas.allocation import (
     AllocationItem,
     AllocationListResponse,
+    AllocationDropdownsResponse,
     CreateAllocationRequest,
+    DropdownItem,
     EndAllocationRequest,
 )
 from app.services.employee_allocation_service import (
@@ -147,6 +149,32 @@ def list_allocations(
         query = query.filter(EmployeeAllocation.demand_id == demand_id)
     allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
     return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
+
+
+@router.get("/dropdowns/for-create", response_model=AllocationDropdownsResponse, summary="Get employees and demands for allocation form")
+def get_allocation_dropdowns(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    employees = db.query(Employee).filter(Employee.tenant_id == current_user.tenant_id).order_by(Employee.created_at.desc()).all()
+    demands = db.query(Demand).filter(Demand.tenant_id == current_user.tenant_id).order_by(Demand.created_at.desc()).all()
+
+    employee_items = [
+        DropdownItem(
+            id=e.id,
+            name=f"{e.first_name} {e.last_name}".strip() if e.first_name or e.last_name else "(no name)"
+        )
+        for e in employees
+    ]
+    demand_items = [
+        DropdownItem(
+            id=d.id,
+            name=f"{d.job_title}" if d.job_title else "(no title)"
+        )
+        for d in demands
+    ]
+
+    return AllocationDropdownsResponse(employees=employee_items, demands=demand_items)
 
 
 @router.post("/{allocation_id}/end", response_model=AllocationItem, summary="End an allocation")
