@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { Users, Briefcase, Grid3x3, UserPlus, ArrowRightLeft, RefreshCw, AlertCircle, CheckCircle2, Search } from "lucide-react";
-import { Card, Button, Input, Select, TextArea, Badge } from "../components/ui";
+import { Card, Button, Input, Select, TextArea, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
 import { getAllEmployees, createEmployee, convertCandidateToEmployee, markEmployeeOnBench, removeEmployeeFromBench } from "../services/api/employees";
 import { createAllocation, getAllocations, endAllocation, getAllocationDropdowns } from "../services/api/allocations";
@@ -98,9 +98,9 @@ function EmployeeListTab() {
                 <td className="px-4 py-2 text-gray-600">{emp.email}</td>
                 <td className="px-4 py-2">{emp.current_title || "—"}</td>
                 <td className="px-4 py-2">
-                  <Badge variant={emp.hire_status === "ACTIVE" ? "success" : "default"}>
+                  <StatusBadge status={emp.hire_status === "ACTIVE" ? "active" : "inactive"}>
                     {emp.hire_status || "Active"}
-                  </Badge>
+                  </StatusBadge>
                 </td>
                 <td className="px-4 py-2">{emp.utilization_pct || 0}%</td>
                 <td className="px-4 py-2">
