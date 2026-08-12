@@ -14,7 +14,7 @@ export default function TextArea({
         rows={rows}
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange?.(e.target.value)}
         disabled={disabled}
         className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none ring-0 focus:border-gray-900 disabled:bg-gray-100"
       />
