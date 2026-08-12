@@ -282,3 +282,21 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         status_code=401,
         detail="Invalid email or password",
     )
+
+
+@router.get("/me")
+def get_current_user(
+    current_user: Users = Depends(get_current_hr_or_admin)
+):
+    """
+    Get the current authenticated user's information.
+
+    Returns:
+        Current user details including ID, name, email, and role
+    """
+    return {
+        "user_id": current_user.UserID,
+        "user_name": current_user.UserName,
+        "user_email": current_user.UserEmail,
+        "user_role": current_user.UserRole,
+    }
