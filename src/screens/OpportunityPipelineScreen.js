@@ -21,7 +21,6 @@ import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
-import { getAllUsers } from "../services/api/users";
 import {
   getPipeline,
   listOpportunities,
@@ -29,7 +28,17 @@ import {
   transitionOpportunityStage,
   getOpportunityRevenueRollup,
   createRoleDemandFromOpportunity,
+  listEligibleOpportunityOwners,
 } from "../services/api/opportunities";
+
+// Stage-based win probability -- mirrors app.services.opportunity_service.
+// STAGE_PROBABILITY. Display-only: the server is the source of truth and
+// computes/stores the real value on create/transition; this just lets the
+// create form show what will be assigned instead of a manual input.
+const STAGE_PROBABILITY_PREVIEW = {
+  QUALIFICATION: 10, PROSPECT: 25, PROPOSAL: 50,
+  NEGOTIATION: 75, CONTRACT: 90, ACTIVE: 100, LOST: 0,
+};
 
 // Shared with backend PIPELINE_STATUSES - single source of truth
 // Must match app/models/opportunity.py and app/models/client.py
@@ -44,7 +53,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [clientId, setClientId] = useState("");
   const [dealName, setDealName] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
-  const [probability, setProbability] = useState("50");
   const [ownerId, setOwnerId] = useState(""); // Opportunity owner
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [users, setUsers] = useState([]);
@@ -58,10 +66,15 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
     const loadUsers = async () => {
       try {
         setLoadingUsers(true);
-        const userList = await getAllUsers();
-        setUsers(userList || []);
+        // 2026-08-12 -- Avinash: Owner dropdown should only list people
+        // with actual access to Opportunity Pipeline (revenue.view),
+        // not the entire employee roster. Also fixes the earlier
+        // "undefined undefined" bug (Opportunity.owner_employee_id is a
+        // real FK to employees.id, not users.UserID).
+        const employeeList = await listEligibleOpportunityOwners();
+        setUsers(employeeList || []);
       } catch (err) {
-        console.error("Failed to load users:", err);
+        console.error("Failed to load employees:", err);
       } finally {
         setLoadingUsers(false);
       }
@@ -111,7 +124,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       await createOpportunity({
         client_id: clientId,
         revenue_value_usd_cents: usdCents,
-        probability_pct: Number(probability),
         owner_employee_id: ownerId,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
@@ -128,7 +140,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
     <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
       <div className="mb-3 text-sm font-semibold text-gray-900">New opportunity</div>
       {error ? <div className="mb-3 text-xs text-rose-700">{error}</div> : null}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
           <Select
             label="Client"
@@ -170,7 +182,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           disabled={loadingUsers}
         />
         <Input label="Revenue Value (USD)" value={revenueValue} onChange={setRevenueValue} placeholder="500000" />
-        <Input label="Win Probability (%)" value={probability} onChange={setProbability} placeholder="50" />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
         <Input
@@ -179,6 +190,15 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           value={expectedCloseDate}
           onChange={setExpectedCloseDate}
         />
+        <div>
+          <div className="mb-1 text-xs font-semibold text-gray-700">Win Probability</div>
+          <div className="rounded-xl border bg-gray-100 px-3 py-2 text-sm text-gray-600">
+            {STAGE_PROBABILITY_PREVIEW.QUALIFICATION}%
+          </div>
+          <div className="mt-1 text-[11px] text-gray-500">
+            System-generated from stage — updates automatically as this opportunity moves through the pipeline.
+          </div>
+        </div>
       </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
@@ -194,15 +214,17 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
 
 function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
   const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState("");
 
   const handleMove = async (newStage) => {
     if (!newStage || newStage === opportunity.stage) return;
     setMoving(true);
+    setMoveError("");
     try {
       await transitionOpportunityStage(opportunity.id, { new_stage: newStage });
       onMoved();
     } catch (err) {
-      alert(err.message || "Could not move opportunity.");
+      setMoveError(err.message || "Could not move opportunity.");
     } finally {
       setMoving(false);
     }
@@ -225,6 +247,11 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
       ) : null}
       {opportunity.expected_close_date ? (
         <div className="mt-1 text-xs text-gray-500">Close: {opportunity.expected_close_date}</div>
+      ) : null}
+      {moveError ? (
+        <div className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+          {moveError}
+        </div>
       ) : null}
       {!closed ? (
         <select
