@@ -28,6 +28,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
+from app.models.business_unit import BusinessUnit
+from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
@@ -53,9 +55,25 @@ router = APIRouter(prefix="/allocations", tags=["allocations"])
 def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
     employee = db.query(Employee).filter(Employee.id == allocation.employee_id).first()
     demand = db.query(Demand).filter(Demand.id == allocation.demand_id).first()
+    client = db.query(Client).filter(Client.id == allocation.client_id).first()
+
     employee_name = (
         f"{employee.first_name} {employee.last_name}".strip() if employee else "(unknown employee)"
     )
+    client_name = client.company_name if client else "(unknown client)"
+
+    recruiter_name = None
+    if demand and demand.assigned_recruiter_employee_id:
+        recruiter = db.query(Employee).filter(Employee.id == demand.assigned_recruiter_employee_id).first()
+        if recruiter:
+            recruiter_name = f"{recruiter.first_name} {recruiter.last_name}".strip()
+
+    business_unit_name = None
+    if demand and demand.assigned_bu_id:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == demand.assigned_bu_id).first()
+        if bu:
+            business_unit_name = bu.name
+
     return AllocationItem(
         id=allocation.id,
         employee_id=allocation.employee_id,
@@ -63,6 +81,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
         demand_id=allocation.demand_id,
         demand_job_title=demand.job_title if demand else "(unknown demand)",
         client_id=allocation.client_id,
+        client_name=client_name,
         project_id=allocation.project_id,
         si_partner=allocation.si_partner,
         status=allocation.status,
@@ -71,6 +90,10 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
         end_date=allocation.end_date,
         role=allocation.role,
         billing_rate_usd_cents=allocation.billing_rate_usd_cents,
+        work_location=demand.work_location if demand else None,
+        assigned_recruiter_name=recruiter_name,
+        business_unit_name=business_unit_name,
+        created_at=allocation.created_at,
     )
 
 

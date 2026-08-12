@@ -30,6 +30,7 @@ class AllocationItem(BaseModel):
     demand_id: str
     demand_job_title: str
     client_id: str
+    client_name: Optional[str] = None
     project_id: Optional[str] = None
     si_partner: Optional[str] = None
     status: str
@@ -38,6 +39,10 @@ class AllocationItem(BaseModel):
     end_date: Optional[date] = None
     role: Optional[str] = None
     billing_rate_usd_cents: Optional[int] = None
+    work_location: Optional[str] = None
+    assigned_recruiter_name: Optional[str] = None
+    business_unit_name: Optional[str] = None
+    created_at: datetime
 
 
 class AllocationListResponse(BaseModel):
