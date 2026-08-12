@@ -10,6 +10,7 @@ env:
   PROD_USER: ${{ secrets.PROD_USER }}
   PROD_PATH: /home/HRMS/OnboardingModule-Backend
   PM2_SERVICE: onboarding-backend
+  DATABASE_URL: sqlite:///./test.sqlite3
 
 jobs:
   test:
