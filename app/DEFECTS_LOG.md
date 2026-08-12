@@ -546,3 +546,125 @@ Confirmed: No table in the system supports:
 **Status:** OPEN — scoped as Day 2/architectural work. Blocks autonomous workflows until implemented.
 
 ---
+
+## [SESSION-2026-08-12-CONTINUATION] Login & Access Control Implementation Session
+
+**Timestamp:** 2026-08-12 (afternoon/evening)
+**Work Type:** Feature continuation + bug fixes
+**Status:** IN PROGRESS → INCOMPLETE (requires next session to resolve)
+
+### **Work Completed This Session:**
+
+1. ✅ **Consolidated Users/RBAC/HR Screens into Unified Interface**
+   - Created `UsersAndAccessControl.js` - HubSpot-style left sidebar + right content
+   - Three tabs: Users (👥), Roles (🔐), Permissions (🔑)
+   - Removed old screens: HrUserManagement.js, RbacSettingsScreen.js, UsersLifecycleScreen.js
+   - Routes consolidated: `/admin/users-access-control`
+   - Commit: `c54cc15`
+
+2. ✅ **Login Case-Sensitivity Fix**
+   - Made email comparison case-insensitive in `check_user()`, `check_candidate()`, `get_user()`
+   - Uses SQLAlchemy `func.lower()` for case-insensitive queries
+   - **Result:** admin@blitzenx.com, Admin@blitzenx.com, ADMIN@BLITZENX.COM all now work
+   - Commit: `a66ca0b`
+
+3. ✅ **Permission Bypass for ADMIN Role**
+   - Extended `require_permission()` decorator to allow ADMIN users to bypass fine-grained permissions
+   - Previously only SuperUser had this bypass
+   - Updated: `app/core/dependencies.py` line 265
+   - Commit: `a66ca0b`
+
+4. ✅ **Route Security Audit Fix**
+   - Added `GET /rbac/modules-and-verbs` to known_exceptions in `app/main.py`
+   - Route is properly protected by `get_current_hr_or_admin` dependency
+   - Commit: `a66ca0b`
+
+5. ✅ **Frontend Defensive Check**
+   - Added `Array.isArray()` check to `filteredUsers` in UsersSection
+   - Prevents Table component crash when data is undefined
+   - Commit: `2c09e70`
+
+### **Work NOT Completed / Blockers:**
+
+1. ❌ **Users & Access Control Screen - Permission Denied Error Still Present**
+   - Screen loads at `/admin/users-access-control`
+   - Shows "Permission denied: 'rbac.view' required" error
+   - **Root cause:** Admin user not being recognized as having rbac.view permission despite bypass changes
+   - **Impact:** Cannot verify users list loads properly, cannot test the complete feature
+   - **Needs:** Investigation of permission checking logic + testing with correct account credentials
+
+2. ❌ **Table Component Crash in UsersAndAccessControl.js**
+   - Error: "Cannot read properties of undefined (reading 'map')"
+   - Defensive check added but root cause likely in API response parsing
+   - `getAllUsers()` may not be returning array format expected by Table component
+   - **Needs:** Debug API response format + verify data structure matches expectations
+
+3. ❌ **Login Testing Incomplete**
+   - Successfully tested Admin@blitzenx.com login
+   - **Needs testing:** am@blitzenx.com login with correct password (user said to use this account, but password unknown)
+   - Session was lost multiple times during testing, making verification difficult
+
+### **What Should Have Been Verified But Wasn't:**
+- [ ] Users table rendering correctly with real user data
+- [ ] Roles tab functionality
+- [ ] Permissions grid tab functionality
+- [ ] Create User modal
+- [ ] Edit User modal
+- [ ] User deletion functionality
+- [ ] Admin user can successfully access all three tabs without permission errors
+
+### **Technical Debt & Known Issues:**
+1. **Permission bypass logic may need refinement**
+   - Current check: `user.UserRole.lower() in ("super user", "admin")`
+   - May need to also check RBAC role relationship: `user.role.name.lower()`
+   - Consider: Should ADMIN role have blanket bypass, or specific admin-level permissions?
+
+2. **Table component data handling**
+   - Need to verify API response format (is it array or object with array property?)
+   - Need to add defensive checks in getAllUsers() API call
+   - Consider: Type checking on API responses before passing to Table
+
+3. **Session management**
+   - Multiple session logouts during testing
+   - Backend restart/reloads may be clearing session tokens
+   - Consider: Session persistence strategy
+
+### **Files Modified This Session:**
+**Backend:**
+- `app/core/database.py` - Case-insensitive email lookups
+- `app/core/dependencies.py` - Admin permission bypass
+- `app/main.py` - Route security audit exception
+- `app/api/v1/endpoints/rbac.py` - Permission decorator
+
+**Frontend:**
+- `src/screens/UsersAndAccessControl.js` - Defensive array check + table rendering fix
+
+### **Commits Pushed:**
+- `e2ed566` - Initial commit to main branch (partial)
+- `a66ca0b` - Backend fixes (case-sensitivity, permissions, audit)
+- `2c09e70` - Frontend defensive check
+
+### **Recommended Next Session Work Order:**
+
+**PRIORITY 1 - UNBLOCK Users & Access Control:**
+1. Debug why permission bypass isn't working (test as Admin@blitzenx.com)
+2. Verify API response format from getAllUsers(), listRoles(), getModulesAndVerbs()
+3. Add defensive type checking to handle unexpected API response shapes
+4. Test complete Users/Roles/Permissions feature with admin account
+5. Verify login works with am@blitzenx.com once correct password is known
+
+**PRIORITY 2 - Address Remaining 7 Defects:**
+- DEFECT-2026-08-12T3: Revenue screen autonomous scanning
+- DEFECT-2026-08-12T4: Opportunity Kanban interactivity
+- DEFECT-2026-08-12T5: Employee Allocations redesign
+- DEFECT-2026-08-12T6: Expense logging (receipt + manager approval)
+- DEFECT-2026-08-12T7: Timesheet approval notifications
+- DEFECT-2026-08-12T6 (duplicate): Opportunity Owner defaulting
+- Feature requests in priority order
+
+**PRIORITY 3 - Known Questions for Avinash:**
+1. Should ADMIN role have blanket permission bypass, or specific admin permissions only?
+2. Is am@blitzenx.com a real account? What's the correct password?
+3. Confirm: Users & Access Control screen should be fully functional before marking session complete?
+
+---
