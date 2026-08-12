@@ -226,7 +226,6 @@ def create_candidate(
 @router.get(
     "/hr/get_all_candidates",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
 )
 def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
