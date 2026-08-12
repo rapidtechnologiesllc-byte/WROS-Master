@@ -51,3 +51,13 @@ class AllocationListResponse(BaseModel):
 
 class EndAllocationRequest(BaseModel):
     end_date: Optional[date] = None
+
+
+class DropdownItem(BaseModel):
+    id: str
+    name: str
+
+
+class AllocationDropdownsResponse(BaseModel):
+    employees: List[DropdownItem]
+    demands: List[DropdownItem]
