@@ -215,6 +215,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
 function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
   const [moving, setMoving] = useState(false);
   const [moveError, setMoveError] = useState("");
+  const [dragActive, setDragActive] = useState(false);
 
   const handleMove = async (newStage) => {
     if (!newStage || newStage === opportunity.stage) return;
@@ -230,11 +231,23 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
     }
   };
 
+  const handleDragStart = (e) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("opportunityId", opportunity.id);
+    e.dataTransfer.setData("opportunityStage", opportunity.stage);
+  };
+
   const closed = opportunity.stage === "WON" || opportunity.stage === "LOST";
 
   return (
     <div
-      className="mb-2 cursor-pointer rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition hover:border-gray-400"
+      className={`mb-2 cursor-grab rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition ${
+        dragActive ? "border-bx-orange bg-orange-50" : "hover:border-gray-400"
+      }`}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnter={() => setDragActive(true)}
+      onDragLeave={() => setDragActive(false)}
       onClick={() => onOpenDetail(opportunity)}
     >
       <div className="text-sm font-semibold text-gray-900">{opportunity.client_name}</div>
@@ -532,6 +545,26 @@ export default function OpportunityPipelineScreen() {
     if (viewMode === "list") loadList();
   };
 
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e, targetStage) => {
+    e.preventDefault();
+    const opportunityId = e.dataTransfer.getData("opportunityId");
+    const sourceStage = e.dataTransfer.getData("opportunityStage");
+
+    if (sourceStage === targetStage || !opportunityId) return;
+
+    try {
+      await transitionOpportunityStage(opportunityId, { new_stage: targetStage });
+      load();
+    } catch (err) {
+      console.error("Failed to move opportunity:", err);
+    }
+  };
+
   const listTableRows = listRows.map((o) => ({
     client_name: o.client_name || "—",
     stage: o.stage,
@@ -597,7 +630,12 @@ export default function OpportunityPipelineScreen() {
           ) : (
             <div className="grid grid-cols-1 gap-3 overflow-x-auto sm:grid-cols-5">
               {columns.map((col) => (
-                <div key={col.stage} className="min-w-[220px] rounded-2xl border bg-gray-50 p-3">
+                <div
+                  key={col.stage}
+                  className="min-w-[220px] rounded-2xl border bg-gray-50 p-3 transition"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, col.stage)}
+                >
                   <div className="mb-2 flex items-center justify-between">
                     <div className="text-xs font-bold uppercase text-gray-700">{col.stage}</div>
                     <div className="text-xs font-semibold text-gray-900">
@@ -606,6 +644,9 @@ export default function OpportunityPipelineScreen() {
                   </div>
                   <div className="mb-2 text-[11px] text-gray-500">
                     Weighted: {formatUsdCents(col.total_weighted_forecast_usd_cents)}
+                  </div>
+                  <div className="text-[11px] text-gray-400 mb-2">
+                    {col.opportunities.length} {col.opportunities.length === 1 ? "opportunity" : "opportunities"}
                   </div>
                   {col.opportunities.length === 0 ? (
                     <div className="py-4 text-center text-xs text-gray-400">No opportunities</div>

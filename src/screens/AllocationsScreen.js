@@ -35,7 +35,23 @@ function AllocationForm({ onCancel, onSaved }) {
     const load = async () => {
       try {
         const data = await getAllocationDropdowns();
-        setEmployees((data?.employees || []).map((e) => ({ value: e.id, label: e.name })));
+
+        // Format employee options with org hierarchy: "Name • Title • Department"
+        const employeeOptions = (data?.employees || [])
+          .map((e) => {
+            const parts = [e.name];
+            if (e.job_title) parts.push(e.job_title);
+            if (e.department) parts.push(e.department);
+            const label = parts.join(" • ");
+            return {
+              value: e.id,
+              label,
+              manager_name: e.manager_name, // For grouping/reference
+            };
+          })
+          .sort((a, b) => (a.label || "").localeCompare(b.label || ""));
+
+        setEmployees(employeeOptions);
         setDemands((data?.demands || []).map((d) => ({ value: d.id, label: d.name })));
       } catch (err) {
         console.error("Failed to load dropdown data:", err);
