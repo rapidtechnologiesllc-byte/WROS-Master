@@ -12,7 +12,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain, PartnerBUAssignment
-from app.models.business_units import BusinessUnit
+from app.models.rbac import BusinessUnit
 
 
 # The 10 organizational positions (CEO down to Senior Consultant)

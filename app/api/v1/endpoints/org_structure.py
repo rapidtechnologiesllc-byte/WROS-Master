@@ -11,7 +11,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db, get_current_user_or_none
+from app.core.database import get_db
 from app.core.logging import logger
 from app.schemas.org_structure import (
     OrgPositionResponse,
@@ -35,7 +35,7 @@ from app.services.org_structure_service import (
     get_employee_approvers,
 )
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain
-from app.models.business_units import BusinessUnit
+from app.models.rbac import BusinessUnit
 
 
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
@@ -50,7 +50,6 @@ router = APIRouter(prefix="/org", tags=["Organization Structure"])
 def initialize_org_structure(
     request: OrgInitializeRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_none),
 ) -> OrgInitializeResponse:
     """
     Initialize organizational hierarchy for a tenant.
@@ -58,12 +57,9 @@ def initialize_org_structure(
 
     **Permission required:** ADMIN or SUPER_USER
     """
-    if not current_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = request.tenant_id if hasattr(request, 'tenant_id') else None
     if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No tenant_id in user context")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No tenant_id provided")
 
     try:
         # Step 1: Initialize default positions
