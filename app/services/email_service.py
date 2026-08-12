@@ -1336,3 +1336,72 @@ class EmailService:
             logger.error(f"[EmailService] send_event_notification error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+    @classmethod
+    def notify_timesheet_approved(
+        cls,
+        employee_email: str,
+        employee_name: str,
+        approver_email: str,
+        approver_name: str,
+        week_starting_date: str,
+        total_hours: float,
+    ) -> Dict[str, Any]:
+        """
+        Send timesheet approval notifications to both the employee and the approver.
+        HRMS-0902: When a timesheet is approved, notify the employee and the RM.
+        """
+        try:
+            # Notify employee
+            employee_html = cls._event_notification_html(
+                recipient_name=employee_name,
+                event_type="status_update",
+                heading="Timesheet Approved",
+                message=f"Your timesheet for week starting {week_starting_date} ({total_hours:.1f} hours) has been approved by {approver_name}.",
+                metadata={
+                    "Week Starting": week_starting_date,
+                    "Total Hours": f"{total_hours:.1f}",
+                    "Status": "APPROVED",
+                },
+            )
+            cls.send_email(
+                to_email=employee_email,
+                subject="Timesheet Approved",
+                body_content=employee_html,
+                is_html=True,
+            )
+            logger.info(f"[EmailService] Timesheet approval notification sent to employee {employee_email}")
+
+            # Notify approver (RM/Admin)
+            approver_html = cls._event_notification_html(
+                recipient_name=approver_name,
+                event_type="status_update",
+                heading="Timesheet Approval Completed",
+                message=f"You approved the timesheet for {employee_name} (week starting {week_starting_date}, {total_hours:.1f} hours).",
+                metadata={
+                    "Employee": employee_name,
+                    "Week Starting": week_starting_date,
+                    "Total Hours": f"{total_hours:.1f}",
+                    "Status": "APPROVED",
+                },
+            )
+            cls.send_email(
+                to_email=approver_email,
+                subject="Timesheet Approval Completed",
+                body_content=approver_html,
+                is_html=True,
+            )
+            logger.info(f"[EmailService] Timesheet approval notification sent to approver {approver_email}")
+
+            return {
+                "status": "success",
+                "message": "Timesheet approval notifications sent to employee and approver.",
+                "employee_email": employee_email,
+                "approver_email": approver_email,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[EmailService] notify_timesheet_approved error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
