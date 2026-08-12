@@ -104,9 +104,40 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
   const [businessUnits, setBusinessUnits] = useState([]);
   const [loadingRecruiters, setLoadingRecruiters] = useState(false);
   const [loadingBUs, setLoadingBUs] = useState(false);
+  const [loadingJobBU, setLoadingJobBU] = useState(false);
   const [selectedRecruiter, setSelectedRecruiter] = useState(candidate?.assigned_recruiter_id || "");
   const [selectedBU, setSelectedBU] = useState(candidate?.business_unit_id || "");
+  const [jobBU, setJobBU] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const loadJobBU = async () => {
+      if (!candidate?.id) return;
+      try {
+        setLoadingJobBU(true);
+        const response = await fetch(`/candidates/${candidate.id}/applications`, {
+          headers: { "Authorization": `Bearer ${localStorage.getItem("access_token")}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const applications = data.applications || [];
+          if (applications.length > 0) {
+            const activeJob = applications[0];
+            if (activeJob.business_unit_id && !selectedBU) {
+              setJobBU(activeJob.business_unit_id);
+              setSelectedBU(activeJob.business_unit_id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load candidate job BU:", error);
+      } finally {
+        setLoadingJobBU(false);
+      }
+    };
+
+    loadJobBU();
+  }, [candidate?.id]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -114,33 +145,37 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
     const loadData = async () => {
       try {
         setLoadingRecruiters(true);
-        const response = await fetch(`/hr/users/search?permission_role=Recruiter&limit=200`, {
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
-          },
-        });
-        if (!response.ok) throw new Error("Failed to load recruiters");
-        const data = await response.json();
-        setRecruiters(data.users || []);
+        const allUsers = await getAllUsers();
+        const recruitersList = Array.isArray(allUsers)
+          ? allUsers.filter(u => u.user_role === "Recruiter" || u.permission_role === "Recruiter")
+          : allUsers?.users?.filter(u => u.user_role === "Recruiter" || u.permission_role === "Recruiter") || [];
+        console.log("Loaded recruiters:", recruitersList);
+        setRecruiters(recruitersList);
       } catch (error) {
         console.error("Failed to load recruiters:", error);
+        setRecruiters([]);
       } finally {
         setLoadingRecruiters(false);
       }
 
       try {
         setLoadingBUs(true);
-        const buResponse = await fetch(`/business-units`, {
+        const response = await fetch(`/api/business-units`, {
           headers: {
             "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
           },
         });
-        if (buResponse.ok) {
-          const buData = await buResponse.json();
-          setBusinessUnits(Array.isArray(buData) ? buData : buData.business_units || []);
+        if (response.ok) {
+          const buData = await response.json();
+          const buList = Array.isArray(buData) ? buData : buData.business_units || [];
+          console.log("Loaded business units:", buList);
+          setBusinessUnits(buList);
+        } else {
+          setBusinessUnits([]);
         }
       } catch (error) {
         console.error("Failed to load business units:", error);
+        setBusinessUnits([]);
       } finally {
         setLoadingBUs(false);
       }

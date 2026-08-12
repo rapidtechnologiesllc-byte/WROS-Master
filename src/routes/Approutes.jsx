@@ -109,6 +109,7 @@ import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
+import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -528,6 +529,7 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
+            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
 
@@ -767,6 +769,7 @@ export default function AppRoutes() {
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
           <Route
