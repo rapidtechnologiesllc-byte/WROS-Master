@@ -58,9 +58,12 @@ class BUHeadDashboardService:
         # Annual run rate (simple: MTD × 12)
         revenue_arn = revenue_mtd * 12
 
-        # Active projects in this BU
-        active_projects = db.query(func.count(Project.id)).filter(
-            Project.business_unit_id == bu_id,
+        # Active projects in this BU (join with Client to get business_unit_id)
+        from app.models.client import Client
+        active_projects = db.query(func.count(Project.id)).join(
+            Client, Project.client_id == Client.id
+        ).filter(
+            Client.business_unit_id == bu_id,
             Project.status.in_(["ACTIVE", "IN_PROGRESS"])
         ).scalar() or 0
 
@@ -71,14 +74,17 @@ class BUHeadDashboardService:
             Employee.billing_classification == "BENCH"
         ).scalar() or 0
 
-        # Allocation breakdown by project
+        # Allocation breakdown by project (join with Client for BU filtering)
         allocations_by_project = db.query(
             Project.name,
             func.count(func.distinct(EmployeeAllocation.employee_id)).label("emp_count"),
             func.round(func.avg(EmployeeAllocation.utilization_pct), 1).label("avg_utilization")
         ).join(
             EmployeeAllocation, Project.id == EmployeeAllocation.project_id
+        ).join(
+            Client, Project.client_id == Client.id
         ).filter(
+            Client.business_unit_id == bu_id,
             EmployeeAllocation.status == "ACTIVE"
         ).group_by(Project.id, Project.name).all()
 
@@ -92,7 +98,7 @@ class BUHeadDashboardService:
         ]
 
         return {
-            "bu_name": bu.bu_name,
+            "bu_name": bu.name,
             "team_size": {
                 "total": team_count,
                 "utilized": utilized,
