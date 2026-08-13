@@ -90,7 +90,7 @@ jobs:
              git checkout main && \
              git reset --hard origin/main && \
              python3 -m pip install --break-system-packages -r requirements.txt && \
-             alembic upgrade head"
+             python3 -m alembic upgrade head"
 
       - name: Restart PM2 service
         run: |
