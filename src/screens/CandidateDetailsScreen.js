@@ -954,17 +954,28 @@ ${jobDescription}
       return;
     }
     try {
-      const response = await apiRequest(`/onboarding/hr/candidate/${candidate.id}/convert-to-employee`, {
+      const response = await fetch("/employees/convert-from-candidate", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
         body: JSON.stringify({
           candidate_id: candidate.id,
+          employee_name: candidate.name || candidate.candidate_name || "",
+          employee_email: candidate.email || candidate.candidate_email || "",
+          business_unit_id: candidate.business_unit_id || 1,
+          role_ids: [3],
+          position: candidate.jobTitle || "Employee",
           joining_date: candidate.candidateJoiningDate,
         }),
       });
+      if (!response.ok) {
+        throw new Error("Failed to convert candidate to employee");
+      }
       showNotice("Candidate converted to employee successfully", "success");
-      // Refresh candidate data
-      const updatedCandidate = await getCandidateById(candidate.id);
-      setCandidate(updatedCandidate);
+      await onRefreshCandidates?.();
+      onBack?.();
     } catch (error) {
       showNotice("Failed to convert candidate to employee: " + error.message, "error");
     }
@@ -1462,7 +1473,9 @@ ${formattedJD}
                 currentRole === "HR Operations") &&
                 candidate?.pipelineStatus === "Offer" &&
                 candidate?.candidateJoiningDate &&
-                new Date(candidate?.candidateJoiningDate) <= new Date() && (
+                new Date(candidate?.candidateJoiningDate) <= new Date() &&
+                previousOffer?.length > 0 &&
+                previousOffer.some((offer) => offer?.status === "Accepted") && (
                   <Button
                     variant="secondary"
                     onClick={() => handleConvertToEmployee()}
