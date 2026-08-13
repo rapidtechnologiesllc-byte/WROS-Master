@@ -76,7 +76,7 @@ class ThunderSession(Base):
     # Location/job context
     candidate_location = Column(String(200), nullable=True)  # From Q2 or parsed from resume
     job_matches = Column(JSON, nullable=True)  # Top N job matches found by AI Recruiter
-    selected_job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
+    selected_job_id = Column(String(50), nullable=True)  # Demand ID if job is selected
 
     # Screening responses (stored as submitted)
     screening_responses = Column(JSON, nullable=True)  # Full screening data (work auth, agreements, etc.)
@@ -106,7 +106,6 @@ class ThunderSession(Base):
 
     # Relationships
     candidate = relationship("Candidate", backref="thunder_sessions", lazy="joined")
-    job = relationship("Job", backref="thunder_sessions", lazy="joined")
 
     def to_dict(self):
         """Convert session to dict for API responses"""
