@@ -548,6 +548,8 @@ export default function JobCreate({
                 value={selectedBusinessUnit}
                 onChange={(value) => setSelectedBusinessUnit(value)}
                 options={buOptions}
+                disabled={!!companyClient}
+                title={companyClient ? "Business Unit is auto-detected from the selected client" : ""}
               />
               <Input
                 label="Location *"

@@ -50,6 +50,7 @@ export const NAV_ITEMS = {
   offerLettersListing: { path: ROUTES.OFFERS_LISTING, label: "Offer Letters", icon: FileTextIcon },
   submissions: { path: ROUTES.SUBMISSIONS, label: "Submissions", icon: Send },
   employees: { path: ROUTES.EMPLOYEES, label: "Employees", icon: UserPlus },
+  employeeConversion: { path: ROUTES.EMPLOYEE_CONVERSION, label: "Convert to Employee", icon: UserPlus },
   // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
   // Partner/Resource Manager role exists in this codebase's role set
   // yet, so this is scoped to the roles that already get HR/oversight
@@ -83,10 +84,7 @@ export const NAV_ITEMS = {
   partnerRoi: { path: ROUTES.PARTNER_ROI, label: "Partner ROI Agent", icon: TrendingUp },
   ceoFyProgress: { path: ROUTES.CEO_FY_PROGRESS, label: "CEO FY Progress", icon: BarChart3 },
   cfoDashboard: { path: ROUTES.CFO_DASHBOARD, label: "CFO Agent", icon: LineChart },
-  rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
-  hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
-  // Integrated Users Lifecycle Management -- create, edit, terminate, reinstate, permissions, audit trail
-  users: { path: ROUTES.USERS, label: "Users", icon: Users },
+  usersAccessControl: { path: ROUTES.USERS_ACCESS_CONTROL, label: "Users & Access Control", icon: Shield },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
   // S-077/HRMS-0477 -- unified Thunder config, Super User only server-side

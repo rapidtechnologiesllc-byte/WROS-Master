@@ -64,6 +64,23 @@ export const updateHrUser = async (userId, { user_name, user_role } = {}) => {
   return data;
 };
 
+// Fetch user permission overrides
+export const getUserPermissions = async (userId) => {
+  const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}/permissions`, {
+    method: "GET",
+  });
+  return data?.permissions || {};
+};
+
+// Save user permission overrides
+export const updateUserPermissions = async (userId, permissions) => {
+  const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}/permissions`, {
+    method: "PATCH",
+    body: JSON.stringify({ permissions }),
+  });
+  return data;
+};
+
 export const deleteHrUser = async (userId) => {
   const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}`, {
     method: "DELETE",

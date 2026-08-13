@@ -11,14 +11,20 @@ export default function Input({
   onFocus,
   onBlur,
 }) {
+  const handleChange = (e) => {
+    if (!onChange || typeof onChange !== "function") return;
+    const val = (e && e.target && e.target.value) || "";
+    onChange(val);
+  };
+
   return (
     <label className="block">
       <div className="mb-1 text-xs font-semibold text-gray-700">{label}</div>
       <input
         type={type}
-        value={value}
+        value={value ?? ""}
         placeholder={placeholder}
-        onChange={disabled ? undefined : (e) => onChange(e.target.value)}
+        onChange={disabled ? undefined : handleChange}
         onFocus={onFocus}
         onBlur={onBlur}
         disabled={disabled}
