@@ -62,11 +62,12 @@ function EmployeeListTab() {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Input
+        <input
+          type="text"
           placeholder="Search by name or email..."
           value={searchTerm}
-          onChange={setSearchTerm}
-          className="flex-1"
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex-1 rounded-lg border px-3 py-2 text-sm"
         />
         <Button variant="ghost" onClick={loadEmployees}>
           <RefreshCw className="h-4 w-4" />
