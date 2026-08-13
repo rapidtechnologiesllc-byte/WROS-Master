@@ -92,6 +92,7 @@ def create_opportunity_endpoint(
             currency=body.currency,
             revenue_value_native=body.revenue_value_native,
             owner_employee_id=body.owner_employee_id,
+            client_owner_id=body.client_owner_id,
             expected_close_date=body.expected_close_date, stage=body.stage,
         )
         db.commit()
