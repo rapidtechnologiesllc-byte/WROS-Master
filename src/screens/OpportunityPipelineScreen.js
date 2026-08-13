@@ -54,6 +54,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [dealName, setDealName] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
   const [ownerId, setOwnerId] = useState(""); // Opportunity owner
+  const [clientOwnerId, setClientOwnerId] = useState(""); // Client owner (from users list)
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -140,6 +141,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         client_id: clientId,
         revenue_value_usd_cents: usdCents,
         owner_employee_id: ownerId,
+        client_owner_id: clientOwnerId || null,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
       });
@@ -197,6 +199,18 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           disabled={loadingUsers}
         />
         <Input label="Revenue Value (USD)" value={revenueValue} onChange={setRevenueValue} placeholder="500000" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
+        <Select
+          label="Client Owner (optional)"
+          value={clientOwnerId}
+          onChange={setClientOwnerId}
+          options={[
+            { label: "Select client owner", value: "", disabled: true },
+            ...users.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
+          ]}
+          disabled={loadingUsers}
+        />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
         <Input
@@ -422,6 +436,7 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
             Weighted Forecast: <span className="font-semibold">{formatUsdCents(opportunity.weighted_forecast_usd_cents)}</span>
           </div>
           {opportunity.owner_name ? <div>Owner: <span className="font-semibold">{opportunity.owner_name}</span></div> : null}
+          {opportunity.client_owner_name ? <div>Client Owner: <span className="font-semibold">{opportunity.client_owner_name}</span></div> : null}
           {opportunity.expected_close_date ? (
             <div>Expected Close: <span className="font-semibold">{opportunity.expected_close_date}</span></div>
           ) : null}
@@ -587,6 +602,7 @@ export default function OpportunityPipelineScreen() {
     probability: `${o.probability_pct}%`,
     weighted: formatUsdCents(o.weighted_forecast_usd_cents),
     owner: o.owner_name || "—",
+    client_owner: o.client_owner_name || "—",
     close_date: o.expected_close_date || "—",
     actions: (
       <Button variant="ghost" onClick={() => setSelectedOpportunity(o)}>
@@ -711,6 +727,7 @@ export default function OpportunityPipelineScreen() {
                   { key: "probability", header: "Win %" },
                   { key: "weighted", header: "Weighted" },
                   { key: "owner", header: "Owner" },
+                  { key: "client_owner", header: "Client Owner" },
                   { key: "close_date", header: "Expected Close" },
                   { key: "actions", header: "" },
                 ]}
