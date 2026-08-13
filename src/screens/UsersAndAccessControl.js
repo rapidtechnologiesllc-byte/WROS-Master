@@ -205,6 +205,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [editForm, setEditForm] = useState({
     user_name: "",
     user_role: "",
+    business_unit_id: "",
     expandAllPermissions: false,
     expanded_candidates: false,
     expanded_jobs: false,
@@ -236,8 +237,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   useEffect(() => {
     const loadBusinessUnits = async () => {
       try {
-        const response = await apiRequest("/bu-context/available-buses");
-        const busData = response?.business_units || response?.data || response || [];
+        const { data } = await apiRequest("/bu-context/available-buses", {
+          method: "GET",
+          skipAuth: true
+        });
+        const busData = data?.business_units || [];
         setBusinessUnits(Array.isArray(busData) ? busData : []);
       } catch (err) {
         console.error("Failed to load business units:", err);
@@ -649,6 +653,25 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             value={editForm.user_name}
             onChange={(e) => setEditForm({ ...editForm, user_name: e.target.value })}
           />
+
+          {/* Business Unit Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit</label>
+            <select
+              value={editForm.business_unit_id}
+              onChange={(e) => setEditForm({ ...editForm, business_unit_id: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a business unit...</option>
+              {businessUnits.map(bu => (
+                <option key={bu.id} value={bu.id}>
+                  {bu.bu_name || bu.name || `BU ${bu.id}`}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Assign user to a business unit (optional)</p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Permission Template</label>
             <select
