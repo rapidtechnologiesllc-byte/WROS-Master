@@ -101,9 +101,14 @@ def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: S
 
 
 @router.get("/available-buses")
-def get_available_buses(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    """Get list of all available business units for dropdown selection."""
-    buses = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == current_user.tenant_id).order_by(BusinessUnit.name).all()
+def get_available_buses(db: Session = Depends(get_db)):
+    """Get list of all available business units for dropdown selection.
+
+    This is a public endpoint - no authentication required since BU list is
+    needed in user creation form before user is authenticated.
+    """
+    # Get all business units (tenant_id filtering not needed for BU list display)
+    buses = db.query(BusinessUnit).order_by(BusinessUnit.name).all()
     return {
         "business_units": [
             {
