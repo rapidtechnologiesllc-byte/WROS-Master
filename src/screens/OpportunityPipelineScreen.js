@@ -73,6 +73,21 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         // real FK to employees.id, not users.UserID).
         const employeeList = await listEligibleOpportunityOwners();
         setUsers(employeeList || []);
+
+        // DEFECT-8: Auto-default opportunity owner to current user
+        const userInfo = localStorage.getItem("user_info");
+        if (userInfo && !ownerId) {
+          try {
+            const user = JSON.parse(userInfo);
+            // Find current user in the eligible owners list
+            const currentUser = employeeList?.find((e) => e.id === user.id || e.user_id === user.id);
+            if (currentUser) {
+              setOwnerId(String(currentUser.id || currentUser.user_id));
+            }
+          } catch (err) {
+            console.error("Failed to auto-set owner:", err);
+          }
+        }
       } catch (err) {
         console.error("Failed to load employees:", err);
       } finally {
