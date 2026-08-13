@@ -138,8 +138,18 @@ def submit_candidate(
         raise HTTPException(status_code=409, detail=str(exc))
     except DuplicateSubmission as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+    # Auto-assign candidate's business unit from the job/demand
+    # S-XXX/HRMS-XXXX -- candidate BU auto-assignment on submission
+    from app.models.user import Jobs
+    job = db.query(Jobs).filter(Jobs.jobID == body.demand_id).first()
+    if job and job.business_unit_id and not candidate.business_unit_id:
+        # Only auto-assign if candidate doesn't already have a BU
+        candidate.business_unit_id = job.business_unit_id
+
     db.commit()
     db.refresh(submission)
+    db.refresh(candidate)
     return _to_item(db, submission)
 
 
