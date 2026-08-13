@@ -95,7 +95,8 @@ jobs:
       - name: Restart PM2 service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "npm install -g pm2 && pm2 restart ${{ env.PM2_SERVICE }} || pm2 start app.py --name ${{ env.PM2_SERVICE }}"
+            "which pm2 > /dev/null && pm2 restart ${{ env.PM2_SERVICE }} || echo 'PM2 not found - service should be manually restarted or PM2 installed on server'"
+        continue-on-error: true
 
       - name: Health check (20s retry)
         run: |
