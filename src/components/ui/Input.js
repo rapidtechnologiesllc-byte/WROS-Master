@@ -13,9 +13,8 @@ export default function Input({
 }) {
   const handleChange = (e) => {
     if (!onChange || typeof onChange !== "function") return;
-    if (e && e.target && typeof e.target.value !== "undefined") {
-      onChange(e.target.value);
-    }
+    const val = (e && e.target && e.target.value) || "";
+    onChange(val);
   };
 
   return (
