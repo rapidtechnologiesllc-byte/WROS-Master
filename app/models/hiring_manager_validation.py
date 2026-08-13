@@ -4,7 +4,7 @@ Manages validation of candidates by hiring managers before interviews
 """
 
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, JSON, func, Enum, Boolean
+from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, JSON, func, Enum, Boolean, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 from enum import Enum as PyEnum
@@ -73,12 +73,12 @@ class HiringManagerValidation(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
-        ("idx_hm_validation_candidate", "candidate_id"),
-        ("idx_hm_validation_job", "job_id"),
-        ("idx_hm_validation_manager", "hiring_manager_id"),
-        ("idx_hm_validation_status", "status"),
-        ("idx_hm_validation_created_at", "created_at"),
-        ("idx_hm_validation_due_at", "due_at"),
+        Index("idx_hm_validation_candidate", "candidate_id"),
+        Index("idx_hm_validation_job", "job_id"),
+        Index("idx_hm_validation_manager", "hiring_manager_id"),
+        Index("idx_hm_validation_status", "status"),
+        Index("idx_hm_validation_created_at", "created_at"),
+        Index("idx_hm_validation_due_at", "due_at"),
     )
 
     # Relationships
@@ -131,8 +131,8 @@ class HMValidationResponse(Base):
     created_at = Column(DateTime(timezone=False), server_default=func.now())
 
     __table_args__ = (
-        ("idx_hm_response_validation", "validation_id"),
-        ("idx_hm_response_question", "question_id"),
+        Index("idx_hm_response_validation", "validation_id"),
+        Index("idx_hm_response_question", "question_id"),
     )
 
     validation = relationship("HiringManagerValidation", backref="question_responses", lazy="joined")
