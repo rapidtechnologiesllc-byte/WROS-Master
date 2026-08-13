@@ -24,7 +24,7 @@ import {
   getClientContacts, addClientContact,
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
-import { getMyBUAccess } from "../services/api/buContext";
+import { listBusinessUnits } from "../services/api/rbac";
 
 const CONTACT_ROLE_TYPES = [
   "HIRING_MANAGER", "TIMESHEET_APPROVER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY",
@@ -67,8 +67,10 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
 
   useEffect(() => {
     if (mode === "create" && !form.business_unit_id && businessUnits?.length) {
-      const def = businessUnits.find((a) => a.is_default) || businessUnits[0];
-      setForm((f) => ({ ...f, business_unit_id: String(def.business_unit_id) }));
+      // Default to first BU or one marked as default
+      const defaultBU = businessUnits.find((bu) => bu.is_default) || businessUnits[0];
+      const buId = defaultBU?.business_unit_id || defaultBU?.id;
+      setForm((f) => ({ ...f, business_unit_id: String(buId) }));
     }
   }, [mode, businessUnits]);
 
@@ -123,7 +125,10 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
         <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
         <Select label="Business Unit *" value={form.business_unit_id} onChange={set("business_unit_id")} options={[
           { label: "Select Business Unit", value: "", disabled: true },
-          ...businessUnits.map(bu => ({ label: bu.name, value: String(bu.business_unit_id) }))
+          ...businessUnits.map(bu => ({
+            label: bu.name,
+            value: String(bu.business_unit_id || bu.id)
+          }))
         ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
@@ -180,10 +185,10 @@ export default function ClientManagementScreen() {
 
   useEffect(() => {
     load();
-    // Fetch business units for dropdown
-    getMyBUAccess()
+    // Fetch ALL organization business units for dropdown
+    listBusinessUnits()
       .then((res) => {
-        setBusinessUnits(res.access || []);
+        setBusinessUnits(res.business_units || res || []);
       })
       .catch((err) => console.error("Failed to load business units:", err));
   }, []);
@@ -544,7 +549,7 @@ function ClientDetailModal({
                       { label: "Select Business Unit", value: "", disabled: true },
                       ...businessUnits.map((bu) => ({
                         label: bu.name,
-                        value: String(bu.business_unit_id),
+                        value: String(bu.business_unit_id || bu.id),
                       })),
                     ]}
                     disabled={buSaving}
