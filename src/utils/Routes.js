@@ -52,4 +52,8 @@ export const ROUTES = {
   ERROR_LOG: "/admin/error-log",
   ADMIN_SETTINGS: "/admin/settings",
   ADMIN_WEEKLY_RECAP: "/admin/weekly-recap",
+  TRAINING_CERTIFICATION: "/training-certification",
+  TROY_PARTNER_DASHBOARD: "/troy-partner-dashboard",
+  BI_EXPLORER: "/bi-explorer",
+  BU_HEAD_DASHBOARD: "/bu-head-dashboard",
 };

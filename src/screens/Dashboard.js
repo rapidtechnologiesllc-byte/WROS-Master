@@ -7,9 +7,11 @@ import {
   Search,
   Users,
 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
+import { getRoles } from "../utils/permissionsRbac";
 
 function StatCard({ title, value, icon, onClick }) {
   return (
@@ -34,6 +36,30 @@ export default function Dashboard({
   onGo,
 }) {
   const navigate = useNavigate();
+  const navigationAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    if (navigationAttemptedRef.current) return;
+
+    const roles = getRoles() || [];
+
+    if (Array.isArray(roles) && roles.length > 0) {
+      navigationAttemptedRef.current = true;
+      if (roles.includes("CEO")) {
+        window.location.replace("/ceo-dashboard");
+        return;
+      }
+      if (roles.includes("CFO")) {
+        window.location.replace("/cfo-dashboard");
+        return;
+      }
+      if (roles.includes("Partner")) {
+        window.location.replace("/partner-roi");
+        return;
+      }
+    }
+  }, []);
+
   const openJobs = jobs.filter(
     (j) => j.status === "Open" || j.status === "Public",
   ).length;
