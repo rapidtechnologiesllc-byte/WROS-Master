@@ -57,6 +57,7 @@ class OpportunityStageTransitionRequest(BaseModel):
 class OpportunityStageTransitionResponse(BaseModel):
     opportunity: OpportunityItem
     project_id: Optional[str] = None
+    demand_id: Optional[str] = None
 
 
 class PipelineColumn(BaseModel):
