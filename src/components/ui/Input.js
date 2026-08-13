@@ -12,8 +12,8 @@ export default function Input({
   onBlur,
 }) {
   const handleChange = (e) => {
-    if (!onChange) return;
-    if (typeof onChange === "function") {
+    if (!onChange || typeof onChange !== "function") return;
+    if (e && e.target && typeof e.target.value !== "undefined") {
       onChange(e.target.value);
     }
   };

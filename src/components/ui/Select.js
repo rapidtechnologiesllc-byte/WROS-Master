@@ -3,8 +3,8 @@ import { ChevronDown } from "lucide-react";
 
 export default function Select({ label, value, onChange, options, disabled }) {
   const handleChange = (e) => {
-    if (!onChange) return;
-    if (typeof onChange === "function") {
+    if (!onChange || typeof onChange !== "function") return;
+    if (e && e.target && typeof e.target.value !== "undefined") {
       onChange(e.target.value);
     }
   };
