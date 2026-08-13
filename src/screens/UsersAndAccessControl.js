@@ -236,10 +236,12 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   useEffect(() => {
     const loadBusinessUnits = async () => {
       try {
-        const response = await apiRequest("/business-units");
-        setBusinessUnits(Array.isArray(response) ? response : response?.data || []);
+        const response = await apiRequest("/bu-context/available-buses");
+        const busData = response?.business_units || response?.data || response || [];
+        setBusinessUnits(Array.isArray(busData) ? busData : []);
       } catch (err) {
         console.error("Failed to load business units:", err);
+        setBusinessUnits([]);
       }
     };
     loadBusinessUnits();
