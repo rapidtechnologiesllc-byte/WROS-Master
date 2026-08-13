@@ -14,7 +14,7 @@ class OpportunityCreateRequest(BaseModel):
     currency: str = "USD"
     revenue_value_native: Optional[int] = None
     owner_employee_id: Optional[str] = None
-    client_owner_id: Optional[str] = None
+    client_owner_id: str  # DEFECT-4: Mandatory client owner from Sales access users
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
 

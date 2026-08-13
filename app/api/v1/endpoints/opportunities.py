@@ -142,6 +142,27 @@ def list_eligible_owners(
     return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
 
 
+@router.get("/client-owners")
+def list_client_owners(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_permission("revenue.view")),
+):
+    """Client Owner options - users with Sales module access from Users & Access Control.
+    Filters to employees with access to the Sales/Opportunity Pipeline module
+    (revenue.view permission via the admin-assigned roles in Users & Access Control)."""
+    rows = (
+        db.query(Employee)
+        .join(Users, Users.UserID == Employee.wros_user_id)
+        .join(Role, Role.id == Users.role_id)
+        .join(RolePermission, RolePermission.role_id == Role.id)
+        .join(Permission, Permission.id == RolePermission.permission_id)
+        .filter(Permission.name == "revenue.view")
+        .distinct()
+        .all()
+    )
+    return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
+
+
 @router.get("/pipeline", response_model=PipelineResponse)
 def get_pipeline(
     db: Session = Depends(get_db),
