@@ -159,6 +159,9 @@ class CandidateCompleteResponse(BaseModel):
     is_guidewire_candidate: bool = False
     # ── Job assignment ───────────────────────────────────────────────────────
     job_id: str | None = None
+    # ── Business Unit assignment ─────────────────────────────────────────────
+    business_unit_id: int | None = None
+    business_unit_name: str | None = None
     # ── Related records ──────────────────────────────────────────────────────
     personal_info: CandidateInfoResponse | None = None
     education: list[CandidateEducationResponse] = []

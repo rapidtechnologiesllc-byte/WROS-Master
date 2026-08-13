@@ -24,6 +24,7 @@ from sqlalchemy import (
     Column, Date, DateTime, Enum, ForeignKey, Integer,
     String, func,
 )
+from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
@@ -49,6 +50,9 @@ class Opportunity(Base):
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
     client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
     owner_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    # Business Unit assignment — derived from client's BU or assigned explicitly
+    # Auto-populated from client when created; can be overridden if opportunity spans BUs
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     stage = Column(
         Enum(*OPPORTUNITY_STAGES, name="opportunity_stage", native_enum=False, create_constraint=True),
@@ -73,3 +77,5 @@ class Opportunity(Base):
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

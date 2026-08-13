@@ -12,8 +12,8 @@ Real append-only enforcement is a database-grant-level guarantee (not
 built here -- same as audit_log's own note); the ORM-level guard below
 is defense-in-depth against this codebase's own ORM calls only.
 """
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, event, func
-from sqlalchemy.orm import Mapper
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, event, func, Index
+from sqlalchemy.orm import Mapper, relationship
 
 from app.models.base import Base
 
@@ -28,11 +28,21 @@ class EmployeePerformanceEvent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    # Business Unit assignment — derived from employee's BU for cross-referencing
+    # Denormalized from employee.bu_id for faster queries by BU
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     # e.g. "BUDDY_KPI", "CERTIFICATION_GATE" -- generic discriminator,
     # per 02-DATA-MODEL.md's own "one table, not one per type" design.
     event_type = Column(String(50), nullable=False, index=True)
     event_data = Column(Text, nullable=True)  # JSON-encoded
     occurred_at = Column(DateTime(timezone=False), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_perf_events_tenant_bu", "tenant_id", "business_unit_id"),
+        Index("ix_perf_events_employee_bu", "employee_id", "business_unit_id"),
+    )
+
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
 
 
 @event.listens_for(EmployeePerformanceEvent, "before_update")

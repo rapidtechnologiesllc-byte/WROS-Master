@@ -16,9 +16,10 @@ period, extending that story's own BR-02.
 import uuid
 
 from sqlalchemy import (
-    Column, Date, DateTime, Enum, ForeignKey, Integer,
+    Column, Date, DateTime, Enum, ForeignKey, Index, Integer,
     Numeric, String, func,
 )
+from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
@@ -39,6 +40,9 @@ class Invoice(Base):
 
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    # Business Unit assignment — derived from client's BU or project's BU
+    # Denormalized for easier querying and reporting by BU
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     billing_period_start = Column(Date, nullable=False)
     billing_period_end = Column(Date, nullable=False)
@@ -62,6 +66,8 @@ class Invoice(Base):
     paid_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
+
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
 
 
 class InvoiceLineItem(Base):

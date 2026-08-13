@@ -614,35 +614,115 @@ def create_user_with_roles(
 @router.put(
     "/users/{user_id}",
     response_model=UserResponse,
-    summary="Update an HR/Admin user's profile or role",
+    summary="Update an HR/Admin user's profile, role, department, or business unit",
     dependencies=[Depends(require_permission("user.manage"))],
 )
 def update_user(
     user_id: str,
     user_name: Optional[str] = None,
     user_role: Optional[str] = None,
+    business_unit_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_hr_or_admin)
 ):
     """
-    Update a user's name or role.
+    Update a user's name, role, business unit, or department.
     Requires permission: user.manage
+
+    Args:
+        user_id: User ID to update
+        user_name: New user name (optional)
+        user_role: New legacy user role (optional)
+        business_unit_id: New business unit ID (optional)
+        department_id: New department ID (optional)
     """
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
     if user_name is not None:
         target.UserName = user_name
     if user_role is not None:
         target.UserRole = user_role
+    if business_unit_id is not None:
+        # Verify BU exists
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+        if not bu:
+            raise HTTPException(status_code=404, detail=f"Business Unit {business_unit_id} not found")
+        target.business_unit_id = business_unit_id
+    if department_id is not None:
+        # Verify department exists
+        dept = db.query(Department).filter(Department.id == department_id).first()
+        if not dept:
+            raise HTTPException(status_code=404, detail=f"Department {department_id} not found")
+        target.department_id = department_id
+
     db.commit()
     db.refresh(target)
+
+    role = db.query(Role).filter(Role.id == target.role_id).first() if target.role_id else None
+
     return UserResponse(
         user_id=target.UserID,
         user_name=target.UserName or "",
         user_email=target.UserEmail,
         user_role=target.UserRole,
-        created_at=target.CreatedAt
+        created_at=target.CreatedAt,
+        permission_role=role.name if role else None,
+        department_id=target.department_id,
+        department_name=target.department.name if target.department else None,
+        business_unit_id=target.business_unit_id,
+        business_unit_name=target.business_unit.name if target.business_unit else None,
+    )
+
+
+@router.post(
+    "/users/{user_id}/assign-bu",
+    response_model=UserResponse,
+    summary="Assign or change a user's business unit",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def assign_user_to_bu(
+    user_id: str,
+    business_unit_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Assign or change a user's business unit.
+    Requires permission: user.manage
+
+    Args:
+        user_id: User ID to update
+        business_unit_id: Business unit ID to assign
+    """
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
+    # Verify BU exists
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail=f"Business Unit {business_unit_id} not found")
+
+    target.business_unit_id = business_unit_id
+    db.commit()
+    db.refresh(target)
+
+    role = db.query(Role).filter(Role.id == target.role_id).first() if target.role_id else None
+
+    return UserResponse(
+        user_id=target.UserID,
+        user_name=target.UserName or "",
+        user_email=target.UserEmail,
+        user_role=target.UserRole,
+        created_at=target.CreatedAt,
+        permission_role=role.name if role else None,
+        department_id=target.department_id,
+        department_name=target.department.name if target.department else None,
+        business_unit_id=target.business_unit_id,
+        business_unit_name=target.business_unit.name if target.business_unit else None,
     )
 
 
