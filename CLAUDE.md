@@ -749,6 +749,386 @@ TIMEOUT BEHAVIOR (if no response within hm_validation_timeout_hours):
 
 ---
 
+## 🎯 BACKLOG STORY: careers.blitzenx.com Frontend - Production Grade
+
+**Story ID:** EPIC-07-CAREERS-PORTAL-FRONTEND  
+**Priority:** HIGH - Enables public candidate applications  
+**Status:** MVP DEPLOYED - Needs production hardening  
+**Created:** 2026-08-13  
+**Scope:** 4-6 weeks for production-ready frontend
+
+### Problem Statement
+
+**Current State:** careers.blitzenx.com has a basic MVP frontend (localhost:3001) with:
+- ✅ Job listings working
+- ✅ Thunder chatbot flow functional
+- ✅ Basic styling (inline CSS)
+
+**Gaps Blocking Production:**
+- ❌ No error handling (network failures, timeouts, validation errors)
+- ❌ No form validation (invalid emails, missing fields accepted)
+- ❌ No state persistence (form data lost on refresh)
+- ❌ No API integration (frontend not calling backend endpoints)
+- ❌ Poor UX (no loading states, no feedback messages)
+- ❌ Accessibility issues (no WCAG 2.1 compliance)
+- ❌ No analytics (can't track user behavior)
+- ❌ Mobile UX needs work (touch interactions, responsive layout)
+- ❌ No tests (no unit, integration, or E2E tests)
+- ❌ Deployment not configured (not ready for production)
+
+**Business Impact:**
+- Candidates experience errors without clear guidance
+- Session data lost, candidates forced to restart
+- No visibility into application funnel
+- Poor mobile experience (30-40% of traffic)
+- Not meeting accessibility requirements
+
+### Solution Overview
+
+**Transform careers.blitzenx.com from MVP to production-grade:**
+
+```
+Phase 1: Error Handling & Validation (Week 1)
+  ├─ Form validation (email, required fields, file upload)
+  ├─ Error boundaries and fallback UI
+  ├─ Network error handling with retry logic
+  └─ Toast notifications for user feedback
+
+Phase 2: State Management & Persistence (Week 2)
+  ├─ Zustand store for session state
+  ├─ LocalStorage for form recovery
+  ├─ Session recovery from email link (?session_id=xxx)
+  └─ Automatic save-on-input (debounced)
+
+Phase 3: API Integration (Week 2)
+  ├─ Connect Thunder form to backend /api/v1/thunder/* endpoints
+  ├─ Resume parsing callback integration
+  ├─ Job listing API integration
+  └─ Error handling per endpoint
+
+Phase 4: UX Enhancements (Week 3)
+  ├─ Loading states & spinners
+  ├─ Progress indicators (actual % complete)
+  ├─ Success/error messaging
+  ├─ Keyboard navigation
+  └─ Accessibility audit (WCAG 2.1 AA)
+
+Phase 5: Mobile & Responsive (Week 3)
+  ├─ Touch-friendly buttons (48px minimum)
+  ├─ Mobile-first responsive design
+  ├─ Viewport optimization
+  └─ iOS/Android testing
+
+Phase 6: Testing (Week 4)
+  ├─ Unit tests (components, hooks, utilities)
+  ├─ Integration tests (API calls, state changes)
+  ├─ E2E tests (Cypress: complete Thunder flow)
+  └─ Performance testing (Lighthouse, Core Web Vitals)
+
+Phase 7: Analytics & Monitoring (Week 4)
+  ├─ Google Analytics integration
+  ├─ Funnel tracking (Q1→Q8 completion)
+  ├─ Error tracking (Sentry)
+  ├─ Session recording (optional: Hotjar/LogRocket)
+  └─ Performance monitoring (Web Vitals)
+
+Phase 8: Deployment (Week 5)
+  ├─ Vercel configuration
+  ├─ Environment setup (staging/production)
+  ├─ CDN caching strategy
+  ├─ SSL/TLS configuration
+  └─ Monitoring & alerting
+```
+
+### Detailed Requirements
+
+#### Phase 1: Form Validation & Error Handling
+
+**Form Validators:**
+```typescript
+// Email validation
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+// Required field validation
+const isRequired = (value) => value && value.trim().length > 0
+
+// Phone number validation
+const isValidPhone = (phone) => /^[\d\s\-\+\(\)]+$/.test(phone)
+
+// Resume file validation (PDF/DOCX, max 5MB)
+const isValidResume = (file) => {
+  const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+  return validTypes.includes(file.type) && file.size <= 5 * 1024 * 1024
+}
+```
+
+**Error Handling:**
+```typescript
+// Network error handler
+const handleError = (error) => {
+  if (!error.response) {
+    return 'Network error. Check your connection and try again.'
+  }
+  
+  const status = error.response.status
+  if (status === 400) return 'Invalid input. Please check your answers.'
+  if (status === 404) return 'Resource not found.'
+  if (status === 500) return 'Server error. Please try again later.'
+  
+  return 'Something went wrong. Please try again.'
+}
+
+// Retry logic for failed requests
+const retryRequest = async (fn, maxRetries = 3) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      if (i === maxRetries - 1) throw error
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+    }
+  }
+}
+```
+
+#### Phase 2: State Management with Zustand
+
+```typescript
+// Store for Thunder session
+import create from 'zustand'
+
+interface ThunderStore {
+  sessionId: string | null
+  currentQuestion: string
+  responses: Record<string, any>
+  status: 'idle' | 'loading' | 'error'
+  error: string | null
+  
+  // Actions
+  initSession: (email: string) => Promise<void>
+  submitAnswer: (question: string, response: any) => Promise<void>
+  uploadResume: (file: File) => Promise<void>
+  submitApplication: () => Promise<void>
+}
+
+export const useThunderStore = create<ThunderStore>((set) => ({
+  sessionId: null,
+  currentQuestion: 'Q1',
+  responses: {},
+  status: 'idle',
+  error: null,
+  
+  initSession: async (email) => {
+    set({ status: 'loading' })
+    try {
+      const { data } = await axios.post('/api/v1/thunder/sessions', { 
+        candidate_email: email 
+      })
+      set({ sessionId: data.session_id, status: 'idle' })
+    } catch (error) {
+      set({ error: error.message, status: 'error' })
+    }
+  },
+  
+  // ... other actions
+}))
+```
+
+#### Phase 3: API Integration
+
+**Axios instance with interceptors:**
+```typescript
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL
+})
+
+// Request interceptor
+api.interceptors.request.use((config) => {
+  // Add session ID to headers if available
+  const sessionId = localStorage.getItem('thunder_session_id')
+  if (sessionId) {
+    config.headers['X-Session-ID'] = sessionId
+  }
+  return config
+})
+
+// Response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Handle authentication error
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default api
+```
+
+#### Phase 4: Accessibility Compliance (WCAG 2.1 AA)
+
+**Requirements:**
+- [ ] Color contrast ratio ≥ 4.5:1 for text
+- [ ] All form inputs have associated labels
+- [ ] Keyboard navigation (Tab, Enter, Escape)
+- [ ] ARIA roles and live regions for dynamic content
+- [ ] Skip navigation link
+- [ ] Focus visible on all interactive elements
+- [ ] No text-only images (use alt text)
+- [ ] Heading hierarchy (h1 → h2 → h3)
+- [ ] Landmarks (header, nav, main, footer)
+
+#### Phase 5: Mobile Optimization
+
+**Viewport meta tag:**
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+```
+
+**Touch-friendly buttons:**
+```css
+button {
+  min-height: 48px;  /* Touch target size */
+  min-width: 48px;
+  padding: 12px 16px;
+}
+```
+
+**Responsive breakpoints:**
+```css
+/* Mobile: 375px - 767px */
+/* Tablet: 768px - 1023px */
+/* Desktop: 1024px+ */
+```
+
+#### Phase 6: Testing Strategy
+
+**Unit tests (Jest):**
+```typescript
+describe('ThunderChat', () => {
+  it('should display next question after answer', async () => {
+    render(<ThunderChat />)
+    const input = screen.getByPlaceholderText('Type your answer...')
+    
+    fireEvent.change(input, { target: { value: 'Jane Doe' } })
+    fireEvent.click(screen.getByText('Next →'))
+    
+    await waitFor(() => {
+      expect(screen.getByText(/How many years/)).toBeInTheDocument()
+    })
+  })
+})
+```
+
+**E2E tests (Cypress):**
+```typescript
+describe('Thunder Complete Flow', () => {
+  it('should complete full Thunder intake', () => {
+    cy.visit('/jobs')
+    cy.contains('Apply now').first().click()
+    
+    // Q1: Email
+    cy.get('input[type="text"]').type('test@example.com')
+    cy.contains('Next').click()
+    
+    // Q2-Q8: Answer all questions
+    // ...
+    
+    // Submit
+    cy.contains('Submit Application').click()
+    
+    // Verify success
+    cy.contains('Application Received!').should('be.visible')
+  })
+})
+```
+
+#### Phase 7: Analytics
+
+**Events to track:**
+- Session started (job_id, device_type)
+- Question answered (question_id, time_taken)
+- Resume uploaded (file_size, format)
+- Application submitted (completion_time, job_id)
+- Errors encountered (error_type, question_id)
+- Session abandoned (last_question_reached)
+
+**Funnel analysis:**
+- Job viewed → Apply clicked → Q1 answered → Q8 answered → Submitted
+- Dropout rate by question
+- Average time per question
+- Resume upload success rate
+
+#### Phase 8: Deployment
+
+**Vercel Configuration (vercel.json):**
+```json
+{
+  "buildCommand": "npm run build",
+  "env": {
+    "NEXT_PUBLIC_API_BASE_URL": "@api_base_url"
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.blitzenx.com/api/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+      ]
+    }
+  ]
+}
+```
+
+### Acceptance Criteria
+
+- [ ] All form inputs validate before submission
+- [ ] Network errors show clear, actionable messages
+- [ ] Form data persists when page is refreshed
+- [ ] Session can be resumed via email link
+- [ ] All backend API endpoints integrated and tested
+- [ ] Loading spinners show during network requests
+- [ ] Mobile experience works on iOS and Android
+- [ ] Lighthouse score ≥ 90 for all metrics
+- [ ] WCAG 2.1 AA compliance verified
+- [ ] 80%+ unit test coverage
+- [ ] Complete E2E test coverage (all user flows)
+- [ ] Analytics events firing correctly
+- [ ] Deployment to Vercel automated
+- [ ] Error tracking (Sentry) integrated
+
+### Dependencies
+
+- Backend APIs deployed and working (EPIC-06 complete)
+- Design system/component library decision (Tailwind vs custom)
+- Analytics account setup (Google Analytics, Sentry)
+- Vercel or hosting provider configured
+
+### Timeline
+
+- **Weeks 1-2:** Phase 1-3 (validation, state, API)
+- **Weeks 3-4:** Phase 4-6 (UX, mobile, testing)
+- **Week 5:** Phase 7-8 (analytics, deployment)
+- **Total:** 5 weeks for production-ready
+
+### Out of Scope
+
+- Custom animation library
+- A/B testing framework
+- Multi-language support
+- Native mobile apps
+
+---
+
 ## Code Quality Standards (Established 2026-07-23)
 
 - No placeholders/hardcoded values in EPIC-01/02/03/05 stories
