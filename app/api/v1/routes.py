@@ -22,7 +22,7 @@ from app.api.v1.endpoints.internal import router as internal_router
 from app.api.v1.endpoints.hr_assignments import router as hr_assignments_router
 from app.api.v1.endpoints.ai_agent import router as ai_agent_router
 from app.api.v1.endpoints.mfa import router as mfa_router
-from app.api.v1.endpoints.thunder import router as thunder_router
+# from app.api.v1.endpoints.thunder import router as thunder_router  # DISABLED: incomplete implementation
 from app.api.v1.endpoints.resource_management import router as resource_management_router
 from app.api.v1.endpoints.core_pull import router as core_pull_router
 from app.api.v1.endpoints.demand_confirmation import router as demand_confirmation_router
@@ -125,7 +125,7 @@ router.include_router(router=internal_router)
 router.include_router(router=hr_assignments_router)
 router.include_router(router=ai_agent_router)
 router.include_router(router=mfa_router)
-router.include_router(router=thunder_router)
+# router.include_router(router=thunder_router)  # DISABLED: incomplete implementation
 router.include_router(router=resource_management_router)
 router.include_router(router=core_pull_router)
 router.include_router(router=demand_confirmation_router)
