@@ -4,7 +4,7 @@ Tracks form state, question progression, resume data, and session persistence
 """
 
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey, JSON, func, Enum
+from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey, JSON, func, Enum, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import json
@@ -97,12 +97,11 @@ class ThunderSession(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
-        # Indexes for efficient queries
-        ("idx_thunder_session_candidate_id", "candidate_id"),
-        ("idx_thunder_session_email", "candidate_email"),
-        ("idx_thunder_session_status", "status"),
-        ("idx_thunder_session_created_at", "created_at"),
-        ("idx_thunder_session_last_activity", "last_activity_at"),
+        Index("idx_thunder_session_candidate_id", "candidate_id"),
+        Index("idx_thunder_session_email", "candidate_email"),
+        Index("idx_thunder_session_status", "status"),
+        Index("idx_thunder_session_created_at", "created_at"),
+        Index("idx_thunder_session_last_activity", "last_activity_at"),
     )
 
     # Relationships
