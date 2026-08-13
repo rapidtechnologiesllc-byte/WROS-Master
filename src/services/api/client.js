@@ -116,7 +116,12 @@ export const apiRequest = async (path, options = {}) => {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(headers || {}),
   };
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+
+  const method = rest.method || "GET";
+  const url = `${API_BASE_URL}${path}`;
+  console.log(`[API] ${method} ${path}`);
+
+  const response = await fetch(url, {
     headers: skipAuth ? baseHeaders : withAuthHeaders(baseHeaders),
     body,
     ...rest,
@@ -129,23 +134,29 @@ export const apiRequest = async (path, options = {}) => {
     data = null;
   }
 
+  console.log(`[API] ${method} ${path} - Status: ${response.status}`, data);
+
   if (!response.ok) {
     // Backend often returns 404 when optional candidate form rows do not exist yet.
     if (allow404 && response.status === 404) {
+      console.warn(`[API] 404 allowed for ${path}`);
       return { data: null, response };
     }
     if (
       Array.isArray(allowStatuses) &&
       allowStatuses.includes(response.status)
     ) {
+      console.warn(`[API] Status ${response.status} allowed for ${path}`);
       return { data: null, response };
     }
     // Expired or invalid JWT: redirect to login instead of surfacing "Invalid token" in the UI.
     if (response.status === 401 && !skipAuth) {
+      console.error(`[API] 401 Unauthorized - redirecting to login`);
       clearAuthSessionAndRedirectToLogin();
       throw new Error("Your session has expired. Please sign in again.");
     }
     const message = formatApiErrorMessage(data);
+    console.error(`[API] Error ${response.status} for ${path}: ${message}`, data);
     const error = new Error(message);
     error.status = response.status;
     // Structured 4xx bodies (e.g. { error, review_id, ... }) -- callers that
@@ -155,5 +166,6 @@ export const apiRequest = async (path, options = {}) => {
     throw error;
   }
 
+  console.log(`[API] ✓ ${method} ${path}`);
   return { data, response };
 };
