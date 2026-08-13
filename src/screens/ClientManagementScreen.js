@@ -446,6 +446,28 @@ function ClientDetailModal({
   client, loading, error, investmentPosition, investmentPositionError,
   contacts, contactsLoading, contactsError, onContactAdded, onClose, businessUnits = [],
 }) {
+  const [selectedBU, setSelectedBU] = useState(String(client?.business_unit_id || ""));
+  const [buSaving, setBuSaving] = useState(false);
+
+  useEffect(() => {
+    setSelectedBU(String(client?.business_unit_id || ""));
+  }, [client?.id]);
+
+  const handleBUChange = async (buId) => {
+    setSelectedBU(buId);
+    if (!buId || !client?.id) return;
+
+    setBuSaving(true);
+    try {
+      await updateClient(client.id, { business_unit_id: Number(buId) });
+    } catch (err) {
+      console.error("Failed to update business unit:", err);
+      setSelectedBU(String(client.business_unit_id || ""));
+    } finally {
+      setBuSaving(false);
+    }
+  };
+
   const statusColors = {
     "ACTIVE": "bg-emerald-50 text-emerald-700 border-emerald-200",
     "INACTIVE": "bg-gray-50 text-gray-700 border-gray-200",
@@ -516,8 +538,8 @@ function ClientDetailModal({
                 <div>
                   <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Business Unit</label>
                   <Select
-                    value={String(client.business_unit_id || "")}
-                    onChange={() => {}}
+                    value={selectedBU}
+                    onChange={handleBUChange}
                     options={[
                       { label: "Select Business Unit", value: "", disabled: true },
                       ...businessUnits.map((bu) => ({
@@ -525,8 +547,9 @@ function ClientDetailModal({
                         value: String(bu.business_unit_id),
                       })),
                     ]}
-                    disabled={true}
+                    disabled={buSaving}
                   />
+                  {buSaving && <div className="mt-1 text-xs text-gray-500">Saving...</div>}
                 </div>
               </FieldGroup>
 
