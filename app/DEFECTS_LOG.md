@@ -668,3 +668,51 @@ Confirmed: No table in the system supports:
 3. Confirm: Users & Access Control screen should be fully functional before marking session complete?
 
 ---
+
+## [DEFECT-2026-08-13] RESOLVED — Business Unit data source inconsistency: Admin Settings vs Create User dropdown
+
+**Reporter:** Avinash (raised ~20 times in prior sessions)
+**Timestamp:** 2026-08-13
+**Severity:** CRITICAL — architectural inconsistency blocking multi-BU assignment implementation
+**Screens:** Admin Settings → Organization → Business Units, Create User modal
+
+**Problem:**
+Admin Settings displayed hardcoded business units including India (which didn't exist in database),
+while Create User dropdown showed only Europe and North America (loaded from API). Two screens,
+same data, two different sources = silent data drift and confusion about what BUs actually exist.
+
+**Root Cause:**
+- AdminSettingsScreen.js had hardcoded state: `useState([{id:1, name:"North America",...}, {id:2, name:"India",...}])`
+- India (code: "IN", head: "Raj Patel") never existed in database (only NA and EU)
+- Create User was correctly loading from `/bu-context/available-buses` API endpoint
+- Two sources of truth = architectural failure point
+
+**Solution Implemented:**
+
+1. **Removed hardcoded data** from AdminSettingsScreen.js lines 83-86
+2. **Added API integration** — useEffect hook loads from `/bu-context/available-buses`
+   - Same endpoint as Create User dropdown → unified data source
+   - skipAuth: true (public endpoint) for form init
+3. **Implemented "Add Business Unit" functionality**
+   - Modal form with name + description fields
+   - Calls `POST /rbac/business-units` backend endpoint
+   - Auto-refreshes both Admin Settings and Create User dropdowns after creation
+4. **Updated display fields** from hardcoded "Code/Head/Partner" to API-sourced "Region/Continent"
+
+**End-to-End Verification:**
+✅ Created test BU "Asia Pacific" in Admin Settings modal
+✅ Admin Settings immediately shows the new BU
+✅ Create User dropdown instantly reflects the change  
+✅ Both screens display identical BU data from single API source
+
+**Files Modified:**
+- `OnboardingModule-Frontend-main/src/screens/AdminSettingsScreen.js` — 129 line addition
+  - Removed hardcoded array, added useEffect + API integration
+  - Added state management for Add BU modal
+  - Added handleAddBusinessUnit() function
+  - Wired modal form to backend endpoint
+
+**Commit:** e15105f (pushed to main)
+**Status:** RESOLVED — Single source of truth implemented, tested end-to-end, pushed to production.
+
+---
