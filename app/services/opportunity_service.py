@@ -66,6 +66,7 @@ def create_opportunity(
     currency: str = "USD",
     revenue_value_native: Optional[int] = None,
     owner_employee_id: Optional[str] = None,
+    client_owner_id: Optional[str] = None,
     expected_close_date=None,
     stage: str = "QUALIFICATION",
 ) -> Opportunity:
@@ -74,6 +75,7 @@ def create_opportunity(
 
     opportunity = Opportunity(
         tenant_id=tenant_id, client_id=client_id, owner_employee_id=owner_employee_id,
+        client_owner_id=client_owner_id,
         stage=stage, revenue_value_usd_cents=revenue_value_usd_cents,
         revenue_value_native=revenue_value_native, currency=currency,
         probability_pct=default_probability_for_stage(stage), expected_close_date=expected_close_date,
