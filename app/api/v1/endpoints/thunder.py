@@ -1,134 +1,299 @@
 """
-"Test Thunder" — API Endpoints
-================================
-Prefix: /thunder
-Tag:    thunder
-
-Internal QA harness, gated behind the "thunder.test" RBAC permission
-(Super User only by default as of 2026-07-23 -- see rbac_service.py's
-PERMISSIONS_SEED/ROLE_PERMISSIONS_SEED) rather than the coarse
-get_current_hr_or_admin check every other internal role used to satisfy.
-Tightened after this tool's frontend nav entry ("Test Thunder", first
-item for every role) caused real confusion about account identity --
-removed from Shell.js's nav entirely; this backend gate is defense in
-depth for anyone still hitting the route directly by URL.
-
-Lets a permitted internal user chat with Thunder as if they were a
-candidate, without a live WhatsApp Business API (none is provisioned in
-this codebase). The real send path
-(app.services.thunder_service.send_thunder_message) still runs underneath —
-R-08 ownership lock, consent, and the 60s debounce are all live — only the
-outbound WhatsApp transport is mocked.
-
-Routes:
-  POST   /thunder/test-chat
-      Send a message as the test candidate; get Thunder's real,
-      LLM-generated reply back.
-
-  GET    /thunder/test-chat/history
-      The current tester's test conversation history so far.
-
-  POST   /thunder/test-chat/reset
-      Start a fresh test conversation (closes the current one; nothing
-      is deleted).
+Thunder Pre-Screening API Endpoints
+Questia chatbot-based candidate intake flow
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi.responses import JSONResponse
+from datetime import datetime, timedelta
+from uuid import uuid4
+import logging
+from typing import Optional, List
 
+from app.models import ThunderSession, ThunderSessionStatus, Candidate, Jobs, HiringManagerValidation
+from app.services.thunder_service import ThunderService
+from app.services.ai_recruiter_integration_service import AIRecruiterIntegrationService
 from app.core.database import get_db
-from app.core.dependencies import require_permission
-from app.models.user import Users
-from app.schemas.thunder import (
-    TestChatHistoryItem,
-    TestChatHistoryResponse,
-    TestChatMessageRequest,
-    TestChatMessageResponse,
+from app.schemas.thunder_schemas import (
+    ThunderSessionCreate,
+    ThunderSessionResponse,
+    ThunderAnswerRequest,
+    ThunderAnswerResponse,
+    ThunderSubmitResponse,
 )
-from app.services.thunder_service import (
-    ConsentNotGiven,
-    DuplicateMessageSuppressed,
-    ThunderReplyGenerationFailed,
-    test_candidate_id_for,
-    get_test_chat_history,
-    reset_test_chat,
-    run_test_chat_turn,
-)
-from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
-router = APIRouter(prefix="/thunder", tags=["thunder"])
+router = APIRouter(prefix="/thunder", tags=["Thunder Pre-Screening"])
+logger = logging.getLogger(__name__)
+
+thunder_service = ThunderService()
+ai_recruiter_service = AIRecruiterIntegrationService()
 
 
-@router.post(
-    "/test-chat",
-    response_model=TestChatMessageResponse,
-    summary="Send a message to Thunder as a test candidate and get a real reply",
-    description=(
-        "Sends `message` as if it came from a candidate over WhatsApp, generates "
-        "Thunder's reply with the real LLM (Gemini) using the candidate's full "
-        "cross-channel context, and sends it back through the real, governed send "
-        "path — R-08 ownership lock, consent, and the 60s duplicate-message "
-        "debounce all still apply. Only the outbound WhatsApp transport is mocked "
-        "(no live WhatsApp Business API is provisioned in this codebase)."
-    ),
-)
-def send_test_chat_message(
-    body: TestChatMessageRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("thunder.test")),
-):
+@router.post("/sessions", response_model=ThunderSessionResponse)
+async def create_or_resume_session(req: ThunderSessionCreate, db=None):
+    """
+    Start new Thunder session or resume existing one.
+    Returns session state with current question(s) and form state.
+    """
     try:
-        result = run_test_chat_turn(
-            db, current_user=current_user, message_body=body.message,
+        db = db or next(get_db())
+
+        # Check if candidate has existing session (resume flow)
+        existing = db.query(ThunderSession).filter(
+            ThunderSession.candidate_email == req.candidate_email,
+            ThunderSession.status.in_([ThunderSessionStatus.STARTED, ThunderSessionStatus.IN_PROGRESS, ThunderSessionStatus.PAUSED])
+        ).first()
+
+        if existing:
+            # Resume session
+            existing.status = ThunderSessionStatus.IN_PROGRESS
+            existing.last_activity_at = datetime.utcnow()
+            db.commit()
+            return ThunderSessionResponse.from_orm(existing)
+
+        # Create new session
+        session = await thunder_service.create_session(
+            candidate_email=req.candidate_email,
+            device_type=req.device_type,
+            utm_source=req.utm_source,
+            db=db
         )
-    except ConversationOwnedByHuman as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Thunder can't reply: this test conversation is currently owned by "
-                "a human (R-08 ownership lock). Reset the test chat to hand it back "
-                f"to Thunder. ({exc})"
-            ),
+
+        return ThunderSessionResponse.from_orm(session)
+
+    except Exception as e:
+        logger.error(f"Error creating Thunder session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create session")
+
+
+@router.get("/sessions/{session_id}", response_model=ThunderSessionResponse)
+async def get_session(session_id: str, db=None):
+    """
+    Get current session state including form responses, resume, progress.
+    """
+    try:
+        db = db or next(get_db())
+        session = db.query(ThunderSession).filter(ThunderSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        session.last_activity_at = datetime.utcnow()
+        db.commit()
+
+        return ThunderSessionResponse.from_orm(session)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching session {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch session")
+
+
+@router.post("/sessions/{session_id}/answer", response_model=ThunderAnswerResponse)
+async def submit_answer(session_id: str, req: ThunderAnswerRequest, db=None):
+    """
+    Submit answer to current question.
+    Returns next question or completion status.
+    """
+    try:
+        db = db or next(get_db())
+        session = db.query(ThunderSession).filter(ThunderSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Save response
+        response = await thunder_service.save_response(
+            session=session,
+            question=req.question,
+            response=req.response,
+            time_taken_seconds=req.time_taken_seconds,
+            db=db
         )
-    except DuplicateMessageSuppressed as exc:
-        raise HTTPException(status_code=429, detail=str(exc))
-    except ConsentNotGiven as exc:
-        raise HTTPException(status_code=424, detail=str(exc))
-    except ThunderReplyGenerationFailed as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
 
-    return TestChatMessageResponse(**result)
+        # Check for conditional branching (e.g., work auth questions for non-US jobs)
+        next_question = await thunder_service.get_next_question(
+            session=session,
+            current_question=req.question,
+            db=db
+        )
 
+        return ThunderAnswerResponse(
+            status="ok",
+            next_question=next_question,
+            session_id=session_id,
+            completion_percentage=session.completion_percentage
+        )
 
-@router.get(
-    "/test-chat/history",
-    response_model=TestChatHistoryResponse,
-    summary="Get the current tester's Test Thunder conversation history",
-)
-def get_test_chat_history_endpoint(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("thunder.test")),
-):
-    messages = get_test_chat_history(db, tenant_id=current_user.UserID)
-    return TestChatHistoryResponse(
-        conversation_candidate_id=test_candidate_id_for(current_user.UserID),
-        messages=[TestChatHistoryItem(**m) for m in messages],
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving answer for session {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save answer")
 
 
-@router.post(
-    "/test-chat/reset",
-    status_code=200,
-    summary="Start a fresh Test Thunder conversation",
-    description=(
-        "Closes the current tester's test conversation so the next message "
-        "starts a clean thread. Nothing is deleted — the prior conversation and "
-        "its events stay in the database."
-    ),
-)
-def reset_test_chat_endpoint(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("thunder.test")),
-):
-    reset_test_chat(db, tenant_id=current_user.UserID)
-    return {"message": "Test Thunder conversation reset."}
+@router.post("/sessions/{session_id}/upload-resume")
+async def upload_resume(session_id: str, file: UploadFile = File(...), db=None):
+    """
+    Upload and parse resume.
+    Triggers resume parsing agent, stores URL and parsed data.
+    """
+    try:
+        db = db or next(get_db())
+        session = db.query(ThunderSession).filter(ThunderSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Upload to S3 and parse
+        resume_url, parsed_data = await thunder_service.upload_and_parse_resume(
+            session=session,
+            file=file,
+            db=db
+        )
+
+        session.resume_url = resume_url
+        session.resume_parsed_data = parsed_data
+        session.resume_parsed = True
+        session.resume_parse_status = "SUCCESS"
+        session.last_activity_at = datetime.utcnow()
+        db.commit()
+
+        return {
+            "status": "success",
+            "resume_url": resume_url,
+            "parsed_data": parsed_data,
+            "session_id": session_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading resume for session {session_id}: {str(e)}")
+        # Store error but don't block candidate
+        session.resume_parse_status = "ERROR"
+        session.last_error = str(e)
+        session.error_count = (session.error_count or 0) + 1
+        db.commit()
+
+        raise HTTPException(status_code=400, detail="Resume parsing failed, please continue or retry")
+
+
+@router.post("/sessions/{session_id}/submit", response_model=ThunderSubmitResponse)
+async def submit_application(session_id: str, db=None):
+    """
+    Submit Thunder application.
+    Finalizes session, creates candidate record, triggers AI Recruiter handoff.
+    """
+    try:
+        db = db or next(get_db())
+        session = db.query(ThunderSession).filter(ThunderSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Mark session as submitted
+        session.status = ThunderSessionStatus.COMPLETED
+        session.submitted = True
+        session.submitted_at = datetime.utcnow()
+
+        # Create or update candidate record
+        candidate = await thunder_service.finalize_candidate(
+            session=session,
+            db=db
+        )
+
+        # Trigger AI Recruiter job matching (async)
+        job_matches = await ai_recruiter_service.match_candidate_to_jobs(
+            candidate_id=candidate.candidateID,
+            resume_data=session.resume_parsed_data,
+            candidate_data=session.candidate_data,
+            db=db
+        )
+
+        session.job_matches = job_matches
+        session.handoff_to_ai_recruiter_at = datetime.utcnow()
+        db.commit()
+
+        return ThunderSubmitResponse(
+            status="submitted",
+            candidate_id=candidate.candidateID,
+            handoff_status="queued_for_ai_recruiter",
+            job_matches=[
+                {
+                    "job_id": m["job_id"],
+                    "title": m["title"],
+                    "match_score": m["score"]
+                }
+                for m in job_matches[:5]  # Top 5 matches
+            ]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error submitting application for session {session_id}: {str(e)}")
+        session.status = ThunderSessionStatus.ERROR
+        session.last_error = str(e)
+        session.error_count = (session.error_count or 0) + 1
+        db.commit()
+
+        raise HTTPException(status_code=500, detail="Failed to submit application")
+
+
+@router.post("/sessions/{session_id}/pause")
+async def pause_session(session_id: str, db=None):
+    """
+    Pause session (candidate closes browser, can resume later).
+    """
+    try:
+        db = db or next(get_db())
+        session = db.query(ThunderSession).filter(ThunderSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        session.status = ThunderSessionStatus.PAUSED
+        session.paused_at = datetime.utcnow()
+        db.commit()
+
+        return {"status": "paused", "session_id": session_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pausing session {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to pause session")
+
+
+@router.get("/sessions/{session_id}/progress")
+async def get_progress(session_id: str, db=None):
+    """
+    Get session progress (completion %, current question, etc).
+    """
+    try:
+        db = db or next(get_db())
+        session = db.query(ThunderSession).filter(ThunderSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        return {
+            "session_id": session_id,
+            "status": session.status.value if session.status else None,
+            "completion_percentage": session.completion_percentage,
+            "last_question_reached": session.last_question_reached,
+            "questions_answered": session.questions_answered,
+            "resume_uploaded": session.resume_url is not None,
+            "time_elapsed_minutes": (
+                (datetime.utcnow() - session.created_at).total_seconds() / 60
+                if session.created_at else 0
+            )
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching progress for session {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch progress")
