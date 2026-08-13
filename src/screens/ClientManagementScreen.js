@@ -292,8 +292,8 @@ export default function ClientManagementScreen() {
       </span>
     ),
     actions: (
-      <Button variant="ghost" onClick={() => handleEditClick(c)} disabled={editLoadingId === c.id}>
-        <Pencil className="h-4 w-4" /> {editLoadingId === c.id ? "Loading…" : "Edit"}
+      <Button variant="ghost" onClick={() => handleRowClick(c)} disabled={detailLoading && detailClient?.id === c.id}>
+        <Pencil className="h-4 w-4" /> {detailLoading && detailClient?.id === c.id ? "Loading…" : "Edit"}
       </Button>
     ),
   }));
