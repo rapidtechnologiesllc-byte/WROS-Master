@@ -12,8 +12,11 @@ from app.core.log_redaction import RedactingFilter
 
 
 # Create logs directory if it doesn't exist
-LOGS_DIR = Path("logs")
-LOGS_DIR.mkdir(exist_ok=True)
+# Use absolute path based on this file's location to avoid CWD issues
+_THIS_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _THIS_DIR.parent.parent
+LOGS_DIR = _REPO_ROOT / "logs"
+LOGS_DIR.mkdir(exist_ok=True, parents=True)
 
 # Log retention period (in days)
 LOG_RETENTION_DAYS = 7
