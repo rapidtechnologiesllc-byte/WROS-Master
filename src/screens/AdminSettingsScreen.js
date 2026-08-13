@@ -13,8 +13,10 @@ import { toast } from "react-toastify";
 import { Card } from "../components/ui";
 import { getSettingsPanel, updateSetting } from "../services/api/systemConfig";
 import { ROUTES } from "../utils/Routes";
+import { Plus, Edit2, Trash2, Building2, MapPin } from "lucide-react";
 
 const CATEGORIES = [
+  { key: "ORGANIZATION", label: "Organization" },
   { key: "AI_THRESHOLDS", label: "AI Thresholds" },
   { key: "SLA", label: "SLA" },
   { key: "CHANNELS", label: "Channels" },
@@ -72,6 +74,174 @@ function ConfigRow({ item, onSave }) {
           </button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function OrganizationSection() {
+  const [orgTab, setOrgTab] = useState("business-units");
+  const [businessUnits, setBusinessUnits] = useState([
+    { id: 1, name: "North America", code: "NA", head: "John Smith", partner: "BlitzenX USA" },
+    { id: 2, name: "India", code: "IN", head: "Raj Patel", partner: "BlitzenX India" },
+  ]);
+  const [deliveryCenters, setDeliveryCenters] = useState([
+    { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150 },
+    { id: 2, name: "Youngstown, OH", type: "Delivery", buServed: ["North America"], headcount: 300 },
+    { id: 3, name: "Hyderabad, India", type: "HQ", buServed: ["India"], headcount: 200 },
+    { id: 4, name: "Chennai, India", type: "Delivery", buServed: ["India"], headcount: 400 },
+  ]);
+
+  return (
+    <div className="space-y-6">
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-gray-200">
+        <button
+          onClick={() => setOrgTab("business-units")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            orgTab === "business-units"
+              ? "border-bx-orange text-bx-orange"
+              : "border-transparent text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          <Building2 className="inline h-4 w-4 mr-2" />
+          Business Units
+        </button>
+        <button
+          onClick={() => setOrgTab("delivery-centers")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            orgTab === "delivery-centers"
+              ? "border-bx-orange text-bx-orange"
+              : "border-transparent text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          <MapPin className="inline h-4 w-4 mr-2" />
+          Delivery Centers
+        </button>
+        <button
+          onClick={() => setOrgTab("hierarchy")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            orgTab === "hierarchy"
+              ? "border-bx-orange text-bx-orange"
+              : "border-transparent text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          Organizational Hierarchy
+        </button>
+      </div>
+
+      {/* Business Units Tab */}
+      {orgTab === "business-units" && (
+        <div className="space-y-4">
+          <button className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium">
+            <Plus className="h-4 w-4" />
+            Add Business Unit
+          </button>
+          <div className="space-y-3">
+            {businessUnits.map((bu) => (
+              <div key={bu.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-gray-900">{bu.name}</h4>
+                  <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
+                    <div><span className="font-medium">Code:</span> {bu.code}</div>
+                    <div><span className="font-medium">BU Head:</span> {bu.head}</div>
+                    <div><span className="font-medium">Partner:</span> {bu.partner}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Edit2 className="h-4 w-4" /></button>
+                  <button className="p-2 text-red-600 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Centers Tab */}
+      {orgTab === "delivery-centers" && (
+        <div className="space-y-4">
+          <button className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium">
+            <Plus className="h-4 w-4" />
+            Add Delivery Center
+          </button>
+          <div className="space-y-3">
+            {deliveryCenters.map((dc) => (
+              <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <h4 className="font-semibold text-gray-900">{dc.name}</h4>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      dc.type === "HQ"
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-blue-100 text-blue-800"
+                    }`}>
+                      {dc.type}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
+                    <div><span className="font-medium">Serves:</span> {dc.buServed.join(", ")}</div>
+                    <div><span className="font-medium">Headcount:</span> {dc.headcount}</div>
+                    <div><span className="font-medium">Type:</span> {dc.type === "HQ" ? "Headquarters" : "Delivery Center"}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Edit2 className="h-4 w-4" /></button>
+                  <button className="p-2 text-red-600 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hierarchy Tab */}
+      {orgTab === "hierarchy" && (
+        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+          <h3 className="font-semibold text-gray-900 mb-6">Organizational Hierarchy Map</h3>
+
+          {/* North America */}
+          <div className="mb-8 border-l-4 border-blue-500 pl-4">
+            <h4 className="font-semibold text-gray-900 mb-3">North America (BU Head: John Smith)</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">HQ</span>
+                  <span className="font-medium">Austin, TX</span>
+                </div>
+                <p className="text-sm text-gray-600">Headcount: 150</p>
+              </div>
+              <div className="bg-white p-4 rounded border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">Delivery</span>
+                  <span className="font-medium">Youngstown, OH</span>
+                </div>
+                <p className="text-sm text-gray-600">Headcount: 300</p>
+              </div>
+            </div>
+          </div>
+
+          {/* India */}
+          <div className="border-l-4 border-green-500 pl-4">
+            <h4 className="font-semibold text-gray-900 mb-3">India (BU Head: Raj Patel)</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">HQ</span>
+                  <span className="font-medium">Hyderabad, India</span>
+                </div>
+                <p className="text-sm text-gray-600">Headcount: 200</p>
+              </div>
+              <div className="bg-white p-4 rounded border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">Delivery</span>
+                  <span className="font-medium">Chennai, India</span>
+                </div>
+                <p className="text-sm text-gray-600">Headcount: 400</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -180,6 +350,13 @@ export default function AdminSettingsScreen() {
             subtitle="Default timezone, date format, and currency for this tenant."
           >
             <LocaleSection locale={panel.LOCALE} />
+          </Card>
+        ) : activeCategory === "ORGANIZATION" ? (
+          <Card
+            title="Organization"
+            subtitle="Manage Business Units, Delivery Centers, and organizational hierarchy."
+          >
+            <OrganizationSection />
           </Card>
         ) : (
           <Card

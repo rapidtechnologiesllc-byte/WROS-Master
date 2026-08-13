@@ -5,7 +5,6 @@ import ActiveJobs from "../screens/ActiveJobs";
 import InterviewSchedule from "../screens/InterviewSchedule";
 import InterviewStatus from "../screens/InterviewStatus";
 import InterviewAnalytics from "../screens/InterviewAnalytics";
-import HrUserManagement from "../screens/HrUserManagement";
 import JobCreate from "../screens/JobCreate";
 import JobDetails from "../screens/JobDetails";
 import JobsOverview from "../screens/JobsOverview";
@@ -16,7 +15,7 @@ import OfferScreen from "../screens/OfferScreen";
 import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
-import RbacSettingsScreen from "../screens/RbacSettingsScreen";
+import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
@@ -109,6 +108,10 @@ import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
+import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
+import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
+import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
+import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -492,6 +495,7 @@ export default function AppRoutes() {
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
+            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -513,6 +517,8 @@ export default function AppRoutes() {
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
+            <Route path="bu-dashboard" element={<BuHeadDashboardScreen />} />
+            <Route path="ceo-dashboard" element={<CEOExecutiveDashboardScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -526,6 +532,8 @@ export default function AppRoutes() {
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
+            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
 
@@ -730,6 +738,7 @@ export default function AppRoutes() {
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
+            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -751,6 +760,8 @@ export default function AppRoutes() {
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
+            <Route path="bu-dashboard" element={<BuHeadDashboardScreen />} />
+            <Route path="ceo-dashboard" element={<CEOExecutiveDashboardScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -764,6 +775,7 @@ export default function AppRoutes() {
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
           <Route
@@ -906,8 +918,6 @@ export default function AppRoutes() {
             }
           />
           <Route path="/offers" element={<OfferLettersScreen />} />
-          <Route path="hr-users" element={<HrUserManagement />} />
-          <Route path="rbac" element={<RbacSettingsScreen />} />
         </Route>
       </Routes>
       <ToastContainer position="top-right" autoClose={3000} />

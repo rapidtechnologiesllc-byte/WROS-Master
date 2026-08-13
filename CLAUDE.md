@@ -1,6 +1,110 @@
 # WROS Frontend - Development Notes
 
-## Current Session Summary (2026-08-08 - Candidate Profile Rebuild)
+## 🚀 CURRENT STATUS (2026-08-12 Session - Permission-Based RBAC Navigation Complete)
+
+**Frontend:** ✅ PRODUCTION READY - Dynamic permission-based navigation, employee conversion screen
+**RBAC Integration:** ✅ COMPLETE - Multi-role support, BU scoping, permission-based navigation
+**Employee Conversion:** ✅ NEW SCREEN - Full UI for candidate → employee workflow
+**Git Status:** ✅ PUSHED - Commit 0a8fade to main, RBAC frontend integration complete
+
+### Session Work (2026-08-12 - RBAC Frontend Integration):
+**EPIC: Frontend RBAC Integration - Dynamic Navigation & Employee Conversion - COMPLETED**
+
+#### Key Features Implemented:
+
+**1. Permission-Based Navigation** (Shell.js)
+- Replaced role-based nav with permission-based filtering
+- NAV_PERMISSIONS mapping for each screen (recruitment.view, employee.manage, etc.)
+- Backward compatibility: falls back to role-based nav if permissions not available
+- Dynamic filtering: shows only permitted screens based on user's permission union
+
+**2. Multi-Role Support** (Login + Auth)
+- AuthPage.js now stores roles[] and permissions[] from backend JWT
+- Stores business_unit_id and business_unit_name for BU scoping
+- Maintains backward compatibility with legacy permission_role field
+- Permissions are UNION of all assigned roles
+
+**3. Employee Conversion Screen** (NEW)
+- New EmployeeConversionScreen.js component
+- Candidate selection (filters to OFFER status)
+- Employee details: name, email, position, joining date
+- Business Unit dropdown (BU-scoped)
+- Multi-role checkbox selector
+- Calls new `/employees/convert-from-candidate` backend endpoint
+- Auto-password generation (server-side)
+
+**4. Enhanced User Creation Form** (UsersAndAccessControl.js)
+- Business Unit dropdown (optional, new RBAC only)
+- Multi-role checkboxes (when BU selected)
+- Backward compat: legacy single-role selection still works
+- Calls new `/users/create-with-roles` endpoint when BU + roles selected
+- Falls back to legacy `createHrUser` if no BU selected
+
+**5. Permission Utilities** (permissionsRbac.js)
+- `hasPermission(permission)` - Check specific permission with wildcard support
+- `hasAnyPermission(list)` - Check if user has any permission from list
+- `hasAllPermissions(list)` - Check if user has all permissions
+- `hasRole(roleName)` - Check specific role
+- `isSuperUser()` - Check for super user (with wildcard or role)
+- `canViewModule(moduleName)` - Shorthand for module.view check
+- `canCreateInModule`, `canEditInModule`, etc. - Action-specific checks
+- All functions read from localStorage (roles[], permissions[])
+
+#### Files Created:
+- `src/utils/permissionsRbac.js` - Permission utility functions (100 LOC)
+- `src/screens/EmployeeConversionScreen.js` - Full employee conversion UI (250 LOC)
+
+#### Files Modified:
+- `src/pages/AuthPage.js` - Store roles[] and permissions[] from JWT (line 74-126)
+- `src/layout/Shell.js` - Permission-based navigation with NAV_PERMISSIONS mapping (line 27-164)
+- `src/layout/navItems.js` - Added employeeConversion nav item
+- `src/routes/Approutes.jsx` - Added employee-conversion route
+- `src/utils/Routes.js` - Added EMPLOYEE_CONVERSION route constant
+- `src/screens/UsersAndAccessControl.js` - Multi-role and BU selection in create user form
+
+#### Navigation Permission Mapping:
+```javascript
+recruitment: recruitment.view
+sales (clientManagement): business_unit.manage  
+workforce (employees): employee.view, (conversion): employee.manage
+projects: project.manage
+finance: invoice.view, reports.financial
+admin (users): user.manage, (settings): system.manage
+```
+
+#### User Flow Examples:
+
+**Creating Multi-Role User:**
+1. Navigate to Users & Access Control
+2. Click "Add User"
+3. Enter name, email, password
+4. Select Business Unit
+5. Check multiple roles (e.g., Partner + BU Head + Hiring Manager)
+6. Click "Create User"
+7. User gets combined permissions from all roles
+
+**Converting Candidate to Employee:**
+1. Navigate to "Convert to Employee" (Workforce section)
+2. Select candidate (from OFFER status)
+3. Auto-fills name, email
+4. Enter position, joining date
+5. Select Business Unit
+6. Select roles (one or more)
+7. Click "Convert to Employee"
+8. Employee account created with roles assigned
+
+#### Backward Compatibility:
+- Legacy users without roles[]/permissions[] still work (fallback to role-based nav)
+- Old createHrUser endpoint still supported (no BU selection)
+- permission_role field still populated for legacy systems
+- All permission checks default to allow if no permissions array found
+
+**Commit:** 0a8fade
+**Status:** 🟢 LIVE IN PRODUCTION (Frontend ready for user testing)
+
+---
+
+## Previous Session Summary (2026-08-08 - Candidate Profile Rebuild)
 
 ### ✅ COMPLETED THIS SESSION - CANDIDATE PROFILE COMPLETE REBUILD
 
