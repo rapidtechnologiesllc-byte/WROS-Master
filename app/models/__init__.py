@@ -281,8 +281,6 @@ __all__ = [
     "CandidateEngagementMetrics",
     "BulkEngagementJob",
     "BulkEngagementError",
-    "TenantAIConfig",
-    "TenantAIConfigChangeLog",
     "EventLog",
     "AgentExecutionLog",
     "PreboardingTouchpoint",
