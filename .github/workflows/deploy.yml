@@ -89,7 +89,7 @@ jobs:
              git fetch origin && \
              git checkout main && \
              git reset --hard origin/main && \
-             python -m pip install -r requirements.txt && \
+             python3 -m pip install -r requirements.txt && \
              alembic upgrade head"
 
       - name: Restart PM2 service
