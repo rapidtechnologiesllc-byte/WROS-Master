@@ -98,3 +98,20 @@ def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: S
     except NotAuthorizedForAllBUs as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     return {"activated": True, "audit_log_id": entry.id}
+
+
+@router.get("/available-buses")
+def get_available_buses(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+    """Get list of all available business units for dropdown selection."""
+    buses = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == current_user.tenant_id).order_by(BusinessUnit.name).all()
+    return {
+        "business_units": [
+            {
+                "id": bu.id,
+                "name": bu.name,
+                "region": getattr(bu, "region", None),
+                "continent": getattr(bu, "continent", None),
+            }
+            for bu in buses
+        ]
+    }
