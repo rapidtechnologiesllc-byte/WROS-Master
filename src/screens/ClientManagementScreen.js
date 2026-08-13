@@ -60,26 +60,17 @@ const emptyForm = {
   notes: "",
 };
 
-function ClientForm({ mode, initial, onCancel, onSaved }) {
+function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
   const [form, setForm] = useState(initial || emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [businessUnits, setBusinessUnits] = useState([]);
-  const [buLoading, setBuLoading] = useState(false);
 
   useEffect(() => {
-    setBuLoading(true);
-    getMyBUAccess()
-      .then((res) => {
-        setBusinessUnits(res.access || []);
-        if (mode === "create" && !form.business_unit_id && res.access?.length) {
-          const def = res.access.find((a) => a.is_default) || res.access[0];
-          setForm((f) => ({ ...f, business_unit_id: String(def.business_unit_id) }));
-        }
-      })
-      .catch(() => setError("Failed to load business units."))
-      .finally(() => setBuLoading(false));
-  }, [mode]);
+    if (mode === "create" && !form.business_unit_id && businessUnits?.length) {
+      const def = businessUnits.find((a) => a.is_default) || businessUnits[0];
+      setForm((f) => ({ ...f, business_unit_id: String(def.business_unit_id) }));
+    }
+  }, [mode, businessUnits]);
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -130,7 +121,10 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
         <Input label="Website" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com (optional)" />
         <Select label="Country" value={form.country} onChange={set("country")} options={COUNTRIES} />
         <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
-        <Select label="Business Unit *" value={form.business_unit_id} onChange={set("business_unit_id")} options={businessUnits.map(bu => ({ label: bu.name, value: String(bu.business_unit_id) }))} disabled={buLoading} />
+        <Select label="Business Unit *" value={form.business_unit_id} onChange={set("business_unit_id")} options={[
+          { label: "Select Business Unit", value: "", disabled: true },
+          ...businessUnits.map(bu => ({ label: bu.name, value: String(bu.business_unit_id) }))
+        ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
         {mode === "edit" && (
@@ -170,6 +164,7 @@ export default function ClientManagementScreen() {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState("");
+  const [businessUnits, setBusinessUnits] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -185,6 +180,12 @@ export default function ClientManagementScreen() {
 
   useEffect(() => {
     load();
+    // Fetch business units for dropdown
+    getMyBUAccess()
+      .then((res) => {
+        setBusinessUnits(res.access || []);
+      })
+      .catch((err) => console.error("Failed to load business units:", err));
   }, []);
 
   const handleSaved = () => {
@@ -309,7 +310,7 @@ export default function ClientManagementScreen() {
         }
       >
         {showAdd ? (
-          <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} />
+          <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} businessUnits={businessUnits} />
         ) : null}
         {editingClient ? (
           <ClientForm
@@ -317,6 +318,7 @@ export default function ClientManagementScreen() {
             initial={editingClient}
             onCancel={() => setEditingClient(null)}
             onSaved={handleSaved}
+            businessUnits={businessUnits}
           />
         ) : null}
 
@@ -347,6 +349,7 @@ export default function ClientManagementScreen() {
           contactsError={contactsError}
           onContactAdded={() => loadContacts(detailClient.id)}
           onClose={handleCloseDetail}
+          businessUnits={businessUnits}
         />
       ) : null}
     </div>
@@ -441,7 +444,7 @@ function ClientContactsPanel({ clientId, contacts, loading, error, onContactAdde
 
 function ClientDetailModal({
   client, loading, error, investmentPosition, investmentPositionError,
-  contacts, contactsLoading, contactsError, onContactAdded, onClose,
+  contacts, contactsLoading, contactsError, onContactAdded, onClose, businessUnits = [],
 }) {
   const statusColors = {
     "ACTIVE": "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -510,7 +513,21 @@ function ClientDetailModal({
                 <FieldRow label="Website" value={client.website} />
                 <FieldRow label="Country" value={client.country} />
                 <FieldRow label="Line Type" value={client.line_type} />
-                <FieldRow label="Business Unit" value={client.business_unit_name} />
+                <div>
+                  <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Business Unit</label>
+                  <Select
+                    value={String(client.business_unit_id || "")}
+                    onChange={() => {}}
+                    options={[
+                      { label: "Select Business Unit", value: "", disabled: true },
+                      ...businessUnits.map((bu) => ({
+                        label: bu.name,
+                        value: String(bu.business_unit_id),
+                      })),
+                    ]}
+                    disabled={true}
+                  />
+                </div>
               </FieldGroup>
 
               {/* Billing & Contract */}
