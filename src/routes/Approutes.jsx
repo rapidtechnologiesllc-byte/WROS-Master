@@ -102,7 +102,7 @@ import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ErrorLogScreen from "../screens/ErrorLogScreen";
 import AdminSettingsScreen from "../screens/AdminSettingsScreen";
 import PartnerROIAgentScreen from "../screens/PartnerROIAgentScreen";
-import CEOFYProgressScreen from "../screens/CEOFYProgressScreen";
+import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
@@ -110,8 +110,23 @@ import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
-import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
+import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
+import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
+import BIExplorerScreen from "../screens/BIExplorerScreen";
+import BUHeadDashboardScreen from "../screens/BUHeadDashboardScreen";
+
+// Wrapper component that renders the appropriate dashboard based on user role
+const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
+  return (
+    <Dashboard
+      candidates={candidates}
+      jobs={jobs}
+      interviews={interviews}
+      offers={offers}
+    />
+  );
+};
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -479,10 +494,17 @@ export default function AppRoutes() {
               />
             }
           >
-            {/* TODO: Create proper CEO dashboard using our UI components (Card, Table, StatusBadge)
-                AdminWeeklyRecapDashboard imports Ant Design which isn't available.
-                For now, use MyWorkspace for all roles. */}
-            <Route index element={<MyWorkspace onLogout={handleLogout} />} />
+            <Route
+              index
+              element={
+                <DashboardRouter
+                  candidates={candidates}
+                  jobs={jobs}
+                  interviews={interviews}
+                  offers={offers}
+                />
+              }
+            />
 
             <Route path="thunder" element={<ThunderChatScreen />} />
 
@@ -511,14 +533,13 @@ export default function AppRoutes() {
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
-            <Route path="ceo-fy-progress" element={<CEOFYProgressScreen />} />
+            <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
-            <Route path="bu-dashboard" element={<BuHeadDashboardScreen />} />
-            <Route path="ceo-dashboard" element={<CEOExecutiveDashboardScreen />} />
+            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -536,6 +557,10 @@ export default function AppRoutes() {
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
+            <Route path="training-certification" element={<TrainingCertificationDashboard />} />
+            <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
+            <Route path="bi-explorer" element={<BIExplorerScreen />} />
+            <Route path="bu-head-dashboard" element={<BUHeadDashboardScreen />} />
 
             <Route
               path="candidates"
@@ -721,7 +746,7 @@ export default function AppRoutes() {
           <Route
             index
             element={
-              <Dashboard
+              <DashboardRouter
                 candidates={candidates}
                 jobs={jobs}
                 interviews={interviews}
@@ -754,14 +779,13 @@ export default function AppRoutes() {
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
-            <Route path="ceo-fy-progress" element={<CEOFYProgressScreen />} />
+            <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
-            <Route path="bu-dashboard" element={<BuHeadDashboardScreen />} />
-            <Route path="ceo-dashboard" element={<CEOExecutiveDashboardScreen />} />
+            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />

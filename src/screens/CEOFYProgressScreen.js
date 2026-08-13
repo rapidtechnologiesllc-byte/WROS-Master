@@ -35,8 +35,27 @@ export default function CEOFYProgressScreen() {
     fetchData();
   }, []);
 
-  if (loading) return <div className="p-6 text-center text-gray-500">Loading FY progress...</div>;
-  if (!summary) return <div className="p-6 text-center text-gray-500">No data available</div>;
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <div className="text-lg">Loading CEO FY Progress Dashboard...</div>
+        <div className="mt-2 text-sm">Fetching fiscal year data</div>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-6 text-center">
+          <AlertCircle className="h-12 w-12 text-amber-600 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-amber-900 mb-2">Dashboard Unavailable</h2>
+          <p className="text-amber-700 mb-4">Unable to load CEO FY Progress dashboard data. Please try refreshing the page.</p>
+          <p className="text-xs text-amber-600">If the problem persists, contact support.</p>
+        </div>
+      </div>
+    );
+  }
 
   const ProgressBar = ({ current, target, pct }) => (
     <div className="w-full">
