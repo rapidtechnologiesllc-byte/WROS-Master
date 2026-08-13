@@ -29,6 +29,7 @@ import {
   getOpportunityRevenueRollup,
   createRoleDemandFromOpportunity,
   listEligibleOpportunityOwners,
+  listClientOwners,
 } from "../services/api/opportunities";
 
 // Stage-based win probability -- mirrors app.services.opportunity_service.
@@ -57,6 +58,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [clientOwnerId, setClientOwnerId] = useState(""); // Client owner (from users list)
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [users, setUsers] = useState([]);
+  const [clientOwners, setClientOwners] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -84,6 +86,8 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
             const currentUser = employeeList?.find((e) => e.id === user.id || e.user_id === user.id);
             if (currentUser) {
               setOwnerId(String(currentUser.id || currentUser.user_id));
+              // DEFECT-4: Also auto-set client owner to current user
+              setClientOwnerId(String(currentUser.id || currentUser.user_id));
             }
           } catch (err) {
             console.error("Failed to auto-set owner:", err);
@@ -96,6 +100,18 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       }
     };
     loadUsers();
+  }, []);
+
+  useEffect(() => {
+    const loadClientOwners = async () => {
+      try {
+        const owners = await listClientOwners();
+        setClientOwners(owners || []);
+      } catch (err) {
+        console.error("Failed to load client owners:", err);
+      }
+    };
+    loadClientOwners();
   }, []);
 
   const handleAddClient = async () => {
@@ -127,6 +143,10 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
     }
     if (!ownerId) {
       setError("Owner is required.");
+      return;
+    }
+    if (!clientOwnerId) {
+      setError("Client Owner is required.");
       return;
     }
     const usdCents = Math.round(parseFloat(revenueValue || "0") * 100);
@@ -202,12 +222,12 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
         <Select
-          label="Client Owner (optional)"
+          label="Client Owner *"
           value={clientOwnerId}
           onChange={setClientOwnerId}
           options={[
             { label: "Select client owner", value: "", disabled: true },
-            ...users.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
+            ...clientOwners.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
           ]}
           disabled={loadingUsers}
         />
