@@ -110,6 +110,8 @@ import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
+import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
+import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -515,6 +517,8 @@ export default function AppRoutes() {
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
+            <Route path="bu-dashboard" element={<BuHeadDashboardScreen />} />
+            <Route path="ceo-dashboard" element={<CEOExecutiveDashboardScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -756,6 +760,8 @@ export default function AppRoutes() {
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
+            <Route path="bu-dashboard" element={<BuHeadDashboardScreen />} />
+            <Route path="ceo-dashboard" element={<CEOExecutiveDashboardScreen />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
