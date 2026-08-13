@@ -24,6 +24,7 @@ import {
   getClientContacts, addClientContact,
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
+import { getMyBUAccess } from "../services/api/buContext";
 
 const CONTACT_ROLE_TYPES = [
   "HIRING_MANAGER", "TIMESHEET_APPROVER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY",
@@ -55,6 +56,7 @@ const emptyForm = {
   website: "",
   tier: "STANDARD",
   billing_currency: "USD",
+  business_unit_id: "",
   notes: "",
 };
 
@@ -62,6 +64,22 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
   const [form, setForm] = useState(initial || emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [businessUnits, setBusinessUnits] = useState([]);
+  const [buLoading, setBuLoading] = useState(false);
+
+  useEffect(() => {
+    setBuLoading(true);
+    getMyBUAccess()
+      .then((res) => {
+        setBusinessUnits(res.access || []);
+        if (mode === "create" && !form.business_unit_id && res.access?.length) {
+          const def = res.access.find((a) => a.is_default) || res.access[0];
+          setForm((f) => ({ ...f, business_unit_id: String(def.business_unit_id) }));
+        }
+      })
+      .catch(() => setError("Failed to load business units."))
+      .finally(() => setBuLoading(false));
+  }, [mode]);
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -70,13 +88,17 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
       setError("Company name is required.");
       return;
     }
+    if (!form.business_unit_id) {
+      setError("Business Unit is required.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, notes } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes } = form;
         await updateClient(form.id, {
-          company_name, company_short_name, country, line_type, website, tier, billing_currency, notes,
+          company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes,
         });
       } else {
         await createClient({
@@ -85,6 +107,7 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
           country: form.country || null,
           website: form.website,
           billing_currency: form.billing_currency,
+          business_unit_id: form.business_unit_id,
         });
       }
       onSaved();
@@ -107,6 +130,7 @@ function ClientForm({ mode, initial, onCancel, onSaved }) {
         <Input label="Website" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com (optional)" />
         <Select label="Country" value={form.country} onChange={set("country")} options={COUNTRIES} />
         <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
+        <Select label="Business Unit *" value={form.business_unit_id} onChange={set("business_unit_id")} options={businessUnits.map(bu => ({ label: bu.name, value: String(bu.business_unit_id) }))} disabled={buLoading} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
         {mode === "edit" && (
@@ -187,6 +211,7 @@ export default function ClientManagementScreen() {
         website: full.website || "",
         tier: full.tier || "STANDARD",
         billing_currency: full.billing_currency || "USD",
+        business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
         notes: full.notes || "",
       });
     } catch (err) {
@@ -254,6 +279,7 @@ export default function ClientManagementScreen() {
         {c.company_name}
       </button>
     ),
+    business_unit: c.business_unit_name || "—",
     status: (
       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
         {c.status}
@@ -300,6 +326,7 @@ export default function ClientManagementScreen() {
           <Table
             columns={[
               { key: "company_name", header: "Company" },
+              { key: "business_unit", header: "Business Unit" },
               { key: "status", header: "Status" },
               { key: "actions", header: "" },
             ]}
@@ -483,6 +510,7 @@ function ClientDetailModal({
                 <FieldRow label="Website" value={client.website} />
                 <FieldRow label="Country" value={client.country} />
                 <FieldRow label="Line Type" value={client.line_type} />
+                <FieldRow label="Business Unit" value={client.business_unit_name} />
               </FieldGroup>
 
               {/* Billing & Contract */}
