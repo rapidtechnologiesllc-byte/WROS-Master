@@ -166,6 +166,14 @@ class Jobs(Base):
         Enum(*JOB_URGENCY_LEVELS, name="job_urgency", native_enum=False, create_constraint=True),
         nullable=True,
     )
+    # EPIC-06-HM-SCREENING -- Hiring Manager validation checkpoint
+    # Questions HM must answer before candidate can be interviewed
+    hm_validation_questions = Column(JSON, nullable=True)  # Array of validation questions
+    hm_validation_required = Column(Boolean, nullable=False, server_default="0", default=False)  # Enable/disable
+    hm_validation_timeout_hours = Column(Integer, nullable=False, server_default="24", default=24)  # Response deadline
+    auto_schedule_after_approval = Column(Boolean, nullable=False, server_default="1", default=True)  # Auto-schedule interview if HM approves
+    hm_auto_reject_threshold = Column(Integer, nullable=True)  # Auto-reject if <N responses negative
+
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
@@ -215,6 +223,7 @@ class Interview(Base):
     __tablename__ = "interviews"
 
     id = Column(Integer, primary_key=True)
+    interviewID = Column(String(50), unique=True, nullable=False, index=True)  # String ID for API/exports
     panel_id = Column(Integer, ForeignKey("interview_panels.id"))
     candidate_id = Column(String(50), ForeignKey("candidates.candidateID"))
 
@@ -222,7 +231,7 @@ class Interview(Base):
     end_time = Column(DateTime)
     meeting_link = Column(Text)
     outlook_event_id = Column(Text)
- 
+
     status = Column(String(50))  # Scheduled, Completed, Cancelled
 
     feedback_status = Column(String(50), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
