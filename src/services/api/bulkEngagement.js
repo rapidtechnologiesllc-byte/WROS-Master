@@ -20,3 +20,13 @@ export const getBulkJobStatus = async (jobId) => {
   const { data } = await apiRequest(`/candidates/bulk-jobs/${jobId}/status`, { method: "GET" });
   return data;
 };
+
+export const getActiveBulkJobs = async () => {
+  const { data } = await apiRequest("/candidates/bulk-import/jobs/active", { method: "GET" });
+  return data;
+};
+
+export const cancelBulkImportJob = async (jobId) => {
+  const { data } = await apiRequest(`/candidates/bulk-import/${jobId}/cancel`, { method: "DELETE" });
+  return data;
+};
