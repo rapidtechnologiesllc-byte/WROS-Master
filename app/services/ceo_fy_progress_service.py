@@ -47,8 +47,8 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     fy_progress_pct = min(100, (days_elapsed / total_fy_days) * 100)
 
     # 1. Headcount: active employees (ACTIVE status, not archived)
-    total_headcount = db.query(func.count(Employee.EmployeeID)).filter(
-        Employee.EmployeeStatus == "ACTIVE"
+    total_headcount = db.query(func.count(Employee.id)).filter(
+        Employee.status == "ACTIVE"
     ).scalar() or 0
 
     headcount_target = targets["headcount_target"]
@@ -111,7 +111,7 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     margin_target = targets["margin_target_pct"]
     margin_progress_pct = (margin_pct / margin_target * 100) if margin_target > 0 else 0
 
-    return {
+    result = {
         "fy_year": fy_year,
         "fy_progress_pct": round(fy_progress_pct, 1),
         "days_elapsed": days_elapsed,
@@ -176,22 +176,22 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
         }
     }
 
-    result_dict = {
-        "fy_year": fy_year,
-        "headcount_progress": total_headcount,
-        "revenue_progress_usd_cents": ytd_revenue,
-        "margin_pct": margin_pct,
-        "fy_progress_pct": fy_progress_pct
-    }
-
     log_agent_execution(
         db=db,
         agent_name="CEO/FY Progress Agent",
         action_taken="get_fy_progress",
         tenant_id="system",
-        action_data=result_dict,
+        action_data={
+            "fy_year": fy_year,
+            "headcount_progress": total_headcount,
+            "revenue_progress_usd_cents": ytd_revenue,
+            "margin_pct": margin_pct,
+            "fy_progress_pct": fy_progress_pct
+        },
         success=True,
     )
+
+    return result
 
 
 def get_fy_executive_summary(db: Session) -> dict:
