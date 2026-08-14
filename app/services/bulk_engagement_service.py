@@ -5,10 +5,11 @@ Real architecture adaptations:
 - No `bulk_import_batches` table -- see `app.models.bulk_engagement`'s
   module docstring: the import response's candidate ID list IS the
   "batch," passed straight into the launch call.
-- Dedup reuses R-07's real, only-sanctioned creation path,
-  `candidate_service.create_candidate_safe()` (which itself raises
-  `DuplicateCandidateError` via `find_duplicate_candidate()`) -- not a
-  second, parallel dedup implementation.
+- Dedup (merge) strategy: phone is primary identifier. If phone matches
+  existing candidate, merge (skip creating duplicate). If email matches
+  but phone is different, still merge. Reuses R-07's real, only-sanctioned
+  creation path, `candidate_service.create_candidate_safe()` (which itself
+  raises `DuplicateCandidateError` via `find_duplicate_candidate()`).
 - Real schema constraint the spec's CSV shape doesn't account for:
   `Candidate.candidateEmail` is `NOT NULL UNIQUE` in this codebase (the
   spec's own CSV column list marks `email` optional). A row with no
