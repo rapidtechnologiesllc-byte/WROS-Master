@@ -220,7 +220,8 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
     if len(rows) > MAX_CSV_ROWS:
         raise CsvTooLarge(f"CSV cannot exceed {MAX_CSV_ROWS} rows.")
 
-    imported_candidate_ids: List[str] = []
+    imported_candidate_ids: List[str] = []  # Only candidates that have been COMMITTED to database
+    pending_candidate_ids: List[str] = []   # Candidates in current batch waiting to commit
     skipped_duplicates = 0
     errors: List[Dict] = []
 
@@ -293,10 +294,10 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
 
             candidate = create_candidate_safe(db, **candidate_data)
             db.flush()  # Flush to get the candidateID before full commit
-            imported_candidate_ids.append(candidate.candidateID)
+            pending_candidate_ids.append(candidate.candidateID)  # Add to PENDING batch
 
-            # Adaptive batching: commit every N rows (start with 100, fallback to 50 if overwhelmed)
-            if len(imported_candidate_ids) % batch_size == 0:
+            # Adaptive batching: commit every N candidates (start with 100, fallback to 50 if overwhelmed)
+            if len(pending_candidate_ids) >= batch_size:
                 retry_count = 0
                 max_retries = 3
 
@@ -304,7 +305,11 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                     try:
                         db.commit()
                         failed_commits = 0  # Reset counter on success
+                        # Move all pending candidates to committed list AFTER successful commit
+                        imported_candidate_ids.extend(pending_candidate_ids)
+                        pending_candidate_ids.clear()
                         logger.info(f"[BulkEngagement] Batch commit successful: {len(imported_candidate_ids)}/{len(rows)} candidates")
+
                         # Update job progress if job_id provided
                         if job_id:
                             try:
@@ -327,17 +332,20 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                             batch_size = 50  # Fall back to smaller batch size
                             logger.warning(f"[BulkEngagement] Database overwhelmed, reducing batch size to 50")
                             db.rollback()
+                            pending_candidate_ids.clear()  # Clear pending on rollback
                         elif retry_count < max_retries:
                             db.rollback()
                             import time
-                            wait_time = 0.5 ** (max_retries - retry_count)  # Exponential backoff
+                            wait_time = 0.5 * retry_count  # Linear backoff: 0.5s, 1s, 1.5s
                             time.sleep(wait_time)
                             logger.warning(f"[BulkEngagement] Batch commit retry {retry_count}/{max_retries} after {wait_time}s")
                         else:
                             db.rollback()
-                            logger.error(f"[BulkEngagement] Batch commit failed after {max_retries} retries: {e}")
-                            errors.append({"row": index, "reason": f"Batch commit failed: {str(e)[:100]}"})
+                            logger.error(f"[BulkEngagement] Batch commit FAILED after {max_retries} retries: {e}")
+                            # Clear pending on final failure
+                            pending_candidate_ids.clear()
                             break
+
         except DuplicateCandidateError:
             skipped_duplicates += 1
         except Exception as exc:
@@ -345,12 +353,15 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             errors.append({"row": index, "reason": str(exc)})
 
     # Final commit for any remaining candidates
-    if imported_candidate_ids:
+    if pending_candidate_ids or imported_candidate_ids:
         retry_count = 0
         max_retries = 3
         while retry_count < max_retries:
             try:
                 db.commit()
+                # Move pending to committed after successful final commit
+                imported_candidate_ids.extend(pending_candidate_ids)
+                pending_candidate_ids.clear()
                 logger.info(f"[BulkEngagement] Import completed: {len(imported_candidate_ids)} candidates imported, {skipped_duplicates} duplicates skipped, {len(errors)} errors")
                 # Update job progress for final batch
                 if job_id:
@@ -360,6 +371,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                             job_record.success_count = len(imported_candidate_ids)
                             job_record.skipped_count = skipped_duplicates
                             job_record.failed_count = len(errors)
+                            job_record.status = "COMPLETED"
                             db.commit()
                     except Exception as e:
                         logger.warning(f"[BulkEngagement] Failed to update job progress (final): {e}")
@@ -374,6 +386,8 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                 else:
                     db.rollback()
                     logger.error(f"[BulkEngagement] Final commit failed after {max_retries} retries: {e}")
+                    # Clear pending on final failure
+                    pending_candidate_ids.clear()
 
     return {
         "imported": len(imported_candidate_ids), "skipped_duplicates": skipped_duplicates,
