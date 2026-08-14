@@ -49,9 +49,17 @@ export default function Dashboard({
       if (!Array.isArray(roles) || roles.length === 0) {
         try {
           const user = await getHrMe();
+
+          // Try to get roles from multiple sources
           if (user?.roles && Array.isArray(user.roles)) {
             roles = user.roles;
-            // Store in localStorage for future use
+          } else if (user?.user_role) {
+            // Fall back to single user_role string
+            roles = [user.user_role];
+          }
+
+          // Store in localStorage for future use
+          if (roles.length > 0) {
             localStorage.setItem("hrms_roles", JSON.stringify(roles));
           }
         } catch (err) {
@@ -62,6 +70,7 @@ export default function Dashboard({
       if (Array.isArray(roles) && roles.length > 0) {
         navigationAttemptedRef.current = true;
         if (roles.includes("CEO")) {
+          console.log("Redirecting to CEO dashboard...");
           window.location.replace("/ceo-fy-progress");
           return;
         }
