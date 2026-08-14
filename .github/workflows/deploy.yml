@@ -83,6 +83,11 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Test SSH connection
+        run: |
+          ssh-add -l
+          ssh -v -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "echo 'SSH connection successful'"
+
       - name: Backup current build (rollback)
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
