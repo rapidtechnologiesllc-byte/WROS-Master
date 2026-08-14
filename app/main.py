@@ -123,6 +123,7 @@ async def startup_event():
         def _run():
             import time
             from sqlalchemy.exc import OperationalError
+            from datetime import datetime, timedelta
 
             try:
                 # checkfirst=True skips tables that already exist — much faster on restarts
@@ -131,6 +132,29 @@ async def startup_event():
             except Exception as exc:
                 logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
                 return  # Can't continue without tables
+
+            # Clean up orphaned PROCESSING import jobs from backend crashes
+            try:
+                from app.core.database import SessionLocal
+                from app.models.bulk_engagement import BulkEngagementJob
+
+                _db = SessionLocal()
+                now = datetime.utcnow()
+                orphaned_jobs = _db.query(BulkEngagementJob).filter(
+                    BulkEngagementJob.status == "PROCESSING"
+                ).all()
+
+                for job in orphaned_jobs:
+                    # If job has been PROCESSING for more than 30 seconds and has no updated timestamp, it's orphaned
+                    if job.created_at and (now - job.created_at) > timedelta(seconds=30):
+                        job.status = "FAILED"
+                        logger.warning(f"[Startup] Marked orphaned import job {job.id} as FAILED (no progress since {job.created_at})")
+
+                if orphaned_jobs:
+                    _db.commit()
+                _db.close()
+            except Exception as e:
+                logger.warning(f"[Startup] Failed to clean orphaned jobs: {e}")
 
             # Seed RBAC with retries — transient network blips (08S01) are common on cold start
             from app.core.database import SessionLocal
@@ -212,6 +236,8 @@ assert_all_routes_have_permission_declarations(
         "POST /msgraph/calendar/schedule",
         "POST /msgraph/mail/send",
         "GET /rbac/modules-and-verbs",
+        "GET /candidates/bulk-import/list",
+        "GET /candidates/bulk-import/{job_id}/progress",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
