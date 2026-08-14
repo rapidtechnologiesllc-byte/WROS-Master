@@ -73,12 +73,15 @@ jobs:
           name: frontend-build
           path: build/
 
-      - name: Create SSH config
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Add host key to known_hosts
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Backup current build (rollback)
         run: |
