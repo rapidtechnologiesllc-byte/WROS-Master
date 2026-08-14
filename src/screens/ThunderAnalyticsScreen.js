@@ -82,8 +82,11 @@ export default function ThunderAnalyticsScreen() {
   const load = async (dateFrom, dateTo) => {
     try {
       const result = await getThunderAnalytics({ dateFrom, dateTo });
+      console.log("Thunder Analytics Data:", result);
+      console.log("Summary:", result?.summary);
       setData(result);
-    } catch {
+    } catch (error) {
+      console.error("Thunder Analytics Error:", error);
       toast.error("Analytics unavailable. Please try again.");
     }
   };
