@@ -403,6 +403,90 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
     }
 
 
+def update_candidates_from_csv(db: Session, csv_text: str, tenant_id: str) -> Dict:
+    """Bulk update existing candidates with job_title and location from CSV.
+    Matches by email. Only updates if email found.
+
+    Required columns: email, job_title, location
+    Returns: {updated: count, not_found: count, errors: []}
+    """
+    # Auto-detect delimiter
+    sample = csv_text[:1024]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=',\t;|')
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.DictReader(io.StringIO(csv_text), dialect=dialect)
+    if reader.fieldnames is None:
+        raise CsvMissingRequiredColumn("CSV is empty or has no headers.")
+
+    # Find email column
+    email_column = _find_matching_column(reader.fieldnames, EMAIL_COLUMN_ALIASES)
+    if not email_column:
+        raise CsvMissingRequiredColumn("CSV must include an email column (e.g., 'email', 'email_address', etc.)")
+
+    rows = list(reader)
+    if len(rows) > MAX_CSV_ROWS:
+        raise CsvTooLarge(f"CSV cannot exceed {MAX_CSV_ROWS} rows.")
+
+    updated_count = 0
+    not_found_count = 0
+    errors: List[Dict] = []
+
+    for index, row in enumerate(rows, start=1):
+        email = _extract_value(row, EMAIL_COLUMN_ALIASES)
+        if not email:
+            errors.append({"row": index, "reason": "Missing email."})
+            not_found_count += 1
+            continue
+
+        job_title = _extract_value(row, JOB_TITLE_ALIASES)
+        location = _extract_value(row, LOCATION_COLUMN_ALIASES)
+
+        if not job_title and not location:
+            errors.append({"row": index, "reason": "Must provide either job_title or location to update."})
+            not_found_count += 1
+            continue
+
+        # Find candidate by email
+        candidate = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
+        if not candidate:
+            errors.append({"row": index, "reason": f"Candidate with email '{email}' not found."})
+            not_found_count += 1
+            continue
+
+        # Update fields
+        if job_title:
+            candidate.candidateJobTitle = job_title
+        if location:
+            candidate.candidateCurrentLocation = location
+
+        try:
+            db.flush()
+            updated_count += 1
+        except Exception as e:
+            db.rollback()
+            errors.append({"row": index, "reason": f"Failed to update: {str(e)}"})
+            not_found_count += 1
+
+    # Final commit
+    if updated_count > 0:
+        try:
+            db.commit()
+            logger.info(f"[BulkUpdate] Completed: {updated_count} updated, {not_found_count} not found, {len(errors)} errors")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[BulkUpdate] Final commit failed: {e}")
+            errors.append({"row": 0, "reason": f"Final commit failed: {str(e)}"})
+
+    return {
+        "updated": updated_count,
+        "not_found": not_found_count,
+        "errors": errors,
+    }
+
+
 def _already_engaged(db: Session, candidate_id: str) -> bool:
     """BR-02."""
     return db.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate_id).first() is not None
