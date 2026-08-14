@@ -126,6 +126,7 @@ const NAV_PERMISSIONS = {
   myExpenses: "invoice.view",
   timesheets: "timesheet.view",
   invoices: "invoice.view",
+  invoiceManagement: "invoice.manage",
   revenue: "reports.financial",
   forecastVsActual: "reports.financial",
   executiveRevenueDashboard: "reports.financial",

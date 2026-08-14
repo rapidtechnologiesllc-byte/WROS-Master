@@ -54,7 +54,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [clientId, setClientId] = useState("");
   const [dealName, setDealName] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
-  const [ownerId, setOwnerId] = useState(""); // Opportunity owner
+  const [accountManagerId, setAccountManagerId] = useState(""); // Account manager
   const [clientOwnerId, setClientOwnerId] = useState(""); // Client owner (from users list)
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [users, setUsers] = useState([]);
@@ -79,13 +79,13 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
 
         // DEFECT-8: Auto-default opportunity owner to current user
         const userInfo = localStorage.getItem("user_info");
-        if (userInfo && !ownerId) {
+        if (userInfo && !accountManagerId) {
           try {
             const user = JSON.parse(userInfo);
             // Find current user in the eligible owners list
             const currentUser = employeeList?.find((e) => e.id === user.id || e.user_id === user.id);
             if (currentUser) {
-              setOwnerId(String(currentUser.id || currentUser.user_id));
+              setAccountManagerId(String(currentUser.id || currentUser.user_id));
               // DEFECT-4: Also auto-set client owner to current user
               setClientOwnerId(String(currentUser.id || currentUser.user_id));
             }
@@ -141,7 +141,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       setError("Client is required.");
       return;
     }
-    if (!ownerId) {
+    if (!accountManagerId) {
       setError("Owner is required.");
       return;
     }
@@ -160,7 +160,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       await createOpportunity({
         client_id: clientId,
         revenue_value_usd_cents: usdCents,
-        owner_employee_id: ownerId,
+        account_manager_id: accountManagerId,
         client_owner_id: clientOwnerId || null,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
@@ -209,9 +209,9 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           )}
         </div>
         <Select
-          label="Owner"
-          value={ownerId}
-          onChange={setOwnerId}
+          label="Account Manager"
+          value={accountManagerId}
+          onChange={setAccountManagerId}
           options={[
             { label: "Select owner", value: "", disabled: true },
             ...users.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
