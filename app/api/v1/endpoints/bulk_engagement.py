@@ -45,9 +45,12 @@ def _run_import_in_background(job_id: str, csv_text: str, recruiter_id: str, ten
     """Process CSV import in background without blocking HTTP response."""
     db = SessionLocal()
     try:
-        import_candidates_from_csv(db, csv_text, recruiter_id, tenant_id)
+        result = import_candidates_from_csv(db, csv_text, recruiter_id, tenant_id)
+        db.commit()  # CRITICAL: Commit transaction to persist candidates
+        logger.info(f"[BulkImport] Job {job_id} completed: imported {result.get('imported', 0)} candidates")
     except Exception as exc:
-        logger.error(f"[BulkImport] Background job {job_id} failed: {exc}")
+        db.rollback()
+        logger.error(f"[BulkImport] Background job {job_id} failed: {exc}", exc_info=True)
     finally:
         db.close()
 
