@@ -1,7 +1,7 @@
 // S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
-import { bulkEngage, bulkImportCsv, getBulkJobStatus } from "../services/api/bulkEngagement";
+import { bulkEngage, bulkImportCsv, getBulkJobStatus, getActiveBulkJobs, cancelBulkImportJob } from "../services/api/bulkEngagement";
 
 export default function BulkLaunchScreen() {
   const [uploadType, setUploadType] = useState("candidate");  // Type selector
@@ -28,18 +28,15 @@ export default function BulkLaunchScreen() {
   useEffect(() => {
     const loadOngoingImports = async () => {
       try {
-        const response = await fetch("http://localhost:8080/candidates/bulk-import/list");
-        if (response.ok) {
-          const jobs = await response.json();
-          setImportHistory(jobs || []);
+        const jobs = await getActiveBulkJobs();
+        setImportHistory(jobs || []);
 
-          // Resume polling if there's an in-progress import
-          const inProgress = jobs?.find(j => j.status === "PROCESSING");
-          if (inProgress) {
-            setImportJobId(inProgress.id);
-            setImportProgress(inProgress);
-            pollImportProgress(inProgress.id);
-          }
+        // Resume polling if there's an in-progress import
+        const inProgress = jobs?.find(j => j.status === "PROCESSING");
+        if (inProgress) {
+          setImportJobId(inProgress.id);
+          setImportProgress(inProgress);
+          pollImportProgress(inProgress.id);
         }
       } catch (err) {
         console.error("Failed to load import history:", err);
@@ -75,33 +72,15 @@ export default function BulkLaunchScreen() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8080/candidates/bulk-import/${jobId}/cancel`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
-        },
-      });
+      const result = await cancelBulkImportJob(jobId);
+      toast.success("Import job cancelled successfully");
 
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(`Import job cancelled. ${result.message}`);
-
-        // Refresh import history
-        const historyResponse = await fetch("http://localhost:8080/candidates/bulk-import/list", {
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
-          },
-        });
-        if (historyResponse.ok) {
-          setImportHistory(await historyResponse.json());
-        }
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || "Failed to cancel import");
-      }
+      // Refresh import history
+      const jobs = await getActiveBulkJobs();
+      setImportHistory(jobs || []);
     } catch (err) {
       console.error("Error cancelling import:", err);
-      toast.error("Failed to cancel import");
+      toast.error(err?.message || "Failed to cancel import");
     }
   };
 
