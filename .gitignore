@@ -43,6 +43,11 @@ ENV/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
+*.sqlite3.locked
+*.sqlite3.backup
 
 # Logs
 *.log
