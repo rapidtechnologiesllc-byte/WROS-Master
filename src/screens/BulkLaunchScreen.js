@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { bulkEngage, bulkImportCsv, getBulkJobStatus } from "../services/api/bulkEngagement";
 
 export default function BulkLaunchScreen() {
+  const [uploadType, setUploadType] = useState("candidate");  // Type selector
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -11,6 +12,13 @@ export default function BulkLaunchScreen() {
   const [launching, setLaunching] = useState(false);
   const pollRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const uploadTypeOptions = [
+    { value: "candidate", label: "Candidates", icon: "👤", description: "Import candidate records" },
+    { value: "job", label: "Jobs", icon: "💼", description: "Import job openings" },
+    { value: "employee", label: "Employees", icon: "👨‍💼", description: "Import employee records" },
+    { value: "bank_statement", label: "Bank Statements", icon: "🏦", description: "Import bank statements" },
+  ];
 
   useEffect(() => {
     return () => {
@@ -30,13 +38,21 @@ export default function BulkLaunchScreen() {
 
   const handleImport = async () => {
     if (!file) return;
+
+    // Only candidate import is currently implemented
+    if (uploadType !== "candidate") {
+      toast.error(`${uploadTypeOptions.find(o => o.value === uploadType)?.label} bulk import coming soon!`);
+      return;
+    }
+
     setImporting(true);
     try {
       const result = await bulkImportCsv(file);
       setImportResult(result);
-      toast.success(`Imported ${result.imported} candidate(s). ${result.skipped_duplicates} duplicate(s) skipped.`);
+      const typeLabel = uploadTypeOptions.find(o => o.value === uploadType)?.label || "Records";
+      toast.success(`${result.message || `Imported ${result.imported} ${typeLabel.toLowerCase()}. ${result.skipped_duplicates} duplicate(s) skipped.`}`);
     } catch (err) {
-      toast.error(err?.message || "CSV cannot exceed 200 rows, or is missing the required 'name' column.");
+      toast.error(err?.message || "CSV cannot exceed 100K rows, or is missing required columns.");
     } finally {
       setImporting(false);
     }
@@ -74,8 +90,31 @@ export default function BulkLaunchScreen() {
 
   return (
     <div className="space-y-5">
+      {/* Step 0: Select Upload Type */}
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">1. Import</h3>
+        <h3 className="mb-4 text-sm font-semibold text-gray-900">0. Select Upload Type</h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {uploadTypeOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => { setUploadType(option.value); setFile(null); setImportResult(null); }}
+              className={`rounded-lg border-2 p-4 text-center transition-all ${
+                uploadType === option.value
+                  ? "border-bx-navy bg-blue-50"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            >
+              <div className="text-2xl">{option.icon}</div>
+              <div className="mt-2 text-xs font-semibold text-gray-900">{option.label}</div>
+              <div className="mt-1 text-xs text-gray-600">{option.description}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Step 1: Import */}
+      <div className="rounded-2xl border bg-white p-5 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-gray-900">1. Import {uploadTypeOptions.find(o => o.value === uploadType)?.label}</h3>
         <div
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}

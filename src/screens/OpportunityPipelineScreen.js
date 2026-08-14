@@ -202,6 +202,22 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       setError("Client Owner is required.");
       return;
     }
+    if (!service) {
+      setError("Service is required.");
+      return;
+    }
+    if (!module) {
+      setError("Guidewire Module is required.");
+      return;
+    }
+    if (!clientType) {
+      setError("Client Type is required.");
+      return;
+    }
+    if (!pricingModel) {
+      setError("Pricing Model is required.");
+      return;
+    }
     const usdCents = Math.round(parseFloat(revenueValue || "0") * 100);
     if (!usdCents || usdCents <= 0) {
       setError("Revenue value must be a positive number.");
@@ -217,10 +233,10 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         client_owner_id: clientOwnerId || null,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
-        service: service || null,
-        module: module || null,
-        client_type: clientType || null,
-        pricing_model: pricingModel || null,
+        service: service,
+        module: module,
+        client_type: clientType,
+        pricing_model: pricingModel,
       });
       onCreated();
     } catch (err) {
