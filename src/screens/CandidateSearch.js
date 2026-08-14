@@ -495,8 +495,7 @@ export default function CandidateSearch({
               { key: "contact", header: "Contact" },
               { key: "jobTitle", header: "Job Title" },
               { key: "pipeline", header: "Pipeline" },
-              { key: "account", header: "Account" },
-              { key: "status", header: "Verified" },
+              { key: "businessUnit", header: "Business Unit" },
               { key: "actions", header: "" },
             ]}
             rows={filtered.map((c) => ({
@@ -522,10 +521,10 @@ export default function CandidateSearch({
               ) : (
                 <span className="text-xs text-gray-400">—</span>
               ),
-              account: c.accountStatus ? (
-                <StatusBadge status={c.accountStatus} />
+              businessUnit: c.business_unit_name ? (
+                <span className="text-xs font-medium text-gray-900">{c.business_unit_name}</span>
               ) : (
-                <span className="text-xs text-gray-400">—</span>
+                <span className="text-xs text-gray-400">Unassigned</span>
               ),
               status: <StatusBadge status={c.status} />,
               actions: (

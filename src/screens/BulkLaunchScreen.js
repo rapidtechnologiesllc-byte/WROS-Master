@@ -8,9 +8,13 @@ export default function BulkLaunchScreen() {
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);  // Track import progress
+  const [importJobId, setImportJobId] = useState(null);  // Store import job ID
+  const [importHistory, setImportHistory] = useState([]);  // NEW: Store import history
   const [job, setJob] = useState(null);
   const [launching, setLaunching] = useState(false);
   const pollRef = useRef(null);
+  const importPollRef = useRef(null);  // Separate poll for import progress
   const fileInputRef = useRef(null);
 
   const uploadTypeOptions = [
@@ -20,9 +24,38 @@ export default function BulkLaunchScreen() {
     { value: "bank_statement", label: "Bank Statements", icon: "🏦", description: "Import bank statements" },
   ];
 
+  // NEW: Load ongoing imports on component mount and auto-refresh
   useEffect(() => {
+    const loadOngoingImports = async () => {
+      try {
+        const response = await fetch("http://localhost:8080/candidates/bulk-import/list");
+        if (response.ok) {
+          const jobs = await response.json();
+          setImportHistory(jobs || []);
+
+          // Resume polling if there's an in-progress import
+          const inProgress = jobs?.find(j => j.status === "PROCESSING");
+          if (inProgress) {
+            setImportJobId(inProgress.id);
+            setImportProgress(inProgress);
+            pollImportProgress(inProgress.id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load import history:", err);
+      }
+    };
+
+    // Load immediately
+    loadOngoingImports();
+
+    // Also refresh import history every 3 seconds to show updated counts in history
+    const historyRefreshInterval = setInterval(loadOngoingImports, 3000);
+
     return () => {
+      clearInterval(historyRefreshInterval);
       if (pollRef.current) clearInterval(pollRef.current);
+      if (importPollRef.current) clearInterval(importPollRef.current);
     };
   }, []);
 
@@ -46,16 +79,50 @@ export default function BulkLaunchScreen() {
     }
 
     setImporting(true);
+    setImportProgress(null);  // Reset progress
     try {
       const result = await bulkImportCsv(file);
       setImportResult(result);
+
+      // Extract job ID from the message if available
+      const jobIdMatch = result.message?.match(/job_id: ([a-f0-9\-]+)/);
+      if (jobIdMatch) {
+        setImportJobId(jobIdMatch[1]);
+        // Start polling for import progress
+        pollImportProgress(jobIdMatch[1]);
+      }
+
       const typeLabel = uploadTypeOptions.find(o => o.value === uploadType)?.label || "Records";
-      toast.success(`${result.message || `Imported ${result.imported} ${typeLabel.toLowerCase()}. ${result.skipped_duplicates} duplicate(s) skipped.`}`);
+      toast.success("Import started! Watch the progress below...");
     } catch (err) {
       toast.error(err?.message || "CSV cannot exceed 100K rows, or is missing required columns.");
-    } finally {
       setImporting(false);
     }
+  };
+
+  // NEW: Poll import progress endpoint
+  const pollImportProgress = (jobId) => {
+    if (importPollRef.current) clearInterval(importPollRef.current);
+
+    importPollRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(`http://localhost:8080/candidates/bulk-import/${jobId}/progress`);
+        if (response.ok) {
+          const progress = await response.json();
+          setImportProgress(progress);
+
+          // Stop polling when import is complete
+          if (progress.status === "COMPLETED" || progress.status === "FAILED") {
+            clearInterval(importPollRef.current);
+            setImporting(false);
+            toast.success(`Import complete! ${progress.imported} candidates imported.`);
+          }
+        }
+      } catch (err) {
+        // Transient poll failure, try again next tick
+        console.error("Progress poll error:", err);
+      }
+    }, 1000);  // Poll every 1 second for real-time updates
   };
 
   const pollJob = (jobId) => {
@@ -143,7 +210,46 @@ export default function BulkLaunchScreen() {
           </button>
         </div>
 
-        {importResult && (
+        {/* NEW: Real-time Import Progress Dashboard */}
+        {importProgress && (
+          <div className="mt-4 space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-900">Import Progress</span>
+              <span className="text-sm font-bold text-blue-600">{importProgress.percent_complete}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${importProgress.percent_complete}%` }}
+              />
+            </div>
+            <div className="text-sm text-gray-700">
+              <span className="font-semibold">{importProgress.imported}</span> of{' '}
+              <span className="font-semibold">{importProgress.total_rows}</span> candidates imported
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded bg-white p-2">
+                <div className="text-green-600 font-semibold">{importProgress.imported}</div>
+                <div className="text-gray-600">Imported</div>
+              </div>
+              <div className="rounded bg-white p-2">
+                <div className="text-yellow-600 font-semibold">{importProgress.skipped}</div>
+                <div className="text-gray-600">Duplicates</div>
+              </div>
+              <div className="rounded bg-white p-2">
+                <div className="text-red-600 font-semibold">{importProgress.errors}</div>
+                <div className="text-gray-600">Errors</div>
+              </div>
+            </div>
+            {importProgress.status === "PROCESSING" && (
+              <div className="text-xs text-gray-600">
+                Processing... (Batch size automatically reduced if database gets overwhelmed)
+              </div>
+            )}
+          </div>
+        )}
+
+        {importResult && !importProgress && (
           <div className="mt-4 space-y-2">
             <div className="text-sm text-gray-700">
               Imported: <span className="font-semibold">{importResult.imported}</span> · Duplicates skipped: <span className="font-semibold">{importResult.skipped_duplicates}</span> · Errors: <span className="font-semibold">{importResult.errors.length}</span>
@@ -191,6 +297,53 @@ export default function BulkLaunchScreen() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* NEW: Import History */}
+      {importHistory.length > 0 && (
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-900">Import History</h3>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {importHistory.map((historyJob) => (
+              <div key={historyJob.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900">
+                      {historyJob.imported} / {historyJob.total_rows} imported
+                      <span className={`ml-2 inline-block px-2 py-1 rounded ${
+                        historyJob.status === "PROCESSING" ? "bg-blue-100 text-blue-700" :
+                        historyJob.status === "COMPLETED" ? "bg-green-100 text-green-700" :
+                        "bg-red-100 text-red-700"
+                      }`}>
+                        {historyJob.status}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-gray-600">
+                      {historyJob.status === "PROCESSING" ? "In Progress..." :
+                       historyJob.created_at ? new Date(historyJob.created_at).toLocaleString() : ""}
+                    </div>
+                  </div>
+                  <div className="ml-4 text-right text-gray-600">
+                    <div>✓ {historyJob.imported}</div>
+                    <div>⊗ {historyJob.errors}</div>
+                  </div>
+                </div>
+
+                {/* Show error reasons for FAILED jobs */}
+                {historyJob.status === "FAILED" && historyJob.error_reasons?.length > 0 && (
+                  <div className="mt-2 text-xs border-t pt-2">
+                    <div className="font-semibold text-red-700 mb-1">Fix these issues in your CSV:</div>
+                    {historyJob.error_reasons.map((err, i) => (
+                      <div key={i} className="text-red-600 mb-1">
+                        • {err.reason}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
