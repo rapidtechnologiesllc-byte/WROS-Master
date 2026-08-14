@@ -47,6 +47,11 @@ import {
 // short, with the group containing your current screen auto-expanded.
 const GROUP_DEFS = [
   {
+    label: "Executive",
+    icon: BarChart3,
+    keys: ["ceoFyProgress"],
+  },
+  {
     label: "Recruitment",
     icon: Users,
     keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "rehireApprovals", "riskDashboard", "thunderAnalytics", "bulkLaunch"],
