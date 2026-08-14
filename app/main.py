@@ -238,6 +238,8 @@ assert_all_routes_have_permission_declarations(
         "GET /rbac/modules-and-verbs",
         "GET /candidates/bulk-import/list",
         "GET /candidates/bulk-import/{job_id}/progress",
+        "GET /candidate/opt-out/status/{candidate_id}",
+        "POST /candidate/opt-out/{candidate_id}",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
