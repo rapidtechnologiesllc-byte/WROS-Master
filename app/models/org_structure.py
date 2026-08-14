@@ -160,6 +160,10 @@ class PartnerBUAssignment(Base):
     # The Business Unit this Partner oversees
     business_unit_id = Column(String(36), ForeignKey("business_units.id"), nullable=False, index=True)
 
+    # Partner's revenue share percentage (0-100) — applies to Core business revenue only
+    # E.g., 20 means partner gets 20% of Core business gross revenue in this BU
+    core_revenue_share_pct = Column(Integer, nullable=True, default=0)
+
     # Whether this assignment is active
     active = Column(Boolean, default=True, nullable=False, index=True)
 

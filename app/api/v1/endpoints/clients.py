@@ -162,9 +162,18 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     if client.account_manager_employee_id is not None:
         am = db.query(Employee).filter(Employee.id == client.account_manager_employee_id).first()
         am_name = f"{am.first_name} {am.last_name}".strip() if am else None
+    am_user_name = None
+    if client.account_manager_id is not None:
+        am_user = db.query(Users).filter(Users.UserID == client.account_manager_id).first()
+        am_user_name = f"{am_user.first_name} {am_user.last_name}".strip() if am_user else None
+    co_name = None
+    if client.client_owner_id is not None:
+        co_user = db.query(Users).filter(Users.UserID == client.client_owner_id).first()
+        co_name = f"{co_user.first_name} {co_user.last_name}".strip() if co_user else None
     return ClientDetailResponse(
         **{c: getattr(client, c) for c in ClientDetailResponse.__fields__ if hasattr(client, c)},
         business_unit_name=bu_name, account_manager_name=am_name,
+        account_manager_user_name=am_user_name, client_owner_name=co_name,
     )
 
 

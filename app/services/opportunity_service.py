@@ -65,17 +65,21 @@ def create_opportunity(
     revenue_value_usd_cents: int,
     currency: str = "USD",
     revenue_value_native: Optional[int] = None,
-    owner_employee_id: Optional[str] = None,
+    account_manager_id: Optional[str] = None,
     client_owner_id: Optional[str] = None,
     expected_close_date=None,
     stage: str = "QUALIFICATION",
     engagement_type: str = "STAFF_AUGMENTATION",
 ) -> Opportunity:
+    """Create opportunity with account_manager_id for P&L tracking.
+
+    account_manager_id is inherited by auto-created Demands and Projects,
+    enabling end-to-end P&L aggregation by account manager."""
     if revenue_value_usd_cents <= 0:
         raise OpportunityValidationError("revenue_value_usd_cents must be positive.")
 
     opportunity = Opportunity(
-        tenant_id=tenant_id, client_id=client_id, owner_employee_id=owner_employee_id,
+        tenant_id=tenant_id, client_id=client_id, account_manager_id=account_manager_id,
         client_owner_id=client_owner_id,
         stage=stage, revenue_value_usd_cents=revenue_value_usd_cents,
         revenue_value_native=revenue_value_native, currency=currency,
@@ -169,6 +173,7 @@ def transition_stage(
             opportunity_id=opportunity.id,
             source_type="OPPORTUNITY",
             created_by=changed_by,
+            client_owner_id=opportunity.client_owner_id,
         )
         return opportunity, demand
 
