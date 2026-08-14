@@ -25,6 +25,7 @@ from app.schemas.user import (
     SingleUserResponse, HiringManagerAssignedCandidateResponse,
     DigestPreferenceRequest, DigestPreferenceResponse,
     AdminResetPasswordRequest,
+    CreateUserWithRolesRequest, UpdateUserWithRolesRequest,
 )
 from app.utils.uniq_id_generator import user_id_generator
 
@@ -538,11 +539,7 @@ def create_user(
     dependencies=[Depends(require_permission("user.manage"))],
 )
 def create_user_with_roles(
-    user_name: str,
-    user_email: str,
-    user_password: str,
-    business_unit_id: int,
-    role_ids: list,
+    payload: CreateUserWithRolesRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_hr_or_admin)
 ):
@@ -553,6 +550,7 @@ def create_user_with_roles(
     - Multi-role assignment (e.g., Partner + BU Head + Hiring Manager)
     - Business Unit scoping
     - Combined permissions from all assigned roles
+    - Optional job title field
 
     Requires permission: user.manage
     """
@@ -560,32 +558,32 @@ def create_user_with_roles(
     from app.models.rbac import Role
     from app.models.user import UserRole
 
-    # Verify user can create in target BU
-    if current_user.business_unit_id != business_unit_id:
+    # Verify user can create in target BU if BU is specified
+    if payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
         raise HTTPException(
             status_code=403,
             detail="Cannot create users outside your Business Unit"
         )
 
     # Check if email exists
-    existing = check_user(db, user_email)
+    existing = check_user(db, payload.user_email)
     if existing:
-        raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
+        raise HTTPException(status_code=400, detail=f"User with email {payload.user_email} already exists")
 
     # Create user
     new_user = Users(
         UserID=user_id_generator(),
-        UserName=user_name,
-        UserEmail=user_email,
-        UserPassword=get_password_hash(user_password),
-        business_unit_id=business_unit_id,
+        UserName=payload.user_name,
+        UserEmail=payload.user_email,
+        UserPassword=get_password_hash(payload.user_password),
+        business_unit_id=payload.business_unit_id,
         UserRole="MultiRole"  # Indicates user has multiple roles
     )
     db.add(new_user)
     db.flush()
 
     # Assign roles
-    for role_id in role_ids:
+    for role_id in payload.role_ids:
         # Verify role exists
         role = db.query(Role).filter(Role.id == role_id).first()
         if not role:
@@ -595,7 +593,7 @@ def create_user_with_roles(
             id=f"ur_{new_user.UserID}_{role_id}",
             user_id=new_user.UserID,
             role_id=role_id,
-            business_unit_id=business_unit_id
+            business_unit_id=payload.business_unit_id
         )
         db.add(user_role)
 
@@ -608,6 +606,82 @@ def create_user_with_roles(
         user_email=new_user.UserEmail,
         user_role="MultiRole",
         created_at=new_user.CreatedAt
+    )
+
+
+@router.put(
+    "/users/{user_id}/update-with-roles",
+    response_model=UserResponse,
+    summary="Update user with multi-role and BU assignment",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def update_user_with_roles(
+    user_id: str,
+    payload: UpdateUserWithRolesRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Update user with multiple roles and Business Unit assignment.
+
+    Supports:
+    - Multi-role assignment (e.g., Partner + BU Head + Hiring Manager)
+    - Business Unit scoping
+    - Combined permissions from all assigned roles
+    - Optional job title field
+
+    Requires permission: user.manage
+    """
+    from app.models.rbac import Role
+    from app.models.user import UserRole
+
+    # Find target user
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
+    # Verify user can update in target BU if BU is specified
+    if payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot update users outside your Business Unit"
+        )
+
+    # Update user name and BU
+    target.UserName = payload.user_name
+    target.business_unit_id = payload.business_unit_id
+    target.UserRole = "MultiRole" if payload.role_ids else target.UserRole
+
+    db.flush()
+
+    # Remove existing user roles
+    db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+    db.flush()
+
+    # Assign new roles
+    for role_id in payload.role_ids:
+        # Verify role exists
+        role = db.query(Role).filter(Role.id == role_id).first()
+        if not role:
+            raise HTTPException(status_code=404, detail=f"Role {role_id} not found")
+
+        user_role = UserRole(
+            id=f"ur_{user_id}_{role_id}",
+            user_id=user_id,
+            role_id=role_id,
+            business_unit_id=payload.business_unit_id
+        )
+        db.add(user_role)
+
+    db.commit()
+    db.refresh(target)
+
+    return UserResponse(
+        user_id=target.UserID,
+        user_name=target.UserName or "",
+        user_email=target.UserEmail,
+        user_role="MultiRole",
+        created_at=target.CreatedAt
     )
 
 

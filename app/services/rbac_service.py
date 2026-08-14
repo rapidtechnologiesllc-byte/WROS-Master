@@ -24,6 +24,8 @@ from app.services.rbac_expanded_permissions import (
 
 ROLES_SEED = [
     {"name": "Super User",            "description": "Full system access across all Business Units"},
+    {"name": "CEO",                   "description": "Chief Executive Officer - Full system access (Super User equivalent)"},
+    {"name": "CFO",                   "description": "Chief Financial Officer - Full financial and system access"},
     {"name": "Partner",               "description": "Org leadership one level above BU Head -- global access across Business Units (2026-08-05, added for the desire-intelligence edit gate; not yet part of a fully-modeled title hierarchy)"},
     {"name": "BU Head",               "description": "Full access within a single Business Unit"},
     {"name": "Finance",               "description": "Finance/accounting function -- global revenue and P&L visibility across Business Units (2026-08-05, added for the Revenue Visibility Engine / Workforce Planning access gate; no other permissions assumed until a real Finance & Accounting Operations story scopes them)"},
@@ -47,6 +49,20 @@ ROLE_ATTRIBUTES_SEED: Dict[str, Dict[str, bool]] = {
         "pipeline_control": True, "interview_control": True,
         "offer_control": True, "employee_data_access": True,
         "timesheet_access": True, "payroll_access": True,
+    },
+    "CEO": {
+        "global_access": True, "bu_restricted": False,
+        "candidate_owner_only": False, "job_owner_only": False,
+        "pipeline_control": True, "interview_control": True,
+        "offer_control": True, "employee_data_access": True,
+        "timesheet_access": True, "payroll_access": True,
+    },
+    "CFO": {
+        "global_access": True, "bu_restricted": False,
+        "candidate_owner_only": False, "job_owner_only": False,
+        "pipeline_control": False, "interview_control": False,
+        "offer_control": False, "employee_data_access": False,
+        "timesheet_access": False, "payroll_access": True,
     },
     "Partner": {
         "global_access": True, "bu_restricted": False,
@@ -176,6 +192,8 @@ PERMISSIONS_SEED = [
 # role_name → list of permission names it should have
 ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
     "Super User": [p["name"] for p in PERMISSIONS_SEED],   # all permissions
+    "CEO": [p["name"] for p in PERMISSIONS_SEED],          # all permissions - super user equivalent
+    "CFO": [p["name"] for p in PERMISSIONS_SEED],          # all permissions - super user equivalent
     "Partner": [
         "candidate.view", "candidate.edit", "candidate.desire_intelligence.edit",
         "job.view", "job.create", "job.edit", "job.approve", "pipeline.move", "interview.feedback",
@@ -262,6 +280,87 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
 }
 
 
+# Role Templates — predefined combinations of roles for common use cases
+# These are NOT new roles; they combine existing roles to simplify user creation
+ROLE_TEMPLATES = [
+    {
+        "id": "ceo",
+        "name": "Chief Executive Officer",
+        "description": "Full system access with strategic oversight",
+        "role_names": ["CEO"]
+    },
+    {
+        "id": "cfo",
+        "name": "Chief Financial Officer",
+        "description": "Full financial and system access",
+        "role_names": ["CFO"]
+    },
+    {
+        "id": "partner",
+        "name": "Partner / Organization Leader",
+        "description": "Global access across Business Units with leadership authority",
+        "role_names": ["Partner"]
+    },
+    {
+        "id": "bu_head",
+        "name": "Business Unit Head",
+        "description": "Full access within assigned Business Unit",
+        "role_names": ["BU Head"]
+    },
+    {
+        "id": "finance_manager",
+        "name": "Finance Manager",
+        "description": "Financial oversight, P&L visibility, and reporting",
+        "role_names": ["Finance", "Recruitment Team Lead"]
+    },
+    {
+        "id": "recruiter_lead",
+        "name": "Recruiter Lead",
+        "description": "Recruitment management with team oversight",
+        "role_names": ["Recruitment Team Lead", "Recruitment Manager"]
+    },
+    {
+        "id": "recruiter",
+        "name": "Recruiter",
+        "description": "Manage candidates and pipeline",
+        "role_names": ["Recruiter"]
+    },
+    {
+        "id": "hr_manager",
+        "name": "HR Manager",
+        "description": "Full HR control within Business Unit",
+        "role_names": ["HR Manager"]
+    },
+    {
+        "id": "hiring_manager",
+        "name": "Hiring Manager",
+        "description": "Access to jobs and interview feedback",
+        "role_names": ["Hiring Manager"]
+    },
+    {
+        "id": "employee",
+        "name": "Employee",
+        "description": "Access to own data and internal job opportunities",
+        "role_names": ["Employee"]
+    },
+    {
+        "id": "custom",
+        "name": "Custom Role Selection",
+        "description": "Select individual roles manually",
+        "role_names": []
+    }
+]
+
+def get_role_templates():
+    """Return list of available role templates for UI"""
+    return ROLE_TEMPLATES
+
+def get_template_role_names(template_id: str) -> List[str]:
+    """Get role names for a given template"""
+    template = next((t for t in ROLE_TEMPLATES if t["id"] == template_id), None)
+    return template["role_names"] if template else []
+
+
 # ---------------------------------------------------------------------------
 # RBAC Service
 # ---------------------------------------------------------------------------
@@ -281,6 +380,17 @@ class RBACService:
         Uses expanded HubSpot-style permissions from rbac_expanded_permissions.py.
         """
         try:
+            # 0. Clean up role-permissions table before seeding (defensive against idempotency issues)
+            # Delete all existing role-permissions so we can re-seed without conflicts
+            from sqlalchemy import text
+            try:
+                db.execute(text("DELETE FROM role_permissions"))
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                # Continue anyway - this is defensive, not critical
+                pass
+
             # 1. Seed EXPANDED module×verb permissions from rbac_expanded_permissions.py
             # These replace the coarse 28-permission model
             expanded_perms = generate_all_permissions()
@@ -327,31 +437,25 @@ class RBACService:
                     if not existing_attr:
                         db.add(RoleAttribute(role_id=role.id, attribute_name=attr_name, attribute_value=attr_value))
 
+                # Track added permissions to avoid duplicates between expanded and legacy
+                added_perm_ids = set()
+
                 # Seed EXPANDED role-permissions (module×verb based)
                 expanded_role_perms = get_role_permissions(r_data["name"])
                 for perm_name in expanded_role_perms:
                     perm = perm_map.get(perm_name)
-                    if perm:
-                        existing_rp = (
-                            db.query(RolePermission)
-                            .filter(RolePermission.role_id == role.id, RolePermission.permission_id == perm.id)
-                            .first()
-                        )
-                        if not existing_rp:
-                            db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                    if perm and perm.id not in added_perm_ids:
+                        db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                        added_perm_ids.add(perm.id)
 
                 # Also seed LEGACY coarse permissions (backward compatibility)
+                # Skip any that already exist from expanded permissions
                 legacy_perm_names = ROLE_PERMISSIONS_SEED.get(r_data["name"], [])
                 for perm_name in legacy_perm_names:
                     perm = perm_map.get(perm_name)
-                    if perm:
-                        existing_rp = (
-                            db.query(RolePermission)
-                            .filter(RolePermission.role_id == role.id, RolePermission.permission_id == perm.id)
-                            .first()
-                        )
-                        if not existing_rp:
-                            db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                    if perm and perm.id not in added_perm_ids:
+                        db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                        added_perm_ids.add(perm.id)
 
             db.commit()
             logger.info("[OK] RBAC roles, attributes, and permissions seeded (expanded + legacy)")
@@ -477,14 +581,48 @@ class RBACService:
 
     @staticmethod
     def get_user_permissions(db: Session, user_id: str) -> Set[str]:
-        role = RBACService.get_user_role(db, user_id)
-        if not role:
-            return set()
-        return {
-            rp.permission.name
-            for rp in role.role_permissions
-            if rp.permission
-        }
+        # Support multi-role RBAC: collect permissions from all assigned roles
+        from sqlalchemy import text as sql_text
+
+        permissions = set()
+
+        # Check user_roles junction table (multi-role support, 2026-08-12)
+        try:
+            roles_result = db.execute(
+                sql_text("""
+                    SELECT DISTINCT r.id
+                    FROM user_roles ur
+                    JOIN roles r ON ur.role_id = r.id
+                    WHERE ur.user_id = :user_id
+                """),
+                {"user_id": user_id}
+            ).fetchall()
+
+            for (role_id,) in roles_result:
+                perms = db.execute(
+                    sql_text("""
+                        SELECT p.name
+                        FROM role_permissions rp
+                        JOIN permissions p ON rp.permission_id = p.id
+                        WHERE rp.role_id = :role_id
+                    """),
+                    {"role_id": role_id}
+                ).fetchall()
+                permissions.update(perm[0] for perm in perms if perm[0])
+        except Exception:
+            pass
+
+        # Fallback to legacy role_id if no multi-role assignments found
+        if not permissions:
+            role = RBACService.get_user_role(db, user_id)
+            if role:
+                permissions = {
+                    rp.permission.name
+                    for rp in role.role_permissions
+                    if rp.permission
+                }
+
+        return permissions
 
     @staticmethod
     def get_user_attributes(db: Session, user_id: str) -> Dict[str, bool]:
