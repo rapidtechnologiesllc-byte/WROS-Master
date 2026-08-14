@@ -1125,6 +1125,56 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
 
+        # ── Every 5 min: AUTO_ASSIGN_THUNDER_TO_CANDIDATES ──────────────────
+        # Proactive engagement: assign Thunder to ALL candidates unless opted out
+        # This ensures any candidate in DB is having Thunder build relationship
+        try:
+            from app.core.database import SessionLocal
+            from app.models.candidate import Candidate
+            from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
+            from datetime import datetime
+
+            def _assign_thunder_to_new_candidates():
+                db = SessionLocal()
+                try:
+                    # Find candidates without Thunder assignment and not opted-out
+                    candidates_without_thunder = db.query(Candidate).filter(
+                        Candidate.do_not_contact == False,  # Not opted out
+                        Candidate.thunder_assigned_at == None,  # Not yet assigned
+                    ).all()
+
+                    assigned_count = 0
+                    for candidate in candidates_without_thunder:
+                        try:
+                            auto_assign_ai_agent_on_creation(candidate.candidateID, candidate.business_unit_id or 1, db)
+                            candidate.thunder_assigned_at = datetime.utcnow()
+                            assigned_count += 1
+                        except Exception as e:
+                            logger.warning(f"[scheduler] Failed to assign Thunder to candidate {candidate.candidateID}: {e}")
+
+                    if assigned_count > 0:
+                        db.commit()
+                        logger.info(f"[scheduler] Thunder auto-assign: {assigned_count} new candidate(s) assigned")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Thunder auto-assign error: {exc}")
+                    try:
+                        db.rollback()
+                    except:
+                        pass
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _assign_thunder_to_new_candidates,
+                trigger="interval",
+                minutes=5,
+                id="auto_assign_thunder_to_candidates",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled Thunder auto-assignment job (every 5 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register Thunder auto-assignment scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
