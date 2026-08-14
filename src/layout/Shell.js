@@ -218,7 +218,7 @@ export default function Shell({
     if (isSuperUser) {
       // Super User gets ALL navigation items
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
         groups: buildGroups(Object.keys(NAV_PERMISSIONS)),
       };
     }
