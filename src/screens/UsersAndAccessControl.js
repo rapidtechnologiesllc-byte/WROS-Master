@@ -392,6 +392,16 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       toast.success("User updated successfully.");
       setShowEditModal(false);
+
+      // If current user was updated, clear localStorage to force refresh of role/permissions
+      const currentUserId = localStorage.getItem("hrms_user_id");
+      if (currentUserId === selectedUserId) {
+        localStorage.removeItem("hrms_roles");
+        localStorage.removeItem("hrms_permissions");
+        localStorage.removeItem("hrms_business_unit_id");
+        localStorage.removeItem("hrms_business_unit_name");
+      }
+
       window.location.reload();
     } catch (err) {
       console.error("Failed to update user:", err);
