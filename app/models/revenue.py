@@ -63,7 +63,7 @@ class Revenue(Base):
 
     # Partner revenue share (calculated and stored for audit trail)
     # Only applies to CORE business type
-    partner_id = Column(String(36), ForeignKey("partners.id"), nullable=True, index=True)
+    partner_id = Column(String(36), nullable=True, index=True)  # Partner identifier (no FK - partners table TBD)
     partner_revenue_share_pct = Column(Integer, nullable=True)  # 0-100, from partner.core_revenue_share_pct
     partner_revenue_share_usd_cents = Column(Integer, nullable=True)  # Calculated as revenue * (share_pct / 100)
 
