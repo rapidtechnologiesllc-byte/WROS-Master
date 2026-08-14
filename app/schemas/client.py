@@ -109,6 +109,10 @@ class ClientDetailResponse(BaseModel):
     business_unit_name: Optional[str] = None
     account_manager_employee_id: Optional[str] = None
     account_manager_name: Optional[str] = None
+    account_manager_id: Optional[str] = None  # Account manager from users table
+    account_manager_user_name: Optional[str] = None  # Display name for user-based account manager
+    client_owner_id: Optional[str] = None  # Sales contact who opened the account (from users table)
+    client_owner_name: Optional[str] = None  # Display name for user-based client owner
     billing_address: Optional[str]
     billing_currency: str
     payment_terms_days: int
@@ -129,6 +133,8 @@ class ClientUpdateRequest(BaseModel):
     # audit-history + notification side effects), not through the generic
     # update_client_details() path -- see update_client_endpoint().
     account_manager_employee_id: Optional[str] = None
+    account_manager_id: Optional[str] = None  # Account manager from users table
+    client_owner_id: Optional[str] = None     # Sales contact who opened the account (from users table)
     company_name: Optional[str] = None
     company_short_name: Optional[str] = None
     industry: Optional[str] = None

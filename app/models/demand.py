@@ -95,6 +95,7 @@ class Demand(Base):
 
     assigned_recruiter_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
     assigned_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
 
     # S-353/HRMS-0514 (Core-Pull) + S-372/HRMS-0528 (Confirmed vs Potential)
     # both need to know which engine a demand belongs to -- reuses

@@ -28,6 +28,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
+from app.models.enums import SERVICE_TYPES, MODULE_TYPES, CLIENT_TYPES, PRICING_MODEL_TYPES
 
 
 def _new_uuid() -> str:
@@ -50,7 +51,7 @@ class Opportunity(Base):
 
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
     client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
-    owner_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    account_manager_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
     # Business Unit assignment — derived from client's BU or assigned explicitly
     # Auto-populated from client when created; can be overridden if opportunity spans BUs
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
@@ -62,6 +63,23 @@ class Opportunity(Base):
     engagement_type = Column(
         Enum(*ENGAGEMENT_TYPES, name="opportunity_engagement_type", native_enum=False, create_constraint=True),
         nullable=False, default="STAFF_AUGMENTATION",
+    )
+
+    service = Column(
+        Enum(*SERVICE_TYPES, name="opportunity_service", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
+    module = Column(
+        Enum(*MODULE_TYPES, name="opportunity_module", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
+    client_type = Column(
+        Enum(*CLIENT_TYPES, name="opportunity_client_type", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
+    pricing_model = Column(
+        Enum(*PRICING_MODEL_TYPES, name="opportunity_pricing_model", native_enum=False, create_constraint=True),
+        nullable=True,
     )
 
     # HRMS-0207 BR-0207-01 / R-09: storage is always USD cents; the
