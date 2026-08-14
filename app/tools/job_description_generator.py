@@ -13,7 +13,15 @@ load_dotenv()
 # max_retries=1: fail fast instead of the default exponential backoff (which
 # burns 30s+ and extra free-tier quota per call) so callers can fall back quickly.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", max_retries=1)
+llm = None
+if GEMINI_API_KEY:
+    try:
+        llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", max_retries=1)
+    except Exception as e:
+        print(f"Warning: Could not initialize Gemini LLM: {e}")
+        print("Continuing without AI job description generation")
+else:
+    print("Warning: GEMINI_API_KEY not set. Job description generation requires manual input.")
 
 
 # Define the state structure
@@ -200,13 +208,13 @@ def generate_job_description_with_state(
 ) -> dict:
     """
     Main function to generate a complete job description with state management.
-    
+
     Args:
         job_title: The title of the job position
         job_description_oneliner: A brief one-line description of the job
         experience: Required experience level (e.g., "3-5 years", "Entry level")
         location: Job location (e.g., "Remote", "New York, NY", "Hybrid - San Francisco")
-        
+
     Returns:
         Dictionary containing:
             - job_title: Original job title
@@ -225,6 +233,13 @@ def generate_job_description_with_state(
         "generated_description": "",
         "skills_needed": []
     }
+
+    # If LLM is not available, use template or fallback
+    if not llm:
+        template = _find_template(job_title, job_description_oneliner)
+        if template:
+            return _apply_template(template, initial_state)
+        return _fallback_job_description(initial_state)
 
     # Known-role templates take priority over the LLM entirely -- no quota
     # usage, no variance, and no dependency on Gemini being up. See
