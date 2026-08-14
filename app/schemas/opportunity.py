@@ -17,6 +17,7 @@ class OpportunityCreateRequest(BaseModel):
     client_owner_id: str  # DEFECT-4: Mandatory client owner from Sales access users
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
+    engagement_type: str = "STAFF_AUGMENTATION"  # STAFF_AUGMENTATION or PROJECT_BASED
 
 
 class OpportunityItem(BaseModel):
@@ -28,6 +29,7 @@ class OpportunityItem(BaseModel):
     client_owner_id: Optional[str] = None
     client_owner_name: Optional[str] = None
     stage: str
+    engagement_type: str
     revenue_value_usd_cents: int
     revenue_value_native: Optional[int]
     currency: str
@@ -55,6 +57,7 @@ class OpportunityStageTransitionRequest(BaseModel):
 class OpportunityStageTransitionResponse(BaseModel):
     opportunity: OpportunityItem
     project_id: Optional[str] = None
+    demand_id: Optional[str] = None
 
 
 class PipelineColumn(BaseModel):

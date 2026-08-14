@@ -22,7 +22,7 @@ from app.api.v1.endpoints.internal import router as internal_router
 from app.api.v1.endpoints.hr_assignments import router as hr_assignments_router
 from app.api.v1.endpoints.ai_agent import router as ai_agent_router
 from app.api.v1.endpoints.mfa import router as mfa_router
-from app.api.v1.endpoints.thunder import router as thunder_router
+# from app.api.v1.endpoints.thunder import router as thunder_router  # DISABLED: incomplete implementation
 from app.api.v1.endpoints.resource_management import router as resource_management_router
 from app.api.v1.endpoints.core_pull import router as core_pull_router
 from app.api.v1.endpoints.demand_confirmation import router as demand_confirmation_router
@@ -47,12 +47,12 @@ from app.api.v1.endpoints.revenue_targets import router as revenue_targets_route
 from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_leakage_router
 from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
-from app.api.v1.endpoints.public_chat import router as public_chat_router
+# from app.api.v1.endpoints.public_chat import router as public_chat_router  # DISABLED: depends on incomplete Thunder
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
 from app.api.v1.endpoints.portal_messages import router as portal_messages_router
 from app.api.v1.endpoints.ai_recruiter_assignment import router as ai_recruiter_assignment_router
-from app.api.v1.endpoints.message_templates import router as message_templates_router
+# from app.api.v1.endpoints.message_templates import router as message_templates_router  # DISABLED: depends on incomplete Thunder
 from app.api.v1.endpoints.conversation_search import router as conversation_search_router
 from app.api.v1.endpoints.candidate_portal import router as candidate_portal_router
 from app.api.v1.endpoints.sla_breach import router as sla_breach_router
@@ -128,7 +128,7 @@ router.include_router(router=internal_router)
 router.include_router(router=hr_assignments_router)
 router.include_router(router=ai_agent_router)
 router.include_router(router=mfa_router)
-router.include_router(router=thunder_router)
+# router.include_router(router=thunder_router)  # DISABLED: incomplete implementation
 router.include_router(router=resource_management_router)
 router.include_router(router=core_pull_router)
 router.include_router(router=demand_confirmation_router)
@@ -153,12 +153,12 @@ router.include_router(router=revenue_targets_router)
 router.include_router(router=forecast_and_leakage_router)
 router.include_router(router=revenue_to_demand_router)
 router.include_router(router=cost_rate_router)
-router.include_router(router=public_chat_router)
+# router.include_router(router=public_chat_router)  # DISABLED: depends on incomplete Thunder
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
-router.include_router(router=message_templates_router)
+# router.include_router(router=message_templates_router)  # DISABLED: depends on incomplete Thunder
 router.include_router(router=conversation_search_router)
 router.include_router(router=candidate_portal_router)
 router.include_router(router=technical_scoring_router)

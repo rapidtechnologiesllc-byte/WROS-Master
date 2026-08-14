@@ -62,6 +62,7 @@ from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorU
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
 from app.models.project import Project, ProjectMilestone
 from app.models.invoice import Invoice, InvoiceLineItem
+from app.models.revenue import Revenue
 from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
 from app.models.pipeline_leakage import PipelineLeakageFlag
 from app.models.cost_rate_config import CostRateConfig
@@ -233,6 +234,8 @@ __all__ = [
     # Invoice (HRMS-0907, Phase 2 Domain 4)
     "Invoice",
     "InvoiceLineItem",
+    # Revenue Recognition & P&L Attribution
+    "Revenue",
     # Revenue Leakage + Reconciliation (HRMS-0906/0903, Phase 2 Domain 4)
     "RevenueLeakageFlag",
     "ReconciliationAlert",

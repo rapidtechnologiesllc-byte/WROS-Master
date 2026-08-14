@@ -94,6 +94,7 @@ def create_opportunity_endpoint(
             owner_employee_id=body.owner_employee_id,
             client_owner_id=body.client_owner_id,
             expected_close_date=body.expected_close_date, stage=body.stage,
+            engagement_type=body.engagement_type,
         )
         db.commit()
         db.refresh(opportunity)
@@ -218,11 +219,19 @@ def transition_opportunity_stage(
         raise HTTPException(status_code=400, detail=str(exc))
 
     project_id = None
+    demand_id = None
     if isinstance(result, tuple):
-        opportunity, project = result
-        project_id = project.id
+        opportunity, created_obj = result
+        if isinstance(created_obj, Demand):
+            demand_id = created_obj.id
+        else:
+            project_id = created_obj.id
     db.refresh(opportunity)
-    return OpportunityStageTransitionResponse(opportunity=_to_item(db, opportunity), project_id=project_id)
+    return OpportunityStageTransitionResponse(
+        opportunity=_to_item(db, opportunity),
+        project_id=project_id,
+        demand_id=demand_id
+    )
 
 
 @router.get("/{opportunity_id}/revenue-rollup")

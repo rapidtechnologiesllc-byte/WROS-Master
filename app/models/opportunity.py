@@ -39,6 +39,7 @@ def _new_uuid() -> str:
 PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST")
 OPPORTUNITY_STAGES = PIPELINE_STATUSES
 CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # Contract won/active or lost
+ENGAGEMENT_TYPES = ("STAFF_AUGMENTATION", "PROJECT_BASED")
 
 
 class Opportunity(Base):
@@ -57,6 +58,10 @@ class Opportunity(Base):
     stage = Column(
         Enum(*OPPORTUNITY_STAGES, name="opportunity_stage", native_enum=False, create_constraint=True),
         nullable=False, default="QUALIFICATION",
+    )
+    engagement_type = Column(
+        Enum(*ENGAGEMENT_TYPES, name="opportunity_engagement_type", native_enum=False, create_constraint=True),
+        nullable=False, default="STAFF_AUGMENTATION",
     )
 
     # HRMS-0207 BR-0207-01 / R-09: storage is always USD cents; the
