@@ -46,7 +46,7 @@ export default function Dashboard({
     if (Array.isArray(roles) && roles.length > 0) {
       navigationAttemptedRef.current = true;
       if (roles.includes("CEO")) {
-        window.location.replace("/ceo-dashboard");
+        window.location.replace("/ceo-fy-progress");
         return;
       }
       if (roles.includes("CFO")) {
@@ -54,7 +54,7 @@ export default function Dashboard({
         return;
       }
       if (roles.includes("Partner")) {
-        window.location.replace("/partner-roi");
+        window.location.replace("/partner-dashboard");
         return;
       }
     }
