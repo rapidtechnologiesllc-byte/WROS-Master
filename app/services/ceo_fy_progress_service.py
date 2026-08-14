@@ -104,7 +104,8 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
 
     # 7. Margin: org-wide this FY
     current_month = today.strftime("%Y-%m")
-    pnl = get_org_pnl_summary(db, current_month)
+    year, month = map(int, current_month.split("-"))
+    pnl = get_org_pnl_summary(db, year=year, month=month)
     margin_pct = pnl.get("margin_pct", 0) if pnl else 0
     margin_target = targets["margin_target_pct"]
     margin_progress_pct = (margin_pct / margin_target * 100) if margin_target > 0 else 0
