@@ -115,7 +115,7 @@ import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen"
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
-import BUHeadDashboardScreen from "../screens/BUHeadDashboardScreen";
+import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 
 // Wrapper component that renders the appropriate dashboard based on user role
 const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
