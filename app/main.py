@@ -41,8 +41,9 @@ app = FastAPI(
 
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
+# Note: Increased to 500 req/60s for development dashboard (which loads 20+ widgets in parallel)
 from app.middleware import RateLimitMiddleware
-app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+app.add_middleware(RateLimitMiddleware, max_requests=500, window_seconds=60)
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
