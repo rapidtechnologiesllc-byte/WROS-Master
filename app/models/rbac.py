@@ -87,6 +87,28 @@ class RolePermission(Base):
     def __repr__(self) -> str:
         return f"<RolePermission role_id={self.role_id} permission_id={self.permission_id}>"
 
+
+class RoleTemplate(Base):
+    """
+    Predefined role combination — admin can create templates by selecting base roles.
+    When template is created, a new Role is automatically created with merged permissions.
+    """
+    __tablename__ = "role_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationship to the actual role that was created from this template
+    role = relationship("Role")
+
+    def __repr__(self) -> str:
+        return f"<RoleTemplate id={self.id} name={self.name!r} role_id={self.role_id}>"
+
+
 class BusinessUnit(Base):
     """A business unit (BU) that users can belong to. BU is independent."""
     __tablename__ = "business_units"
