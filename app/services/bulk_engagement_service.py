@@ -115,7 +115,15 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
     `errors`. Raises CsvTooLarge/CsvMissingRequiredColumn for the
     whole-file validation failures this story's own AC treats as a
     hard 400."""
-    reader = csv.DictReader(io.StringIO(csv_text))
+
+    # Auto-detect delimiter (comma, tab, semicolon, pipe)
+    sample = csv_text[:1024]  # First 1KB for sniffing
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=',\t;|')
+    except csv.Error:
+        dialect = csv.excel  # Fallback to comma-separated
+
+    reader = csv.DictReader(io.StringIO(csv_text), dialect=dialect)
     if reader.fieldnames is None:
         raise CsvMissingRequiredColumn("CSV is empty or has no headers.")
 
