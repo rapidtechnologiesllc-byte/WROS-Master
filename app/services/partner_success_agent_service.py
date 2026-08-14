@@ -84,7 +84,7 @@ class PartnerSuccessAgent:
             ytd_revenue_cents = 0  # Would query actual revenue
 
             # Get partner's opportunities
-            opportunities = db.query(Opportunities).filter(
+            opportunities = db.query(Opportunity).filter(
                 Opportunity.tenant_id == tenant_id,
                 Opportunity.partner_id == partner.UserID,
                 Opportunity.status == "open"
@@ -230,7 +230,7 @@ class PartnerSuccessAgent:
                 raise ValueError(f"Partner {partner_key} not found")
 
             # This week's activity
-            opportunities = db.query(Opportunities).filter(
+            opportunities = db.query(Opportunity).filter(
                 Opportunity.tenant_id == tenant_id,
                 Opportunity.partner_id == partner.UserID,
             ).all()
@@ -308,7 +308,7 @@ def next_stage(current_stage: str) -> str:
         return "qualified"
 
 
-def should_flag_stalled(opp: Opportunities) -> bool:
+def should_flag_stalled(opp: Opportunity) -> bool:
     """Check if deal is stalled."""
     if not opp.last_activity_at:
         return False
@@ -326,7 +326,7 @@ def should_flag_stalled(opp: Opportunities) -> bool:
     return days_without_activity > threshold
 
 
-def days_since_activity(opp: Opportunities) -> int:
+def days_since_activity(opp: Opportunity) -> int:
     """Days since last activity."""
     if not opp.last_activity_at:
         return 999
