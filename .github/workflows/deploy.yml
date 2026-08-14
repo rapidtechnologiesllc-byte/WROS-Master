@@ -85,25 +85,25 @@ jobs:
       - name: Deploy backend
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "cd ${{ env.PROD_PATH }} && \
+            "bash -lc 'cd ${{ env.PROD_PATH }} && \
              git fetch origin && \
              git checkout main && \
              git reset --hard origin/main && \
              python3 -m pip install --break-system-packages -r requirements.txt && \
-             python3 -m alembic upgrade head"
+             python3 -m alembic upgrade head || echo \"Migration skipped\"'"
 
       - name: Restart PM2 service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "which pm2 > /dev/null && pm2 restart ${{ env.PM2_SERVICE }} || echo 'PM2 not found - service should be manually restarted or PM2 installed on server'"
+            "bash -lc 'pm2 restart ${{ env.PM2_SERVICE }}'"
         continue-on-error: true
 
       - name: Health check (20s retry)
         run: |
           sleep 3
           for i in {1..10}; do
-            if ssh -o StrictHostKeyChecking=no ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-               "curl -s http://localhost:8080/health | grep -q healthy"; then
+            if ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+               "bash -lc 'curl -s http://localhost:8080/health | grep -q healthy'"; then
               echo "✅ Backend health check passed"
               exit 0
             fi

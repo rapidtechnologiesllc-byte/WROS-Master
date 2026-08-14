@@ -46,6 +46,14 @@ from app.schemas.invoice import (
     InvoiceLineItemItem,
     InvoiceListResponse,
 )
+from app.services.invoice_service import (
+    generate_invoice,
+    approve_invoice,
+    send_invoice,
+    InvalidInvoiceTransition,
+    UnapprovedTimesheetBlocksInvoice,
+    OpenDisputeBlocksInvoice,
+)
 # Old invoice endpoints - using new P&L API (app/routes/api_v1_invoices.py) instead
 # from app.services.invoice_service import (
 #     InvalidInvoiceTransition,
