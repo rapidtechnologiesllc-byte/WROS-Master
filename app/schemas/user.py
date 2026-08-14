@@ -569,7 +569,6 @@ class CreateUserWithRolesRequest(BaseModel):
     user_name: str
     user_email: EmailStr
     user_password: str
-    job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
     role_ids: List[int]
 
@@ -577,7 +576,6 @@ class CreateUserWithRolesRequest(BaseModel):
 class UpdateUserWithRolesRequest(BaseModel):
     """Update user with multi-role and Business Unit assignment"""
     user_name: str
-    job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
     role_ids: List[int]
     assigned_at: datetime
