@@ -612,6 +612,83 @@ def create_user_with_roles(
 
 
 @router.put(
+    "/users/{user_id}/update-with-roles",
+    response_model=UserResponse,
+    summary="Update user with multi-role and BU assignment",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def update_user_with_roles(
+    user_id: str,
+    user_name: str,
+    business_unit_id: int,
+    role_ids: list,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Update user with multiple roles and Business Unit assignment.
+
+    Supports:
+    - Multi-role assignment (e.g., Partner + BU Head + Hiring Manager)
+    - Business Unit scoping
+    - Combined permissions from all assigned roles
+
+    Requires permission: user.manage
+    """
+    from app.models.rbac import Role
+    from app.models.user import UserRole
+
+    # Find target user
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
+    # Verify user can update in target BU
+    if current_user.business_unit_id != business_unit_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot update users outside your Business Unit"
+        )
+
+    # Update user name and BU
+    target.UserName = user_name
+    target.business_unit_id = business_unit_id
+    target.UserRole = "MultiRole" if role_ids else target.UserRole
+
+    db.flush()
+
+    # Remove existing user roles
+    db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+    db.flush()
+
+    # Assign new roles
+    for role_id in role_ids:
+        # Verify role exists
+        role = db.query(Role).filter(Role.id == role_id).first()
+        if not role:
+            raise HTTPException(status_code=404, detail=f"Role {role_id} not found")
+
+        user_role = UserRole(
+            id=f"ur_{user_id}_{role_id}",
+            user_id=user_id,
+            role_id=role_id,
+            business_unit_id=business_unit_id
+        )
+        db.add(user_role)
+
+    db.commit()
+    db.refresh(target)
+
+    return UserResponse(
+        user_id=target.UserID,
+        user_name=target.UserName or "",
+        user_email=target.UserEmail,
+        user_role="MultiRole",
+        created_at=target.CreatedAt
+    )
+
+
+@router.put(
     "/users/{user_id}",
     response_model=UserResponse,
     summary="Update an HR/Admin user's profile, role, department, or business unit",
