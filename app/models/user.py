@@ -13,6 +13,7 @@ class Users(Base):
     UserID = Column(String(50), primary_key=True, index=True)
     UserRole = Column(String(50), nullable=False)
     UserName = Column(String(150), nullable=True)
+    job_title = Column(String(150), nullable=True)
     UserEmail = Column(String(200), unique=True, nullable=False, index=True)
     UserPassword = Column(String(200), nullable=False)
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
