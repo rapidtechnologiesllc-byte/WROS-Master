@@ -380,6 +380,17 @@ class RBACService:
         Uses expanded HubSpot-style permissions from rbac_expanded_permissions.py.
         """
         try:
+            # 0. Clean up role-permissions table before seeding (defensive against idempotency issues)
+            # Delete all existing role-permissions so we can re-seed without conflicts
+            from sqlalchemy import text
+            try:
+                db.execute(text("DELETE FROM role_permissions"))
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                # Continue anyway - this is defensive, not critical
+                pass
+
             # 1. Seed EXPANDED module×verb permissions from rbac_expanded_permissions.py
             # These replace the coarse 28-permission model
             expanded_perms = generate_all_permissions()
@@ -426,31 +437,25 @@ class RBACService:
                     if not existing_attr:
                         db.add(RoleAttribute(role_id=role.id, attribute_name=attr_name, attribute_value=attr_value))
 
+                # Track added permissions to avoid duplicates between expanded and legacy
+                added_perm_ids = set()
+
                 # Seed EXPANDED role-permissions (module×verb based)
                 expanded_role_perms = get_role_permissions(r_data["name"])
                 for perm_name in expanded_role_perms:
                     perm = perm_map.get(perm_name)
-                    if perm:
-                        existing_rp = (
-                            db.query(RolePermission)
-                            .filter(RolePermission.role_id == role.id, RolePermission.permission_id == perm.id)
-                            .first()
-                        )
-                        if not existing_rp:
-                            db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                    if perm and perm.id not in added_perm_ids:
+                        db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                        added_perm_ids.add(perm.id)
 
                 # Also seed LEGACY coarse permissions (backward compatibility)
+                # Skip any that already exist from expanded permissions
                 legacy_perm_names = ROLE_PERMISSIONS_SEED.get(r_data["name"], [])
                 for perm_name in legacy_perm_names:
                     perm = perm_map.get(perm_name)
-                    if perm:
-                        existing_rp = (
-                            db.query(RolePermission)
-                            .filter(RolePermission.role_id == role.id, RolePermission.permission_id == perm.id)
-                            .first()
-                        )
-                        if not existing_rp:
-                            db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                    if perm and perm.id not in added_perm_ids:
+                        db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                        added_perm_ids.add(perm.id)
 
             db.commit()
             logger.info("[OK] RBAC roles, attributes, and permissions seeded (expanded + legacy)")
@@ -576,14 +581,48 @@ class RBACService:
 
     @staticmethod
     def get_user_permissions(db: Session, user_id: str) -> Set[str]:
-        role = RBACService.get_user_role(db, user_id)
-        if not role:
-            return set()
-        return {
-            rp.permission.name
-            for rp in role.role_permissions
-            if rp.permission
-        }
+        # Support multi-role RBAC: collect permissions from all assigned roles
+        from sqlalchemy import text as sql_text
+
+        permissions = set()
+
+        # Check user_roles junction table (multi-role support, 2026-08-12)
+        try:
+            roles_result = db.execute(
+                sql_text("""
+                    SELECT DISTINCT r.id
+                    FROM user_roles ur
+                    JOIN roles r ON ur.role_id = r.id
+                    WHERE ur.user_id = :user_id
+                """),
+                {"user_id": user_id}
+            ).fetchall()
+
+            for (role_id,) in roles_result:
+                perms = db.execute(
+                    sql_text("""
+                        SELECT p.name
+                        FROM role_permissions rp
+                        JOIN permissions p ON rp.permission_id = p.id
+                        WHERE rp.role_id = :role_id
+                    """),
+                    {"role_id": role_id}
+                ).fetchall()
+                permissions.update(perm[0] for perm in perms if perm[0])
+        except Exception:
+            pass
+
+        # Fallback to legacy role_id if no multi-role assignments found
+        if not permissions:
+            role = RBACService.get_user_role(db, user_id)
+            if role:
+                permissions = {
+                    rp.permission.name
+                    for rp in role.role_permissions
+                    if rp.permission
+                }
+
+        return permissions
 
     @staticmethod
     def get_user_attributes(db: Session, user_id: str) -> Dict[str, bool]:

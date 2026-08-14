@@ -61,8 +61,9 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    if user_type == "user":
-        # "sub" contains email, not UserID
+    # If type is not "candidate", it's an internal user (role name like "Super User", "Admin", etc.)
+    # "sub" contains email for internal users
+    if user_type != "candidate":
         user = db.query(Users).filter(Users.UserEmail == user_id).first()
     else:
         user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()

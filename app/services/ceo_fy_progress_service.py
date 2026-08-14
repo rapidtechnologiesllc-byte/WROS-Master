@@ -7,7 +7,7 @@ from app.models.employee import Employee
 from app.models.candidate import Candidate
 from app.models.client import Client
 from app.models.opportunity import Opportunity
-from app.models.invoice import Invoice
+from app.models.invoice import Invoice, InvoiceLineItem
 from app.services.pnl_service import get_org_pnl_summary
 from app.utils.agent_logger import log_agent_execution
 
@@ -94,8 +94,12 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     retention_pct = 100
 
     # 6. Utilization: billable hours / available hours
-    # TODO: Calculate from invoice_line_items.hours instead of Invoice (which doesn't track hours)
-    billable_hours_ytd = 0  # Placeholder until hours calculation is implemented
+    billable_hours_ytd = db.query(func.sum(InvoiceLineItem.hours)).join(
+        Invoice, InvoiceLineItem.invoice_id == Invoice.id
+    ).filter(
+        Invoice.created_at >= fy_start,
+        Invoice.created_at <= today
+    ).scalar() or 0
 
     available_hours = total_headcount * 2080 if total_headcount > 0 else 1  # 40h/week * 52 weeks
     utilization_pct = (billable_hours_ytd / available_hours * 100) if available_hours > 0 else 0
@@ -103,12 +107,10 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     utilization_progress_pct = (utilization_pct / utilization_target * 100) if utilization_target > 0 else 0
 
     # 7. Margin: org-wide this FY
-    current_month = today.strftime("%Y-%m")
-    year, month = map(int, current_month.split("-"))
-    pnl = get_org_pnl_summary(db, year=year, month=month)
-    margin_pct = pnl.get("margin_pct", 0) if pnl else 0
+    pnl = get_org_pnl_summary(db, year=today.year, month=today.month)
+    margin_pct = (pnl.get("margin_pct") or 0) if pnl else 0
     margin_target = targets["margin_target_pct"]
-    margin_progress_pct = (margin_pct / margin_target * 100) if margin_target > 0 else 0
+    margin_progress_pct = ((margin_pct or 0) / margin_target * 100) if margin_target > 0 else 0
 
     result = {
         "fy_year": fy_year,
