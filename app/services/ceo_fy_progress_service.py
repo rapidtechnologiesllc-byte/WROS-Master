@@ -55,7 +55,7 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     headcount_pct = (total_headcount / headcount_target * 100) if headcount_target > 0 else 0
 
     # 2. Revenue: total invoiced YTD
-    ytd_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+    ytd_revenue = db.query(func.sum(Invoice.total_usd_cents)).filter(
         Invoice.created_at >= fy_start,
         Invoice.created_at <= today,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -94,10 +94,8 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     retention_pct = 100
 
     # 6. Utilization: billable hours / available hours
-    billable_hours_ytd = db.query(func.sum(Invoice.billable_hours)).filter(
-        Invoice.created_at >= fy_start,
-        Invoice.created_at <= today
-    ).scalar() or 0
+    # TODO: Calculate from invoice_line_items.hours instead of Invoice (which doesn't track hours)
+    billable_hours_ytd = 0  # Placeholder until hours calculation is implemented
 
     available_hours = total_headcount * 2080 if total_headcount > 0 else 1  # 40h/week * 52 weeks
     utilization_pct = (billable_hours_ytd / available_hours * 100) if available_hours > 0 else 0
