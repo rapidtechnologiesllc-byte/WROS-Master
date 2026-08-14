@@ -82,6 +82,7 @@ import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
 import ForecastVsActualScreen from "../screens/ForecastVsActualScreen";
 import InvoicesScreen from "../screens/InvoicesScreen";
+import InvoiceManagementScreen from "../screens/InvoiceManagementScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
@@ -506,6 +507,7 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
+            <Route path="invoice-management" element={<InvoiceManagementScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
@@ -749,6 +751,7 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
+            <Route path="invoice-management" element={<InvoiceManagementScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />

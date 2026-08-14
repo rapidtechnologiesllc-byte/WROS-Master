@@ -74,6 +74,7 @@ export const NAV_ITEMS = {
   buddyProgram: { path: ROUTES.BUDDY_PROGRAM, label: "Buddy Program", icon: UserCheck },
   timesheets: { path: ROUTES.TIMESHEETS, label: "Timesheets", icon: Clock },
   invoices: { path: ROUTES.INVOICES, label: "Invoices", icon: BadgeDollarSign },
+  invoiceManagement: { path: ROUTES.INVOICE_MANAGEMENT, label: "Invoice Management", icon: BadgeDollarSign },
   revenue: { path: ROUTES.REVENUE, label: "Revenue", icon: LineChart },
   // EPIC-02/03 Revenue Visibility Engine, 2026-08-05 -- Opportunity
   // pipeline (S-236/237), gated the same as the rest of Finance via
