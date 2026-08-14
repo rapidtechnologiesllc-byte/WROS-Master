@@ -47,6 +47,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
 from app.models.user import Users
 from app.services.candidate_service import DuplicateCandidateError, create_candidate_safe
+from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
 from app.services.notification_service import send_notification
 
 MAX_CSV_ROWS = 100000  # Step 1 - allow bulk imports of up to 100K candidates per file
@@ -295,6 +296,13 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             candidate = create_candidate_safe(db, **candidate_data)
             db.flush()  # Flush to get the candidateID before full commit
             pending_candidate_ids.append(candidate.candidateID)  # Add to PENDING batch
+
+            # Auto-assign to Thunder (AI recruiter) immediately after creation
+            # This ensures candidates are picked up for autonomous processing
+            try:
+                auto_assign_ai_agent_on_creation(candidate.candidateID, tenant_id, db)
+            except Exception as e:
+                logger.warning(f"[BulkImport] Failed to assign Thunder to candidate {candidate.candidateID}: {e}")
 
             # Adaptive batching: commit every N candidates (start with 100, fallback to 50 if overwhelmed)
             if len(pending_candidate_ids) >= batch_size:
