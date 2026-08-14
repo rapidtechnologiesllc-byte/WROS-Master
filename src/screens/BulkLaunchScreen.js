@@ -69,6 +69,42 @@ export default function BulkLaunchScreen() {
     setImportResult(null);
   };
 
+  const handleCancelImport = async (jobId) => {
+    if (!window.confirm("Are you sure you want to cancel this import? Already imported candidates will remain in the database.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8080/candidates/bulk-import/${jobId}/cancel`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`Import job cancelled. ${result.message}`);
+
+        // Refresh import history
+        const historyResponse = await fetch("http://localhost:8080/candidates/bulk-import/list", {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
+          },
+        });
+        if (historyResponse.ok) {
+          setImportHistory(await historyResponse.json());
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || "Failed to cancel import");
+      }
+    } catch (err) {
+      console.error("Error cancelling import:", err);
+      toast.error("Failed to cancel import");
+    }
+  };
+
   const handleImport = async () => {
     if (!file) return;
 
@@ -313,7 +349,9 @@ export default function BulkLaunchScreen() {
                       {historyJob.imported} / {historyJob.total_rows} imported
                       <span className={`ml-2 inline-block px-2 py-1 rounded ${
                         historyJob.status === "PROCESSING" ? "bg-blue-100 text-blue-700" :
+                        historyJob.status === "QUEUED" ? "bg-yellow-100 text-yellow-700" :
                         historyJob.status === "COMPLETED" ? "bg-green-100 text-green-700" :
+                        historyJob.status === "CANCELLED" ? "bg-gray-100 text-gray-700" :
                         "bg-red-100 text-red-700"
                       }`}>
                         {historyJob.status}
@@ -321,12 +359,23 @@ export default function BulkLaunchScreen() {
                     </div>
                     <div className="mt-1 text-gray-600">
                       {historyJob.status === "PROCESSING" ? "In Progress..." :
+                       historyJob.status === "QUEUED" ? "Waiting to start..." :
                        historyJob.created_at ? new Date(historyJob.created_at).toLocaleString() : ""}
                     </div>
                   </div>
-                  <div className="ml-4 text-right text-gray-600">
-                    <div>✓ {historyJob.imported}</div>
-                    <div>⊗ {historyJob.errors}</div>
+                  <div className="ml-4 flex flex-col items-end gap-2">
+                    <div className="text-right text-gray-600">
+                      <div>✓ {historyJob.imported}</div>
+                      <div>⊗ {historyJob.errors}</div>
+                    </div>
+                    {(historyJob.status === "PROCESSING" || historyJob.status === "QUEUED") && (
+                      <button
+                        onClick={() => handleCancelImport(historyJob.id)}
+                        className="rounded px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
                 </div>
 
