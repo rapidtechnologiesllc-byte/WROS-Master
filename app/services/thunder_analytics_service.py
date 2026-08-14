@@ -52,17 +52,35 @@ def _date_range(date_from: Optional[date], date_to: Optional[date]) -> (datetime
     return from_dt, to_dt
 
 
-def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[date] = None, date_to: Optional[date] = None) -> Dict:
+def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[date] = None, date_to: Optional[date] = None, scoped_user=None) -> Dict:
+    """
+    Get Thunder analytics with optional role-based scoping.
+
+    scoped_user: If provided (non-Super User), data is scoped to user's business unit(s).
+                 If None (Super User or no scoping), all data is returned.
+    """
     from_dt, to_dt = _date_range(date_from, date_to)
 
-    conversations = (
-        db.query(CandidateConversation)
-        .filter(CandidateConversation.tenant_id == tenant_id, CandidateConversation.created_at.between(from_dt, to_dt))
-        .all()
+    # Base query for conversations
+    conversations_query = db.query(CandidateConversation).filter(
+        CandidateConversation.tenant_id == tenant_id,
+        CandidateConversation.created_at.between(from_dt, to_dt)
     )
+
+    # Apply role-based scoping if user is not super user
+    if scoped_user:
+        # Non-super users see only conversations for candidates in their business unit(s)
+        user_bu_id = getattr(scoped_user, 'business_unit_id', None)
+        if user_bu_id:
+            conversations_query = conversations_query.join(
+                Candidate, CandidateConversation.candidate_id == Candidate.candidateID
+            ).filter(Candidate.business_unit_id == user_bu_id)
+
+    conversations = conversations_query.all()
     candidate_ids = [c.candidate_id for c in conversations]
     active_count = len(candidate_ids)
 
+    # Get qualified scores - already scoped by candidate_ids which respect BU filter
     qualified_scores = (
         db.query(CandidateJobScore)
         .filter(CandidateJobScore.candidate_id.in_(candidate_ids), CandidateJobScore.calculated_at.between(from_dt, to_dt))
