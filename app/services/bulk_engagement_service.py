@@ -37,7 +37,7 @@ Real architecture adaptations:
 import csv
 import io
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,23 @@ BULK_RATE_PER_MINUTE = 20  # BR-01, module constant -- see docstring
 REQUIRED_CSV_COLUMN = "name"
 CSV_COLUMNS = ("name", "email", "phone", "location", "current_employer", "skills")
 
+# Column name variations to support different CSV formats
+NAME_COLUMN_ALIASES = ("name", "full_name", "candidate_name", "candidate", "applicant_name", "applicant")
+EMAIL_COLUMN_ALIASES = ("email", "email_address", "candidate_email", "applicant_email", "e_mail")
+PHONE_COLUMN_ALIASES = ("phone", "phone_number", "mobile", "mobile_number", "candidate_phone", "contact_number")
+LOCATION_COLUMN_ALIASES = ("location", "city", "current_location", "candidate_location", "based_in", "preferred_location")
+EMPLOYER_COLUMN_ALIASES = ("current_employer", "employer", "company", "current_company", "organization", "previous_company", "previous company")
+SKILLS_COLUMN_ALIASES = ("skills", "skill", "candidate_skills", "technical_skills", "competencies")
+JOB_TITLE_ALIASES = ("job_title", "job title", "position", "desired_role", "desired role", "applied_for", "applied for")
+EXPERIENCE_ALIASES = ("experience", "years_of_experience", "years of experience", "yoe", "exp")
+CURRENT_LOCATION_ALIASES = ("current_location", "current location", "location", "based_in", "based in", "city")
+GENDER_ALIASES = ("gender", "sex")
+DOB_ALIASES = ("date_of_birth", "date of birth", "dob", "birth_date", "birth date")
+NATIONALITY_ALIASES = ("nationality", "country", "national_origin")
+SOURCE_ALIASES = ("source", "referral_source", "sourcing_channel", "applied_via")
+CURRENT_SALARY_ALIASES = ("current_salary", "current salary", "current_ctc", "current pay", "current compensation")
+EXPECTED_SALARY_ALIASES = ("expected_salary", "expected salary", "expected_ctc", "salary_expectation", "salary expectation")
+
 
 class CsvTooLarge(Exception):
     pass
@@ -68,14 +85,46 @@ class BulkTooLarge(Exception):
     pass
 
 
+def _normalize_column_name(header: str) -> str:
+    """Convert header to lowercase and strip whitespace for matching."""
+    return header.lower().strip()
+
+
+def _find_matching_column(headers: List[str], aliases: tuple) -> Optional[str]:
+    """Find the first column that matches any of the given aliases."""
+    normalized_headers = {_normalize_column_name(h): h for h in headers}
+    normalized_aliases = {_normalize_column_name(alias) for alias in aliases}
+
+    for header, original in normalized_headers.items():
+        if header in normalized_aliases:
+            return original
+    return None
+
+
+def _extract_value(row: Dict, column_aliases: tuple) -> Optional[str]:
+    """Extract value from row using column aliases, returns None if not found."""
+    for key in row.keys():
+        if _normalize_column_name(key) in {_normalize_column_name(alias) for alias in column_aliases}:
+            value = (row.get(key) or "").strip()
+            return value if value else None
+    return None
+
+
 def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str) -> Dict:
     """Step 1. Never raises for per-row problems -- those go in
     `errors`. Raises CsvTooLarge/CsvMissingRequiredColumn for the
     whole-file validation failures this story's own AC treats as a
     hard 400."""
     reader = csv.DictReader(io.StringIO(csv_text))
-    if reader.fieldnames is None or REQUIRED_CSV_COLUMN not in reader.fieldnames:
-        raise CsvMissingRequiredColumn(f"CSV must include a {REQUIRED_CSV_COLUMN!r} column.")
+    if reader.fieldnames is None:
+        raise CsvMissingRequiredColumn("CSV is empty or has no headers.")
+
+    # Check if CSV has a name column (using aliases)
+    name_column = _find_matching_column(reader.fieldnames, NAME_COLUMN_ALIASES)
+    if not name_column:
+        raise CsvMissingRequiredColumn(
+            f"CSV must include a name column (e.g., 'name', 'full_name', 'candidate_name', etc.)"
+        )
 
     rows = list(reader)
     if len(rows) > MAX_CSV_ROWS:
@@ -86,12 +135,12 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
     errors: List[Dict] = []
 
     for index, row in enumerate(rows, start=1):
-        name = (row.get("name") or "").strip()
+        name = _extract_value(row, NAME_COLUMN_ALIASES)
         if not name:
-            errors.append({"row": index, "reason": "Missing required 'name' column."})
+            errors.append({"row": index, "reason": "Missing required name field."})
             continue
 
-        email = (row.get("email") or "").strip()
+        email = _extract_value(row, EMAIL_COLUMN_ALIASES)
         if not email:
             # See module docstring -- Candidate.candidateEmail is NOT
             # NULL/UNIQUE in this codebase; a nameless placeholder email
@@ -99,17 +148,37 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             errors.append({"row": index, "reason": "Missing email -- required by this codebase's candidate schema."})
             continue
 
+        phone = _extract_value(row, PHONE_COLUMN_ALIASES)
+        if not phone:
+            errors.append({"row": index, "reason": "Missing required phone number."})
+            continue
+
         name_parts = name.split(" ", 1)
         first_name = name_parts[0]
         last_name = name_parts[1] if len(name_parts) > 1 else None
 
         try:
-            candidate = create_candidate_safe(
-                db, email=email, mobile=(row.get("phone") or "").strip() or None,
-                candidateFirstName=first_name, candidateLastName=last_name,
-                candidateCurrentLocation=(row.get("location") or "").strip() or None,
-                candidateSkills=(row.get("skills") or "").strip() or None,
-            )
+            # Extract all optional fields
+            candidate_data = {
+                "email": email,
+                "mobile": phone,
+                "candidateFirstName": first_name,
+                "candidateLastName": last_name,
+                "candidateCurrentLocation": _extract_value(row, LOCATION_COLUMN_ALIASES) or _extract_value(row, CURRENT_LOCATION_ALIASES),
+                "candidateSkills": _extract_value(row, SKILLS_COLUMN_ALIASES),
+                "candidateRole": _extract_value(row, JOB_TITLE_ALIASES),
+                "candidateExperienceYears": _extract_value(row, EXPERIENCE_ALIASES),
+                "candidateGender": _extract_value(row, GENDER_ALIASES),
+                "candidateDateOfBirth": _extract_value(row, DOB_ALIASES),
+                "candidateNationality": _extract_value(row, NATIONALITY_ALIASES),
+                "candidateSource": _extract_value(row, SOURCE_ALIASES),
+                "candidateCurrentSalary": _extract_value(row, CURRENT_SALARY_ALIASES),
+                "candidateExpectedSalary": _extract_value(row, EXPECTED_SALARY_ALIASES),
+            }
+            # Remove None values to avoid overwriting existing defaults
+            candidate_data = {k: v for k, v in candidate_data.items() if v is not None}
+
+            candidate = create_candidate_safe(db, **candidate_data)
             imported_candidate_ids.append(candidate.candidateID)
         except DuplicateCandidateError:
             skipped_duplicates += 1

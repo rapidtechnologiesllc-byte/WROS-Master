@@ -25,7 +25,15 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # max_retries=1: the default backoff (2s/4s/8s/16s) burns ~30s and extra quota
 # on every call before falling back — fail fast instead so _get_fallback_response
 # kicks in immediately when the free-tier daily quota (20 req/day) is exhausted.
-llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
+llm = None
+if GEMINI_API_KEY:
+    try:
+        llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
+    except Exception as e:
+        print(f"Warning: Could not initialize Gemini LLM: {e}")
+        print("Continuing without AI job creation agent")
+else:
+    print("Warning: GEMINI_API_KEY not set. Job creation agent will use fallback responses.")
 
 
 class RecruitmentJobCreationAgent:
