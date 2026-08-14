@@ -47,9 +47,9 @@ router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
 def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     client = db.query(Client).filter(Client.id == opportunity.client_id).first()
-    owner = (
-        db.query(Employee).filter(Employee.id == opportunity.owner_employee_id).first()
-        if opportunity.owner_employee_id else None
+    account_manager = (
+        db.query(Users).filter(Users.UserID == opportunity.account_manager_id).first()
+        if opportunity.account_manager_id else None
     )
     client_owner = (
         db.query(Users).filter(Users.UserID == opportunity.client_owner_id).first()
@@ -58,8 +58,8 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     return OpportunityItem(
         id=opportunity.id, client_id=opportunity.client_id,
         client_name=client.company_name if client else None,
-        owner_employee_id=opportunity.owner_employee_id,
-        owner_name=(f"{owner.first_name} {owner.last_name}".strip() if owner else None),
+        account_manager_id=opportunity.account_manager_id,
+        account_manager_name=(f"{account_manager.first_name} {account_manager.last_name}".strip() if account_manager else None),
         client_owner_id=opportunity.client_owner_id,
         client_owner_name=(f"{client_owner.first_name} {client_owner.last_name}".strip() if client_owner else None),
         stage=opportunity.stage, revenue_value_usd_cents=opportunity.revenue_value_usd_cents,
@@ -68,6 +68,7 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         weighted_forecast_usd_cents=calculate_weighted_forecast(opportunity),
         expected_close_date=opportunity.expected_close_date,
         created_at=opportunity.created_at, updated_at=opportunity.updated_at,
+        engagement_type=opportunity.engagement_type,
     )
 
 
@@ -91,7 +92,7 @@ def create_opportunity_endpoint(
             revenue_value_usd_cents=body.revenue_value_usd_cents,
             currency=body.currency,
             revenue_value_native=body.revenue_value_native,
-            owner_employee_id=body.owner_employee_id,
+            account_manager_id=body.account_manager_id,
             client_owner_id=body.client_owner_id,
             expected_close_date=body.expected_close_date, stage=body.stage,
             engagement_type=body.engagement_type,
@@ -140,6 +141,10 @@ def list_eligible_owners(
         .distinct()
         .all()
     )
+    # Fallback to users if no employees exist (for early stages / testing)
+    if not rows:
+        users = db.query(Users).all()
+        return {"employees": [{"id": u.UserID, "first_name": u.UserName, "last_name": ""} for u in users]}
     return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
 
 
@@ -161,6 +166,10 @@ def list_client_owners(
         .distinct()
         .all()
     )
+    # Fallback to users if no employees exist (for early stages / testing)
+    if not rows:
+        users = db.query(Users).all()
+        return {"employees": [{"id": u.UserID, "first_name": u.UserName, "last_name": ""} for u in users]}
     return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
 
 

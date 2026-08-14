@@ -100,6 +100,8 @@ class Client(Base):
     tier = Column(Enum(*CLIENT_TIERS, name="client_tier", native_enum=False, create_constraint=True), nullable=False, default="STANDARD")
     status = Column(Enum(*CLIENT_STATUSES, name="client_status", native_enum=False, create_constraint=True), nullable=False, default="PROSPECT")
 
+    account_manager_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)  # Account manager from users table
+    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)  # Sales contact who opened the account
     account_manager_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True)
 
     billing_address = Column(Text, nullable=True)

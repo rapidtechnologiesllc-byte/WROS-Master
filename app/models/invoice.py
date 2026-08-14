@@ -38,6 +38,7 @@ class Invoice(Base):
     id = Column(String(36), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
+    opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
     # Business Unit assignment — derived from client's BU or project's BU

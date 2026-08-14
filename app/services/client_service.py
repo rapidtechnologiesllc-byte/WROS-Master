@@ -190,6 +190,7 @@ EDITABLE_CLIENT_FIELDS = {
     "website", "tier", "billing_address", "billing_currency", "payment_terms_days",
     "tax_id_client", "contract_start_date", "contract_end_date",
     "contract_url", "nda_signed", "nda_url", "notes",
+    "account_manager_id", "client_owner_id",  # User IDs for account manager and client owner
 }
 
 
