@@ -129,6 +129,11 @@ function EmployeeListTab() {
 function EmployeeDetailModal({ employee, onClose, onRefresh }) {
   const [allocations, setAllocations] = useState([]);
   const [loadingAllocs, setLoadingAllocs] = useState(true);
+  const [currentCert, setCurrentCert] = useState(employee.guidewire_certification_current || "None");
+  const [expectedCert, setExpectedCert] = useState(employee.guidewire_certification_expected || "None");
+  const [saving, setSaving] = useState(false);
+
+  const CERT_LEVELS = ["None", "ACE", "Associate", "Specialist"];
 
   useEffect(() => {
     loadAllocations();
@@ -143,6 +148,20 @@ function EmployeeDetailModal({ employee, onClose, onRefresh }) {
       console.error("Failed to load allocations:", err);
     } finally {
       setLoadingAllocs(false);
+    }
+  };
+
+  const saveCertifications = async () => {
+    setSaving(true);
+    try {
+      // TODO: Call API to save certifications
+      // await updateEmployeeCertifications(employee.id, { currentCert, expectedCert });
+      console.log("Saving certifications:", { currentCert, expectedCert });
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to save certifications:", err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -178,6 +197,45 @@ function EmployeeDetailModal({ employee, onClose, onRefresh }) {
               <div className="font-semibold text-gray-700">Utilization</div>
               <div>{employee.utilization_pct || 0}%</div>
             </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Guidewire Certification</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Current Level</label>
+                <select
+                  value={currentCert}
+                  onChange={(e) => setCurrentCert(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                >
+                  {CERT_LEVELS.map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Expected Level</label>
+                <select
+                  value={expectedCert}
+                  onChange={(e) => setExpectedCert(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                >
+                  {CERT_LEVELS.map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={saveCertifications}
+              disabled={saving}
+              className="mb-4"
+            >
+              {saving ? "Saving..." : "Save Certification"}
+            </Button>
           </div>
 
           <div className="border-t pt-4">
