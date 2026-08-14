@@ -193,6 +193,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
   const [businessUnits, setBusinessUnits] = useState([]);
 
+  const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
+
   const [createForm, setCreateForm] = useState({
     user_name: "",
     user_email: "",
@@ -205,6 +207,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [editForm, setEditForm] = useState({
     user_name: "",
     user_role: "",
+    business_unit_id: "",
+    role_ids: [], // Multi-role support for edit
     expandAllPermissions: false,
     expanded_candidates: false,
     expanded_jobs: false,
@@ -232,18 +236,35 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     new_password: ""
   });
 
-  // Load business units on mount
-  useEffect(() => {
-    const loadBusinessUnits = async () => {
+  // Load business units on demand (when modal opens)
+  const loadBusinessUnits = async () => {
+    try {
+      // Try the RBAC endpoint first
+      const { data } = await apiRequest("/rbac/business-units", {
+        method: "GET"
+      });
+      const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
+      setBusinessUnits(busData);
+    } catch (err) {
+      console.error("Failed to load business units from /rbac/business-units:", err);
       try {
-        const response = await apiRequest("/business-units");
-        setBusinessUnits(Array.isArray(response) ? response : response?.data || []);
-      } catch (err) {
-        console.error("Failed to load business units:", err);
+        // Fallback: try legacy endpoint
+        const { data } = await apiRequest("/business-units", {
+          method: "GET"
+        });
+        const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
+        setBusinessUnits(busData);
+      } catch (fallbackErr) {
+        console.error("Fallback also failed, using default business units:", fallbackErr);
+        // Fallback: set some default business units
+        setBusinessUnits([
+          { id: 1, name: "North America", bu_name: "North America" },
+          { id: 2, name: "Europe", bu_name: "Europe" },
+          { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
+        ]);
       }
-    };
-    loadBusinessUnits();
-  }, []);
+    }
+  };
 
   const filteredUsers = useMemo(() => {
     if (!Array.isArray(users)) return [];
@@ -280,26 +301,36 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       return;
     }
 
+    // Check if any selected roles are BU-scoped (not org-level)
+    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
+    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
+    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
+
+    // Validate BU requirement based on role type
+    if (hasBUScopedRole && !createForm.business_unit_id) {
+      toast.error("Business Unit is required for BU-scoped roles.");
+      return;
+    }
+
     setBusy(true);
     try {
-      // If BU is selected, use new multi-role endpoint
-      if (createForm.business_unit_id) {
-        await apiRequest("/users/create-with-roles", "POST", {
-          user_name: createForm.user_name,
-          user_email: createForm.user_email,
-          user_password: createForm.user_password,
-          business_unit_id: parseInt(createForm.business_unit_id, 10),
-          role_ids: roleIds.map(id => parseInt(id, 10))
-        });
-      } else {
-        // Legacy single-role endpoint
-        await createHrUser({
-          user_name: createForm.user_name,
-          user_email: createForm.user_email,
-          user_password: createForm.user_password,
-          user_role: createForm.user_role
-        });
+      const payload = {
+        user_name: createForm.user_name,
+        user_email: createForm.user_email,
+        user_password: createForm.user_password,
+        role_ids: roleIds.map(id => parseInt(id, 10))
+      };
+
+      // Only include BU if it's not an org-level-only user
+      if (!hasOrgLevelRole && createForm.business_unit_id) {
+        payload.business_unit_id = parseInt(createForm.business_unit_id, 10);
       }
+
+      // Use new multi-role endpoint when roles are selected
+      if (roleIds.length > 0) {
+        await apiRequest("/users/create-with-roles", "POST", payload);
+      }
+
       toast.success("User created successfully.");
       setShowCreateModal(false);
       setCreateForm({ user_name: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
@@ -318,21 +349,51 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       return;
     }
 
+    // Support both multi-role (new) and single role (legacy) modes
+    const roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids :
+                    (editForm.user_role ? [roles.find(r => r.name === editForm.user_role)?.id].filter(Boolean) : []);
+
+    if (roleIds.length === 0) {
+      toast.error("At least one role is required.");
+      return;
+    }
+
+    // Check if any selected roles are BU-scoped (not org-level)
+    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
+    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
+    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
+
+    // Validate BU requirement based on role type
+    if (hasBUScopedRole && !editForm.business_unit_id) {
+      toast.error("Business Unit is required for BU-scoped roles.");
+      return;
+    }
+
     setBusy(true);
     try {
-      // Update user name and role
-      await updateHrUser(selectedUserId, {
+      const payload = {
         user_name: editForm.user_name,
-        user_role: editForm.user_role
-      });
+        role_ids: roleIds.map(id => parseInt(id, 10))
+      };
+
+      // Only include BU if it's not an org-level-only user
+      if (!hasOrgLevelRole && editForm.business_unit_id) {
+        payload.business_unit_id = parseInt(editForm.business_unit_id, 10);
+      }
+
+      // Use new multi-role endpoint
+      if (roleIds.length > 0) {
+        await apiRequest(`/users/${selectedUserId}/update-with-roles`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+      }
 
       // Extract permission overrides from editForm
       const permissionOverrides = {};
       for (const key of Object.keys(editForm)) {
-        if (key.startsWith("perm_") || key.startsWith("expanded_")) {
-          if (key.startsWith("perm_")) {
-            permissionOverrides[key] = editForm[key];
-          }
+        if (key.startsWith("perm_")) {
+          permissionOverrides[key] = editForm[key];
         }
       }
 
@@ -343,8 +404,19 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       toast.success("User updated successfully.");
       setShowEditModal(false);
+
+      // If current user was updated, clear localStorage to force refresh of role/permissions
+      const currentUserId = localStorage.getItem("hrms_user_id");
+      if (currentUserId === selectedUserId) {
+        localStorage.removeItem("hrms_roles");
+        localStorage.removeItem("hrms_permissions");
+        localStorage.removeItem("hrms_business_unit_id");
+        localStorage.removeItem("hrms_business_unit_name");
+      }
+
       window.location.reload();
     } catch (err) {
+      console.error("Failed to update user:", err);
       toast.error(err.message || "Failed to update user.");
     } finally {
       setBusy(false);
@@ -427,6 +499,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                   <button
                     onClick={async () => {
                       setSelectedUserId(row.user_id);
+                      // Load business units on demand
+                      await loadBusinessUnits();
                       try {
                         // Fetch saved permissions for this user
                         const savedPermissions = await getUserPermissions(row.user_id);
@@ -459,6 +533,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                         setEditForm({
                           user_name: safeText(row.user_name),
                           user_role: safeText(row.user_role),
+                          business_unit_id: row.business_unit_id || "",
+                          role_ids: row.role_ids || [],
                           ...defaultPermissions,
                           ...savedPermissions
                         });
@@ -467,6 +543,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                         setEditForm({
                           user_name: safeText(row.user_name),
                           user_role: safeText(row.user_role),
+                          business_unit_id: row.business_unit_id || "",
+                          role_ids: row.role_ids || [],
                           expandAllPermissions: false,
                           expanded_candidates: false,
                           expanded_jobs: false,
@@ -555,34 +633,18 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             onChange={(e) => setCreateForm({ ...createForm, user_password: e.target.value })}
           />
 
-          {/* Business Unit Selection (New RBAC) */}
+          {/* Role Selection (required) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit (Optional)</label>
-            <select
-              value={createForm.business_unit_id}
-              onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a business unit...</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>
-                  {bu.bu_name || bu.name || `BU ${bu.id}`}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">For multi-role assignment with BU scoping</p>
-          </div>
-
-          {/* Multi-Role Selection (New RBAC) */}
-          {createForm.business_unit_id && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Roles (Select one or more)</label>
-              <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
-                {roles.map(role => (
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+              {roles.map(role => {
+                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
+                const isSelected = createForm.role_ids?.includes(role.id);
+                return (
                   <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
                     <input
                       type="checkbox"
-                      checked={createForm.role_ids?.includes(role.id) || false}
+                      checked={isSelected || false}
                       onChange={(e) => {
                         const newRoleIds = e.target.checked
                           ? [...(createForm.role_ids || []), role.id]
@@ -592,31 +654,49 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-gray-900">{role.name}</span>
+                    {isOrgLevel && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Org-level</span>}
                   </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Select one or more roles</p>
+          </div>
+
+          {/* Business Unit Selection (conditional) */}
+          {createForm.role_ids && createForm.role_ids.length > 0 &&
+           !createForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
+              <select
+                value={createForm.business_unit_id}
+                onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select a business unit...</option>
+                {businessUnits.map(bu => (
+                  <option key={bu.id} value={bu.id}>
+                    {bu.bu_name || bu.name || `BU ${bu.id}`}
+                  </option>
                 ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">User will have combined permissions from all selected roles</p>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Permission Template</label>
-            <select
-              value={createForm.user_role}
-              onChange={(e) => setCreateForm({ ...createForm, user_role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a template...</option>
-              {roles.map(r => {
-                const userCount = users.filter(u => u.user_role === r.name).length;
-                return (
-                  <option key={r.id} value={r.name}>
-                    {r.name} ({userCount} user{userCount !== 1 ? 's' : ''})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          {/* Org-level access indicator */}
+          {createForm.role_ids && createForm.role_ids.length > 0 &&
+           createForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div className="p-3 bg-blue-50 text-sm text-blue-700 rounded border border-blue-200">
+              ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
+            </div>
+          )}
           <div className="flex gap-3 justify-end pt-4">
             <Button
               variant="outline"
@@ -647,24 +727,71 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             value={editForm.user_name}
             onChange={(e) => setEditForm({ ...editForm, user_name: e.target.value })}
           />
+
+          {/* Role Selection (required) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Permission Template</label>
-            <select
-              value={editForm.user_role}
-              onChange={(e) => setEditForm({ ...editForm, user_role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a template...</option>
-              {roles.map(r => {
-                const userCount = users.filter(u => u.user_role === r.name).length;
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+              {roles.map(role => {
+                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
+                const isSelected = editForm.role_ids?.includes(role.id);
                 return (
-                  <option key={r.id} value={r.name}>
-                    {r.name} ({userCount} user{userCount !== 1 ? 's' : ''})
-                  </option>
+                  <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
+                    <input
+                      type="checkbox"
+                      checked={isSelected || false}
+                      onChange={(e) => {
+                        const newRoleIds = e.target.checked
+                          ? [...(editForm.role_ids || []), role.id]
+                          : (editForm.role_ids || []).filter(id => id !== role.id);
+                        setEditForm({ ...editForm, role_ids: newRoleIds });
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-900">{role.name}</span>
+                    {isOrgLevel && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Org-level</span>}
+                  </label>
                 );
               })}
-            </select>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Select one or more roles</p>
           </div>
+
+          {/* Business Unit Selection (conditional) */}
+          {editForm.role_ids && editForm.role_ids.length > 0 &&
+           !editForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
+              <select
+                value={editForm.business_unit_id}
+                onChange={(e) => setEditForm({ ...editForm, business_unit_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select a business unit...</option>
+                {businessUnits.map(bu => (
+                  <option key={bu.id} value={bu.id}>
+                    {bu.bu_name || bu.name || `BU ${bu.id}`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
+            </div>
+          )}
+
+          {/* Org-level access indicator */}
+          {editForm.role_ids && editForm.role_ids.length > 0 &&
+           editForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div className="p-3 bg-blue-50 text-sm text-blue-700 rounded border border-blue-200">
+              ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
+            </div>
+          )}
 
           {/* Permissions Section */}
           <div className="border-t pt-4 mt-4">
@@ -681,13 +808,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                     checked={editForm.expandAllPermissions}
                     onChange={(e) => {
                       const checked = e.target.checked;
+                      const modules = ["recruitment", "sales", "workforce", "project_management", "finance", "admin"];
+                      const expandState = {};
+                      modules.forEach(m => {
+                        expandState[`expanded_${m}`] = checked;
+                      });
                       setEditForm({
                         ...editForm,
                         expandAllPermissions: checked,
-                        expanded_candidates: checked,
-                        expanded_jobs: checked,
-                        expanded_interviews: checked,
-                        expanded_admin: checked
+                        ...expandState
                       });
                     }}
                   />
@@ -697,12 +826,19 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             </div>
 
             <div className="space-y-2">
-              {["Candidates", "Jobs", "Interviews", "Admin"].map(category => {
-                const expandedKey = `expanded_${category.toLowerCase()}`;
+              {[
+                { name: "Recruitment", key: "recruitment", desc: "Candidates, Jobs, Interviews" },
+                { name: "Sales", key: "sales", desc: "Client Management, Deals" },
+                { name: "Workforce", key: "workforce", desc: "Employees, Timesheets, Projects" },
+                { name: "Project Management", key: "project_management", desc: "Projects, Allocations, Resources" },
+                { name: "Finance", key: "finance", desc: "Invoices, Reports, Payments" },
+                { name: "Admin", key: "admin", desc: "System, Users, Configuration" }
+              ].map(module => {
+                const expandedKey = `expanded_${module.key}`;
                 const isExpanded = editForm.expandAllPermissions || editForm[expandedKey];
 
                 return (
-                  <div key={category} className="border rounded-lg">
+                  <div key={module.key} className="border rounded-lg">
                     <button
                       type="button"
                       onClick={() => {
@@ -713,7 +849,10 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                       }}
                       className="w-full flex items-center justify-between px-3 py-3 hover:bg-gray-50"
                     >
-                      <div className="text-sm font-medium text-gray-900">{category}</div>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <div className="text-sm font-medium text-gray-900">{module.name}</div>
+                        <div className="text-xs text-gray-500">{module.desc}</div>
+                      </div>
                       <div className="text-gray-500 text-lg">
                         {isExpanded ? '▼' : '▶'}
                       </div>
@@ -722,7 +861,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                     {isExpanded && (
                       <div className="flex flex-wrap gap-3 px-3 py-3 bg-gray-50 border-t">
                         {["view", "create", "edit", "delete"].map(verb => {
-                          const permKey = `perm_${category.toLowerCase()}_${verb}`;
+                          const permKey = `perm_${module.key}_${verb}`;
                           return (
                             <label key={verb} className="flex items-center gap-2 cursor-pointer">
                               <input
@@ -1093,15 +1232,24 @@ export default function UsersAndAccessControl() {
     setLoading(true);
     setError("");
     try {
-      const [usersRes, rolesRes, modulesRes] = await Promise.all([
+      // Load users and roles (required)
+      const [usersRes, rolesRes] = await Promise.all([
         getAllUsers(),
-        listRoles(),
-        getModulesAndVerbs()
+        listRoles()
       ]);
 
       setUsers(Array.isArray(usersRes) ? usersRes : []);
       setRoles(Array.isArray(rolesRes) ? rolesRes : []);
-      setModules(modulesRes?.modules || []);
+
+      // Load modules/verbs (optional - may fail due to permissions)
+      let modulesRes = null;
+      try {
+        modulesRes = await getModulesAndVerbs();
+        setModules(modulesRes?.modules || []);
+      } catch (modulesErr) {
+        console.warn("Failed to load modules and verbs (may require rbac.view permission):", modulesErr);
+        setModules([]);
+      }
 
       // Fetch current user permissions
       try {

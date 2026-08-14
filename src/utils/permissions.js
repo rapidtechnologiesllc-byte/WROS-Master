@@ -31,5 +31,5 @@ export const canAccessMyWorkspace = ({ permissionRole }) => {
   const role = String(permissionRole || "")
     .trim()
     .toLowerCase();
-  return role !== "super user";
+  return role === "super user" || role !== "candidate";
 };

@@ -27,6 +27,7 @@ import {
   MessageSquareText,
   Receipt,
   Settings,
+  Award,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -129,4 +130,16 @@ export const NAV_ITEMS = {
   // S-074/HRMS-0474 -- CSV import + rate-limited Thunder launch for
   // many candidates at once.
   bulkLaunch: { path: ROUTES.BULK_LAUNCH, label: "Bulk Launch", icon: UserPlus },
+
+  // Training & Certifications (new)
+  trainingCertification: { path: ROUTES.TRAINING_CERTIFICATION, label: "Training & Certifications", icon: Award },
+
+  // Troy's Partner Dashboard (new)
+  troyPartnerDashboard: { path: ROUTES.TROY_PARTNER_DASHBOARD, label: "Partner Dashboard", icon: BarChart3 },
+
+  // BI Explorer (new)
+  biExplorer: { path: ROUTES.BI_EXPLORER, label: "BI Explorer", icon: BarChart3 },
+
+  // BU Head Dashboard (new)
+  buHeadDashboard: { path: ROUTES.BU_HEAD_DASHBOARD, label: "BU Head Dashboard", icon: BarChart3 },
 };

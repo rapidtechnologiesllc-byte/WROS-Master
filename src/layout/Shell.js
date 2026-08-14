@@ -47,6 +47,11 @@ import {
 // short, with the group containing your current screen auto-expanded.
 const GROUP_DEFS = [
   {
+    label: "Executive",
+    icon: BarChart3,
+    keys: ["ceoFyProgress"],
+  },
+  {
     label: "Recruitment",
     icon: Users,
     keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "rehireApprovals", "riskDashboard", "thunderAnalytics", "bulkLaunch"],
@@ -59,7 +64,7 @@ const GROUP_DEFS = [
   {
     label: "Workforce",
     icon: Users2,
-    keys: ["employees", "htdIntake", "buddyProgram", "corePull"],
+    keys: ["employees", "htdIntake", "buddyProgram", "buHeadDashboard", "corePull"],
   },
   {
     label: "Project Management",
@@ -74,7 +79,7 @@ const GROUP_DEFS = [
     icon: BadgeDollarSign,
     // 2026-08-12, Avinash: "anything monetary stays in finance" -- myExpenses
     // moved in from standalone. Finance owns billing, invoicing, and revenue reporting.
-    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "ceoFyProgress", "cfoDashboard"],
+    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "executiveRevenueDashboard", "financeOperations"],
   },
   {
     label: "Admin",
@@ -94,6 +99,7 @@ function buildGroups(includedKeys) {
 // Permission-based navigation builder (2026-08-12)
 // Maps nav keys to their required permissions
 const NAV_PERMISSIONS = {
+  // Recruitment Module
   candidates: "recruitment.view",
   jobs: "recruitment.view",
   candidateReview: "recruitment.view",
@@ -106,23 +112,28 @@ const NAV_PERMISSIONS = {
   thunderAnalytics: "recruitment.view",
   bulkLaunch: "recruitment.view",
 
+  // Sales/Client Module
   clientManagement: "business_unit.manage",
   demandConfirmation: "recruitment.view",
   opportunityPipeline: "business_unit.manage",
   partnerRoi: "business_unit.manage",
 
+  // Workforce/HR Module
   employees: "employee.view",
   employeeConversion: "employee.manage",
   htdIntake: "recruitment.view",
   buddyProgram: "employee.manage",
-  corePull: "resource_management.view",
+  buHeadDashboard: "business_unit.view",
 
+  // Resource Management Module
+  corePull: "resource_management.view",
   projects: "project.manage",
   allocations: "project.manage",
   resourceManagement: "resource_management.view",
   utilization: "project.view",
   forecast: "project.view",
 
+  // Finance Module
   myExpenses: "invoice.view",
   timesheets: "timesheet.view",
   invoices: "invoice.view",
@@ -131,9 +142,8 @@ const NAV_PERMISSIONS = {
   forecastVsActual: "reports.financial",
   executiveRevenueDashboard: "reports.financial",
   financeOperations: "finance.view",
-  ceoFyProgress: "reports.view",
-  cfoDashboard: "reports.view",
 
+  // Admin Module
   usersAccessControl: "user.manage",
   tenantLocale: "tenant.manage",
   tenantAiConfig: "agent.manage",
@@ -143,6 +153,10 @@ const NAV_PERMISSIONS = {
   errorLog: "system.view",
   adminSettings: "system.manage",
   adminWeeklyRecap: "reports.view",
+
+  // Dashboard/Agent Screens
+  ceoFyProgress: "reports.financial",
+  cfoDashboard: "reports.financial",
 };
 
 function buildGroupsByPermissions() {
@@ -202,15 +216,10 @@ export default function Shell({
 
     // Fallback: Legacy role-based navigation for backward compatibility
     if (isSuperUser) {
+      // Super User gets ALL navigation items
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
-        groups: buildGroups([
-          "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
-          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "myExpenses", "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
-          "usersAccessControl", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
-        ]),
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses],
+        groups: buildGroups(Object.keys(NAV_PERMISSIONS)),
       };
     }
     if (isAdmin) {

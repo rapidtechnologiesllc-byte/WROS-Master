@@ -1,263 +1,182 @@
-// DEFECT-6: Partner/BU Head Dashboard
-// Metrics: Revenue this month (by BU), capacity utilization, top clients,
-// team utilization heatmap, timesheets pending, expenses pending review
-
 import { useEffect, useState } from "react";
-import { TrendingUp, Users, DollarSign, Clock, AlertCircle, RefreshCw } from "lucide-react";
-import { Card, Button } from "../components/ui";
-import cx from "../utils/cx";
-import { getExecutiveDashboard } from "../services/api/revenueTargets";
-import { listBusinessUnits } from "../services/api/rbac";
+import { Users, TrendingUp, DollarSign, AlertCircle, Briefcase } from "lucide-react";
+import { Card } from "../components/ui";
+import { apiRequest } from "../services/api/client";
 
-const formatUsdCents = (cents) =>
-  cents == null
-    ? "—"
-    : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-
-function RevenueCard({ title, value, subtitle }) {
-  return (
-    <div className="rounded-lg border bg-gradient-to-br from-blue-50 to-blue-100/50 p-4 hover:from-blue-100">
-      <div className="text-xs font-semibold text-blue-600">{title}</div>
-      <div className="mt-2 text-2xl font-bold text-gray-900">{value}</div>
-      {subtitle && <div className="mt-1 text-[11px] text-gray-600">{subtitle}</div>}
-    </div>
-  );
-}
-
-function CapacityGauge({ utilization }) {
-  const percentage = utilization || 0;
-  const bgColor =
-    percentage >= 100 ? "bg-red-100" :
-    percentage >= 75 ? "bg-yellow-100" :
-    "bg-green-100";
-
-  const textColor =
-    percentage >= 100 ? "text-red-700" :
-    percentage >= 75 ? "text-yellow-700" :
-    "text-green-700";
-
-  return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs font-semibold text-gray-600 mb-3">ALLOCATED VS AVAILABLE</div>
-      <div className="flex items-center gap-4">
-        <div className={`${bgColor} rounded-full w-24 h-24 flex items-center justify-center`}>
-          <div className={`text-3xl font-bold ${textColor}`}>{percentage}%</div>
-        </div>
-        <div className="flex-1">
-          <div className={`text-sm ${textColor} font-semibold`}>
-            {percentage >= 100 ? "Over Allocated" :
-             percentage >= 75 ? "High Utilization" :
-             "Optimal Capacity"}
-          </div>
-          <div className="mt-1 text-[11px] text-gray-600">
-            {percentage >= 100 ? "Additional capacity needed" :
-             percentage >= 75 ? "Consider adding resources" :
-             "Room for growth"}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TopClientsCard({ clients }) {
-  return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs font-semibold text-gray-600 mb-3">TOP 5 CLIENTS BY REVENUE</div>
-      <div className="space-y-2">
-        {(clients || []).slice(0, 5).map((client, idx) => (
-          <div key={idx} className="flex items-center justify-between">
-            <div className="text-sm font-medium text-gray-900">{client.name}</div>
-            <div className="text-sm font-semibold text-blue-600">{formatUsdCents(client.revenue_usd_cents)}</div>
-          </div>
-        ))}
-        {(!clients || clients.length === 0) && (
-          <div className="text-sm text-gray-500">No client revenue data available</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function UtilizationHeatmap({ employees }) {
-  return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs font-semibold text-gray-600 mb-3">TEAM UTILIZATION HEATMAP</div>
-      <div className="space-y-2">
-        {(employees || []).slice(0, 10).map((emp) => {
-          const util = emp.utilization_pct || 0;
-          const bgColor =
-            util >= 100 ? "bg-red-200" :
-            util >= 75 ? "bg-yellow-200" :
-            util >= 50 ? "bg-green-200" :
-            "bg-blue-200";
-
-          return (
-            <div key={emp.id} className="flex items-center gap-2">
-              <div className="w-20 text-xs font-medium truncate text-gray-700">
-                {emp.first_name} {emp.last_name}
-              </div>
-              <div className={`flex-1 h-6 rounded ${bgColor} flex items-center justify-center text-xs font-semibold text-gray-900`}>
-                {util}%
-              </div>
-            </div>
-          );
-        })}
-        {(!employees || employees.length === 0) && (
-          <div className="text-sm text-gray-500">No employee data available</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PendingItemsCard() {
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      <div className="rounded-lg border bg-gradient-to-br from-amber-50 to-amber-100/50 p-4">
-        <div className="text-xs font-semibold text-amber-600 mb-2">TIMESHEETS PENDING</div>
-        <div className="text-3xl font-bold text-gray-900">0</div>
-        <div className="mt-2 text-[11px] text-gray-600">Awaiting approval</div>
-      </div>
-      <div className="rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100/50 p-4">
-        <div className="text-xs font-semibold text-orange-600 mb-2">EXPENSES PENDING</div>
-        <div className="text-3xl font-bold text-gray-900">0</div>
-        <div className="mt-2 text-[11px] text-gray-600">Under review</div>
-      </div>
-    </div>
-  );
-}
-
-export default function BuHeadDashboardScreen() {
+export default function BUHeadDashboardScreen() {
   const [dashboard, setDashboard] = useState(null);
-  const [businessUnits, setBusinessUnits] = useState([]);
-  const [selectedBuId, setSelectedBuId] = useState("");
+  const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    loadData();
-  }, [selectedBuId]);
+    fetchDashboardData();
+  }, []);
 
-  const loadData = async () => {
+  const fetchDashboardData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [dashboardData, busData] = await Promise.all([
-        selectedBuId ? getExecutiveDashboard() : Promise.resolve(null),
-        listBusinessUnits(),
+      const [dashRes, teamRes] = await Promise.all([
+        apiRequest("/dashboards/bu-head/summary", { method: "GET" }),
+        apiRequest("/dashboards/bu-head/team", { method: "GET" })
       ]);
 
-      setDashboard(dashboardData);
-      setBusinessUnits(busData?.business_units || busData || []);
-
-      // Auto-select first BU if not selected
-      if (!selectedBuId && busData?.business_units?.length) {
-        setSelectedBuId(String(busData.business_units[0].business_unit_id || busData.business_units[0].id));
-      }
+      setDashboard(dashRes.data?.data);
+      setTeam(teamRes.data?.data?.team_members || []);
     } catch (err) {
-      setError(err.message || "Failed to load dashboard data");
+      setError(err.message || "Failed to load dashboard");
       console.error("Dashboard error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const currentBU = businessUnits.find(bu => String(bu.business_unit_id || bu.id) === selectedBuId);
+  if (loading) return <div className="p-6 text-center text-gray-500">Loading BU dashboard...</div>;
+  if (error) return <div className="p-6 text-center text-red-600">Error: {error}</div>;
+  if (!dashboard) return <div className="p-6 text-center text-gray-500">No data available</div>;
+
+  const { team_size, revenue, delivery } = dashboard;
+  const formatCurrency = (value) => `$${(value / 1000).toFixed(1)}k`;
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
+    <div className="space-y-6 p-6 max-w-7xl mx-auto">
       <div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Business Unit Dashboard</h1>
-            <p className="mt-1 text-gray-600">Revenue, capacity, and team metrics for your BU</p>
-          </div>
-          <Button variant="ghost" onClick={loadData} disabled={loading}>
-            <RefreshCw className={cx("h-4 w-4", loading && "animate-spin")} />
-          </Button>
-        </div>
+        <h1 className="text-3xl font-bold text-gray-900">{dashboard.bu_name} - Business Unit Dashboard</h1>
+        <p className="text-gray-600 mt-1">Complete visibility of delivery, team, and revenue</p>
       </div>
 
-      {/* BU Selector */}
-      <div>
-        <label className="text-sm font-semibold text-gray-700">Select Business Unit</label>
-        <select
-          value={selectedBuId}
-          onChange={(e) => setSelectedBuId(e.target.value)}
-          className="mt-2 w-full rounded-lg border bg-white px-3 py-2 text-sm"
-        >
-          <option value="">All Business Units</option>
-          {businessUnits.map((bu) => (
-            <option key={bu.id} value={String(bu.business_unit_id || bu.id)}>
-              {bu.name || bu.bu_name}
-            </option>
-          ))}
-        </select>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Team Utilization */}
+        <Card>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-semibold text-gray-500 uppercase">Team Utilization</div>
+              <div className="text-3xl font-bold text-blue-600 mt-2">{team_size.utilization_percent}%</div>
+              <div className="text-xs text-gray-600 mt-1">{team_size.utilized}/{team_size.total} in projects</div>
+            </div>
+            <Users className="h-6 w-6 text-blue-500" />
+          </div>
+        </Card>
+
+        {/* Revenue MTD */}
+        <Card>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-semibold text-gray-500 uppercase">Revenue MTD</div>
+              <div className="text-3xl font-bold text-green-600 mt-2">{formatCurrency(revenue.mtd_usd)}</div>
+              <div className="text-xs text-gray-600 mt-1">Month to date</div>
+            </div>
+            <DollarSign className="h-6 w-6 text-green-500" />
+          </div>
+        </Card>
+
+        {/* ARN */}
+        <Card>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-semibold text-gray-500 uppercase">Annual Run Rate</div>
+              <div className="text-3xl font-bold text-green-600 mt-2">{formatCurrency(revenue.arn_usd)}</div>
+              <div className="text-xs text-gray-600 mt-1">Projected annual</div>
+            </div>
+            <TrendingUp className="h-6 w-6 text-green-500" />
+          </div>
+        </Card>
+
+        {/* Bench Cost */}
+        <Card>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-semibold text-gray-500 uppercase">Bench Cost/Day</div>
+              <div className="text-3xl font-bold text-orange-600 mt-2">{formatCurrency(revenue.bench_cost_daily_usd)}</div>
+              <div className="text-xs text-gray-600 mt-1">{team_size.bench} idle employees</div>
+            </div>
+            <AlertCircle className="h-6 w-6 text-orange-500" />
+          </div>
+        </Card>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 flex gap-3">
-          <AlertCircle className="h-5 w-5 text-rose-600 flex-shrink-0" />
-          <div className="text-sm text-rose-700">{error}</div>
+      {/* Team Size Breakdown */}
+      <Card title="Team Summary">
+        <div className="grid grid-cols-3 gap-8">
+          <div className="text-center">
+            <div className="text-4xl font-bold text-blue-600">{team_size.total}</div>
+            <div className="text-sm text-gray-600 mt-2">Total Team Members</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-green-600">{team_size.utilized}</div>
+            <div className="text-sm text-gray-600 mt-2">Allocated to Projects</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-orange-600">{team_size.bench}</div>
+            <div className="text-sm text-gray-600 mt-2">On Bench</div>
+          </div>
         </div>
-      )}
+      </Card>
 
-      {loading ? (
-        <div className="py-12 text-center text-gray-500">Loading dashboard...</div>
-      ) : (
-        <>
-          {/* Revenue Section */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <RevenueCard
-              title="REVENUE THIS MONTH"
-              value={formatUsdCents(dashboard?.month_revenue_usd_cents)}
-              subtitle="Current fiscal period"
-            />
-            <RevenueCard
-              title="PLANNED REVENUE"
-              value={formatUsdCents(dashboard?.planned_usd_cents)}
-              subtitle="YTD forecast"
-            />
-            <RevenueCard
-              title="BILLABLE RATIO"
-              value={dashboard?.billable_ratio_pct ? `${dashboard.billable_ratio_pct}%` : "—"}
-              subtitle="Revenue billability"
-            />
-          </div>
-
-          {/* Capacity & Clients */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <CapacityGauge utilization={dashboard?.utilization_pct || 0} />
-            <TopClientsCard clients={dashboard?.top_clients} />
-          </div>
-
-          {/* Team & Pending */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <UtilizationHeatmap employees={dashboard?.employees} />
-            <PendingItemsCard />
-          </div>
-
-          {/* Bench Summary */}
-          {dashboard?.bench_summary && (
-            <Card className="p-4">
-              <h3 className="font-semibold mb-3">BENCH POOL SUMMARY</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-gray-600">Total on Bench</div>
-                  <div className="text-2xl font-bold text-gray-900">{dashboard.bench_summary.total || 0}</div>
+      {/* Active Projects & Allocations */}
+      {delivery.project_allocations.length > 0 && (
+        <Card title="Active Projects & Allocations">
+          <div className="space-y-3">
+            {delivery.project_allocations.map((proj, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <div className="font-semibold text-gray-900">{proj.name}</div>
+                    <div className="text-xs text-gray-600">{proj.employees} employees allocated</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-gray-600">Aging > 30 days</div>
-                  <div className="text-2xl font-bold text-amber-600">{dashboard.bench_summary.aging_30_plus || 0}</div>
+                <div className="text-right">
+                  <div className="font-semibold text-gray-900">{proj.total_utilization}%</div>
+                  <div className="text-xs text-gray-600">utilization</div>
                 </div>
               </div>
-            </Card>
-          )}
-        </>
+            ))}
+          </div>
+        </Card>
       )}
+
+      {/* Team Member Details */}
+      <Card title="Team Members">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Name</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Title</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Current Project</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Billable Rate</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Utilization</th>
+              </tr>
+            </thead>
+            <tbody>
+              {team.map((member) => (
+                <tr key={member.id} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4 font-medium text-gray-900">{member.name}</td>
+                  <td className="py-3 px-4 text-gray-600">{member.title}</td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      member.current_project === "Bench"
+                        ? "bg-orange-100 text-orange-800"
+                        : "bg-green-100 text-green-800"
+                    }`}>
+                      {member.current_project}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center text-gray-900">${member.billable_rate}/hr</td>
+                  <td className="py-3 px-4 text-center">
+                    <div className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                      {member.utilization}%
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

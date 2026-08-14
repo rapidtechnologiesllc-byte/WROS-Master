@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Card } from "../components/ui";
 import { getSettingsPanel, updateSetting } from "../services/api/systemConfig";
+import { apiRequest } from "../services/api/client";
 import { ROUTES } from "../utils/Routes";
 import { Plus, Edit2, Trash2, Building2, MapPin } from "lucide-react";
 
@@ -80,16 +81,71 @@ function ConfigRow({ item, onSave }) {
 
 function OrganizationSection() {
   const [orgTab, setOrgTab] = useState("business-units");
-  const [businessUnits, setBusinessUnits] = useState([
-    { id: 1, name: "North America", code: "NA", head: "John Smith", partner: "BlitzenX USA" },
-    { id: 2, name: "India", code: "IN", head: "Raj Patel", partner: "BlitzenX India" },
-  ]);
+  const [businessUnits, setBusinessUnits] = useState([]);
   const [deliveryCenters, setDeliveryCenters] = useState([
     { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150 },
     { id: 2, name: "Youngstown, OH", type: "Delivery", buServed: ["North America"], headcount: 300 },
-    { id: 3, name: "Hyderabad, India", type: "HQ", buServed: ["India"], headcount: 200 },
-    { id: 4, name: "Chennai, India", type: "Delivery", buServed: ["India"], headcount: 400 },
   ]);
+  const [showAddBUModal, setShowAddBUModal] = useState(false);
+  const [newBUName, setNewBUName] = useState("");
+  const [newBUDescription, setNewBUDescription] = useState("");
+  const [isSubmittingBU, setIsSubmittingBU] = useState(false);
+
+  // Load business units from database via API (same source as Create User dropdown)
+  useEffect(() => {
+    const loadBusinessUnits = async () => {
+      try {
+        const { data } = await apiRequest("/bu-context/available-buses", {
+          skipAuth: true,
+          method: "GET"
+        });
+        const busData = data?.business_units || [];
+        setBusinessUnits(busData);
+      } catch (err) {
+        console.error("Failed to load business units:", err);
+        setBusinessUnits([]);
+      }
+    };
+    loadBusinessUnits();
+  }, []);
+
+  const handleAddBusinessUnit = async (e) => {
+    e.preventDefault();
+    if (!newBUName.trim()) {
+      return;
+    }
+
+    setIsSubmittingBU(true);
+    try {
+      const payload = {
+        name: newBUName.trim(),
+        description: newBUDescription.trim() || null,
+      };
+
+      await apiRequest("/rbac/business-units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      // Refresh business units list
+      const { data } = await apiRequest("/bu-context/available-buses", {
+        skipAuth: true,
+        method: "GET"
+      });
+      const busData = data?.business_units || [];
+      setBusinessUnits(busData);
+
+      // Close modal and reset form
+      setShowAddBUModal(false);
+      setNewBUName("");
+      setNewBUDescription("");
+    } catch (err) {
+      console.error("Failed to add business unit:", err);
+    } finally {
+      setIsSubmittingBU(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -132,7 +188,9 @@ function OrganizationSection() {
       {/* Business Units Tab */}
       {orgTab === "business-units" && (
         <div className="space-y-4">
-          <button className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium">
+          <button
+            onClick={() => setShowAddBUModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium">
             <Plus className="h-4 w-4" />
             Add Business Unit
           </button>
@@ -142,9 +200,8 @@ function OrganizationSection() {
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-900">{bu.name}</h4>
                   <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
-                    <div><span className="font-medium">Code:</span> {bu.code}</div>
-                    <div><span className="font-medium">BU Head:</span> {bu.head}</div>
-                    <div><span className="font-medium">Partner:</span> {bu.partner}</div>
+                    <div><span className="font-medium">Region:</span> {bu.region || "-"}</div>
+                    <div><span className="font-medium">Continent:</span> {bu.continent || "-"}</div>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -153,6 +210,68 @@ function OrganizationSection() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Business Unit Modal */}
+      {showAddBUModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Add Business Unit</h3>
+              <button
+                onClick={() => setShowAddBUModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleAddBusinessUnit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Business Unit Name *
+                </label>
+                <input
+                  type="text"
+                  value={newBUName}
+                  onChange={(e) => setNewBUName(e.target.value)}
+                  placeholder="e.g., Asia Pacific"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                  disabled={isSubmittingBU}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description (Optional)
+                </label>
+                <textarea
+                  value={newBUDescription}
+                  onChange={(e) => setNewBUDescription(e.target.value)}
+                  placeholder="Add a description..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                  rows="3"
+                  disabled={isSubmittingBU}
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddBUModal(false)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={isSubmittingBU}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                  disabled={!newBUName.trim() || isSubmittingBU}
+                >
+                  {isSubmittingBU ? "Adding..." : "Add Business Unit"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
