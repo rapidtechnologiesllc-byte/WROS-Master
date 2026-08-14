@@ -179,11 +179,12 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             candidate_data = {k: v for k, v in candidate_data.items() if v is not None}
 
             candidate = create_candidate_safe(db, **candidate_data)
+            db.flush()  # Flush to get the candidateID before full commit
             imported_candidate_ids.append(candidate.candidateID)
         except DuplicateCandidateError:
             skipped_duplicates += 1
         except Exception as exc:
-            logger.error(f"[BulkEngagement] Row {index} import failed: {exc}")
+            logger.error(f"[BulkEngagement] Row {index} import failed: {exc}", exc_info=True)
             errors.append({"row": index, "reason": str(exc)})
 
     return {
