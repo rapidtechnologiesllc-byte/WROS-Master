@@ -43,6 +43,7 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
+from app.core.db_resilience import retry_on_db_lock
 from app.models.bulk_engagement import BulkEngagementError, BulkEngagementJob
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
@@ -194,6 +195,59 @@ def _parse_date(date_str: Optional[str]) -> Optional:
     return None
 
 
+def _commit_with_retry(db: Session, max_retries: int = 3) -> None:
+    """Commit database changes with automatic retry on lock."""
+    import time
+    wait_time = 0.05
+
+    for attempt in range(max_retries):
+        try:
+            db.commit()
+            return
+        except Exception as e:
+            if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                time.sleep(wait_time)
+                wait_time *= 2
+                logger.warning(f"[BulkImport] DB locked on commit (attempt {attempt + 1}/{max_retries}), retrying...")
+                continue
+            raise
+
+
+def _update_duplicate_candidate(existing_candidate: Candidate, row: Dict) -> None:
+    """Update an existing duplicate candidate with new data from CSV row.
+    Overwrites phone and job_title (primary identifiers for dedup).
+    Updates location and skills only if not already set."""
+    updated_fields = []
+
+    # ALWAYS update phone (primary dedup identifier) - overwrite existing
+    phone = _extract_value(row, PHONE_COLUMN_ALIASES)
+    if phone:
+        existing_candidate.candidateMobile = phone
+        updated_fields.append("phone")
+
+    # ALWAYS update job_title (primary requirement field) - overwrite existing
+    job_title = _extract_value(row, JOB_TITLE_ALIASES)
+    if job_title:
+        existing_candidate.candidateJobTitle = job_title
+        updated_fields.append("job_title")
+
+    # Update location if provided and candidate doesn't have one
+    location = _extract_value(row, LOCATION_COLUMN_ALIASES)
+    if location and not existing_candidate.candidateCurrentLocation:
+        existing_candidate.candidateCurrentLocation = location
+        updated_fields.append("location")
+
+    # Update skills if provided and candidate doesn't have them
+    skills = _extract_value(row, SKILLS_COLUMN_ALIASES)
+    if skills and not existing_candidate.candidateSkills:
+        existing_candidate.candidateSkills = skills
+        updated_fields.append("skills")
+
+    if updated_fields:
+        logger.info(f"[BulkImport] Updated duplicate candidate {existing_candidate.candidateID}: {', '.join(updated_fields)}")
+
+
+@retry_on_db_lock(max_retries=3)
 def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str, job_id: str = None) -> Dict:
     """Step 1. Never raises for per-row problems -- those go in
     `errors`. Raises CsvTooLarge/CsvMissingRequiredColumn for the
@@ -328,6 +382,10 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                                     job_record.skipped_count = skipped_duplicates
                                     job_record.failed_count = len(errors)
                                     db.commit()
+                                    # Check if job has been cancelled - stop importing if so
+                                    if job_record.status == "CANCELLED":
+                                        logger.info(f"[BulkImport] Job {job_id} was cancelled - stopping import")
+                                        return {"imported": len(imported_candidate_ids), "skipped_duplicates": skipped_duplicates, "errors": errors, "candidate_ids": imported_candidate_ids}
                             except Exception as e:
                                 logger.warning(f"[BulkEngagement] Failed to update job progress: {e}")
                         break
@@ -355,7 +413,15 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                             pending_candidate_ids.clear()
                             break
 
-        except DuplicateCandidateError:
+        except DuplicateCandidateError as dup_err:
+            # Update existing duplicate candidate with new data from CSV
+            try:
+                _update_duplicate_candidate(dup_err.existing, row)
+                db.commit()
+                logger.info(f"[BulkImport] Merged duplicate candidate (matched on {dup_err.matched_on}): {dup_err.existing.candidateID}")
+            except Exception as e:
+                logger.warning(f"[BulkImport] Failed to update duplicate candidate: {e}")
+                db.rollback()
             skipped_duplicates += 1
         except Exception as exc:
             logger.error(f"[BulkEngagement] Row {index} import failed: {exc}", exc_info=True)
@@ -380,7 +446,9 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                             job_record.success_count = len(imported_candidate_ids)
                             job_record.skipped_count = skipped_duplicates
                             job_record.failed_count = len(errors)
-                            job_record.status = "COMPLETED"
+                            # Only mark as COMPLETED if not already cancelled
+                            if job_record.status != "CANCELLED":
+                                job_record.status = "COMPLETED"
                             db.commit()
                     except Exception as e:
                         logger.warning(f"[BulkEngagement] Failed to update job progress (final): {e}")

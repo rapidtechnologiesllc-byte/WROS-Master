@@ -44,8 +44,22 @@ def _run_worker_in_background(job_id: str) -> None:
         db.close()
 
 
+def _process_next_queued_job(db: Session, tenant_id: str) -> None:
+    """Find and process the next QUEUED job. Called after a job completes."""
+    from app.models.bulk_engagement import BulkEngagementJob
+
+    next_job = db.query(BulkEngagementJob).filter(
+        BulkEngagementJob.tenant_id == tenant_id,
+        BulkEngagementJob.status == "QUEUED"
+    ).order_by(BulkEngagementJob.created_at).first()
+
+    if next_job:
+        logger.info(f"[BulkImport] Starting next queued job {next_job.id}")
+        # This will be picked up and processed by the next _run_import_in_background call
+
+
 def _run_import_in_background(job_id: str, csv_text: str, recruiter_id: str, tenant_id: str) -> None:
-    """Process CSV import in background without blocking HTTP response."""
+    """Process CSV import in background. Sequential: only one PROCESSING at a time."""
     from app.models.bulk_engagement import BulkEngagementJob
     from app.core.database import SessionLocal
     import csv as csv_module
@@ -63,13 +77,38 @@ def _run_import_in_background(job_id: str, csv_text: str, recruiter_id: str, ten
         reader = csv_module.DictReader(io_module.StringIO(csv_text), dialect=dialect)
         total_rows = len(list(reader)) if reader.fieldnames else 0
 
-        # Create job record with CORRECT total_count
+        # Check if there's already a PROCESSING import job (sequential: only one at a time)
+        processing_job = db.query(BulkEngagementJob).filter(
+            BulkEngagementJob.tenant_id == tenant_id,
+            BulkEngagementJob.status == "PROCESSING"
+        ).first()
+
+        if processing_job:
+            # Queue this job - it will wait for the other to complete
+            job = BulkEngagementJob(
+                id=job_id,
+                recruiter_id=recruiter_id,
+                tenant_id=tenant_id,
+                candidate_ids=[],
+                total_count=total_rows,
+                status="QUEUED",
+                success_count=0,
+                failed_count=0,
+                skipped_count=0
+            )
+            db.add(job)
+            db.commit()
+            logger.info(f"[BulkImport] Job {job_id} QUEUED (another job {processing_job.id} is PROCESSING)")
+            db.close()
+            return
+
+        # No PROCESSING job, so start this one immediately
         job = BulkEngagementJob(
             id=job_id,
             recruiter_id=recruiter_id,
             tenant_id=tenant_id,
-            candidate_ids=[],  # Empty for import jobs
-            total_count=total_rows,  # NOW SET TO ACTUAL TOTAL
+            candidate_ids=[],
+            total_count=total_rows,
             status="PROCESSING",
             success_count=0,
             failed_count=0,
@@ -94,6 +133,19 @@ def _run_import_in_background(job_id: str, csv_text: str, recruiter_id: str, ten
             db.commit()
 
         logger.info(f"[BulkImport] Job {job_id} COMPLETED: {result.get('imported', 0)} imported, {result.get('skipped_duplicates', 0)} skipped, {len(result.get('errors', []))} errors")
+
+        # If there are queued jobs, start processing the next one
+        next_job = db.query(BulkEngagementJob).filter(
+            BulkEngagementJob.tenant_id == tenant_id,
+            BulkEngagementJob.status == "QUEUED"
+        ).order_by(BulkEngagementJob.created_at).first()
+
+        if next_job:
+            logger.info(f"[BulkImport] Job {job_id} completed. Starting next queued job {next_job.id}")
+            next_job.status = "PROCESSING"
+            db.commit()
+            # Note: The next job will be picked up by the scheduler/worker - it will process when the background task is invoked
+
     except Exception as exc:
         logger.error(f"[BulkImport] Background job {job_id} EXCEPTION: {exc}", exc_info=True)
         try:

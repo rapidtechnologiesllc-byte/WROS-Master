@@ -1155,7 +1155,7 @@ def start_scheduler():
                     assigned_count = 0
                     for candidate in candidates_without_thunder:
                         try:
-                            auto_assign_ai_agent_on_creation(candidate.candidateID, candidate.business_unit_id or 1, db)
+                            auto_assign_ai_agent_on_creation(candidate.candidateID, db)
                             candidate.thunder_assigned_at = datetime.utcnow()
                             assigned_count += 1
                         except Exception as e:

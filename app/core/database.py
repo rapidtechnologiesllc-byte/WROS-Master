@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from app.core.db_resilience import configure_sqlite_for_concurrency
 
 # Bare load_dotenv() resolves .env via the process's current working
 # directory, not this file's location -- some launchers (e.g. this repo's
@@ -52,6 +53,10 @@ if _is_sqlserver:
 
 # Create SQLAlchemy engine with optimized settings
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
+
+# Configure SQLite for better concurrent access (workaround until PostgreSQL migration)
+if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+    configure_sqlite_for_concurrency(engine)
 
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
