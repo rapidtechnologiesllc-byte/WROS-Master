@@ -93,6 +93,11 @@ class Candidate(Base):
     email_2fa_opted_in = Column(Boolean, nullable=True)
     email_otp_code_hash = Column(String(64), nullable=True)
     email_otp_expires_at = Column(DateTime, nullable=True)
+    # Thunder engagement tracking: should this candidate have Thunder building relationship?
+    # False/NULL (default) = Thunder should engage; True = candidate opted out, skip Thunder
+    do_not_contact = Column(Boolean, nullable=False, server_default="0", default=False)
+    # Track when Thunder was first assigned (for analytics and to avoid duplicate assignments)
+    thunder_assigned_at = Column(DateTime(timezone=False), nullable=True)
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
