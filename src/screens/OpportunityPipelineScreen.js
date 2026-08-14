@@ -57,6 +57,10 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [accountManagerId, setAccountManagerId] = useState(""); // Account manager
   const [clientOwnerId, setClientOwnerId] = useState(""); // Client owner (from users list)
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [service, setService] = useState("");
+  const [module, setModule] = useState("");
+  const [clientType, setClientType] = useState("");
+  const [pricingModel, setPricingModel] = useState("");
   const [users, setUsers] = useState([]);
   const [clientOwners, setClientOwners] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -64,6 +68,55 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [error, setError] = useState("");
   const [addingClient, setAddingClient] = useState(false);
   const [newClientWebsite, setNewClientWebsite] = useState("");
+
+  const serviceOptions = [
+    "Consulting & Advisory",
+    "System Integration",
+    "System Implementation & Managed Services",
+    "QA & Testing",
+    "Data Migration",
+    "Cloud Migration",
+    "Analytics and Insights",
+    "Digital Experiences",
+    "Staff Augmentation",
+    "Others",
+  ];
+
+  const moduleOptions = [
+    "PolicyCenter",
+    "ClaimsCenter",
+    "BillingCenter",
+    "InsuranceSuite",
+    "InsuranceNow",
+    "PricingCenter",
+    "UnderwritingCenter",
+    "Jutro Digital",
+    "Data and Analytics",
+    "ProNavigator",
+    "Guidewire Marketplace accelerators",
+    "Others",
+  ];
+
+  const clientTypeOptions = [
+    "Personal lines",
+    "Commercial lines",
+    "Specialty lines",
+    "Others",
+  ];
+
+  const pricingModelOptions = [
+    "FTE-based",
+    "Transaction-based",
+    "Per policy",
+    "Outcome based/profit and risk sharing",
+    "Rebadge of Carrier FTEs",
+    "Monetization of Carrier Assets",
+    "Time and Material (T&M)",
+    "Fixed Bid",
+    "As-a-Service/Managed service",
+    "Service-as-a-software",
+    "Others",
+  ];
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -164,6 +217,10 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         client_owner_id: clientOwnerId || null,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
+        service: service || null,
+        module: module || null,
+        client_type: clientType || null,
+        pricing_model: pricingModel || null,
       });
       onCreated();
     } catch (err) {
@@ -248,6 +305,46 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
             System-generated from stage — updates automatically as this opportunity moves through the pipeline.
           </div>
         </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
+        <Select
+          label="Service"
+          value={service}
+          onChange={setService}
+          options={[
+            { label: "Select service", value: "", disabled: true },
+            ...serviceOptions.map((s) => ({ label: s, value: s })),
+          ]}
+        />
+        <Select
+          label="Guidewire Module"
+          value={module}
+          onChange={setModule}
+          options={[
+            { label: "Select module", value: "", disabled: true },
+            ...moduleOptions.map((m) => ({ label: m, value: m })),
+          ]}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
+        <Select
+          label="Client Type"
+          value={clientType}
+          onChange={setClientType}
+          options={[
+            { label: "Select client type", value: "", disabled: true },
+            ...clientTypeOptions.map((ct) => ({ label: ct, value: ct })),
+          ]}
+        />
+        <Select
+          label="Pricing Model"
+          value={pricingModel}
+          onChange={setPricingModel}
+          options={[
+            { label: "Select pricing model", value: "", disabled: true },
+            ...pricingModelOptions.map((pm) => ({ label: pm, value: pm })),
+          ]}
+        />
       </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
