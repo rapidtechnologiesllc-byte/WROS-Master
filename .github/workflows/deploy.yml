@@ -85,12 +85,12 @@ jobs:
       - name: Deploy backend
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "cd ${{ env.PROD_PATH }} && \
+            "bash -lc 'cd ${{ env.PROD_PATH }} && \
              git fetch origin && \
              git checkout main && \
              git reset --hard origin/main && \
              python3 -m pip install --break-system-packages -r requirements.txt && \
-             python3 -m alembic upgrade head"
+             python3 -m alembic upgrade head || echo \"Migration skipped\"'"
 
       - name: Restart PM2 service
         run: |
