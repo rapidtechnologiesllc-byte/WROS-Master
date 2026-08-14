@@ -86,8 +86,8 @@ class BulkTooLarge(Exception):
 
 
 def _normalize_column_name(header: str) -> str:
-    """Convert header to lowercase and strip whitespace for matching."""
-    return header.lower().strip()
+    """Convert header to lowercase, remove spaces and underscores for matching."""
+    return header.lower().strip().replace(" ", "").replace("_", "")
 
 
 def _find_matching_column(headers: List[str], aliases: tuple) -> Optional[str]:
@@ -110,7 +110,89 @@ def _extract_value(row: Dict, column_aliases: tuple) -> Optional[str]:
     return None
 
 
-def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str) -> Dict:
+def _parse_experience(experience_str: Optional[str]) -> Optional[str]:
+    """Parse experience in various formats: '6y6m', '6 years 6 months', '72', etc.
+    Returns normalized format: '6 years 6 months' or the original string if unparseable."""
+    if not experience_str:
+        return None
+
+    import re
+
+    # Normalize the string
+    exp = experience_str.strip().lower()
+    if not exp:
+        return None
+
+    # Try to parse formats like "6y6m", "6y", "6 years 6 months", etc.
+    # Pattern: optional number + 'y' or 'year(s)', optional number + 'm' or 'month(s)'
+    years = 0
+    months = 0
+
+    # Match patterns like "6y", "6 years", "6years"
+    year_match = re.search(r'(\d+)\s*(?:year|y)s?', exp)
+    if year_match:
+        years = int(year_match.group(1))
+
+    # Match patterns like "6m", "6 months", "6months"
+    month_match = re.search(r'(\d+)\s*(?:month|m)s?', exp)
+    if month_match:
+        months = int(month_match.group(1))
+
+    # If we parsed years or months, return formatted string
+    if years > 0 or months > 0:
+        parts = []
+        if years > 0:
+            parts.append(f"{years} year{'s' if years != 1 else ''}")
+        if months > 0:
+            parts.append(f"{months} month{'s' if months != 1 else ''}")
+        return " ".join(parts)
+
+    # If no parse match, return original (might be "5", "10", etc.)
+    return experience_str
+
+
+def _parse_date(date_str: Optional[str]) -> Optional:
+    """Parse date strings in various formats: YYYY-MM-DD, DD/MM/YYYY, MM-DD-YYYY, etc.
+    Returns Python date object or None if unparseable."""
+    if not date_str:
+        return None
+
+    from datetime import datetime
+    import re
+
+    date_str = date_str.strip()
+    if not date_str:
+        return None
+
+    # Try common date formats
+    formats = [
+        "%Y-%m-%d",      # 2000-01-15
+        "%d-%m-%Y",      # 15-01-2000
+        "%m-%d-%Y",      # 01-15-2000
+        "%Y/%m/%d",      # 2000/01/15
+        "%d/%m/%Y",      # 15/01/2000
+        "%m/%d/%Y",      # 01/15/2000
+        "%Y.%m.%d",      # 2000.01.15
+        "%d.%m.%Y",      # 15.01.2000
+        "%m.%d.%Y",      # 01.15.2000
+        "%d %b %Y",      # 15 Jan 2000
+        "%d %B %Y",      # 15 January 2000
+        "%b %d %Y",      # Jan 15 2000
+        "%B %d %Y",      # January 15 2000
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except (ValueError, TypeError):
+            continue
+
+    # If nothing matched, return None (will be skipped in database)
+    logger.warning(f"[BulkEngagement] Could not parse date: {date_str}")
+    return None
+
+
+def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str, job_id: str = None) -> Dict:
     """Step 1. Never raises for per-row problems -- those go in
     `errors`. Raises CsvTooLarge/CsvMissingRequiredColumn for the
     whole-file validation failures this story's own AC treats as a
@@ -142,12 +224,11 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
     skipped_duplicates = 0
     errors: List[Dict] = []
 
-    for index, row in enumerate(rows, start=1):
-        name = _extract_value(row, NAME_COLUMN_ALIASES)
-        if not name:
-            errors.append({"row": index, "reason": "Missing required name field."})
-            continue
+    # Adaptive batching: start with 100, fall back to 50 if database gets overwhelmed
+    batch_size = 100
+    failed_commits = 0
 
+    for index, row in enumerate(rows, start=1):
         email = _extract_value(row, EMAIL_COLUMN_ALIASES)
         if not email:
             # See module docstring -- Candidate.candidateEmail is NOT
@@ -161,24 +242,48 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             errors.append({"row": index, "reason": "Missing required phone number."})
             continue
 
-        name_parts = name.split(" ", 1)
-        first_name = name_parts[0]
-        last_name = name_parts[1] if len(name_parts) > 1 else None
+        job_title = _extract_value(row, JOB_TITLE_ALIASES)
+        if not job_title:
+            errors.append({"row": index, "reason": "Missing required job title (job_title, position, desired_role, etc.)."})
+            continue
+
+        location = _extract_value(row, LOCATION_COLUMN_ALIASES)
+        if not location:
+            errors.append({"row": index, "reason": "Missing required location (location, city, current_location, etc.)."})
+            continue
+
+        # Support both "Full Name" column and separate "First Name"/"Last Name" columns
+        first_name = _extract_value(row, ("first_name", "firstname", "first name", "given_name", "given name"))
+        last_name = _extract_value(row, ("last_name", "lastname", "last name", "family_name", "family name", "surname"))
+
+        if first_name and last_name:
+            # Both first and last names provided separately
+            pass
+        else:
+            # Try to extract from combined "name" column
+            name = _extract_value(row, NAME_COLUMN_ALIASES)
+            if not name:
+                errors.append({"row": index, "reason": "Missing required name field (either 'Name' or separate 'First Name'/'Last Name' columns)."})
+                continue
+            name_parts = name.split(" ", 1)
+            first_name = first_name or name_parts[0]
+            last_name = last_name or (name_parts[1] if len(name_parts) > 1 else None)
 
         try:
-            # Extract all optional fields
+            # Extract all optional fields (map to actual Candidate model field names)
+            experience_raw = _extract_value(row, EXPERIENCE_ALIASES)
+            dob_raw = _extract_value(row, DOB_ALIASES)
             candidate_data = {
                 "email": email,
                 "mobile": phone,
                 "candidateFirstName": first_name,
                 "candidateLastName": last_name,
-                "candidateCurrentLocation": _extract_value(row, LOCATION_COLUMN_ALIASES) or _extract_value(row, CURRENT_LOCATION_ALIASES),
+                "candidateCurrentLocation": location,
+                "candidateJobTitle": job_title,
                 "candidateSkills": _extract_value(row, SKILLS_COLUMN_ALIASES),
-                "candidateRole": _extract_value(row, JOB_TITLE_ALIASES),
-                "candidateExperienceYears": _extract_value(row, EXPERIENCE_ALIASES),
+                "candidateExperience": _parse_experience(experience_raw),
                 "candidateGender": _extract_value(row, GENDER_ALIASES),
-                "candidateDateOfBirth": _extract_value(row, DOB_ALIASES),
-                "candidateNationality": _extract_value(row, NATIONALITY_ALIASES),
+                "candidateDateOfBirth": _parse_date(dob_raw),
                 "candidateSource": _extract_value(row, SOURCE_ALIASES),
                 "candidateCurrentSalary": _extract_value(row, CURRENT_SALARY_ALIASES),
                 "candidateExpectedSalary": _extract_value(row, EXPECTED_SALARY_ALIASES),
@@ -189,11 +294,86 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             candidate = create_candidate_safe(db, **candidate_data)
             db.flush()  # Flush to get the candidateID before full commit
             imported_candidate_ids.append(candidate.candidateID)
+
+            # Adaptive batching: commit every N rows (start with 100, fallback to 50 if overwhelmed)
+            if len(imported_candidate_ids) % batch_size == 0:
+                retry_count = 0
+                max_retries = 3
+
+                while retry_count < max_retries:
+                    try:
+                        db.commit()
+                        failed_commits = 0  # Reset counter on success
+                        logger.info(f"[BulkEngagement] Batch commit successful: {len(imported_candidate_ids)}/{len(rows)} candidates")
+                        # Update job progress if job_id provided
+                        if job_id:
+                            try:
+                                job_record = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+                                if job_record:
+                                    job_record.success_count = len(imported_candidate_ids)
+                                    job_record.skipped_count = skipped_duplicates
+                                    job_record.failed_count = len(errors)
+                                    db.commit()
+                            except Exception as e:
+                                logger.warning(f"[BulkEngagement] Failed to update job progress: {e}")
+                        break
+                    except Exception as e:
+                        retry_count += 1
+                        failed_commits += 1
+                        error_msg = str(e).lower()
+
+                        # If database is locked, try with smaller batch size
+                        if "database is locked" in error_msg and batch_size > 50:
+                            batch_size = 50  # Fall back to smaller batch size
+                            logger.warning(f"[BulkEngagement] Database overwhelmed, reducing batch size to 50")
+                            db.rollback()
+                        elif retry_count < max_retries:
+                            db.rollback()
+                            import time
+                            wait_time = 0.5 ** (max_retries - retry_count)  # Exponential backoff
+                            time.sleep(wait_time)
+                            logger.warning(f"[BulkEngagement] Batch commit retry {retry_count}/{max_retries} after {wait_time}s")
+                        else:
+                            db.rollback()
+                            logger.error(f"[BulkEngagement] Batch commit failed after {max_retries} retries: {e}")
+                            errors.append({"row": index, "reason": f"Batch commit failed: {str(e)[:100]}"})
+                            break
         except DuplicateCandidateError:
             skipped_duplicates += 1
         except Exception as exc:
             logger.error(f"[BulkEngagement] Row {index} import failed: {exc}", exc_info=True)
             errors.append({"row": index, "reason": str(exc)})
+
+    # Final commit for any remaining candidates
+    if imported_candidate_ids:
+        retry_count = 0
+        max_retries = 3
+        while retry_count < max_retries:
+            try:
+                db.commit()
+                logger.info(f"[BulkEngagement] Import completed: {len(imported_candidate_ids)} candidates imported, {skipped_duplicates} duplicates skipped, {len(errors)} errors")
+                # Update job progress for final batch
+                if job_id:
+                    try:
+                        job_record = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+                        if job_record:
+                            job_record.success_count = len(imported_candidate_ids)
+                            job_record.skipped_count = skipped_duplicates
+                            job_record.failed_count = len(errors)
+                            db.commit()
+                    except Exception as e:
+                        logger.warning(f"[BulkEngagement] Failed to update job progress (final): {e}")
+                break
+            except Exception as e:
+                retry_count += 1
+                if retry_count < max_retries:
+                    db.rollback()
+                    import time
+                    time.sleep(0.5)
+                    logger.warning(f"[BulkEngagement] Final commit retry {retry_count}/{max_retries}")
+                else:
+                    db.rollback()
+                    logger.error(f"[BulkEngagement] Final commit failed after {max_retries} retries: {e}")
 
     return {
         "imported": len(imported_candidate_ids), "skipped_duplicates": skipped_duplicates,

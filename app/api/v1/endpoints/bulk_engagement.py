@@ -16,6 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
+from app.core.logging import logger
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models.user import Users
 from app.schemas.bulk_engagement import BulkEngageRequest, BulkEngageResponse, BulkImportResponse, BulkJobStatusResponse
@@ -43,14 +44,68 @@ def _run_worker_in_background(job_id: str) -> None:
 
 def _run_import_in_background(job_id: str, csv_text: str, recruiter_id: str, tenant_id: str) -> None:
     """Process CSV import in background without blocking HTTP response."""
+    from app.models.bulk_engagement import BulkEngagementJob
+    from app.core.database import SessionLocal
+    import csv as csv_module
+    import io as io_module
+
     db = SessionLocal()
     try:
-        result = import_candidates_from_csv(db, csv_text, recruiter_id, tenant_id)
-        db.commit()  # CRITICAL: Commit transaction to persist candidates
-        logger.info(f"[BulkImport] Job {job_id} completed: imported {result.get('imported', 0)} candidates")
+        # Count total rows FIRST (before creating job)
+        sample = csv_text[:1024]
+        try:
+            dialect = csv_module.Sniffer().sniff(sample, delimiters=',\t;|')
+        except csv_module.Error:
+            dialect = csv_module.excel
+
+        reader = csv_module.DictReader(io_module.StringIO(csv_text), dialect=dialect)
+        total_rows = len(list(reader)) if reader.fieldnames else 0
+
+        # Create job record with CORRECT total_count
+        job = BulkEngagementJob(
+            id=job_id,
+            recruiter_id=recruiter_id,
+            tenant_id=tenant_id,
+            candidate_ids=[],  # Empty for import jobs
+            total_count=total_rows,  # NOW SET TO ACTUAL TOTAL
+            status="PROCESSING",
+            success_count=0,
+            failed_count=0,
+            skipped_count=0
+        )
+        db.add(job)
+        db.commit()
+        logger.info(f"[BulkImport] Job {job_id} STARTED: total_rows={total_rows}")
+
+        # Run import with job tracking
+        logger.info(f"[BulkImport] Job {job_id} calling import_candidates_from_csv...")
+        result = import_candidates_from_csv(db, csv_text, recruiter_id, tenant_id, job_id=job_id)
+        logger.info(f"[BulkImport] Job {job_id} import_candidates_from_csv completed: {result}")
+
+        # Update job record with final results
+        job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+        if job:
+            job.status = "COMPLETED"
+            job.success_count = result.get('imported', 0)
+            job.skipped_count = result.get('skipped_duplicates', 0)
+            job.failed_count = len(result.get('errors', []))
+            db.commit()
+
+        logger.info(f"[BulkImport] Job {job_id} COMPLETED: {result.get('imported', 0)} imported, {result.get('skipped_duplicates', 0)} skipped, {len(result.get('errors', []))} errors")
     except Exception as exc:
-        db.rollback()
-        logger.error(f"[BulkImport] Background job {job_id} failed: {exc}", exc_info=True)
+        logger.error(f"[BulkImport] Background job {job_id} EXCEPTION: {exc}", exc_info=True)
+        try:
+            job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+            if job:
+                job.status = "FAILED"
+                db.commit()
+                logger.info(f"[BulkImport] Marked job {job_id} as FAILED")
+        except Exception as e:
+            logger.error(f"[BulkImport] Failed to mark job {job_id} as FAILED: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -114,3 +169,84 @@ def bulk_job_status(job_id: str, db: Session = Depends(get_db)):
     if status is None:
         raise HTTPException(status_code=404, detail=f"Bulk job {job_id!r} not found.")
     return status
+
+
+@router.get("/candidates/bulk-import/list")
+def list_import_jobs(db: Session = Depends(get_db)):
+    """Get list of all import jobs with their status. Mark stuck jobs as FAILED."""
+    from app.models.bulk_engagement import BulkEngagementJob, BulkEngagementError
+    from datetime import datetime, timedelta
+
+    jobs = db.query(BulkEngagementJob).order_by(BulkEngagementJob.created_at.desc()).limit(50).all()
+
+    # Mark jobs as FAILED if stuck in PROCESSING for 3+ minutes with no progress
+    now = datetime.utcnow()
+    for job in jobs:
+        if job.status == "PROCESSING":
+            # Check if job has been processing for 3+ minutes with zero progress
+            if job.created_at and (now - job.created_at) > timedelta(minutes=3):
+                # If no progress made, mark as FAILED
+                if job.success_count == 0 and job.failed_count == 0 and job.skipped_count == 0:
+                    job.status = "FAILED"
+                    logger.warning(f"[BulkImport] Marked stuck job {job.id} as FAILED (no progress in 3 min)")
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        logger.error(f"[BulkImport] Failed to mark job {job.id} as FAILED: {e}")
+                        db.rollback()
+
+    # Refresh jobs after potential status updates
+    jobs = db.query(BulkEngagementJob).order_by(BulkEngagementJob.created_at.desc()).limit(50).all()
+
+    result = []
+    for job in jobs:
+        total = job.total_count or 1
+        processed = job.success_count + job.failed_count + job.skipped_count
+        percent = int((processed / total) * 100) if total > 0 else 0
+
+        # Get error reasons for FAILED jobs
+        error_reasons = []
+        if job.status == "FAILED":
+            errors = db.query(BulkEngagementError).filter(BulkEngagementError.job_id == job.id).limit(5).all()
+            error_reasons = [{"row": e.candidate_id, "reason": e.reason} for e in errors]
+
+        result.append({
+            "id": job.id,
+            "status": job.status,
+            "total_rows": total,
+            "imported": job.success_count,
+            "skipped": job.skipped_count,
+            "errors": job.failed_count,
+            "percent_complete": percent,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "error_reasons": error_reasons
+        })
+
+    return result
+
+
+@router.get("/candidates/bulk-import/{job_id}/progress")
+def bulk_import_progress(job_id: str, db: Session = Depends(get_db)):
+    """Get real-time progress of bulk import job.
+    Returns: {job_id, status, total_rows, imported, skipped, errors, percent_complete}"""
+    from app.models.bulk_engagement import BulkEngagementJob
+
+    job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id!r} not found")
+
+    total = job.total_count or 1
+    processed = job.success_count + job.failed_count + job.skipped_count
+    percent = int((processed / total) * 100) if total > 0 else 0
+
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "total_rows": total,
+        "imported": job.success_count,
+        "skipped": job.skipped_count,
+        "errors": job.failed_count,
+        "processed": processed,
+        "percent_complete": percent
+    }
