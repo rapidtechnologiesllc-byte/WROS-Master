@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -18,6 +18,15 @@ CANDIDATE_SOURCE_CHANNELS = ("DIRECT", "SUBVENDOR")
 
 class Candidate(Base):
     __tablename__ = "candidates"
+    __table_args__ = (
+        # R-01: 5-year experience floor (60 months)
+        # Allows NULL (not yet verified) or >= 60 months
+        CheckConstraint(
+            "(total_experience_months IS NULL OR total_experience_months >= 60)",
+            name="chk_candidate_experience_5yr_floor"
+        ),
+    )
+
     candidateID = Column(String(50), primary_key=True, index=True)
     candidateRole = Column(String(50), nullable=True, default="Candidate")
     # Employee type: "Intern" | "Full Time Employee"
@@ -100,6 +109,21 @@ class Candidate(Base):
     do_not_contact = Column(Boolean, nullable=False, server_default="0", default=False)
     # Track when Thunder was first assigned (for analytics and to avoid duplicate assignments)
     thunder_assigned_at = Column(DateTime(timezone=False), nullable=True)
+
+    # Thunder Integration (HRMS-0410) — Thunder conversation engine's user ID for this candidate
+    thunder_channel_user_id = Column(String(100), nullable=True, index=True)
+
+    # Overall Candidate Score (denormalized from candidate_desire_profiles for fast reads)
+    # 0-100 scale, updated by auto-scoring services
+    overall_desire_score = Column(Integer, nullable=True)
+
+    # Consent Management (HRMS-P605) — Has candidate given consent for communication?
+    # Tri-state: NULL=not asked, True=yes, False=no
+    consent_given = Column(Boolean, nullable=True)
+
+    # Employment Type Confirmation (HRMS-P606, R-03)
+    # Has HR explicitly confirmed W2_FULLTIME status? Prevents UNKNOWN from being used.
+    employment_type_confirmed = Column(Boolean, nullable=True, server_default="0", default=False)
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
