@@ -86,7 +86,7 @@ class OpportunityTrackerAgent:
         """
         try:
             # Check if opportunity already exists for this client/partner
-            existing = db.query(Opportunities).filter(
+            existing = db.query(Opportunity).filter(
                 Opportunity.tenant_id == tenant_id,
                 Opportunity.client_name == client_name,
                 Opportunity.partner_id == partner_id,
@@ -103,7 +103,7 @@ class OpportunityTrackerAgent:
                 }
 
             # Create new opportunity
-            opportunity = Opportunities(
+            opportunity = Opportunity(
                 tenant_id=tenant_id,
                 partner_id=partner_id,
                 client_name=client_name,
@@ -153,7 +153,7 @@ class OpportunityTrackerAgent:
         """
         try:
             # Get all open opportunities
-            opportunities = db.query(Opportunities).filter(
+            opportunities = db.query(Opportunity).filter(
                 Opportunity.tenant_id == tenant_id,
                 Opportunity.status == "open"
             ).all()
@@ -262,7 +262,7 @@ class OpportunityTrackerAgent:
         Returns validation of stage progression.
         """
         try:
-            opp = db.query(Opportunities).filter(
+            opp = db.query(Opportunity).filter(
                 Opportunity.id == opportunity_id
             ).first()
 
@@ -326,7 +326,7 @@ class OpportunityTrackerAgent:
         System uses this to detect stalls.
         """
         try:
-            opp = db.query(Opportunities).filter(
+            opp = db.query(Opportunity).filter(
                 Opportunity.id == opportunity_id
             ).first()
 
