@@ -47,14 +47,13 @@ from app.schemas.invoice import (
     InvoiceListResponse,
 )
 from app.services.invoice_service import (
-    generate_invoice,
     approve_invoice,
-    send_invoice,
     InvalidInvoiceTransition,
     UnapprovedTimesheetBlocksInvoice,
     OpenDisputeBlocksInvoice,
 )
 # Old invoice endpoints - using new P&L API (app/routes/api_v1_invoices.py) instead
+# generate_invoice and send_invoice moved to P&L API
 # from app.services.invoice_service import (
 #     InvalidInvoiceTransition,
 #     OpenDisputeBlocksInvoice,
@@ -95,28 +94,29 @@ def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
     return invoice
 
 
-@router.post("/generate", response_model=InvoiceItem, summary="Generate a DRAFT invoice for a project+billing period")
-def generate_invoice_endpoint(
-    body: GenerateInvoiceRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    project = db.query(Project).filter(Project.id == body.project_id).first()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
-
-    try:
-        invoice = generate_invoice(
-            db, project, period_start=body.period_start, period_end=body.period_end,
-            tenant_id=current_user.tenant_id,
-        )
-    except UnapprovedTimesheetBlocksInvoice as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    except OpenDisputeBlocksInvoice as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(invoice)
-    return _to_item(db, invoice)
+# Moved to new P&L API (app/routes/api_v1_invoices.py)
+# @router.post("/generate", response_model=InvoiceItem, summary="Generate a DRAFT invoice for a project+billing period")
+# def generate_invoice_endpoint(
+#     body: GenerateInvoiceRequest,
+#     db: Session = Depends(get_db),
+#     current_user: Users = Depends(get_current_hr_or_admin),
+# ):
+#     project = db.query(Project).filter(Project.id == body.project_id).first()
+#     if project is None:
+#         raise HTTPException(status_code=404, detail="Project not found.")
+#
+#     try:
+#         invoice = generate_invoice(
+#             db, project, period_start=body.period_start, period_end=body.period_end,
+#             tenant_id=current_user.tenant_id,
+#         )
+#     except UnapprovedTimesheetBlocksInvoice as exc:
+#         raise HTTPException(status_code=409, detail=str(exc))
+#     except OpenDisputeBlocksInvoice as exc:
+#         raise HTTPException(status_code=409, detail=str(exc))
+#     db.commit()
+#     db.refresh(invoice)
+#     return _to_item(db, invoice)
 
 
 @router.post("/{invoice_id}/approve", response_model=InvoiceItem, summary="Approve a DRAFT invoice")
@@ -135,20 +135,21 @@ def approve_invoice_endpoint(
     return _to_item(db, invoice)
 
 
-@router.post("/{invoice_id}/send", response_model=InvoiceItem, summary="Mark an APPROVED invoice as SENT")
-def send_invoice_endpoint(
-    invoice_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    invoice = _get_invoice_or_404(db, invoice_id)
-    try:
-        invoice = send_invoice(db, invoice)
-    except InvalidInvoiceTransition as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(invoice)
-    return _to_item(db, invoice)
+# Moved to new P&L API (app/routes/api_v1_invoices.py)
+# @router.post("/{invoice_id}/send", response_model=InvoiceItem, summary="Mark an APPROVED invoice as SENT")
+# def send_invoice_endpoint(
+#     invoice_id: str,
+#     db: Session = Depends(get_db),
+#     current_user: Users = Depends(get_current_hr_or_admin),
+# ):
+#     invoice = _get_invoice_or_404(db, invoice_id)
+#     try:
+#         invoice = send_invoice(db, invoice)
+#     except InvalidInvoiceTransition as exc:
+#         raise HTTPException(status_code=409, detail=str(exc))
+#     db.commit()
+#     db.refresh(invoice)
+#     return _to_item(db, invoice)
 
 
 @router.post("/{invoice_id}/mark-paid", response_model=InvoiceItem, summary="Mark a SENT invoice as PAID")
