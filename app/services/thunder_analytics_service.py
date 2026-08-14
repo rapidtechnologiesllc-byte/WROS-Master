@@ -52,17 +52,35 @@ def _date_range(date_from: Optional[date], date_to: Optional[date]) -> (datetime
     return from_dt, to_dt
 
 
-def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[date] = None, date_to: Optional[date] = None) -> Dict:
+def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[date] = None, date_to: Optional[date] = None, scoped_user=None) -> Dict:
+    """
+    Get Thunder analytics with optional role-based scoping.
+
+    scoped_user: If provided (non-Super User), data is scoped to user's business unit(s).
+                 If None (Super User or no scoping), all data is returned.
+    """
     from_dt, to_dt = _date_range(date_from, date_to)
 
-    conversations = (
-        db.query(CandidateConversation)
-        .filter(CandidateConversation.tenant_id == tenant_id, CandidateConversation.created_at.between(from_dt, to_dt))
-        .all()
+    # Base query for conversations
+    conversations_query = db.query(CandidateConversation).filter(
+        CandidateConversation.tenant_id == tenant_id,
+        CandidateConversation.created_at.between(from_dt, to_dt)
     )
+
+    # Apply role-based scoping if user is not super user
+    if scoped_user:
+        # Non-super users see only conversations for candidates in their business unit(s)
+        user_bu_id = getattr(scoped_user, 'business_unit_id', None)
+        if user_bu_id:
+            conversations_query = conversations_query.join(
+                Candidate, CandidateConversation.candidate_id == Candidate.candidateID
+            ).filter(Candidate.business_unit_id == user_bu_id)
+
+    conversations = conversations_query.all()
     candidate_ids = [c.candidate_id for c in conversations]
     active_count = len(candidate_ids)
 
+    # Get qualified scores - already scoped by candidate_ids which respect BU filter
     qualified_scores = (
         db.query(CandidateJobScore)
         .filter(CandidateJobScore.candidate_id.in_(candidate_ids), CandidateJobScore.calculated_at.between(from_dt, to_dt))
@@ -113,11 +131,38 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
     avg_days_to_qualify = round(sum(r.days_to_qualification for r in qualified_engagement) / len(qualified_engagement), 1) if qualified_engagement else None
     avg_messages_per_candidate = round(sum(r.total_messages_exchanged for r in engagement_rows) / len(engagement_rows), 1) if engagement_rows else 0
 
+    # NEW METRICS: Candidates reached, responded, jobs connected
+    candidates_reached = len(candidate_ids)  # Total candidates with conversations initiated
+
+    # Candidates that responded (have messages in conversations)
+    candidates_with_responses = (
+        db.query(CandidateConversation.candidate_id)
+        .join(ConversationEvent, ConversationEvent.conversation_id == CandidateConversation.id)
+        .filter(CandidateConversation.tenant_id == tenant_id, ConversationEvent.event_type.in_(["candidate_message", "candidate_reply"]), ConversationEvent.created_at.between(from_dt, to_dt))
+        .distinct()
+        .count()
+    )
+
+    # Jobs connected to Thunder (unique jobs with active Thunder connections)
+    jobs_connected_to_thunder = (
+        db.query(CandidateJobScore.job_id)
+        .join(Candidate, CandidateJobScore.candidate_id == Candidate.candidateID)
+        .filter(CandidateJobScore.tenant_id == tenant_id, Candidate.candidateID.in_(candidate_ids), CandidateJobScore.calculated_at.between(from_dt, to_dt))
+        .distinct()
+        .count()
+    )
+
     trends = _build_trends(db, tenant_id, from_dt, to_dt)
 
+    # Top 5 risk candidates - only those in OFFER stage (OfferApproval)
+    from app.models.candidate import CandidateStatus
     top_risk_rows = (
         db.query(CandidateDropRisk)
-        .filter(CandidateDropRisk.tenant_id == tenant_id)
+        .join(CandidateStatus, CandidateDropRisk.candidate_id == CandidateStatus.candidateID)
+        .filter(
+            CandidateDropRisk.tenant_id == tenant_id,
+            CandidateStatus.piplineStatus == "OfferApproval"
+        )
         .order_by(CandidateDropRisk.drop_risk_score.desc())
         .limit(TOP_RISK_COUNT)
         .all()
@@ -138,6 +183,9 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
             "avg_messages_per_candidate": avg_messages_per_candidate,
             "human_intervention_rate": human_intervention_rate,
             "human_dependency_target_pct": HUMAN_DEPENDENCY_TARGET_PCT,
+            "candidates_reached": candidates_reached,
+            "candidates_responded": candidates_with_responses,
+            "jobs_connected_to_thunder": jobs_connected_to_thunder,
         },
         "trends": trends,
         "top_risk_candidates": top_risk_candidates,
