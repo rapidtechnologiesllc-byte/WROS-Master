@@ -574,7 +574,6 @@ def create_user_with_roles(
     new_user = Users(
         UserID=user_id_generator(),
         UserName=payload.user_name,
-        job_title=payload.job_title,
         UserEmail=payload.user_email,
         UserPassword=get_password_hash(payload.user_password),
         business_unit_id=payload.business_unit_id,
@@ -648,9 +647,8 @@ def update_user_with_roles(
             detail="Cannot update users outside your Business Unit"
         )
 
-    # Update user name, job title, and BU
+    # Update user name and BU
     target.UserName = payload.user_name
-    target.job_title = payload.job_title
     target.business_unit_id = payload.business_unit_id
     target.UserRole = "MultiRole" if payload.role_ids else target.UserRole
 
