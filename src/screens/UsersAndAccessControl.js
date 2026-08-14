@@ -238,19 +238,30 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   useEffect(() => {
     const loadBusinessUnits = async () => {
       try {
-        const { data } = await apiRequest("/business-units", {
+        // Try the RBAC endpoint first
+        const { data } = await apiRequest("/rbac/business-units", {
           method: "GET"
         });
         const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
         setBusinessUnits(busData);
       } catch (err) {
-        console.error("Failed to load business units:", err);
-        // Fallback: set some default business units
-        setBusinessUnits([
-          { id: 1, name: "North America", bu_name: "North America" },
-          { id: 2, name: "Europe", bu_name: "Europe" },
-          { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
-        ]);
+        console.error("Failed to load business units from /rbac/business-units:", err);
+        try {
+          // Fallback: try legacy endpoint
+          const { data } = await apiRequest("/business-units", {
+            method: "GET"
+          });
+          const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
+          setBusinessUnits(busData);
+        } catch (fallbackErr) {
+          console.error("Fallback also failed, using default business units:", fallbackErr);
+          // Fallback: set some default business units
+          setBusinessUnits([
+            { id: 1, name: "North America", bu_name: "North America" },
+            { id: 2, name: "Europe", bu_name: "Europe" },
+            { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
+          ]);
+        }
       }
     };
     loadBusinessUnits();
