@@ -49,8 +49,8 @@ from app.models.user import Users
 from app.services.candidate_service import DuplicateCandidateError, create_candidate_safe
 from app.services.notification_service import send_notification
 
-MAX_CSV_ROWS = 10000  # Step 1 - allow bulk imports of up to 10K candidates per file
-MAX_BULK_CANDIDATES = 10000  # Step 2
+MAX_CSV_ROWS = 100000  # Step 1 - allow bulk imports of up to 100K candidates per file
+MAX_BULK_CANDIDATES = 100000  # Step 2
 BULK_RATE_PER_MINUTE = 20  # BR-01, module constant -- see docstring
 REQUIRED_CSV_COLUMN = "name"
 CSV_COLUMNS = ("name", "email", "phone", "location", "current_employer", "skills")
