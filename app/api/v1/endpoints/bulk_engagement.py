@@ -13,6 +13,7 @@ matches the existing single-candidate creation gate), candidate.edit
 for launching engagement (matches S-062's mutating-action convention).
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
@@ -289,3 +290,65 @@ async def bulk_update(file: UploadFile, db: Session = Depends(get_db), current_u
     except Exception as e:
         logger.error(f"[BulkUpdate] Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/candidates/bulk-import/jobs/active")
+def list_active_bulk_jobs(db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+    """List all QUEUED and PROCESSING bulk import jobs.
+
+    Returns: [{job_id, status, total_rows, imported, skipped, errors, started_at}]
+    """
+    from app.models.bulk_engagement import BulkEngagementJob
+
+    active_jobs = db.query(BulkEngagementJob).filter(
+        BulkEngagementJob.status.in_(("QUEUED", "PROCESSING"))
+    ).order_by(BulkEngagementJob.created_at.desc()).all()
+
+    return [
+        {
+            "job_id": job.id,
+            "status": job.status,
+            "total_rows": job.total_count,
+            "imported": job.success_count,
+            "skipped": job.skipped_count,
+            "errors": job.failed_count,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+        }
+        for job in active_jobs
+    ]
+
+
+@router.delete("/candidates/bulk-import/{job_id}/cancel", dependencies=[Depends(require_permission("candidate.create"))])
+def cancel_bulk_import(job_id: str, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+    """Cancel a pending or running bulk import job.
+
+    Only cancels jobs in QUEUED or PROCESSING status.
+    Once cancelled, no new candidates will be imported.
+
+    Returns: {job_id, status, message}
+    """
+    from app.models.bulk_engagement import BulkEngagementJob
+
+    job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    # Only allow cancelling jobs that are queued or processing
+    if job.status not in ("QUEUED", "PROCESSING"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel job with status '{job.status}'. Only QUEUED or PROCESSING jobs can be cancelled."
+        )
+
+    # Mark job as cancelled
+    job.status = "CANCELLED"
+    job.completed_at = func.now()
+    db.commit()
+
+    logger.info(f"[BulkImport] Job {job_id} CANCELLED by {current_user.UserID}")
+
+    return {
+        "job_id": job.id,
+        "status": "CANCELLED",
+        "message": f"Bulk import job {job_id} has been cancelled. Already imported candidates remain in database."
+    }
