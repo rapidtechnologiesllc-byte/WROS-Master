@@ -241,16 +241,17 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
 
         phone = _extract_value(row, PHONE_COLUMN_ALIASES)
         if not phone:
-            errors.append({"row": index, "reason": "Missing required phone number."})
+            errors.append({"row": index, "reason": "Missing required phone number (phone, phone_number, mobile, contact_number, etc.)."})
             continue
 
-        # Job title is optional - candidates can be imported without it
         job_title = _extract_value(row, JOB_TITLE_ALIASES)
+        if not job_title:
+            errors.append({"row": index, "reason": "Missing required job title (job_title, position, desired_role, applied_for, etc.)."})
             continue
 
         location = _extract_value(row, LOCATION_COLUMN_ALIASES)
         if not location:
-            errors.append({"row": index, "reason": "Missing required location (location, city, current_location, etc.)."})
+            errors.append({"row": index, "reason": "Missing required location (location, city, current_location, based_in, etc.)."})
             continue
 
         # Support both "Full Name" column and separate "First Name"/"Last Name" columns
