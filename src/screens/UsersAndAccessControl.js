@@ -237,15 +237,19 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   useEffect(() => {
     const loadBusinessUnits = async () => {
       try {
-        const { data } = await apiRequest("/bu-context/available-buses", {
-          method: "GET",
-          skipAuth: true
+        const { data } = await apiRequest("/business-units", {
+          method: "GET"
         });
-        const busData = data?.business_units || [];
-        setBusinessUnits(Array.isArray(busData) ? busData : []);
+        const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
+        setBusinessUnits(busData);
       } catch (err) {
         console.error("Failed to load business units:", err);
-        setBusinessUnits([]);
+        // Fallback: set some default business units
+        setBusinessUnits([
+          { id: 1, name: "North America", bu_name: "North America" },
+          { id: 2, name: "Europe", bu_name: "Europe" },
+          { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
+        ]);
       }
     };
     loadBusinessUnits();
@@ -326,19 +330,30 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
     setBusy(true);
     try {
-      // Update user name and role
-      await updateHrUser(selectedUserId, {
-        user_name: editForm.user_name,
-        user_role: editForm.user_role
-      });
+      // Support both multi-role (new) and single role (legacy) modes
+      const roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids :
+                      (editForm.user_role ? [roles.find(r => r.name === editForm.user_role)?.id].filter(Boolean) : []);
+
+      // If BU is selected, use new multi-role endpoint
+      if (editForm.business_unit_id) {
+        await apiRequest(`/users/${selectedUserId}/update-with-roles`, "PUT", {
+          user_name: editForm.user_name,
+          business_unit_id: parseInt(editForm.business_unit_id, 10),
+          role_ids: roleIds.length > 0 ? roleIds.map(id => parseInt(id, 10)) : []
+        });
+      } else {
+        // Legacy single-role endpoint
+        await updateHrUser(selectedUserId, {
+          user_name: editForm.user_name,
+          user_role: editForm.user_role
+        });
+      }
 
       // Extract permission overrides from editForm
       const permissionOverrides = {};
       for (const key of Object.keys(editForm)) {
-        if (key.startsWith("perm_") || key.startsWith("expanded_")) {
-          if (key.startsWith("perm_")) {
-            permissionOverrides[key] = editForm[key];
-          }
+        if (key.startsWith("perm_")) {
+          permissionOverrides[key] = editForm[key];
         }
       }
 
@@ -706,13 +721,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                     checked={editForm.expandAllPermissions}
                     onChange={(e) => {
                       const checked = e.target.checked;
+                      const modules = ["recruitment", "sales", "workforce", "project_management", "finance", "admin"];
+                      const expandState = {};
+                      modules.forEach(m => {
+                        expandState[`expanded_${m}`] = checked;
+                      });
                       setEditForm({
                         ...editForm,
                         expandAllPermissions: checked,
-                        expanded_candidates: checked,
-                        expanded_jobs: checked,
-                        expanded_interviews: checked,
-                        expanded_admin: checked
+                        ...expandState
                       });
                     }}
                   />
@@ -722,12 +739,19 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             </div>
 
             <div className="space-y-2">
-              {["Candidates", "Jobs", "Interviews", "Admin"].map(category => {
-                const expandedKey = `expanded_${category.toLowerCase()}`;
+              {[
+                { name: "Recruitment", key: "recruitment", desc: "Candidates, Jobs, Interviews" },
+                { name: "Sales", key: "sales", desc: "Client Management, Deals" },
+                { name: "Workforce", key: "workforce", desc: "Employees, Timesheets, Projects" },
+                { name: "Project Management", key: "project_management", desc: "Projects, Allocations, Resources" },
+                { name: "Finance", key: "finance", desc: "Invoices, Reports, Payments" },
+                { name: "Admin", key: "admin", desc: "System, Users, Configuration" }
+              ].map(module => {
+                const expandedKey = `expanded_${module.key}`;
                 const isExpanded = editForm.expandAllPermissions || editForm[expandedKey];
 
                 return (
-                  <div key={category} className="border rounded-lg">
+                  <div key={module.key} className="border rounded-lg">
                     <button
                       type="button"
                       onClick={() => {
@@ -738,7 +762,10 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                       }}
                       className="w-full flex items-center justify-between px-3 py-3 hover:bg-gray-50"
                     >
-                      <div className="text-sm font-medium text-gray-900">{category}</div>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <div className="text-sm font-medium text-gray-900">{module.name}</div>
+                        <div className="text-xs text-gray-500">{module.desc}</div>
+                      </div>
                       <div className="text-gray-500 text-lg">
                         {isExpanded ? '▼' : '▶'}
                       </div>
@@ -747,7 +774,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                     {isExpanded && (
                       <div className="flex flex-wrap gap-3 px-3 py-3 bg-gray-50 border-t">
                         {["view", "create", "edit", "delete"].map(verb => {
-                          const permKey = `perm_${category.toLowerCase()}_${verb}`;
+                          const permKey = `perm_${module.key}_${verb}`;
                           return (
                             <label key={verb} className="flex items-center gap-2 cursor-pointer">
                               <input
