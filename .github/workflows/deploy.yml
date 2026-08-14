@@ -8,8 +8,8 @@ on:
 env:
   PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
   PROD_USER: ${{ secrets.PROD_USER }}
-  PROD_PATH: /home/HRMS/HRMS-FE-V1/OnboardingModule-Frontend
-  BUILD_PATH: /home/HRMS/HRMS-FE-V1/OnboardingModule-Frontend/build
+  PROD_PATH: /home/HRMS/OnboardingModule-Frontend
+  BUILD_PATH: /home/HRMS/OnboardingModule-Frontend/build
 
 jobs:
   build:
@@ -82,13 +82,13 @@ jobs:
 
       - name: Backup current build (rollback)
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
              [ -d build ] && cp -r build /tmp/frontend-backup-$(date +%s) || true"
 
       - name: Pull latest code
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
              git fetch origin && \
              git checkout main && \
@@ -96,18 +96,18 @@ jobs:
 
       - name: Copy new build to production
         run: |
-          scp -r -o StrictHostKeyChecking=no build/ \
+          scp -r -o StrictHostKeyChecking=no -P 22587 build/ \
             ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}:${{ env.PROD_PATH }}/build-new/
 
-          ssh -o StrictHostKeyChecking=no ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
              rm -rf build && \
              mv build-new build"
 
-      - name: Reload Nginx
+      - name: Restart PM2 frontend service
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "sudo systemctl reload nginx || sudo service nginx reload"
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "bash -lc '~/node_modules/.bin/pm2 restart onboarding-frontend'"
 
       - name: Health check (20s retry)
         run: |
@@ -127,11 +127,11 @@ jobs:
       - name: Rollback on failure
         if: failure()
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "cd ${{ env.PROD_PATH }} && \
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "bash -lc 'cd ${{ env.PROD_PATH }} && \
              LATEST_BACKUP=\$(ls -td /tmp/frontend-backup-* 2>/dev/null | head -1) && \
              [ -n \"\$LATEST_BACKUP\" ] && rm -rf build && cp -r \$LATEST_BACKUP build || true && \
-             sudo systemctl reload nginx || sudo service nginx reload"
+             ~/node_modules/.bin/pm2 restart onboarding-frontend'"
           echo "⚠️ Deployment failed - rolled back to previous version"
 
       - name: Notify deployment
