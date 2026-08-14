@@ -243,9 +243,26 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     # docstring for why this endpoint specifically needed the fix
     # (a correctly-scoped sibling endpoint already existed but no
     # frontend screen ever called it).
+    from sqlalchemy.orm import selectinload
+
     candidates = apply_bu_scope_to_candidate_query(
         db, db.query(Candidate), current_user=user,
     ).all()
+
+    # Fetch all related data at once (avoid N+1 query problem)
+    # This is much faster than querying each form type separately for each candidate
+    candidate_ids = [c.candidateID for c in candidates]
+    if candidate_ids:
+        info_forms = {f.candidateID: f for f in db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID.in_(candidate_ids)).all()}
+        education_records_map = {}
+        for e in db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID.in_(candidate_ids)).all():
+            education_records_map.setdefault(e.candidateID, []).append(e)
+        experience_records_map = {}
+        for e in db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID.in_(candidate_ids)).all():
+            experience_records_map.setdefault(e.candidateID, []).append(e)
+        aadhar_forms = {f.candidateID: f for f in db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID.in_(candidate_ids)).all()}
+        pan_forms = {f.candidateID: f for f in db.query(CandidatePanForm).filter(CandidatePanForm.candidateID.in_(candidate_ids)).all()}
+        candidate_statuses = {s.candidateID: s for s in db.query(CandidateStatus).filter(CandidateStatus.candidateID.in_(candidate_ids)).all()}
 
     candidates_data = []
     for candidate in candidates:
@@ -256,36 +273,14 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate.candidateLastName or ""
         ]
         candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
-        
-        # Get personal info form
-        personal_info = db.query(CandidateInfoForm).filter(
-            CandidateInfoForm.candidateID == candidate.candidateID
-        ).first()
-        
-        # Get all education records
-        education_records = db.query(CandidateEducationForm).filter(
-            CandidateEducationForm.candidateID == candidate.candidateID
-        ).all()
-        
-        # Get all experience records
-        experience_records = db.query(CandidateExperienceForm).filter(
-            CandidateExperienceForm.candidateID == candidate.candidateID
-        ).all()
-        
-        # Get Aadhar form
-        aadhar_form = db.query(CandidateAadharForm).filter(
-            CandidateAadharForm.candidateID == candidate.candidateID
-        ).first()
-        
-        # Get PAN form
-        pan_form = db.query(CandidatePanForm).filter(
-            CandidatePanForm.candidateID == candidate.candidateID
-        ).first()
 
-        # Get candidate status (scoped per candidate)
-        candidate_status = db.query(CandidateStatus).filter(
-            CandidateStatus.candidateID == candidate.candidateID
-        ).first()
+        # Use pre-fetched data from maps (no additional queries)
+        personal_info = info_forms.get(candidate.candidateID) if candidate_ids else None
+        education_records = education_records_map.get(candidate.candidateID, []) if candidate_ids else []
+        experience_records = experience_records_map.get(candidate.candidateID, []) if candidate_ids else []
+        aadhar_form = aadhar_forms.get(candidate.candidateID) if candidate_ids else None
+        pan_form = pan_forms.get(candidate.candidateID) if candidate_ids else None
+        candidate_status = candidate_statuses.get(candidate.candidateID) if candidate_ids else None
 
         # Build response object
         candidate_response = CandidateCompleteResponse(
