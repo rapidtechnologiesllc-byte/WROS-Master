@@ -46,16 +46,18 @@ from app.schemas.invoice import (
     InvoiceLineItemItem,
     InvoiceListResponse,
 )
-from app.services.invoice_service import (
-    InvalidInvoiceTransition,
-    OpenDisputeBlocksInvoice,
-    UnapprovedTimesheetBlocksInvoice,
-    approve_invoice,
-    generate_invoice,
-    mark_invoice_paid,
-    send_invoice,
-)
-from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_follow_up
+# Old invoice endpoints - using new P&L API (app/routes/api_v1_invoices.py) instead
+# from app.services.invoice_service import (
+#     InvalidInvoiceTransition,
+#     OpenDisputeBlocksInvoice,
+#     UnapprovedTimesheetBlocksInvoice,
+#     approve_invoice,
+#     generate_invoice,
+#     mark_invoice_paid,
+#     send_invoice,
+# )
+# Using new P&L API endpoints for invoice management
+# from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_follow_up
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
