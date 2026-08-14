@@ -76,6 +76,7 @@ class HRAssignmentResponse(BaseModel):
     candidate_id: str
     candidate_name: Optional[str] = None
     candidate_email: Optional[str] = None
+    business_unit_id: Optional[int] = None
 
     hr1: Optional[UserSummary] = None
     hr2: Optional[UserSummary] = None
