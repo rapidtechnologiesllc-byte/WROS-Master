@@ -154,9 +154,15 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
 
     trends = _build_trends(db, tenant_id, from_dt, to_dt)
 
+    # Top 5 risk candidates - only those in OFFER stage (OfferApproval)
+    from app.models.candidate import CandidateStatus
     top_risk_rows = (
         db.query(CandidateDropRisk)
-        .filter(CandidateDropRisk.tenant_id == tenant_id)
+        .join(CandidateStatus, CandidateDropRisk.candidate_id == CandidateStatus.candidateID)
+        .filter(
+            CandidateDropRisk.tenant_id == tenant_id,
+            CandidateStatus.piplineStatus == "OfferApproval"
+        )
         .order_by(CandidateDropRisk.drop_risk_score.desc())
         .limit(TOP_RISK_COUNT)
         .all()
