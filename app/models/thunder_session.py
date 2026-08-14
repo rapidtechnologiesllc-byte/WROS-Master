@@ -4,7 +4,7 @@ Tracks form state, question progression, resume data, and session persistence
 """
 
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey, JSON, func, Enum
+from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey, JSON, func, Enum, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import json
@@ -76,7 +76,7 @@ class ThunderSession(Base):
     # Location/job context
     candidate_location = Column(String(200), nullable=True)  # From Q2 or parsed from resume
     job_matches = Column(JSON, nullable=True)  # Top N job matches found by AI Recruiter
-    selected_job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
+    selected_job_id = Column(String(50), nullable=True)  # Demand ID if job is selected
 
     # Screening responses (stored as submitted)
     screening_responses = Column(JSON, nullable=True)  # Full screening data (work auth, agreements, etc.)
@@ -97,17 +97,15 @@ class ThunderSession(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
-        # Indexes for efficient queries
-        ("idx_thunder_session_candidate_id", "candidate_id"),
-        ("idx_thunder_session_email", "candidate_email"),
-        ("idx_thunder_session_status", "status"),
-        ("idx_thunder_session_created_at", "created_at"),
-        ("idx_thunder_session_last_activity", "last_activity_at"),
+        Index("idx_thunder_session_candidate_id", "candidate_id"),
+        Index("idx_thunder_session_email", "candidate_email"),
+        Index("idx_thunder_session_status", "status"),
+        Index("idx_thunder_session_created_at", "created_at"),
+        Index("idx_thunder_session_last_activity", "last_activity_at"),
     )
 
     # Relationships
     candidate = relationship("Candidate", backref="thunder_sessions", lazy="joined")
-    job = relationship("Job", backref="thunder_sessions", lazy="joined")
 
     def to_dict(self):
         """Convert session to dict for API responses"""

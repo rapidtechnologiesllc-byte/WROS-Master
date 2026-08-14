@@ -4,7 +4,7 @@ Manages validation of candidates by hiring managers before interviews
 """
 
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, JSON, func, Enum, Boolean
+from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, JSON, func, Enum, Boolean, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 from enum import Enum as PyEnum
@@ -30,7 +30,7 @@ class HiringManagerValidation(Base):
 
     id = Column(String(36), primary_key=True, index=True)  # UUID
     candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=False, index=True)
+    job_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)  # References Demand (job)
     hiring_manager_id = Column(String(36), ForeignKey("users.UserID"), nullable=False, index=True)
 
     # Validation state machine
@@ -73,17 +73,17 @@ class HiringManagerValidation(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
-        ("idx_hm_validation_candidate", "candidate_id"),
-        ("idx_hm_validation_job", "job_id"),
-        ("idx_hm_validation_manager", "hiring_manager_id"),
-        ("idx_hm_validation_status", "status"),
-        ("idx_hm_validation_created_at", "created_at"),
-        ("idx_hm_validation_due_at", "due_at"),
+        Index("idx_hm_validation_candidate", "candidate_id"),
+        Index("idx_hm_validation_job", "job_id"),
+        Index("idx_hm_validation_manager", "hiring_manager_id"),
+        Index("idx_hm_validation_status", "status"),
+        Index("idx_hm_validation_created_at", "created_at"),
+        Index("idx_hm_validation_due_at", "due_at"),
     )
 
     # Relationships
     candidate = relationship("Candidate", backref="hm_validations", lazy="joined")
-    job = relationship("Job", backref="hm_validations", lazy="joined")
+    demand = relationship("Demand", backref="hm_validations", lazy="joined")  # Job reference
     hiring_manager = relationship("Users", foreign_keys=[hiring_manager_id], backref="validations_assigned", lazy="joined")
     escalated_to_user = relationship("Users", foreign_keys=[escalated_to_user_id], backref="validations_escalated_to", lazy="joined")
     interview = relationship("Interview", backref="hm_validation", lazy="joined", uselist=False)
@@ -131,8 +131,8 @@ class HMValidationResponse(Base):
     created_at = Column(DateTime(timezone=False), server_default=func.now())
 
     __table_args__ = (
-        ("idx_hm_response_validation", "validation_id"),
-        ("idx_hm_response_question", "question_id"),
+        Index("idx_hm_response_validation", "validation_id"),
+        Index("idx_hm_response_question", "question_id"),
     )
 
     validation = relationship("HiringManagerValidation", backref="question_responses", lazy="joined")
