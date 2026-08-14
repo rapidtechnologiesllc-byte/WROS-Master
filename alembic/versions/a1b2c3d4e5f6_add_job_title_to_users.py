@@ -1,7 +1,7 @@
 """Add job_title column to users table
 
 Revision ID: a1b2c3d4e5f6
-Revises: None
+Revises: 2026_08_12_task_bu
 Create Date: 2026-08-13 22:10:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'a1b2c3d4e5f6'
-down_revision = None
+down_revision = '2026_08_12_task_bu'
 branch_labels = None
 depends_on = None
 
