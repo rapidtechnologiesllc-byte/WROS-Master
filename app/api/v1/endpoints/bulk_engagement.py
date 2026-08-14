@@ -24,6 +24,7 @@ from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.bulk_engagement_service import (
     BulkTooLarge, CsvMissingRequiredColumn, CsvTooLarge, get_bulk_job_status,
     import_candidates_from_csv, launch_bulk_engagement, run_bulk_engagement_worker,
+    update_candidates_from_csv,
 )
 
 router = APIRouter(tags=["bulk-engagement"])
@@ -250,3 +251,41 @@ def bulk_import_progress(job_id: str, db: Session = Depends(get_db)):
         "processed": processed,
         "percent_complete": percent
     }
+
+
+@router.post("/candidates/bulk-update", dependencies=[Depends(require_permission("candidate.edit"))])
+async def bulk_update(file: UploadFile, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+    """Bulk update existing candidates with job_title and/or location.
+
+    Matches by email. Only updates if email is found.
+
+    Required columns: email, (job_title OR location - at least one)
+
+    CSV columns (use any matching alias):
+    - email: email, email_address, candidate_email, applicant_email
+    - job_title: job_title, job title, position, desired_role, applied_for
+    - location: location, city, current_location, based_in
+
+    Returns: {updated: count, not_found: count, errors: []}
+    """
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a .csv file.")
+
+    raw = (await file.read()).decode("utf-8-sig", errors="replace")
+    tenant_id = resolve_default_tenant_id(db)
+
+    try:
+        result = update_candidates_from_csv(db, raw, tenant_id)
+        return {
+            "updated": result.get("updated", 0),
+            "not_found": result.get("not_found", 0),
+            "errors": result.get("errors", []),
+            "message": f"Updated {result.get('updated', 0)} candidates"
+        }
+    except CsvMissingRequiredColumn as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except CsvTooLarge as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[BulkUpdate] Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
