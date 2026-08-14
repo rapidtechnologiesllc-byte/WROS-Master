@@ -50,21 +50,21 @@ def find_duplicate_candidate(
 ) -> Tuple[Optional[Candidate], Optional[str]]:
     """
     R-07 (Updated 2026-08-14): Merge candidates if email OR phone matches.
-    Phone is primary identifier - if phone matches, merge regardless of email.
-    This consolidates duplicate/related records into single candidate.
-    Priority: phone (strongest), then email, then LinkedIn.
+    Both email and phone are primary identifiers (equal priority).
+    If either one matches existing candidate, consolidate into that record.
+    Priority: email (checked first for deterministic ordering), phone, then LinkedIn.
     """
-    # Phone is primary identifier for merging
-    if mobile:
-        hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
-        if hit:
-            return hit, "phone"
-
-    # Email is secondary identifier
+    # Email is a primary identifier - check first for deterministic ordering
     if email:
         hit = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
         if hit:
             return hit, "email"
+
+    # Phone is also a primary identifier - check second
+    if mobile:
+        hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
+        if hit:
+            return hit, "phone"
 
     # LinkedIn is also checked
     if linkedin_url:
