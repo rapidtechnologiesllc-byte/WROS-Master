@@ -74,22 +74,18 @@ async def bulk_import(file: UploadFile, background_tasks: BackgroundTasks, db: S
     if not name_column:
         raise HTTPException(status_code=400, detail="CSV must include a name column (e.g., 'name', 'full_name', 'candidate_name', etc.)")
 
-    # Count rows for user feedback (read header only, don't process)
-    row_count = len(list(reader)) - 1  # -1 for header
-    if row_count > 100000:
-        raise HTTPException(status_code=400, detail=f"CSV cannot exceed 100000 rows (file has {row_count}).")
-
-    # Queue import as background task - return success immediately
+    # Queue import as background task - return success immediately (don't count rows - too slow for 100K+ CSVs)
     import uuid
     job_id = str(uuid.uuid4())
     background_tasks.add_task(_run_import_in_background, job_id, raw, current_user.UserID, tenant_id)
+    logger.info(f"[BulkImport] Job {job_id} queued for processing")
 
     return {
         "imported": 0,
         "skipped_duplicates": 0,
         "errors": [],
         "candidate_ids": [],
-        "message": f"CSV upload accepted! Processing {row_count} candidates in background (job_id: {job_id}). Check Bulk Launch > Step 2 for progress."
+        "message": f"✅ CSV upload accepted! Processing in background (job_id: {job_id}). Check Bulk Launch > Step 2 for progress."
     }
 
 
