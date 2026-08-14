@@ -65,7 +65,15 @@ async def bulk_import(file: UploadFile, background_tasks: BackgroundTasks, db: S
     # Quick validation: check headers only (fail fast if format is wrong)
     import csv as csv_module
     import io as io_module
-    reader = csv_module.DictReader(io_module.StringIO(raw))
+
+    # Auto-detect delimiter (comma, tab, semicolon, pipe)
+    sample = raw[:1024]  # First 1KB for sniffing
+    try:
+        dialect = csv_module.Sniffer().sniff(sample, delimiters=',\t;|')
+    except csv_module.Error:
+        dialect = csv_module.excel  # Fallback to comma-separated
+
+    reader = csv_module.DictReader(io_module.StringIO(raw), dialect=dialect)
     if reader.fieldnames is None:
         raise HTTPException(status_code=400, detail="CSV is empty or has no headers.")
 
