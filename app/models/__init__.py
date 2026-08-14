@@ -10,6 +10,7 @@ from app.models.consent import ConsentRecord
 from app.models.user import (
     Users,
     Jobs,
+    UserRole,
     CandidateAssignment,
     InterviewPanel,
     PanelMember,
@@ -175,9 +176,10 @@ __all__ = [
     # RBAC
     "Role",
     "RoleAttribute",
-    "RBACPermission",
-    "RBACRolePermission",
+    "Permission",
+    "RolePermission",
     "BusinessUnit",
+    "UserRole",
     # Permission System (2026-08-13)
     "JobTitle",
     "JobTitleRole",
