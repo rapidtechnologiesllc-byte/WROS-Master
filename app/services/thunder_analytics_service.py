@@ -113,6 +113,27 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
     avg_days_to_qualify = round(sum(r.days_to_qualification for r in qualified_engagement) / len(qualified_engagement), 1) if qualified_engagement else None
     avg_messages_per_candidate = round(sum(r.total_messages_exchanged for r in engagement_rows) / len(engagement_rows), 1) if engagement_rows else 0
 
+    # NEW METRICS: Candidates reached, responded, jobs connected
+    candidates_reached = len(candidate_ids)  # Total candidates with conversations initiated
+
+    # Candidates that responded (have messages in conversations)
+    candidates_with_responses = (
+        db.query(ConversationEvent.candidate_id)
+        .join(CandidateConversation, ConversationEvent.conversation_id == CandidateConversation.id)
+        .filter(CandidateConversation.tenant_id == tenant_id, ConversationEvent.event_type.in_(["candidate_message", "candidate_reply"]), ConversationEvent.created_at.between(from_dt, to_dt))
+        .distinct()
+        .count()
+    )
+
+    # Jobs connected to Thunder (unique jobs with active Thunder connections)
+    jobs_connected_to_thunder = (
+        db.query(CandidateJobScore.job_id)
+        .join(Candidate, CandidateJobScore.candidate_id == Candidate.candidateID)
+        .filter(CandidateJobScore.tenant_id == tenant_id, Candidate.candidateID.in_(candidate_ids), CandidateJobScore.calculated_at.between(from_dt, to_dt))
+        .distinct()
+        .count()
+    )
+
     trends = _build_trends(db, tenant_id, from_dt, to_dt)
 
     top_risk_rows = (
@@ -138,6 +159,9 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
             "avg_messages_per_candidate": avg_messages_per_candidate,
             "human_intervention_rate": human_intervention_rate,
             "human_dependency_target_pct": HUMAN_DEPENDENCY_TARGET_PCT,
+            "candidates_reached": candidates_reached,
+            "candidates_responded": candidates_with_responses,
+            "jobs_connected_to_thunder": jobs_connected_to_thunder,
         },
         "trends": trends,
         "top_risk_candidates": top_risk_candidates,
