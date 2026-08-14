@@ -62,7 +62,7 @@ jobs:
     env:
       PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
       PROD_USER: ${{ secrets.PROD_USER }}
-      PROD_PATH: /home/HRMS/OnboardingModule-Frontend
+      PROD_PATH: /home/HRMS/HRMS-FE-V1/OnboardingModule-Frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -104,10 +104,10 @@ jobs:
              rm -rf build && \
              mv build-new build"
 
-      - name: Restart PM2 frontend service
+      - name: Restart Nginx service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc '~/node_modules/.bin/pm2 restart onboarding-frontend'"
+            "sudo systemctl restart nginx"
 
       - name: Health check (20s retry)
         run: |
