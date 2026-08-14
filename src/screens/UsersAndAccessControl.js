@@ -193,10 +193,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
   const [businessUnits, setBusinessUnits] = useState([]);
 
+  const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
+
   const [createForm, setCreateForm] = useState({
     user_name: "",
     user_email: "",
     user_password: "",
+    job_title: "",
     user_role: roles[0]?.name || "",
     business_unit_id: "",
     role_ids: [] // Multi-role support
@@ -205,6 +208,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [editForm, setEditForm] = useState({
     user_name: "",
     user_role: "",
+    job_title: "",
     business_unit_id: "",
     role_ids: [], // Multi-role support for edit
     expandAllPermissions: false,
@@ -299,29 +303,40 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       return;
     }
 
+    // Check if any selected roles are BU-scoped (not org-level)
+    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
+    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
+    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
+
+    // Validate BU requirement based on role type
+    if (hasBUScopedRole && !createForm.business_unit_id) {
+      toast.error("Business Unit is required for BU-scoped roles.");
+      return;
+    }
+
     setBusy(true);
     try {
-      // If BU is selected, use new multi-role endpoint
-      if (createForm.business_unit_id) {
-        await apiRequest("/users/create-with-roles", "POST", {
-          user_name: createForm.user_name,
-          user_email: createForm.user_email,
-          user_password: createForm.user_password,
-          business_unit_id: parseInt(createForm.business_unit_id, 10),
-          role_ids: roleIds.map(id => parseInt(id, 10))
-        });
-      } else {
-        // Legacy single-role endpoint
-        await createHrUser({
-          user_name: createForm.user_name,
-          user_email: createForm.user_email,
-          user_password: createForm.user_password,
-          user_role: createForm.user_role
-        });
+      const payload = {
+        user_name: createForm.user_name,
+        user_email: createForm.user_email,
+        user_password: createForm.user_password,
+        job_title: createForm.job_title || null,
+        role_ids: roleIds.map(id => parseInt(id, 10))
+      };
+
+      // Only include BU if it's not an org-level-only user
+      if (!hasOrgLevelRole && createForm.business_unit_id) {
+        payload.business_unit_id = parseInt(createForm.business_unit_id, 10);
       }
+
+      // Use new multi-role endpoint when roles are selected
+      if (roleIds.length > 0) {
+        await apiRequest("/users/create-with-roles", "POST", payload);
+      }
+
       toast.success("User created successfully.");
       setShowCreateModal(false);
-      setCreateForm({ user_name: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
+      setCreateForm({ user_name: "", user_email: "", user_password: "", job_title: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
       window.location.reload();
     } catch (err) {
       toast.error(err.message || "Failed to create user.");
@@ -337,43 +352,44 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       return;
     }
 
+    // Support both multi-role (new) and single role (legacy) modes
+    const roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids :
+                    (editForm.user_role ? [roles.find(r => r.name === editForm.user_role)?.id].filter(Boolean) : []);
+
+    if (roleIds.length === 0) {
+      toast.error("At least one role is required.");
+      return;
+    }
+
+    // Check if any selected roles are BU-scoped (not org-level)
+    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
+    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
+    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
+
+    // Validate BU requirement based on role type
+    if (hasBUScopedRole && !editForm.business_unit_id) {
+      toast.error("Business Unit is required for BU-scoped roles.");
+      return;
+    }
+
     setBusy(true);
     try {
-      // Convert role name to role ID when template is selected
-      let roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids : [];
+      const payload = {
+        user_name: editForm.user_name,
+        job_title: editForm.job_title || null,
+        role_ids: roleIds.map(id => parseInt(id, 10))
+      };
 
-      if (editForm.user_role && roleIds.length === 0) {
-        const matchedRole = roles.find(r => r.name === editForm.user_role);
-        if (matchedRole) {
-          roleIds = [matchedRole.id];
-        }
+      // Only include BU if it's not an org-level-only user
+      if (!hasOrgLevelRole && editForm.business_unit_id) {
+        payload.business_unit_id = parseInt(editForm.business_unit_id, 10);
       }
 
-      // If BU is selected, use new multi-role endpoint
-      if (editForm.business_unit_id) {
-        if (roleIds.length === 0) {
-          toast.error("Please select at least one role when assigning a business unit.");
-          setBusy(false);
-          return;
-        }
+      // Use new multi-role endpoint
+      if (roleIds.length > 0) {
         await apiRequest(`/users/${selectedUserId}/update-with-roles`, {
           method: "PUT",
-          body: JSON.stringify({
-            user_name: editForm.user_name,
-            business_unit_id: parseInt(editForm.business_unit_id, 10),
-            role_ids: roleIds.map(id => parseInt(id, 10))
-          })
-        });
-      } else if (editForm.user_role) {
-        // Legacy single-role endpoint (no BU)
-        await updateHrUser(selectedUserId, {
-          user_name: editForm.user_name,
-          user_role: editForm.user_role
-        });
-      } else {
-        // Just update name without role change
-        await updateHrUser(selectedUserId, {
-          user_name: editForm.user_name
+          body: JSON.stringify(payload)
         });
       }
 
@@ -621,34 +637,25 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             onChange={(e) => setCreateForm({ ...createForm, user_password: e.target.value })}
           />
 
-          {/* Business Unit Selection (New RBAC) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit (Optional)</label>
-            <select
-              value={createForm.business_unit_id}
-              onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a business unit...</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>
-                  {bu.bu_name || bu.name || `BU ${bu.id}`}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">For multi-role assignment with BU scoping</p>
-          </div>
+          <Input
+            label="Job Title"
+            placeholder="e.g., Senior Recruiter"
+            value={createForm.job_title}
+            onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
+          />
 
-          {/* Multi-Role Selection (New RBAC) */}
-          {createForm.business_unit_id && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Roles (Select one or more)</label>
-              <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
-                {roles.map(role => (
+          {/* Role Selection (required) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+              {roles.map(role => {
+                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
+                const isSelected = createForm.role_ids?.includes(role.id);
+                return (
                   <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
                     <input
                       type="checkbox"
-                      checked={createForm.role_ids?.includes(role.id) || false}
+                      checked={isSelected || false}
                       onChange={(e) => {
                         const newRoleIds = e.target.checked
                           ? [...(createForm.role_ids || []), role.id]
@@ -658,31 +665,49 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-gray-900">{role.name}</span>
+                    {isOrgLevel && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Org-level</span>}
                   </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Select one or more roles</p>
+          </div>
+
+          {/* Business Unit Selection (conditional) */}
+          {createForm.role_ids && createForm.role_ids.length > 0 &&
+           !createForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
+              <select
+                value={createForm.business_unit_id}
+                onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select a business unit...</option>
+                {businessUnits.map(bu => (
+                  <option key={bu.id} value={bu.id}>
+                    {bu.bu_name || bu.name || `BU ${bu.id}`}
+                  </option>
                 ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">User will have combined permissions from all selected roles</p>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Permission Template</label>
-            <select
-              value={createForm.user_role}
-              onChange={(e) => setCreateForm({ ...createForm, user_role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a template...</option>
-              {roles.map(r => {
-                const userCount = users.filter(u => u.user_role === r.name).length;
-                return (
-                  <option key={r.id} value={r.name}>
-                    {r.name} ({userCount} user{userCount !== 1 ? 's' : ''})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          {/* Org-level access indicator */}
+          {createForm.role_ids && createForm.role_ids.length > 0 &&
+           createForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div className="p-3 bg-blue-50 text-sm text-blue-700 rounded border border-blue-200">
+              ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
+            </div>
+          )}
           <div className="flex gap-3 justify-end pt-4">
             <Button
               variant="outline"
@@ -714,34 +739,25 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             onChange={(e) => setEditForm({ ...editForm, user_name: e.target.value })}
           />
 
-          {/* Business Unit Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit</label>
-            <select
-              value={editForm.business_unit_id}
-              onChange={(e) => setEditForm({ ...editForm, business_unit_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a business unit...</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>
-                  {bu.bu_name || bu.name || `BU ${bu.id}`}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Assign user to a business unit (optional)</p>
-          </div>
+          <Input
+            label="Job Title"
+            placeholder="e.g., Senior Recruiter"
+            value={editForm.job_title}
+            onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
+          />
 
-          {/* Multi-Role Selection (New RBAC) */}
-          {editForm.business_unit_id && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Roles (Select one or more)</label>
-              <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
-                {roles.map(role => (
+          {/* Role Selection (required) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+              {roles.map(role => {
+                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
+                const isSelected = editForm.role_ids?.includes(role.id);
+                return (
                   <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
                     <input
                       type="checkbox"
-                      checked={editForm.role_ids?.includes(role.id) || false}
+                      checked={isSelected || false}
                       onChange={(e) => {
                         const newRoleIds = e.target.checked
                           ? [...(editForm.role_ids || []), role.id]
@@ -751,32 +767,49 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-gray-900">{role.name}</span>
+                    {isOrgLevel && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Org-level</span>}
                   </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Select one or more roles</p>
+          </div>
+
+          {/* Business Unit Selection (conditional) */}
+          {editForm.role_ids && editForm.role_ids.length > 0 &&
+           !editForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
+              <select
+                value={editForm.business_unit_id}
+                onChange={(e) => setEditForm({ ...editForm, business_unit_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select a business unit...</option>
+                {businessUnits.map(bu => (
+                  <option key={bu.id} value={bu.id}>
+                    {bu.bu_name || bu.name || `BU ${bu.id}`}
+                  </option>
                 ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">User will have combined permissions from all selected roles</p>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Permission Template</label>
-            <select
-              value={editForm.user_role}
-              onChange={(e) => setEditForm({ ...editForm, user_role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a template...</option>
-              {roles.map(r => {
-                const userCount = users.filter(u => u.user_role === r.name).length;
-                return (
-                  <option key={r.id} value={r.name}>
-                    {r.name} ({userCount} user{userCount !== 1 ? 's' : ''})
-                  </option>
-                );
-              })}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Select to use legacy single-role mode (or select BU + roles above for new multi-role mode)</p>
-          </div>
+          {/* Org-level access indicator */}
+          {editForm.role_ids && editForm.role_ids.length > 0 &&
+           editForm.role_ids.some(id => {
+             const role = roles.find(r => r.id === id);
+             return ORG_LEVEL_ROLES.includes(role?.name);
+           }) && (
+            <div className="p-3 bg-blue-50 text-sm text-blue-700 rounded border border-blue-200">
+              ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
+            </div>
+          )}
 
           {/* Permissions Section */}
           <div className="border-t pt-4 mt-4">
