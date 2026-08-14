@@ -562,7 +562,7 @@ export default function AppRoutes() {
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
-            <Route path="bu-head-dashboard" element={<BUHeadDashboardScreen />} />
+            <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
 
             <Route
               path="candidates"
