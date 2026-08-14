@@ -20,6 +20,45 @@ from app.services.resume_parser_agent import ResumeParsedAgent
 
 logger = logging.getLogger(__name__)
 
+
+# Exception classes for Thunder operations
+class ConsentNotGiven(Exception):
+    """Raised when candidate has not given consent for contact"""
+    pass
+
+
+class ConversationOwnedByHuman(Exception):
+    """Raised when conversation is being handled by a human, not Thunder"""
+    pass
+
+
+class DuplicateMessageSuppressed(Exception):
+    """Raised when a duplicate message is suppressed"""
+    pass
+
+
+class ThunderPausedError(Exception):
+    """Raised when Thunder is paused for a candidate"""
+    pass
+
+
+def send_thunder_message(candidate_id: str, message: str, db) -> bool:
+    """Send a message from Thunder to a candidate"""
+    # Placeholder implementation - actual implementation depends on your messaging system
+    logger.info(f"Thunder message sent to {candidate_id}: {message}")
+    return True
+
+
+def has_active_consent(candidate_id: str, db) -> bool:
+    """Check if a candidate has given active consent for contact"""
+    # By default, assume True if not opted out
+    from app.models.candidate import Candidate
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        return False
+    return not candidate.do_not_contact
+
+
 THUNDER_QUESTIONS = {
     "Q1": {
         "text": "What is your email address?",
