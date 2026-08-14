@@ -259,11 +259,13 @@ def require_permission(permission: str):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Super User & Admin bypass — always has all permissions
+        # Super User bypass — CEO, Admin, and Super User roles have all permissions
+        # This applies to all endpoints, present and future, without requiring manual configuration
         # Check both the legacy UserRole string AND the RBAC role relationship
+        super_user_roles = {"super user", "admin", "ceo", "cfo"}
         is_super_user = (
-            (user.UserRole and user.UserRole.lower() in ("super user", "admin"))
-            or (user.role and user.role.name and user.role.name.lower() in ("super user", "admin"))
+            (user.UserRole and user.UserRole.lower() in super_user_roles)
+            or (user.role and user.role.name and user.role.name.lower() in super_user_roles)
         )
         if is_super_user:
             return user

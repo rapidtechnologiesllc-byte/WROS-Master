@@ -24,6 +24,8 @@ from app.services.rbac_expanded_permissions import (
 
 ROLES_SEED = [
     {"name": "Super User",            "description": "Full system access across all Business Units"},
+    {"name": "CEO",                   "description": "Chief Executive Officer - Full system access (Super User equivalent)"},
+    {"name": "CFO",                   "description": "Chief Financial Officer - Full financial and system access"},
     {"name": "Partner",               "description": "Org leadership one level above BU Head -- global access across Business Units (2026-08-05, added for the desire-intelligence edit gate; not yet part of a fully-modeled title hierarchy)"},
     {"name": "BU Head",               "description": "Full access within a single Business Unit"},
     {"name": "Finance",               "description": "Finance/accounting function -- global revenue and P&L visibility across Business Units (2026-08-05, added for the Revenue Visibility Engine / Workforce Planning access gate; no other permissions assumed until a real Finance & Accounting Operations story scopes them)"},
@@ -47,6 +49,20 @@ ROLE_ATTRIBUTES_SEED: Dict[str, Dict[str, bool]] = {
         "pipeline_control": True, "interview_control": True,
         "offer_control": True, "employee_data_access": True,
         "timesheet_access": True, "payroll_access": True,
+    },
+    "CEO": {
+        "global_access": True, "bu_restricted": False,
+        "candidate_owner_only": False, "job_owner_only": False,
+        "pipeline_control": True, "interview_control": True,
+        "offer_control": True, "employee_data_access": True,
+        "timesheet_access": True, "payroll_access": True,
+    },
+    "CFO": {
+        "global_access": True, "bu_restricted": False,
+        "candidate_owner_only": False, "job_owner_only": False,
+        "pipeline_control": False, "interview_control": False,
+        "offer_control": False, "employee_data_access": False,
+        "timesheet_access": False, "payroll_access": True,
     },
     "Partner": {
         "global_access": True, "bu_restricted": False,
@@ -176,6 +192,8 @@ PERMISSIONS_SEED = [
 # role_name → list of permission names it should have
 ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
     "Super User": [p["name"] for p in PERMISSIONS_SEED],   # all permissions
+    "CEO": [p["name"] for p in PERMISSIONS_SEED],          # all permissions - super user equivalent
+    "CFO": [p["name"] for p in PERMISSIONS_SEED],          # all permissions - super user equivalent
     "Partner": [
         "candidate.view", "candidate.edit", "candidate.desire_intelligence.edit",
         "job.view", "job.create", "job.edit", "job.approve", "pipeline.move", "interview.feedback",
