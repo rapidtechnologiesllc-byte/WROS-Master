@@ -99,6 +99,9 @@ from app.api.v1.endpoints.agent_performance_dashboard import router as agent_per
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 from app.api.v1.endpoints.org_structure import router as org_structure_router
 from app.api.v1.endpoints.work_orders import router as work_orders_router
+# from app.api.v1.endpoints.training_dashboards import router as training_dashboards_router  # DISABLED: endpoint not found
+# from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router  # DISABLED: endpoint not found
+from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
 
 router = fastapi.APIRouter()
 
@@ -200,4 +203,7 @@ router.include_router(router=agent_kill_switch_router)
 router.include_router(router=spartan_phalanx_router)
 router.include_router(router=agent_performance_dashboard_router)
 router.include_router(router=employee_referrals_router)
-router.include_router(router=work_orders_router)
+router.include_router(router=work_orders_router)
+# router.include_router(router=training_dashboards_router)  # DISABLED: endpoint not found
+# router.include_router(router=bi_explorer_router)  # DISABLED: endpoint not found
+router.include_router(router=bu_head_dashboard_router)

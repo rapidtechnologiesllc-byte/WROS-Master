@@ -20,12 +20,13 @@ from app.schemas.rbac import (
     BusinessUnitWithDepartmentsResponse,
     DepartmentCreate, DepartmentUpdate, DepartmentResponse, DepartmentListItem,
     SetDepartmentRequest, SetDepartmentResponse,
+    RoleTemplateCreate, RoleTemplateResponse, RoleTemplateListItem,
 )
 from app.services.rbac_service import RBACService
 from app.services.rbac_expanded_permissions import MODULES, VERB_MATRIX, generate_all_permissions, get_role_permissions
 from app.services.user_lifecycle_service import UserLifecycleService
 from app.core.logging import logger
-from app.models.rbac import BusinessUnit, Permission
+from app.models.rbac import BusinessUnit, Permission, RoleTemplate, Role
 from app.models.org_structure import Department
 from app.models.user import Users, Jobs
 from app.models.candidate_ownership import CandidateOwnership
@@ -1451,3 +1452,159 @@ def get_user_audit_trail(
     except Exception as e:
         logger.error(f"Error fetching audit trail: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
+
+
+# ===========================================================================
+# Role Templates — Admin creates by combining base roles
+# ===========================================================================
+
+@router.get(
+    "/role-templates",
+    response_model=List[RoleTemplateListItem],
+    summary="List all role templates",
+)
+def list_role_templates(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """Return all available role templates (predefined role combinations)."""
+    templates = db.query(RoleTemplate).all()
+    return [
+        RoleTemplateListItem(
+            id=t.id,
+            name=t.name,
+            description=t.description,
+            role_id=t.role_id,
+            created_at=t.created_at,
+        )
+        for t in templates
+    ]
+
+
+@router.post(
+    "/role-templates",
+    response_model=RoleTemplateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new role template by combining base roles",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def create_role_template(
+    data: RoleTemplateCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Create a new role template by selecting base roles to combine.
+
+    System automatically:
+    1. Creates a new Role with the template's name
+    2. Fetches permissions from all base roles
+    3. Merges permissions into the new role
+    4. Creates a RoleTemplate record linking them
+    """
+    try:
+        # Check if template name already exists
+        existing_template = db.query(RoleTemplate).filter(RoleTemplate.name == data.name).first()
+        if existing_template:
+            raise HTTPException(status_code=409, detail=f"Role template '{data.name}' already exists")
+
+        # Create new role
+        new_role = Role(
+            name=data.name,
+            description=data.description or f"Template: {data.name}"
+        )
+        db.add(new_role)
+        db.flush()
+
+        # Get all permissions from base roles
+        base_roles = db.query(Role).filter(Role.id.in_(data.base_role_ids)).all()
+        if not base_roles:
+            raise HTTPException(status_code=400, detail="No valid base roles specified")
+
+        # Collect all unique permissions from base roles
+        permission_ids = set()
+        for base_role in base_roles:
+            for rp in base_role.role_permissions:
+                permission_ids.add(rp.permission_id)
+
+        # Assign merged permissions to new role
+        from app.models.rbac import RolePermission
+        for perm_id in permission_ids:
+            rp = RolePermission(role_id=new_role.id, permission_id=perm_id)
+            db.add(rp)
+
+        # Create role template
+        template = RoleTemplate(
+            name=data.name,
+            description=data.description,
+            role_id=new_role.id,
+        )
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+        db.refresh(new_role)
+
+        logger.info(f"Created role template '{data.name}' with role ID {new_role.id}, merged {len(permission_ids)} permissions from {len(base_roles)} base roles")
+
+        return RoleTemplateResponse(
+            id=template.id,
+            name=template.name,
+            description=template.description,
+            role_id=template.role_id,
+            role=RoleListItem(id=new_role.id, name=new_role.name, description=new_role.description),
+            created_at=template.created_at,
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"Error creating role template: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to create role template")
+
+
+@router.delete(
+    "/role-templates/{template_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a role template",
+    dependencies=[Depends(require_permission("rbac.manage"))],
+)
+def delete_role_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin),
+):
+    """
+    Delete a role template and its associated role.
+
+    WARNING: This will also delete the role, which may affect users assigned to it.
+    """
+    try:
+        template = db.query(RoleTemplate).filter(RoleTemplate.id == template_id).first()
+        if not template:
+            raise HTTPException(status_code=404, detail="Role template not found")
+
+        # Check if any users have this role
+        role_id = template.role_id
+        user_count = db.query(Users).filter(Users.UserRole == template.name).count()
+        if user_count > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete template: {user_count} users are assigned to this role"
+            )
+
+        # Delete template and role
+        db.delete(template)
+        role = db.query(Role).filter(Role.id == role_id).first()
+        if role:
+            db.delete(role)
+
+        db.commit()
+        logger.info(f"Deleted role template '{template.name}' and associated role")
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"Error deleting role template: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to delete role template")

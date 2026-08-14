@@ -39,16 +39,33 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
-# Setup CORS middleware
-setup_cors(app)
-
-# Add request logging middleware
-app.add_middleware(RequestLoggingMiddleware)
-
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
 from app.middleware import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+
+# Add request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
+
+# Setup CORS middleware LAST so it wraps all other middleware
+# (FastAPI applies middleware in reverse order of addition)
+setup_cors(app)
+
+
+# Handle HTTPException (401, 403, etc.) with CORS headers
+from fastapi import HTTPException
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTPException and add CORS headers to the response"""
+    from app.middleware.cors import add_cors_headers
+
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+    return add_cors_headers(response, origin=request.headers.get("origin", "*"))
 
 
 # S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
@@ -61,6 +78,7 @@ app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 async def log_unhandled_exception(request: Request, exc: Exception):
     from app.core.database import SessionLocal
     from app.services.error_log_service import log_error
+    from app.middleware.cors import add_cors_headers
 
     db = SessionLocal()
     try:
@@ -74,7 +92,8 @@ async def log_unhandled_exception(request: Request, exc: Exception):
         db.close()
 
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
-    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
+    response = JSONResponse(status_code=500, content={"detail": "Internal server error."})
+    return add_cors_headers(response, origin=request.headers.get("origin", "*"))
 
 
 @app.on_event("startup")

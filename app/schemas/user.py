@@ -560,4 +560,22 @@ class HiringManagerAssignedCandidateResponse(BaseModel):
     candidate_current_salary: Optional[str] = None
     candidate_is_verified: Optional[bool] = None
     pipeline_status: Optional[str] = None
+
+
+# ── User Creation with Multi-Role and BU Assignment ──────────────────────────
+
+class CreateUserWithRolesRequest(BaseModel):
+    """Create user with multi-role and Business Unit assignment"""
+    user_name: str
+    user_email: EmailStr
+    user_password: str
+    business_unit_id: Optional[int] = None
+    role_ids: List[int]
+
+
+class UpdateUserWithRolesRequest(BaseModel):
+    """Update user with multi-role and Business Unit assignment"""
+    user_name: str
+    business_unit_id: Optional[int] = None
+    role_ids: List[int]
     assigned_at: datetime

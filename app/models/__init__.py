@@ -31,6 +31,9 @@ from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
 from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
+from app.models.permission import (
+    JobTitle, JobTitleRole, DetailedPermission, DetailedRolePermission, FieldPermission, DataScopePermission
+)
 from app.models.employee import (
     Employee,
     EmployeeEmploymentHistory,
@@ -172,9 +175,16 @@ __all__ = [
     # RBAC
     "Role",
     "RoleAttribute",
-    "Permission",
-    "RolePermission",
+    "RBACPermission",
+    "RBACRolePermission",
     "BusinessUnit",
+    # Permission System (2026-08-13)
+    "JobTitle",
+    "JobTitleRole",
+    "DetailedPermission",
+    "DetailedRolePermission",
+    "FieldPermission",
+    "DataScopePermission",
     # Organizational Hierarchy
     "Department",
     "OrgNode",
