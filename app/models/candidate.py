@@ -77,6 +77,8 @@ class Candidate(Base):
         nullable=False, server_default="DIRECT", default="DIRECT",
     )
     vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=True)
+    # Multi-tenancy: tenant this candidate belongs to (default: 1 for single tenant)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1", index=True)
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
     # Business Unit assignment — auto-populated from job's BU when submitted to job.

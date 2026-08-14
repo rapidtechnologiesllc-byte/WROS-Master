@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 
 from app.core.logging import logger
@@ -11,20 +11,26 @@ from app.core.logging import logger
 jobstores = {
     'default': MemoryJobStore()
 }
-scheduler = BackgroundScheduler(jobstores=jobstores, timezone="UTC")
+scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
 
 def start_scheduler():
-    """Start the APScheduler instance."""
+    """Start the APScheduler instance with FastAPI's event loop."""
     if not scheduler.running:
-        scheduler.start()
-        logger.info("[OK] APScheduler started")
+        try:
+            loop = asyncio.get_running_loop()
+            scheduler.start()
+            logger.info("[OK] APScheduler started (AsyncIOScheduler)")
+        except RuntimeError:
+            # No running event loop - this shouldn't happen in FastAPI but handle it
+            logger.warning("[Scheduler] No running event loop, cannot start AsyncIOScheduler")
+            return
 
         # ── Daily job: expire 90-day BU ownerships ────────────────────────────
         try:
             from app.core.database import SessionLocal
             from app.services.candidate_pool_service import expire_bu_ownerships
 
-            async def _run_expiry():
+            def _run_expiry():
                 db = SessionLocal()
                 try:
                     count = expire_bu_ownerships(db)
@@ -56,7 +62,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.ai_conversation_service import poll_all_awaiting_candidates
 
-            async def _run_reply_poll():
+            def _run_reply_poll():
                 db = SessionLocal()
                 try:
                     result = poll_all_awaiting_candidates(db)
@@ -83,7 +89,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.sla_monitoring_service import detect_and_resolve_no_contact_breaches
 
-            async def _run_sla_monitoring():
+            def _run_sla_monitoring():
                 db = SessionLocal()
                 try:
                     result = detect_and_resolve_no_contact_breaches(db)
@@ -110,7 +116,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.follow_up_scheduler_service import run_follow_up_execution_job
 
-            async def _run_followup_execution():
+            def _run_followup_execution():
                 db = SessionLocal()
                 try:
                     result = run_follow_up_execution_job(db)
@@ -137,7 +143,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.no_response_detection_service import run_no_response_detection_job
 
-            async def _run_no_response_detection():
+            def _run_no_response_detection():
                 db = SessionLocal()
                 try:
                     result = run_no_response_detection_job(db)
@@ -164,7 +170,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.ghosting_detection_service import run_ghosting_detection_job
 
-            async def _run_ghosting_detection():
+            def _run_ghosting_detection():
                 db = SessionLocal()
                 try:
                     result = run_ghosting_detection_job(db)
@@ -191,7 +197,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.outreach_campaign_service import run_campaign_execution_job
 
-            async def _run_campaign_execution():
+            def _run_campaign_execution():
                 db = SessionLocal()
                 try:
                     result = run_campaign_execution_job(db)
@@ -218,7 +224,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.reactivation_campaign_service import run_reactivation_job
 
-            async def _run_reactivation():
+            def _run_reactivation():
                 db = SessionLocal()
                 try:
                     result = run_reactivation_job(db)
@@ -249,7 +255,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.reactivation_campaign_service import run_reactivation_reschedule_job
 
-            async def _run_reactivation_reschedule():
+            def _run_reactivation_reschedule():
                 db = SessionLocal()
                 try:
                     result = run_reactivation_reschedule_job(db)
@@ -277,7 +283,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.abandonment_scoring_service import run_abandonment_scoring_job
 
-            async def _run_abandonment_scoring():
+            def _run_abandonment_scoring():
                 db = SessionLocal()
                 try:
                     result = run_abandonment_scoring_job(db)
@@ -304,7 +310,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.interview_reminder_service import run_reminder_execution_job
 
-            async def _run_reminder_execution():
+            def _run_reminder_execution():
                 db = SessionLocal()
                 try:
                     result = run_reminder_execution_job(db)
@@ -331,7 +337,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.interview_no_show_service import run_no_show_detection_job
 
-            async def _run_no_show_detection():
+            def _run_no_show_detection():
                 db = SessionLocal()
                 try:
                     result = run_no_show_detection_job(db)
@@ -358,7 +364,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.document_collection_service import run_document_reminder_job
 
-            async def _run_document_reminder():
+            def _run_document_reminder():
                 db = SessionLocal()
                 try:
                     result = run_document_reminder_job(db)
@@ -385,7 +391,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.joining_readiness_service import run_joining_readiness_job
 
-            async def _run_joining_readiness():
+            def _run_joining_readiness():
                 db = SessionLocal()
                 try:
                     result = run_joining_readiness_job(db)
@@ -412,7 +418,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.daily_digest_service import run_daily_digest_job
 
-            async def _run_daily_digest():
+            def _run_daily_digest():
                 db = SessionLocal()
                 try:
                     result = run_daily_digest_job(db)
@@ -439,7 +445,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.engagement_metrics_service import run_engagement_metrics_job
 
-            async def _run_engagement_metrics():
+            def _run_engagement_metrics():
                 db = SessionLocal()
                 try:
                     result = run_engagement_metrics_job(db)
@@ -466,7 +472,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.drop_risk_service import run_drop_risk_scoring_job
 
-            async def _run_drop_risk_scoring():
+            def _run_drop_risk_scoring():
                 db = SessionLocal()
                 try:
                     result = run_drop_risk_scoring_job(db)
@@ -493,7 +499,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.interview_no_show_service import run_no_show_followup_job
 
-            async def _run_no_show_followup():
+            def _run_no_show_followup():
                 db = SessionLocal()
                 try:
                     result = run_no_show_followup_job(db)
@@ -520,7 +526,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.thunder_pause_service import run_pause_expiry_job
 
-            async def _run_pause_expiry():
+            def _run_pause_expiry():
                 db = SessionLocal()
                 try:
                     result = run_pause_expiry_job(db)
@@ -547,7 +553,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.supervisor_agent_service import run_supervisor_cycle
 
-            async def _run_supervisor_cycle():
+            def _run_supervisor_cycle():
                 db = SessionLocal()
                 try:
                     result = run_supervisor_cycle(db)
@@ -574,7 +580,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.onboarding_agent_service import run_onboarding_touchpoint_job
 
-            async def _run_onboarding_touchpoint():
+            def _run_onboarding_touchpoint():
                 db = SessionLocal()
                 try:
                     result = run_onboarding_touchpoint_job(db)
@@ -601,7 +607,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.task_escalation_service import escalate_overdue_tasks
 
-            async def _run_task_escalation():
+            def _run_task_escalation():
                 db = SessionLocal()
                 try:
                     escalated = escalate_overdue_tasks(db)
@@ -628,7 +634,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.culture_agent_service import generate_birthday_drafts
 
-            async def _run_birthday_drafts():
+            def _run_birthday_drafts():
                 db = SessionLocal()
                 try:
                     drafts = generate_birthday_drafts(db)
@@ -655,7 +661,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.mellow_keepwarm_service import run_mellow_keepwarm_job
 
-            async def _run_mellow_keepwarm():
+            def _run_mellow_keepwarm():
                 db = SessionLocal()
                 try:
                     result = run_mellow_keepwarm_job(db)
@@ -682,7 +688,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.desire_signal_service import process_unprocessed_signals
 
-            async def _run_desire_signal_processing():
+            def _run_desire_signal_processing():
                 db = SessionLocal()
                 try:
                     result = process_unprocessed_signals(db)
@@ -709,7 +715,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.desire_profile_service import run_desire_profile_update_job
 
-            async def _run_desire_profile_update():
+            def _run_desire_profile_update():
                 db = SessionLocal()
                 try:
                     result = run_desire_profile_update_job(db)
@@ -736,7 +742,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.motivation_engine_service import run_motivation_job
 
-            async def _run_motivation_job():
+            def _run_motivation_job():
                 db = SessionLocal()
                 try:
                     result = run_motivation_job(db)
@@ -763,7 +769,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.msgraph_mail_sync_service import run_msgraph_mail_sync_job
 
-            async def _run_msgraph_mail_sync():
+            def _run_msgraph_mail_sync():
                 db = SessionLocal()
                 try:
                     result = run_msgraph_mail_sync_job(db)
@@ -797,7 +803,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.timesheet_nag_service import run_timesheet_nag_job
 
-            async def _run_timesheet_nag():
+            def _run_timesheet_nag():
                 db = SessionLocal()
                 try:
                     result = run_timesheet_nag_job(db)
@@ -826,7 +832,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.ar_followup_service import run_ar_follow_up_job
 
-            async def _run_ar_follow_up():
+            def _run_ar_follow_up():
                 db = SessionLocal()
                 try:
                     result = run_ar_follow_up_job(db)
@@ -857,7 +863,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.timesheet_service import create_weekly_draft_batch
 
-            async def _run_weekly_draft_creation():
+            def _run_weekly_draft_creation():
                 db = SessionLocal()
                 try:
                     result = create_weekly_draft_batch(db)
@@ -1070,7 +1076,7 @@ def start_scheduler():
             from app.core.database import SessionLocal
             from app.services.revenue_scanning_service import run_daily_revenue_scan_job
 
-            async def _run_revenue_scan():
+            def _run_revenue_scan():
                 db = SessionLocal()
                 try:
                     result = run_daily_revenue_scan_job(db)
@@ -1093,15 +1099,17 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register revenue scanning scheduler: {exc}")
 
-        # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
+        # ── Every 15 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
         try:
             from app.core.database import SessionLocal
             from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
 
-            def _run_thunder_autonomous():
+            async def _run_thunder_autonomous():
+                logger.info("[scheduler] Thunder autonomous cycle STARTING")
                 db = SessionLocal()
                 try:
                     result = run_thunder_autonomous_cycle(db)
+                    logger.info(f"[scheduler] Thunder autonomous cycle COMPLETE - result: {result}")
                     if result.get("status") == "success":
                         if result.get("candidates_contacted") or result.get("sequences_advanced"):
                             logger.info(f"[scheduler] Thunder autonomous: {result}")
@@ -1110,18 +1118,18 @@ def start_scheduler():
                     else:
                         logger.error(f"[scheduler] Thunder autonomous error: {result.get('error')}")
                 except Exception as exc:
-                    logger.error(f"[scheduler] Thunder autonomous error: {exc}")
+                    logger.error(f"[scheduler] Thunder autonomous error: {exc}", exc_info=True)
                 finally:
                     db.close()
 
             scheduler.add_job(
                 _run_thunder_autonomous,
                 trigger="interval",
-                minutes=5,
+                minutes=15,
                 id="thunder_autonomous_loop",
                 replace_existing=True,
             )
-            logger.info("[OK] Scheduled Thunder autonomous loop (every 5 min)")
+            logger.info("[OK] Scheduled Thunder autonomous loop (every 15 min)")
         except Exception as exc:
             logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
 
@@ -1134,7 +1142,8 @@ def start_scheduler():
             from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
             from datetime import datetime
 
-            def _assign_thunder_to_new_candidates():
+            async def _assign_thunder_to_new_candidates():
+                logger.info("[scheduler] Thunder auto-assign cycle STARTING")
                 db = SessionLocal()
                 try:
                     # Find candidates without Thunder assignment and not opted-out
@@ -1155,8 +1164,9 @@ def start_scheduler():
                     if assigned_count > 0:
                         db.commit()
                         logger.info(f"[scheduler] Thunder auto-assign: {assigned_count} new candidate(s) assigned")
+                    logger.info("[scheduler] Thunder auto-assign cycle COMPLETE")
                 except Exception as exc:
-                    logger.error(f"[scheduler] Thunder auto-assign error: {exc}")
+                    logger.error(f"[scheduler] Thunder auto-assign error: {exc}", exc_info=True)
                     try:
                         db.rollback()
                     except:
@@ -1167,11 +1177,11 @@ def start_scheduler():
             scheduler.add_job(
                 _assign_thunder_to_new_candidates,
                 trigger="interval",
-                minutes=5,
+                seconds=5,
                 id="auto_assign_thunder_to_candidates",
                 replace_existing=True,
             )
-            logger.info("[OK] Scheduled Thunder auto-assignment job (every 5 min)")
+            logger.info("[OK] Scheduled Thunder auto-assignment job (every 5 sec)")
         except Exception as exc:
             logger.warning(f"Could not register Thunder auto-assignment scheduler: {exc}")
 
