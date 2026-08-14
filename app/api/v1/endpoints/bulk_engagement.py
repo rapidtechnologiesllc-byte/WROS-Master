@@ -41,18 +41,53 @@ def _run_worker_in_background(job_id: str) -> None:
         db.close()
 
 
+def _run_import_in_background(job_id: str, csv_text: str, recruiter_id: str, tenant_id: str) -> None:
+    """Process CSV import in background without blocking HTTP response."""
+    db = SessionLocal()
+    try:
+        import_candidates_from_csv(db, csv_text, recruiter_id, tenant_id)
+    except Exception as exc:
+        logger.error(f"[BulkImport] Background job {job_id} failed: {exc}")
+    finally:
+        db.close()
+
+
 @router.post("/candidates/bulk-import", response_model=BulkImportResponse, dependencies=[Depends(require_permission("candidate.create"))])
-async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+async def bulk_import(file: UploadFile, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv file.")
     raw = (await file.read()).decode("utf-8-sig", errors="replace")
     tenant_id = resolve_default_tenant_id(db)
-    try:
-        return import_candidates_from_csv(db, raw, current_user.UserID, tenant_id)
-    except CsvMissingRequiredColumn as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except CsvTooLarge as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Quick validation: check headers only (fail fast if format is wrong)
+    import csv as csv_module
+    import io as io_module
+    reader = csv_module.DictReader(io_module.StringIO(raw))
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="CSV is empty or has no headers.")
+
+    from app.services.bulk_engagement_service import _find_matching_column, NAME_COLUMN_ALIASES
+    name_column = _find_matching_column(reader.fieldnames, NAME_COLUMN_ALIASES)
+    if not name_column:
+        raise HTTPException(status_code=400, detail="CSV must include a name column (e.g., 'name', 'full_name', 'candidate_name', etc.)")
+
+    # Count rows for user feedback (read header only, don't process)
+    row_count = len(list(reader)) - 1  # -1 for header
+    if row_count > 100000:
+        raise HTTPException(status_code=400, detail=f"CSV cannot exceed 100000 rows (file has {row_count}).")
+
+    # Queue import as background task - return success immediately
+    import uuid
+    job_id = str(uuid.uuid4())
+    background_tasks.add_task(_run_import_in_background, job_id, raw, current_user.UserID, tenant_id)
+
+    return {
+        "imported": 0,
+        "skipped_duplicates": 0,
+        "errors": [],
+        "candidate_ids": [],
+        "message": f"CSV upload accepted! Processing {row_count} candidates in background (job_id: {job_id}). Check Bulk Launch > Step 2 for progress."
+    }
 
 
 @router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_permission("candidate.edit"))])

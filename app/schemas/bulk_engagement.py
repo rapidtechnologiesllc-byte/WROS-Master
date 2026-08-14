@@ -9,6 +9,7 @@ class BulkImportResponse(BaseModel):
     skipped_duplicates: int
     errors: List[Dict]
     candidate_ids: List[str]
+    message: Optional[str] = None
 
 
 class BulkEngageRequest(BaseModel):
