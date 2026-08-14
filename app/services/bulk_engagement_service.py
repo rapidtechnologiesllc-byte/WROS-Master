@@ -244,9 +244,8 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             errors.append({"row": index, "reason": "Missing required phone number."})
             continue
 
+        # Job title is optional - candidates can be imported without it
         job_title = _extract_value(row, JOB_TITLE_ALIASES)
-        if not job_title:
-            errors.append({"row": index, "reason": "Missing required job title (job_title, position, desired_role, etc.)."})
             continue
 
         location = _extract_value(row, LOCATION_COLUMN_ALIASES)
