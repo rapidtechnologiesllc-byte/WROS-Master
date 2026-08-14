@@ -97,13 +97,14 @@ class Users(Base):
     user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", lazy="select")
 
     # Job title and org hierarchy (2026-08-13 Permission System)
-    job_title_id = Column(Integer, ForeignKey("job_titles.id"), nullable=True, index=True)
-    org_position_id = Column(Integer, ForeignKey("org_positions.id"), nullable=True, index=True)
-    org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
+    # TEMPORARY: Commented out until DB migration applies these columns
+    # job_title_id = Column(Integer, ForeignKey("job_titles.id"), nullable=True, index=True)
+    # org_position_id = Column(Integer, ForeignKey("org_positions.id"), nullable=True, index=True)
+    # org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
 
-    job_title = relationship("JobTitle", foreign_keys=[job_title_id], lazy="select")
-    org_position = relationship("OrgPosition", foreign_keys=[org_position_id], lazy="select")
-    org_node = relationship("OrgNode", foreign_keys=[org_node_id], lazy="select")
+    # job_title = relationship("JobTitle", foreign_keys=[job_title_id], lazy="select")
+    # org_position = relationship("OrgPosition", foreign_keys=[org_position_id], lazy="select")
+    # org_node = relationship("OrgNode", foreign_keys=[org_node_id], lazy="select")
 
     def is_active(self) -> bool:
         """Return True if user is not terminated."""
