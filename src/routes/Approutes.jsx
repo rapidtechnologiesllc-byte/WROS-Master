@@ -160,6 +160,7 @@ const mapCandidateFromApi = (c) => {
     assignedReportManagerId: c.assigned_report_manager_id || "",
     pipelineStatus: c.pipline_status || c.pipeline_status || "",
     accountStatus: c.status || "",
+    businessUnitId: c.business_unit_id || null,
   };
 };
 
@@ -216,6 +217,7 @@ export const mapJobFromApi = (j, users = []) => {
     startDate: j.start_date || "",
     endDate: j.end_date || "",
     jobDescription: j.job_description || "",
+    businessUnitId: j.business_unit || null,
   };
 };
 

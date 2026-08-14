@@ -88,10 +88,24 @@ export default function Dashboard({
     checkRoleAndRedirect();
   }, []);
 
-  const openJobs = jobs.filter(
+  // Get user's BU and role for filtering
+  const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
+  const roles = getRoles() || [];
+  const isSuperUser = roles.includes("super user") || roles.includes("admin") || roles.includes("ceo") || roles.includes("cfo");
+
+  // Filter data based on user role
+  const filteredCandidates = isSuperUser
+    ? candidates
+    : candidates.filter((c) => !c.businessUnitId || c.businessUnitId === userBuId);
+
+  const filteredJobs = isSuperUser
+    ? jobs
+    : jobs.filter((j) => !j.businessUnitId || j.businessUnitId === userBuId);
+
+  const openJobs = filteredJobs.filter(
     (j) => j.status === "Open" || j.status === "Public",
   ).length;
-  const inPipeline = candidates.filter((c) => {
+  const inPipeline = filteredCandidates.filter((c) => {
     const p = (c.pipelineStatus || "").trim();
     if (p === "Rejected") return false;
     const a = (c.accountStatus || "").trim();
