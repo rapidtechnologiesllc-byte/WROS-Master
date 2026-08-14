@@ -14,6 +14,7 @@ pydantic-settings>=2.0.0,<3.0.0  # Settings management for Pydantic v2
 # ----------------------------------------------------------------------------
 sqlalchemy>=2.0.36,<3.0.0        # SQL toolkit and ORM
 pyodbc>=5.2.0,<6.0.0             # ODBC database driver for SQL Server
+psycopg2-binary>=2.9.9,<3.0.0    # PostgreSQL adapter for Python
 alembic>=1.13.0,<2.0.0           # Database migration tool
 greenlet>=3.0.0,<4.0.0           # Required by SQLAlchemy for async support
 
