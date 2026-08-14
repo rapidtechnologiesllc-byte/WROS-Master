@@ -69,6 +69,7 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
         candidate_id=row.candidate_id,
         candidate_name=_candidate_name(candidate) if candidate else None,
         candidate_email=candidate.candidateEmail if candidate else None,
+        business_unit_id=candidate.business_unit_id if candidate else None,
         hr1=_user_summary(hr1),
         hr2=_user_summary(hr2),
         assigned_by=_user_summary(assigner),
