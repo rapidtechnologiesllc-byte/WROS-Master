@@ -206,6 +206,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     user_name: "",
     user_role: "",
     business_unit_id: "",
+    role_ids: [], // Multi-role support for edit
     expandAllPermissions: false,
     expanded_candidates: false,
     expanded_jobs: false,
@@ -330,22 +331,41 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
     setBusy(true);
     try {
-      // Support both multi-role (new) and single role (legacy) modes
-      const roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids :
-                      (editForm.user_role ? [roles.find(r => r.name === editForm.user_role)?.id].filter(Boolean) : []);
+      // Convert role name to role ID when template is selected
+      let roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids : [];
+
+      if (editForm.user_role && roleIds.length === 0) {
+        const matchedRole = roles.find(r => r.name === editForm.user_role);
+        if (matchedRole) {
+          roleIds = [matchedRole.id];
+        }
+      }
 
       // If BU is selected, use new multi-role endpoint
       if (editForm.business_unit_id) {
-        await apiRequest(`/users/${selectedUserId}/update-with-roles`, "PUT", {
-          user_name: editForm.user_name,
-          business_unit_id: parseInt(editForm.business_unit_id, 10),
-          role_ids: roleIds.length > 0 ? roleIds.map(id => parseInt(id, 10)) : []
+        if (roleIds.length === 0) {
+          toast.error("Please select at least one role when assigning a business unit.");
+          setBusy(false);
+          return;
+        }
+        await apiRequest(`/users/${selectedUserId}/update-with-roles`, {
+          method: "PUT",
+          body: JSON.stringify({
+            user_name: editForm.user_name,
+            business_unit_id: parseInt(editForm.business_unit_id, 10),
+            role_ids: roleIds.map(id => parseInt(id, 10))
+          })
         });
-      } else {
-        // Legacy single-role endpoint
+      } else if (editForm.user_role) {
+        // Legacy single-role endpoint (no BU)
         await updateHrUser(selectedUserId, {
           user_name: editForm.user_name,
           user_role: editForm.user_role
+        });
+      } else {
+        // Just update name without role change
+        await updateHrUser(selectedUserId, {
+          user_name: editForm.user_name
         });
       }
 
@@ -366,6 +386,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       setShowEditModal(false);
       window.location.reload();
     } catch (err) {
+      console.error("Failed to update user:", err);
       toast.error(err.message || "Failed to update user.");
     } finally {
       setBusy(false);
@@ -480,6 +501,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                         setEditForm({
                           user_name: safeText(row.user_name),
                           user_role: safeText(row.user_role),
+                          business_unit_id: row.business_unit_id || "",
+                          role_ids: row.role_ids || [],
                           ...defaultPermissions,
                           ...savedPermissions
                         });
@@ -488,6 +511,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                         setEditForm({
                           user_name: safeText(row.user_name),
                           user_role: safeText(row.user_role),
+                          business_unit_id: row.business_unit_id || "",
+                          role_ids: row.role_ids || [],
                           expandAllPermissions: false,
                           expanded_candidates: false,
                           expanded_jobs: false,
@@ -687,6 +712,32 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             <p className="text-xs text-gray-500 mt-1">Assign user to a business unit (optional)</p>
           </div>
 
+          {/* Multi-Role Selection (New RBAC) */}
+          {editForm.business_unit_id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Roles (Select one or more)</label>
+              <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+                {roles.map(role => (
+                  <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
+                    <input
+                      type="checkbox"
+                      checked={editForm.role_ids?.includes(role.id) || false}
+                      onChange={(e) => {
+                        const newRoleIds = e.target.checked
+                          ? [...(editForm.role_ids || []), role.id]
+                          : (editForm.role_ids || []).filter(id => id !== role.id);
+                        setEditForm({ ...editForm, role_ids: newRoleIds });
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-900">{role.name}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">User will have combined permissions from all selected roles</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Permission Template</label>
             <select
@@ -704,6 +755,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 );
               })}
             </select>
+            <p className="text-xs text-gray-500 mt-1">Select to use legacy single-role mode (or select BU + roles above for new multi-role mode)</p>
           </div>
 
           {/* Permissions Section */}
