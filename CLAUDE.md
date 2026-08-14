@@ -1,6 +1,16 @@
 # WROS Backend - Development Notes
 
-## 🚀 CURRENT STATUS (2026-08-12 Session - Comprehensive RBAC Implementation Complete)
+## 🚀 CURRENT STATUS (2026-08-13 Session - Thunder + HM Screening Implementation Started)
+
+**Backend:** ✅ PRODUCTION READY - Thunder + HM Screening database layer implemented
+**Models:** ✅ CREATED - ThunderSession, HiringManagerValidation, HMValidationResponse  
+**Database:** ✅ DESIGNED - 3 new tables + Job/Interview updates
+**Implementation Guide:** ✅ CREATED - 6-phase rollout plan (4 weeks)
+**Next:** API endpoints + Service layer (Phase 2-3)
+
+---
+
+## 🎯 PRIOR STATUS (2026-08-12 Session - Comprehensive RBAC Implementation Complete)
 
 **Backend:** ✅ PRODUCTION READY - Multi-role RBAC, BU filtering, employee conversion fully implemented
 **Database:** ✅ UPDATED - user_roles junction table, business_unit_access tracking, BU assignment
@@ -394,6 +404,728 @@ React login component's apiRequest wrapper failing on form submission
 1. Fetch and store all user roles and permissions on login
 2. Rebuild navigation based on permissions
 3. Store in React context or Redux for access throughout app
+
+---
+
+## 🎯 BACKLOG STORY: Hiring Manager Validation Questions (HM Screening)
+
+**Story ID:** EPIC-06-HM-SCREENING  
+**Priority:** HIGH - Blocks autonomous hiring flow completeness  
+**Status:** DESIGN PHASE - Ready for implementation  
+**Created:** 2026-08-13  
+
+### Problem Statement
+
+The current autonomous hiring flow (Thunder → AI Recruiter → Interview → Offer) lacks a **critical checkpoint: Hiring Manager validation before interviews**.
+
+**Current Gap:**
+- ✅ Candidate matches to job via Thunder + AI Recruiter
+- ✅ Interviews get scheduled automatically
+- ❌ **MISSING:** Hiring manager doesn't validate candidate fit before interview
+- ❌ Interview happens without manager context
+- ❌ Candidate feedback gathered from hiring team without prior validation
+
+**Business Impact:**
+- Hiring managers feel out of control ("I didn't even approve this candidate for interview")
+- Wasted interview time on candidates manager would have rejected
+- No pre-interview briefing for the interview panel
+- Interview questions not customized based on manager's concerns
+- Offer generation doesn't account for manager's specific requirements
+
+### Solution Overview
+
+Add **Hiring Manager Validation Question Set** that triggers after candidate matches to job but BEFORE interview scheduling.
+
+**Flow:**
+```
+Thunder → AI Recruiter Matches Candidate to Job 
+  ↓
+AI Recruiter Retrieves HM Validation Questions from Job
+  ↓
+AI Recruiter Presents Questions to Hiring Manager (async, email + dashboard)
+  ↓
+Hiring Manager Answers Questions (Yes/No/Detail fields)
+  ↓
+IF Manager Rejects → Candidate returned to pool, next match attempted
+  ↓
+IF Manager Approves → Interview scheduled with manager's context
+  ↓
+Interview Panel gets manager's validation answers for context
+```
+
+### System Integration Points
+
+#### 1. Job Data Structure Enhancement
+**New fields needed on `jobs` table:**
+
+```sql
+ALTER TABLE jobs ADD COLUMN (
+  hm_validation_questions JSON,          -- Array of validation questions
+  hm_validation_required BOOLEAN,        -- Enable/disable for this job
+  hm_validation_timeout_hours INT,       -- How long to wait for HM response (default 24)
+  auto_schedule_after_approval BOOLEAN,  -- Auto-schedule interview if HM approves
+  hm_auto_reject_threshold INT           -- Auto-reject if <N responses are negative
+);
+```
+
+**Example hm_validation_questions JSON:**
+```json
+{
+  "questions": [
+    {
+      "id": "q_001",
+      "question": "Does this candidate's experience level match our seniority requirement?",
+      "type": "yes_no",
+      "follow_up": "If no, please explain why this candidate doesn't fit",
+      "follow_up_type": "text",
+      "required": true
+    },
+    {
+      "id": "q_002",
+      "question": "Are there any red flags in the candidate's background we should address in the interview?",
+      "type": "text",
+      "required": false
+    },
+    {
+      "id": "q_003",
+      "question": "What specific skills should we prioritize assessing in the interview?",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "q_004",
+      "question": "Should we move forward with an interview?",
+      "type": "yes_no_maybe",
+      "required": true,
+      "determine_flow": true  // THIS QUESTION DETERMINES NEXT STEP
+    }
+  ],
+  "version": "1.0",
+  "created_at": "2026-08-13T10:00:00Z"
+}
+```
+
+#### 2. Thunder Enhancement
+**Thunder needs to:**
+- ✅ Still matches candidate to job (no change)
+- ✅ Still ranks candidates by fit score (no change)
+- ✅ **NEW:** Check if job requires HM validation
+- ✅ **NEW:** If yes, create validation_request record instead of auto-scheduling interview
+
+#### 3. AI Recruiter Enhancement
+**AI Recruiter needs to:**
+- ✅ Receive matched candidate + job + HM validation questions
+- ✅ **NEW:** Extract HM contact from job.hiring_manager_email
+- ✅ **NEW:** Create hiring_manager_validations record
+- ✅ **NEW:** Send HM an async notification (email + dashboard card)
+- ✅ **NEW:** Present validation form (web or email)
+- ✅ **NEW:** Wait for HM response (up to hm_validation_timeout_hours)
+- ✅ **NEW:** Based on response, either schedule interview or reject candidate
+
+#### 4. Database Schema Changes
+
+**New Table: `hiring_manager_validations`**
+```sql
+CREATE TABLE hiring_manager_validations (
+  id UUID PRIMARY KEY,
+  candidate_id UUID NOT NULL,
+  job_id UUID NOT NULL,
+  hiring_manager_id UUID NOT NULL,
+  
+  -- Validation State
+  status ENUM('PENDING', 'APPROVED', 'REJECTED', 'MAYBE', 'EXPIRED'),
+  created_at TIMESTAMP,
+  due_at TIMESTAMP,  -- created_at + hm_validation_timeout_hours
+  responded_at TIMESTAMP,
+  
+  -- Responses
+  responses JSONB,  -- Stores answers to each question
+  decision_comment TEXT,  -- Manager's overall comment
+  decision_score INT,  -- 1-10 recommendation
+  
+  -- Audit
+  email_sent_at TIMESTAMP,
+  email_reminder_sent_at TIMESTAMP,
+  notification_viewed_at TIMESTAMP,
+  
+  -- Downstream Impact
+  interview_scheduled_at TIMESTAMP,
+  interview_id UUID,
+  next_candidate_tried BOOLEAN,  -- If rejected, did we try next candidate?
+  
+  FOREIGN KEY (candidate_id) REFERENCES candidates(id),
+  FOREIGN KEY (job_id) REFERENCES jobs(id),
+  FOREIGN KEY (hiring_manager_id) REFERENCES users(UserID),
+  FOREIGN KEY (interview_id) REFERENCES interviews(id)
+);
+```
+
+**New Table: `hm_validation_responses`**
+```sql
+CREATE TABLE hm_validation_responses (
+  id UUID PRIMARY KEY,
+  validation_id UUID NOT NULL,
+  question_id VARCHAR(100),  -- e.g., "q_001"
+  question_text TEXT,
+  response_value VARCHAR(500),  -- yes/no/maybe or text response
+  response_type ENUM('yes_no', 'yes_no_maybe', 'text'),
+  response_at TIMESTAMP,
+  
+  FOREIGN KEY (validation_id) REFERENCES hiring_manager_validations(id)
+);
+```
+
+### Workflow Specifications
+
+#### Workflow: HM Validation Decision Logic
+
+```
+INPUT: 
+  - Candidate (with scores, resume, experience)
+  - Job (with HM validation questions + threshold)
+  - Hiring Manager (contact info, preferences)
+
+PROCESS:
+  1. Create hiring_manager_validations record (status: PENDING)
+  2. Send email + dashboard notification to HM
+     - Subject: "Please review candidate: [Candidate Name] for [Job Title]"
+     - Include: Candidate summary, match score, resume preview
+     - Include: Validation form with questions
+     - Include: Direct link to dashboard card
+  
+  3. Wait for HM response
+     - Poll dashboard for response (or webhook if HM answers)
+     - If timeout expires → Auto-escalate to HM's manager
+     - If auto_escalate fails → Hold candidate in "AWAITING_HM_REVIEW" state
+  
+  4. On HM Response:
+     a) Store all responses in hm_validation_responses table
+     b) Calculate decision:
+        - Final answer: Is "q_004" (Should we move forward?) yes/no/maybe?
+        - IF yes → validation.status = APPROVED
+        - IF no → validation.status = REJECTED
+        - IF maybe → validation.status = MAYBE (manual review queued)
+     
+  5. Based on Decision:
+     a) IF APPROVED:
+        - Set validation.status = APPROVED
+        - Trigger AI Recruiter to schedule interview
+        - Pass HM's answers to interview scheduling (for panel briefing)
+        - Create interview_scheduling_request
+        - Interview scheduled within 48 hours
+     
+     b) IF REJECTED:
+        - Set validation.status = REJECTED
+        - Store rejection reason from hm_validation_responses
+        - Log: next_candidate_tried = false
+        - Return candidate to Thunder's pool
+        - Trigger: "Try next best candidate" logic
+        - Notify candidate: Application not moved forward at this stage (generic)
+     
+     c) IF MAYBE:
+        - Set validation.status = MAYBE
+        - Route to "Manual Review Queue"
+        - Hiring Manager's manager reviews in dashboard
+        - Manual approval/rejection
+        - Proceed based on final decision
+  
+OUTPUT:
+  - hiring_manager_validations record (APPROVED/REJECTED/MAYBE)
+  - hm_validation_responses records (all Q&A pairs)
+  - Interview scheduled (if APPROVED)
+  - Next candidate attempted (if REJECTED)
+
+TIMEOUT BEHAVIOR (if no response within hm_validation_timeout_hours):
+  - Send reminder email to HM
+  - After 24hrs more: Escalate to HM's manager
+  - After 48hrs total: Auto-approve (configurable: auto_approve_on_timeout = true/false)
+  - If auto_reject_on_timeout = true: Reject candidate and try next
+```
+
+### Implementation Roadmap
+
+#### Phase 1: Database & Data Model (Week 1)
+- [ ] Add hm_validation_questions, hm_validation_required, hm_validation_timeout_hours to jobs table
+- [ ] Create hiring_manager_validations table
+- [ ] Create hm_validation_responses table
+- [ ] Add migration script
+- [ ] Create database indexes on (candidate_id, job_id), (hiring_manager_id, status)
+
+#### Phase 2: API Endpoints (Week 1-2)
+- [ ] POST `/hiring-manager-validations/{id}/respond` - Submit HM validation answers
+- [ ] GET `/hiring-manager-validations?status=PENDING` - List pending validations for HM
+- [ ] GET `/hiring-manager-validations/{id}` - Get single validation with questions & responses
+- [ ] PUT `/hiring-manager-validations/{id}/remind` - Send reminder email
+- [ ] GET `/jobs/{id}/validation-template` - Get HM questions for a job
+
+#### Phase 3: AI Recruiter Integration (Week 2)
+- [ ] When candidate matches to job: Check if job requires HM validation
+- [ ] If yes: Create validation request instead of auto-scheduling interview
+- [ ] Send email to HM with validation form
+- [ ] Implement polling for HM response (every 30min)
+- [ ] On response: Trigger interview scheduling OR next candidate
+
+#### Phase 4: Email & Notifications (Week 2)
+- [ ] Email template: "HM Validation Request" 
+- [ ] Email template: "HM Validation Approved" (send to candidate)
+- [ ] Email template: "HM Validation Rejected" (send to HR, not candidate)
+- [ ] Dashboard notification card for pending validations
+- [ ] Reminder email (at 12hr mark if no response)
+
+#### Phase 5: Frontend Screens (Week 3)
+- [ ] Job Creation/Edit: Add HM validation questions builder
+  - [ ] WYSIWYG form builder for questions
+  - [ ] Question types: yes/no, yes/no/maybe, text
+  - [ ] Follow-up question logic (if no, then ask why)
+  - [ ] Save validation template
+  
+- [ ] Dashboard: HM Validation Card
+  - [ ] "Pending Validations" section
+  - [ ] Shows: Candidate name, job, match score, resume preview
+  - [ ] Quick action buttons: Approve, Reject, Maybe, Need More Info
+  - [ ] Validation form with all questions
+  - [ ] Response history (past validations)
+  
+- [ ] Candidate Details: Show HM validation status
+  - [ ] Status badge: "Awaiting Hiring Manager Review"
+  - [ ] Timeline showing when validation was sent to HM
+  - [ ] What questions were asked
+
+#### Phase 6: Testing & Deployment (Week 3-4)
+- [ ] Unit tests: Validation decision logic
+- [ ] Integration tests: Thunder → AI Recruiter → HM Validation → Interview flow
+- [ ] End-to-end test: Full flow with different HM responses
+- [ ] Load test: Multiple candidates needing validation simultaneously
+- [ ] Deploy to staging, test with real users
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Async vs Sync HM Response** | Async (email + dashboard) | HMs are busy; don't block Thunder flow; allow 24hrs response time |
+| **Auto-approve on timeout** | Configurable (default: false) | Better to escalate than force approval; auditable |
+| **Question Types** | yes/no, yes/no/maybe, text | Covers 90% of manager validation needs |
+| **Who decides next step** | Question 4 determines flow | Single clear decision point; easy for AI to interpret |
+| **Notify candidate on reject** | Generic message only | Don't reveal HM vetted them out (protects HM relationship) |
+| **Store HM answers** | Full JSONB in responses table | Audit trail; used for interview briefing; future ML |
+| **Timeout escalation** | To HM's manager | Ensures decision happens; maintains accountability |
+
+### Acceptance Criteria
+
+- [ ] HM validation questions can be configured per job
+- [ ] AI Recruiter retrieves questions and sends to HM
+- [ ] HM can answer questions via email or dashboard
+- [ ] HM response triggers correct workflow (interview or next candidate)
+- [ ] Timeout/escalation works correctly
+- [ ] All responses stored in audit log
+- [ ] Interview panel receives HM's answers before interview
+- [ ] Candidate aware of status but not specific HM feedback
+- [ ] No candidate reaches interview stage without HM approval
+- [ ] System handles multiple candidates for same job (queue management)
+
+### Dependencies
+
+**Before this can be implemented:**
+- ✅ Thunder autonomous loop (DONE - 2026-08-12)
+- ✅ AI Recruiter matching logic (DONE - 2026-08-12)
+- ✅ Interview scheduling automation (DONE - 2026-08-09)
+- ✅ Email notification system (DONE - foundation exists)
+- ⏳ Dashboard framework (IN PROGRESS - needed for HM validation card)
+
+**After this, enables:**
+- More confident hiring manager engagement
+- Interview panel prep (knows manager's concerns)
+- Better candidate feedback (contextual to manager's validation)
+- Reduced wasted interview time
+- Full autonomous hiring flow (Thunder → Interview → Offer → Hire → Onboard)
+
+### Out of Scope (Phase 2+)
+
+- Bulk validation (multiple candidates at once)
+- AI-suggested answers for HM questions
+- Hiring manager validation templates/presets
+- Cross-regional HM escalation policies
+- Workflow variations per department
+
+---
+
+## 🎯 BACKLOG STORY: careers.blitzenx.com Frontend - Production Grade
+
+**Story ID:** EPIC-07-CAREERS-PORTAL-FRONTEND  
+**Priority:** HIGH - Enables public candidate applications  
+**Status:** MVP DEPLOYED - Needs production hardening  
+**Created:** 2026-08-13  
+**Scope:** 4-6 weeks for production-ready frontend
+
+### Problem Statement
+
+**Current State:** careers.blitzenx.com has a basic MVP frontend (localhost:3001) with:
+- ✅ Job listings working
+- ✅ Thunder chatbot flow functional
+- ✅ Basic styling (inline CSS)
+
+**Gaps Blocking Production:**
+- ❌ No error handling (network failures, timeouts, validation errors)
+- ❌ No form validation (invalid emails, missing fields accepted)
+- ❌ No state persistence (form data lost on refresh)
+- ❌ No API integration (frontend not calling backend endpoints)
+- ❌ Poor UX (no loading states, no feedback messages)
+- ❌ Accessibility issues (no WCAG 2.1 compliance)
+- ❌ No analytics (can't track user behavior)
+- ❌ Mobile UX needs work (touch interactions, responsive layout)
+- ❌ No tests (no unit, integration, or E2E tests)
+- ❌ Deployment not configured (not ready for production)
+
+**Business Impact:**
+- Candidates experience errors without clear guidance
+- Session data lost, candidates forced to restart
+- No visibility into application funnel
+- Poor mobile experience (30-40% of traffic)
+- Not meeting accessibility requirements
+
+### Solution Overview
+
+**Transform careers.blitzenx.com from MVP to production-grade:**
+
+```
+Phase 1: Error Handling & Validation (Week 1)
+  ├─ Form validation (email, required fields, file upload)
+  ├─ Error boundaries and fallback UI
+  ├─ Network error handling with retry logic
+  └─ Toast notifications for user feedback
+
+Phase 2: State Management & Persistence (Week 2)
+  ├─ Zustand store for session state
+  ├─ LocalStorage for form recovery
+  ├─ Session recovery from email link (?session_id=xxx)
+  └─ Automatic save-on-input (debounced)
+
+Phase 3: API Integration (Week 2)
+  ├─ Connect Thunder form to backend /api/v1/thunder/* endpoints
+  ├─ Resume parsing callback integration
+  ├─ Job listing API integration
+  └─ Error handling per endpoint
+
+Phase 4: UX Enhancements (Week 3)
+  ├─ Loading states & spinners
+  ├─ Progress indicators (actual % complete)
+  ├─ Success/error messaging
+  ├─ Keyboard navigation
+  └─ Accessibility audit (WCAG 2.1 AA)
+
+Phase 5: Mobile & Responsive (Week 3)
+  ├─ Touch-friendly buttons (48px minimum)
+  ├─ Mobile-first responsive design
+  ├─ Viewport optimization
+  └─ iOS/Android testing
+
+Phase 6: Testing (Week 4)
+  ├─ Unit tests (components, hooks, utilities)
+  ├─ Integration tests (API calls, state changes)
+  ├─ E2E tests (Cypress: complete Thunder flow)
+  └─ Performance testing (Lighthouse, Core Web Vitals)
+
+Phase 7: Analytics & Monitoring (Week 4)
+  ├─ Google Analytics integration
+  ├─ Funnel tracking (Q1→Q8 completion)
+  ├─ Error tracking (Sentry)
+  ├─ Session recording (optional: Hotjar/LogRocket)
+  └─ Performance monitoring (Web Vitals)
+
+Phase 8: Deployment (Week 5)
+  ├─ Vercel configuration
+  ├─ Environment setup (staging/production)
+  ├─ CDN caching strategy
+  ├─ SSL/TLS configuration
+  └─ Monitoring & alerting
+```
+
+### Detailed Requirements
+
+#### Phase 1: Form Validation & Error Handling
+
+**Form Validators:**
+```typescript
+// Email validation
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+// Required field validation
+const isRequired = (value) => value && value.trim().length > 0
+
+// Phone number validation
+const isValidPhone = (phone) => /^[\d\s\-\+\(\)]+$/.test(phone)
+
+// Resume file validation (PDF/DOCX, max 5MB)
+const isValidResume = (file) => {
+  const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+  return validTypes.includes(file.type) && file.size <= 5 * 1024 * 1024
+}
+```
+
+**Error Handling:**
+```typescript
+// Network error handler
+const handleError = (error) => {
+  if (!error.response) {
+    return 'Network error. Check your connection and try again.'
+  }
+  
+  const status = error.response.status
+  if (status === 400) return 'Invalid input. Please check your answers.'
+  if (status === 404) return 'Resource not found.'
+  if (status === 500) return 'Server error. Please try again later.'
+  
+  return 'Something went wrong. Please try again.'
+}
+
+// Retry logic for failed requests
+const retryRequest = async (fn, maxRetries = 3) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      if (i === maxRetries - 1) throw error
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+    }
+  }
+}
+```
+
+#### Phase 2: State Management with Zustand
+
+```typescript
+// Store for Thunder session
+import create from 'zustand'
+
+interface ThunderStore {
+  sessionId: string | null
+  currentQuestion: string
+  responses: Record<string, any>
+  status: 'idle' | 'loading' | 'error'
+  error: string | null
+  
+  // Actions
+  initSession: (email: string) => Promise<void>
+  submitAnswer: (question: string, response: any) => Promise<void>
+  uploadResume: (file: File) => Promise<void>
+  submitApplication: () => Promise<void>
+}
+
+export const useThunderStore = create<ThunderStore>((set) => ({
+  sessionId: null,
+  currentQuestion: 'Q1',
+  responses: {},
+  status: 'idle',
+  error: null,
+  
+  initSession: async (email) => {
+    set({ status: 'loading' })
+    try {
+      const { data } = await axios.post('/api/v1/thunder/sessions', { 
+        candidate_email: email 
+      })
+      set({ sessionId: data.session_id, status: 'idle' })
+    } catch (error) {
+      set({ error: error.message, status: 'error' })
+    }
+  },
+  
+  // ... other actions
+}))
+```
+
+#### Phase 3: API Integration
+
+**Axios instance with interceptors:**
+```typescript
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL
+})
+
+// Request interceptor
+api.interceptors.request.use((config) => {
+  // Add session ID to headers if available
+  const sessionId = localStorage.getItem('thunder_session_id')
+  if (sessionId) {
+    config.headers['X-Session-ID'] = sessionId
+  }
+  return config
+})
+
+// Response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Handle authentication error
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default api
+```
+
+#### Phase 4: Accessibility Compliance (WCAG 2.1 AA)
+
+**Requirements:**
+- [ ] Color contrast ratio ≥ 4.5:1 for text
+- [ ] All form inputs have associated labels
+- [ ] Keyboard navigation (Tab, Enter, Escape)
+- [ ] ARIA roles and live regions for dynamic content
+- [ ] Skip navigation link
+- [ ] Focus visible on all interactive elements
+- [ ] No text-only images (use alt text)
+- [ ] Heading hierarchy (h1 → h2 → h3)
+- [ ] Landmarks (header, nav, main, footer)
+
+#### Phase 5: Mobile Optimization
+
+**Viewport meta tag:**
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+```
+
+**Touch-friendly buttons:**
+```css
+button {
+  min-height: 48px;  /* Touch target size */
+  min-width: 48px;
+  padding: 12px 16px;
+}
+```
+
+**Responsive breakpoints:**
+```css
+/* Mobile: 375px - 767px */
+/* Tablet: 768px - 1023px */
+/* Desktop: 1024px+ */
+```
+
+#### Phase 6: Testing Strategy
+
+**Unit tests (Jest):**
+```typescript
+describe('ThunderChat', () => {
+  it('should display next question after answer', async () => {
+    render(<ThunderChat />)
+    const input = screen.getByPlaceholderText('Type your answer...')
+    
+    fireEvent.change(input, { target: { value: 'Jane Doe' } })
+    fireEvent.click(screen.getByText('Next →'))
+    
+    await waitFor(() => {
+      expect(screen.getByText(/How many years/)).toBeInTheDocument()
+    })
+  })
+})
+```
+
+**E2E tests (Cypress):**
+```typescript
+describe('Thunder Complete Flow', () => {
+  it('should complete full Thunder intake', () => {
+    cy.visit('/jobs')
+    cy.contains('Apply now').first().click()
+    
+    // Q1: Email
+    cy.get('input[type="text"]').type('test@example.com')
+    cy.contains('Next').click()
+    
+    // Q2-Q8: Answer all questions
+    // ...
+    
+    // Submit
+    cy.contains('Submit Application').click()
+    
+    // Verify success
+    cy.contains('Application Received!').should('be.visible')
+  })
+})
+```
+
+#### Phase 7: Analytics
+
+**Events to track:**
+- Session started (job_id, device_type)
+- Question answered (question_id, time_taken)
+- Resume uploaded (file_size, format)
+- Application submitted (completion_time, job_id)
+- Errors encountered (error_type, question_id)
+- Session abandoned (last_question_reached)
+
+**Funnel analysis:**
+- Job viewed → Apply clicked → Q1 answered → Q8 answered → Submitted
+- Dropout rate by question
+- Average time per question
+- Resume upload success rate
+
+#### Phase 8: Deployment
+
+**Vercel Configuration (vercel.json):**
+```json
+{
+  "buildCommand": "npm run build",
+  "env": {
+    "NEXT_PUBLIC_API_BASE_URL": "@api_base_url"
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.blitzenx.com/api/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+      ]
+    }
+  ]
+}
+```
+
+### Acceptance Criteria
+
+- [ ] All form inputs validate before submission
+- [ ] Network errors show clear, actionable messages
+- [ ] Form data persists when page is refreshed
+- [ ] Session can be resumed via email link
+- [ ] All backend API endpoints integrated and tested
+- [ ] Loading spinners show during network requests
+- [ ] Mobile experience works on iOS and Android
+- [ ] Lighthouse score ≥ 90 for all metrics
+- [ ] WCAG 2.1 AA compliance verified
+- [ ] 80%+ unit test coverage
+- [ ] Complete E2E test coverage (all user flows)
+- [ ] Analytics events firing correctly
+- [ ] Deployment to Vercel automated
+- [ ] Error tracking (Sentry) integrated
+
+### Dependencies
+
+- Backend APIs deployed and working (EPIC-06 complete)
+- Design system/component library decision (Tailwind vs custom)
+- Analytics account setup (Google Analytics, Sentry)
+- Vercel or hosting provider configured
+
+### Timeline
+
+- **Weeks 1-2:** Phase 1-3 (validation, state, API)
+- **Weeks 3-4:** Phase 4-6 (UX, mobile, testing)
+- **Week 5:** Phase 7-8 (analytics, deployment)
+- **Total:** 5 weeks for production-ready
+
+### Out of Scope
+
+- Custom animation library
+- A/B testing framework
+- Multi-language support
+- Native mobile apps
 
 ---
 

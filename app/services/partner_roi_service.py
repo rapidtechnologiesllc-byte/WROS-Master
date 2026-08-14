@@ -95,12 +95,18 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
 
     available_hours = allocated_employees * 173 if allocated_employees > 0 else 1
 
-    # Billable hours from invoices (approximation: invoice line items have hours)
-    billable_hours = db.query(func.sum(Invoice.billable_hours)).filter(
+    # Billable hours from invoice line items
+    from app.models.invoice import InvoiceLineItem
+    billable_hours = db.query(func.sum(InvoiceLineItem.hours)).join(
+        Invoice, Invoice.id == InvoiceLineItem.invoice_id
+    ).filter(
         Invoice.business_unit_id == bu_id,
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end
     ).scalar() or 0
+
+    # Convert Decimal to float if needed
+    billable_hours = float(billable_hours) if billable_hours else 0
 
     practice_utilization_pct = (billable_hours / available_hours * 100) if available_hours > 0 else 0
 

@@ -196,9 +196,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         try:
             # Query user_roles for multi-role support
             from sqlalchemy import text as sql_text
+
+            # Get roles assigned to user
             user_roles_result = db.execute(
                 sql_text("""
-                    SELECT DISTINCT r.id, r.name, r.permissions
+                    SELECT DISTINCT r.id, r.name
                     FROM user_roles ur
                     JOIN roles r ON ur.role_id = r.id
                     WHERE ur.user_id = :user_id
@@ -207,20 +209,24 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             ).fetchall()
 
             if user_roles_result:
-                for role_id, role_name, permissions_json in user_roles_result:
+                for role_id, role_name in user_roles_result:
                     roles_list.append(role_name)
-                    if permissions_json:
-                        import json
-                        try:
-                            perms = json.loads(permissions_json) if isinstance(permissions_json, str) else permissions_json
-                            if isinstance(perms, dict):
-                                for module, verbs in perms.items():
-                                    for verb in (verbs if isinstance(verbs, list) else [verbs]):
-                                        perm_str = f"{module}.{verb}" if verb != "*" else f"{module}.*"
-                                        if perm_str not in permissions_list:
-                                            permissions_list.append(perm_str)
-                        except:
-                            pass
+
+                    # Get permissions for this role from role_permissions junction table
+                    perms_result = db.execute(
+                        sql_text("""
+                            SELECT p.name
+                            FROM role_permissions rp
+                            JOIN permissions p ON rp.permission_id = p.id
+                            WHERE rp.role_id = :role_id
+                        """),
+                        {"role_id": role_id}
+                    ).fetchall()
+
+                    if perms_result:
+                        for (perm_name,) in perms_result:
+                            if perm_name not in permissions_list:
+                                permissions_list.append(perm_name)
 
             # Get business unit name
             if business_unit_id:

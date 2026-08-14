@@ -51,6 +51,12 @@ from app.models.opportunity import Opportunity
 from app.models.expense import ExpenseRecord
 from app.models.partner_incentive import PartnerIncentiveRule, PartnerIncentiveEvent
 from app.models.revenue_target import BURevenueTarget, PartnerGoal
+from app.models.thunder_session import ThunderSession, ThunderSessionStatus
+from app.models.hiring_manager_validation import (
+    HiringManagerValidation,
+    HMValidationResponse,
+    HMValidationStatus,
+)
 from app.models.timesheet_dispute import TimesheetDispute
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser, ClarificationQA
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
