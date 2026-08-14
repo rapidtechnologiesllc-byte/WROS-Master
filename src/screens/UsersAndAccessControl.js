@@ -234,38 +234,35 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     new_password: ""
   });
 
-  // Load business units on mount
-  useEffect(() => {
-    const loadBusinessUnits = async () => {
+  // Load business units on demand (when modal opens)
+  const loadBusinessUnits = async () => {
+    try {
+      // Try the RBAC endpoint first
+      const { data } = await apiRequest("/rbac/business-units", {
+        method: "GET"
+      });
+      const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
+      setBusinessUnits(busData);
+    } catch (err) {
+      console.error("Failed to load business units from /rbac/business-units:", err);
       try {
-        // Try the RBAC endpoint first
-        const { data } = await apiRequest("/rbac/business-units", {
+        // Fallback: try legacy endpoint
+        const { data } = await apiRequest("/business-units", {
           method: "GET"
         });
         const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
         setBusinessUnits(busData);
-      } catch (err) {
-        console.error("Failed to load business units from /rbac/business-units:", err);
-        try {
-          // Fallback: try legacy endpoint
-          const { data } = await apiRequest("/business-units", {
-            method: "GET"
-          });
-          const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
-          setBusinessUnits(busData);
-        } catch (fallbackErr) {
-          console.error("Fallback also failed, using default business units:", fallbackErr);
-          // Fallback: set some default business units
-          setBusinessUnits([
-            { id: 1, name: "North America", bu_name: "North America" },
-            { id: 2, name: "Europe", bu_name: "Europe" },
-            { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
-          ]);
-        }
+      } catch (fallbackErr) {
+        console.error("Fallback also failed, using default business units:", fallbackErr);
+        // Fallback: set some default business units
+        setBusinessUnits([
+          { id: 1, name: "North America", bu_name: "North America" },
+          { id: 2, name: "Europe", bu_name: "Europe" },
+          { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
+        ]);
       }
-    };
-    loadBusinessUnits();
-  }, []);
+    }
+  };
 
   const filteredUsers = useMemo(() => {
     if (!Array.isArray(users)) return [];
@@ -480,6 +477,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                   <button
                     onClick={async () => {
                       setSelectedUserId(row.user_id);
+                      // Load business units on demand
+                      await loadBusinessUnits();
                       try {
                         // Fetch saved permissions for this user
                         const savedPermissions = await getUserPermissions(row.user_id);
