@@ -136,8 +136,8 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
 
     # Candidates that responded (have messages in conversations)
     candidates_with_responses = (
-        db.query(ConversationEvent.candidate_id)
-        .join(CandidateConversation, ConversationEvent.conversation_id == CandidateConversation.id)
+        db.query(CandidateConversation.candidate_id)
+        .join(ConversationEvent, ConversationEvent.conversation_id == CandidateConversation.id)
         .filter(CandidateConversation.tenant_id == tenant_id, ConversationEvent.event_type.in_(["candidate_message", "candidate_reply"]), ConversationEvent.created_at.between(from_dt, to_dt))
         .distinct()
         .count()
