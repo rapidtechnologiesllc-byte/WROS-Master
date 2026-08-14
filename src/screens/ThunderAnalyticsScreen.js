@@ -122,10 +122,16 @@ export default function ThunderAnalyticsScreen() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        <KpiCard label="Candidates Reached" value={summary.candidates_reached} suffix="" colorClass="border-blue-200 bg-blue-50 text-blue-800" />
+        <KpiCard label="Candidates Responded" value={summary.candidates_responded} suffix="" colorClass="border-green-200 bg-green-50 text-green-800" />
+        <KpiCard label="Jobs Connected" value={summary.jobs_connected_to_thunder} suffix="" colorClass="border-purple-200 bg-purple-50 text-purple-800" />
         <KpiCard label="Qualification Rate" value={summary.qualification_rate} suffix="%" colorClass={kpiColor(summary.qualification_rate, 70, 50, true)} />
         <KpiCard label="Escalation Rate" value={summary.escalation_rate} suffix="%" colorClass={kpiColor(summary.escalation_rate, 10, 20, false)} />
         <KpiCard label="Ghosting Rate" value={summary.ghosting_rate} suffix="%" colorClass="border-gray-200 bg-gray-50 text-gray-700" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <KpiCard
           label="Human Intervention"
           value={summary.human_intervention_rate}
