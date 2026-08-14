@@ -69,12 +69,15 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
 
     try:
         # Step 1: Find candidates pending outreach (no active conversation = never contacted)
-        # Query: all candidates without an existing CandidateConversation record
-        pending_candidates = db.query(Candidate).filter(
-            ~db.query(CandidateConversation).filter(
-                CandidateConversation.candidate_id == Candidate.candidateID
-            ).exists()
-        ).limit(10).all()  # Limit to 10 per cycle to avoid overwhelming
+        # OPTIMIZED: Use LEFT JOIN instead of NOT EXISTS for better performance
+        from sqlalchemy import func
+        pending_candidates = db.query(Candidate).outerjoin(
+            CandidateConversation,
+            Candidate.candidateID == CandidateConversation.candidate_id
+        ).filter(
+            CandidateConversation.id == None,  # No conversation exists
+            Candidate.do_not_contact == False  # Respect opt-out
+        ).limit(50).all()  # Batch size: 50 candidates per cycle (5x more throughput)
 
         # Step 2: Create conversations and log Thunder outreach activity for each candidate
         for candidate in pending_candidates:
@@ -112,15 +115,23 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                 db.rollback()
 
         # Step 3: Advance existing open sequences
+        # OPTIMIZED: Increased limit from 20 to 100, pre-fetch candidates to avoid N+1
         open_sequences = db.query(OutreachSequence).filter(
             OutreachSequence.status.in_(["SENT", "QUEUED"])
-        ).limit(20).all()
+        ).limit(100).all()
+
+        # Pre-fetch all candidates for these sequences (single query instead of N queries)
+        candidate_ids = [seq.candidate_id for seq in open_sequences]
+        candidates_map = {}
+        if candidate_ids:
+            candidates_list = db.query(Candidate).filter(
+                Candidate.candidateID.in_(candidate_ids)
+            ).all()
+            candidates_map = {c.candidateID: c for c in candidates_list}
 
         for sequence in open_sequences:
             try:
-                candidate = db.query(Candidate).filter(
-                    Candidate.candidateID == sequence.candidate_id
-                ).first()
+                candidate = candidates_map.get(sequence.candidate_id)
                 if candidate:
                     advance_outreach_sequence(
                         db,
