@@ -199,7 +199,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     user_name: "",
     user_email: "",
     user_password: "",
-    job_title: "",
     user_role: roles[0]?.name || "",
     business_unit_id: "",
     role_ids: [] // Multi-role support
@@ -208,7 +207,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [editForm, setEditForm] = useState({
     user_name: "",
     user_role: "",
-    job_title: "",
     business_unit_id: "",
     role_ids: [], // Multi-role support for edit
     expandAllPermissions: false,
@@ -320,7 +318,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         user_name: createForm.user_name,
         user_email: createForm.user_email,
         user_password: createForm.user_password,
-        job_title: createForm.job_title || null,
         role_ids: roleIds.map(id => parseInt(id, 10))
       };
 
@@ -336,7 +333,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       toast.success("User created successfully.");
       setShowCreateModal(false);
-      setCreateForm({ user_name: "", user_email: "", user_password: "", job_title: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
+      setCreateForm({ user_name: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
       window.location.reload();
     } catch (err) {
       toast.error(err.message || "Failed to create user.");
@@ -376,7 +373,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     try {
       const payload = {
         user_name: editForm.user_name,
-        job_title: editForm.job_title || null,
         role_ids: roleIds.map(id => parseInt(id, 10))
       };
 
@@ -637,13 +633,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             onChange={(e) => setCreateForm({ ...createForm, user_password: e.target.value })}
           />
 
-          <Input
-            label="Job Title"
-            placeholder="e.g., Senior Recruiter"
-            value={createForm.job_title}
-            onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
-          />
-
           {/* Role Selection (required) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
@@ -737,13 +726,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             label="Name"
             value={editForm.user_name}
             onChange={(e) => setEditForm({ ...editForm, user_name: e.target.value })}
-          />
-
-          <Input
-            label="Job Title"
-            placeholder="e.g., Senior Recruiter"
-            value={editForm.job_title}
-            onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
           />
 
           {/* Role Selection (required) */}
