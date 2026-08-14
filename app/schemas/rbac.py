@@ -200,4 +200,38 @@ class BusinessUnitWithDepartmentsResponse(BaseModel):
     created_at: datetime
     departments: List[DepartmentInBU] = []
 
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Role Template Schemas
+# ---------------------------------------------------------------------------
+
+class RoleTemplateCreate(BaseModel):
+    """Create a role template by combining existing base roles"""
+    name: str = Field(..., min_length=1, max_length=100, example="Finance Manager")
+    description: Optional[str] = None
+    base_role_ids: List[int] = Field(..., description="IDs of base roles to combine", example=[3, 5, 7])
+
+
+class RoleTemplateResponse(BaseModel):
+    """Role template with the created role details"""
+    id: int
+    name: str
+    description: Optional[str] = None
+    role_id: int  # The actual role created from this template
+    role: RoleListItem  # The created role details
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RoleTemplateListItem(BaseModel):
+    """Lightweight role template representation for list endpoints"""
+    id: int
+    name: str
+    description: Optional[str] = None
+    role_id: int
+    created_at: datetime
+
     model_config = {"from_attributes": True}

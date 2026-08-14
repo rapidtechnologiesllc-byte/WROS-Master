@@ -280,6 +280,87 @@ ROLE_PERMISSIONS_SEED: Dict[str, List[str]] = {
 }
 
 
+# Role Templates — predefined combinations of roles for common use cases
+# These are NOT new roles; they combine existing roles to simplify user creation
+ROLE_TEMPLATES = [
+    {
+        "id": "ceo",
+        "name": "Chief Executive Officer",
+        "description": "Full system access with strategic oversight",
+        "role_names": ["CEO"]
+    },
+    {
+        "id": "cfo",
+        "name": "Chief Financial Officer",
+        "description": "Full financial and system access",
+        "role_names": ["CFO"]
+    },
+    {
+        "id": "partner",
+        "name": "Partner / Organization Leader",
+        "description": "Global access across Business Units with leadership authority",
+        "role_names": ["Partner"]
+    },
+    {
+        "id": "bu_head",
+        "name": "Business Unit Head",
+        "description": "Full access within assigned Business Unit",
+        "role_names": ["BU Head"]
+    },
+    {
+        "id": "finance_manager",
+        "name": "Finance Manager",
+        "description": "Financial oversight, P&L visibility, and reporting",
+        "role_names": ["Finance", "Recruitment Team Lead"]
+    },
+    {
+        "id": "recruiter_lead",
+        "name": "Recruiter Lead",
+        "description": "Recruitment management with team oversight",
+        "role_names": ["Recruitment Team Lead", "Recruitment Manager"]
+    },
+    {
+        "id": "recruiter",
+        "name": "Recruiter",
+        "description": "Manage candidates and pipeline",
+        "role_names": ["Recruiter"]
+    },
+    {
+        "id": "hr_manager",
+        "name": "HR Manager",
+        "description": "Full HR control within Business Unit",
+        "role_names": ["HR Manager"]
+    },
+    {
+        "id": "hiring_manager",
+        "name": "Hiring Manager",
+        "description": "Access to jobs and interview feedback",
+        "role_names": ["Hiring Manager"]
+    },
+    {
+        "id": "employee",
+        "name": "Employee",
+        "description": "Access to own data and internal job opportunities",
+        "role_names": ["Employee"]
+    },
+    {
+        "id": "custom",
+        "name": "Custom Role Selection",
+        "description": "Select individual roles manually",
+        "role_names": []
+    }
+]
+
+def get_role_templates():
+    """Return list of available role templates for UI"""
+    return ROLE_TEMPLATES
+
+def get_template_role_names(template_id: str) -> List[str]:
+    """Get role names for a given template"""
+    template = next((t for t in ROLE_TEMPLATES if t["id"] == template_id), None)
+    return template["role_names"] if template else []
+
+
 # ---------------------------------------------------------------------------
 # RBAC Service
 # ---------------------------------------------------------------------------
