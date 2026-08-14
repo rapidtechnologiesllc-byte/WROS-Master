@@ -1207,15 +1207,24 @@ export default function UsersAndAccessControl() {
     setLoading(true);
     setError("");
     try {
-      const [usersRes, rolesRes, modulesRes] = await Promise.all([
+      // Load users and roles (required)
+      const [usersRes, rolesRes] = await Promise.all([
         getAllUsers(),
-        listRoles(),
-        getModulesAndVerbs()
+        listRoles()
       ]);
 
       setUsers(Array.isArray(usersRes) ? usersRes : []);
       setRoles(Array.isArray(rolesRes) ? rolesRes : []);
-      setModules(modulesRes?.modules || []);
+
+      // Load modules/verbs (optional - may fail due to permissions)
+      let modulesRes = null;
+      try {
+        modulesRes = await getModulesAndVerbs();
+        setModules(modulesRes?.modules || []);
+      } catch (modulesErr) {
+        console.warn("Failed to load modules and verbs (may require rbac.view permission):", modulesErr);
+        setModules([]);
+      }
 
       // Fetch current user permissions
       try {
