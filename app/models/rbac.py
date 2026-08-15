@@ -81,7 +81,7 @@ class RolePermission(Base):
     permission = relationship("Permission", back_populates="role_permissions")
 
     __table_args__ = (
-        UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),
+        UniqueConstraint("role_id", "permission_id", name="uq_role_permission_rbac"),
     )
 
     def __repr__(self) -> str:
