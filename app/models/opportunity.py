@@ -39,7 +39,9 @@ def _new_uuid() -> str:
 # Single source of truth: if either changes, both must change
 PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST")
 OPPORTUNITY_STAGES = PIPELINE_STATUSES
-CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # Contract won/active or lost
+# CLOSED_STAGES represents terminal stages where no further transitions are allowed
+# LOST is the only true terminal stage; ACTIVE is ongoing until naturally concluded
+CLOSED_STAGES = ("LOST",)  # Only LOST is a truly closed/terminal stage
 ENGAGEMENT_TYPES = ("STAFF_AUGMENTATION", "PROJECT_BASED")
 
 
