@@ -171,3 +171,67 @@ def get_finance_dashboard(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/partner-roi")
+def get_partner_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Partner ROI Dashboard - Partner metrics, revenue sharing, engagement.
+
+    Required: Partner role
+    """
+
+    try:
+        if current_user.UserRole not in ["Super User", "Admin", "Partner"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only Partners can view partner dashboard"
+            )
+
+        dashboard = RoleBasedDashboardService._partner_dashboard(db, current_user.tenant_id if hasattr(current_user, 'tenant_id') else None)
+
+        return {
+            "status": "success",
+            "dashboard_type": "PARTNER_ROI",
+            "dashboard": dashboard,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cfo-agent")
+def get_cfo_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    CFO Agent Dashboard - AI-driven financial metrics, forecasts, risks.
+
+    Required: CFO or Finance role
+    """
+
+    try:
+        if current_user.UserRole not in ["Super User", "Admin", "Finance", "CFO"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only CFO/Finance staff can view CFO dashboard"
+            )
+
+        dashboard = RoleBasedDashboardService._cfo_dashboard(db, current_user.tenant_id if hasattr(current_user, 'tenant_id') else None)
+
+        return {
+            "status": "success",
+            "dashboard_type": "CFO_AGENT",
+            "dashboard": dashboard,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
