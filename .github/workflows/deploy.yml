@@ -92,10 +92,10 @@ jobs:
              python3 -m pip install --break-system-packages -r requirements.txt && \
              python3 -m alembic upgrade head || echo \"Migration skipped\"'"
 
-      - name: Restart PM2 service
+      - name: Restart Python backend service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc 'pm2 restart ${{ env.PM2_SERVICE }}'"
+            "bash -lc 'pkill -f uvicorn; sleep 1; cd ${{ env.PROD_PATH }} && nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 &'"
         continue-on-error: true
 
       - name: Health check (20s retry)
@@ -120,7 +120,7 @@ jobs:
             "cd ${{ env.PROD_PATH }} && \
              PREV_COMMIT=\$(cat /tmp/backend-current-commit.txt) && \
              git reset --hard \$PREV_COMMIT && \
-             pm2 restart ${{ env.PM2_SERVICE }}"
+             bash -lc 'pkill -f uvicorn; sleep 1; nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 &'"
           echo "⚠️ Deployment failed - rolled back to previous version"
 
       - name: Notify deployment
