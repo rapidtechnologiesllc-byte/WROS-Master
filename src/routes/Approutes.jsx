@@ -619,7 +619,7 @@ export default function AppRoutes() {
             />
 
             <Route
-              path="/jobs"
+              path="jobs"
               element={
                 <JobsOverview
                   jobs={jobs}
@@ -968,7 +968,7 @@ export default function AppRoutes() {
               />
             }
           />
-          <Route path="/offers" element={<OfferLettersScreen />} />
+          <Route path="offers" element={<OfferLettersScreen />} />
         </Route>
       </Routes>
       <ToastContainer position="top-right" autoClose={3000} />
