@@ -58,9 +58,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # per-tenant, admin-configurable without a code deployment.
 DEFAULT_THUNDER_DISPLAY_NAME = "Thunder"
 DEFAULT_THUNDER_PERSONA_TEXT = (
-    "I am Thunder, Talent Scout at BlitzenX — Powering our global team at "
-    "lightning speed. I help candidates through the application process "
-    "with professionalism and speed."
+    "I am Thunder, Talent Scout at BlitzenX. I guide candidates through "
+    "hiring with professionalism and speed."
 )
 
 # Ordered list of (candidate_field, friendly_label) tuples.

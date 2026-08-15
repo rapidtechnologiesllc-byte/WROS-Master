@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 
 logger = logging.getLogger(__name__)
 from app.core.security import get_password_hash, create_access_token
