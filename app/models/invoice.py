@@ -41,9 +41,9 @@ class Invoice(Base):
     opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
-    # Business Unit assignment — derived from client's BU or project's BU
+    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
     # Denormalized for easier querying and reporting by BU
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     billing_period_start = Column(Date, nullable=False)
     billing_period_end = Column(Date, nullable=False)
@@ -68,7 +68,7 @@ class Invoice(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 
 class InvoiceLineItem(Base):
