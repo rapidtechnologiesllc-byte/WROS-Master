@@ -49,7 +49,7 @@ const GROUP_DEFS = [
   {
     label: "Executive",
     icon: BarChart3,
-    keys: ["ceoFyProgress"],
+    keys: ["ceoFyProgress", "executiveRevenueDashboard", "cfoDashboard", "buHeadDashboard", "partnerRoi"],
   },
   {
     label: "Recruitment",
@@ -59,12 +59,12 @@ const GROUP_DEFS = [
   {
     label: "Sales",
     icon: TrendingUp,
-    keys: ["clientManagement", "demandConfirmation", "opportunityPipeline", "partnerRoi"],
+    keys: ["clientManagement", "demandConfirmation", "opportunityPipeline"],
   },
   {
     label: "Workforce",
     icon: Users2,
-    keys: ["employees", "htdIntake", "buddyProgram", "buHeadDashboard", "corePull"],
+    keys: ["employees", "htdIntake", "buddyProgram", "corePull"],
   },
   {
     label: "Project Management",
@@ -79,7 +79,7 @@ const GROUP_DEFS = [
     icon: BadgeDollarSign,
     // 2026-08-12, Avinash: "anything monetary stays in finance" -- myExpenses
     // moved in from standalone. Finance owns billing, invoicing, and revenue reporting.
-    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "executiveRevenueDashboard", "cfoDashboard", "financeOperations"],
+    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "financeOperations"],
   },
   {
     label: "Admin",
