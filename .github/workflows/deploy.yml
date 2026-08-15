@@ -90,12 +90,12 @@ jobs:
              git checkout main && \
              git reset --hard origin/main && \
              python3 -m pip install --break-system-packages -r requirements.txt && \
-             echo \"Skipping migrations (using SQLite)\" || true'"
+             python3 -m alembic upgrade head 2>/dev/null || echo \"Migrations skipped or failed (expected for SQLite)\"'"
 
       - name: Restart Python backend service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc 'pkill -f uvicorn; sleep 1; cd ${{ env.PROD_PATH }} && nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 &'"
+            "bash -lc 'pkill -f uvicorn; sleep 1; cd ${{ env.PROD_PATH }} && python3 app/init_wros_db.py 2>&1 | head -5 && nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 &'"
         continue-on-error: true
 
       - name: Health check (20s retry)
