@@ -113,9 +113,11 @@ import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
+import CertificationManagementScreen from "../screens/CertificationManagementScreen";
 import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
+import MyReferralsScreen from "../screens/MyReferralsScreen";
 
 // Wrapper component that renders the appropriate dashboard based on user role
 const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
@@ -551,6 +553,7 @@ export default function AppRoutes() {
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="my-timesheet" element={<MyTimesheetScreen />} />
             <Route path="my-expenses" element={<MyExpensesScreen />} />
+            <Route path="my-referrals" element={<MyReferralsScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
@@ -559,6 +562,7 @@ export default function AppRoutes() {
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
+            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
@@ -798,6 +802,7 @@ export default function AppRoutes() {
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="my-timesheet" element={<MyTimesheetScreen />} />
             <Route path="my-expenses" element={<MyExpensesScreen />} />
+            <Route path="my-referrals" element={<MyReferralsScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
@@ -805,6 +810,7 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
+            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
           <Route
@@ -832,11 +838,27 @@ export default function AppRoutes() {
                   try {
                     const fullCandidate = await fetchCandidateById(c.id);
                     setCandidates((prev) => [fullCandidate, ...prev]);
-                    navigate(`/candidates/${fullCandidate.id}`);
+
+                    // Check if we're coming from referral flow
+                    const isFromReferral = sessionStorage.getItem("referralRedirect");
+                    if (isFromReferral) {
+                      sessionStorage.removeItem("referralRedirect");
+                      navigate(`/my-referrals`);
+                    } else {
+                      navigate(`/candidates/${fullCandidate.id}`);
+                    }
                   } catch (err) {
                     console.error("Failed to fetch candidate after creation, adding minimal data:", err);
                     setCandidates((prev) => [c, ...prev]);
-                    navigate(`/candidates/${c.id}`);
+
+                    // Check if we're coming from referral flow
+                    const isFromReferral = sessionStorage.getItem("referralRedirect");
+                    if (isFromReferral) {
+                      sessionStorage.removeItem("referralRedirect");
+                      navigate(`/my-referrals`);
+                    } else {
+                      navigate(`/candidates/${c.id}`);
+                    }
                   }
                 }}
               />

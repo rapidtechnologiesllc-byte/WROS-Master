@@ -28,6 +28,7 @@ import {
   Receipt,
   Settings,
   Award,
+  Gift,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -44,6 +45,8 @@ export const NAV_ITEMS = {
   // visibility posture as myTasks/myTimesheet (Avinash: "the expense
   // is logged by employee so they need to login to their portal").
   myExpenses: { path: ROUTES.MY_EXPENSES, label: "My Expenses", icon: Receipt },
+  // Employee referral program tracking - visible to all employees
+  myReferrals: { path: ROUTES.MY_REFERRALS, label: "My Referrals", icon: Gift },
   candidates: { path: ROUTES.CANDIDATES, label: "Candidates", icon: Users },
   jobs: { path: ROUTES.JOBS, label: "Jobs", icon: Briefcase },
   candidateReview: { path: ROUTES.HM_CANDIDATE_REVIEW, label: "Candidate Review", icon: UserCheck },
@@ -87,6 +90,7 @@ export const NAV_ITEMS = {
   ceoFyProgress: { path: ROUTES.CEO_FY_PROGRESS, label: "CEO FY Progress", icon: BarChart3 },
   cfoDashboard: { path: ROUTES.CFO_DASHBOARD, label: "CFO Agent", icon: LineChart },
   usersAccessControl: { path: ROUTES.USERS_ACCESS_CONTROL, label: "Users & Access Control", icon: Shield },
+  certifications: { path: ROUTES.CERTIFICATIONS, label: "Certifications Management", icon: Award },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
   // S-077/HRMS-0477 -- unified Thunder config, Super User only server-side
