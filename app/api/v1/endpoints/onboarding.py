@@ -9,6 +9,7 @@ import time
 import app.schemas as schema
 from app.core.database import get_db
 from app.core.logging import logger
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -557,9 +558,12 @@ def get_candidates_by_my_bu(
 
     # ── Resolve the calling user's BU ─────────────────────────────────────────
     calling_user = db.query(Users).filter(Users.UserID == user.UserID).first()
-    bu_id = calling_user.business_unit_id if calling_user else None
 
-    if not bu_id:
+    # Check if user is org-level (should see all data)
+    is_org_level = should_bypass_bu_filter(calling_user)
+    bu_id = get_user_bu_id(calling_user)
+
+    if not is_org_level and not bu_id:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -568,12 +572,19 @@ def get_candidates_by_my_bu(
             ),
         )
 
-    # ── Find candidate IDs that belong to this BU ─────────────────────────────
-    ownership_query = db.query(CandidateOwnership).filter(
-        CandidateOwnership.owned_by_bu_id == bu_id,
-        CandidateOwnership.pool_status == POOL_BU,
-    )
-    bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
+    # ── Find candidate IDs that belong to this BU (or all candidates if org-level) ─────────────────────────────
+    if is_org_level:
+        # Org-level users see all BU-owned candidates + org pool
+        bu_candidate_ids = {row.candidateID for row in db.query(CandidateOwnership).filter(
+            CandidateOwnership.pool_status == POOL_BU,
+        ).all()}
+    else:
+        # Regular users see only their BU's candidates
+        ownership_query = db.query(CandidateOwnership).filter(
+            CandidateOwnership.owned_by_bu_id == bu_id,
+            CandidateOwnership.pool_status == POOL_BU,
+        )
+        bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
 
     # ── Optionally include Org Pool candidates ────────────────────────────────
     if include_org_pool:

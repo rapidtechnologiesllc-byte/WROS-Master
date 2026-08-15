@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
@@ -439,9 +440,10 @@ def get_my_jobs(
         Jobs.hiringManagerID == my_id,
         Jobs.contactPerson == my_id,
     ]
-    
+
     # If the user is a BU Head, they should see all jobs belonging to their Business Unit
-    if is_bu_head and user.business_unit_id:
+    # (unless they're an org-level user who sees all jobs regardless)
+    if is_bu_head and user.business_unit_id and not should_bypass_bu_filter(user):
         filters.append(Jobs.business_unit_id == user.business_unit_id)
 
     jobs = (

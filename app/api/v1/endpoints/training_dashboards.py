@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users
 from app.services.training_certification_service import (
     get_buddy_program_overview,

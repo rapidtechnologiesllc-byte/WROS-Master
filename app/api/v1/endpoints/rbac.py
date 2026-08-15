@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.schemas.rbac import (
     RoleCreate, RoleResponse, RoleListItem,
     PermissionCreate, PermissionResponse,
