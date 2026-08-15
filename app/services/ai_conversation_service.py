@@ -57,10 +57,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # reads them). This is what resolve_thunder_config() below resolves
 # per-tenant, admin-configurable without a code deployment.
 DEFAULT_THUNDER_DISPLAY_NAME = "Thunder"
-DEFAULT_THUNDER_PERSONA_TEXT = (
-    "I am Thunder, Talent Scout at BlitzenX. I guide candidates through "
-    "hiring with professionalism and speed."
-)
+DEFAULT_THUNDER_PERSONA_TEXT = "I'm Thunder at BlitzenX. I help with hiring."
 
 # Ordered list of (candidate_field, friendly_label) tuples.
 # Only core `candidates` table fields — Aadhar / PAN are handled as documents.
