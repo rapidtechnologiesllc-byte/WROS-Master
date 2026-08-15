@@ -52,9 +52,9 @@ class Opportunity(Base):
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
     client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
     account_manager_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
-    # Business Unit assignment — derived from client's BU or assigned explicitly
+    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
     # Auto-populated from client when created; can be overridden if opportunity spans BUs
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     stage = Column(
         Enum(*OPPORTUNITY_STAGES, name="opportunity_stage", native_enum=False, create_constraint=True),
@@ -101,4 +101,4 @@ class Opportunity(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")

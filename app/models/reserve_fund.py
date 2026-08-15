@@ -17,7 +17,7 @@ class ReserveFundEntry(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     entry_type = Column(
         Enum(*RESERVE_FUND_ENTRY_TYPES, name="reserve_fund_entry_type", native_enum=False, create_constraint=True),

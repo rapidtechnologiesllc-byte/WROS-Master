@@ -48,7 +48,7 @@ class ExpenseRecord(Base):
 
     # Derived from the logger's own BU at creation time -- never a
     # freely-editable field, same rule as Client.business_unit_id.
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     logged_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
 
     purpose = Column(Enum(*EXPENSE_PURPOSES, name="expense_purpose", native_enum=False, create_constraint=True), nullable=False)

@@ -18,9 +18,9 @@ class BUAccess(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=False, index=True)
     is_default = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        UniqueConstraint("user_id", "business_unit_id", name="uq_bu_access_user_bu"),
+        UniqueConstraint("user_id", "bu_context_id", name="uq_bu_access_user_bu"),
     )

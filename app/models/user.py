@@ -18,7 +18,7 @@ class Users(Base):
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # RBAC — nullable so existing users are not broken on upgrade
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason: existing rows get backfilled
     # in a follow-up step, not broken by this migration. Every tenant-scoped
@@ -90,7 +90,7 @@ class Users(Base):
     terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
     # Multi-role support (2026-08-12 RBAC)
@@ -117,11 +117,11 @@ class UserRole(Base):
     id = Column(String(255), primary_key=True, index=True)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 class Jobs(Base):
     __tablename__ = "jobs"
@@ -142,7 +142,7 @@ class Jobs(Base):
     endDate = Column(Date, nullable=True)
     recuriterID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
@@ -184,7 +184,7 @@ class Jobs(Base):
     auto_schedule_after_approval = Column(Boolean, nullable=False, server_default="1", default=True)  # Auto-schedule interview if HM approves
     hm_auto_reject_threshold = Column(Integer, nullable=True)  # Auto-reject if <N responses negative
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
     recuriter = relationship("Users", foreign_keys=[recuriterID], lazy="select")

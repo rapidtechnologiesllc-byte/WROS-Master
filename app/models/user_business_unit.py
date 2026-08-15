@@ -11,12 +11,12 @@ class UserBusinessUnit(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     user_id = Column(String(50), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id", ondelete="CASCADE"), nullable=False, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
     user = relationship("Users", foreign_keys=[user_id], back_populates="user_business_units")
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id])
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id])
 
     __table_args__ = (
         # Ensure each user-BU combination is unique (composite unique constraint)

@@ -39,7 +39,7 @@ class Revenue(Base):
     opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=False, index=True)
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     # P&L Attribution: all revenue flows to Client Owner (opportunity owner at time of creation)
     client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
@@ -80,4 +80,4 @@ class Revenue(Base):
     recognized_at = Column(DateTime, nullable=False, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
