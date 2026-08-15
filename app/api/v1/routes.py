@@ -9,6 +9,7 @@ from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
+from app.api.v1.endpoints.interview_decision import router as interview_decision_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
 from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.checklists import router as checklists_router
@@ -46,6 +47,7 @@ from app.api.v1.endpoints.partner_incentives import router as partner_incentives
 from app.api.v1.endpoints.revenue_targets import router as revenue_targets_router
 from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_leakage_router
 from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_router
+from app.api.v1.endpoints.revenue_recognition import router as revenue_recognition_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
 # from app.api.v1.endpoints.public_chat import router as public_chat_router  # DISABLED: depends on incomplete Thunder
 from app.api.v1.endpoints.flash import router as flash_router
@@ -59,6 +61,7 @@ from app.api.v1.endpoints.sla_breach import router as sla_breach_router
 from app.api.v1.endpoints.technical_scoring import router as technical_scoring_router
 from app.api.v1.endpoints.abandonment_scoring import router as abandonment_scoring_router
 from app.api.v1.endpoints.offer_readiness import router as offer_readiness_router
+from app.api.v1.endpoints.offers import router as offers_router
 from app.api.v1.endpoints.candidate_journey import router as candidate_journey_router
 from app.api.v1.endpoints.drop_risk import router as drop_risk_router
 from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
@@ -103,6 +106,7 @@ from app.api.v1.endpoints.work_orders import router as work_orders_router
 # from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router  # DISABLED: endpoint not found
 from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
 from app.api.v1.endpoints.certifications_admin import router as certifications_admin_router
+from app.api.v1.endpoints.candidate_ranking import router as candidate_ranking_router
 
 router = fastapi.APIRouter()
 
@@ -117,6 +121,7 @@ router.include_router(router=candidates_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
+router.include_router(router=interview_decision_router)
 router.include_router(router=newsletter_router)
 router.include_router(router=checklists_router)
 router.include_router(router=candidate_status_router)
@@ -140,6 +145,7 @@ router.include_router(router=timesheets_router)
 router.include_router(router=resource_forecast_router)
 # router.include_router(router=invoices_router)  # DISABLED: depends on functions moved to P&L API
 router.include_router(router=revenue_router)
+router.include_router(router=revenue_recognition_router)
 router.include_router(router=finance_operations_router)
 router.include_router(router=tenants_router)
 router.include_router(router=projects_router)
@@ -166,6 +172,7 @@ router.include_router(router=technical_scoring_router)
 router.include_router(router=sla_breach_router)
 router.include_router(router=abandonment_scoring_router)
 router.include_router(router=offer_readiness_router)
+router.include_router(router=offers_router)
 router.include_router(router=candidate_journey_router)
 router.include_router(router=drop_risk_router)
 router.include_router(router=desire_intelligence_router)
@@ -208,4 +215,5 @@ router.include_router(router=work_orders_router)
 # router.include_router(router=training_dashboards_router)  # DISABLED: endpoint not found
 # router.include_router(router=bi_explorer_router)  # DISABLED: endpoint not found
 router.include_router(router=bu_head_dashboard_router)
-router.include_router(router=certifications_admin_router)
+router.include_router(router=certifications_admin_router)
+router.include_router(router=candidate_ranking_router)

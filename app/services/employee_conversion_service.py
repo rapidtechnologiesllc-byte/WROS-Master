@@ -1,199 +1,69 @@
-"""
-HRMS-0313 -- Employee Conversion Workflow (Phase 3)
-Convert accepted candidate to active employee with user account, role assignment, and onboarding.
-"""
-import uuid
-from datetime import datetime
+"""S-313 Employee Conversion Service"""
+from datetime import date
+from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
+from app.core.logging import logger
+from app.core.security import get_password_hash
 from app.models.candidate import Candidate
-from app.models.employee import Employee, EmploymentHistory
-from app.models.user import Users
-from app.models.business_unit_context import BusinessUnitContext
+from app.models.employee import Employee, EmployeeEngineHistory
+from app.models.user import Users, UserRole
+from app.services.email_service import EmailService
+from app.utils.uniq_id_generator import user_id_generator, generate_password
 
+class InvalidCandidateState(Exception):
+    pass
 
 class EmployeeConversionService:
-    """Manages candidate-to-employee conversion and employee account setup."""
-
-    def convert_candidate_to_employee(
-        self,
-        db: Session,
-        candidate_id: str,
-        tenant_id: int,
-        employee_name: str,
-        employee_email: str,
-        bu_context_id: int,
-        position_title: str,
-        joining_date: datetime,
-        employment_type: str = "FULL_TIME",
-        salary_usd_cents: int = 0,
-        role_ids: list = None
-    ) -> dict:
-        """Convert candidate to employee and create user account."""
-        candidate = db.query(Candidate).filter(
-            Candidate.candidateID == candidate_id,
-            Candidate.tenant_id == tenant_id
-        ).first()
-
-        if not candidate:
-            return {"status": "error", "message": "Candidate not found"}
-
-        if candidate.status != "OFFER_ACCEPTED":
-            return {"status": "error", "message": "Candidate has not accepted offer"}
-
-        # Generate unique employee ID
-        employee_id = str(uuid.uuid4())
-
-        # Create user account
-        user = Users(
-            UserID=employee_id,
-            username=employee_email.split('@')[0],
-            email=employee_email,
-            first_name=employee_name.split()[0] if ' ' in employee_name else employee_name,
-            last_name=employee_name.split()[1] if ' ' in employee_name else "",
-            tenant_id=tenant_id,
-            is_active=True,
-            created_at=datetime.utcnow()
-        )
-
+    @staticmethod
+    def create_employee_account(db, *, employee_name, employee_email, business_unit_id, tenant_id, role_ids=None, phone=None):
+        existing = db.query(Users).filter(Users.UserEmail == employee_email).first()
+        if existing:
+            raise ValueError(f"Email {employee_email} already in use")
+        password = generate_password()
+        user_id = user_id_generator()
+        user = Users(UserID=user_id, UserName=employee_name, UserEmail=employee_email, UserPassword=get_password_hash(password), business_unit_id=business_unit_id, tenant_id=tenant_id, UserRole="Employee")
         db.add(user)
+        db.flush()
+        if role_ids:
+            for rid in role_ids:
+                ur = UserRole(id=f"ur_{user.UserID}_{rid}", user_id=user.UserID, role_id=rid, bu_context_id=business_unit_id)
+                db.add(ur)
+        db.flush()
+        return user
 
-        # Create employee record
-        employee = Employee(
-            id=employee_id,
-            tenant_id=tenant_id,
-            employee_name=employee_name,
-            employee_email=employee_email,
-            bu_context_id=bu_context_id,
-            employment_type=employment_type,
-            position=position_title,
-            joining_date=joining_date,
-            created_at=datetime.utcnow()
-        )
-
-        db.add(employee)
-
-        # Create employment history entry
-        history = EmploymentHistory(
-            id=str(uuid.uuid4()),
-            employee_id=employee_id,
-            tenant_id=tenant_id,
-            employment_type=employment_type,
-            position=position_title,
-            effective_date=joining_date,
-            created_at=datetime.utcnow(),
-            change_type="HIRE"
-        )
-
-        db.add(history)
-
-        # Update candidate status
+    @staticmethod
+    def convert_candidate_to_employee(db, candidate, *, joining_date, business_unit_id=None, role_ids=None, employee_email=None, phone=None, first_name=None, last_name=None, employment_type="PERMANENT", tenant_id=None, changed_by=None, **fields):
+        if hasattr(candidate, "status") and candidate.status == "CONVERTED_TO_EMPLOYEE":
+            raise InvalidCandidateState("Candidate already converted")
+        email = employee_email or candidate.candidateEmail
+        fn = first_name or getattr(candidate, "candidateFirstName", "Employee") or "Employee"
+        ln = last_name or getattr(candidate, "candidateLastName", "") or ""
+        tid = tenant_id or getattr(candidate, "tenant_id", 1) or 1
+        ph = phone or getattr(candidate, "candidateMobile", None)
+        user = EmployeeConversionService.create_employee_account(db=db, employee_name=f"{fn} {ln}".strip(), employee_email=email, business_unit_id=business_unit_id or 1, tenant_id=tid, role_ids=role_ids, phone=ph)
+        fields.pop("delivery_engine", None)
+        emp = Employee(tenant_id=tid, candidate_id=candidate.candidateID, first_name=fn, last_name=ln, email=email, phone=ph, joining_date=joining_date, employment_type=employment_type, delivery_engine="SPECIALITY", engine_entry_date=joining_date, wros_user_id=user.UserID, **fields)
+        db.add(emp)
+        db.flush()
+        hist = EmployeeEngineHistory(tenant_id=tid, employee_id=emp.id, from_engine=None, to_engine="SPECIALITY", changed_by=changed_by, reason="Initial hire")
+        db.add(hist)
+        db.flush()
         candidate.status = "CONVERTED_TO_EMPLOYEE"
-        candidate.candidate_employee_user_id = employee_id
+        if hasattr(candidate, "candidate_employee_user_id"):
+            candidate.candidate_employee_user_id = user.UserID
+        db.add(candidate)
+        return user, emp
 
-        db.commit()
-
-        return {
-            "status": "success",
-            "employee_id": employee_id,
-            "candidate_id": candidate_id,
-            "employee_name": employee_name,
-            "employee_email": employee_email,
-            "joining_date": joining_date.isoformat(),
-            "user_account_created": True,
-            "employment_history_created": True
-        }
-
-    def assign_roles_to_employee(
-        self,
-        db: Session,
-        employee_id: str,
-        tenant_id: int,
-        role_ids: List[int]
-    ) -> dict:
-        """Assign roles to newly converted employee."""
-        user = db.query(Users).filter(
-            Users.UserID == employee_id,
-            Users.tenant_id == tenant_id
-        ).first()
-
-        if not user:
-            return {"status": "error", "message": "User not found"}
-
-        # Assign roles (implementation depends on RBAC model structure)
-        # This is a placeholder - real implementation would use user_roles table
-        user.assigned_roles = role_ids
-        db.commit()
-
-        return {
-            "status": "success",
-            "employee_id": employee_id,
-            "roles_assigned": role_ids,
-            "total_roles": len(role_ids)
-        }
-
-    def start_onboarding(
-        self,
-        db: Session,
-        employee_id: str,
-        tenant_id: int,
-        buddy_employee_id: str = None,
-        manager_employee_id: str = None
-    ) -> dict:
-        """Initialize onboarding process for new employee."""
-        employee = db.query(Employee).filter(
-            Employee.id == employee_id,
-            Employee.tenant_id == tenant_id
-        ).first()
-
-        if not employee:
-            return {"status": "error", "message": "Employee not found"}
-
-        # Set onboarding flags
-        employee.onboarding_started = True
-        employee.onboarding_start_date = datetime.utcnow()
-        employee.buddy_employee_id = buddy_employee_id
-        employee.manager_employee_id = manager_employee_id
-
-        db.commit()
-
-        return {
-            "status": "success",
-            "employee_id": employee_id,
-            "onboarding_started": True,
-            "buddy_assigned": buddy_employee_id is not None,
-            "manager_assigned": manager_employee_id is not None,
-            "start_date": employee.onboarding_start_date.isoformat()
-        }
-
-    def get_employee_summary(
-        self,
-        db: Session,
-        employee_id: str,
-        tenant_id: int
-    ) -> dict:
-        """Get complete employee profile."""
-        employee = db.query(Employee).filter(
-            Employee.id == employee_id,
-            Employee.tenant_id == tenant_id
-        ).first()
-
-        if not employee:
-            return None
-
-        user = db.query(Users).filter(
-            Users.UserID == employee_id,
-            Users.tenant_id == tenant_id
-        ).first()
-
-        return {
-            "employee_id": employee_id,
-            "name": employee.employee_name,
-            "email": employee.employee_email,
-            "position": employee.position,
-            "employment_type": employee.employment_type,
-            "joining_date": employee.joining_date.isoformat(),
-            "onboarding_status": "STARTED" if employee.onboarding_started else "PENDING",
-            "user_account_active": user.is_active if user else False,
-            "bu_context_id": employee.bu_context_id,
-            "created_at": employee.created_at.isoformat()
-        }
+    @staticmethod
+    def send_welcome_email(db, employee_user, employee_record, temporary_password=None, include_onboarding_link=True):
+        try:
+            if not temporary_password:
+                temporary_password = generate_password()
+            date_str = employee_record.joining_date.strftime("%d %B %Y")
+            body = f"<p>Welcome {employee_user.UserName}!</p><p>Email: {employee_user.UserEmail}</p><p>Temp Password: {temporary_password}</p><p>Join Date: {date_str}</p>"
+            email_html = EmailService._base_html("Welcome to BlitzenX", body)
+            EmailService.send_email_direct(to_email=employee_user.UserEmail, to_name=employee_user.UserName, subject="Welcome to BlitzenX", html_body=email_html)
+            return True
+        except Exception as e:
+            logger.error(f"Email failed: {str(e)}")
+            return False

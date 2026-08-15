@@ -44,25 +44,34 @@ from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.user import Users
 from app.schemas.core_pull import (
+    ApplyCorePullRuleRequest,
+    ApplyCorePullRuleResponse,
     CorePullEventItem,
     CorePullEventQueueResponse,
+    EvaluateCorePullRequest,
+    EvaluateCorePullResponse,
     ExecuteCorePullResponse,
     OverrideCorePullRequest,
     OverrideCorePullResponse,
     ReplacementPlanRequest,
     ReplacementPlanResponse,
+    ResolveConflictRequest,
+    ResolveConflictResponse,
     SpecialtyPoolStatusResponse,
 )
 from app.services.core_pull_service import (
-    CorePullOverrideForbidden,
-    InvalidOverrideJustification,
-    InvalidReplacementPlan,
-    SpecialtyPoolBelowMinimum,
+    apply_core_pull_rule,
     check_specialty_pool_guard,
+    CorePullOverrideForbidden,
+    evaluate_core_vs_specialty,
     execute_core_pull,
     get_specialty_pool_status,
+    InvalidOverrideJustification,
+    InvalidReplacementPlan,
     log_replacement_plan,
     override_core_pull,
+    resolve_conflict,
+    SpecialtyPoolBelowMinimum,
 )
 from app.services.orchestration_router_service import ActionBlocked, ActionDelayed
 
@@ -95,6 +104,93 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
     if event is None:
         raise HTTPException(status_code=404, detail="Core-Pull event not found.")
     return event
+
+
+# ============================================================================
+# S-318: Core-Pull Conflict Resolution Endpoints (Main Requirement)
+# ============================================================================
+
+
+@router.post(
+    "/evaluate",
+    response_model=EvaluateCorePullResponse,
+    summary="Evaluate if candidate should be Core or Specialty",
+)
+def evaluate_core_vs_specialty_endpoint(
+    body: EvaluateCorePullRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Evaluate if an employee should be allocated to Core vs Specialty.
+
+    Returns recommendation with confidence level. This is advisory for display;
+    the actual Core-Pull decision is enforced by apply_core_pull_rule() when a
+    real conflict exists.
+    """
+    result = evaluate_core_vs_specialty(
+        db, body.employee_id, body.job_id, tenant_id=current_user.tenant_id
+    )
+    return EvaluateCorePullResponse(**result)
+
+
+@router.post(
+    "/apply-rule",
+    response_model=ApplyCorePullRuleResponse,
+    summary="Apply Core-Pull rule to determine allocation outcome",
+)
+def apply_rule_endpoint(
+    body: ApplyCorePullRuleRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Apply Core-Pull rules to determine allocation decision.
+
+    Enforces Core-Wins policy: when a Core-Certified employee matches both CORE
+    and SPECIALITY demands simultaneously, CORE always wins, same-day.
+
+    This endpoint returns the decision but does NOT execute the transfer.
+    """
+    result = apply_core_pull_rule(
+        db, body.employee_id, body.core_demand_id, tenant_id=current_user.tenant_id
+    )
+    return ApplyCorePullRuleResponse(**result)
+
+
+@router.post(
+    "/resolve/{conflict_id}",
+    response_model=ResolveConflictResponse,
+    summary="Resolve a Core-Pull conflict",
+)
+def resolve_conflict_endpoint(
+    conflict_id: str,
+    body: ResolveConflictRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Resolve a specific Core-Pull conflict by ID.
+
+    Resolution options:
+    - EXECUTE: Force the Core-Pull transfer (same-day)
+    - OVERRIDE: BU Head delays the Core-Pull (requires 100+ char justification)
+    - MONITOR: Keep event as-is for manual review
+    """
+    try:
+        result = resolve_conflict(
+            db, conflict_id, body.resolution, tenant_id=current_user.tenant_id,
+            acting_user=current_user,
+        )
+        db.commit()
+        return ResolveConflictResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ============================================================================
+# Original S-353 Endpoints (Existing)
+# ============================================================================
 
 
 @router.get(

@@ -64,3 +64,54 @@ class ReplacementPlanResponse(BaseModel):
     expected_replacement_date: date
     logged_by: Optional[str] = None
     logged_at: Optional[datetime] = None
+
+
+# ============================================================================
+# S-318: Core-Pull Conflict Resolution Schemas (User's Main Requirement)
+# ============================================================================
+
+
+class EvaluateCorePullRequest(BaseModel):
+    """Request to evaluate if employee should be allocated to Core vs Specialty."""
+    employee_id: str
+    job_id: str
+
+
+class EvaluateCorePullResponse(BaseModel):
+    """Response with evaluation result and confidence."""
+    status: str  # "error", "conflict_detected", "not_eligible", "eligible"
+    employee_id: str
+    job_id: str
+    recommendation: Optional[str] = None  # "CORE", "SPECIALITY", or None
+    confidence: int  # 0-100
+    reasoning: str
+
+
+class ApplyCorePullRuleRequest(BaseModel):
+    """Request to apply Core-Pull rule to employee + demand pair."""
+    employee_id: str
+    core_demand_id: str
+
+
+class ApplyCorePullRuleResponse(BaseModel):
+    """Response with Core-Pull rule decision."""
+    status: str  # "error", "no_conflict", "conflict_applies_core_wins"
+    employee_id: str
+    allocation_decision: Optional[str] = None  # "ELIGIBLE" or "CORE_WINS"
+    reasoning: str
+
+
+class ResolveConflictRequest(BaseModel):
+    """Request to resolve a Core-Pull conflict."""
+    resolution: str = Field(..., description="'EXECUTE', 'OVERRIDE', or 'MONITOR'")
+    justification: Optional[str] = Field(None, description="Required for OVERRIDE")
+
+
+class ResolveConflictResponse(BaseModel):
+    """Response from conflict resolution."""
+    status: str  # "success", "error"
+    conflict_id: str
+    resolution: str
+    resolved_at: datetime
+    message: str
+    event_status: Optional[str] = None

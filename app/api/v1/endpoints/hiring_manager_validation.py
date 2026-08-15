@@ -9,7 +9,7 @@ from uuid import uuid4
 import logging
 from typing import Optional, List
 
-from app.models import HiringManagerValidation, HMValidationStatus, HMValidationResponse, Jobs, Candidate
+from app.models import HiringManagerValidation, HMValidationStatus, HMValidationResponse, Candidate, Demand
 from app.services.hm_validation_service import HMValidationService
 from app.core.database import get_db
 from app.schemas.hm_validation_schemas import (
@@ -17,12 +17,126 @@ from app.schemas.hm_validation_schemas import (
     HMValidationDetailResponse,
     HMValidationResponseSubmit,
     HMValidationDecisionResponse,
+    CreateValidationQuestionsRequest,
+    SendValidationToHMRequest,
+    SendValidationToHMResponse,
 )
 
 router = APIRouter(prefix="/hiring-manager-validations", tags=["HM Validation"])
 logger = logging.getLogger(__name__)
 
 hm_service = HMValidationService()
+
+
+@router.post("/jobs/{job_id}/create-questions", response_model=dict)
+async def create_validation_questions_endpoint(
+    job_id: str,
+    req: CreateValidationQuestionsRequest,
+    db=None
+):
+    """
+    Create validation questions for a job.
+    Called during job setup by recruiter/admin.
+
+    Args:
+        job_id: Job/Demand ID
+        req: Question template request with questions list
+
+    Returns:
+        Dict with status, job_id, question_count, created_at
+    """
+    try:
+        db = db or next(get_db())
+
+        result = hm_service.create_validation_questions(
+            db=db,
+            job_id=job_id,
+            tenant_id=1,  # TODO: Get from current user context
+            questions=[q.dict() for q in req.questions],
+            timeout_hours=req.timeout_hours,
+            auto_schedule=req.auto_schedule_after_approval
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating validation questions for job {job_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create validation questions")
+
+
+@router.post("/send-to-hiring-manager", response_model=SendValidationToHMResponse)
+async def send_to_hiring_manager(
+    req: SendValidationToHMRequest,
+    db=None
+):
+    """
+    Send validation form to hiring manager.
+    Called after candidate matches to job (Thunder -> AI Recruiter flow).
+
+    Args:
+        req: Request with job_id, candidate_id, hiring_manager_id
+
+    Returns:
+        SendValidationToHMResponse with validation_id, sent_to, expires_in_hours
+    """
+    try:
+        db = db or next(get_db())
+
+        result = hm_service.send_to_hm(
+            db=db,
+            job_id=req.job_id,
+            candidate_id=req.candidate_id,
+            hiring_manager_id=req.hiring_manager_id,
+            tenant_id=1  # TODO: Get from current user context
+        )
+
+        return SendValidationToHMResponse(**result)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error sending validation to HM: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to send validation")
+
+
+@router.post("/record-response", response_model=dict)
+async def record_hm_response_endpoint(
+    validation_id: str,
+    req: HMValidationResponseSubmit,
+    db=None
+):
+    """
+    Record hiring manager's validation response.
+    Called when HM submits validation form via dashboard or email.
+
+    Args:
+        validation_id: Validation record ID
+        req: Response submission with responses dict, decision_comment, decision_score
+
+    Returns:
+        Dict with validation_id, decision status, next_step
+    """
+    try:
+        db = db or next(get_db())
+
+        result = hm_service.record_hm_response(
+            db=db,
+            validation_id=validation_id,
+            tenant_id=1,  # TODO: Get from current user context
+            responses=req.responses,
+            decision_comment=req.decision_comment,
+            decision_score=req.decision_score
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error recording HM response: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to record response")
 
 
 @router.get("", response_model=List[HMValidationListResponse])
@@ -280,33 +394,32 @@ async def get_audit_trail(validation_id: str, db=None):
         raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
 
 
-@router.post("/jobs/{job_id}/validation-template")
-async def create_validation_template(job_id: str, template_req, db=None):
+@router.post("/jobs/{job_id}/validation-template", response_model=dict)
+async def create_validation_template(
+    job_id: str,
+    template_req: "CreateValidationQuestionsRequest",
+    db=None
+):
     """
     Create HM validation question template for a job.
     """
     try:
         db = db or next(get_db())
-        job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
 
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
+        # Convert request to dict for service
+        result = hm_service.create_validation_questions(
+            db=db,
+            job_id=job_id,
+            tenant_id=1,  # TODO: Get from current user context
+            questions=[q.dict() for q in template_req.questions],
+            timeout_hours=template_req.timeout_hours,
+            auto_schedule=template_req.auto_schedule_after_approval
+        )
 
-        # Save template to job
-        job.hm_validation_questions = template_req.questions
-        job.hm_validation_required = True
-        job.hm_validation_timeout_hours = template_req.timeout_hours or 24
-        job.auto_schedule_after_approval = template_req.auto_schedule_after_approval
+        return result
 
-        db.commit()
-
-        return {
-            "status": "template_created",
-            "job_id": job_id,
-            "template_version": "1.0",
-            "questions_count": len(template_req.questions)
-        }
-
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -314,23 +427,25 @@ async def create_validation_template(job_id: str, template_req, db=None):
         raise HTTPException(status_code=500, detail="Failed to create template")
 
 
-@router.get("/jobs/{job_id}/validation-template")
+@router.get("/jobs/{job_id}/validation-template", response_model=dict)
 async def get_validation_template(job_id: str, db=None):
     """
     Get HM validation question template for a job.
     """
     try:
         db = db or next(get_db())
-        job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+        from app.models import Demand
+
+        job = db.query(Demand).filter(Demand.id == job_id).first()
 
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
 
         return {
             "job_id": job_id,
-            "hm_validation_required": job.hm_validation_required,
-            "timeout_hours": job.hm_validation_timeout_hours,
-            "auto_schedule_after_approval": job.auto_schedule_after_approval,
+            "hm_validation_required": job.hm_validation_required if hasattr(job, 'hm_validation_required') else False,
+            "timeout_hours": job.hm_validation_timeout_hours if hasattr(job, 'hm_validation_timeout_hours') else 24,
+            "auto_schedule_after_approval": job.auto_schedule_after_approval if hasattr(job, 'auto_schedule_after_approval') else True,
             "questions": job.hm_validation_questions or []
         }
 
