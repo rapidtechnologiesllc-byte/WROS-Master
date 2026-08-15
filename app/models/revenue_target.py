@@ -37,7 +37,8 @@ class BURevenueTarget(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     target_period = Column(Enum(*TARGET_PERIODS, name="bu_target_period", native_enum=False, create_constraint=True), nullable=False)
     fiscal_year = Column(Integer, nullable=False)
     target_amount_usd_cents = Column(Integer, nullable=False)
