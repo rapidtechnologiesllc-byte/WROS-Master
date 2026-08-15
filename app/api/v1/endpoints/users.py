@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -6,6 +7,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
+
+logger = logging.getLogger(__name__)
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
@@ -96,45 +99,48 @@ def update_digest_preference(
     "/users/all",
     response_model=AllUsersResponse,
 )
-def get_all_users(
-    db: Session = Depends(get_db), 
+async def get_all_users(
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
     Get all users (HR, Admin, etc.) from the system.
     Does not include candidates.
-    
+
     Args:
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         AllUsersResponse with list of all users and total count
     """
-    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
-    users = db.query(Users).all()
-    
-    # Build response
-    users_data = []
-    for u in users:
-        role = db.query(Role).filter(Role.id == u.role_id).first()
-        users_data.append(UserResponse(
-            user_id=u.UserID,
-            user_name=u.UserName or "",
-            user_email=u.UserEmail,
-            user_role=u.UserRole,
-            created_at=u.CreatedAt,
-            permission_role=role.name if role else None,
-            department_id=u.department_id,
-            department_name=u.department.name if u.department else None,
-            business_unit_id=u.business_unit_id,
-            business_unit_name=u.bu_context.name if u.bu_context else None,
-        ))
-    
-    return AllUsersResponse(
-        total_users=len(users_data),
-        users=users_data
-    )
+    try:
+        # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
+        users = db.query(Users).all()
+
+        # Build response
+        users_data = []
+        for u in users:
+            users_data.append(UserResponse(
+                user_id=u.UserID,
+                user_name=u.UserName or "",
+                user_email=u.UserEmail,
+                user_role=u.UserRole,
+                created_at=u.CreatedAt,
+                permission_role=u.role.name if u.role else None,
+                department_id=u.department_id,
+                department_name=u.department.name if u.department else None,
+                business_unit_id=u.business_unit_id,
+                business_unit_name=u.bu_context.business_unit.name if u.bu_context and u.bu_context.business_unit else None,
+            ))
+
+        return AllUsersResponse(
+            total_users=len(users_data),
+            users=users_data
+        )
+    except Exception as exc:
+        logger.error(f"Error fetching users: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(exc)}")
 
 
 @router.get(
