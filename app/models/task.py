@@ -90,7 +90,7 @@ class Task(Base):
         nullable=False, default="NEW",
     )
 
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
+    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
     # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
     # Optional: org-wide tasks may not be BU-scoped; cross-BU tasks leave this null
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
@@ -204,7 +204,7 @@ class TaskCapacityAlert(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True)
 
     open_task_count = Column(Integer, nullable=False)
     reason = Column(Text, nullable=False)

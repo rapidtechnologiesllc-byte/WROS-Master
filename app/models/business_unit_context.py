@@ -71,7 +71,7 @@ class BusinessUnitContext(Base):
     cost_center_code = Column(String(50), nullable=True)
 
     # Status: is this context active
-    active = Column(Boolean, nullable=False, default=True, index=True)
+    active = Column(Boolean, nullable=False, default=True)
 
     # Audit fields
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
