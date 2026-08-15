@@ -80,4 +80,4 @@ class Revenue(Base):
     recognized_at = Column(DateTime, nullable=False, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")

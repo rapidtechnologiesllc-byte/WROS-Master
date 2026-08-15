@@ -43,10 +43,10 @@ class SystemConfig(Base):
     updated_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id], lazy="select")
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
     __table_args__ = (
         # One row per (tenant, BU-or-tenant-wide, key) -- an upsert target,
         # not an append-only history (that's what audit_log is for).
-        UniqueConstraint("tenant_id", "business_unit_id", "config_key", name="uq_system_config_scope_key"),
+        UniqueConstraint("tenant_id", "bu_context_id", "config_key", name="uq_system_config_scope_key"),
     )

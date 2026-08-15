@@ -151,7 +151,7 @@ class Task(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     department = relationship("Department", foreign_keys=[department_id])
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
     assigned_to = relationship("Users", foreign_keys=[assigned_to_user_id])
     created_by = relationship("Users", foreign_keys=[created_by_user_id])
     parent_task = relationship("Task", remote_side=[id], foreign_keys=[parent_task_id])

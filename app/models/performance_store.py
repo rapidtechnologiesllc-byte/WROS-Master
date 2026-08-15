@@ -38,11 +38,11 @@ class EmployeePerformanceEvent(Base):
     occurred_at = Column(DateTime(timezone=False), server_default=func.now())
 
     __table_args__ = (
-        Index("ix_perf_events_tenant_bu", "tenant_id", "business_unit_id"),
-        Index("ix_perf_events_employee_bu", "employee_id", "business_unit_id"),
+        Index("ix_perf_events_tenant_bu", "tenant_id", "bu_context_id"),
+        Index("ix_perf_events_employee_bu", "employee_id", "bu_context_id"),
     )
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 
 @event.listens_for(EmployeePerformanceEvent, "before_update")
