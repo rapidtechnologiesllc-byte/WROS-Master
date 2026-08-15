@@ -1161,6 +1161,11 @@ def start_scheduler():
                             assigned_count += 1
                         except Exception as e:
                             logger.warning(f"[scheduler] Failed to assign Thunder to candidate {candidate.candidateID}: {e}")
+                            # Rollback failed transaction to reset session
+                            try:
+                                db.rollback()
+                            except:
+                                pass
 
                     if assigned_count > 0:
                         db.commit()
