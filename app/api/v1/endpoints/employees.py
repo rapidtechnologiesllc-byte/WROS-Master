@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users, UserRole
 from app.models.candidate import Candidate
 from app.core.security import get_password_hash
@@ -70,7 +71,7 @@ def convert_candidate_to_employee(
     
     # Verify user can create employees in target BU
     logger.info(f"[EMPLOYEE_CONVERSION] BU validation: user_bu={current_user.business_unit_id}, target_bu={request.business_unit_id}")
-    if current_user.business_unit_id != request.business_unit_id:
+    if not should_bypass_bu_filter(current_user) and current_user.business_unit_id != request.business_unit_id:
         logger.error(f"[EMPLOYEE_CONVERSION] FAILED - BU mismatch: user_bu={current_user.business_unit_id}, target_bu={request.business_unit_id}")
         raise HTTPException(
             status_code=403,

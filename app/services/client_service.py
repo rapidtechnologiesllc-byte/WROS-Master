@@ -120,7 +120,7 @@ def create_client(
 
     client = Client(
         company_name=company_name,
-        business_unit_id=business_unit_id,
+        tenant_id=created_by_user.tenant_id,
         line_type=line_type,
         client_type=client_type,
         industry=industry,

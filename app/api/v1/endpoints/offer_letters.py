@@ -12,6 +12,7 @@ from app.core.dependencies import (
     get_current_hr_or_admin,
     require_permission,
 )
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.core.logging import logger
 from app.models.offer_letter import OfferLetter
 from app.models.candidate import Candidate, CandidateStatus

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.dependencies import require_permission
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.user import Users
 from app.schemas.revenue_target import (

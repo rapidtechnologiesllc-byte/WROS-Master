@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_permission
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.core.revenue_visibility_scope import (
     apply_revenue_bu_scope_to_client_query, get_revenue_scoped_client_ids, is_revenue_bu_scoped,
 )
