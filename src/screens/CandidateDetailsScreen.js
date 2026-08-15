@@ -1473,9 +1473,7 @@ ${formattedJD}
                 currentRole === "HR Operations") &&
                 candidate?.pipelineStatus === "Offer" &&
                 candidate?.candidateJoiningDate &&
-                new Date(candidate?.candidateJoiningDate) <= new Date() &&
-                previousOffer?.length > 0 &&
-                previousOffer.some((offer) => offer?.status === "Accepted") && (
+                new Date(candidate?.candidateJoiningDate) <= new Date() && (
                   <Button
                     variant="secondary"
                     onClick={() => handleConvertToEmployee()}

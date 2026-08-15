@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { Users, Briefcase, Grid3x3, UserPlus, ArrowRightLeft, RefreshCw, AlertCircle, CheckCircle2, Search } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
-import { getAllEmployees, createEmployee, convertCandidateToEmployee, markEmployeeOnBench, removeEmployeeFromBench } from "../services/api/employees";
+import { getAllEmployees, createEmployee, convertCandidateToEmployee, markEmployeeOnBench, removeEmployeeFromBench, updateEmployeeCertifications } from "../services/api/employees";
 import { createAllocation, getAllocations, endAllocation, getAllocationDropdowns } from "../services/api/allocations";
 
 const EMPLOYMENT_TYPES = [
@@ -154,9 +154,10 @@ function EmployeeDetailModal({ employee, onClose, onRefresh }) {
   const saveCertifications = async () => {
     setSaving(true);
     try {
-      // TODO: Call API to save certifications
-      // await updateEmployeeCertifications(employee.id, { currentCert, expectedCert });
-      console.log("Saving certifications:", { currentCert, expectedCert });
+      await updateEmployeeCertifications(employee.id, {
+        guidewire_certification_current: currentCert,
+        guidewire_certification_expected: expectedCert,
+      });
       onRefresh();
     } catch (err) {
       console.error("Failed to save certifications:", err);
