@@ -100,7 +100,7 @@ def update_digest_preference(
     "/users/all",
     response_model=AllUsersResponse,
 )
-async def get_all_users(
+def get_all_users(
     db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):

@@ -45,7 +45,7 @@ router = APIRouter(prefix="/rbac", tags=["RBAC"])
     response_model=List[RoleListItem],
     summary="List all roles",
 )
-async def list_roles(
+def list_roles(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
@@ -420,7 +420,7 @@ def delete_business_unit(
     response_model=dict,
     dependencies=[Depends(require_permission("rbac.view"))],
 )
-async def get_modules_and_verbs(
+def get_modules_and_verbs(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
