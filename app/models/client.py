@@ -78,7 +78,7 @@ class Client(Base):
     # Nullable: a prospect with no partner/BU assigned yet is visible
     # to everyone until claimed, same "Org Pool" posture
     # CandidateOwnership already established for candidates.
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     company_name = Column(String(300), nullable=False)
     company_short_name = Column(String(50), nullable=True)

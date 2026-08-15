@@ -33,7 +33,7 @@ class SystemConfig(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     # Null = tenant-wide default (BR-0115-03); a specific BU row overrides it.
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     config_category = Column(String(20), nullable=False)
     config_key = Column(String(100), nullable=False)

@@ -18,7 +18,7 @@ class Users(Base):
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # RBAC — nullable so existing users are not broken on upgrade
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason: existing rows get backfilled
     # in a follow-up step, not broken by this migration. Every tenant-scoped
@@ -117,7 +117,7 @@ class UserRole(Base):
     id = Column(String(255), primary_key=True, index=True)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
@@ -142,7 +142,7 @@ class Jobs(Base):
     endDate = Column(Date, nullable=True)
     recuriterID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

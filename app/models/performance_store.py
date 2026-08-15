@@ -30,7 +30,7 @@ class EmployeePerformanceEvent(Base):
     employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
     # Business Unit assignment — derived from employee's BU for cross-referencing
     # Denormalized from employee.bu_id for faster queries by BU
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     # e.g. "BUDDY_KPI", "CERTIFICATION_GATE" -- generic discriminator,
     # per 02-DATA-MODEL.md's own "one table, not one per type" design.
     event_type = Column(String(50), nullable=False, index=True)

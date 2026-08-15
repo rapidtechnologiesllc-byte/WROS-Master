@@ -91,9 +91,9 @@ class Task(Base):
     )
 
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
-    # Business Unit assignment — derived from assigned user's BU or candidate's BU
+    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
     # Optional: org-wide tasks may not be BU-scoped; cross-BU tasks leave this null
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     assigned_to_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
     created_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
     # Parent-child pattern (Freshdesk/Zendesk precedent) -- one cross-
