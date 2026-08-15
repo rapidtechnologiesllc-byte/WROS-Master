@@ -88,7 +88,6 @@ jobs:
           ssh-add -l
           ssh -v -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "echo 'SSH connection successful'"
         continue-on-error: true
-        continue-on-error: true
 
       - name: Backup current build (rollback)
         run: |
