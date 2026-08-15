@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.core.database import get_db
-from app.core.tenant_context import get_current_user, require_auth
+from app.core.dependencies import get_current_user
 from app.services.interview_decision_service import InterviewDecisionService
 from app.schemas.interview_decision import (
     GetInterviewStatusRequest,
@@ -38,7 +38,7 @@ decision_service = InterviewDecisionService()
 async def get_interview_status(
     request: GetInterviewStatusRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_auth),
+    current_user = Depends(get_current_user),
 ):
     """
     Get the status of an interview including all panel feedback.
@@ -81,7 +81,7 @@ async def get_interview_status(
 async def calculate_panel_decision(
     request: CalculatePanelDecisionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_auth),
+    current_user = Depends(get_current_user),
 ):
     """
     Calculate the panel decision by aggregating all interviewer feedback.
@@ -116,7 +116,7 @@ async def calculate_panel_decision(
 async def move_to_offer(
     request: MoveToOfferRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_auth),
+    current_user = Depends(get_current_user),
 ):
     """
     Create an offer for a candidate after their interview is approved.
@@ -170,7 +170,7 @@ async def move_to_offer(
 async def reject_candidate(
     request: RejectCandidateRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_auth),
+    current_user = Depends(get_current_user),
 ):
     """
     Reject a candidate based on interview feedback.
