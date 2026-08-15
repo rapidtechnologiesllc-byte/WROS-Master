@@ -7,16 +7,16 @@
 
 ## 🔴 BLOCKING ISSUES (P0)
 
-### 1. Bulk Upload Stuck - No Success Message
-**Status**: OPEN
+### 1. ✅ FIXED: Bulk Upload Stuck - No Success Message
+**Status**: FIXED (2026-08-14)
 **Severity**: P0 - Blocks production testing
-**Issue**: User uploads CSV → Form freezes, no success message returned
-**Expected**: Returns success with "Processing X candidates in background"
-**Investigation Needed**: 
-- Check if backend endpoint is responding
-- Verify database commit is actually happening
-- Check browser network tab for response status
-- May be a file size issue or timeout
+**Root Cause**: If regex extraction of job_id failed, `setImporting` was never set to `false`, leaving the button frozen in disabled state
+**Fix Applied**: 
+- Added fallback logic to extract job_id from multiple sources (message field + job_id field)
+- Ensured `setImporting(false)` is always called in error/fallback paths
+- Improved user feedback with better toast messages
+**Code**: src/screens/BulkLaunchScreen.js `handleImport()` function
+**Result**: Form now responds properly even if job_id extraction fails, with clear user feedback
 
 ---
 

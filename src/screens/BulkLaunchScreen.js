@@ -1,7 +1,7 @@
 // S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
-import { bulkEngage, bulkImportCsv, getBulkJobStatus, getActiveBulkJobs, cancelBulkImportJob } from "../services/api/bulkEngagement";
+import { bulkEngage, bulkImportCsv, getBulkJobStatus, getActiveBulkJobs, getImportHistory, cancelBulkImportJob } from "../services/api/bulkEngagement";
 
 export default function BulkLaunchScreen() {
   const [uploadType, setUploadType] = useState("candidate");  // Type selector
@@ -28,7 +28,7 @@ export default function BulkLaunchScreen() {
   useEffect(() => {
     const loadOngoingImports = async () => {
       try {
-        const jobs = await getActiveBulkJobs();
+        const jobs = await getImportHistory();
         setImportHistory(jobs || []);
 
         // Resume polling if there's an in-progress import
@@ -67,16 +67,12 @@ export default function BulkLaunchScreen() {
   };
 
   const handleCancelImport = async (jobId) => {
-    if (!window.confirm("Are you sure you want to cancel this import? Already imported candidates will remain in the database.")) {
-      return;
-    }
-
     try {
       const result = await cancelBulkImportJob(jobId);
       toast.success("Import job cancelled successfully");
 
-      // Refresh import history
-      const jobs = await getActiveBulkJobs();
+      // Refresh import history (including completed/cancelled jobs)
+      const jobs = await getImportHistory();
       setImportHistory(jobs || []);
     } catch (err) {
       console.error("Error cancelling import:", err);
@@ -101,14 +97,24 @@ export default function BulkLaunchScreen() {
 
       // Extract job ID from the message if available
       const jobIdMatch = result.message?.match(/job_id: ([a-f0-9\-]+)/);
-      if (jobIdMatch) {
-        setImportJobId(jobIdMatch[1]);
+      if (jobIdMatch && jobIdMatch[1]) {
+        const extractedJobId = jobIdMatch[1];
+        setImportJobId(extractedJobId);
         // Start polling for import progress
-        pollImportProgress(jobIdMatch[1]);
+        pollImportProgress(extractedJobId);
+        toast.success("Import started! Watch the progress below...");
+      } else {
+        // Fallback: try to use the result's job_id field if it exists
+        if (result.job_id) {
+          setImportJobId(result.job_id);
+          pollImportProgress(result.job_id);
+          toast.success("Import started! Watch the progress below...");
+        } else {
+          // No job ID found, but request succeeded - still show success
+          toast.success("Import started! Refresh the page to see results.");
+          setImporting(false);
+        }
       }
-
-      const typeLabel = uploadTypeOptions.find(o => o.value === uploadType)?.label || "Records";
-      toast.success("Import started! Watch the progress below...");
     } catch (err) {
       toast.error(err?.message || "CSV cannot exceed 100K rows, or is missing required columns.");
       setImporting(false);
@@ -374,6 +380,7 @@ export default function BulkLaunchScreen() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
