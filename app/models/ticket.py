@@ -75,7 +75,7 @@ class TicketCategoryRoute(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     category = Column(String(100), nullable=False)
     subcategory = Column(String(100), nullable=True)
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    department_id = Column(String(36), ForeignKey("departments.id"), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, server_default=func.now())
 

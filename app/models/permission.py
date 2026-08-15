@@ -10,10 +10,10 @@ class JobTitle(Base):
     __tablename__ = "job_titles"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     name = Column(String(150), nullable=False)
     description = Column(Text, nullable=True)
-    active = Column(Boolean, default=True, nullable=False, index=True)
+    active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -32,7 +32,7 @@ class JobTitleRole(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     job_title_id = Column(Integer, ForeignKey("job_titles.id"), nullable=False, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
@@ -51,12 +51,12 @@ class DetailedPermission(Base):
     __tablename__ = "detailed_permissions"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     name = Column(String(100), nullable=False)  # e.g., "candidate.view", "invoice.approve"
     description = Column(Text, nullable=True)
     category = Column(String(50), nullable=True)  # "candidate", "employee", "financial", "admin"
     layer = Column(String(50), nullable=True)  # "module", "field", "scope", "action", "dashboard"
-    active = Column(Boolean, default=True, nullable=False, index=True)
+    active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -76,7 +76,7 @@ class DetailedRolePermission(Base):
     __tablename__ = "detailed_role_permissions"
 
     id = Column(Integer, primary_key=True, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     permission_id = Column(Integer, ForeignKey("detailed_permissions.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -96,8 +96,8 @@ class FieldPermission(Base):
     __tablename__ = "field_permissions"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     table_name = Column(String(100), nullable=False)  # "employees", "candidates", "invoices"
     field_name = Column(String(100), nullable=False)  # "salary", "ssn", "bank_account"
     access_level = Column(String(20), nullable=False)  # "hidden", "masked", "readonly", "editable"
@@ -117,8 +117,8 @@ class DataScopePermission(Base):
     __tablename__ = "data_scope_permissions"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     module = Column(String(100), nullable=False)  # "candidates", "employees", "invoices"
     scope_type = Column(String(50), nullable=False)  # "ORG_WIDE", "MULTI_BU", "BU_ONLY", "TEAM_ONLY", "OWN_ONLY", "CUSTOM"
     filter_rule = Column(Text, nullable=True)  # JSON filter rule for custom scoping
