@@ -110,6 +110,13 @@ class Users(Base):
         """Return True if user is not terminated."""
         return self.terminated_at is None
 
+    @property
+    def business_unit_id(self):
+        """Return business_unit_id from bu_context if available, else None."""
+        if self.bu_context:
+            return self.bu_context.id
+        return None
+
 
 class UserRole(Base):
     """Multi-role assignment junction table (2026-08-12 RBAC)"""
