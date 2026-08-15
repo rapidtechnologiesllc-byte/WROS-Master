@@ -9,7 +9,7 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
-    "antd": "^6.3.6",
+    "antd": "^5.15.0",
     "country-state-city": "^3.2.1",
     "dayjs": "^1.11.21",
     "docx-preview": "^0.3.7",
