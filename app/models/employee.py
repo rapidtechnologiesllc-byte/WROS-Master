@@ -175,7 +175,7 @@ class Employee(Base):
         # code -- delivery_engine can never be CORE unless core_certified
         # is already TRUE, even via a raw SQL UPDATE bypassing the ORM.
         CheckConstraint(
-            "delivery_engine != 'CORE' OR core_certified = 1",
+            "delivery_engine != 'CORE' OR core_certified = true",
             name="ck_core_requires_certification",
         ),
     )
