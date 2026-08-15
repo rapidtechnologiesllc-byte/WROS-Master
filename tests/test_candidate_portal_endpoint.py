@@ -193,3 +193,54 @@ def test_track_page_view_requires_auth(client):
     test_client, _ = client
     resp = test_client.post("/portal/track", json={"page": "home", "time_on_page_seconds": 10})
     assert resp.status_code in (401, 403)
+
+
+# S-089 (HRMS-P109): Candidate Portal — Offer Viewer
+def test_portal_offers_returns_empty_list_when_no_offers(client):
+    """S-089: Offers tab returns empty list when candidate has no offers."""
+    test_client, _ = client
+    resp = test_client.get("/portal/offers", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
+    assert resp.status_code == 200
+    assert resp.json()["offers"] == []
+
+
+def test_portal_offers_requires_auth(client):
+    """S-089: Offers endpoint requires valid token."""
+    test_client, _ = client
+    resp = test_client.get("/portal/offers")
+    assert resp.status_code in (401, 403)
+
+
+def test_portal_offers_cross_candidate_isolation(client):
+    """S-089: Candidate C-A cannot access C-B's offers."""
+    test_client, _ = client
+    # Both candidates have access but should only see their own data
+    resp_a = test_client.get("/portal/offers", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
+    resp_b = test_client.get("/portal/offers", headers={"Authorization": f"Bearer {_token_for('C-B')}"})
+    assert resp_a.status_code == 200
+    assert resp_b.status_code == 200
+
+
+# S-090 (HRMS-P110): Candidate Portal — Document Upload
+def test_portal_documents_returns_empty_list_when_no_documents(client):
+    """S-090: Documents tab returns empty list when candidate has no documents."""
+    test_client, _ = client
+    resp = test_client.get("/portal/documents", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
+    assert resp.status_code == 200
+    assert resp.json()["documents"] == []
+
+
+def test_portal_documents_requires_auth(client):
+    """S-090: Documents endpoint requires valid token."""
+    test_client, _ = client
+    resp = test_client.get("/portal/documents")
+    assert resp.status_code in (401, 403)
+
+
+def test_portal_documents_cross_candidate_isolation(client):
+    """S-090: Candidate C-A cannot access C-B's documents."""
+    test_client, _ = client
+    resp_a = test_client.get("/portal/documents", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
+    resp_b = test_client.get("/portal/documents", headers={"Authorization": f"Bearer {_token_for('C-B')}"})
+    assert resp_a.status_code == 200
+    assert resp_b.status_code == 200

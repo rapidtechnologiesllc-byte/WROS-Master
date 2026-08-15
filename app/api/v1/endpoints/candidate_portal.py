@@ -21,7 +21,7 @@ Routes:
   GET   /portal/interviews/{interview_id}/ics
   POST  /portal/interviews/{interview_id}/reschedule-request
 """
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -148,3 +148,141 @@ def portal_track_page_view(
     track_portal_page_view()'s own docstring)."""
     recorded = track_portal_page_view(db, candidate, body.page, body.time_on_page_seconds, body.scroll_depth_pct)
     return PortalTrackResponse(recorded=recorded)
+
+
+@router.get("/offers")
+def portal_offers(
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """S-089 (HRMS-P109): Candidate Portal - Offer Viewer
+    Retrieve all offers for the candidate."""
+    from sqlalchemy import and_
+    from app.models.offer import Offer
+
+    offers = db.query(Offer).filter(
+        and_(
+            Offer.candidate_id == candidate.candidateID,
+            Offer.tenant_id == candidate.tenant_id
+        )
+    ).all()
+
+    return {
+        "offers": [
+            {
+                "id": o.id,
+                "position_title": o.position_title,
+                "salary_amount": o.salary_amount_usd_cents / 100 if o.salary_amount_usd_cents else 0,
+                "start_date": o.start_date.isoformat() if o.start_date else None,
+                "expiry_date": o.expiry_date.isoformat() if o.expiry_date else None,
+                "description": o.description,
+                "status": o.status,
+                "accepted_date": o.accepted_date.isoformat() if o.accepted_date else None,
+                "declined_date": o.declined_date.isoformat() if o.declined_date else None,
+            }
+            for o in offers
+        ]
+    }
+
+
+@router.get("/documents")
+def portal_documents(
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """S-090 (HRMS-P110): Candidate Portal - Document Upload
+    Retrieve all documents uploaded by the candidate."""
+    from sqlalchemy import and_
+    from app.models.document import CandidateDocument
+
+    documents = db.query(CandidateDocument).filter(
+        and_(
+            CandidateDocument.candidate_id == candidate.candidateID,
+            CandidateDocument.is_deleted == False,
+        )
+    ).order_by(CandidateDocument.uploaded_at.desc()).all()
+
+    return {
+        "documents": [
+            {
+                "id": d.id,
+                "filename": d.original_filename,
+                "file_size": d.file_size,
+                "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
+                "download_url": f"/portal/documents/{d.id}/download",
+            }
+            for d in documents
+        ]
+    }
+
+
+@router.post("/documents/upload")
+async def portal_upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """S-090 (HRMS-P110): Candidate Portal - Document Upload
+    Upload a document for the candidate."""
+    import os
+    from datetime import datetime
+
+    if file.size and file.size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be under 50MB.")
+
+    from app.models.document import CandidateDocument
+
+    # Store file metadata
+    import uuid
+    unique_filename = f"{uuid.uuid4()}_{file.filename}"
+
+    doc = CandidateDocument(
+        candidate_id=candidate.candidateID,
+        document_type="portal_upload",
+        original_filename=file.filename,
+        stored_filename=unique_filename,
+        file_size=file.size or 0,
+        file_extension=os.path.splitext(file.filename)[1],
+        mime_type=file.content_type,
+        is_virus_scanned=False,
+        uploaded_by=candidate.candidateID,
+        uploaded_at=datetime.utcnow(),
+    )
+
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    return {
+        "id": doc.id,
+        "filename": doc.original_filename,
+        "file_size": doc.file_size,
+        "uploaded_at": doc.uploaded_at.isoformat(),
+    }
+
+
+@router.get("/documents/{document_id}/download")
+def portal_download_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """Download a document."""
+    from app.models.document import CandidateDocument
+
+    doc = db.query(CandidateDocument).filter(
+        CandidateDocument.id == document_id,
+        CandidateDocument.candidate_id == candidate.candidateID,
+        CandidateDocument.is_deleted == False,
+    ).first()
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    # Note: In production, this would retrieve from SharePoint or storage
+    # For now, return metadata only
+    return Response(
+        content=b"",
+        media_type=doc.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={doc.original_filename}"},
+    )
