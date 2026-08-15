@@ -9,10 +9,13 @@ already uses for markup/margin-sensitive actions. No bespoke
 enforces CEO-only in the service layer (an RBAC-role question, not
 a permission-tier one -- see revenue_target_service.set_partner_goal()).
 """
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.dependencies import require_permission
@@ -43,9 +46,12 @@ def create_bu_target(
             fiscal_year=body.fiscal_year, target_amount_usd_cents=body.target_amount_usd_cents,
             created_by=current_user.UserID, tenant_id=current_user.tenant_id, notes=body.notes,
         )
+        return get_bu_target_vs_actual(db, body.business_unit_id, body.target_period, body.fiscal_year)
     except RevenueTargetValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return get_bu_target_vs_actual(db, body.business_unit_id, body.target_period, body.fiscal_year)
+    except Exception as exc:
+        logger.error(f"Error creating BU revenue target: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/revenue-targets/bu/{business_unit_id}", response_model=BUTargetVsActualResponse)
@@ -73,6 +79,9 @@ def create_partner_goal(
         )
     except RevenueTargetValidationError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"Error creating partner goal: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/revenue-targets/partners/{partner_user_id}/position", response_model=PartnerMultiYearPositionResponse)
