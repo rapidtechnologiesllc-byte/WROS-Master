@@ -1,29 +1,30 @@
 """
-S-251 (Allocate Employee to Project) + S-252 (Allocation Conflict
-Detection) — API Endpoints
+S-314 — Project Allocation Engine
+S-251 (Allocate Employee to Project) + S-252 (Allocation Conflict Detection)
 =========================================================================
 Prefix: /allocations
 Tag:    allocations
 
-Wires app.services.employee_allocation_service (real, tested backend,
-pre-existing this codebase -- HRMS-0507/HRMS-0803) to real HTTP routes.
-No REST layer previously existed. S-252's conflict detection is not a
-separate function to build -- AllocationOverCapacity is already raised
-by allocate_employee_to_project() itself when allow_concurrent=True and
-the sum of utilization would exceed 100%; this endpoint surfaces that
-as a 409, not a second implementation.
+Wires app.services.employee_allocation_service (HRMS-0507/HRMS-0803/HRMS-0812)
+to HTTP routes. Core methods:
+  - allocate_employee_to_project() — Create allocations
+  - get_available_projects() — List available projects
+  - check_capacity() — Check employee capacity
 
-Auth: get_current_hr_or_admin.
+Auth: get_current_hr_or_admin for all endpoints.
 
 Routes:
-  POST   /allocations               Allocate an employee to a demand.
-  GET    /allocations                List allocations (optional employee_id/demand_id filter).
-  POST   /allocations/{id}/end      End an allocation (bench transition
-                                     handled internally by end_allocation()).
+  POST   /allocations                   Allocate an employee to a demand/project.
+  POST   /allocations/check-capacity    Pre-allocation validation (capacity check).
+  GET    /allocations                   List allocations (employee_id/demand_id filter).
+  GET    /allocations/projects          Get available projects for allocation.
+  POST   /allocations/{id}/end          End an allocation.
+  GET    /allocations/dropdowns/for-create  Get employees/demands for form.
 """
+from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -39,16 +40,24 @@ from app.schemas.allocation import (
     AllocationItem,
     AllocationListResponse,
     AllocationDropdownsResponse,
+    AllocationCheckRequest,
+    AllocationCheckResponse,
+    AvailableProjectsResponse,
+    CapacityCheckRequest,
+    CapacityCheckResponse,
     CreateAllocationRequest,
     DropdownItem,
     EndAllocationRequest,
+    ProjectItem,
 )
 from app.services.employee_allocation_service import (
     AllocationOverCapacity,
     BuddyProgramNotGraduated,
     EmployeeAlreadyAllocated,
     allocate_employee_to_project,
+    check_capacity,
     end_allocation,
+    get_available_projects,
 )
 
 router = APIRouter(prefix="/allocations", tags=["allocations"])
@@ -175,6 +184,179 @@ def list_allocations(
         query = query.filter(EmployeeAllocation.demand_id == demand_id)
     allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
     return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
+
+
+@router.get("/projects", response_model=AvailableProjectsResponse, summary="Get available projects for allocation")
+def get_projects_for_allocation(
+    employee_id: Optional[str] = Query(None, description="Filter to exclude projects with allocations for this employee"),
+    status: Optional[str] = Query(None, description="Filter by project status (ACTIVE, PLANNING, COMPLETED, etc. or ALL)"),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Get list of projects available for allocation.
+
+    Optional Filters:
+      - employee_id: Exclude projects where this employee already has an active allocation
+      - status: Filter by project status (defaults to ACTIVE)
+    """
+    projects = get_available_projects(
+        db,
+        tenant_id=current_user.tenant_id,
+        employee_id=employee_id,
+        status_filter=status,
+    )
+
+    project_items = []
+    for proj in projects:
+        client = db.query(Client).filter(Client.id == proj.client_id).first()
+        project_items.append(
+            ProjectItem(
+                id=proj.id,
+                name=proj.name,
+                client_id=proj.client_id,
+                client_name=client.company_name if client else None,
+                status=proj.status,
+                delivery_engine=proj.delivery_engine,
+                si_partner=proj.si_partner,
+                start_date=proj.start_date,
+                end_date=proj.end_date,
+                billing_type=proj.billing_type,
+                currency=proj.currency,
+            )
+        )
+
+    return AvailableProjectsResponse(
+        projects=project_items,
+        total_count=len(projects),
+        filtered_count=len(project_items),
+    )
+
+
+@router.post("/check-capacity", response_model=CapacityCheckResponse, summary="Check employee allocation capacity")
+def check_capacity_endpoint(
+    body: CapacityCheckRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Check if an employee has capacity for a new allocation.
+
+    Returns:
+      - has_capacity: True if employee can accept the proposed allocation
+      - current_utilization_pct: Current % allocation (sum of all overlapping active allocations)
+      - available_capacity_pct: Remaining % capacity
+      - active_allocation_count: Number of active allocations
+    """
+    employee = db.query(Employee).filter(Employee.id == body.employee_id).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    has_capacity, current_utilization, available_capacity = check_capacity(
+        db,
+        employee_id=body.employee_id,
+        additional_utilization_pct=body.additional_utilization_pct,
+        proposed_start_date=body.proposed_start_date,
+    )
+
+    active_allocations = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.employee_id == body.employee_id,
+        EmployeeAllocation.status == "ACTIVE",
+    ).all()
+
+    return CapacityCheckResponse(
+        employee_id=body.employee_id,
+        has_capacity=has_capacity,
+        current_utilization_pct=current_utilization,
+        available_capacity_pct=available_capacity,
+        total_with_proposed_pct=current_utilization + body.additional_utilization_pct,
+        active_allocation_count=len(active_allocations),
+    )
+
+
+@router.post("/validate", response_model=AllocationCheckResponse, summary="Validate allocation before creation")
+def validate_allocation(
+    body: AllocationCheckRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Comprehensive pre-allocation validation.
+
+    Checks:
+      - Employee exists and is in valid status
+      - Demand exists
+      - Capacity is available
+      - No conflicting allocations (if allow_concurrent=False)
+      - Buddy program status (if applicable)
+
+    Returns detailed validation result with conflict_reasons if invalid.
+    """
+    employee = db.query(Employee).filter(Employee.id == body.employee_id).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
+    if demand is None:
+        raise HTTPException(status_code=404, detail="Demand not found.")
+
+    conflict_reasons = []
+    warnings = []
+    is_valid = True
+
+    # Check buddy program status
+    if employee.buddy_program_status in ("IN_PROGRESS", "EXTENDED"):
+        conflict_reasons.append(
+            f"Employee must complete Buddy Program graduation before client deployment "
+            f"(current status: {employee.buddy_program_status})"
+        )
+        is_valid = False
+
+    # Check capacity
+    utilization_pct = body.utilization_pct or 100.0
+    has_capacity, current_utilization, available_capacity = check_capacity(
+        db,
+        employee_id=body.employee_id,
+        additional_utilization_pct=utilization_pct,
+        proposed_start_date=body.proposed_start_date,
+    )
+
+    if not has_capacity and not body.allow_concurrent:
+        conflict_reasons.append(
+            f"Employee has {current_utilization:.0f}% utilization; "
+            f"adding {utilization_pct:.0f}% exceeds 100% limit"
+        )
+        is_valid = False
+    elif not has_capacity and body.allow_concurrent:
+        warnings.append(
+            f"Concurrent allocation: total utilization will be "
+            f"{current_utilization + utilization_pct:.0f}%"
+        )
+
+    # Check for existing single allocation (if allow_concurrent=False)
+    if not body.allow_concurrent:
+        existing_active = db.query(EmployeeAllocation).filter(
+            EmployeeAllocation.employee_id == body.employee_id,
+            EmployeeAllocation.status == "ACTIVE",
+        ).first()
+        if existing_active:
+            conflict_reasons.append(
+                f"Employee already has active allocation ({existing_active.id}); "
+                f"end it before creating new one"
+            )
+            is_valid = False
+
+    return AllocationCheckResponse(
+        is_valid=is_valid,
+        employee_id=body.employee_id,
+        employee_name=f"{employee.first_name} {employee.last_name}".strip(),
+        has_capacity=has_capacity,
+        current_utilization_pct=current_utilization,
+        available_capacity_pct=available_capacity,
+        proposed_utilization_pct=utilization_pct,
+        conflict_reasons=conflict_reasons,
+        warnings=warnings,
+    )
 
 
 @router.post("/{allocation_id}/end", response_model=AllocationItem, summary="End an allocation")
