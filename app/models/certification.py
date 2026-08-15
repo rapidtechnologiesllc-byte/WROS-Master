@@ -50,7 +50,7 @@ class EmployeeCertification(Base):
 
     employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
     certification_id = Column(String(36), ForeignKey("certifications.id"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     # Status tracking
     status = Column(Enum(*CERT_STATUS, name="emp_cert_status", native_enum=False), default="Active")

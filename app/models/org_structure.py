@@ -32,7 +32,7 @@ class Department(Base):
 
     id = Column(String(36), primary_key=True, index=True)  # UUID
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    business_unit_id = Column(String(36), ForeignKey("business_units.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
 
     # Department name (e.g., "Staffing", "Billing", "Operations")
     name = Column(String(200), nullable=False)
@@ -158,7 +158,7 @@ class PartnerBUAssignment(Base):
     partner_org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=False, index=True)
 
     # The Business Unit this Partner oversees
-    business_unit_id = Column(String(36), ForeignKey("business_units.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
 
     # Partner's revenue share percentage (0-100) — applies to Core business revenue only
     # E.g., 20 means partner gets 20% of Core business gross revenue in this BU

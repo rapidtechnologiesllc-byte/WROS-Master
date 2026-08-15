@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from app.core.db_resilience import configure_sqlite_for_concurrency
 
 # Bare load_dotenv() resolves .env via the process's current working
 # directory, not this file's location -- some launchers (e.g. this repo's
@@ -15,48 +14,26 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 # 2026-08-06, same override as app.core.config -- this module builds its
 # own engine independently (separate from Settings.DATABASE_URL), so it
-# needs its own .env.local load too, or a local SQLite override here
-# would silently keep pointing at production. See CLAUDE.md's login-
-# outage session log for why this matters.
+# needs its own .env.local load too. See CLAUDE.md's login-outage session
+# log for why this matters.
 load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
-# Build the SQL Server connection string
+# PostgreSQL connection string
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Resolve SQLite paths relative to the backend repo root, not the process CWD.
-# This fixes the issue where relative paths like `sqlite:///./local_dev.sqlite3`
-# would resolve to the process's working directory (e.g., .claude) instead of
-# the backend directory. With this fix, the database is always found regardless
-# of what directory the backend is launched from.
-if DATABASE_URL and DATABASE_URL.startswith("sqlite:///./"):
-    # Extract the relative path (e.g., "./local_dev.sqlite3" -> "local_dev.sqlite3")
-    rel_path = DATABASE_URL.replace("sqlite:///./", "")
-    abs_path = os.path.join(_REPO_ROOT, rel_path)
-    DATABASE_URL = f"sqlite:///{abs_path}"
+# Database-specific configuration
+_is_postgres = DATABASE_URL and DATABASE_URL.startswith("postgresql")
 
-# fast_executemany and the pyodbc-style connect_args are SQL-Server-only
-# (mssql+pyodbc) -- SQLite (used for local dev via .env.local, and for
-# every test in this repo) doesn't accept either kwarg and raises
-# TypeError on create_engine() if they're passed unconditionally.
-_is_sqlserver = DATABASE_URL and DATABASE_URL.startswith("mssql")
 _engine_kwargs = {
-    "pool_pre_ping": False,   # Disabled: avoids a SELECT 1 round-trip to Azure on every checkout
-    "echo": False,            # Set to True for SQL debugging
+    "pool_size": 10,             # Number of connections to keep in pool
+    "max_overflow": 20,          # Extra connections if pool is full
+    "pool_recycle": 3600,        # Recycle connections after 1 hour
+    "pool_pre_ping": True,       # Check connection alive before use
+    "echo": False,               # Set to True for SQL debugging
+    "connect_args": {"connect_timeout": 10},  # Connection timeout
 }
-if _is_sqlserver:
-    _engine_kwargs.update(
-        pool_size=5,              # Number of connections to keep in pool
-        max_overflow=10,          # Extra connections if pool is full
-        pool_recycle=1800,        # Recycle connections after 30 minutes
-        fast_executemany=True,    # Improves bulk insert performance
-        connect_args={"timeout": 10},  # Connection timeout in seconds
-    )
 
-# Create SQLAlchemy engine with optimized settings
+# Create SQLAlchemy engine with PostgreSQL settings
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
-
-# Configure SQLite for better concurrent access (workaround until PostgreSQL migration)
-if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
-    configure_sqlite_for_concurrency(engine)
 
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

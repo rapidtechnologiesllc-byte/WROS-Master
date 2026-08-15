@@ -90,9 +90,9 @@ class Candidate(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1", index=True)
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
-    # Business Unit assignment — auto-populated from job's BU when submitted to job.
+    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
     # Nullable initially for existing candidates; becomes required once populated.
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half) --
     # opt-in email OTP, reusing app.core.mfa's role-agnostic EMAIL_OTP_*
     # functions. Tri-state, not a plain boolean: NULL = never asked
@@ -128,7 +128,7 @@ class Candidate(Base):
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 
 class CandidateInfoForm(Base):
