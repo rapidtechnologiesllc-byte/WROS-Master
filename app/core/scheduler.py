@@ -1142,7 +1142,7 @@ def start_scheduler():
             from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
             from datetime import datetime
 
-            async def _assign_thunder_to_new_candidates():
+            def _assign_thunder_to_new_candidates():
                 logger.info("[scheduler] Thunder auto-assign cycle STARTING")
                 db = SessionLocal()
                 try:
@@ -1157,6 +1157,7 @@ def start_scheduler():
                         try:
                             auto_assign_ai_agent_on_creation(candidate.candidateID, db)
                             candidate.thunder_assigned_at = datetime.utcnow()
+                            db.add(candidate)
                             assigned_count += 1
                         except Exception as e:
                             logger.warning(f"[scheduler] Failed to assign Thunder to candidate {candidate.candidateID}: {e}")
