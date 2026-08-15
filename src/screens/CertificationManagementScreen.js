@@ -183,41 +183,62 @@ export default function CertificationManagementScreen() {
 
           {showCreateCert && (
             <div className="border p-4 rounded-lg space-y-3 bg-blue-50">
-              <Input
-                label="Certification Name"
-                placeholder="e.g., Guidewire Core Certification"
-                value={certForm.cert_name}
-                onChange={(e) => setCertForm({ ...certForm, cert_name: e.target.value })}
-              />
-              <Input
-                label="Certification Code"
-                placeholder="e.g., GW-CORE"
-                value={certForm.cert_code}
-                onChange={(e) => setCertForm({ ...certForm, cert_code: e.target.value })}
-              />
-              <Input
-                label="Description"
-                placeholder="Brief description"
-                value={certForm.description}
-                onChange={(e) => setCertForm({ ...certForm, description: e.target.value })}
-              />
-              <Select
-                label="Level"
-                value={certForm.level}
-                onChange={(e) => setCertForm({ ...certForm, level: e.target.value })}
-                options={CERT_LEVELS.map((l) => ({ value: l, label: l }))}
-              />
-              <Input
-                type="number"
-                label="Validity (months)"
-                value={certForm.validity_months}
-                onChange={(e) => setCertForm({ ...certForm, validity_months: parseInt(e.target.value) })}
-              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Certification Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Guidewire Core Certification"
+                  value={certForm.cert_name}
+                  onChange={(e) => setCertForm({ ...certForm, cert_name: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Certification Code</label>
+                <input
+                  type="text"
+                  placeholder="e.g., GW-CORE"
+                  value={certForm.cert_code}
+                  onChange={(e) => setCertForm({ ...certForm, cert_code: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="Brief description"
+                  value={certForm.description}
+                  onChange={(e) => setCertForm({ ...certForm, description: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Level</label>
+                <select
+                  value={certForm.level}
+                  onChange={(e) => setCertForm({ ...certForm, level: e.target?.value || "Foundation" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  {CERT_LEVELS.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Validity (months)</label>
+                <input
+                  type="number"
+                  value={certForm.validity_months}
+                  onChange={(e) => setCertForm({ ...certForm, validity_months: parseInt(e.target?.value || "24") })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={certForm.is_core_certification}
-                  onChange={(e) => setCertForm({ ...certForm, is_core_certification: e.target.checked })}
+                  onChange={(e) => setCertForm({ ...certForm, is_core_certification: e.target?.checked || false })}
                 />
                 <span>Core Certification</span>
               </label>
@@ -275,43 +296,55 @@ export default function CertificationManagementScreen() {
 
           {showAssignTarget && (
             <div className="border p-4 rounded-lg space-y-3 bg-green-50">
-              <Select
-                label="Employee"
-                value={targetForm.employee_id}
-                onChange={(e) => setTargetForm({ ...targetForm, employee_id: e.target.value })}
-                options={[
-                  { value: "", label: "Select employee" },
-                  ...employees.map((emp) => ({
-                    value: emp.id,
-                    label: `${emp.first_name} ${emp.last_name}`,
-                  })),
-                ]}
-              />
-              <Select
-                label="Certification"
-                value={targetForm.certification_id}
-                onChange={(e) => setTargetForm({ ...targetForm, certification_id: e.target.value })}
-                options={[
-                  { value: "", label: "Select certification" },
-                  ...certifications.map((cert) => ({
-                    value: cert.id,
-                    label: cert.cert_name,
-                  })),
-                ]}
-              />
-              <Input
-                type="date"
-                label="Target Date"
-                value={targetForm.target_date}
-                onChange={(e) => setTargetForm({ ...targetForm, target_date: e.target.value })}
-              />
-              <Input
-                type="number"
-                label="Weight (0.0-1.0)"
-                value={targetForm.weight}
-                step="0.1"
-                onChange={(e) => setTargetForm({ ...targetForm, weight: e.target.value })}
-              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Employee</label>
+                <select
+                  value={targetForm.employee_id}
+                  onChange={(e) => setTargetForm({ ...targetForm, employee_id: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">Select employee</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Certification</label>
+                <select
+                  value={targetForm.certification_id}
+                  onChange={(e) => setTargetForm({ ...targetForm, certification_id: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">Select certification</option>
+                  {certifications.map((cert) => (
+                    <option key={cert.id} value={cert.id}>
+                      {cert.cert_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Target Date</label>
+                <input
+                  type="date"
+                  value={targetForm.target_date}
+                  onChange={(e) => setTargetForm({ ...targetForm, target_date: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Weight (0.0-1.0)</label>
+                <input
+                  type="number"
+                  value={targetForm.weight}
+                  step="0.1"
+                  onChange={(e) => setTargetForm({ ...targetForm, weight: e.target?.value || "0.1" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
               <div className="flex gap-2">
                 <Button variant="primary" onClick={handleAssignTarget}>
                   Assign

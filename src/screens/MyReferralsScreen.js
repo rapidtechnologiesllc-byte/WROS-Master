@@ -39,13 +39,18 @@ export default function MyReferralsScreen() {
   const loadMyReferrals = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/referrals/my-referrals", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+      const response = await fetch("http://127.0.0.1:8080/referrals/my-referrals", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
 
       if (!response.ok) throw new Error("Failed to load referrals");
 
-      const data = await response.json();
+      const text = await response.text();
+      if (!text || text.startsWith('<')) {
+        throw new Error("Server returned invalid response. Check backend connection.");
+      }
+
+      const data = JSON.parse(text);
 
       setReferrals(data.referrals || []);
       setStats({
@@ -54,7 +59,7 @@ export default function MyReferralsScreen() {
         employeeName: data.employee_name || "You",
       });
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to load referrals");
       setReferrals([]);
     } finally {
       setLoading(false);
