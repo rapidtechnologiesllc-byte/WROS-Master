@@ -128,6 +128,10 @@ class Client(Base):
     created_by = Column(String(50), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
+    account_manager_user = relationship("Users", foreign_keys=[account_manager_id], lazy="select")
+    client_owner_user = relationship("Users", foreign_keys=[client_owner_id], lazy="select")
+    account_manager_employee = relationship("Employee", foreign_keys=[account_manager_employee_id], lazy="select")
     contacts = relationship("ClientContact", back_populates="client", lazy="select")
 
     __table_args__ = (
