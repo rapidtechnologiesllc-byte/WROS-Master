@@ -10,7 +10,7 @@ import logging
 from typing import Optional, List
 
 from app.models import HiringManagerValidation, HMValidationStatus, HMValidationResponse, Candidate, Demand
-from app.services.hm_validation_service import HMValidationService
+from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.core.database import get_db
 from app.schemas.hm_validation_schemas import (
     HMValidationListResponse,
@@ -25,7 +25,7 @@ from app.schemas.hm_validation_schemas import (
 router = APIRouter(prefix="/hiring-manager-validations", tags=["HM Validation"])
 logger = logging.getLogger(__name__)
 
-hm_service = HMValidationService()
+hm_service = HiringManagerValidationService()
 
 
 @router.post("/jobs/{job_id}/create-questions", response_model=dict)
