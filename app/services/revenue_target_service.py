@@ -72,6 +72,18 @@ def set_bu_revenue_target(
 ) -> BURevenueTarget:
     if target_amount_usd_cents <= 0:
         raise RevenueTargetValidationError("target_amount_usd_cents must be positive.")
+
+    # Validate business_unit exists and belongs to the tenant
+    from app.models.rbac import BusinessUnit
+    bu = db.query(BusinessUnit).filter(
+        BusinessUnit.id == business_unit_id,
+        BusinessUnit.tenant_id == tenant_id
+    ).first()
+    if not bu:
+        raise RevenueTargetValidationError(
+            f"Business Unit {business_unit_id} not found or does not belong to your organization."
+        )
+
     target = BURevenueTarget(
         tenant_id=tenant_id, business_unit_id=business_unit_id, target_period=target_period,
         fiscal_year=fiscal_year, target_amount_usd_cents=target_amount_usd_cents,
