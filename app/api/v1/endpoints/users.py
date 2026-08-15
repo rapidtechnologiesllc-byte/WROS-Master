@@ -128,7 +128,7 @@ def get_all_users(
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
-            business_unit_name=u.business_unit.name if u.business_unit else None,
+            business_unit_name=u.bu_context.name if u.bu_context else None,
         ))
     
     return AllUsersResponse(
@@ -239,7 +239,7 @@ def search_users(
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
-            business_unit_name=u.business_unit.name if u.business_unit else None,
+            business_unit_name=u.bu_context.name if u.bu_context else None,
         ))
 
     return AllUsersResponse(
@@ -280,7 +280,7 @@ def get_user_details_by_id(
         department_id=u.department_id,
         department_name=u.department.name if u.department else None,
         business_unit_id=u.business_unit_id,
-        business_unit_name=u.business_unit.name if u.business_unit else None,
+        business_unit_name=u.bu_context.name if u.bu_context else None,
     )
 
 

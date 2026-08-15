@@ -262,7 +262,7 @@ def get_all_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.business_unit_id,
+            business_unit=j.bu_context_id,
             department_id=j.department_id,
             salary_range=j.salaryRange
         ))
@@ -313,7 +313,7 @@ def get_active_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.business_unit_id,
+            business_unit=j.bu_context_id,
             department_id=j.department_id,
             salary_range=j.salaryRange
         )
@@ -393,7 +393,7 @@ def filter_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.business_unit_id,
+            business_unit=j.bu_context_id,
             department_id=j.department_id,
             salary_range=j.salaryRange
         )
@@ -468,7 +468,7 @@ def get_my_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.business_unit_id,
+            business_unit=j.bu_context_id,
             department_id=j.department_id,
             salary_range=j.salaryRange,
         )
