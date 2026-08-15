@@ -29,6 +29,7 @@ from app.models.candidate import (
 )
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
+from app.models.offer import Offer, OfferStatus
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
 from app.models.business_unit_context import BusinessUnitContext
@@ -46,6 +47,8 @@ from app.models.client import Client, ClientContact, ClientHistory
 from app.models.demand import Demand, DemandHistory
 from app.models.submission import Submission, SubmissionViolation
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
+from app.models.interview import InterviewFeedback, InterviewDecisionLog, InterviewPanelDecision
+from app.models.offer import Offer, OfferStatus
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.notification import Notification
