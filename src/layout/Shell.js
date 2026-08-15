@@ -79,7 +79,7 @@ const GROUP_DEFS = [
     icon: BadgeDollarSign,
     // 2026-08-12, Avinash: "anything monetary stays in finance" -- myExpenses
     // moved in from standalone. Finance owns billing, invoicing, and revenue reporting.
-    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "executiveRevenueDashboard", "financeOperations"],
+    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "executiveRevenueDashboard", "cfoDashboard", "financeOperations"],
   },
   {
     label: "Admin",

@@ -117,17 +117,25 @@ function BuTargetForm() {
 
   const buOptions = [
     { label: "Select Business Unit", value: "", disabled: true },
-    ...businessUnits.map((bu) => ({ label: bu.name, value: bu.id })),
+    ...(businessUnits || []).map((bu) => ({ label: bu.name, value: String(bu.id) })),
   ];
 
   const handleSave = async () => {
     setError("");
+    if (!businessUnitId) {
+      setError("Please select a Business Unit");
+      return;
+    }
+    if (!amount) {
+      setError("Please enter an Annual Target");
+      return;
+    }
     try {
       const res = await createBuTarget({
         business_unit_id: Number(businessUnitId),
         target_period: "ANNUAL",
-        fiscal_year: Number(fiscalYear),
-        target_amount_usd_cents: Math.round(parseFloat(amount || "0") * 100),
+        fiscal_year: Number(fiscalYear) || new Date().getFullYear(),
+        target_amount_usd_cents: Math.round(parseFloat(amount) * 100),
       });
       setResult(res);
     } catch (err) {
@@ -195,15 +203,25 @@ function PartnerGoalForm() {
 
   const partnerOptions = [
     { label: "Select Partner", value: "", disabled: true },
-    ...partners.map((p) => ({ label: `${p.user_name} (${p.user_email})`, value: p.user_id })),
+    ...(partners || []).map((p) => ({ label: `${p.user_name} (${p.user_email})`, value: p.user_id })),
   ];
 
   const handleSave = async () => {
     setError("");
+    if (!partnerUserId) {
+      setError("Please select a Partner");
+      return;
+    }
+    if (!amount) {
+      setError("Please enter an Annual Target");
+      return;
+    }
     try {
       await createPartnerGoal({
-        partner_user_id: partnerUserId, target_period: "ANNUAL",
-        fiscal_year: Number(fiscalYear), target_amount_usd_cents: Math.round(parseFloat(amount || "0") * 100),
+        partner_user_id: partnerUserId,
+        target_period: "ANNUAL",
+        fiscal_year: Number(fiscalYear) || new Date().getFullYear(),
+        target_amount_usd_cents: Math.round(parseFloat(amount) * 100),
       });
       const pos = await getPartnerPosition(partnerUserId);
       setPosition(pos);
