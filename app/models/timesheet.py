@@ -93,10 +93,10 @@ class Timesheet(Base):
             "(allocation_id IS NOT NULL) OR (task_id IS NOT NULL)",
             name="ck_timesheet_allocation_or_task",
         ),
-        Index("ix_timesheet_tenant_bu", "tenant_id", "business_unit_id"),
+        Index("ix_timesheet_tenant_bu", "tenant_id", "bu_context_id"),
     )
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
+    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 
 class TimesheetEntry(Base):

@@ -22,5 +22,5 @@ class BUAccess(Base):
     is_default = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        UniqueConstraint("user_id", "business_unit_id", name="uq_bu_access_user_bu"),
+        UniqueConstraint("user_id", "bu_context_id", name="uq_bu_access_user_bu"),
     )
