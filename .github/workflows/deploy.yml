@@ -103,6 +103,11 @@ jobs:
              git checkout main && \
              git reset --hard origin/main"
 
+      - name: Create build-new directory on server
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "mkdir -p ${{ env.PROD_PATH }}/build-new"
+
       - name: Copy new build to production
         run: |
           scp -r -o StrictHostKeyChecking=no -P 22587 build/ \
