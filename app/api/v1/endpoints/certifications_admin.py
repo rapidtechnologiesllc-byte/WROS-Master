@@ -192,6 +192,7 @@ def get_employee_kpi_targets(
 
 @router.get(
     "/employee/{employee_id}/score",
+    dependencies=[Depends(require_permission("employee.view"))],
 )
 def get_employee_kpi_score(
     employee_id: str,

@@ -4,16 +4,9 @@
     {
       "name": "wros-backend",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8080", "--reload"],
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1"],
       "port": 8080,
-      "autoPort": false
-    },
-    {
-      "name": "wros-frontend",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\start-dev.cmd"],
-      "port": 3000,
-      "autoPort": false
+      "autoPort": true
     }
   ]
 }

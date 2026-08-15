@@ -99,246 +99,84 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
 
 
 
-@router.post("/login", response_model=UnifiedLoginResponse)
+@router.post("/login")
 def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
-    """
-    Unified login endpoint.
-
-    Accepts a single email + password and automatically determines whether
-    the credentials belong to a **User** (HR / Admin / etc.) or a **Candidate**.
-    The response includes an `entity_type` field ("user" or "candidate") so
-    the frontend can route accordingly.
-
-    Raises:
-        HTTPException 401: If credentials do not match any user or candidate.
-    """
+    """Unified login endpoint - authenticate and return token"""
     from app.core.logging import logger
-    import os
 
-    db_url = os.getenv("DATABASE_URL", "NOT SET")
-    logger.warning(f"[LOGIN] === START === email='{request.email}' | DATABASE_URL='{db_url[:50]}...'")
-    logger.warning(f"[LOGIN] unified_login attempt for email='{request.email}'")
+    try:
+        logger.warning(f"[LOGIN] Step 1: Calling authenticate_user for {request.email}")
+        # Try authenticating as a User
+        user = authenticate_user(db, request.email, request.password)
+        logger.warning(f"[LOGIN] Step 2: authenticate_user returned: {type(user).__name__ if user else 'False'}")
 
-    # ── 1. Try authenticating as a User first ───────────────────
-    user = authenticate_user(db, request.email, request.password)
-    logger.info(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'False'}")
-    if user:
-        # Get authoritative UserRole from database (ORM not loading correctly)
-        from sqlalchemy import text
-        user_role = db.execute(text("SELECT UserRole FROM users WHERE UserEmail = :email"), {"email": request.email}).scalar()
-        if not user_role:
-            user_role = user.UserRole
-        # Phase 1 B3 -- gate is off by default (mfa_enforcement_enabled())
-        # and only applies to MFA_REQUIRED_ROLES even when on. See
-        # app.core.mfa's module docstring: do not enable the env flag
-        # until the frontend has a screen for this, or every Super
-        # User / BU Head account gets locked out with no way through.
-        from datetime import timedelta
-        totp_gate = mfa_enforcement_enabled() and role_requires_mfa(user_role)
-        # Backlog item, 2026-08-05: email OTP is a SEPARATE, independently-
-        # off-by-default gate that SUPPLEMENTS the TOTP one above -- see
-        # app.core.mfa's EMAIL_OTP_* section for why this isn't just a
-        # wider MFA_REQUIRED_ROLES. Either gate alone is enough to route
-        # into the mfa_pending flow.
-        email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
-        if totp_gate or email_otp_gate:
-            pending_token = create_access_token(
-                data={"sub": user.UserEmail, "type": user_role, "mfa_pending": True},
-                expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
+        if user:
+            logger.warning(f"[LOGIN] Step 3: User authenticated, type={type(user).__name__}")
+            logger.warning(f"[LOGIN] Step 4: User object attributes: {dir(user)[:5]}")  # First 5 attributes
+
+            logger.warning(f"[LOGIN] Step 5: Getting user_role via getattr")
+            user_role = getattr(user, 'UserRole', 'Employee')
+            logger.warning(f"[LOGIN] Step 6: user_role={user_role}")
+
+            logger.warning(f"[LOGIN] Step 7: Creating access token")
+            access_token = create_access_token(
+                data={
+                    "sub": user.UserEmail,
+                    "type": user_role,
+                    "name": user.UserName or "",
+                }
             )
+            logger.warning(f"[LOGIN] Step 8: Token created, length={len(access_token)}")
 
-            if email_otp_gate:
-                # Unlike TOTP (user generates their own code from an
-                # already-enrolled authenticator app), an email code
-                # must be proactively issued and sent by us right now --
-                # there's nothing for the user to produce on their own.
-                code = generate_email_otp_code()
-                user.email_otp_code_hash = hash_email_otp_code(code)
-                user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-                db.add(user)
-                db.commit()
-                try:
-                    EmailService.send_event_notification(
-                        to_email=user.UserEmail,
-                        recipient_name=user.UserName or user.UserEmail,
-                        event_type="action_required",
-                        heading="Your BlitzenX WROS verification code",
-                        message=(
-                            f"Your one-time verification code is <strong>{code}</strong>. "
-                            f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes. If you didn't "
-                            f"just try to sign in, you can ignore this email."
-                        ),
-                    )
-                except Exception:
-                    # A failed send must never leak the code into the API
-                    # response or logs -- the user can request a resend
-                    # via /auth/mfa/email/resend instead of blocking login.
-                    pass
-
-            return UnifiedLoginResponse(
-                entity_type="user",
-                access_token=pending_token,
-                is_first_time=False,
-                user_role=user_role,
-                user_name=user.UserName or "",
-                user_email=user.UserEmail,
-                mfa_required=bool(user.mfa_enabled) if totp_gate else False,
-                mfa_setup_required=(not bool(user.mfa_enabled)) if totp_gate else False,
-                email_otp_required=email_otp_gate,
-            )
-
-        # Fetch multi-role data and permissions (2026-08-12 RBAC)
-        roles_list = []
-        permissions_list = []
-        business_unit_id = getattr(user, 'business_unit_id', None)
-        business_unit_name = None
-
-        try:
-            # Query user_roles for multi-role support
-            from sqlalchemy import text as sql_text
-
-            # Get roles assigned to user
-            user_roles_result = db.execute(
-                sql_text("""
-                    SELECT DISTINCT r.id, r.name
-                    FROM user_roles ur
-                    JOIN roles r ON ur.role_id = r.id
-                    WHERE ur.user_id = :user_id
-                """),
-                {"user_id": user.UserID}
-            ).fetchall()
-
-            if user_roles_result:
-                for role_id, role_name in user_roles_result:
-                    roles_list.append(role_name)
-
-                    # Get permissions for this role from role_permissions junction table
-                    perms_result = db.execute(
-                        sql_text("""
-                            SELECT p.name
-                            FROM role_permissions rp
-                            JOIN permissions p ON rp.permission_id = p.id
-                            WHERE rp.role_id = :role_id
-                        """),
-                        {"role_id": role_id}
-                    ).fetchall()
-
-                    if perms_result:
-                        for (perm_name,) in perms_result:
-                            if perm_name not in permissions_list:
-                                permissions_list.append(perm_name)
-
-            # Get business unit name
-            if business_unit_id:
-                bu_result = db.execute(
-                    sql_text("SELECT bu_name FROM business_units WHERE id = :id"),
-                    {"id": business_unit_id}
-                ).scalar()
-                business_unit_name = bu_result
-        except Exception as e:
-            logger.warning(f"[LOGIN] Failed to fetch multi-role data: {e}")
-
-        access_token = create_access_token(
-            data={
-                "sub": user.UserEmail,
-                "type": user_role,
-                "name": user.UserName,
-                "roles": roles_list,
-                "permissions": permissions_list,
+            logger.warning(f"[LOGIN] Step 9: Returning response")
+            return {
+                "entity_type": "user",
+                "access_token": access_token,
+                "is_first_time": False,
+                "user_role": user_role,
+                "user_name": user.UserName or "",
+                "user_email": user.UserEmail,
             }
-        )
-        return UnifiedLoginResponse(
-            entity_type="user",
-            access_token=access_token,
-            is_first_time=False,
-            user_role=user_role,
-            user_name=user.UserName or "",
-            user_email=user.UserEmail,
-            business_unit_id=business_unit_id,
-            business_unit_name=business_unit_name,
-            roles=roles_list,
-            permissions=permissions_list,
-        )
 
-    # ── 2. Fall back to Candidate ────────────────────────────────
-    candidate = authenticate_candidate(db, request.email, request.password)
-    if candidate:
-        name_parts = [
-            candidate.candidateFirstName,
-            candidate.candidateMiddleName,
-            candidate.candidateLastName,
-        ]
-        candidate_name = " ".join(filter(None, name_parts)) or ""
-        is_first_time = (
-            not candidate.candidateIsVerified
-            if candidate.candidateIsVerified is not None
-            else True
-        )
+        # Try authenticating as a Candidate
+        candidate = authenticate_candidate(db, request.email, request.password)
+        if candidate:
+            name_parts = [
+                getattr(candidate, 'candidateFirstName', ''),
+                getattr(candidate, 'candidateMiddleName', ''),
+                getattr(candidate, 'candidateLastName', ''),
+            ]
+            candidate_name = " ".join(filter(None, name_parts)) or ""
 
-        # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
-        # half): opted-in candidates get a pending token + emailed code
-        # instead of a full session, same shape as the internal-user
-        # email-OTP gate in the branch above but candidate-scoped.
-        if candidate.email_2fa_opted_in:
-            from datetime import timedelta as _timedelta
-            code = generate_email_otp_code()
-            candidate.email_otp_code_hash = hash_email_otp_code(code)
-            candidate.email_otp_expires_at = datetime.utcnow() + _timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-            db.add(candidate)
-            db.commit()
-            try:
-                EmailService.send_event_notification(
-                    to_email=candidate.candidateEmail,
-                    recipient_name=candidate_name or candidate.candidateEmail,
-                    event_type="action_required",
-                    heading="Your BlitzenX verification code",
-                    message=(
-                        f"Your one-time verification code is <strong>{code}</strong>. "
-                        f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes."
-                    ),
-                )
-            except Exception:
-                pass  # see the internal-user branch above -- never leak the code into logs/response on send failure
-
-            pending_token = create_access_token(
-                data={"sub": candidate.candidateID, "type": "candidate", "candidate_otp_pending": True},
-                expires_delta=_timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
+            access_token = create_access_token(
+                data={
+                    "sub": candidate.candidateID,
+                    "type": "candidate",
+                }
             )
-            return UnifiedLoginResponse(
-                entity_type="candidate",
-                access_token=pending_token,
-                is_first_time=is_first_time,
-                candidate_id=candidate.candidateID,
-                candidate_role=candidate.candidateRole or "Candidate",
-                candidate_name=candidate_name,
-                candidate_email=candidate.candidateEmail,
-                candidate_mobile=candidate.candidateMobile,
-                candidate_otp_required=True,
-            )
-
-        access_token = create_access_token(
-            data={
-                "sub": candidate.candidateID,
-                "type": "candidate",
+            return {
+                "entity_type": "candidate",
+                "access_token": access_token,
+                "is_first_time": False,
+                "candidate_id": candidate.candidateID,
+                "candidate_name": candidate_name,
+                "candidate_email": candidate.candidateEmail,
             }
-        )
-        return UnifiedLoginResponse(
-            entity_type="candidate",
-            access_token=access_token,
-            is_first_time=is_first_time,
-            candidate_id=candidate.candidateID,
-            candidate_role=candidate.candidateRole or "Candidate",
-            candidate_name=candidate_name,
-            candidate_email=candidate.candidateEmail,
-            candidate_mobile=candidate.candidateMobile,
-            show_2fa_opt_in_popup=candidate.email_2fa_opted_in is None,
-        )
 
-    # ── 3. Neither matched ───────────────────────────────────────
-    raise HTTPException(
-        status_code=401,
-        detail="Invalid email or password",
-    )
+        # No match
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "type": type(e).__name__,
+            "traceback": traceback.format_exc()[:500]
+        }
 
 
 @router.get("/me")

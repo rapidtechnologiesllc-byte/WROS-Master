@@ -110,6 +110,9 @@ class EmployeeReferralService:
         """Record an employee referral."""
 
         try:
+            from app.models.candidate import Candidate
+            from app.utils.uniq_id_generator import candidate_id_generator
+
             # Get job referral settings to get bonus amount
             settings = db.query(JobReferralSettings).filter(
                 JobReferralSettings.job_id == job_id
@@ -118,6 +121,27 @@ class EmployeeReferralService:
             bonus_amount = (
                 settings.referral_bonus_amount_usd_cents if settings else 50000
             )  # $500 default
+
+            # Create candidate record if it doesn't exist
+            existing_candidate = db.query(Candidate).filter(
+                Candidate.candidateEmail == referred_candidate_email
+            ).first()
+
+            if not existing_candidate:
+                name_parts = referred_candidate_name.split(' ', 1)
+                candidate = Candidate(
+                    candidateID=candidate_id_generator(),
+                    candidateEmail=referred_candidate_email,
+                    candidateFirstName=name_parts[0],
+                    candidateLastName=name_parts[1] if len(name_parts) > 1 else '',
+                    candidateStatus="REFERRED",
+                    created_at=datetime.utcnow(),
+                )
+                db.add(candidate)
+                db.flush()
+                candidate_id = candidate.candidateID
+            else:
+                candidate_id = existing_candidate.candidateID
 
             referral = EmployeeReferral(
                 referral_id=f"ref_{uuid.uuid4().hex[:12]}",
@@ -132,10 +156,26 @@ class EmployeeReferralService:
 
             db.add(referral)
 
+            # Assign to Thunder autonomous hiring system
+            try:
+                from app.models.thunder_assignment import ThunderAssignment
+                thunder_assignment = ThunderAssignment(
+                    assignment_id=f"ta_{uuid.uuid4().hex[:12]}",
+                    job_id=job_id,
+                    candidate_email=referred_candidate_email,
+                    candidate_name=referred_candidate_name,
+                    assignment_status="PENDING_SCREENING",
+                    assigned_date=datetime.utcnow(),
+                )
+                db.add(thunder_assignment)
+            except:
+                pass
+
             # Update job referral settings
             if settings:
                 settings.total_referrals_received += 1
-                db.commit()
+
+            db.commit()
 
             return {
                 "status": "recorded",
