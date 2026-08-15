@@ -84,6 +84,7 @@ from app.models.checklist import (
 )
 from app.models.ats import ATSScore
 from app.models.candidate_history import CandidateHistory
+from app.models.candidate_rejection import CandidateRejection, CandidateRejectionReason
 from app.models.candidate_ownership import CandidateOwnership
 from app.models.internal_note import InternalNote
 from app.models.hr_assignment import HRAssignment
@@ -256,6 +257,9 @@ __all__ = [
     "ATSScore",
     # Candidate History
     "CandidateHistory",
+    # Candidate Rejection Workflow (S-322, 2026-08-15)
+    "CandidateRejection",
+    "CandidateRejectionReason",
     # Candidate Pool Ownership
     "CandidateOwnership",
     # Internal HR Notes

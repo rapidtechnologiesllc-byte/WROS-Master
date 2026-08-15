@@ -107,6 +107,7 @@ from app.api.v1.endpoints.work_orders import router as work_orders_router
 from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
 from app.api.v1.endpoints.certifications_admin import router as certifications_admin_router
 from app.api.v1.endpoints.candidate_ranking import router as candidate_ranking_router
+from app.api.v1.endpoints.candidate_rejection import router as candidate_rejection_router
 
 router = fastapi.APIRouter()
 
@@ -216,4 +217,5 @@ router.include_router(router=work_orders_router)
 # router.include_router(router=bi_explorer_router)  # DISABLED: endpoint not found
 router.include_router(router=bu_head_dashboard_router)
 router.include_router(router=certifications_admin_router)
-router.include_router(router=candidate_ranking_router)
+router.include_router(router=candidate_ranking_router)
+router.include_router(router=candidate_rejection_router)
