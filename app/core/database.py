@@ -33,15 +33,16 @@ if DATABASE_URL and DATABASE_URL.startswith("sqlite:///./"):
     abs_path = os.path.join(_REPO_ROOT, rel_path)
     DATABASE_URL = f"sqlite:///{abs_path}"
 
-# fast_executemany and the pyodbc-style connect_args are SQL-Server-only
-# (mssql+pyodbc) -- SQLite (used for local dev via .env.local, and for
-# every test in this repo) doesn't accept either kwarg and raises
-# TypeError on create_engine() if they're passed unconditionally.
+# Database-specific configuration
 _is_sqlserver = DATABASE_URL and DATABASE_URL.startswith("mssql")
+_is_postgres = DATABASE_URL and DATABASE_URL.startswith("postgresql")
+_is_sqlite = DATABASE_URL and DATABASE_URL.startswith("sqlite")
+
 _engine_kwargs = {
-    "pool_pre_ping": False,   # Disabled: avoids a SELECT 1 round-trip to Azure on every checkout
+    "pool_pre_ping": False,   # Disabled: avoids round-trip checks
     "echo": False,            # Set to True for SQL debugging
 }
+
 if _is_sqlserver:
     _engine_kwargs.update(
         pool_size=5,              # Number of connections to keep in pool
@@ -50,12 +51,20 @@ if _is_sqlserver:
         fast_executemany=True,    # Improves bulk insert performance
         connect_args={"timeout": 10},  # Connection timeout in seconds
     )
+elif _is_postgres:
+    _engine_kwargs.update(
+        pool_size=10,             # Higher concurrency for PostgreSQL
+        max_overflow=20,
+        pool_recycle=3600,        # Recycle connections after 1 hour
+        pool_pre_ping=True,       # Check connection alive before use
+        connect_args={"connect_timeout": 10},  # Connection timeout
+    )
 
 # Create SQLAlchemy engine with optimized settings
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 # Configure SQLite for better concurrent access (workaround until PostgreSQL migration)
-if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+if _is_sqlite:
     configure_sqlite_for_concurrency(engine)
 
 # SessionLocal class
