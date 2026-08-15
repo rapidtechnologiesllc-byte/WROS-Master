@@ -487,6 +487,14 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     try {
       // Create the candidate in backend and receive generated password.
+      // Format location: only include if all required fields are selected
+      let formattedLocation = null;
+      if (locationValue?.countryCode && locationValue?.city) {
+        const loc = formatLocation(locationValue);
+        // Ensure it's a string, not an object
+        formattedLocation = typeof loc === 'string' ? loc : null;
+      }
+
       const data = await createCandidate({
         candidate_email: email.trim(),
         candidate_role: "Candidate",
@@ -503,7 +511,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_joining_date: joiningDate || null,
         candidate_expected_salary: expectedSalary || null,
         candidate_current_salary: currentSalary || null,
-        candidate_current_location: formatLocation(locationValue) || null,
+        candidate_current_location: formattedLocation,
         assigned_hr_manager_id: assignedHrManagerId || null,
         assigned_report_manager_id: assignedReportManagerId || null,
         education_records: filledEducationRows.length
