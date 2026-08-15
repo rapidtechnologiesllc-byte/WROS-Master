@@ -84,7 +84,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["usersAccessControl", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
+    keys: ["usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
   },
 ];
 
@@ -145,6 +145,7 @@ const NAV_PERMISSIONS = {
 
   // Admin Module
   usersAccessControl: "user.manage",
+  certifications: "system.manage",
   tenantLocale: "tenant.manage",
   tenantAiConfig: "agent.manage",
   messageTemplates: "communication.manage",
@@ -210,7 +211,7 @@ export default function Shell({
     // Use permission-based navigation if permissions are available
     if (Array.isArray(permissions) && permissions.length > 0) {
       const permissionGroups = buildGroupsByPermissions();
-      const standalone = [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet];
+      const standalone = [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals];
       return { standalone, groups: permissionGroups };
     }
 
@@ -218,25 +219,25 @@ export default function Shell({
     if (isSuperUser) {
       // Super User gets ALL navigation items
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
         groups: buildGroups(Object.keys(NAV_PERMISSIONS)),
       };
     }
     if (isAdmin) {
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
         groups: buildGroups([
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "myExpenses", "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
-          "usersAccessControl", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
+          "usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
     }
     if (isHR_Manager) {
       return {
-        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
         groups: buildGroups([
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
@@ -256,7 +257,7 @@ export default function Shell({
     if (isHrOperations) {
       return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
     }
-    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
+    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses, NAV_ITEMS.myReferrals], groups: [] };
   }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations, getPermissions, buildGroupsByPermissions]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
