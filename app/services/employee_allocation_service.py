@@ -1,8 +1,12 @@
 """
-HRMS-0507 -- allocate/end-allocation, the one write path that moves an
-employee off (or back onto) the bench. Per 04-RESOURCE-MANAGEMENT.md's
-own framing, this is always a distinct human decision, never automatic
--- there is no agent or ranking logic here (that's Phase 4 Part A).
+S-314 -- Project Allocation Engine
+HRMS-0507 (Employee Allocations), HRMS-0803 (Multi-Allocation Support),
+HRMS-0812 (Project Allocation Capacity Management).
+
+Core methods:
+  - allocate_employee_to_project() — Allocate employee to demand/project
+  - get_available_projects() — List projects available for allocation
+  - check_capacity() — Check if employee has capacity for new allocation
 
 Reuses app.services.employee_service.transition_employee_status() for
 the actual status change rather than setting Employee.status directly,
@@ -17,13 +21,15 @@ Employee.status. log_allocation_conflict() records a permanent audit
 row the moment AllocationOverCapacity is about to be raised.
 """
 from datetime import date
-from typing import Optional
+from typing import List, Optional, Tuple
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.project import Project
 from app.services.employee_service import transition_employee_status
 from app.services.resource_management_service import (
     log_allocation_conflict,
@@ -183,3 +189,94 @@ def end_allocation(
             mark_employee_on_bench(db, employee)
 
     return allocation
+
+
+def get_available_projects(
+    db: Session,
+    tenant_id: Optional[int],
+    employee_id: Optional[str] = None,
+    status_filter: Optional[str] = None,
+) -> List[Project]:
+    """
+    Get list of projects available for allocation.
+
+    Filters:
+      - tenant_id: Required for multi-tenancy
+      - employee_id: If provided, exclude projects with conflicting allocations
+      - status_filter: ACTIVE (default), ALL, or specific status (PLANNING, COMPLETED, etc.)
+
+    Returns: List of Project objects sorted by most recent first.
+    """
+    query = db.query(Project).filter(Project.tenant_id == tenant_id)
+
+    # Default to ACTIVE projects only
+    if status_filter is None:
+        status_filter = "ACTIVE"
+
+    if status_filter != "ALL":
+        query = query.filter(Project.status == status_filter)
+
+    projects = query.order_by(Project.created_at.desc()).all()
+
+    # If employee_id provided, filter out projects with conflicting allocations
+    if employee_id:
+        employee_allocations = db.query(EmployeeAllocation).filter(
+            EmployeeAllocation.employee_id == employee_id,
+            EmployeeAllocation.status == "ACTIVE",
+        ).all()
+        project_ids_with_allocation = {a.project_id for a in employee_allocations if a.project_id}
+        projects = [p for p in projects if p.id not in project_ids_with_allocation]
+
+    return projects
+
+
+def check_capacity(
+    db: Session,
+    employee_id: str,
+    additional_utilization_pct: float = 100.0,
+    proposed_start_date: Optional[date] = None,
+) -> Tuple[bool, float, float]:
+    """
+    Check if employee has capacity for a new allocation.
+
+    Returns: (has_capacity: bool, current_utilization: float, available_capacity: float)
+
+    Business Rules:
+      - HRMS-0803 BR-0803-01: Total allocation % across overlapping active
+        allocations cannot exceed 100%
+      - Each allocation defaults to 100% utilization if not specified
+      - Checks only ACTIVE allocations
+      - Ignores ENDED and CORE_PULLED allocations
+
+    Args:
+      - employee_id: Employee to check capacity for
+      - additional_utilization_pct: Proposed utilization percentage (default 100%)
+      - proposed_start_date: Start date for new allocation (defaults to today)
+
+    Returns:
+      - has_capacity: True if employee can accept new allocation
+      - current_utilization: Current % allocation (sum of all overlapping ACTIVE allocations)
+      - available_capacity: Remaining % capacity after proposed allocation
+    """
+    proposed_start = proposed_start_date or date.today()
+
+    # Get all ACTIVE allocations for this employee
+    active_allocations = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.employee_id == employee_id,
+        EmployeeAllocation.status == "ACTIVE",
+    ).all()
+
+    # Calculate overlapping utilization (allocations without end_date or end_date >= proposed_start)
+    overlapping_utilization = 0.0
+    for allocation in active_allocations:
+        # Include allocation if it has no end_date OR end_date is on/after proposed start
+        if allocation.end_date is None or allocation.end_date >= proposed_start:
+            utilization = float(allocation.utilization_pct or 100.0)
+            overlapping_utilization += utilization
+
+    current_utilization = overlapping_utilization
+    total_with_new = current_utilization + additional_utilization_pct
+    available_capacity = max(0.0, 100.0 - current_utilization)
+    has_capacity = total_with_new <= 100.0
+
+    return has_capacity, current_utilization, available_capacity
