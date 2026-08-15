@@ -26,6 +26,11 @@ export const getActiveBulkJobs = async () => {
   return data;
 };
 
+export const getImportHistory = async () => {
+  const { data } = await apiRequest("/candidates/bulk-import/list", { method: "GET" });
+  return data;
+};
+
 export const cancelBulkImportJob = async (jobId) => {
   const { data } = await apiRequest(`/candidates/bulk-import/${jobId}/cancel`, { method: "DELETE" });
   return data;
