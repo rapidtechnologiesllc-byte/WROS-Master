@@ -144,6 +144,55 @@ def get_available_roles_for_conversion(
 ):
     """Get available roles for employee conversion"""
     from app.models.rbac import Role
-    
+
     roles = db.query(Role).filter(Role.is_active == True).all()
     return [{"id": r.id, "name": r.name} for r in roles]
+
+
+class EmployeeCertificationsRequest(BaseModel):
+    """Request to update employee certifications"""
+    guidewire_certification_current: Optional[str] = None
+    guidewire_certification_expected: Optional[str] = None
+
+
+@router.put(
+    "/{employee_id}/certifications",
+    dependencies=[Depends(require_permission("employee.manage"))],
+)
+def update_employee_certifications(
+    employee_id: str,
+    request: EmployeeCertificationsRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_hr_or_admin),
+):
+    """
+    Update employee certifications (Guidewire certification levels).
+    Requires permission: employee.manage
+    """
+    from app.core.logging import logger
+
+    logger.info(f"[DEFECT-1] Updating certifications for employee {employee_id}")
+
+    # Find employee user
+    employee = db.query(Users).filter(Users.UserID == employee_id).first()
+    if not employee:
+        logger.error(f"[DEFECT-1] Employee {employee_id} not found")
+        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
+
+    # Update certifications
+    if request.guidewire_certification_current is not None:
+        employee.guidewire_certification_current = request.guidewire_certification_current
+    if request.guidewire_certification_expected is not None:
+        employee.guidewire_certification_expected = request.guidewire_certification_expected
+
+    db.commit()
+    db.refresh(employee)
+
+    logger.info(f"[DEFECT-1] Updated certifications for {employee_id}: current={request.guidewire_certification_current}, expected={request.guidewire_certification_expected}")
+
+    return {
+        "status": "success",
+        "employee_id": employee_id,
+        "guidewire_certification_current": employee.guidewire_certification_current,
+        "guidewire_certification_expected": employee.guidewire_certification_expected,
+    }

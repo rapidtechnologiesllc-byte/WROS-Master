@@ -102,6 +102,7 @@ from app.api.v1.endpoints.work_orders import router as work_orders_router
 # from app.api.v1.endpoints.training_dashboards import router as training_dashboards_router  # DISABLED: endpoint not found
 # from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router  # DISABLED: endpoint not found
 from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
+from app.api.v1.endpoints.certifications_admin import router as certifications_admin_router
 
 router = fastapi.APIRouter()
 
@@ -206,4 +207,5 @@ router.include_router(router=employee_referrals_router)
 router.include_router(router=work_orders_router)
 # router.include_router(router=training_dashboards_router)  # DISABLED: endpoint not found
 # router.include_router(router=bi_explorer_router)  # DISABLED: endpoint not found
-router.include_router(router=bu_head_dashboard_router)
+router.include_router(router=bu_head_dashboard_router)
+router.include_router(router=certifications_admin_router)
