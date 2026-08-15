@@ -27,6 +27,7 @@ import { mapJobFromApi } from "../App";
 import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../components/ScreenLevelBanner";
 import { useNavigate } from "react-router-dom";
 import { useRef } from "react";
+import { handleApiError } from "../utils/apiErrorHandler";
 
 // Added 2026-07-23 -- real bug: the Mobile input used to strip any
 // country code the candidate typed (removed a leading "91", hard-capped
@@ -85,6 +86,7 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
+  const [availableJobs, setAvailableJobs] = useState([]);
   const navigate = useNavigate();
 
   // Field refs for scrolling to errors
@@ -95,6 +97,20 @@ export default function CandidateCreate({ onBack, onSave }) {
     mobile: null,
     gender: null,
   });
+
+  useEffect(() => {
+    loadAvailableJobs();
+  }, []);
+
+  const loadAvailableJobs = async () => {
+    try {
+      const jobs = await getAllJobs();
+      const openJobs = jobs.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
+      setAvailableJobs(openJobs);
+    } catch (error) {
+      console.log("Could not load jobs", error);
+    }
+  };
 
   const handleFieldClick = (fieldName) => {
     const ref = fieldRefs.current[fieldName];
@@ -586,7 +602,8 @@ export default function CandidateCreate({ onBack, onSave }) {
       setActionNotice(nextNotice);
       return createdCandidate;
     } catch (err) {
-      showError(err.message || "Failed to create candidate.");
+      const errorMessage = handleApiError(err, "Failed to create candidate.");
+      showError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -609,9 +626,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         onSave(candidateId);
       }
     } catch (err) {
-      showError(
-        err.message || "Candidate created but job assignment failed.",
-      );
+      const errorMessage = handleApiError(err, "Candidate created but job assignment failed.");
+      showError(errorMessage);
     } finally {
       setIsAssigning(false);
     }
@@ -639,7 +655,8 @@ export default function CandidateCreate({ onBack, onSave }) {
       onSave(candidate);
     } catch (error) {
       console.error("Failed in handleSaveOnly:", error);
-      showError(error.message || "Failed to create candidate");
+      const errorMessage = handleApiError(error, "Failed to create candidate");
+      showError(errorMessage);
     }
   };
 
@@ -692,7 +709,28 @@ export default function CandidateCreate({ onBack, onSave }) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Input label="Job Title" value={jobName} onChange={setJobName} />
+          <div>
+            <Select
+              label="Open Jobs (Optional)"
+              value={selectedJobId}
+              onChange={(jobId) => {
+                setSelectedJobId(jobId);
+                const selected = availableJobs.find(j => j.jobID === jobId);
+                if (selected) {
+                  setJobName(selected.jobTitle || selected.title || "");
+                } else {
+                  setJobName("");
+                }
+              }}
+              options={[
+                { value: "", label: "Select a job (optional)" },
+                ...availableJobs.map(job => ({
+                  value: job.jobID,
+                  label: job.jobTitle || job.title
+                }))
+              ]}
+            />
+          </div>
           <div>
             <Input
               ref={(ref) => (fieldRefs.current.email = ref?.input)}

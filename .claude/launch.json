@@ -2,11 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Frontend",
+      "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 3000,
-      "autoPort": true
+      "autoPort": true,
+      "url": "http://localhost:3000"
     }
   ]
 }
