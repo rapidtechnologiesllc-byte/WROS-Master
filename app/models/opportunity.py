@@ -101,4 +101,7 @@ class Opportunity(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    client = relationship("Client", foreign_keys=[client_id], lazy="select")
+    client_owner = relationship("Users", foreign_keys=[client_owner_id], lazy="select")
+    account_manager = relationship("Employee", foreign_keys=[account_manager_id], lazy="select")
     bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
