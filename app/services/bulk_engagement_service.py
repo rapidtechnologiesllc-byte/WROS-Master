@@ -43,7 +43,6 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
-from app.core.db_resilience import retry_on_db_lock
 from app.models.bulk_engagement import BulkEngagementError, BulkEngagementJob
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
@@ -247,7 +246,6 @@ def _update_duplicate_candidate(existing_candidate: Candidate, row: Dict) -> Non
         logger.info(f"[BulkImport] Updated duplicate candidate {existing_candidate.candidateID}: {', '.join(updated_fields)}")
 
 
-@retry_on_db_lock(max_retries=3)
 def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str, job_id: str = None) -> Dict:
     """Step 1. Never raises for per-row problems -- those go in
     `errors`. Raises CsvTooLarge/CsvMissingRequiredColumn for the
