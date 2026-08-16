@@ -92,6 +92,66 @@ ROLE_TEMPLATE_PERMISSIONS = {
 }
 
 
+def assign_users_to_role_templates(db: Session, tenant_id: int = 1) -> None:
+    """
+    Assign existing users to role templates based on their UserRole string.
+
+    This bridges the gap between the old role system (UserRole string) and
+    the new role template system (RoleTemplate records).
+
+    Process:
+    1. Query all users with a UserRole string
+    2. Find matching RoleTemplate by name
+    3. Create UserRole record linking user to role template
+    4. Skip if user already has a UserRole record (idempotent)
+
+    Args:
+        db: Database session
+        tenant_id: Tenant ID for multi-tenancy (default: 1)
+    """
+    try:
+        from app.models.user import Users, UserRole
+
+        # Get all users who don't yet have a UserRole record (new system)
+        users_without_template = db.query(Users).filter(
+            Users.UserRole.isnot(None),
+            ~Users.id.in_(
+                db.query(UserRole.user_id).filter(UserRole.tenant_id == tenant_id)
+            )
+        ).all()
+
+        for user in users_without_template:
+            if not user.UserRole:
+                continue
+
+            # Find role template with matching name
+            role_template = db.query(RoleTemplate).filter(
+                RoleTemplate.name == user.UserRole,
+                RoleTemplate.tenant_id == tenant_id
+            ).first()
+
+            if not role_template:
+                logger.warning(f"No role template found for user role: {user.UserRole}")
+                continue
+
+            # Create UserRole record
+            user_role = UserRole(
+                user_id=user.UserID,
+                role_template_id=role_template.id,
+                business_unit_id=user.business_unit_id,
+                tenant_id=tenant_id
+            )
+            db.add(user_role)
+
+        db.commit()
+        logger.info("[OK] Existing users assigned to role templates")
+
+    except Exception as exc:
+        logger.error(f"Failed to assign users to role templates: {exc}")
+        db.rollback()
+        # Don't raise — if assignment fails, system can still work with legacy fallback
+
+
 def seed_role_templates(db: Session, tenant_id: int = 1) -> None:
     """
     Idempotently seed all modules, resources, and role templates.
@@ -102,6 +162,8 @@ def seed_role_templates(db: Session, tenant_id: int = 1) -> None:
         tenant_id: Tenant ID for multi-tenancy (default: 1)
     """
     try:
+        # First, assign existing users to role templates
+        assign_users_to_role_templates(db, tenant_id)
         # 1. Seed modules
         module_map = {}
         for mod_data in MODULES_SEED:
