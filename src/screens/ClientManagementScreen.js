@@ -16,7 +16,7 @@
 // after creation, in the client detail view -- see ClientContactsPanel
 // below. A client still can't go status=ACTIVE without at least one
 // contact (enforced server-side, unchanged).
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Building2, Plus, Pencil, TrendingUp, Users, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import {
@@ -24,8 +24,6 @@ import {
   getClientContacts, addClientContact,
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
-import { listBusinessUnits } from "../services/api/rbac";
-import { listEligibleOpportunityOwners, listClientOwners } from "../services/api/opportunities";
 
 const CONTACT_ROLE_TYPES = [
   "HIRING_MANAGER", "TIMESHEET_APPROVER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY",
@@ -57,58 +55,13 @@ const emptyForm = {
   website: "",
   tier: "STANDARD",
   billing_currency: "USD",
-  business_unit_id: "",
-  account_manager_id: "",
-  client_owner_id: "",
   notes: "",
 };
 
-function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
+function ClientForm({ mode, initial, onCancel, onSaved }) {
   const [form, setForm] = useState(initial || emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [users, setUsers] = useState([]);
-  const [usersLoaded, setUsersLoaded] = useState(false);
-
-  useEffect(() => {
-    // Load users for account manager and client owner dropdowns
-    listEligibleOpportunityOwners()
-      .then((res) => {
-        // API returns array directly OR {employees: Array}
-        const employeeList = Array.isArray(res) ? res : (res?.employees || []);
-        setUsers(employeeList);
-        setUsersLoaded(true);
-      })
-      .catch((err) => {
-        console.error("[ClientForm] Failed to load users:", err);
-        setUsersLoaded(true);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (mode === "create" && !form.business_unit_id && businessUnits?.length) {
-      // Default to first BU or one marked as default
-      const defaultBU = businessUnits.find((bu) => bu.is_default) || businessUnits[0];
-      const buId = defaultBU?.business_unit_id || defaultBU?.id;
-      setForm((f) => ({ ...f, business_unit_id: String(buId) }));
-    }
-  }, [mode, businessUnits]);
-
-  const userOptions = useMemo(() => [
-    { label: "Select Account Manager", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
-    }))
-  ], [users]);
-
-  const clientOwnerOptions = useMemo(() => [
-    { label: "Select Client Owner", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
-    }))
-  ], [users]);
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -117,17 +70,13 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
       setError("Company name is required.");
       return;
     }
-    if (!form.business_unit_id) {
-      setError("Business Unit is required.");
-      return;
-    }
     setSaving(true);
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_id, client_owner_id } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, notes } = form;
         await updateClient(form.id, {
-          company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_id, client_owner_id,
+          company_name, company_short_name, country, line_type, website, tier, billing_currency, notes,
         });
       } else {
         await createClient({
@@ -136,7 +85,6 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
           country: form.country || null,
           website: form.website,
           billing_currency: form.billing_currency,
-          business_unit_id: form.business_unit_id,
         });
       }
       onSaved();
@@ -159,17 +107,8 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
         <Input label="Website" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com (optional)" />
         <Select label="Country" value={form.country} onChange={set("country")} options={COUNTRIES} />
         <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
-        <Select label="Business Unit *" value={form.business_unit_id} onChange={set("business_unit_id")} options={[
-          { label: "Select Business Unit", value: "", disabled: true },
-          ...businessUnits.map(bu => ({
-            label: bu.name,
-            value: String(bu.business_unit_id || bu.id)
-          }))
-        ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
-        <Select label="Account Manager" value={form.account_manager_id || ""} onChange={set("account_manager_id")} options={userOptions} />
-        <Select label="Client Owner" value={form.client_owner_id || ""} onChange={set("client_owner_id")} options={clientOwnerOptions} />
         {mode === "edit" && (
           <Select label="Status" value={form.status || "PROSPECT"} onChange={set("status")} options={CLIENT_STATUSES} />
         )}
@@ -207,7 +146,6 @@ export default function ClientManagementScreen() {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState("");
-  const [businessUnits, setBusinessUnits] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -223,12 +161,6 @@ export default function ClientManagementScreen() {
 
   useEffect(() => {
     load();
-    // Fetch ALL organization business units for dropdown
-    listBusinessUnits()
-      .then((res) => {
-        setBusinessUnits(res.business_units || res || []);
-      })
-      .catch((err) => console.error("Failed to load business units:", err));
   }, []);
 
   const handleSaved = () => {
@@ -255,9 +187,6 @@ export default function ClientManagementScreen() {
         website: full.website || "",
         tier: full.tier || "STANDARD",
         billing_currency: full.billing_currency || "USD",
-        business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
-        account_manager_id: full.account_manager_id || "",
-        client_owner_id: full.client_owner_id || "",
         notes: full.notes || "",
       });
     } catch (err) {
@@ -325,15 +254,14 @@ export default function ClientManagementScreen() {
         {c.company_name}
       </button>
     ),
-    business_unit: c.business_unit_name || "—",
     status: (
       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
         {c.status}
       </span>
     ),
     actions: (
-      <Button variant="ghost" onClick={() => handleRowClick(c)} disabled={detailLoading && detailClient?.id === c.id}>
-        <Pencil className="h-4 w-4" /> {detailLoading && detailClient?.id === c.id ? "Loading…" : "Edit"}
+      <Button variant="ghost" onClick={() => handleEditClick(c)} disabled={editLoadingId === c.id}>
+        <Pencil className="h-4 w-4" /> {editLoadingId === c.id ? "Loading…" : "Edit"}
       </Button>
     ),
   }));
@@ -355,7 +283,7 @@ export default function ClientManagementScreen() {
         }
       >
         {showAdd ? (
-          <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} businessUnits={businessUnits} />
+          <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} />
         ) : null}
         {editingClient ? (
           <ClientForm
@@ -363,7 +291,6 @@ export default function ClientManagementScreen() {
             initial={editingClient}
             onCancel={() => setEditingClient(null)}
             onSaved={handleSaved}
-            businessUnits={businessUnits}
           />
         ) : null}
 
@@ -373,7 +300,6 @@ export default function ClientManagementScreen() {
           <Table
             columns={[
               { key: "company_name", header: "Company" },
-              { key: "business_unit", header: "Business Unit" },
               { key: "status", header: "Status" },
               { key: "actions", header: "" },
             ]}
@@ -394,7 +320,6 @@ export default function ClientManagementScreen() {
           contactsError={contactsError}
           onContactAdded={() => loadContacts(detailClient.id)}
           onClose={handleCloseDetail}
-          businessUnits={businessUnits}
         />
       ) : null}
     </div>
@@ -489,94 +414,8 @@ function ClientContactsPanel({ clientId, contacts, loading, error, onContactAdde
 
 function ClientDetailModal({
   client, loading, error, investmentPosition, investmentPositionError,
-  contacts, contactsLoading, contactsError, onContactAdded, onClose, businessUnits = [],
+  contacts, contactsLoading, contactsError, onContactAdded, onClose,
 }) {
-  const [selectedBU, setSelectedBU] = useState(String(client?.business_unit_id || ""));
-  const [selectedAccountManager, setSelectedAccountManager] = useState(String(client?.account_manager_id || ""));
-  const [selectedClientOwner, setSelectedClientOwner] = useState(String(client?.client_owner_id || ""));
-  const [buSaving, setBuSaving] = useState(false);
-  const [amSaving, setAmSaving] = useState(false);
-  const [coSaving, setCoSaving] = useState(false);
-  const [users, setUsers] = useState([]);
-
-  useEffect(() => {
-    // Load users for account manager and client owner dropdowns
-    listEligibleOpportunityOwners()
-      .then((res) => {
-        // API returns array directly OR {employees: Array}
-        const employeeList = Array.isArray(res) ? res : (res?.employees || []);
-        setUsers(employeeList);
-      })
-      .catch((err) => console.error("[ClientDetailModal] Failed to load users:", err));
-  }, []);
-
-  useEffect(() => {
-    setSelectedBU(String(client?.business_unit_id || ""));
-    setSelectedAccountManager(String(client?.account_manager_id || ""));
-    setSelectedClientOwner(String(client?.client_owner_id || ""));
-  }, [client?.id]);
-
-  const userOptions = useMemo(() => [
-    { label: "Select Account Manager", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
-    }))
-  ], [users]);
-
-  const clientOwnerOptions = useMemo(() => [
-    { label: "Select Client Owner", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
-    }))
-  ], [users]);
-
-  const handleBUChange = async (buId) => {
-    setSelectedBU(buId);
-    if (!client?.id) return;
-
-    setBuSaving(true);
-    try {
-      await updateClient(client.id, { business_unit_id: buId ? Number(buId) : null });
-    } catch (err) {
-      console.error("Failed to update business unit:", err);
-      setSelectedBU(String(client.business_unit_id || ""));
-    } finally {
-      setBuSaving(false);
-    }
-  };
-
-  const handleAccountManagerChange = async (amId) => {
-    setSelectedAccountManager(amId);
-    if (!client?.id) return;
-
-    setAmSaving(true);
-    try {
-      await updateClient(client.id, { account_manager_id: amId || null });
-    } catch (err) {
-      console.error("Failed to update account manager:", err);
-      setSelectedAccountManager(String(client.account_manager_id || ""));
-    } finally {
-      setAmSaving(false);
-    }
-  };
-
-  const handleClientOwnerChange = async (coId) => {
-    setSelectedClientOwner(coId);
-    if (!client?.id) return;
-
-    setCoSaving(true);
-    try {
-      await updateClient(client.id, { client_owner_id: coId || null });
-    } catch (err) {
-      console.error("Failed to update client owner:", err);
-      setSelectedClientOwner(String(client.client_owner_id || ""));
-    } finally {
-      setCoSaving(false);
-    }
-  };
-
   const statusColors = {
     "ACTIVE": "bg-emerald-50 text-emerald-700 border-emerald-200",
     "INACTIVE": "bg-gray-50 text-gray-700 border-gray-200",
@@ -644,42 +483,6 @@ function ClientDetailModal({
                 <FieldRow label="Website" value={client.website} />
                 <FieldRow label="Country" value={client.country} />
                 <FieldRow label="Line Type" value={client.line_type} />
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Business Unit</label>
-                  <Select
-                    value={selectedBU}
-                    onChange={handleBUChange}
-                    options={[
-                      { label: "Select Business Unit", value: "", disabled: true },
-                      ...businessUnits.map((bu) => ({
-                        label: bu.name,
-                        value: String(bu.business_unit_id || bu.id),
-                      })),
-                    ]}
-                    disabled={buSaving}
-                  />
-                  {buSaving && <div className="mt-1 text-xs text-gray-500">Saving...</div>}
-                </div>
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Account Manager</label>
-                  <Select
-                    value={selectedAccountManager}
-                    onChange={handleAccountManagerChange}
-                    options={userOptions}
-                    disabled={amSaving}
-                  />
-                  {amSaving && <div className="mt-1 text-xs text-gray-500">Saving...</div>}
-                </div>
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Client Owner</label>
-                  <Select
-                    value={selectedClientOwner}
-                    onChange={handleClientOwnerChange}
-                    options={clientOwnerOptions}
-                    disabled={coSaving}
-                  />
-                  {coSaving && <div className="mt-1 text-xs text-gray-500">Saving...</div>}
-                </div>
               </FieldGroup>
 
               {/* Billing & Contract */}

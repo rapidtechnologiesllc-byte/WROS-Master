@@ -6,8 +6,9 @@ import {
   createJob,
   generateJobWithAgent,
   generateJobComplete,
+  updateJob,
 } from "../services/api/jobs";
-import { Button, Card, Input, Select, TextArea } from "../components/ui";
+import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLocation, parseLocation } from "../components/ui";
 import RateField from "../components/ui/RateField";
 import { searchUsers } from "../services/api/users";
 import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
@@ -15,6 +16,7 @@ import { toast } from "react-toastify";
 import {
   listBusinessUnits,
 } from "../services/api/rbac";
+import { createTask } from "../services/api/tasks";
 import { Steps } from "antd";
 import { ROUTES } from "../utils/Routes";
 
@@ -67,6 +69,67 @@ export default function JobCreate({
   const [flashQuestions, setFlashQuestions] = useState([]);
   const [flashAnswers, setFlashAnswers] = useState({});
   const [isAnswering, setIsAnswering] = useState(false);
+  const [draftJobId, setDraftJobId] = useState(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState(""); // "saving", "saved", or ""
+  const [locationValue, setLocationValue] = useState({
+    countryCode: "",
+    stateCode: "",
+    city: "",
+  });
+  const [isJobLocationRemote, setIsJobLocationRemote] = useState(false);
+
+  // Auto-save draft effect
+  useEffect(() => {
+    if (!draftJobId || mode === "view" || isReadOnly) return;
+
+    const saveTimer = setTimeout(async () => {
+      try {
+        setAutoSaveStatus("saving");
+
+        // Build location string from cascade select
+        let locationLabel = "";
+        if (isJobLocationRemote) {
+          const countryName = locationValue?.countryCode ?
+            (require("country-state-city").Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
+            : "Global";
+          locationLabel = `Remote - ${countryName}`;
+        } else {
+          locationLabel = formatLocation(locationValue) || "Location TBD";
+        }
+
+        const payload = {
+          job_title: title?.trim() || "Draft Job",
+          job_description: internalJD?.trim(),
+          job_skills: skills?.trim(),
+          job_experience: String(experienceLevel ?? "1").trim(),
+          job_location: locationLabel,
+          job_location_country: locationValue?.countryCode || "",
+          job_location_state: locationValue?.stateCode || "",
+          job_location_city: locationValue?.city || "",
+          is_remote: isJobLocationRemote,
+          company_type: companyType?.trim() || "",
+          company_name: companyClient?.trim() || "",
+          contact_person: contactPerson || null,
+          job_status: "draft",
+          no_of_positions: Number(noOfPositions || 1),
+          start_date: startDate || new Date().toISOString().split('T')[0],
+          hiring_manager_id: hmUserId || null,
+          reporting_manager_id: rmUserId || null,
+          salary_range: payAmount ? `${payAmount} ${payRateType}` : null,
+          is_internal_role: isInternalRole,
+        };
+
+        await updateJob(draftJobId, payload);
+        setAutoSaveStatus("saved");
+        setTimeout(() => setAutoSaveStatus(""), 2000);
+      } catch (err) {
+        console.error("Auto-save error:", err);
+        setAutoSaveStatus("");
+      }
+    }, 2000); // Auto-save 2 seconds after last change
+
+    return () => clearTimeout(saveTimer);
+  }, [title, internalJD, skills, experienceLevel, locationValue, isJobLocationRemote, companyClient, payAmount, payRateType, startDate, hmUserId, rmUserId, noOfPositions, draftJobId, mode, isReadOnly]);
 
   useEffect(() => {
     let isMounted = true;
@@ -422,7 +485,6 @@ export default function JobCreate({
     const required = [
       { label: "Job Title", value: title },
       { label: "Internal Job Description", value: internalJD },
-      { label: "Experience Level", value: experienceLevel },
       { label: "Location", value: location },
       { label: "Company / Client", value: companyClient },
       { label: "Job Status", value: jobStatus },
@@ -441,6 +503,12 @@ export default function JobCreate({
       setIsSaving(false);
       return;
     }
+
+    // Warn if Experience Level is not set (but allow submission)
+    if (!experienceLevel || experienceLevel === "") {
+      toast.warning("Experience Level not specified - using default value");
+    }
+
     if (!hmUserId?.trim()) {
       toast.error("Please select a Hiring Manager.");
       setIsSaving(false);
@@ -466,8 +534,54 @@ export default function JobCreate({
         salary_range: payRangeString,
         is_internal_role: isInternalRole, // true = internal (BU Head), false = external (Partner)
       };
-      const data = await createJob(payload);
-      const createdId = data?.job_id;
+      // Use existing draft job ID or create new one
+      let jobId = draftJobId;
+      if (!jobId) {
+        const data = await createJob(payload);
+        jobId = data?.job_id;
+      } else {
+        // Update existing draft job
+        await updateJob(jobId, payload);
+      }
+
+      if (jobId) {
+        // Get the selected hiring manager's info
+        const hiringManager = hiringManagers?.find(hm => hm.user_id === hmUserId);
+
+        // Check if hiring manager == BU head (no approval needed)
+        if (hiringManager?.user_id === hiringManager?.bu_head_id) {
+          // Hiring manager is also the BU Head - create task for recruiter to start work
+          if (rmUserId) {
+            try {
+              await createTask({
+                job_id: jobId,
+                assigned_to: rmUserId,
+                task_type: "job_recruit",
+                status: "active",
+                description: `Start candidate search for job "${title}"`,
+                priority: "high",
+              });
+            } catch (taskErr) {
+              console.error("Error creating recruiter task:", taskErr);
+            }
+          }
+        } else if (hiringManager?.bu_head_id) {
+          // Hiring manager is not BU Head - create approval task for BU Head
+          try {
+            await createTask({
+              job_id: jobId,
+              assigned_to: hiringManager.bu_head_id,
+              task_type: "job_approval",
+              status: "pending",
+              description: `Job approval required for "${title}" from ${hiringManager.user_name}`,
+              priority: "high",
+            });
+          } catch (taskErr) {
+            console.error("Error creating approval task:", taskErr);
+          }
+        }
+      }
+
       toast.success(`Created job ${title}`);
       navigate(ROUTES.JOBS);
     } catch (err) {
@@ -476,6 +590,112 @@ export default function JobCreate({
       toast.error(errorMsg);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleNextWithGeneration = async () => {
+    setIsGenerating(true);
+    try {
+      const oneLiner = hmOneLiner.trim();
+      if (!oneLiner) {
+        toast.error("Describe the job purpose and requirements to generate details.");
+        setIsGenerating(false);
+        return;
+      }
+
+      if (!payAmount) {
+        toast.error("Please enter a pay rate amount.");
+        setIsGenerating(false);
+        return;
+      }
+
+      // Create draft job if it doesn't exist
+      if (!draftJobId) {
+        let locationLabel = "";
+        if (isJobLocationRemote) {
+          const countryName = locationValue?.countryCode ?
+            (require("country-state-city").Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
+            : "Global";
+          locationLabel = `Remote - ${countryName}`;
+        } else {
+          locationLabel = formatLocation(locationValue) || "Location TBD";
+        }
+
+        const draftPayload = {
+          job_title: "Draft Job",
+          job_description: internalJdTemplate,
+          job_skills: "",
+          job_experience: "1",
+          job_location: locationLabel,
+          job_location_country: locationValue?.countryCode || "",
+          job_location_state: locationValue?.stateCode || "",
+          job_location_city: locationValue?.city || "",
+          is_remote: isJobLocationRemote,
+          company_type: companyType || "",
+          company_name: companyClient || "",
+          contact_person: contactPerson || null,
+          job_status: "draft",
+          no_of_positions: noOfPositions || 1,
+          start_date: startDate || new Date().toISOString().split('T')[0],
+          hiring_manager_id: hmUserId || null,
+          reporting_manager_id: rmUserId || null,
+          salary_range: payAmount ? `${payAmount} ${payRateType}` : null,
+          is_internal_role: isInternalRole,
+        };
+
+        try {
+          const draftResponse = await createJob(draftPayload);
+          setDraftJobId(draftResponse?.job_id);
+        } catch (draftErr) {
+          console.error("Error creating draft job:", draftErr);
+          toast.warning("Could not create draft - progress may not be saved");
+        }
+      }
+
+      // Get questions from Flash
+      const { questions } = await generateJobWithAgent(oneLiner);
+
+      // Provide default answers from form fields
+      const defaultAnswers = {
+        job_title: title || "Position",
+        position_type: positionType || "Full time",
+        pay_range: payAmount ? `${payAmount} ${payRateType}` : "",
+        job_location: location || "Remote",
+        job_experience: experienceLevel || "1",
+      };
+
+      // Generate complete job with defaults
+      const data = await generateJobComplete(oneLiner, defaultAnswers);
+
+      // Auto-populate fields from generated data (only update if generated value exists)
+      if (data?.job_title) setTitle(data.job_title);
+      if (data?.pay_range) {
+        const parsedPay = parsePayRangeAnswer(data.pay_range);
+        if (parsedPay.amount) setPayAmount(parsedPay.amount);
+        if (parsedPay.rateType) setPayRateType(parsedPay.rateType);
+      }
+      if (data?.job_location) setLocation(data.job_location);
+      if (data?.job_experience) {
+        const expMatch = String(data.job_experience).match(/(\d+)/);
+        if (expMatch) {
+          const years = Math.min(20, Math.max(1, Number(expMatch[1])));
+          setExperienceLevel(years);
+        }
+      }
+      if (data?.generated_job_description) {
+        setInternalJD(data.generated_job_description);
+      }
+      if (Array.isArray(data?.job_skills) && data.job_skills.length) {
+        setSkills(data.job_skills.join(", "));
+      }
+
+      setCurrent(1);
+      toast.success("Job details generated! Review and submit.");
+    } catch (err) {
+      toast.error(err?.message || "Failed to generate job details.");
+      console.error("Generation error:", err);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -498,24 +718,107 @@ export default function JobCreate({
           <fieldset disabled={isReadOnly}>
             <div className="md:col-span-2 mt-2">
               <TextArea
-                label="Hiring Manager 1-Liner + Skills"
+                label="Job Purpose & Requirements"
                 value={hmOneLiner}
                 onChange={setHmOneLiner}
-                rows={3}
-                placeholder="Include job_title, job_experience, job_location, and comma-separated skills to generate JD (e.g., React, Node.js, AWS)"
+                rows={4}
+                placeholder="Describe what you need: e.g., Senior React developer with AWS experience for 3 years"
               />
             </div>
-            <div className="md:col-span-2">
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={generateInternalOverviewAndRolesFromApi}
-                  disabled={isGenerating || !hmOneLiner.trim()}
-                >
-                  {isGenerating ? "Generating..." : "Generate Overview + Roles"}
-                </Button>
+
+            {/* Location Section - Uses Country/State/City like candidate form */}
+            <div className="md:col-span-2 mt-6">
+              <div className="mb-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={isJobLocationRemote}
+                    onChange={(e) => setIsJobLocationRemote(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-semibold">Remote Role *</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  {isJobLocationRemote
+                    ? "Candidates will be filtered by the selected country"
+                    : "Specify the office location"}
+                </p>
+              </div>
+
+              {!isJobLocationRemote && (
+                <div className="mb-3 text-xs font-semibold text-gray-700">
+                  Job Location *
+                </div>
+              )}
+
+              {isJobLocationRemote ? (
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label className="block">
+                    <div className="mb-1 text-xs font-semibold text-gray-700">
+                      Country
+                    </div>
+                    <select
+                      value={locationValue.countryCode}
+                      onChange={(e) =>
+                        setLocationValue({ countryCode: e.target.value, stateCode: "", city: "" })
+                      }
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+                    >
+                      <option value="">Select country</option>
+                      {require("country-state-city").Country.getAllCountries().map((c) => (
+                        <option key={c.isoCode} value={c.isoCode}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : (
+                <LocationCascadeSelect value={locationValue} onChange={setLocationValue} />
+              )}
+            </div>
+
+            {/* Pay Rate Section */}
+            <div className="grid gap-3 md:grid-cols-2 mt-6">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Pay Rate *</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    placeholder="Amount"
+                    className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <select
+                    value={payRateType}
+                    onChange={(e) => setPayRateType(e.target.value)}
+                    className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"].map((rt) => (
+                      <option key={rt} value={rt}>{rt}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
+          </fieldset>
+        );
+      case 1:
+        return (
+          <fieldset disabled={isReadOnly}>
+            {/* Internal Job Description */}
+            <div className="md:col-span-2 mb-4">
+              <TextArea
+                label="Internal Job Description *"
+                value={internalJD}
+                onChange={setInternalJD}
+                rows={6}
+                placeholder="Editable; can be generated from AI"
+              />
+            </div>
+
+            {/* Job Details */}
             <div className="grid gap-3 md:grid-cols-2">
               <Input label="Job Title *" value={title} onChange={setTitle} />
               <Select
@@ -535,7 +838,6 @@ export default function JobCreate({
                 value={companyClient}
                 onChange={(value) => {
                   setCompanyClient(value);
-                  // Auto-populate companyType from selected client's line_type
                   const selectedClient = clientList.find(c => c.company_name === value);
                   if (selectedClient?.line_type) {
                     setCompanyType(selectedClient.line_type);
@@ -548,13 +850,6 @@ export default function JobCreate({
                 value={selectedBusinessUnit}
                 onChange={(value) => setSelectedBusinessUnit(value)}
                 options={buOptions}
-                disabled={!!companyClient}
-                title={companyClient ? "Business Unit is auto-detected from the selected client" : ""}
-              />
-              <Input
-                label="Location *"
-                value={location}
-                onChange={setLocation}
               />
               <Select
                 label="Job Status *"
@@ -570,13 +865,13 @@ export default function JobCreate({
                 type="number"
               />
               <Select
-                label="Experience Level *"
+                label="Experience Level"
                 value={experienceLevel}
                 onChange={setExperienceLevel}
                 options={Array.from({ length: 20 }, (_, i) => i + 1)}
               />
               <Select
-                label="Hiring Manager (Azure AD) *"
+                label="Hiring Manager *"
                 value={hmUserId}
                 onChange={setHmUserId}
                 options={[
@@ -590,19 +885,6 @@ export default function JobCreate({
                   })) ?? []),
                 ]}
               />
-            </div>
-
-            {/* Job Timeline & Compensation */}
-            <div className="grid gap-3 md:grid-cols-2 mt-4">
-              <RateField
-                label="Pay Rate *"
-                value={payAmount}
-                rateType={payRateType}
-                onValueChange={setPayAmount}
-                onRateTypeChange={setPayRateType}
-                required={true}
-                rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"]}
-              />
               <Input
                 label="Job Open Date (Posted) *"
                 value={startDate}
@@ -611,21 +893,57 @@ export default function JobCreate({
                 placeholder="When to post the job"
               />
             </div>
-          </fieldset>
-        );
-      case 1:
-        return (
-          <>
-            <div className="mt-2 md:col-span-2">
-              <TextArea
-                label="Internal Job Description *"
-                value={internalJD}
-                onChange={setInternalJD}
-                rows={6}
-                placeholder="Editable; can be generated from AI"
+
+            {/* Skills Section */}
+            <div className="md:col-span-2 mt-4">
+              <label className="block text-sm font-semibold mb-2">Skills</label>
+              <p className="text-xs text-gray-500 mb-3">Add required skills for 1-to-1 matching with candidate skills</p>
+              <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-gray-50 min-h-[44px]">
+                {skills
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter((s) => s)
+                  .map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"
+                    >
+                      {skill}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSkills = skills
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter((s) => s)
+                            .filter((_, i) => i !== idx)
+                            .join(', ');
+                          setSkills(newSkills);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 font-bold"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Type skill and press Enter"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const value = e.currentTarget.value.trim();
+                    if (value) {
+                      setSkills(skills ? `${skills}, ${value}` : value);
+                      e.currentTarget.value = '';
+                    }
+                  }
+                }}
+                className="w-full mt-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-          </>
+          </fieldset>
         );
     }
   };
@@ -636,11 +954,19 @@ export default function JobCreate({
         title={isReadOnly ? "View Job" : "Create New Job"}
         icon={<Briefcase className="h-4 w-4" />}
       >
-        <div>
-          <Steps
-            current={current}
-            items={[{ title: "Step 1" }, { title: "Step 2" }]}
-          />
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <Steps
+              current={current}
+              items={[{ title: "Step 1" }, { title: "Step 2" }]}
+            />
+          </div>
+          {draftJobId && (
+            <div className="text-xs text-gray-500">
+              {autoSaveStatus === "saving" && "🔄 Saving..."}
+              {autoSaveStatus === "saved" && "✓ Saved"}
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto min-h-0">
           {renderFormContent()}
@@ -667,155 +993,15 @@ export default function JobCreate({
             <div className="flex gap-2">
               <Button
                 variant="secondary"
-                onClick={() => setCurrent((prev) => prev + 1)}
+                onClick={handleNextWithGeneration}
+                disabled={isGenerating}
               >
-                Next
+                {isGenerating ? "Generating..." : "Next"}
               </Button>
             </div>
           </div>
         )}
       </Card>
-
-      {/* Ask Flash Modal */}
-      {showAskFlash && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4">📋 Job Details - Quick Questions</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Answer these questions to help us generate the complete job posting:
-            </p>
-
-            <div className="space-y-4">
-              {flashQuestions
-                .filter(
-                  (q) =>
-                    q.field !== "client_name" ||
-                    /external/i.test(flashAnswers.role_type || "")
-                )
-                .map((question) => (
-                <div key={question.field}>
-                  <label className="block text-sm font-medium mb-2">
-                    {question.question}
-                    {question.required && <span className="text-red-500">*</span>}
-                  </label>
-
-                  {question.field === "client_name" ? (
-                    <select
-                      value={flashAnswers[question.field] || ""}
-                      onChange={(e) =>
-                        setFlashAnswers({
-                          ...flashAnswers,
-                          [question.field]: e.target.value
-                        })
-                      }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {clientOptions.map((option) => (
-                        <option key={option.value} value={option.value} disabled={option.disabled}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : question.type === "select" ? (
-                    <select
-                      value={flashAnswers[question.field] || ""}
-                      onChange={(e) =>
-                        setFlashAnswers({
-                          ...flashAnswers,
-                          [question.field]: e.target.value
-                        })
-                      }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select an option...</option>
-                      {question.options?.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  ) : question.type === "date" ? (
-                    <input
-                      type="date"
-                      value={flashAnswers[question.field] || ""}
-                      onChange={(e) =>
-                        setFlashAnswers({
-                          ...flashAnswers,
-                          [question.field]: e.target.value
-                        })
-                      }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  ) : question.type === "pay_rate" ? (
-                    (() => {
-                      // Matches the same "<amount> <symbol>/<unit>" format the
-                      // real Pay Rate field on the form uses (parsePay above),
-                      // so the answer needs no extra parsing on submit.
-                      const current = flashAnswers[question.field] || "";
-                      const match = current.match(/^(\d+(?:\.\d+)?)?\s*([\$₹]\/\w+)?$/);
-                      const currentAmount = match?.[1] || "";
-                      const currentRateType = match?.[2] || "$/Year";
-                      const updateComposite = (amount, rateType) => {
-                        const composite = amount ? `${amount} ${rateType}` : "";
-                        setFlashAnswers({ ...flashAnswers, [question.field]: composite });
-                      };
-                      return (
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            value={currentAmount}
-                            onChange={(e) => updateComposite(e.target.value, currentRateType)}
-                            placeholder="Amount"
-                            className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                          <select
-                            value={currentRateType}
-                            onChange={(e) => updateComposite(currentAmount, e.target.value)}
-                            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            {["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"].map((rt) => (
-                              <option key={rt} value={rt}>{rt}</option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <input
-                      type="text"
-                      value={flashAnswers[question.field] || ""}
-                      onChange={(e) =>
-                        setFlashAnswers({
-                          ...flashAnswers,
-                          [question.field]: e.target.value
-                        })
-                      }
-                      placeholder="Enter your answer..."
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex gap-2 justify-end">
-              <Button
-                variant="secondary"
-                onClick={() => setShowAskFlash(false)}
-                disabled={isAnswering}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAnswerSubmit}
-                disabled={isAnswering}
-              >
-                {isAnswering ? "Generating..." : "Generate Job"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

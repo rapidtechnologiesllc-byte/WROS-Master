@@ -11,10 +11,14 @@ import { apiRequest } from "./client";
 // own React state, this just sends them back so the backend can
 // resolve a follow-up's pronoun/reference. Not a server-side
 // conversation store.
-export const askFlash = async (message, history = []) => {
+export const askFlash = async (message, history = [], conversationState = null) => {
+  const payload = { message, history };
+  if (conversationState) {
+    payload.conversation_state = conversationState;
+  }
   const { data } = await apiRequest("/flash/", {
     method: "POST",
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify(payload),
   });
   return data;
 };

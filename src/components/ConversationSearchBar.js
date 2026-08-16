@@ -353,7 +353,7 @@ export default function ConversationSearchBar() {
                       type="radio"
                       name="profile-status"
                       checked={profileFilter === opt.value}
-                      onChange={(e) => setProfileFilter(e?.target?.value || opt.value)}
+                      onChange={() => setProfileFilter(opt.value)}
                     />
                     {opt.label}
                   </label>

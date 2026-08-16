@@ -21,9 +21,11 @@ export default function EmployeeConversionScreen() {
     role_ids: [],
     position: "",
     joining_date: "",
+    reports_to: "",
   });
 
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [orgNodes, setOrgNodes] = useState([]);
 
   // Load initial data
   useEffect(() => {
@@ -142,6 +144,7 @@ export default function EmployeeConversionScreen() {
         role_ids: formData.role_ids.map((id) => parseInt(id, 10)),
         position: formData.position,
         joining_date: formData.joining_date,
+        ...(formData.reports_to && { reports_to: parseInt(formData.reports_to, 10) }),
       };
 
       const result = await apiRequest(
@@ -163,6 +166,7 @@ export default function EmployeeConversionScreen() {
           role_ids: [],
           position: "",
           joining_date: "",
+          reports_to: "",
         });
         setSelectedCandidate(null);
         // Reload candidates
@@ -272,6 +276,36 @@ export default function EmployeeConversionScreen() {
                 required
               />
             </div>
+          </div>
+
+          {/* Organizational Hierarchy */}
+          <div className="border-b pb-6">
+            <h2 className="text-lg font-semibold mb-4">
+              4. Organizational Hierarchy (Optional)
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Optionally assign a reporting manager. This will auto-create an entry in the organizational hierarchy.
+            </p>
+            <Select
+              label="Reports To"
+              value={formData.reports_to}
+              onChange={(value) =>
+                handleInputChange("reports_to", value)
+              }
+              disabled={submitting}
+              options={[
+                { value: "", label: "CEO / Top Level (No Manager)" },
+                ...candidates
+                  .filter((c) => String(c.candidate_id || c.id) !== String(formData.candidate_id))
+                  .map((c) => ({
+                    value: String(c.candidate_id || c.id),
+                    label: `${c.candidate_name || c.name} - Will be converted`,
+                  })),
+              ]}
+            />
+            <p className="text-xs text-gray-500 mt-3">
+              💡 Tip: You can also manage the full organizational hierarchy in Admin Settings → Organization → Organizational Hierarchy after conversion.
+            </p>
           </div>
 
           {/* Business Unit & Roles */}

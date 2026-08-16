@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Edit2, Users, CheckCircle, Clock, BarChart3, Send } from "lucide-react";
+import { Edit2, Users, CheckCircle, Clock, BarChart3, Send, AlertCircle } from "lucide-react";
 import { Button, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import { listClients } from "../services/api/clients";
 import { searchUsers } from "../services/api/users";
+import { getJobClosureStatus } from "../services/api/autonomousJobs";
 
 const getContactPersonName = (job) => {
   if (!job) return "-";
@@ -38,15 +39,38 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   const [endDate, setEndDate] = useState(job.endDate || "");
   const [jobStatus, setJobStatus] = useState(job.jobStatus || job.status || "Draft");
   const [noOfPositions, setNoOfPositions] = useState(job.noOfPositions || 1);
-  const [hiringManager, setHiringManager] = useState(job.hiringManager || "");
-  const [skillsText, setSkillsText] = useState((job.skills || []).join(", "));
+  const [hiringManager, setHiringManager] = useState(job.hiring_manager_name || "");
+
+  // Convert structured skills to edit format: "Skill:Years:Mandatory"
+  const convertSkillsToEditFormat = (structuredSkills) => {
+    if (!structuredSkills || !Array.isArray(structuredSkills)) {
+      return "";
+    }
+    return structuredSkills
+      .map(s => `${s.name}:${s.years}:${s.mandatory ? "yes" : "no"}`)
+      .join(", ");
+  };
+
+  const [skillsText, setSkillsText] = useState(
+    job.required_skills_canonical
+      ? convertSkillsToEditFormat(job.required_skills_canonical)
+      : (job.skills || []).join(", ")
+  );
   const [hmOneLiner, setHmOneLiner] = useState(job.hiringManagerOneLiner || "");
   const [internalJD, setInternalJD] = useState(job.internalJD || job.jobDescription || "");
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [candidateQuery, setCandidateQuery] = useState("");
   const [candidateStageFilter, setCandidateStageFilter] = useState("All");
+  const [departmentsList, setDepartmentsList] = useState([]);
+  const [locationsList, setLocationsList] = useState([]);
+  const [hiringManagers, setHiringManagers] = useState([]);
+  const [jobClosureStatus, setJobClosureStatus] = useState(null);
 
   const CANDIDATE_STAGES = ["All", "Sourced", "Recruiter Screening", "L1 Interview", "Pre-Onboarding", "Hired", "Archived"];
+  const EXPERIENCE_LEVELS = ["Entry Level (0-2 yrs)", "Mid-Level (2-5 yrs)", "Senior (5-10 yrs)", "Lead (10+ yrs)"];
+  const PAY_AMOUNTS = ["50k", "75k", "100k", "125k", "150k", "175k", "200k", "250k", "300k+"];
+  const LOCATIONS = ["USA", "India", "Canada", "UK", "Australia", "Remote"];
+  const POSITIONS_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1).map(String);
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -76,6 +100,20 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
     };
     loadContacts();
   }, []);
+
+  useEffect(() => {
+    const loadClosureStatus = async () => {
+      try {
+        if (job?.job_id || job?.jobID) {
+          const status = await getJobClosureStatus(job.job_id || job.jobID);
+          setJobClosureStatus(status);
+        }
+      } catch (err) {
+        console.warn("Could not load closure status:", err?.message);
+      }
+    };
+    loadClosureStatus();
+  }, [job?.job_id, job?.jobID]);
 
   const jobMetrics = useMemo(() => {
     const submitted = candidates.filter(c => c.job_id === job.id)?.length || 0;
@@ -112,8 +150,12 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
     setEndDate(job.endDate || "");
     setJobStatus(job.jobStatus || job.status || "Draft");
     setNoOfPositions(job.noOfPositions || 1);
-    setHiringManager(job.hiringManager || "");
-    setSkillsText((job.skills || []).join(", "));
+    setHiringManager(job.hiring_manager_name || "");
+    setSkillsText(
+      job.required_skills_canonical
+        ? convertSkillsToEditFormat(job.required_skills_canonical)
+        : (job.skills || []).join(", ")
+    );
     setHmOneLiner(job.hiringManagerOneLiner || "");
     setInternalJD(job.internalJD || job.jobDescription || "");
   }, [job]);
@@ -192,6 +234,51 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
         )}
       </CardBlock>
 
+      {/* Job Closure Status */}
+      {jobClosureStatus && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Job Positions</h3>
+              <p className="text-sm text-gray-500 mt-1">Hiring progress and job status</p>
+            </div>
+            {jobClosureStatus.eligible_for_closure && (
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+            )}
+          </div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="rounded-lg bg-blue-50 p-3">
+              <div className="text-2xl font-bold text-blue-600">{jobClosureStatus.positions_needed}</div>
+              <div className="text-xs text-gray-600">Positions Needed</div>
+            </div>
+            <div className="rounded-lg bg-green-50 p-3">
+              <div className="text-2xl font-bold text-green-600">{jobClosureStatus.hired_count}</div>
+              <div className="text-xs text-gray-600">Hired</div>
+            </div>
+            <div className="rounded-lg bg-orange-50 p-3">
+              <div className="text-2xl font-bold text-orange-600">{jobClosureStatus.remaining_positions}</div>
+              <div className="text-xs text-gray-600">Remaining</div>
+            </div>
+            <div className="rounded-lg bg-purple-50 p-3">
+              <div className="text-2xl font-bold text-purple-600">{jobClosureStatus.fill_percentage}%</div>
+              <div className="text-xs text-gray-600">Filled</div>
+            </div>
+          </div>
+          {jobClosureStatus.is_closed ? (
+            <div className="mt-4 rounded-lg bg-gray-100 p-3 text-center">
+              <StatusBadge status="closed" label="Job Closed" />
+            </div>
+          ) : jobClosureStatus.eligible_for_closure ? (
+            <div className="mt-4">
+              <p className="text-sm text-amber-700 mb-3">This job is now eligible for closure — all positions are filled!</p>
+              <Button className="w-full" onClick={() => console.log("Close job")}>
+                ✓ Close Job & Notify Remaining Candidates
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       {/* Company & Contact */}
       <CardBlock title="Company & Contact" subtitle="Client details and point of contact">
         {editingSection === "company" ? (
@@ -250,36 +337,75 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
       </CardBlock>
 
       {/* Requirements & Skills */}
-      <CardBlock title="Requirements & Skills" subtitle="Experience level and required skills">
+      <CardBlock title="Requirements & Skills" subtitle="Experience level, location, skills, and hiring manager">
         {editingSection === "skills" ? (
-          <div className="grid gap-3">
-            <Input label="Experience Level" value={experienceLevel} onChange={setExperienceLevel} />
-            <Input label="Location" value={location} onChange={setLocation} />
-            <Input label="Skills (comma separated)" value={skillsText} onChange={setSkillsText} />
-            <Input label="Hiring Manager" value={hiringManager} onChange={setHiringManager} />
-            <div className="flex gap-2 justify-end">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select
+              label="Experience Level"
+              value={experienceLevel}
+              onChange={setExperienceLevel}
+              options={[
+                { label: "Select experience level", value: "", disabled: true },
+                ...EXPERIENCE_LEVELS.map((level) => ({ label: level, value: level }))
+              ]}
+            />
+            <Select
+              label="Location"
+              value={location}
+              onChange={setLocation}
+              options={[
+                { label: "Select location", value: "", disabled: true },
+                ...LOCATIONS.map((loc) => ({ label: loc, value: loc }))
+              ]}
+            />
+            <Input
+              label="No. of Positions"
+              value={noOfPositions}
+              onChange={(val) => setNoOfPositions(Number(val))}
+              type="number"
+              min="1"
+            />
+            <Input label="Hiring Manager" value={hiringManager} onChange={setHiringManager} disabled placeholder="Set from Company & Contact section" />
+            <div className="md:col-span-2">
+              <Input
+                label="Skills (Format: Skill:Years:Mandatory)"
+                value={skillsText}
+                onChange={setSkillsText}
+                placeholder="Java:5:yes, Spring:3:yes, Docker:2:no"
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500 mt-1">Format: SkillName:Years:yes/no (e.g., Java:5:yes means 5 years of Java, mandatory)</p>
+            </div>
+            <div className="md:col-span-2 flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSection}>Cancel</Button>
               <Button onClick={() => saveSection("skills")}>Save</Button>
             </div>
           </div>
         ) : (
           <div>
-            <div className="grid gap-3 md:grid-cols-2 mb-3">
+            <div className="grid gap-3 md:grid-cols-2 mb-4">
               <Info label="Experience Level" value={job.experienceLevel} />
               <Info label="Location" value={job.location} />
-              <Info label="Hiring Manager" value={job.hiringManager} />
+              <Info label="Hiring Manager" value={job.hiring_manager_name} />
+              <Info label="No. of Positions" value={job.noOfPositions || "-"} />
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-500 mb-2">Skills</div>
-              <div className="flex flex-wrap gap-1">
-                {job.skills?.map((s) => (
-                  <span key={s} className={cx(pill, "border-gray-200 bg-gray-50")}>{s}</span>
-                ))}
+              <div className="text-xs font-semibold text-gray-500 mb-3">Required Skills</div>
+              <div className="flex flex-wrap gap-2">
+                {job.required_skills_canonical && Array.isArray(job.required_skills_canonical)
+                  ? job.required_skills_canonical.map((s) => (
+                    <span key={s.name} className={cx(pill, "border-gray-200 bg-gray-50 text-xs font-medium")}>
+                      {s.name} · {s.years}yr{s.years !== 1 ? "s" : ""} {s.mandatory ? "✓ Required" : "○ Optional"}
+                    </span>
+                  ))
+                  : job.skills?.map((s) => (
+                    <span key={s} className={cx(pill, "border-gray-200 bg-gray-50")}>{s}</span>
+                  ))}
               </div>
             </div>
             {mode !== "view" && (
               <Button variant="ghost" size="sm" onClick={() => setEditingSection("skills")}
-                className="mt-3">
+                className="mt-4">
                 <Edit2 className="h-4 w-4 mr-1" /> Edit
               </Button>
             )}
@@ -353,13 +479,22 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
         )}
       </CardBlock>
 
-      {/* Action Buttons */}
-      {editingSection === null && (
+      {/* Action Buttons - Only for Draft Jobs */}
+      {editingSection === null && (!job.jobStatus || job.jobStatus === "Draft") && (
         <div className="flex flex-wrap gap-2 justify-end">
           <Button variant="secondary" onClick={onGoApproval}>
             Send to hiring manager (approval)
           </Button>
           <Button onClick={onSubmit}>Submit to internal hiring team</Button>
+        </div>
+      )}
+
+      {/* Edit Mode Actions - For Approved/Active Jobs */}
+      {editingSection === null && job.jobStatus && job.jobStatus !== "Draft" && (
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button variant="secondary" disabled>
+            Status: {job.jobStatus}
+          </Button>
         </div>
       )}
             </div>

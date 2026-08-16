@@ -52,27 +52,7 @@ export default function PartnerROIAgentScreen() {
   }, [selectedMonth]);
 
   if (loading) return <div className="p-6 text-center text-gray-500">Loading Partner ROI dashboard...</div>;
-
-  // Provide default values if no KPIs data available
-  const displayKpis = kpis || {
-    partner_id: partnerId,
-    partner_name: "Partner",
-    bu_id: null,
-    period: selectedMonth,
-    revenue_usd: 0,
-    revenue_usd_cents: 0,
-    gross_margin_pct: 0,
-    net_new_logos: 0,
-    customer_satisfaction_score: null,
-    practice_utilization_pct: 0,
-    practice_growth_yoy_pct: 0,
-    thought_leadership_score: null,
-    pnl_usd: 0,
-    pnl_usd_cents: 0,
-    pnl_margin_pct: 0,
-    billable_hours: 0,
-    allocated_headcount: 0
-  };
+  if (!kpis) return <div className="p-6 text-center text-gray-500">No data available</div>;
 
   const statusBadge = (pct) => (
     <span className={`inline-block px-2 py-1 text-xs font-semibold rounded ${
@@ -100,7 +80,7 @@ export default function PartnerROIAgentScreen() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500 uppercase">Revenue</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">${(displayKpis.revenue_usd / 1000000).toFixed(2)}M</div>
+              <div className="text-2xl font-bold text-gray-900 mt-2">${(kpis.revenue_usd / 1000000).toFixed(2)}M</div>
             </div>
             <TrendingUp className="h-6 w-6 text-blue-500" />
           </div>
@@ -111,9 +91,9 @@ export default function PartnerROIAgentScreen() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500 uppercase">Gross Margin</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">{displayKpis.gross_margin_pct.toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-gray-900 mt-2">{kpis.gross_margin_pct.toFixed(1)}%</div>
             </div>
-            {statusBadge(displayKpis.gross_margin_pct)}
+            {statusBadge(kpis.gross_margin_pct)}
           </div>
         </Card>
 
@@ -122,9 +102,9 @@ export default function PartnerROIAgentScreen() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500 uppercase">Utilization</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">{displayKpis.practice_utilization_pct.toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-gray-900 mt-2">{kpis.practice_utilization_pct.toFixed(1)}%</div>
             </div>
-            {statusBadge(displayKpis.practice_utilization_pct)}
+            {statusBadge(kpis.practice_utilization_pct)}
           </div>
         </Card>
 
@@ -133,7 +113,7 @@ export default function PartnerROIAgentScreen() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500 uppercase">New Logos</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">{displayKpis.net_new_logos}</div>
+              <div className="text-2xl font-bold text-gray-900 mt-2">{kpis.net_new_logos}</div>
             </div>
             <Target className="h-6 w-6 text-green-500" />
           </div>

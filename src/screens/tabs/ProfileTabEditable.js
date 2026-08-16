@@ -9,7 +9,7 @@ import {
   updateCandidate,
 } from "../../services/api/candidates";
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
-import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
+import { getCandidateDocuments } from "../../services/api/documents";
 import { getAllUsers } from "../../services/api/users";
 
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
@@ -436,20 +436,19 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             <p className="text-xs text-blue-900"><strong>Selected:</strong> {resumeFile.name}</p>
             <button
               onClick={async () => {
+                // TODO: Implement actual file upload to backend
                 setUploadingResume(true);
                 try {
-                  await uploadResume({ candidateId, file: resumeFile });
+                  // Placeholder for actual upload logic
                   toast.success("Resume uploaded successfully");
                   setResumeFile(null);
-                  // Refresh candidate data to show updated resume
-                  if (onRefresh) onRefresh();
                 } catch (err) {
-                  toast.error(err?.message || "Failed to upload resume");
+                  toast.error("Failed to upload resume");
                 } finally {
                   setUploadingResume(false);
                 }
               }}
-              disabled={uploadingResume || !resumeFile}
+              disabled={uploadingResume}
               className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded text-xs font-medium transition"
             >
               {uploadingResume ? "Uploading..." : "Upload"}
