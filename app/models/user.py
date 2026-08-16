@@ -226,3 +226,28 @@ class InterviewFeedback(Base):
     recommendation = Column(String(20))  # Hire / Hold / Reject
 
     submitted_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UserRole(Base):
+    """Junction table: Users ↔ RoleTemplates
+
+    Enables multi-role assignment and role template binding.
+    Replaces the single-role UserRole string field for new RBAC system.
+
+    Users can have multiple roles via multiple UserRole records.
+    Each role can be scoped to a specific business unit if needed.
+    """
+    __tablename__ = "user_roles"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("Users", foreign_keys=[user_id])
+    role_template = relationship("RoleTemplate", foreign_keys=[role_template_id])
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id])
