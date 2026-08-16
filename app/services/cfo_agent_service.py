@@ -1,4 +1,4 @@
-"""CFO Agent — financial Q&A and insights for Chief Financial Officer."""
+﻿"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -177,16 +177,16 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     # Get all BUs (from Users with Partner role + their BU)
     partners = db.query(Users).filter(
         Users.UserRole == "Partner",
-        Users.business_unit_id.isnot(None)
+        Users.bu_context_id.isnot(None)
     ).all()
 
     comparison = []
     for partner in partners:
         try:
-            pnl = get_bu_pnl(db, partner.business_unit_id, year_month)
+            pnl = get_bu_pnl(db, partner.bu_context_id, year_month)
             comparison.append({
                 "partner_name": partner.UserName,
-                "bu_id": partner.business_unit_id,
+                "bu_id": partner.bu_context_id,
                 "revenue_usd": (pnl.get("total_revenue_usd_cents", 0) / 100) if pnl else 0,
                 "cost_usd": (pnl.get("total_cost_usd_cents", 0) / 100) if pnl else 0,
                 "net_position_usd": (pnl.get("net_position_usd_cents", 0) / 100) if pnl else 0,
@@ -217,7 +217,7 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
         "salary_cost_pct": 70,  # Estimated
         "overhead_cost_pct": 20,  # Estimated
         "other_cost_pct": 10,  # Estimated
-        "note": "Breakdown is estimated — detailed expense tracking not yet implemented"
+        "note": "Breakdown is estimated â€” detailed expense tracking not yet implemented"
     }
 
 
@@ -259,3 +259,4 @@ def get_financial_forecast(db: Session, months_ahead: int = 3) -> dict:
         "forecast_basis": "6-month linear trend",
         "months": forecast
     }
+

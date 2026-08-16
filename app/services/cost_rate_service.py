@@ -1,4 +1,4 @@
-"""
+﻿"""
 EPIC-16 -- Fully Loaded Cost + Blended Delivery Rate. See
 app.models.cost_rate_config for the config-driven design rationale.
 """
@@ -79,7 +79,7 @@ def calculate_blended_delivery_rate(
     period / total approved billable hours delivered in the same
     period -- a real, derived $/hour figure, not a per-employee rate
     card. None when there are no approved billable hours to divide by."""
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
+    client_ids = [c.id for c in db.query(Client.id).filter(Client.bu_context_id == business_unit_id).all()]
     if not client_ids:
         return None
 
@@ -102,3 +102,4 @@ def calculate_blended_delivery_rate(
     if total_billable_hours <= 0:
         return None
     return round(revenue_usd_cents / total_billable_hours, 2)
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-267/HRMS-0301 (Set BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage,
 exposed via calculate_pipeline_coverage_ratio() -- already built,
@@ -104,7 +104,7 @@ def get_active_bu_target(db: Session, business_unit_id: int, target_period: str,
     return (
         db.query(BURevenueTarget)
         .filter(
-            BURevenueTarget.business_unit_id == business_unit_id,
+            BURevenueTarget.bu_context_id == business_unit_id,
             BURevenueTarget.target_period == target_period,
             BURevenueTarget.fiscal_year == fiscal_year,
         )
@@ -115,7 +115,7 @@ def get_active_bu_target(db: Session, business_unit_id: int, target_period: str,
 
 def get_bu_target_vs_actual(db: Session, business_unit_id: int, target_period: str, fiscal_year: int) -> dict:
     target = get_active_bu_target(db, business_unit_id, target_period, fiscal_year)
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
+    client_ids = [c.id for c in db.query(Client.id).filter(Client.bu_context_id == business_unit_id).all()]
     actual = _fy_invoice_total_for_clients(db, client_ids, fiscal_year)
     target_amount = target.target_amount_usd_cents if target else 0
     return {
@@ -159,9 +159,9 @@ def set_partner_goal(
 
 def _partner_actual_revenue_for_fy(db: Session, partner_user_id: str, fiscal_year: int) -> int:
     partner = db.query(Users).filter(Users.UserID == partner_user_id).first()
-    if partner is None or partner.business_unit_id is None:
+    if partner is None or partner.bu_context_id is None:
         return 0
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == partner.business_unit_id).all()]
+    client_ids = [c.id for c in db.query(Client.id).filter(Client.bu_context_id == partner.bu_context_id).all()]
     return _fy_invoice_total_for_clients(db, client_ids, fiscal_year)
 
 
@@ -216,10 +216,10 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
     opportunity to resolve its BU, which is an N+1 query pattern that
     falls over at real data volume (hundreds/thousands of opportunities
     means hundreds/thousands of round trips for one dashboard load).
-    Client.business_unit_id is joined in directly instead, one query
+    Client.bu_context_id is joined in directly instead, one query
     total for the BU breakdown."""
     query = (
-        db.query(Opportunity, Client.business_unit_id)
+        db.query(Opportunity, Client.bu_context_id)
         .outerjoin(Client, Client.id == Opportunity.client_id)
     )
     if client_ids is not None:
@@ -262,3 +262,5 @@ def get_pipeline_coverage(db: Session, *, client_ids: Optional[List[str]], reven
         query = query.filter(Opportunity.client_id.in_(client_ids))
     total_pipeline = sum(o.revenue_value_usd_cents for o in query.all())
     return calculate_pipeline_coverage_ratio(total_pipeline, revenue_target_usd_cents)
+
+

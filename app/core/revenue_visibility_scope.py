@@ -1,11 +1,11 @@
-"""
+﻿"""
 Revenue Visibility Engine (EPIC-02) / Workforce Planning (EPIC-03)
 access gate. Avinash's explicit 2026-08-05 access spec: "Epic 2,3 is
 only visible to ceo, partner (only for their BU); BU head (Only for
 their BU); finance & HR manager (no actual p&l)." Refined the same
 day: "a partner has it's own clients and the work is done in their BU
 only... any business he generates should go only to that BU" -- BU
-ownership is a real, client-level fact (Client.business_unit_id), not
+ownership is a real, client-level fact (Client.bu_context_id), not
 a role-attribute abstraction.
 
 Deliberately a SEPARATE scoping mechanism from app.core.bu_scope's
@@ -57,9 +57,9 @@ def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_us
     if not is_revenue_bu_scoped(db, current_user):
         return query
     if current_user.business_unit_id is None:
-        return query.filter(Client.business_unit_id.is_(None))
+        return query.filter(Client.bu_context_id.is_(None))
     return query.filter(
-        (Client.business_unit_id.is_(None)) | (Client.business_unit_id == current_user.business_unit_id)
+        (Client.bu_context_id.is_(None)) | (Client.bu_context_id == current_user.business_unit_id)
     )
 
 
@@ -72,3 +72,4 @@ def get_revenue_scoped_client_ids(db: Session, current_user: Users) -> Optional[
         return None
     query = apply_revenue_bu_scope_to_client_query(db, db.query(Client.id), current_user)
     return {row[0] for row in query.all()}
+
