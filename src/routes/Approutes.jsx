@@ -284,7 +284,8 @@ export default function AppRoutes() {
     return <AuthPage />;
   }
 
-  const storedRole = localStorage.getItem("permission_role");
+  const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
     .trim()
     .toLowerCase();
@@ -300,8 +301,45 @@ export default function AppRoutes() {
     localStorage.removeItem("hrms_user_email");
     localStorage.removeItem("hrms_candidate_id");
     localStorage.removeItem("hrms_user_type");
+    localStorage.removeItem("hrms_roles");
+    localStorage.removeItem("hrms_permissions");
     window.location.href = "/";
   };
+
+  // Root cause fix: Refresh role and permissions from /hr/me on app initialization
+  // CRITICAL: This runs BEFORE Shell renders to ensure fresh permissions are loaded
+  useEffect(() => {
+    const refreshUserData = async () => {
+      try {
+        const { getHrMe } = await import("../services/api/users");
+        const user = await getHrMe();
+        if (user) {
+          // Update localStorage with fresh data from backend
+          if (user.user_role) {
+            localStorage.setItem("permission_role", user.user_role);
+            setStoredRole(user.user_role);
+          }
+          if (user.roles && Array.isArray(user.roles)) {
+            localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
+          }
+          if (user.permissions && Array.isArray(user.permissions)) {
+            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions));
+          }
+        }
+      } catch (error) {
+        console.debug("Could not refresh user data from /hr/me:", error);
+      } finally {
+        // CRITICAL: Mark loading as complete so Shell can render
+        setPermissionsLoading(false);
+      }
+    };
+
+    if (localStorage.getItem("hrms_token")) {
+      refreshUserData();
+    } else {
+      setPermissionsLoading(false);
+    }
+  }, []);
 
   if (
     isCandidateUser({
@@ -481,6 +519,22 @@ export default function AppRoutes() {
   const hasWorkspaceAccess = canAccessMyWorkspace({
     permissionRole: storedRole,
   });
+
+  // Root cause fix: Don't render Shell until permissions are loaded from /hr/me
+  if (permissionsLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        Loading permissions...
+      </div>
+    );
+  }
 
   if (hasWorkspaceAccess) {
     return (
