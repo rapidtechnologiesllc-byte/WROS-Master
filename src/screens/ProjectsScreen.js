@@ -379,7 +379,50 @@ function ProjectCard({ project, onChanged }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [assigningEmployees, setAssigningEmployees] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const nextStatuses = STATUS_TRANSITIONS[project.status] || [];
+
+  // Load employees when modal opens
+  const loadEmployees = async () => {
+    if (loadingEmployees || employees.length > 0) return;
+    setLoadingEmployees(true);
+    try {
+      const { getAllEmployees } = await import("../services/api/employees");
+      const data = await getAllEmployees();
+      setEmployees(data || []);
+    } catch (err) {
+      console.error("Failed to load employees:", err);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const handleAssignEmployees = async () => {
+    if (selectedEmployees.length === 0) return;
+    setAssigningEmployees(true);
+    try {
+      const { createAllocation } = await import("../services/api/allocations");
+      for (const empId of selectedEmployees) {
+        await createAllocation({
+          employee_id: empId,
+          project_id: project.id,
+          allocation_type: "ACTIVE",
+          start_date: new Date().toISOString().split("T")[0],
+        });
+      }
+      setShowAssignModal(false);
+      setSelectedEmployees([]);
+      onChanged();
+    } catch (err) {
+      setError(err.message || "Failed to assign employees");
+    } finally {
+      setAssigningEmployees(false);
+    }
+  };
 
   const handleTransition = async (status) => {
     setBusy(true);
@@ -423,11 +466,62 @@ function ProjectCard({ project, onChanged }) {
             → {s}
           </Button>
         ))}
+        <Button variant="secondary" disabled={busy} onClick={() => { setShowAssignModal(true); loadEmployees(); }}>
+          👥 Assign Employees
+        </Button>
         <Button variant="ghost" onClick={() => setExpanded((v) => !v)}>
           {expanded ? "Hide Details" : "View Details"}
         </Button>
       </div>
       {expanded ? <ProjectDetailPanel project={project} onChanged={onChanged} /> : null}
+      {showAssignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <div className="border-b p-4 flex justify-between items-center">
+              <h2 className="font-semibold">Assign Employees to {project.name}</h2>
+              <Button variant="ghost" onClick={() => { setShowAssignModal(false); setSelectedEmployees([]); }}>✕</Button>
+            </div>
+            <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+              {loadingEmployees ? (
+                <div className="text-center text-gray-500 text-sm">Loading employees...</div>
+              ) : employees.length === 0 ? (
+                <div className="text-center text-gray-500 text-sm">No employees found</div>
+              ) : (
+                employees.map((emp) => (
+                  <label key={emp.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedEmployees.includes(emp.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEmployees([...selectedEmployees, emp.id]);
+                        } else {
+                          setSelectedEmployees(selectedEmployees.filter(id => id !== emp.id));
+                        }
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{emp.first_name} {emp.last_name}</div>
+                      <div className="text-xs text-gray-500">{emp.email}</div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+            <div className="border-t p-4 flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowAssignModal(false); setSelectedEmployees([]); }}>Cancel</Button>
+              <Button
+                variant="primary"
+                disabled={selectedEmployees.length === 0 || assigningEmployees}
+                onClick={handleAssignEmployees}
+              >
+                {assigningEmployees ? "Assigning..." : `Assign (${selectedEmployees.length})`}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

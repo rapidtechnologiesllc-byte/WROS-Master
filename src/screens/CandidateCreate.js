@@ -24,9 +24,10 @@ import {
 } from "../utils/resumeAutofill";
 import { assignJob, getAllJobs } from "../services/api/jobs";
 import { mapJobFromApi } from "../App";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../components/ScreenLevelBanner";
 import { useNavigate } from "react-router-dom";
+import { useRef } from "react";
+import { handleApiError } from "../utils/apiErrorHandler";
 
 // Added 2026-07-23 -- real bug: the Mobile input used to strip any
 // country code the candidate typed (removed a leading "91", hard-capped
@@ -48,6 +49,7 @@ const COUNTRY_CODES = [
 ];
 
 export default function CandidateCreate({ onBack, onSave }) {
+  const { banner, showSuccess, showError, dismiss } = useScreenBanner();
   const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -84,7 +86,39 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
+  const [availableJobs, setAvailableJobs] = useState([]);
   const navigate = useNavigate();
+
+  // Field refs for scrolling to errors
+  const fieldRefs = useRef({
+    firstName: null,
+    lastName: null,
+    email: null,
+    mobile: null,
+    gender: null,
+  });
+
+  useEffect(() => {
+    loadAvailableJobs();
+  }, []);
+
+  const loadAvailableJobs = async () => {
+    try {
+      const jobs = await getAllJobs();
+      const openJobs = jobs.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
+      setAvailableJobs(openJobs);
+    } catch (error) {
+      console.log("Could not load jobs", error);
+    }
+  };
+
+  const handleFieldClick = (fieldName) => {
+    const ref = fieldRefs.current[fieldName];
+    if (ref) {
+      ref.focus();
+      ref.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
 
   const clearFieldError = (field) => {
     setErrors((prev) => {
@@ -409,7 +443,6 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!email.trim()) newErrors.email = "Email is required.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error(Object.values(newErrors)[0]);
       return;
     }
     const filledEducationRows = educationRows.filter((row) =>
@@ -470,6 +503,14 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     try {
       // Create the candidate in backend and receive generated password.
+      // Format location: only include if all required fields are selected
+      let formattedLocation = null;
+      if (locationValue?.countryCode && locationValue?.city) {
+        const loc = formatLocation(locationValue);
+        // Ensure it's a string, not an object
+        formattedLocation = typeof loc === 'string' ? loc : null;
+      }
+
       const data = await createCandidate({
         candidate_email: email.trim(),
         candidate_role: "Candidate",
@@ -486,7 +527,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_joining_date: joiningDate || null,
         candidate_expected_salary: expectedSalary || null,
         candidate_current_salary: currentSalary || null,
-        candidate_current_location: formatLocation(locationValue) || null,
+        candidate_current_location: formattedLocation,
         assigned_hr_manager_id: assignedHrManagerId || null,
         assigned_report_manager_id: assignedReportManagerId || null,
         education_records: filledEducationRows.length
@@ -535,7 +576,6 @@ export default function CandidateCreate({ onBack, onSave }) {
           .filter(Boolean),
         status: "New",
       };
-      toast.success("Candidate created successfully");
       let nextNotice = "Candidate created successfully.";
       if (resumeFile) {
         if (!createdCandidateId) {
@@ -546,19 +586,24 @@ export default function CandidateCreate({ onBack, onSave }) {
               candidateId: createdCandidateId,
               file: resumeFile,
             });
-            toast.success(`${nextNotice} Resume uploaded.`);
+            nextNotice = `${nextNotice} Resume uploaded.`;
+            showSuccess(nextNotice);
           } catch (uploadErr) {
             console.error("Resume upload failed:", uploadErr);
             nextNotice = `${nextNotice} Resume upload failed: ${
               uploadErr?.message || "Unknown error"
             }.`;
+            showError(nextNotice);
           }
         }
+      } else {
+        showSuccess(nextNotice);
       }
       setActionNotice(nextNotice);
       return createdCandidate;
     } catch (err) {
-      toast.error(err.message || "Failed to create candidate.");
+      const errorMessage = handleApiError(err, "Failed to create candidate.");
+      showError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -570,20 +615,19 @@ export default function CandidateCreate({ onBack, onSave }) {
     try {
       const candidateId = await handleCreateCandidate();
       if (!candidateId?.id) {
-        toast.error("Candidate creation failed");
+        showError("Candidate creation failed");
         return;
       }
       const result = await assignJob(selectedJobId, candidateId?.id, {
         application_status: "Applied",
       });
       if (result?.status === 201) {
-        toast.success("Job assigned successfully ✅");
+        showSuccess("Job assigned successfully ✅");
         onSave(candidateId);
       }
     } catch (err) {
-      toast.error(
-        err.message || "Candidate created but job assignment failed.",
-      );
+      const errorMessage = handleApiError(err, "Candidate created but job assignment failed.");
+      showError(errorMessage);
     } finally {
       setIsAssigning(false);
     }
@@ -611,7 +655,8 @@ export default function CandidateCreate({ onBack, onSave }) {
       onSave(candidate);
     } catch (error) {
       console.error("Failed in handleSaveOnly:", error);
-      toast.error(error.message || "Failed to create candidate");
+      const errorMessage = handleApiError(error, "Failed to create candidate");
+      showError(errorMessage);
     }
   };
 
@@ -626,6 +671,17 @@ export default function CandidateCreate({ onBack, onSave }) {
           </Button>
         }
       >
+        {Object.keys(errors).length > 0 && (
+          <ValidationSummary errors={errors} onFieldClick={handleFieldClick} />
+        )}
+        {banner && (
+          <ScreenLevelBanner
+            type={banner.type}
+            message={banner.message}
+            onDismiss={dismiss}
+            onRetry={banner.type === "error" ? () => {} : undefined}
+          />
+        )}
         <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-800">
             <FileText className="h-4 w-4 text-blue-600" />
@@ -653,9 +709,31 @@ export default function CandidateCreate({ onBack, onSave }) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Input label="Job Title" value={jobName} onChange={setJobName} />
+          <div>
+            <Select
+              label="Open Jobs (Optional)"
+              value={selectedJobId}
+              onChange={(jobId) => {
+                setSelectedJobId(jobId);
+                const selected = availableJobs.find(j => j.jobID === jobId);
+                if (selected) {
+                  setJobName(selected.jobTitle || selected.title || "");
+                } else {
+                  setJobName("");
+                }
+              }}
+              options={[
+                { value: "", label: "Select a job (optional)" },
+                ...availableJobs.map(job => ({
+                  value: job.jobID,
+                  label: job.jobTitle || job.title
+                }))
+              ]}
+            />
+          </div>
           <div>
             <Input
+              ref={(ref) => (fieldRefs.current.email = ref?.input)}
               label="Email *"
               value={email}
               onChange={(value) => {
@@ -672,6 +750,7 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div>
             <Input
+              ref={(ref) => (fieldRefs.current.firstName = ref?.input)}
               label="First Name *"
               value={firstName}
               onChange={(value) => {
@@ -696,6 +775,7 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div>
             <Input
+              ref={(ref) => (fieldRefs.current.lastName = ref?.input)}
               label="Last Name *"
               value={lastName}
               onChange={(value) => {

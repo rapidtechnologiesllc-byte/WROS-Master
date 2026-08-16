@@ -98,6 +98,251 @@ const roundNameOptions = [
   { label: "L2 Interview", value: "L2 Interview" },
 ];
 
+function UsersBUDetailsPanel({ candidate, onUpdate }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [recruiters, setRecruiters] = useState([]);
+  const [businessUnits, setBusinessUnits] = useState([]);
+  const [loadingRecruiters, setLoadingRecruiters] = useState(false);
+  const [loadingBUs, setLoadingBUs] = useState(false);
+  const [loadingJobBU, setLoadingJobBU] = useState(false);
+  const [selectedRecruiter, setSelectedRecruiter] = useState(candidate?.assigned_recruiter_id || "");
+  const [selectedBU, setSelectedBU] = useState(candidate?.business_unit_id || "");
+  const [jobBU, setJobBU] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const loadJobBU = async () => {
+      if (!candidate?.id) return;
+      try {
+        setLoadingJobBU(true);
+        const response = await fetch(`/candidates/${candidate.id}/applications`, {
+          headers: { "Authorization": `Bearer ${localStorage.getItem("access_token")}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const applications = data.applications || [];
+          if (applications.length > 0) {
+            const activeJob = applications[0];
+            if (activeJob.business_unit_id && !selectedBU) {
+              setJobBU(activeJob.business_unit_id);
+              setSelectedBU(activeJob.business_unit_id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load candidate job BU:", error);
+      } finally {
+        setLoadingJobBU(false);
+      }
+    };
+
+    loadJobBU();
+  }, [candidate?.id]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const loadData = async () => {
+      try {
+        setLoadingRecruiters(true);
+        const allUsers = await getAllUsers();
+        const recruitersList = Array.isArray(allUsers)
+          ? allUsers.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter')
+          : allUsers?.users?.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter') || [];
+        console.log("Loaded recruiters:", recruitersList);
+        setRecruiters(recruitersList);
+      } catch (error) {
+        console.error("Failed to load recruiters:", error);
+        setRecruiters([]);
+      } finally {
+        setLoadingRecruiters(false);
+      }
+
+      try {
+        setLoadingBUs(true);
+        const response = await fetch(`/api/business-units`, {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+          },
+        });
+        if (response.ok) {
+          const buData = await response.json();
+          const buList = Array.isArray(buData) ? buData : buData.business_units || [];
+          console.log("Loaded business units:", buList);
+          setBusinessUnits(buList);
+        } else {
+          setBusinessUnits([]);
+        }
+      } catch (error) {
+        console.error("Failed to load business units:", error);
+        setBusinessUnits([]);
+      } finally {
+        setLoadingBUs(false);
+      }
+    };
+
+    loadData();
+  }, [isEditing]);
+
+  const handleSave = async () => {
+    if (!selectedRecruiter && !selectedBU) {
+      alert("Please select at least a recruiter or business unit");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const updates = {};
+
+      if (selectedRecruiter) {
+        const recruiter = recruiters.find(r => r.user_id === selectedRecruiter);
+        updates.assigned_recruiter_id = selectedRecruiter;
+        updates.assigned_recruiter_name = recruiter?.user_name || "";
+      }
+
+      if (selectedBU) {
+        const bu = businessUnits.find(b => String(b.id) === String(selectedBU));
+        updates.business_unit_id = selectedBU;
+        updates.business_unit_name = bu?.name || bu?.bu_name || "";
+      }
+
+      if (onUpdate) {
+        await onUpdate(updates);
+      }
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to update:", error);
+      alert("Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="bg-white border rounded-2xl shadow-sm">
+        <div className="border-b px-5 py-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">Users & BU Details</h3>
+          <button
+            onClick={() => {
+              setSelectedRecruiter(candidate?.assigned_recruiter_id || "");
+              setIsEditing(true);
+            }}
+            className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition font-medium"
+          >
+            Edit
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-4 text-xs">
+          <div>
+            <div className="text-gray-600 font-medium mb-1">Recruiter</div>
+            <div className="text-gray-900 font-semibold">{candidate?.assigned_recruiter_name || "—"}</div>
+          </div>
+
+          <div className="border-t pt-3">
+            <div className="text-gray-600 font-medium mb-1">Business Unit</div>
+            <div className="text-gray-900 font-semibold">{candidate?.business_unit_id || "—"}</div>
+          </div>
+
+          {candidate?.has_job_submission && (
+            <>
+              <div className="border-t pt-3">
+                <div className="text-gray-600 font-medium mb-1">HR Manager</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_manager_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">Hiring Manager</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_hiring_manager_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">HR BP</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_bp_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">BU Head</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_bu_head_name || "—"}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-600 font-medium mb-1">Report Manager</div>
+                <div className="text-gray-900 font-semibold">{candidate?.assigned_report_manager_name || "—"}</div>
+              </div>
+            </>
+          )}
+
+          {!candidate?.has_job_submission && (
+            <div className="border-t pt-3">
+              <p className="text-gray-500 italic text-xs">Additional users will appear as the candidate proceeds through the recruitment process.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border rounded-2xl shadow-sm">
+      <div className="border-b px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-900">Edit Users & BU</h3>
+      </div>
+      <div className="px-5 py-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Recruiter</label>
+          <select
+            value={selectedRecruiter}
+            onChange={(e) => setSelectedRecruiter(e.target.value)}
+            disabled={loadingRecruiters}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">{loadingRecruiters ? "Loading recruiters..." : "Select a recruiter"}</option>
+            {recruiters.map((recruiter) => (
+              <option key={recruiter.user_id} value={recruiter.user_id}>
+                {recruiter.user_name} ({recruiter.user_email})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit</label>
+          <select
+            value={selectedBU}
+            onChange={(e) => setSelectedBU(e.target.value)}
+            disabled={loadingBUs}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">{loadingBUs ? "Loading business units..." : "Select a business unit"}</option>
+            {businessUnits.map((bu) => (
+              <option key={bu.id} value={bu.id}>
+                {bu.name || bu.bu_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="border-t px-5 py-4 flex gap-3 justify-end">
+        <button
+          onClick={() => setIsEditing(false)}
+          disabled={saving}
+          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving || (!selectedRecruiter && !selectedBU)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CandidateDetailsScreen({
   apiState,
   candidate,
@@ -709,17 +954,28 @@ ${jobDescription}
       return;
     }
     try {
-      const response = await apiRequest(`/onboarding/hr/candidate/${candidate.id}/convert-to-employee`, {
+      const response = await fetch("/employees/convert-from-candidate", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
         body: JSON.stringify({
           candidate_id: candidate.id,
+          employee_name: candidate.name || candidate.candidate_name || "",
+          employee_email: candidate.email || candidate.candidate_email || "",
+          business_unit_id: candidate.business_unit_id || 1,
+          role_ids: [3],
+          position: candidate.jobTitle || "Employee",
           joining_date: candidate.candidateJoiningDate,
         }),
       });
+      if (!response.ok) {
+        throw new Error("Failed to convert candidate to employee");
+      }
       showNotice("Candidate converted to employee successfully", "success");
-      // Refresh candidate data
-      const updatedCandidate = await getCandidateById(candidate.id);
-      setCandidate(updatedCandidate);
+      await onRefreshCandidates?.();
+      onBack?.();
     } catch (error) {
       showNotice("Failed to convert candidate to employee: " + error.message, "error");
     }
@@ -1436,60 +1692,14 @@ ${formattedJD}
           {!limitedMode && (
             <div className="space-y-5">
               {/* Users & BU Details Panel */}
-              <div className="bg-white border rounded-2xl shadow-sm">
-                <div className="border-b px-5 py-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Users & BU Details</h3>
-                </div>
-                <div className="px-5 py-4 space-y-4 text-xs">
-                  {/* Recruiter */}
-                  <div>
-                    <div className="text-gray-600 font-medium mb-1">Recruiter</div>
-                    <div className="text-gray-900 font-semibold">{candidate?.assigned_recruiter_name || "—"}</div>
-                  </div>
-
-                  {/* Business Unit */}
-                  <div className="border-t pt-3">
-                    <div className="text-gray-600 font-medium mb-1">Business Unit</div>
-                    <div className="text-gray-900 font-semibold">{candidate?.business_unit_id || "—"}</div>
-                  </div>
-
-                  {/* Other Users - Only if not at corporate level */}
-                  {candidate?.has_job_submission && (
-                    <>
-                      <div className="border-t pt-3">
-                        <div className="text-gray-600 font-medium mb-1">HR Manager</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_manager_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">Hiring Manager</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hiring_manager_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">HR BP</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_hr_bp_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">BU Head</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_bu_head_name || "—"}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-600 font-medium mb-1">Report Manager</div>
-                        <div className="text-gray-900 font-semibold">{candidate?.assigned_report_manager_name || "—"}</div>
-                      </div>
-                    </>
-                  )}
-
-                  {!candidate?.has_job_submission && (
-                    <div className="border-t pt-3">
-                      <p className="text-gray-500 italic text-xs">Additional users will appear as the candidate proceeds through the recruitment process.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <UsersBUDetailsPanel
+                candidate={candidate}
+                onUpdate={async (updates) => {
+                  if (onUpdateCandidate) {
+                    await onUpdateCandidate({ ...candidate, ...updates });
+                  }
+                }}
+              />
 
               {/* Notes Panel */}
               <div className="bg-white border rounded-2xl shadow-sm h-fit flex flex-col">

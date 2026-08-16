@@ -2,6 +2,12 @@
 import { ChevronDown } from "lucide-react";
 
 export default function Select({ label, value, onChange, options, disabled }) {
+  const handleChange = (e) => {
+    if (!onChange || typeof onChange !== "function") return;
+    const val = (e && e.target && e.target.value) || "";
+    onChange(val);
+  };
+
   return (
     <label className="block">
       {label ? (
@@ -9,8 +15,8 @@ export default function Select({ label, value, onChange, options, disabled }) {
       ) : null}
       <div className="relative">
         <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={value ?? ""}
+          onChange={disabled ? undefined : handleChange}
           disabled={disabled}
           className="w-full appearance-none rounded-xl border bg-white px-3 py-2 pr-9 text-sm outline-none transition focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
         >

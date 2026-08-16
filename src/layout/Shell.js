@@ -32,12 +32,25 @@ import { ROUTES } from "../utils/Routes";
 import { NAV_ITEMS } from "./navItems";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
+import {
+  hasPermission,
+  getPermissions,
+  getRoles,
+  isSuperUser,
+  isAdmin,
+  canViewModule,
+} from "../utils/permissions";
 
 // Nav reorganized 2026-08-12 -- business-focused sections for clarity.
 // Sales (deal pipeline) / Project Management (execution) / Finance (billing)
 // + Recruitment (hiring) + Admin. Collapsible so the common case stays
 // short, with the group containing your current screen auto-expanded.
 const GROUP_DEFS = [
+  {
+    label: "Executive",
+    icon: BarChart3,
+    keys: ["ceoFyProgress", "executiveRevenueDashboard", "cfoDashboard", "buHeadDashboard", "partnerRoi"],
+  },
   {
     label: "Recruitment",
     icon: Users,
@@ -46,7 +59,7 @@ const GROUP_DEFS = [
   {
     label: "Sales",
     icon: TrendingUp,
-    keys: ["clientManagement", "demandConfirmation", "opportunityPipeline", "partnerRoi"],
+    keys: ["clientManagement", "demandConfirmation", "opportunityPipeline"],
   },
   {
     label: "Workforce",
@@ -66,12 +79,12 @@ const GROUP_DEFS = [
     icon: BadgeDollarSign,
     // 2026-08-12, Avinash: "anything monetary stays in finance" -- myExpenses
     // moved in from standalone. Finance owns billing, invoicing, and revenue reporting.
-    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "ceoFyProgress", "cfoDashboard"],
+    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "financeOperations"],
   },
   {
     label: "Admin",
     icon: Shield,
-    keys: ["rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
+    keys: ["usersAccessControl", "roleTemplates", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
   },
 ];
 
@@ -81,6 +94,92 @@ function buildGroups(includedKeys) {
     ...g,
     items: g.keys.filter((k) => included.has(k)).map((k) => NAV_ITEMS[k]),
   })).filter((g) => g.items.length > 0);
+}
+
+// Permission-based navigation builder (2026-08-12)
+// Maps nav keys to their required permissions
+// NOTE: Updated to match actual permission names from CEO role in database
+const NAV_PERMISSIONS = {
+  // Recruitment Module (using actual permission names from database)
+  candidates: "candidates.view",
+  jobs: "jobs.view",
+  candidateReview: "candidate_review.view",
+  offerLetters: "offers.view",
+  offerLettersListing: "offers.view",
+  submissions: "submissions.view",
+  interventionQueue: "intervention_queue.view",
+  rehireApprovals: "rehire_approvals.view",
+  riskDashboard: "risk_dashboard.view",
+  thunderAnalytics: "thunder_analytics.view",
+  bulkLaunch: "bulk_launch.view",
+
+  // Sales/Client Module
+  clientManagement: "clients.view",
+  demandConfirmation: "demand.view",
+  opportunityPipeline: "opportunities.view",
+  partnerRoi: "partner_roi.view",
+
+  // Workforce/HR Module
+  employees: "employees.view",
+  employeeConversion: "employees.view",  // convert uses employee.view permission
+  htdIntake: "htd_intake.view",
+  buddyProgram: "buddy_program.view",
+  buHeadDashboard: "business_unit.view",
+
+  // Resource Management Module
+  corePull: "core_pull.view",
+  projects: "projects.view",
+  allocations: "allocations.view",
+  resourceManagement: "resource_management.view",
+  utilization: "utilization.view",
+  forecast: "forecast.view",
+
+  // Finance Module
+  myExpenses: "expenses.view",
+  timesheets: "timesheets.view",
+  invoices: "invoices.view",
+  invoiceManagement: "invoices.view",
+  revenue: "revenue.view",
+  forecastVsActual: "forecast.view",
+  executiveRevenueDashboard: "reports.view",
+  financeOperations: "finance_operations.view",
+
+  // Admin Module
+  usersAccessControl: "users.view",
+  roleTemplates: "rbac.manage",
+  certifications: "certifications.view",
+  tenantLocale: "locale.view",
+  tenantAiConfig: "ai_config.view",
+  messageTemplates: "message_templates.view",
+  ticketRoutingAdmin: "ticket_routing.view",
+  executiveSignal: "executive_signal.view",
+  errorLog: "error_log.view",
+  adminSettings: "admin_settings.view",
+  adminWeeklyRecap: "admin_weekly_recap.view",
+
+  // Dashboard/Agent Screens
+  ceoFyProgress: "reports.view",
+  cfoDashboard: "reports.view",
+};
+
+function buildGroupsByPermissions() {
+  const permissions = getPermissions() || [];
+  const isSuperUserFlag = isSuperUser();
+
+  const getIncludedKeys = () => {
+    if (isSuperUserFlag) {
+      // Super users see everything
+      return Object.keys(NAV_PERMISSIONS);
+    }
+
+    // Filter by permission
+    return Object.keys(NAV_PERMISSIONS).filter(key => {
+      const requiredPerm = NAV_PERMISSIONS[key];
+      return hasPermission(requiredPerm);
+    });
+  };
+
+  return buildGroups(getIncludedKeys());
 }
 
 export default function Shell({
@@ -95,6 +194,66 @@ export default function Shell({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  // Root cause fix: Refresh permissions from /hr/me on app load with retries
+  useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)
+    const retryInterval = 5000; // 5 seconds
+    let timeoutId = null;
+
+    const refreshPermissions = async () => {
+      try {
+        const { getHrMe } = await import("../services/api/users");
+        const user = await getHrMe();
+        if (user) {
+          // Update localStorage with fresh permissions (even if empty array)
+          if (user.roles && Array.isArray(user.roles)) {
+            localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
+          }
+          if (user.permissions !== undefined) {
+            // Store permissions even if empty - means we got a response
+            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || []));
+            setPermissionsLoaded(true); // Trigger re-render with new permissions
+            console.debug(`Permissions loaded: ${(user.permissions || []).length} permissions`);
+            return true; // Success, stop retrying
+          }
+        }
+      } catch (error) {
+        console.debug(`Permission refresh attempt ${retryCount + 1} failed:`, error);
+      }
+      return false; // Failed, continue retrying
+    };
+
+    const attemptRefresh = async () => {
+      if (!localStorage.getItem("hrms_token")) {
+        return; // No token, stop
+      }
+
+      const success = await refreshPermissions();
+      if (success) {
+        return; // Permissions loaded successfully
+      }
+
+      retryCount++;
+      if (retryCount < maxRetries) {
+        // Schedule next retry
+        timeoutId = setTimeout(attemptRefresh, retryInterval);
+      }
+    };
+
+    // Start the first attempt immediately
+    attemptRefresh();
+
+    // Cleanup timeouts on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, []); // Run once on mount
+
   const normalizedRole = String(role || "")
     .trim()
     .toUpperCase();
@@ -107,33 +266,40 @@ export default function Shell({
   const isHrOperations = normalizedRole === "HR OPERATIONS";
 
   const nav = useMemo(() => {
+    // 2026-08-12: Permission-based navigation (new RBAC system)
+    const permissions = getPermissions();
+    const rolesArray = getRoles();
+
+    // Use permission-based navigation if permissions are available
+    if (Array.isArray(permissions) && permissions.length > 0) {
+      const permissionGroups = buildGroupsByPermissions();
+      const standalone = [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals];
+      return { standalone, groups: permissionGroups };
+    }
+
+    // Fallback: Legacy role-based navigation for backward compatibility
     if (isSuperUser) {
+      // Super User gets ALL navigation items
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
-        groups: buildGroups([
-          "candidates", "jobs", "candidateReview", "offerLetters", "submissions",
-          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "myExpenses", "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
-          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
-        ]),
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
+        groups: buildGroups(Object.keys(NAV_PERMISSIONS)),
       };
     }
     if (isAdmin) {
       return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
         groups: buildGroups([
           "candidates", "jobs",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
           "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
           "myExpenses", "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
-          "rbac", "hrUsers", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
+          "usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
         ]),
       };
     }
     if (isHR_Manager) {
       return {
-        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet],
+        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
         groups: buildGroups([
           "candidates", "offerLettersListing",
           "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
@@ -153,8 +319,8 @@ export default function Shell({
     if (isHrOperations) {
       return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
     }
-    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
-  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations]);
+    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses, NAV_ITEMS.myReferrals], groups: [] };
+  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations, getPermissions, buildGroupsByPermissions, permissionsLoaded]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
 

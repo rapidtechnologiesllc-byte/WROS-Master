@@ -27,6 +27,8 @@ import {
   MessageSquareText,
   Receipt,
   Settings,
+  Award,
+  Gift,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -43,6 +45,8 @@ export const NAV_ITEMS = {
   // visibility posture as myTasks/myTimesheet (Avinash: "the expense
   // is logged by employee so they need to login to their portal").
   myExpenses: { path: ROUTES.MY_EXPENSES, label: "My Expenses", icon: Receipt },
+  // Employee referral program tracking - visible to all employees
+  myReferrals: { path: ROUTES.MY_REFERRALS, label: "My Referrals", icon: Gift },
   candidates: { path: ROUTES.CANDIDATES, label: "Candidates", icon: Users },
   jobs: { path: ROUTES.JOBS, label: "Jobs", icon: Briefcase },
   candidateReview: { path: ROUTES.HM_CANDIDATE_REVIEW, label: "Candidate Review", icon: UserCheck },
@@ -50,6 +54,7 @@ export const NAV_ITEMS = {
   offerLettersListing: { path: ROUTES.OFFERS_LISTING, label: "Offer Letters", icon: FileTextIcon },
   submissions: { path: ROUTES.SUBMISSIONS, label: "Submissions", icon: Send },
   employees: { path: ROUTES.EMPLOYEES, label: "Employees", icon: UserPlus },
+  employeeConversion: { path: ROUTES.EMPLOYEE_CONVERSION, label: "Convert to Employee", icon: UserPlus },
   // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
   // Partner/Resource Manager role exists in this codebase's role set
   // yet, so this is scoped to the roles that already get HR/oversight
@@ -73,6 +78,7 @@ export const NAV_ITEMS = {
   buddyProgram: { path: ROUTES.BUDDY_PROGRAM, label: "Buddy Program", icon: UserCheck },
   timesheets: { path: ROUTES.TIMESHEETS, label: "Timesheets", icon: Clock },
   invoices: { path: ROUTES.INVOICES, label: "Invoices", icon: BadgeDollarSign },
+  invoiceManagement: { path: ROUTES.INVOICE_MANAGEMENT, label: "Invoice Management", icon: BadgeDollarSign },
   revenue: { path: ROUTES.REVENUE, label: "Revenue", icon: LineChart },
   // EPIC-02/03 Revenue Visibility Engine, 2026-08-05 -- Opportunity
   // pipeline (S-236/237), gated the same as the rest of Finance via
@@ -83,10 +89,9 @@ export const NAV_ITEMS = {
   partnerRoi: { path: ROUTES.PARTNER_ROI, label: "Partner ROI Agent", icon: TrendingUp },
   ceoFyProgress: { path: ROUTES.CEO_FY_PROGRESS, label: "CEO FY Progress", icon: BarChart3 },
   cfoDashboard: { path: ROUTES.CFO_DASHBOARD, label: "CFO Agent", icon: LineChart },
-  rbac: { path: ROUTES.RBAC, label: "RBAC Settings", icon: Shield },
-  hrUsers: { path: ROUTES.HR_USERS, label: "HR Users", icon: Users },
-  // Integrated Users Lifecycle Management -- create, edit, terminate, reinstate, permissions, audit trail
-  users: { path: ROUTES.USERS, label: "Users", icon: Users },
+  usersAccessControl: { path: ROUTES.USERS_ACCESS_CONTROL, label: "Users & Access Control", icon: Shield },
+  roleTemplates: { path: ROUTES.USERS_ACCESS_CONTROL, label: "Role Templates", icon: Shield },
+  certifications: { path: ROUTES.CERTIFICATIONS, label: "Certifications", icon: Award },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },
   // S-077/HRMS-0477 -- unified Thunder config, Super User only server-side
@@ -130,4 +135,16 @@ export const NAV_ITEMS = {
   // S-074/HRMS-0474 -- CSV import + rate-limited Thunder launch for
   // many candidates at once.
   bulkLaunch: { path: ROUTES.BULK_LAUNCH, label: "Bulk Launch", icon: UserPlus },
+
+  // Training & Certifications (new)
+  trainingCertification: { path: ROUTES.TRAINING_CERTIFICATION, label: "Training & Certifications", icon: Award },
+
+  // Troy's Partner Dashboard (new)
+  troyPartnerDashboard: { path: ROUTES.TROY_PARTNER_DASHBOARD, label: "Partner Dashboard", icon: BarChart3 },
+
+  // BI Explorer (new)
+  biExplorer: { path: ROUTES.BI_EXPLORER, label: "BI Explorer", icon: BarChart3 },
+
+  // BU Head Dashboard (new)
+  buHeadDashboard: { path: ROUTES.BU_HEAD_DASHBOARD, label: "BU Head Dashboard", icon: BarChart3 },
 };
