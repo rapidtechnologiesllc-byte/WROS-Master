@@ -999,7 +999,182 @@ const NAV_PERMISSIONS = {
 
 ---
 
+### **2026-08-16 EVENING: Regression Items from "Application Broken After Last Session" (8+ Hour Session)**
+
+**Critical:** Added regression testing items from comprehensive 8-hour debugging session. These fixes MUST NOT regress during scratchpad merge.
+
+**Regression Categories:**
+1. **Backend API Endpoints** (5 items) - Partner/CFO dashboards, opportunity workflow, revenue targets
+2. **Database Schema Fixes** (3 items) - Business unit context, revenue target columns, FK constraints
+3. **Frontend Routes & Data Loading** (4 items) - Route paths, candidate BU assignment, data loading
+4. **Feature Implementations** (5 items) - Resume upload, conversion flow, project assignment, referral auth, agent registry
+
+**Total Regression Items:** 17 critical fixes that must be tested during merge
+
+---
+
+## 🔴 REGRESSION TESTING CHECKLIST (17 Items - Added to Phase 3/4)
+
+### REGRESSION: Backend API Endpoints (5 items)
+
+**REG-1: Partner ROI Dashboard Endpoint**
+- **Status:** ✅ FIXED (Commit: 0bcc0a7)
+- **Test:** GET /dashboard/partner-roi returns valid dashboard config
+- **Regression Risk:** HIGH (newly implemented endpoint)
+- **Files:** app/api/v1/endpoints/role_based_dashboard.py, role_based_dashboard_service.py
+
+**REG-2: CFO Agent Dashboard Endpoint**
+- **Status:** ✅ FIXED (Commit: 0bcc0a7)
+- **Test:** GET /dashboard/cfo-agent returns financial metrics and forecasts
+- **Regression Risk:** HIGH (newly implemented endpoint)
+- **Files:** app/api/v1/endpoints/role_based_dashboard.py, role_based_dashboard_service.py
+
+**REG-3: Opportunity Stage Transitions**
+- **Status:** ✅ FIXED (Commit: e4fa73d)
+- **Test:** Opportunity can transition: QUALIFICATION → PROSPECT → PROPOSAL → NEGOTIATION → CONTRACT → ACTIVE
+- **Regression Risk:** CRITICAL (blocks auto-job creation)
+- **Files:** app/models/opportunity.py (CLOSED_STAGES definition)
+- **Fix:** Changed CLOSED_STAGES from ("CONTRACT", "ACTIVE", "LOST") to only ("LOST")
+
+**REG-4: Opportunity → Job Auto-Creation**
+- **Status:** ✅ FIXED (Commit: e4fa73d)
+- **Test:** Opportunity.transition_to(ACTIVE) auto-creates Demand/Job
+- **Regression Risk:** CRITICAL (blocks staff augmentation workflow)
+- **Files:** app/models/opportunity.py
+- **Flow:** STAFF_AUGMENTATION + ACTIVE stage = auto-create job
+
+**REG-5: Business Unit Revenue Target Endpoint**
+- **Status:** ✅ FIXED (Commit: ca9dd38)
+- **Test:** POST /bu-targets with business_unit_id succeeds (not 500 error)
+- **Regression Risk:** HIGH (was returning 500 error)
+- **Files:** app/models/revenue_target.py, app/api/v1/endpoints/revenue_targets.py
+
+---
+
+### REGRESSION: Database Schema Fixes (3 items)
+
+**REG-6: Candidates Assigned to Business Unit Context**
+- **Status:** ✅ FIXED (Script: fix_data_final.py)
+- **Test:** All candidates have bu_context_id assigned (4/4 verified)
+- **Regression Risk:** HIGH (data integrity issue)
+- **Verify:** SELECT COUNT(*) FROM candidates WHERE bu_context_id IS NOT NULL = 4
+
+**REG-7: SuperUser Tenant Assignment**
+- **Status:** ✅ FIXED (Commit: 657c0d4)
+- **Test:** SuperUser can access Admin Settings (GET /system-config/settings → 200 OK)
+- **Regression Risk:** HIGH (blocks admin access)
+- **Verify:** superuser.tenant_id = 2 (BlitzenX)
+
+**REG-8: BURevenueTarget Schema - business_unit_id Column**
+- **Status:** ✅ FIXED (Commit: ca9dd38)
+- **Test:** BURevenueTarget records have business_unit_id column (not NULL)
+- **Regression Risk:** CRITICAL (causes 500 errors)
+- **Database:** PostgreSQL migration applied
+- **Verify:** SELECT COUNT(*) FROM bu_revenue_target WHERE business_unit_id IS NOT NULL
+
+---
+
+### REGRESSION: Frontend Routes & Data Loading (4 items)
+
+**REG-9: Route Path Fix - Offers/Jobs Nested Routes**
+- **Status:** ✅ FIXED (Commit: a28b3600)
+- **Test:** /offers and /jobs pages load without 404 errors
+- **Regression Risk:** HIGH (pages completely inaccessible)
+- **Files:** src/routes/Approutes.jsx (lines 622, 971)
+- **Fix:** Changed absolute paths (/offers, /jobs) → relative paths (offers, jobs)
+
+**REG-10: Candidate Data Loading in Dashboard**
+- **Status:** ✅ FIXED (Commit: 657c0d4)
+- **Test:** Dashboard displays all 4 candidates (not 0)
+- **Regression Risk:** MEDIUM (depends on BU assignment)
+- **Files:** Frontend candidate list endpoints
+- **Verify:** GET /onboarding/hr/get_all_candidates → 4 candidates
+
+**REG-11: Resume Upload Implementation**
+- **Status:** ✅ FIXED (Commit in defect_log)
+- **Test:** Resume file upload works (not TODO placeholder)
+- **Regression Risk:** MEDIUM (user-facing feature)
+- **Files:** src/screens/tabs/ProfileTabEditable.js
+- **Fix:** Replaced TODO with actual uploadResume() API call
+
+**REG-12: Candidate-to-Employee Conversion Button**
+- **Status:** ✅ FIXED (Commit in defect_log)
+- **Test:** "Convert to Employee" button shows when pipelineStatus=="Offer" AND date<=today
+- **Regression Risk:** MEDIUM (blocks hiring flow)
+- **Files:** src/screens/CandidateDetailsScreen.js
+- **Condition:** Simplified visibility check (removed restrictive offer checks)
+
+---
+
+### REGRESSION: Feature Implementations (5 items)
+
+**REG-13: Project Employee Assignment**
+- **Status:** ✅ FIXED (Commit in defect_log)
+- **Test:** "Assign Employees" button works on ProjectsScreen
+- **Regression Risk:** MEDIUM (blocks timesheet access)
+- **Files:** src/screens/ProjectsScreen.js
+- **Feature:** Modal allows employee selection → createAllocation()
+
+**REG-14: Employee Referral Authentication**
+- **Status:** ⏳ PENDING (TODOs at lines 12, 15, 22, 35, 42, 57, 67, 82)
+- **Test:** All referral endpoints use current_user (not temp_employee_id)
+- **Regression Risk:** MEDIUM (inaccurate tracking)
+- **Files:** app/api/v1/endpoints/employee_referrals.py
+- **Fix Needed:** Replace temp_user_id with authenticated current_user context
+
+**REG-15: Agent Registry System**
+- **Status:** ⏳ PENDING (TODO at line 1)
+- **Test:** Agent management endpoints functional
+- **Regression Risk:** MEDIUM (agent capabilities not tracked)
+- **Files:** app/api/v1/endpoints/agents.py
+- **Fix Needed:** Implement agent_registry_service.py with tier/status tracking
+
+**REG-16: Agent Performance Dashboard Auth**
+- **Status:** ⏳ PENDING (TODO in agent_performance_dashboard.py)
+- **Test:** Dashboard requires authentication
+- **Regression Risk:** LOW (data privacy)
+- **Files:** app/api/v1/endpoints/agent_performance_dashboard.py
+- **Fix Needed:** Add auth decorator + get_current_user dependency
+
+**REG-17: Interview Rehire Guard**
+- **Status:** ⏳ PENDING (Incomplete logic at InterviewSchedule.js:45-46)
+- **Test:** Cannot rehire without explicit manager approval
+- **Regression Risk:** MEDIUM (could re-interview candidates)
+- **Files:** src/screens/InterviewSchedule.js
+- **Fix Needed:** Complete rehire guard logic, clean up orphan msgraph code
+
+---
+
+## 🧪 REGRESSION TESTING PROTOCOL
+
+**Before merging to main:**
+
+1. **Run All Regression Tests** (17 items above)
+2. **Golden Path Test:**
+   - Create Opportunity (STAFF_AUGMENTATION) → Transition to ACTIVE → Verify job auto-created
+3. **Candidate Flow Test:**
+   - Verify 4 candidates visible in dashboard with BU context
+   - Test convert-to-employee button works
+4. **Dashboard Test:**
+   - SuperUser accesses Admin Settings (200 OK)
+   - Partner user accesses Partner ROI dashboard (200 OK)
+   - CFO user accesses CFO Agent dashboard (200 OK)
+5. **API Endpoint Verification:**
+   - GET /dashboard/partner-roi → 200
+   - GET /dashboard/cfo-agent → 200
+   - GET /opportunities/{id}/transition → Stage transitions work
+   - POST /bu-revenue-targets → 200 (not 500)
+
+---
+
+**Regression Items Commit:**
+- New regression test checklist added to BX-HRMS.md
+- Items tracked in completion table
+- Must be verified during merge process
+
+---
+
 **Project Lead:** Avinash Mukundan  
-**Last Updated:** 2026-08-16 18:45 UTC  
-**Status:** Laundry list created, selective merge in progress ✅  
+**Last Updated:** 2026-08-16 23:15 UTC  
+**Status:** Comprehensive regression testing list created ✅  
 
