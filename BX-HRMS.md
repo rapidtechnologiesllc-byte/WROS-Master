@@ -932,7 +932,7 @@ Edit User Modal:
 
 | # | Item | Status | Tests | Branch | Commit |
 |---|------|--------|-------|--------|--------|
-| 1 | JobCreate.js | ⏳ | - | feat/selective | - |
+| 1 | JobCreate.js | ✅ DONE | 8/8 | feat/selective | 45f04280 |
 | 2 | CandidateDetailsScreen.js | ⏳ | - | feat/selective | - |
 | 3 | Navigation (SKIP bad changes) | ⏳ | - | feat/selective | - |
 | 4 | UI Component Library | ⏳ | - | feat/selective | - |
