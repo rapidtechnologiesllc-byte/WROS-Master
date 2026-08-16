@@ -42,56 +42,73 @@ export default function Dashboard({
   useEffect(() => {
     if (navigationAttemptedRef.current) return;
 
-    const checkRoleAndRedirect = async () => {
-      let roles = getRoles() || [];
+    const checkPermissionsAndRedirect = async () => {
+      let permissions = [];
 
-      // If roles aren't in localStorage, fetch fresh data from backend
-      if (!Array.isArray(roles) || roles.length === 0) {
-        try {
-          const user = await getHrMe();
+      // ZERO-HARDCODING: Get permissions from user's role template (not hardcoded role names)
+      try {
+        const user = await getHrMe();
+        permissions = user?.permissions || [];
 
-          // Try to get roles from multiple sources
-          if (user?.roles && Array.isArray(user.roles)) {
-            roles = user.roles;
-          } else if (user?.user_role) {
-            // Fall back to single user_role string
-            roles = [user.user_role];
+        // Store in localStorage for future use
+        if (permissions.length > 0) {
+          localStorage.setItem("hrms_permissions", JSON.stringify(permissions));
+        }
+      } catch (err) {
+        console.error("Failed to fetch fresh user permissions:", err);
+        // Fall back to localStorage if available
+        const cached = localStorage.getItem("hrms_permissions");
+        if (cached) {
+          try {
+            permissions = JSON.parse(cached);
+          } catch (e) {
+            permissions = [];
           }
-
-          // Store in localStorage for future use
-          if (roles.length > 0) {
-            localStorage.setItem("hrms_roles", JSON.stringify(roles));
-          }
-        } catch (err) {
-          console.error("Failed to fetch fresh user data for role check:", err);
         }
       }
 
-      if (Array.isArray(roles) && roles.length > 0) {
+      if (Array.isArray(permissions) && permissions.length > 0) {
         navigationAttemptedRef.current = true;
-        if (roles.includes("CEO")) {
-          console.log("Redirecting to CEO dashboard...");
-          window.location.replace("/ceo-fy-progress");
+
+        // FIXED: Check permissions instead of hardcoded role names
+        // revenue.view_pnl permission indicates CEO/Partner/Finance role
+        if (permissions.includes("revenue.view_pnl")) {
+          console.log("Redirecting to revenue dashboard (has revenue.view_pnl permission)");
+          window.location.replace("/revenue-dashboard");
           return;
         }
-        if (roles.includes("CFO")) {
-          window.location.replace("/cfo-dashboard");
+
+        // recruitment.manage permission indicates Recruiter/HR Manager role
+        if (permissions.includes("candidate.create")) {
+          window.location.replace("/recruitment-dashboard");
           return;
         }
-        if (roles.includes("Partner")) {
-          window.location.replace("/partner-dashboard");
-          return;
-        }
+
+        // Default: stay on general dashboard (no special redirect needed)
       }
     };
 
-    checkRoleAndRedirect();
+    checkPermissionsAndRedirect();
   }, []);
 
-  // Get user's BU and role for filtering
+  // Get user's BU and permissions for filtering
   const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
-  const roles = getRoles() || [];
-  const isSuperUser = roles.includes("super user") || roles.includes("admin") || roles.includes("ceo") || roles.includes("cfo");
+
+  // ZERO-HARDCODING: Check permissions instead of hardcoded role names
+  let permissions = [];
+  const permCache = localStorage.getItem("hrms_permissions");
+  if (permCache) {
+    try {
+      permissions = JSON.parse(permCache);
+    } catch (e) {
+      permissions = [];
+    }
+  }
+
+  // Super user = has wildcard permission or *view permissions (can see everything)
+  const isSuperUser = permissions.includes("*.*") ||
+                      permissions.some(p => p.startsWith("revenue.view_pnl")) ||
+                      permissions.some(p => p.endsWith(".*"));
 
   // Filter data based on user role
   const filteredCandidates = isSuperUser
