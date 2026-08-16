@@ -120,7 +120,28 @@ import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 
 // Wrapper component that renders the appropriate dashboard based on user role
-const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
+const DashboardRouter = ({ candidates, jobs, interviews, offers, role }) => {
+  const normalizedRole = String(role || "").trim().toUpperCase();
+  const isCEO = normalizedRole === "CEO";
+  const isCFO = normalizedRole === "CFO";
+  const isPartner = normalizedRole.includes("PARTNER");
+
+  // CEO gets the CEO dashboard
+  if (isCEO) {
+    return <CEOUnifiedDashboard />;
+  }
+
+  // CFO gets the CFO dashboard
+  if (isCFO) {
+    return <CFOAgentScreen />;
+  }
+
+  // Partner gets Partner ROI dashboard
+  if (isPartner) {
+    return <PartnerROIAgentScreen />;
+  }
+
+  // Everyone else gets the generic dashboard
   return (
     <Dashboard
       candidates={candidates}
@@ -557,6 +578,7 @@ export default function AppRoutes() {
               index
               element={
                 <DashboardRouter
+                  role={storedRole}
                   candidates={candidates}
                   jobs={jobs}
                   interviews={interviews}
