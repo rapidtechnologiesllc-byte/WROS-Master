@@ -35,7 +35,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
 

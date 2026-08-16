@@ -26,7 +26,7 @@ from app.models.client import Client
 from app.models.employee import Employee
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.org_structure import PartnerBUAssignment, OrgNode, OrgPosition
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 
 from app.services.revenue_recognition_service import (
     recognize_revenue_from_paid_invoice,

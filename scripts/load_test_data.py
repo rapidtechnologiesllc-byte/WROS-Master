@@ -43,7 +43,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.invoice import Invoice
 from app.models.opportunity import Opportunity
 from app.models.project import Project
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
 from app.models.tenant import Tenant
 from app.models.user import Users

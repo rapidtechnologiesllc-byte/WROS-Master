@@ -245,7 +245,7 @@ def require_permission(permission: str):
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-        from app.services.rbac_service import RBACService
+        from app.services.rbac_service_template import RBACService
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -287,7 +287,7 @@ def require_attribute(attribute: str, expected: bool = True):
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-        from app.services.rbac_service import RBACService
+        from app.services.rbac_service_template import RBACService
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -302,18 +302,16 @@ def require_attribute(attribute: str, expected: bool = True):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Super User bypass — check both legacy UserRole string and RBAC role relationship
-        is_super_user = (
-            (user.UserRole and user.UserRole.lower() == "super user")
-            or (user.role and user.role.name and user.role.name.lower() == "super user")
-        )
-        if is_super_user:
+        # Super User bypass — check job_title for Super User
+        if user.job_title and user.job_title.lower() == "super user":
             return user
 
-        if not RBACService.has_attribute(db, user.UserID, attribute, expected):
+        # Check attribute via role template
+        # Note: has_attribute is deprecated; use has_permission instead for permission-based checks
+        if not RBACService.has_permission(db, user.UserID, attribute):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: role attribute '{attribute}' required",
+                detail=f"Access denied: attribute '{attribute}' required",
             )
         return user
 

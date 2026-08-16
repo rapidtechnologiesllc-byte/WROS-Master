@@ -49,8 +49,8 @@ def client(throwaway_jwt_keys):
 
     from app.api.v1.endpoints.message_templates import router as templates_router
     from app.core.database import get_db
-    from app.services.rbac_service import RBACService
-    from app.models.rbac import Role
+    from app.services.rbac_service_template import RBACService
+    from app.models.rbac_template import Role
 
     app = FastAPI()
     app.include_router(templates_router)

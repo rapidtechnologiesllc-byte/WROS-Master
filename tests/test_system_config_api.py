@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 
 import app.core.security as security
 from app.models.base import Base
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata

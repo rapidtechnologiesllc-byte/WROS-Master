@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models.audit_log import AuditLog
 from app.models.base import Base
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.system_config import SystemConfig
 from app.models.tenant import Tenant
 from app.models.user import Users

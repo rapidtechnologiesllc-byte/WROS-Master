@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.client import Client, ClientContact, ClientHistory
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.user import Users
 from app.services.client_service import (
     ClientValidationError, DuplicateClientError, create_client, update_client_details,

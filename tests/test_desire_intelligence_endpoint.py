@@ -28,7 +28,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationOutcome
 from app.models.user import Users
-from app.services.rbac_service import RBACService
+from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
 
@@ -71,8 +71,8 @@ def client(throwaway_jwt_keys):
     db = TestSessionLocal()
     RBACService.seed_roles_and_permissions(db)
 
-    hr_manager_role = db.query(__import__("app.models.rbac", fromlist=["Role"]).Role).filter_by(name="HR Manager").first()
-    recruiter_role = db.query(__import__("app.models.rbac", fromlist=["Role"]).Role).filter_by(name="Recruiter").first()
+    hr_manager_role = db.query(db.query(RoleTemplate).filter_by(name=).filter_by(name="HR Manager").first()
+    recruiter_role = db.query(db.query(RoleTemplate).filter_by(name=).filter_by(name="Recruiter").first()
 
     hr_manager = Users(UserID="U-HRM", UserRole="HR Manager", UserEmail="hrm@blitzenx.com", UserPassword=get_password_hash("x"), role_id=hr_manager_role.id)
     recruiter = Users(UserID="U-REC", UserRole="Recruiter", UserEmail="rec@blitzenx.com", UserPassword=get_password_hash("x"), role_id=recruiter_role.id)

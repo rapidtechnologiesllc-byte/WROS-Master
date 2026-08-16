@@ -1,15 +1,12 @@
 """
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
-No literal "Director" role exists in this codebase's real RBAC seed
-(app.services.rbac_service) -- the real role list is Super User, BU
-Head, Hiring Manager, HR Manager, HR Operations, HRBP, Recruitment
-Manager, Recruitment Team Lead, Recruiter, Employee, Consultant,
-Candidate (same real gap app.core.mfa's own docstring already
-documents for "Admin"/"Director"). ALL_BUS_ROLES below maps the
-spec's "Director" to "Super User" -- the same real analog mfa.py
-already chose for the identical problem -- flagged as an assumption,
-not a confirmed decision, same posture that file already took.
+The real role list is determined by job_title field and role templates.
+Role templates are dynamically created via the RBAC template system
+(app.models.rbac_template, app.services.rbac_service_template).
+Common job titles include: Super User, CEO, CFO, Admin, HR Manager,
+Recruiter, Resource Manager, etc. ALL_BUS_ROLES below specifies which
+job titles have all-business-unit access (vs BU-scoped).
 
 BR-0107-01: business_unit_id is re-validated against the user's real
 bu_access rows on EVERY call via validate_active_bu() -- never trusted
