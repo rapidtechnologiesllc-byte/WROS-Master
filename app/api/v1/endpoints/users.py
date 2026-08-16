@@ -54,7 +54,7 @@ def get_me(
     - Refreshing the token without a full re-login
     - Fetching up-to-date role / business-unit / permission information
     """
-    from app.models.rbac_template import RoleTemplate, RoleTemplatePermission, Resource
+    from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
     from app.services.rbac_service_template import RBACService
 
     # Get role template and permissions
@@ -136,7 +136,7 @@ def get_all_users(
         AllUsersResponse with list of all users and total count
     """
     try:
-        from app.models.rbac_template import RoleTemplate
+        from app.models.role_template import RoleTemplate
 
         # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
         users = db.query(Users).all()
@@ -257,10 +257,13 @@ def search_users(
             sql_func.lower(Department.name).like(dept_pattern)
         )
 
-    # ── Business unit filter — join through BusinessUnit ─────────────────────
+    # ── Business unit filter — join through BusinessUnitContext ─────────────────────
     if business_unit:
+        from app.models.business_unit_context import BusinessUnitContext
         bu_pattern = f"%{business_unit.lower()}%"
-        query = query.join(BusinessUnit, BusinessUnit.id == Users.business_unit_id).filter(
+        query = query.join(BusinessUnitContext, BusinessUnitContext.id == Users.bu_context_id).join(
+            BusinessUnit, BusinessUnit.id == BusinessUnitContext.business_unit_id
+        ).filter(
             sql_func.lower(BusinessUnit.name).like(bu_pattern)
         )
 
@@ -611,11 +614,11 @@ def create_user_with_roles(
     Requires permission: user.manage
     """
     from app.core.database import check_user
-    from app.models.rbac_template import RoleTemplate
+    from app.models.role_template import RoleTemplate
     from app.models.user import UserRole
 
     # Check if any org-level roles are being assigned
-    from app.models.rbac_template import RoleTemplate
+    from app.models.role_template import RoleTemplate
     org_level_role_names = {"CEO", "CFO", "Super User", "ADMIN", "SUPER_USER"}
 
     # Get all roles being assigned
@@ -720,7 +723,7 @@ def update_user_with_roles(
 
     Requires permission: user.manage
     """
-    from app.models.rbac_template import RoleTemplate
+    from app.models.role_template import RoleTemplate
     from app.models.user import UserRole
 
     # Find target user
@@ -729,7 +732,7 @@ def update_user_with_roles(
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
     # Check if any org-level roles are being assigned
-    from app.models.rbac_template import RoleTemplate
+    from app.models.role_template import RoleTemplate
     org_level_role_names = {"CEO", "CFO", "Super User", "ADMIN", "SUPER_USER"}
 
     # Get all roles being assigned
@@ -824,7 +827,7 @@ def get_user_roles(
     Returns list of role objects with id and name.
     """
     from app.models.user import UserRole
-    from app.models.rbac_template import RoleTemplate
+    from app.models.role_template import RoleTemplate
 
     # Get all user roles
     user_roles = db.query(UserRole).filter(UserRole.user_id == user_id).all()
@@ -1173,7 +1176,7 @@ def get_user_by_id(
     Raises:
         HTTPException 404: If the user is not found.
     """
-    from app.models.rbac_template import RoleTemplate  # avoid circular if needed
+    from app.models.role_template import RoleTemplate  # avoid circular if needed
 
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
