@@ -123,11 +123,11 @@ class UserRole(Base):
     __tablename__ = "user_roles"
     id = Column(String(255), primary_key=True, index=True)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False, index=True)
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
-    role = relationship("Role", foreign_keys=[role_id], lazy="select")
+    role = relationship("RoleTemplate", foreign_keys=[role_id], lazy="select")
     bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 class Jobs(Base):

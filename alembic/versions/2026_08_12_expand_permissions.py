@@ -1,7 +1,7 @@
 """Expand RBAC permissions: add 60+ module×verb permissions (HubSpot-style model)
 
 Revision ID: 2026_08_12_expand_perms
-Revises: c1d2e3f4a5b6
+Revises: b7c8d9e0f1a2
 Create Date: 2026-08-12 00:00:00.000000
 
 This migration expands the coarse 28-permission model to a granular module×verb
@@ -39,7 +39,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '2026_08_12_expand_perms'
-down_revision: Union[str, Sequence[str], None] = 'c1d2e3f4a5b6'
+down_revision: Union[str, Sequence[str], None] = 'b7c8d9e0f1a2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

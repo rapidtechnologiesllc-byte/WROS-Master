@@ -40,7 +40,28 @@ config.file_config = raw_config
 
 # Import Base and all models from the app package
 from app.models.base import Base
-from app.models import *  # Import all models to ensure they're registered with Base
+
+# Import all models to ensure they're registered with Base
+# Using selective imports to avoid AttributeError from deleted models
+from app.models.tenant import Tenant
+from app.models.audit_log import AuditLog
+from app.models.consent import ConsentRecord
+from app.models.user import Users, Jobs, UserRole, CandidateAssignment, InterviewPanel, PanelMember, Interview, InterviewFeedback
+from app.models.candidate import Candidate, CandidateInfoForm, CandidateEducationForm, CandidateExperienceForm, CandidateAadharForm, CandidatePanForm, CandidateStatus, CandidateJobApplication
+from app.models.document import CandidateDocument
+from app.models.offer_letter import OfferLetter
+from app.models.offer import Offer, OfferStatus
+from app.models.newsletter import Newsletter, NewsletterSubscriber
+from app.models.rbac_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.models.business_unit_context import BusinessUnitContext
+from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
+from app.models.permission import JobTitle, JobTitleRole, DetailedPermission, DetailedRolePermission, FieldPermission, DataScopePermission
+from app.models.employee import Employee, EmployeeEmploymentHistory, EmployeeDocuments, EmployeeEngineHistory
+from app.models.client import Client, ClientContact, ClientHistory
+from app.models.demand import Demand, DemandHistory
+from app.models.submission import Submission, SubmissionViolation
+from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
+from app.models.interview import InterviewFeedback, InterviewDecisionLog, InterviewPanelDecision
 
 target_metadata = Base.metadata
 
