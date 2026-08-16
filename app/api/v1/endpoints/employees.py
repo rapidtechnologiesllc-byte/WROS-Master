@@ -69,9 +69,16 @@ def convert_candidate_to_employee(
         logger.error(f"[EMPLOYEE_CONVERSION] FAILED - Candidate {request.candidate_id} not found")
         raise HTTPException(status_code=404, detail=f"Candidate {request.candidate_id} not found")
     
-    # Verify user can create employees in target BU
-    logger.info(f"[EMPLOYEE_CONVERSION] BU validation: user_bu={current_user.business_unit_id}, target_bu={request.business_unit_id}")
-    if not should_bypass_bu_filter(current_user) and current_user.business_unit_id != request.business_unit_id:
+    # Check if any org-level roles are being assigned
+    from app.models.rbac import Role as RBACRole
+    org_level_role_names = {"CEO", "CFO", "Super User"}
+
+    roles_to_assign = db.query(RBACRole).filter(RBACRole.id.in_(request.role_ids)).all()
+    has_org_level_role = any(r.name in org_level_role_names for r in roles_to_assign)
+
+    # Verify user can create employees in target BU (skip if assigning org-level roles)
+    logger.info(f"[EMPLOYEE_CONVERSION] BU validation: user_bu={current_user.business_unit_id}, target_bu={request.business_unit_id}, has_org_level={has_org_level_role}")
+    if not has_org_level_role and not should_bypass_bu_filter(current_user) and current_user.business_unit_id != request.business_unit_id:
         logger.error(f"[EMPLOYEE_CONVERSION] FAILED - BU mismatch: user_bu={current_user.business_unit_id}, target_bu={request.business_unit_id}")
         raise HTTPException(
             status_code=403,
@@ -88,13 +95,28 @@ def convert_candidate_to_employee(
     # Create employee user
     employee_password = generate_password()
     new_employee_id = user_id_generator()
-    logger.info(f"[EMPLOYEE_CONVERSION] Creating user: id={new_employee_id}, email={request.employee_email}, name={request.employee_name}")
+    logger.info(f"[EMPLOYEE_CONVERSION] Creating user: id={new_employee_id}, email={request.employee_email}, name={request.employee_name}, has_org_level={has_org_level_role}")
+
+    # Note: business_unit_id is a property; actual column is bu_context_id
+    # Org-level roles should NOT have BU restriction (no BU set)
+    bu_context_id = None
+    if has_org_level_role:
+        # Org-level roles have no BU restriction
+        bu_context_id = None
+    elif request.business_unit_id:
+        from app.models.business_unit import BusinessUnitContext
+        bu_context = db.query(BusinessUnitContext).filter(
+            BusinessUnitContext.id == request.business_unit_id
+        ).first()
+        if bu_context:
+            bu_context_id = bu_context.id
+
     new_employee = Users(
         UserID=new_employee_id,
         UserName=request.employee_name,
         UserEmail=request.employee_email,
         UserPassword=get_password_hash(employee_password),
-        business_unit_id=request.business_unit_id,
+        bu_context_id=bu_context_id,
         UserRole="Employee",  # Legacy field
     )
     db.add(new_employee)
@@ -110,7 +132,7 @@ def convert_candidate_to_employee(
                 id=f"ur_{new_employee.UserID}_{role_id}",
                 user_id=new_employee.UserID,
                 role_id=role_id,
-                business_unit_id=request.business_unit_id
+                # Note: UserRole doesn't have business_unit_id field; BU scoping done via Users.business_unit_id
             )
             db.add(user_role)
             roles_assigned += 1

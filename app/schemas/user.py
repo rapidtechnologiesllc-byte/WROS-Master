@@ -379,6 +379,8 @@ class HrMeResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     digest_enabled: bool = True  # S-065/HRMS-0465
+    roles: Optional[List[dict]] = None  # Multi-role RBAC: list of assigned roles
+    permissions: Optional[List[str]] = None  # Multi-role RBAC: union of all permissions
 
 
 class DigestPreferenceRequest(BaseModel):
