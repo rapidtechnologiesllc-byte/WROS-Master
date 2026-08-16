@@ -141,7 +141,7 @@ export default function FlashWidget() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9998]">
+    <div className="fixed bottom-6 left-6 z-[9998]">
       {showReportModal ? (
         <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/30 sm:items-center">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
