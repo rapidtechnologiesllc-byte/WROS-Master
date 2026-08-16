@@ -372,15 +372,16 @@ class HrMeResponse(BaseModel):
     user_name: Optional[str]
     user_email: str
     user_role: str
-    permission_role: Optional[str] = None
-    role_id: Optional[int] = None
+    permission_role: Optional[str] = None  # job_title for dashboard routing
+    job_title: Optional[str] = None  # Dashboard type selector
+    role_id: Optional[int] = None  # role_template_id
     business_unit_id: Optional[int] = None
     created_at: datetime
     access_token: str
     token_type: str = "bearer"
     digest_enabled: bool = True  # S-065/HRMS-0465
-    roles: Optional[List[dict]] = None  # Multi-role RBAC: list of assigned roles
-    permissions: Optional[List[str]] = None  # Multi-role RBAC: union of all permissions
+    roles: Optional[List[dict]] = None  # Deprecated: kept for backward compat
+    permissions: Optional[List[str]] = None  # Permissions from role template
 
 
 class DigestPreferenceRequest(BaseModel):
