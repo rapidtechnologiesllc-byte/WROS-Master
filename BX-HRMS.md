@@ -1644,3 +1644,82 @@ ALL dashboard screens should follow this pattern:
 
 ---
 
+
+---
+
+## 🔧 Testing Status & Next Steps
+
+**Commits Today:**
+- ✅ 11109ec - RBACService dynamic permission checking
+- ✅ b735555 - UserRole model created
+- ✅ 6d39522 - Role template initialization
+- ✅ a2334dd - User-to-template assignment
+- ✅ 0de91d8 - Architecture documentation
+- ✅ bfdc889 - Dashboard fix documentation
+- ✅ 5c73c6f6 - Dashboard hardcoding removal (FE)
+- ✅ c2b18cdd - Dashboard routing fix (FE)
+- ✅ 4aecd21 - Model imports fix
+
+**Issue Discovered: Schema Mismatch**
+- UserRole model created but user_roles table doesn't exist in database
+- Users model has role_id field but column not migrated
+- Need Alembic migration to sync schema
+
+**Test Users Available:**
+- am@blitzenx.com (CEO)
+- recruiter2@blitzenx.com (Recruiter) 
+- hr2@blitzenx.com (HR Manager)
+- test@blitzenx.com (HR Manager)
+
+**Blocker: Password Hashes**
+- Existing user passwords are bcrypt-hashed
+- Need to reset password or use test fixture with known credentials
+
+**Next Steps (In Priority Order):**
+
+1. **Create Alembic Migration** (30 min)
+   - Add user_roles table
+   - Add role_template_id FK to user_roles
+   - Migrate existing users to role templates
+   
+2. **Migrate Database** (10 min)
+   - Run: alembic upgrade head
+   
+3. **Create Test Users** (15 min)
+   - Create users with known passwords for testing
+   - Assign each to a different role template (CEO, CFO, Recruiter, HR Manager, BU Head, Employee)
+   
+4. **Test Login & Dashboard Routing** (20 min)
+   - Login as each role
+   - Verify correct dashboard loads
+   - Check console for role_template.name extraction
+   
+5. **Restart Zero-Hardcoding Audit** (1-2 hours)
+   - Now that imports are fixed, run comprehensive scan
+   - Find ALL remaining hardcoded references
+   - Prioritize fixes
+
+**Migration Script (To Be Created):**
+```sql
+-- Create user_roles junction table
+CREATE TABLE user_roles (
+  id SERIAL PRIMARY KEY,
+  user_id VARCHAR(50) REFERENCES users(UserID),
+  role_template_id INTEGER REFERENCES role_templates(id),
+  business_unit_id INTEGER REFERENCES business_units(id),
+  tenant_id INTEGER REFERENCES tenants(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Migrate existing users to role templates
+-- For each user with UserRole string, find matching RoleTemplate and create UserRole record
+INSERT INTO user_roles (user_id, role_template_id, business_unit_id, tenant_id)
+SELECT u.UserID, rt.id, u.business_unit_id, u.tenant_id
+FROM users u
+LEFT JOIN role_templates rt ON rt.name = u.UserRole AND rt.tenant_id = u.tenant_id
+WHERE u.UserRole IS NOT NULL;
+```
+
+---
+
