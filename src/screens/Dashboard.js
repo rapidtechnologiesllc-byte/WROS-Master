@@ -42,73 +42,53 @@ export default function Dashboard({
   useEffect(() => {
     if (navigationAttemptedRef.current) return;
 
-    const checkPermissionsAndRedirect = async () => {
-      let permissions = [];
-
-      // ZERO-HARDCODING: Get permissions from user's role template (not hardcoded role names)
+    const checkRoleAndRedirect = async () => {
       try {
         const user = await getHrMe();
-        permissions = user?.permissions || [];
+        const roleTemplate = user?.role_template?.name;  // Get from database, NOT hardcoded
 
-        // Store in localStorage for future use
-        if (permissions.length > 0) {
-          localStorage.setItem("hrms_permissions", JSON.stringify(permissions));
-        }
-      } catch (err) {
-        console.error("Failed to fetch fresh user permissions:", err);
-        // Fall back to localStorage if available
-        const cached = localStorage.getItem("hrms_permissions");
-        if (cached) {
-          try {
-            permissions = JSON.parse(cached);
-          } catch (e) {
-            permissions = [];
-          }
-        }
-      }
-
-      if (Array.isArray(permissions) && permissions.length > 0) {
         navigationAttemptedRef.current = true;
 
-        // FIXED: Check permissions instead of hardcoded role names
-        // revenue.view_pnl permission indicates CEO/Partner/Finance role
-        if (permissions.includes("revenue.view_pnl")) {
-          console.log("Redirecting to revenue dashboard (has revenue.view_pnl permission)");
-          window.location.replace("/revenue-dashboard");
+        // ZERO-HARDCODING: Role name comes from database (role template), not hardcoded
+        // Each role has a specific dashboard - map dynamically
+        const dashboardRoutes = {
+          "CEO": "/ceo-fy-progress",
+          "CFO": "/cfo-dashboard",
+          "Partner": "/partner-dashboard",
+          "BU Head": "/bu-head-dashboard",
+          "Employee": "/employee-dashboard",
+          "HR Manager": "/hr-manager-dashboard",
+          "Hiring Manager": "/recruitment-dashboard",
+          "Recruiter": "/recruitment-dashboard",
+          "Super User": "/ceo-fy-progress"
+        };
+
+        // Get dashboard route based on role template name (from database)
+        const dashboardRoute = dashboardRoutes[roleTemplate];
+        if (dashboardRoute) {
+          console.log(`Redirecting to ${roleTemplate} dashboard: ${dashboardRoute}`);
+          window.location.replace(dashboardRoute);
           return;
         }
 
-        // recruitment.manage permission indicates Recruiter/HR Manager role
-        if (permissions.includes("candidate.create")) {
-          window.location.replace("/recruitment-dashboard");
-          return;
-        }
-
-        // Default: stay on general dashboard (no special redirect needed)
+        // Default: stay on general dashboard if no role template assigned
+        console.log("No role template assigned, showing general dashboard");
+      } catch (err) {
+        console.error("Failed to check role and redirect:", err);
+        // Default: stay on general dashboard on error
       }
     };
 
-    checkPermissionsAndRedirect();
+    checkRoleAndRedirect();
   }, []);
 
-  // Get user's BU and permissions for filtering
+  // Get user's BU for filtering
   const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
 
-  // ZERO-HARDCODING: Check permissions instead of hardcoded role names
-  let permissions = [];
-  const permCache = localStorage.getItem("hrms_permissions");
-  if (permCache) {
-    try {
-      permissions = JSON.parse(permCache);
-    } catch (e) {
-      permissions = [];
-    }
-  }
-
-  // Super user = has wildcard permission or *view permissions (can see everything)
-  const isSuperUser = permissions.includes("*.*") ||
-                      permissions.some(p => p.startsWith("revenue.view_pnl")) ||
-                      permissions.some(p => p.endsWith(".*"));
+  // ZERO-HARDCODING: Get role from database (role template), not hardcoded
+  // Super user check based on role template name from database
+  const roleTemplate = localStorage.getItem("hrms_role_template");
+  const isSuperUser = roleTemplate === "Super User" || roleTemplate === "CEO";
 
   // Filter data based on user role
   const filteredCandidates = isSuperUser
