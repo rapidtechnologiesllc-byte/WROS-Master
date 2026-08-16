@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
 from app.models.client import Client
-from app.models.rbac import BusinessUnit, Permission, Role, RoleAttribute, RolePermission
+from app.models.rbac_template import BusinessUnit, Permission, Role, RoleAttribute, RolePermission
 from app.models.tenant import Tenant
 from app.models.user import Users
 
@@ -27,7 +27,7 @@ from app.core.revenue_visibility_scope import (
     get_revenue_scoped_client_ids,
     is_revenue_bu_scoped,
 )
-from app.services.rbac_service import RBACService
+from app.services.rbac_service_template import RBACService
 
 
 @pytest.fixture()

@@ -13,6 +13,7 @@ from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_bac
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
+from app.models.business_unit import BusinessUnit
 from app.models.candidate import (
     Candidate,
     CandidateEducationForm,
@@ -423,7 +424,7 @@ def get_my_jobs(
     the user matches more than one column.
     """
     from sqlalchemy import or_
-    from app.models.rbac import Role
+    from app.models.rbac_template import RoleTemplate
 
     my_id = user.UserID
     
@@ -602,7 +603,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         
         # Check if we can assign approval to the Business Unit Head
         if request.business_unit:
-            from app.models.rbac import Role
+            from app.models.rbac_template import RoleTemplate
             bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
             if bu_head_role:
                 bu_head = db.query(Users).filter(
@@ -1137,7 +1138,7 @@ def assign_candidate_to_job(
     # If the job has a BU, candidate moves to BU Owned; otherwise stays Org Pool
     if job.business_unit_id:
         from app.services.candidate_pool_service import set_bu_owned
-        bu = db.query(__import__('app.models.rbac', fromlist=['BusinessUnit']).BusinessUnit).filter_by(id=job.business_unit_id).first()
+        bu = db.query(BusinessUnit).filter_by(id=job.business_unit_id).first()
         bu_name = bu.name if bu else f"BU #{job.business_unit_id}"
         performed_by = getattr(user, 'UserID', None)
         set_bu_owned(

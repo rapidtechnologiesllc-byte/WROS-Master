@@ -17,12 +17,12 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
-from app.models.rbac import BusinessUnit, Permission, Role, RoleAttribute, RolePermission
+from app.models.rbac_template import BusinessUnit, Permission, Role, RoleAttribute, RolePermission
 from app.models.tenant import Tenant
 from app.models.user import Users
 
 from app.core.bu_scope import apply_bu_scope_to_candidate_query, get_bu_scoped_candidate_ids, is_bu_restricted
-from app.services.rbac_service import RBACService
+from app.services.rbac_service_template import RBACService
 
 
 @pytest.fixture()

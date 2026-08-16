@@ -70,7 +70,7 @@ def convert_candidate_to_employee(
         raise HTTPException(status_code=404, detail=f"Candidate {request.candidate_id} not found")
     
     # Check if any org-level roles are being assigned
-    from app.models.rbac import Role as RBACRole
+    from app.models.rbac_template import RoleTemplate as RBACRole
     org_level_role_names = {"CEO", "CFO", "Super User"}
 
     roles_to_assign = db.query(RBACRole).filter(RBACRole.id.in_(request.role_ids)).all()
@@ -166,7 +166,7 @@ def get_available_roles_for_conversion(
     current_user=Depends(get_current_hr_or_admin),
 ):
     """Get available roles for employee conversion"""
-    from app.models.rbac import Role
+    from app.models.rbac_template import RoleTemplate
 
     roles = db.query(Role).filter(Role.is_active == True).all()
     return [{"id": r.id, "name": r.name} for r in roles]

@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.user import Users
-from app.models.rbac import Role
+from app.models.rbac_template import Role
 from app.services.permission_service import PermissionService
 
 # Fixtures

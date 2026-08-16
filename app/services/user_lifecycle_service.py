@@ -15,7 +15,7 @@ from sqlalchemy import and_, or_
 from app.models.user import Users
 from app.models.task import Task, TASK_STATUSES
 from app.models.audit_log import AuditLog
-from app.models.rbac import Role, RolePermission
+from app.models.rbac_template import RoleTemplate
 
 
 class UserLifecycleService:
@@ -311,22 +311,23 @@ class UserLifecycleService:
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        # Get old and new role names for audit
+        # Get old and new role template names for audit
         old_role = None
-        if user.role_id:
-            old_role_obj = db.query(Role).filter(Role.id == user.role_id).first()
+        if user.role_template_id:
+            old_role_obj = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
             if old_role_obj:
                 old_role = old_role_obj.name
 
         new_role = None
-        new_role_obj = db.query(Role).filter(Role.id == role_id).first()
-        if new_role_obj:
-            new_role = new_role_obj.name
+        if role_id:
+            new_role_obj = db.query(RoleTemplate).filter(RoleTemplate.id == role_id).first()
+            if new_role_obj:
+                new_role = new_role_obj.name
 
-        # Update role
-        user.role_id = role_id
-        old_value = f"role={old_role or 'None'}"
-        new_value = f"role={new_role or 'None'}"
+        # Update role template
+        user.role_template_id = role_id
+        old_value = f"role_template={old_role or 'None'}"
+        new_value = f"role_template={new_role or 'None'}"
 
         # Audit: permission change
         audit_entry = AuditLog(

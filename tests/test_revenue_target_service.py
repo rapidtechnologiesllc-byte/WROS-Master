@@ -19,7 +19,7 @@ from app.models.base import Base
 from app.models.client import Client
 from app.models.invoice import Invoice
 from app.models.project import Project
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services.revenue_target_service import (

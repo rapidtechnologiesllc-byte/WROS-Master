@@ -42,10 +42,10 @@ from app.core.security import get_password_hash
 from app.models.base import Base
 from app.models.client import Client
 from app.models.employee import Employee
-from app.models.rbac import BusinessUnit, Role
+from app.models.rbac_template import BusinessUnit, Role
 from app.models.tenant import Tenant
 from app.models.user import Users
-from app.services.rbac_service import RBACService
+from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401 -- registers every model onto Base.metadata
 
 LOCAL_DEV_PASSWORD = "LocalDev!2026"  # fake, local-only -- not a real credential

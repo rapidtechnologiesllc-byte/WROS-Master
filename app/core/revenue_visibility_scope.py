@@ -26,7 +26,7 @@ from sqlalchemy.orm import Query, Session
 
 from app.models.client import Client
 from app.models.user import Users
-from app.services.rbac_service import RBACService
+from app.services.rbac_service_template import RBACService
 
 # Only these two roles are BU-scoped for revenue/planning screens --
 # everyone else with revenue.view (Super User/CEO, Finance, HR Manager)

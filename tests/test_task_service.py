@@ -20,7 +20,7 @@ from app.models.base import Base
 from app.models.employee import Employee
 from app.models.notification import Notification
 from app.models.prompt_execution_log import PromptExecutionLog
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.org_structure import Department
 from app.models.task import Task, TaskCapacityAlert, TaskReassignmentRequest
 from app.models.tenant import Tenant

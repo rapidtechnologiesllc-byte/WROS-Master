@@ -164,7 +164,7 @@ def initialize_rbac():
 
     try:
         from app.core.database import SessionLocal
-        from app.services.rbac_service import RBACService
+        from app.services.rbac_service_template import RBACService
 
         db = SessionLocal()
         try:

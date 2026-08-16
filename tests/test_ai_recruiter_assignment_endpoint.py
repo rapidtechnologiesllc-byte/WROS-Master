@@ -64,7 +64,7 @@ def client(throwaway_jwt_keys):
 
     from app.api.v1.endpoints.ai_recruiter_assignment import router as assignment_router
     from app.core.database import get_db
-    from app.services.rbac_service import RBACService
+    from app.services.rbac_service_template import RBACService
 
     app = FastAPI()
     app.include_router(assignment_router)
@@ -73,8 +73,8 @@ def client(throwaway_jwt_keys):
     db = TestSessionLocal()
     RBACService.seed_roles_and_permissions(db)
 
-    super_user_role = db.query(__import__("app.models.rbac", fromlist=["Role"]).Role).filter_by(name="Super User").first()
-    recruiter_role = db.query(__import__("app.models.rbac", fromlist=["Role"]).Role).filter_by(name="Recruiter").first()
+    super_user_role = db.query(db.query(RoleTemplate).filter_by(name=).filter_by(name="Super User").first()
+    recruiter_role = db.query(db.query(RoleTemplate).filter_by(name=).filter_by(name="Recruiter").first()
 
     super_user = Users(UserID="U-CEO", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword=get_password_hash("x"), role_id=super_user_role.id if super_user_role else None)
     recruiter = Users(UserID="U-REC", UserRole="Recruiter", UserEmail="recruiter@blitzenx.com", UserPassword=get_password_hash("x"), role_id=recruiter_role.id if recruiter_role else None)

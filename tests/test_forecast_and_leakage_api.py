@@ -22,10 +22,10 @@ from app.models.demand import Demand
 from app.models.invoice import Invoice
 from app.models.opportunity import Opportunity
 from app.models.project import Project
-from app.models.rbac import BusinessUnit, Role
+from app.models.rbac_template import BusinessUnit, Role
 from app.models.tenant import Tenant
 from app.models.user import Users
-from app.services.rbac_service import RBACService
+from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
 

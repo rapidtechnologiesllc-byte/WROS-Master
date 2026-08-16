@@ -19,7 +19,7 @@ from app.models.client import Client, ClientContact, ClientHistory
 from app.models.expense import ExpenseRecord
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
-from app.models.rbac import BusinessUnit
+from app.models.rbac_template import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services.client_service import set_client_status
