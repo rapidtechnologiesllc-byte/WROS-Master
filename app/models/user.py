@@ -16,9 +16,9 @@ class Users(Base):
     UserEmail = Column(String(200), unique=True, nullable=False, index=True)
     UserPassword = Column(String(200), nullable=False)
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    # RBAC — nullable so existing users are not broken on upgrade
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
-    # New role template system (2026-08-15) — single role template replaces multi-role complexity
+    # Job title determines dashboard type (CEO, CFO, Admin, HR Manager, Resource Manager, Recruiter, etc.)
+    job_title = Column(String(100), nullable=True, index=True)
+    # Role template system (2026-08-15) — defines what permissions user has
     role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
@@ -91,13 +91,10 @@ class Users(Base):
     terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
     terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
 
-    role = relationship("Role", foreign_keys=[role_id], lazy="select")
     role_template = relationship("RoleTemplate", foreign_keys=[role_template_id], lazy="select")
     bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
-    # Multi-role support (2026-08-12 RBAC)
-    user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", lazy="select")
 
     # Job title and org hierarchy (2026-08-13 Permission System)
     # TEMPORARY: Commented out until DB migration applies these columns
