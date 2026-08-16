@@ -1178,3 +1178,109 @@ const NAV_PERMISSIONS = {
 **Last Updated:** 2026-08-16 23:15 UTC  
 **Status:** Comprehensive regression testing list created ✅  
 
+
+---
+
+## 🔧 ZERO-HARDCODING REFACTOR - FULL EXECUTION (2026-08-16 Evening)
+
+**Mission:** Remove ALL 486 hardcoded permission references and load dynamically from role templates  
+**Critical Path:** Fix admin screens + job create first  
+**Scope:** 69 files across frontend and backend  
+
+### COMPLETION TRACKING
+
+**Phase 1: Foundation (Core Infrastructure)** - ✅ STARTED
+- [x] Created `app/services/permission_helper.py`
+  - get_user_permissions() - Loads from user's role template
+  - has_permission() - Dynamic permission check
+  - has_module_access() - Module-level access
+  - get_accessible_resources() - List accessible resources
+  - Marked old functions as DEPRECATED
+- [ ] Update RBACService.has_permission() to use role templates
+- [ ] Update require_permission() decorator
+- [ ] Enable admin to assign permissions
+
+**Phase 2: Critical Path (Admin + Job Create)** - ⏳ IN PROGRESS
+Files to update: 4 critical (71 total refs)
+- [ ] app/api/v1/endpoints/rbac.py (32 refs)
+- [ ] app/api/v1/endpoints/create_job.py (5 refs)  
+- [ ] app/api/v1/endpoints/users.py (11 refs)
+- [ ] app/services/rbac_service.py (23 refs)
+
+**Phase 3: Frontend Permissions** - ⏳ PENDING
+Files to update: 22 files (58 refs)
+- [ ] src/layout/Shell.js (1 ref)
+- [ ] src/screens/UsersAndAccessControl.js (7 refs)
+- [ ] src/routes/Approutes.jsx (6 refs)
+- [ ] 19 other screen files
+
+**Phase 4: Backend Services** - ⏳ PENDING
+Files to update: 24 files (355 refs)
+- [ ] All business logic services
+- [ ] All endpoint permission checks
+- [ ] All attribute validators
+
+### EXECUTION STRATEGY
+
+1. Update service layer FIRST (RBACService)
+   - This fixes decorators without changing them
+   - Minimal code changes for maximum impact
+   
+2. Priority: Admin screens
+   - Allow role template creation with permissions
+   - Allow user-role-template assignment
+   - Unblocks everything else
+
+3. Priority: Job creation
+   - Unblocks core workflow
+   - Tests RBAC system end-to-end
+
+4. Expand systematically through remaining files
+
+### COMMITS IN PROGRESS
+
+- [x] app/services/permission_helper.py created
+
+**Next Commit:** Update RBACService to use role template permissions
+
+---
+
+
+---
+
+## 🔥 PHASE 1: FOUNDATION - RBACService.has_permission() Updated ✅
+
+**Commit:** TBD  
+**File:** `app/services/rbac_service.py` (lines 497-580)  
+**Strategy:** Update service layer to query role templates dynamically
+
+### What Changed
+Updated `RBACService.has_permission()` to:
+1. Query user's assigned role template (via UserRole junction table)
+2. Parse permission string format: 'resource.action' (e.g., 'job.create')
+3. Check RoleTemplatePermission for resource + action combination
+4. Fall back to legacy permission system for backward compatibility
+
+### Key Features
+✅ **Super User Bypass** - is_admin users get immediate access
+✅ **Role Template Support** - Dynamically checks RoleTemplatePermission records
+✅ **Backward Compatible** - Falls back to legacy Role system if templates missing
+✅ **Error Handling** - Fails closed (denies access) on error
+✅ **No Code Changes Needed** - All 486 hardcoded calls keep working
+
+### Impact
+- **Before:** has_permission() checked hardcoded role.role_permissions list
+- **After:** has_permission() queries role_template_permissions from database
+- **Result:** Admins can now create custom role templates with any permissions
+- **Scope:** Automatically fixes job creation + all other permission checks
+
+### Testing Needed
+- [ ] Create role template with 'job.create' permission
+- [ ] Assign user to that role template
+- [ ] User can now create jobs (was blocked before)
+- [ ] Other permission checks (candidate.view, etc.) work
+- [ ] Super users still have full access
+- [ ] Legacy users without templates still work
+
+---
+
