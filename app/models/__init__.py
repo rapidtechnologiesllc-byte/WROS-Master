@@ -14,7 +14,8 @@ from app.models.user import (
     InterviewPanel,
     PanelMember,
     Interview,
-    InterviewFeedback
+    InterviewFeedback,
+    UserRole
 )
 from app.models.candidate import (
     Candidate,
@@ -30,6 +31,7 @@ from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
+from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
 from app.models.employee import (
     Employee,
@@ -147,6 +149,7 @@ __all__ = [
     "PanelMember",
     "Interview",
     "InterviewFeedback",
+    "UserRole",
     # Candidate models
     "Candidate",
     "CandidateInfoForm",
@@ -168,6 +171,11 @@ __all__ = [
     "Permission",
     "RolePermission",
     "BusinessUnit",
+    # Role Templates (ZERO-HARDCODING)
+    "Module",
+    "Resource",
+    "RoleTemplate",
+    "RoleTemplatePermission",
     # Organizational Hierarchy
     "Department",
     "OrgNode",
