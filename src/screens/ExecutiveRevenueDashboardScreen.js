@@ -226,7 +226,7 @@ function PartnerGoalForm() {
       const pos = await getPartnerPosition(partnerUserId);
       setPosition(pos);
     } catch (err) {
-      setError(err.message || "Failed to set goal (CEO/Super User only).");
+      setError(err.message || "Failed to set partner goal. This action requires CEO permission.");
     }
   };
 
@@ -234,7 +234,7 @@ function PartnerGoalForm() {
 
   return (
     <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="mb-3 text-sm font-semibold text-gray-900">Set Partner Annual Goal (CEO only)</div>
+      <div className="mb-3 text-sm font-semibold text-gray-900">Set Partner Annual Goal</div>
       {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Select label="Partner" value={partnerUserId} onChange={setPartnerUserId} options={partnerOptions} />

@@ -4,7 +4,7 @@ import { Card, Button, Input, Select } from "../components/ui";
 import { toast } from "react-toastify";
 import { apiRequest } from "../services/api/client";
 import { getAllCandidates } from "../services/api/candidates";
-import { getBusinessUnitId } from "../utils/permissionsRbac";
+import { getBusinessUnitId } from "../utils/permissions";
 
 export default function EmployeeConversionScreen() {
   const [candidates, setCandidates] = useState([]);

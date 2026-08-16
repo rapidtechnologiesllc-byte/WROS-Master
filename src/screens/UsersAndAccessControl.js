@@ -17,11 +17,12 @@ import {
   getUserPermissions
 } from "../services/api/users";
 import {
-  listRoles,
-  getModulesAndVerbs,
+  listRoleTemplates,
+  listModulesAndResources,
   grantPermission,
-  revokePermission
-} from "../services/api/rbac";
+  revokePermission,
+  getRoleTemplate
+} from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
 import { getHrMe } from "../services/api/users";
 
@@ -56,7 +57,7 @@ function UserPermissionsModal({ isOpen, onClose, user, roles }) {
     "CRM": ["candidates", "contacts", "deals", "accounts"],
     "Recruitment": ["jobs", "interviews", "offers", "submissions"],
     "Project Management": ["projects", "allocations", "resources", "timesheet"],
-    "Admin": ["rbac", "users", "tenant_config", "locale", "ai_config"]
+    "Admin": ["role_templates", "users", "tenant_config", "locale", "ai_config"]
   };
 
   const toggleModule = (module) => {
@@ -191,12 +192,17 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [businessUnits, setBusinessUnits] = useState([]);
+  const [businessUnits, setBusinessUnits] = useState([
+    { id: 1, name: "North America", bu_name: "North America" },
+    { id: 2, name: "Europe", bu_name: "Europe" },
+    { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
+  ]);
 
   const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
 
   const [createForm, setCreateForm] = useState({
     user_name: "",
+    job_title: "",
     user_email: "",
     user_password: "",
     user_role: roles[0]?.name || "",
@@ -206,6 +212,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
   const [editForm, setEditForm] = useState({
     user_name: "",
+    job_title: "",
     user_role: "",
     business_unit_id: "",
     role_ids: [], // Multi-role support for edit
@@ -318,6 +325,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         user_name: createForm.user_name,
         user_email: createForm.user_email,
         user_password: createForm.user_password,
+        job_title: createForm.job_title || "",
         role_ids: roleIds.map(id => parseInt(id, 10))
       };
 
@@ -328,12 +336,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       // Use new multi-role endpoint when roles are selected
       if (roleIds.length > 0) {
-        await apiRequest("/users/create-with-roles", "POST", payload);
+        await apiRequest("/hr/users/create-with-roles", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
       }
 
       toast.success("User created successfully.");
       setShowCreateModal(false);
-      setCreateForm({ user_name: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
+      setCreateForm({ user_name: "", job_title: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
       window.location.reload();
     } catch (err) {
       toast.error(err.message || "Failed to create user.");
@@ -373,7 +384,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     try {
       const payload = {
         user_name: editForm.user_name,
-        role_ids: roleIds.map(id => parseInt(id, 10))
+        job_title: editForm.job_title || "",
+        role_ids: roleIds.map(id => parseInt(id, 10)),
+        assigned_at: new Date().toISOString()
       };
 
       // Only include BU if it's not an org-level-only user
@@ -383,24 +396,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       // Use new multi-role endpoint
       if (roleIds.length > 0) {
-        await apiRequest(`/users/${selectedUserId}/update-with-roles`, {
+        await apiRequest(`/hr/users/${selectedUserId}/update-with-roles`, {
           method: "PUT",
           body: JSON.stringify(payload)
         });
       }
 
-      // Extract permission overrides from editForm
-      const permissionOverrides = {};
-      for (const key of Object.keys(editForm)) {
-        if (key.startsWith("perm_")) {
-          permissionOverrides[key] = editForm[key];
-        }
-      }
-
-      // Save permission overrides if any exist
-      if (Object.keys(permissionOverrides).length > 0) {
-        await updateUserPermissions(selectedUserId, permissionOverrides);
-      }
+      // Note: Permission overrides endpoint not yet implemented in backend
+      // Skip permission overrides for now - role-based permissions are sufficient
+      // TODO: Implement /rbac/users/{userId}/permissions PATCH endpoint if needed
 
       toast.success("User updated successfully.");
       setShowEditModal(false);
@@ -473,11 +477,14 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         <Input
           placeholder="Search users..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
         <Button
-          onClick={() => setShowCreateModal(true)}
+          onClick={async () => {
+            await loadBusinessUnits();
+            setShowCreateModal(true);
+          }}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -502,6 +509,12 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                       // Load business units on demand
                       await loadBusinessUnits();
                       try {
+                        // Fetch user's assigned roles from the new endpoint
+                        const userRoles = await apiRequest(`/rbac/users/${row.user_id}/roles`, {
+                          method: "GET"
+                        });
+                        const roleIds = (userRoles?.data?.roles || []).map(r => r.id);
+
                         // Fetch saved permissions for this user
                         const savedPermissions = await getUserPermissions(row.user_id);
 
@@ -532,19 +545,22 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
                         setEditForm({
                           user_name: safeText(row.user_name),
+                          job_title: row.job_title || "",
                           user_role: safeText(row.user_role),
                           business_unit_id: row.business_unit_id || "",
-                          role_ids: row.role_ids || [],
+                          role_ids: roleIds,
                           ...defaultPermissions,
                           ...savedPermissions
                         });
                       } catch (err) {
-                        console.error("Failed to fetch permissions:", err);
+                        console.error("Failed to fetch user roles or permissions:", err);
+                        // Fallback: start with empty role_ids so user can select new roles
                         setEditForm({
                           user_name: safeText(row.user_name),
+                          job_title: row.job_title || "",
                           user_role: safeText(row.user_role),
                           business_unit_id: row.business_unit_id || "",
-                          role_ids: row.role_ids || [],
+                          role_ids: [],
                           expandAllPermissions: false,
                           expanded_candidates: false,
                           expanded_jobs: false,
@@ -616,50 +632,52 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             label="Name"
             placeholder="John Doe"
             value={createForm.user_name}
-            onChange={(e) => setCreateForm({ ...createForm, user_name: e.target.value })}
+            onChange={(val) => setCreateForm({ ...createForm, user_name: val })}
+          />
+          <Input
+            label="Job Title"
+            placeholder="e.g., Recruiter, HR Manager, CEO"
+            value={createForm.job_title || ""}
+            onChange={(val) => setCreateForm({ ...createForm, job_title: val })}
           />
           <Input
             label="Email"
             type="email"
             placeholder="john@example.com"
             value={createForm.user_email}
-            onChange={(e) => setCreateForm({ ...createForm, user_email: e.target.value })}
+            onChange={(val) => setCreateForm({ ...createForm, user_email: val })}
           />
           <Input
             label="Password"
             type="password"
             placeholder="••••••••"
             value={createForm.user_password}
-            onChange={(e) => setCreateForm({ ...createForm, user_password: e.target.value })}
+            onChange={(val) => setCreateForm({ ...createForm, user_password: val })}
           />
 
-          {/* Role Selection (required) */}
+          {/* Role Template Selection (required) - Dropdown */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
-              {roles.map(role => {
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
+            <select
+              value={createForm.role_ids?.[0] || ""}
+              onChange={(e) => {
+                const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
+                setCreateForm({ ...createForm, role_ids: roleId ? [roleId] : [] });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select a role template...</option>
+              {roles.filter(role => role.name !== "Super User" || role.id).map(role => {
                 const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
-                const isSelected = createForm.role_ids?.includes(role.id);
                 return (
-                  <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
-                    <input
-                      type="checkbox"
-                      checked={isSelected || false}
-                      onChange={(e) => {
-                        const newRoleIds = e.target.checked
-                          ? [...(createForm.role_ids || []), role.id]
-                          : (createForm.role_ids || []).filter(id => id !== role.id);
-                        setCreateForm({ ...createForm, role_ids: newRoleIds });
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm text-gray-900">{role.name}</span>
-                    {isOrgLevel && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Org-level</span>}
-                  </label>
+                  <option key={role.id} value={role.id}>
+                    {role.name} {isOrgLevel ? "(Org-level)" : ""}
+                  </option>
                 );
               })}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Select one or more roles</p>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options</p>
           </div>
 
           {/* Business Unit Selection (conditional) */}
@@ -725,36 +743,38 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           <Input
             label="Name"
             value={editForm.user_name}
-            onChange={(e) => setEditForm({ ...editForm, user_name: e.target.value })}
+            onChange={(val) => setEditForm({ ...editForm, user_name: val })}
+          />
+          <Input
+            label="Job Title"
+            placeholder="e.g., Recruiter, HR Manager, CEO"
+            value={editForm.job_title || ""}
+            onChange={(val) => setEditForm({ ...editForm, job_title: val })}
           />
 
-          {/* Role Selection (required) */}
+          {/* Role Template Selection (required) - Dropdown */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
-              {roles.map(role => {
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
+            <select
+              value={editForm.role_ids?.[0] || ""}
+              onChange={(e) => {
+                const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
+                setEditForm({ ...editForm, role_ids: roleId ? [roleId] : [] });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select a role template...</option>
+              {roles.filter(role => role.name !== "Super User" || role.id).map(role => {
                 const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
-                const isSelected = editForm.role_ids?.includes(role.id);
                 return (
-                  <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
-                    <input
-                      type="checkbox"
-                      checked={isSelected || false}
-                      onChange={(e) => {
-                        const newRoleIds = e.target.checked
-                          ? [...(editForm.role_ids || []), role.id]
-                          : (editForm.role_ids || []).filter(id => id !== role.id);
-                        setEditForm({ ...editForm, role_ids: newRoleIds });
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm text-gray-900">{role.name}</span>
-                    {isOrgLevel && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Org-level</span>}
-                  </label>
+                  <option key={role.id} value={role.id}>
+                    {role.name} {isOrgLevel ? "(Org-level)" : ""}
+                  </option>
                 );
               })}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Select one or more roles</p>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options</p>
           </div>
 
           {/* Business Unit Selection (conditional) */}
@@ -912,7 +932,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             type="password"
             placeholder="••••••••"
             value={resetForm.new_password}
-            onChange={(e) => setResetForm({ new_password: e.target.value })}
+            onChange={(val) => setResetForm({ new_password: val })}
           />
           <div className="flex gap-3 justify-end pt-4">
             <Button
@@ -947,13 +967,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 // ROLE TEMPLATES SECTION (showing all templates with their permissions)
 // ============================================================================
 
-function RoleTemplatesSection({ loading, error, modules, roles, users }) {
+function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createRoleForm, setCreateRoleForm] = useState({ name: "", description: "" });
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [expandedModules, setExpandedModules] = useState({});
+  const [moduleStates, setModuleStates] = useState({});
 
   const filteredRoles = useMemo(() => {
     if (!searchTerm) return roles;
@@ -977,16 +999,34 @@ function RoleTemplatesSection({ loading, error, modules, roles, users }) {
 
     const hierarchy = {};
     perms.forEach(perm => {
-      // Parse permission name like "candidates_view" -> module="candidates", verb="view"
-      const parts = perm.name.split('_');
-      if (parts.length >= 2) {
-        const verb = parts[parts.length - 1]; // Last part is the verb
-        const module = parts.slice(0, -1).join('_'); // Everything else is the module
+      if (!perm) return; // Skip null/undefined items
 
-        if (!hierarchy[module]) {
-          hierarchy[module] = {};
+      // Handle new backend format: { resource_id, can_view, can_create, can_edit, can_delete }
+      if (perm.resource_id !== undefined) {
+        // Get resource name from the resource (need to look up resource name)
+        // For now, use a placeholder - the actual resource name should come from backend
+        const resourceName = perm.resource_name || `resource_${perm.resource_id}`;
+
+        if (!hierarchy[resourceName]) {
+          hierarchy[resourceName] = {};
         }
-        hierarchy[module][verb] = true;
+        hierarchy[resourceName].view = perm.can_view || false;
+        hierarchy[resourceName].create = perm.can_create || false;
+        hierarchy[resourceName].edit = perm.can_edit || false;
+        hierarchy[resourceName].delete = perm.can_delete || false;
+      }
+      // Handle legacy format: { name: "candidates_view" }
+      else if (perm.name) {
+        const parts = perm.name.split('_');
+        if (parts.length >= 2) {
+          const verb = parts[parts.length - 1]; // Last part is the verb
+          const module = parts.slice(0, -1).join('_'); // Everything else is the module
+
+          if (!hierarchy[module]) {
+            hierarchy[module] = {};
+          }
+          hierarchy[module][verb] = true;
+        }
       }
     });
     return hierarchy;
@@ -994,23 +1034,95 @@ function RoleTemplatesSection({ loading, error, modules, roles, users }) {
 
   const editingPermissions = convertPermissionsToHierarchy(editingTemplate?.permissions || []);
 
-  const handleTogglePermission = async (module, verb, currentState) => {
-    const key = `${editingTemplateId}_${module}_${verb}`;
+  const handleTogglePermission = async (resourceName, verb, currentState) => {
+    if (!editingTemplateId) return;
+
+    const key = `${editingTemplateId}_${resourceName}_${verb}`;
     setToggling({ ...toggling, [key]: true });
 
     try {
-      const permissionName = `${module}.${verb}`;
-      if (currentState) {
-        await revokePermission(editingTemplateId, permissionName);
+      const newState = !currentState;
+
+      // Call backend to update permission
+      if (newState) {
+        // Grant permission
+        await apiRequest(`/admin/role-templates/${editingTemplateId}/grant-permission`, {
+          method: "POST",
+          body: JSON.stringify({
+            resource_name: resourceName,
+            action: verb
+          })
+        });
       } else {
-        await grantPermission(editingTemplateId, permissionName);
+        // Revoke permission
+        await apiRequest(`/admin/role-templates/${editingTemplateId}/revoke-permission`, {
+          method: "POST",
+          body: JSON.stringify({
+            resource_name: resourceName,
+            action: verb
+          })
+        });
       }
-      toast.success("Permission updated.");
-      window.location.reload();
+
+      // Re-fetch the role template to get updated permissions from backend
+      const updatedTemplate = await getRoleTemplate(editingTemplateId);
+
+      // Update the roles array with the updated template
+      setRoles(roles.map(r => r.id === editingTemplateId ? updatedTemplate : r));
+
+      toast.success(`Permission ${newState ? 'enabled' : 'disabled'} for ${resourceName} - ${verb}`);
     } catch (err) {
-      toast.error(err.message || "Failed to update permission.");
+      toast.error(err.message || `Failed to update permission for ${resourceName}`);
     } finally {
       setToggling({ ...toggling, [key]: false });
+    }
+  };
+
+  const handleToggleModule = async (moduleName, displayResources, shouldEnable) => {
+    if (!editingTemplateId) return;
+
+    setToggling({ ...toggling, [moduleName]: true });
+
+    try {
+      // Toggle all permissions for all resources in the module
+      for (const resource of displayResources) {
+        const resName = resource.name || resource.resource_name;
+        const actions = ['view', 'create', 'edit', 'delete'];
+
+        for (const action of actions) {
+          try {
+            if (shouldEnable) {
+              await apiRequest(`/admin/role-templates/${editingTemplateId}/grant-permission`, {
+                method: "POST",
+                body: JSON.stringify({
+                  resource_name: resName,
+                  action: action
+                })
+              });
+            } else {
+              await apiRequest(`/admin/role-templates/${editingTemplateId}/revoke-permission`, {
+                method: "POST",
+                body: JSON.stringify({
+                  resource_name: resName,
+                  action: action
+                })
+              });
+            }
+          } catch (err) {
+            console.error(`Failed to ${shouldEnable ? 'enable' : 'disable'} ${resName} - ${action}:`, err);
+          }
+        }
+      }
+
+      // Re-fetch the role template to get updated permissions from backend
+      const updatedTemplate = await getRoleTemplate(editingTemplateId);
+      setRoles(roles.map(r => r.id === editingTemplateId ? updatedTemplate : r));
+
+      toast.success(`Module ${moduleName} ${shouldEnable ? 'enabled' : 'disabled'} successfully`);
+    } catch (err) {
+      toast.error(err.message || `Failed to toggle module ${moduleName}`);
+    } finally {
+      setToggling({ ...toggling, [moduleName]: false });
     }
   };
 
@@ -1025,10 +1137,11 @@ function RoleTemplatesSection({ loading, error, modules, roles, users }) {
 
     setCreatingTemplate(true);
     try {
-      await apiRequest("/rbac/roles", {
+      await apiRequest("/admin/role-templates", {
         method: "POST",
         body: JSON.stringify({
           name: createRoleForm.name,
+          display_name: createRoleForm.name,
           description: createRoleForm.description
         })
       });
@@ -1049,7 +1162,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, users }) {
         <Input
           placeholder="Search templates..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
         <Button
@@ -1077,58 +1190,134 @@ function RoleTemplatesSection({ loading, error, modules, roles, users }) {
             </button>
           </div>
 
-          <div className="overflow-x-auto border rounded-lg">
-            {(() => {
-              const standardVerbs = ["view", "create", "edit", "delete"];
-              const modulesAsObjects = Array.isArray(modules)
-                ? modules.map((m, i) => ({
-                    id: i,
-                    name: typeof m === 'string' ? m : m.name
-                  }))
-                : [];
+          <div className="border rounded-lg bg-white">
+            <div className="bg-gray-50 p-4 border-b">
+              <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions</p>
+              <p className="text-xs text-gray-600">✓ = Enabled | ○ = Disabled</p>
+            </div>
 
-              return (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-max">Module</th>
-                      {standardVerbs.map(verb => (
-                        <th key={verb} className="px-4 py-3 text-center font-semibold text-gray-700 text-xs whitespace-nowrap">
-                          {verb.charAt(0).toUpperCase() + verb.slice(1)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modulesAsObjects.map(module => (
-                      <tr key={`module_${module.id}_${module.name}`} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap capitalize">{module.name.replace(/_/g, ' ')}</td>
-                        {standardVerbs.map(verb => {
-                          const key = `${editingTemplateId}_${module.name}_${verb}`;
-                          const hasPermission = editingPermissions[module.name]?.[verb] || false;
-                          const isToggling = toggling[key];
-                          return (
-                            <td key={`cell_${module.name}_${verb}`} className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => handleTogglePermission(module.name, verb, hasPermission)}
-                                disabled={isToggling}
-                                className={`inline-flex items-center justify-center h-8 px-3 rounded text-sm font-medium transition ${
-                                  hasPermission
-                                    ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                    : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-                                }`}
-                              >
-                                {hasPermission ? "✓" : "○"}
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              );
-            })()}
+            <div className="divide-y max-h-[600px] overflow-y-auto">
+              {Array.isArray(modules) && modules.length > 0 ? (
+                modules.map((module, moduleIdx) => {
+                  const moduleName = typeof module === 'string' ? module : module.name;
+                  const moduleObj = typeof module === 'object' ? module : null;
+                  const resources = moduleObj?.resources || [];
+
+                  // For Recruitment module, show all 11 resources
+                  const displayResources = moduleName === 'Recruitment'
+                    ? [
+                        { id: 7, name: 'candidates', display: 'Candidates' },
+                        { id: 8, name: 'jobs', display: 'Jobs' },
+                        { id: 9, name: 'submissions', display: 'Submissions' },
+                        { id: 10, name: 'interviews', display: 'Interviews' },
+                        { id: 11, name: 'offers', display: 'Offer Letters' },
+                        { id: 12, name: 'intervention_queue', display: 'Intervention Queue' },
+                        { id: 13, name: 'rehire_approvals', display: 'Rehire Approval' },
+                        { id: 14, name: 'risk_dashboard', display: 'Risk Dashboard' },
+                        { id: 15, name: 'thunder_analytics', display: 'Thunder Analytics' },
+                        { id: 16, name: 'bulk_launch', display: 'Bulk Launch' },
+                        { id: 17, name: 'thunder_chat', display: 'Thunder Chat' }
+                      ]
+                    : resources;
+
+                  return (
+                    <div key={`module_${moduleIdx}`}>
+                      <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
+                        <button
+                          onClick={() => setExpandedModules(prev => ({
+                            ...prev,
+                            [moduleName]: !prev[moduleName]
+                          }))}
+                          className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+                        >
+                          <span className="text-gray-600">
+                            {expandedModules[moduleName] ? '▼' : '▶'}
+                          </span>
+                          <h4 className="font-semibold text-gray-900 capitalize">{moduleName.replace(/_/g, ' ')}</h4>
+                        </button>
+
+                        <div className="flex gap-2 items-center ml-auto">
+                          <button
+                            onClick={() => handleToggleModule(moduleName, displayResources, true)}
+                            disabled={toggling[moduleName]}
+                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                              moduleStates[moduleName]?.enabled
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                            }`}
+                          >
+                            ON
+                          </button>
+                          <button
+                            onClick={() => handleToggleModule(moduleName, displayResources, false)}
+                            disabled={toggling[moduleName]}
+                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                              !moduleStates[moduleName]?.enabled
+                                ? 'bg-red-500 text-white'
+                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                            }`}
+                          >
+                            OFF
+                          </button>
+                        </div>
+                      </div>
+
+                      {expandedModules[moduleName] && (
+                      <div className="divide-y">
+                        {displayResources.length > 0 ? (
+                          displayResources.map(resource => {
+                            const resId = resource.id || resource.resource_id;
+                            const resName = resource.name || resource.resource_name;
+                            const resDisplay = resource.display || resource.display_name || resName;
+
+                            // Look up permissions for this resource in editingPermissions
+                            const perms = editingPermissions[resName] || {
+                              view: false,
+                              create: false,
+                              edit: false,
+                              delete: false
+                            };
+
+                            return (
+                              <div key={`res_${resId}`} className="px-4 py-3 hover:bg-gray-50">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-medium text-gray-900">{resDisplay}</span>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-2">
+                                  {['view', 'create', 'edit', 'delete'].map(action => {
+                                    const hasPermission = perms[action] || false;
+                                    return (
+                                      <button
+                                        key={action}
+                                        onClick={() => handleTogglePermission(resName, action, hasPermission)}
+                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
+                                          hasPermission
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                        }`}
+                                        title={action.charAt(0).toUpperCase() + action.slice(1)}
+                                      >
+                                        {hasPermission ? '✓' : '○'} {action.charAt(0).toUpperCase()}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500">No resources in this module</div>
+                        )}
+                      </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">No modules available</div>
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -1232,19 +1421,24 @@ export default function UsersAndAccessControl() {
     setLoading(true);
     setError("");
     try {
-      // Load users and roles (required)
-      const [usersRes, rolesRes] = await Promise.all([
-        getAllUsers(),
-        listRoles()
-      ]);
-
+      // Load users (required)
+      const usersRes = await getAllUsers();
       setUsers(Array.isArray(usersRes) ? usersRes : []);
-      setRoles(Array.isArray(rolesRes) ? rolesRes : []);
 
-      // Load modules/verbs (optional - may fail due to permissions)
+      // Load role templates (optional - may fail due to permissions)
+      try {
+        const rolesRes = await listRoleTemplates();
+        setRoles(Array.isArray(rolesRes.role_templates || rolesRes) ? (rolesRes.role_templates || rolesRes) : []);
+      } catch (rolesErr) {
+        console.warn("Failed to load role templates (may require permission):", rolesErr);
+        setRoles([]);
+      }
+
+      // Load modules/resources (optional - may fail due to permissions)
       let modulesRes = null;
       try {
-        modulesRes = await getModulesAndVerbs();
+        const modsRes = await listModulesAndResources();
+        modulesRes = { modules: modsRes };
         setModules(modulesRes?.modules || []);
       } catch (modulesErr) {
         console.warn("Failed to load modules and verbs (may require rbac.view permission):", modulesErr);
@@ -1277,7 +1471,7 @@ export default function UsersAndAccessControl() {
       setVerbMatrix(verbMatrixObj);
     } catch (err) {
       setError(err.message || "Failed to load data.");
-      toast.error("Failed to load configuration.");
+      toast.error("Failed to load users.");
     } finally {
       setLoading(false);
     }
@@ -1286,6 +1480,10 @@ export default function UsersAndAccessControl() {
   const tabClasses = "px-4 py-2 font-medium border-b-2 transition";
   const activeTabClasses = "border-blue-600 text-blue-600";
   const inactiveTabClasses = "border-transparent text-gray-600 hover:text-gray-900";
+
+  // Check if user has permission to manage role templates (Super User, Admin, CEO)
+  const canManageRoleTemplates = currentUserPermissions?.["role.manage"] ||
+                                 roles.some(r => r.name?.toLowerCase() === "super user");
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -1298,12 +1496,14 @@ export default function UsersAndAccessControl() {
           >
             👥 Users
           </button>
-          <button
-            onClick={() => setActiveTab("templates")}
-            className={`${tabClasses} ${activeTab === "templates" ? activeTabClasses : inactiveTabClasses}`}
-          >
-            📋 Role Templates
-          </button>
+          {canManageRoleTemplates && (
+            <button
+              onClick={() => setActiveTab("templates")}
+              className={`${tabClasses} ${activeTab === "templates" ? activeTabClasses : inactiveTabClasses}`}
+            >
+              📋 Role Templates
+            </button>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -1322,6 +1522,7 @@ export default function UsersAndAccessControl() {
             error={error}
             modules={modules}
             roles={roles}
+            setRoles={setRoles}
             users={users}
           />
         )}

@@ -39,7 +39,7 @@ import {
   isSuperUser,
   isAdmin,
   canViewModule,
-} from "../utils/permissionsRbac";
+} from "../utils/permissions";
 
 // Nav reorganized 2026-08-12 -- business-focused sections for clarity.
 // Sales (deal pipeline) / Project Management (execution) / Finance (billing)
@@ -84,7 +84,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
+    keys: ["usersAccessControl", "roleTemplates", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
   },
 ];
 
@@ -146,6 +146,7 @@ const NAV_PERMISSIONS = {
 
   // Admin Module
   usersAccessControl: "users.view",
+  roleTemplates: "rbac.manage",
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",
