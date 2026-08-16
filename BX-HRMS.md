@@ -504,11 +504,12 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ---
 
-## 📋 SCRATCHPAD MERGE LAUNDRY LIST (45 Files)
+## 📋 SCRATCHPAD MERGE LAUNDRY LIST (45 Files + 18 Items)
 
-**Timeline:** Complete all items before merging to main  
+**Timeline:** Complete all 18 items before merging to main  
 **Branch:** `feat/selective-scratchpad-merge`  
 **Testing:** Golden path + edge cases for each item  
+**Status:** Item #1 (JobCreate.js) ready to start  
 
 ### PHASE 1: CRITICAL PATH (Must Complete First)
 
@@ -858,6 +859,26 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ---
 
+#### 1️⃣8️⃣ Role Templates - Template Level On/Off Toggle (MISSING UI FEATURE)
+**Status:** ⏳ PENDING  
+**Priority:** 🔴 CRITICAL (Quick Add)  
+**Changes:**
+- Add template-level enable/disable toggle at top of template card
+- Toggle controls whether template is active for user assignment
+- Should appear above "Module & Resource Permissions" section
+
+**Testing Checklist:**
+- [ ] Toggle appears on each template card
+- [ ] Toggle state persists (ON/OFF)
+- [ ] Disabled templates cannot be assigned to users
+- [ ] Visual indication of template status (grayed out if OFF)
+
+**Location:** `src/screens/UsersAndAccessControl.js` (or RbacSettingsScreen.js)  
+**Files Affected:**
+- `src/screens/UsersAndAccessControl.js` or `src/screens/RbacSettingsScreen.js`
+
+---
+
 ---
 
 ## ✅ COMPLETION TRACKING
@@ -881,6 +902,7 @@ Waiting for Tier 1-3 enablers to be completed first.
 | 15 | RbacSettingsScreen.js | ⏳ | - | feat/selective | - |
 | 16 | UsersLifecycleScreen.js | ⏳ | - | feat/selective | - |
 | 17 | AuthPage.js | ⏳ | - | feat/selective | - |
+| 18 | Role Templates On/Off Toggle | ⏳ | - | feat/selective | - |
 
 ---
 
