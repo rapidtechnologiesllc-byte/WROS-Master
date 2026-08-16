@@ -305,6 +305,58 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ## 📝 SESSION CHANGELOG
 
+### **2026-08-16 MORNING: RBAC Router Registration & Business Unit Management System**
+
+**Critical Issues Fixed:**
+1. ✅ **Issue #1: RBAC endpoints returning 404 "Not Found"**
+   - Root Cause: RBAC router import and inclusion were commented out in `app/api/v1/routes.py`
+   - Solution: Uncommented RBAC router import (line 15) and router.include_router() (line 118)
+   - File: `app/api/v1/routes.py`
+   - Impact: `/rbac/business-units` and all RBAC endpoints now accessible
+
+2. ✅ **Issue #2: Business Unit save validation error**
+   - Root Cause: `BusinessUnitResponse` schema expected `created_at` and `updated_at` as strings, but database returns datetime objects
+   - Solution: Changed schema types from `str` to `datetime` in `BusinessUnitResponse`
+   - Added: `from datetime import datetime` import to rbac.py
+   - File: `app/api/v1/endpoints/rbac.py` lines 7, 53-54
+   - Impact: Business unit save/update now works without validation errors
+
+3. ✅ **Issue #3: Admin settings "Could not load settings" error**
+   - Root Cause: Business unit endpoints returning 404
+   - Solution: Fixed RBAC router registration (Issue #1 above)
+   - Result: Admin Organization tab now loads all business units without errors
+
+**Features Now Working:**
+- ✅ List all business units (GET /rbac/business-units)
+- ✅ Create new business unit (POST /rbac/business-units)
+- ✅ Edit business unit (PUT /rbac/business-units/{bu_id})
+- ✅ Delete business unit (DELETE /rbac/business-units/{bu_id})
+- ✅ Get specific business unit (GET /rbac/business-units/{bu_id})
+
+**Testing & Verification:**
+- ✅ Admin settings page loads without errors
+- ✅ All 3 business units (Asia Pacific, Europe, North America) display correctly
+- ✅ Edit business unit modal opens and loads data
+- ✅ Save Changes button now works - business units can be updated
+- ✅ No validation errors on response serialization
+- ✅ Backend responds with proper datetime serialization
+
+**Files Modified:**
+1. `app/api/v1/routes.py` - Uncommented RBAC router import and inclusion
+2. `app/api/v1/endpoints/rbac.py` - Fixed datetime schema types and added import
+
+**Commit:**
+- `f5385fb` - FIX: Enable RBAC router and fix BusinessUnitResponse datetime schema
+
+**Deployment:**
+- ✅ Backend code pushed to https://github.com/blitzenx25/OnboardingModule-Backend.git main
+- ✅ Frontend already up-to-date on main
+- ✅ All changes ready for production deployment
+
+**Status:** Business Unit Management System fully operational and production-ready ✅
+
+---
+
 ### **2026-08-15 EVENING: Critical PostgreSQL Migration Fixes**
 
 **Critical Issues Fixed:**
