@@ -64,6 +64,52 @@ export const updateHrUser = async (userId, { user_name, user_role } = {}) => {
   return data;
 };
 
+// Fetch user permission overrides
+export const getUserPermissions = async (userId) => {
+  try {
+    const { data } = await apiRequest(`/rbac/users/${encodeURIComponent(userId)}/permissions`, {
+      method: "GET",
+    });
+    return data?.permissions || {};
+  } catch (err) {
+    console.error("Failed to fetch permissions from /rbac/users endpoint:", err);
+    // Fallback: try legacy endpoint
+    try {
+      const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}/permissions`, {
+        method: "GET",
+      });
+      return data?.permissions || {};
+    } catch (fallbackErr) {
+      console.error("Fallback fetch also failed:", fallbackErr);
+      return {};
+    }
+  }
+};
+
+// Save user permission overrides
+export const updateUserPermissions = async (userId, permissions) => {
+  try {
+    const { data } = await apiRequest(`/rbac/users/${encodeURIComponent(userId)}/permissions`, {
+      method: "PATCH",
+      body: JSON.stringify({ permissions }),
+    });
+    return data;
+  } catch (err) {
+    console.error("Failed to update permissions via /rbac/users endpoint:", err);
+    // Fallback: try legacy endpoint
+    try {
+      const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}/permissions`, {
+        method: "PATCH",
+        body: JSON.stringify({ permissions }),
+      });
+      return data;
+    } catch (fallbackErr) {
+      console.error("Fallback update also failed:", fallbackErr);
+      throw fallbackErr;
+    }
+  }
+};
+
 export const deleteHrUser = async (userId) => {
   const { data } = await apiRequest(`/hr/users/${encodeURIComponent(userId)}`, {
     method: "DELETE",

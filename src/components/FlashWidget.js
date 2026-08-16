@@ -30,8 +30,6 @@ export default function FlashWidget() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportForm, setReportForm] = useState({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
   const [reporting, setReporting] = useState(false);
-  const [jobCreationState, setJobCreationState] = useState(null); // Track job creation conversation
-  const [conversationState, setConversationState] = useState({}); // Persist conversation state
   const scrollRef = useRef(null);
 
   // Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
@@ -60,51 +58,13 @@ export default function FlashWidget() {
     setDraft("");
 
     try {
-      // Pass conversation state if in job creation flow
-      const payload = { message: text, history };
-      if (conversationState && Object.keys(conversationState).length > 0) {
-        payload.conversation_state = conversationState;
-      }
-
-      const res = await askFlash(payload.message, history, payload.conversation_state);
-
-      // Display Flash response
+      const res = await askFlash(text, history);
       setMessages((prev) => [...prev, { sender: "flash", body: res.reply }]);
-
-      // Handle job creation conversation flow
-      if (res.requires_response) {
-        setJobCreationState({
-          expects_field: res.expected_field,
-          response_type: res.response_type,
-          active: true,
-        });
-        // Update conversation state if provided
-        if (res.conversation_state) {
-          setConversationState(res.conversation_state);
-        }
-      } else {
-        // Job creation complete or conversation ended
-        setJobCreationState(null);
-        setConversationState({});
-      }
-
-      // Show job created success message
-      if (res.job_id) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: "flash",
-            body: `✓ Job #${res.job_id} has been created and assigned. You can now start recruiting!`
-          }
-        ]);
-      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,
         { sender: "flash", body: err.message || "Something went wrong -- please try again." },
       ]);
-      setJobCreationState(null);
-      setConversationState({});
     } finally {
       setSending(false);
       requestAnimationFrame(() => {

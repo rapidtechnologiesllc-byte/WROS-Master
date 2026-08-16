@@ -70,6 +70,7 @@ function LeakageFlagRow({ flag, onChanged }) {
   const [showReason, setShowReason] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rescanning, setRescanning] = useState(false);
   const [error, setError] = useState("");
 
   const handleLogReason = async () => {
@@ -85,14 +86,61 @@ function LeakageFlagRow({ flag, onChanged }) {
     }
   };
 
+  // DEFECT-9: Manual rescan functionality
+  const handleRescan = async () => {
+    setRescanning(true);
+    setError("");
+    try {
+      await scanRevenueLeakage(flag.project_id, flag.period_start, flag.period_end);
+      onChanged();
+    } catch (err) {
+      setError(err.message || "Failed to rescan for leakage.");
+    } finally {
+      setRescanning(false);
+    }
+  };
+
+  // DEFECT-9: Calculate severity badge based on unbilled hours
+  const getSeverityBadge = (hours) => {
+    if (hours >= 40) return { label: "Critical", color: "bg-rose-100 text-rose-700 border-rose-200" };
+    if (hours >= 20) return { label: "Warning", color: "bg-amber-100 text-amber-700 border-amber-200" };
+    return { label: "Info", color: "bg-blue-100 text-blue-700 border-blue-200" };
+  };
+
+  const severity = getSeverityBadge(flag.unbilled_hours);
+  const lastScanned = flag.last_scanned_at || new Date().toISOString();
+  const scanFreq = "Daily at 2 AM UTC";
+
+  const leakageTypeExplanation = {
+    "partial_billing": "Amount approved for billing does not match amount invoiced to client",
+    "unbilled_hours": "Employee hours approved but not yet billed to client",
+    "amount_variance": "Dollar amount mismatch between approval and invoice",
+  };
+
   return (
     <div className="rounded-lg border px-3 py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs mb-2">
         <span className="font-semibold text-gray-900">Project {flag.project_id}</span>
-        <span className="text-amber-700">{flag.unbilled_hours}h unbilled</span>
+        <div className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${severity.color}`}>
+          {severity.label}
+        </div>
       </div>
-      <div className="text-[11px] text-gray-500">
+      <div className="text-[11px] text-gray-500 mb-2">
         {flag.period_start} → {flag.period_end} · approved {flag.approved_hours}h · invoiced {flag.invoiced_hours}h
+      </div>
+      <div className="flex items-center justify-between gap-4 text-[11px] text-gray-600 mb-2 border-t pt-2">
+        <div className="flex gap-4">
+          <span>📅 Last scanned: {new Date(lastScanned).toLocaleString()}</span>
+          <span>🔄 Frequency: {scanFreq}</span>
+        </div>
+        <Button
+          variant="secondary"
+          disabled={rescanning}
+          onClick={handleRescan}
+          className="text-[11px]"
+        >
+          {rescanning ? "Rescanning…" : "Rescan Now"}
+        </Button>
       </div>
       {error ? <div className="mt-1 text-[11px] text-rose-700">{error}</div> : null}
       {showReason ? (
