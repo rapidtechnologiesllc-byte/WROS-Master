@@ -958,6 +958,47 @@ Edit User Modal:
 
 ---
 
+## 🏗️ CRITICAL ARCHITECTURAL PRINCIPLE - ZERO HARDCODING
+
+**MUST ENFORCE DURING MERGE:**
+
+❌ **NEVER HARDCODE:**
+```javascript
+// BAD - hardcoded permissions
+const NAV_PERMISSIONS = {
+  candidates: "candidates.view",
+  jobs: "jobs.view",
+  // ... hardcoded mapping
+};
+```
+
+✅ **INSTEAD - WIRE FROM ROLE TEMPLATES:**
+1. Role Template defines permissions in database
+2. Permissions flow from Role Template → User Assignment → Screen Access
+3. Screens check permissions dynamically (from user's assigned role template)
+4. No permission strings hardcoded in frontend code
+
+**Implementation Pattern:**
+```javascript
+// User has role_template_id assigned
+// Role Template has permissions[] array
+// Screen checks: user.roles[0].permissions.includes("candidates.view")
+// No hardcoded permission names in frontend
+```
+
+**Current Error:** "At least one permission is required" when creating role template
+- **Root Cause:** Template has no permissions assigned
+- **Fix:** Ensure role template dialog allows selecting permissions from available pool
+- **Principle:** Permissions should be stored in role template, not hardcoded in frontend
+
+**Affected Items During Merge:**
+- Item #9: Admin & Settings (UsersAndAccessControl.js)
+- Item #16: RbacSettingsScreen.js
+- Item #19: Role Templates On/Off Toggle (ensure it loads permissions from DB)
+- Item #20: Users Modal (permissions come from selected role template)
+
+---
+
 **Project Lead:** Avinash Mukundan  
 **Last Updated:** 2026-08-16 18:45 UTC  
 **Status:** Laundry list created, selective merge in progress ✅  
