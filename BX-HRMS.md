@@ -490,7 +490,405 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ---
 
+### **2026-08-16 AFTERNOON: Scratchpad Merge Strategy & Hybrid Integration Plan**
+
+**Critical Discovery:** Scratchpad merge (commit 54556c63) removed permission-based navigation system (90+ lines), causing nav menu regression. Reverted and created selective merge strategy.
+
+**Decision:** Do NOT merge into main. Instead:
+1. Create feature branch: `feat/selective-scratchpad-merge`
+2. Carefully test each item before committing
+3. Complete laundry list in order before deploying to main
+4. Preserve permission-based nav structure
+
+**Status:** Laundry list created, JobCreate.js merge pending
+
+---
+
+## 📋 SCRATCHPAD MERGE LAUNDRY LIST (45 Files)
+
+**Timeline:** Complete all items before merging to main  
+**Branch:** `feat/selective-scratchpad-merge`  
+**Testing:** Golden path + edge cases for each item  
+
+### PHASE 1: CRITICAL PATH (Must Complete First)
+
+#### 1️⃣ JobCreate.js - 2-Step Job Creation Workflow
+**Status:** ⏳ PENDING  
+**Priority:** 🔴 CRITICAL  
+**Changes:**
+- 2-step form (Step 1: Purpose/Location/Pay, Step 2: Full Details)
+- LocationCascadeSelect component (Country → State → City)
+- Remote role checkbox
+- Auto-save draft functionality (2-sec intervals)
+- handleNextWithGeneration for AI overview generation
+- **Note:** Preserve current form structure, integrate scratchpad improvements
+
+**Testing Checklist:**
+- [ ] Step 1 renders with Purpose, Location cascade, Pay fields
+- [ ] Step 2 shows Job Details grid
+- [ ] Remote toggle works
+- [ ] Location cascade filters correctly (Country → State → City)
+- [ ] Pay currency dropdown functional
+- [ ] Auto-save triggers every 2 seconds
+- [ ] Generate Overview + Roles button works
+- [ ] Next/Submit buttons functional
+
+**Files Affected:**
+- `src/screens/JobCreate.js` (1007 lines, major refactor)
+
+---
+
+#### 2️⃣ CandidateDetailsScreen.js - Candidate Profile Rebuild
+**Status:** ⏳ PENDING  
+**Priority:** 🔴 CRITICAL  
+**Changes:**
+- Resume-extracted sections (Education, Experience, Certifications)
+- Skills modal with primary skill designation
+- Inline notes section (right sidebar)
+- Streamlined Professional Info section
+- Notice period as days input (30, 45, 60)
+
+**Testing Checklist:**
+- [ ] Basic Information section loads with 9 fields
+- [ ] Professional Information displays correctly
+- [ ] Skills modal opens and saves primary skill
+- [ ] Education/Experience/Certifications sections display resume data
+- [ ] Notes section syncs with backend
+- [ ] Profile save without errors
+
+**Files Affected:**
+- `src/screens/CandidateDetailsScreen.js`
+- `src/screens/tabs/ProfileTabEditable.js`
+
+---
+
+#### 3️⃣ Navigation & Routing - CAREFUL REVIEW REQUIRED
+**Status:** ⏳ PENDING  
+**Priority:** 🔴 CRITICAL - DO NOT BREAK PERMISSIONS  
+**Changes to SKIP:**
+- ❌ Shell.js permission logic deletion (keep current)
+- ❌ navItems.js admin menu restructuring (keep "usersAccessControl")
+
+**Changes to APPLY:**
+- Routes.js updates (if they add new routes without removing permission checks)
+- Approutes.jsx route definitions (review for permission gates)
+
+**Testing Checklist:**
+- [ ] Permission-based nav still filters correctly
+- [ ] Users see only screens they have permission for
+- [ ] Super User sees everything
+- [ ] Admin sees admin-scoped items
+- [ ] No 404 errors on route navigation
+
+**Files Affected:**
+- `src/routes/Approutes.jsx` (review only)
+- `src/utils/Routes.js` (review only)
+- **DO NOT MODIFY:** `src/layout/Shell.js`, `src/layout/navItems.js`
+
+---
+
+### PHASE 2: COMPONENT & UI LIBRARY (Safe to Merge)
+
+#### 4️⃣ UI Component Library Updates
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 HIGH  
+**Changes:**
+- Input.js improvements (new features/styling)
+- Select.js enhancements
+- Table.js updates
+- TextArea.js fixes
+- RateField component refinements
+
+**Testing Checklist:**
+- [ ] Input components render without errors
+- [ ] Select dropdowns functional
+- [ ] Table displays data correctly
+- [ ] TextArea respects line breaks
+- [ ] No console errors
+
+**Files Affected:**
+- `src/components/ui/Input.js`
+- `src/components/ui/Select.js`
+- `src/components/ui/Table.js`
+- `src/components/ui/TextArea.js`
+
+---
+
+#### 5️⃣ FlashWidget.js - Ask Flash Button
+**Status:** ✅ DONE (Moved to left-6)  
+**Priority:** 🟡 HIGH  
+**Changes:**
+- Already repositioned from right-6 to left-6
+- No merge needed (already in main)
+
+---
+
+#### 6️⃣ Component Improvements - Misc
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 HIGH  
+**Changes:**
+- ConversationSearchBar.js improvements
+- ScreenLevelBanner.js new features
+- TableColumnManager.js enhancements
+
+**Testing Checklist:**
+- [ ] ConversationSearchBar autocomplete works
+- [ ] ScreenLevelBanner displays messages correctly
+- [ ] TableColumnManager column selection works
+
+**Files Affected:**
+- `src/components/ConversationSearchBar.js`
+- `src/components/ScreenLevelBanner.js`
+- `src/components/TableColumnManager.js`
+
+---
+
+### PHASE 3: SCREEN & SERVICE IMPROVEMENTS
+
+#### 7️⃣ Bulk Import & Engagement Screens
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 HIGH  
+**Changes:**
+- BulkLaunchScreen.js - Cancel button fix, import history visibility
+- bulkEngagement.js service - Sequential queueing, retry logic
+
+**Testing Checklist:**
+- [ ] Cancel button works (immediate response)
+- [ ] Import history shows all statuses
+- [ ] Sequential queueing prevents concurrent writes
+- [ ] Retry logic handles database locks
+
+**Files Affected:**
+- `src/screens/BulkLaunchScreen.js`
+- `src/services/api/bulkEngagement.js`
+
+---
+
+#### 8️⃣ Candidate & Employee Screens
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 HIGH  
+**Changes:**
+- CandidateCreate.js updates
+- CandidateSearch.js improvements
+- EmployeeConversionScreen.js (multi-role, BU selection)
+- EmployeesConsolidatedScreen.js enhancements
+
+**Testing Checklist:**
+- [ ] Candidate creation form works
+- [ ] Candidate search filters work
+- [ ] Employee conversion shows BU dropdown + role checkboxes
+- [ ] Employees list displays with filters
+
+**Files Affected:**
+- `src/screens/CandidateCreate.js`
+- `src/screens/CandidateSearch.js`
+- `src/screens/EmployeeConversionScreen.js`
+- `src/screens/EmployeesConsolidatedScreen.js`
+
+---
+
+#### 9️⃣ Admin & Settings Screens
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Changes:**
+- AdminSettingsScreen.js improvements
+- UsersAndAccessControl.js enhancements (multi-role support)
+- Certification management updates
+
+**Testing Checklist:**
+- [ ] Admin settings load without errors
+- [ ] Users form supports multi-role selection
+- [ ] BU dropdown functional
+- [ ] Settings save correctly
+
+**Files Affected:**
+- `src/screens/AdminSettingsScreen.js`
+- `src/screens/UsersAndAccessControl.js`
+
+---
+
+#### 🔟 Dashboard & Analytics Screens
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Changes:**
+- Dashboard.js updates (candidate count, sorting)
+- CEOFYProgressScreen.js improvements
+- ExecutiveRevenueDashboardScreen.js enhancements
+- ThunderAnalyticsScreen.js analytics improvements
+- OpportunityPipelineScreen.js updates
+- PartnerROIAgentScreen.js refinements
+- ProjectsScreen.js enhancements
+- RevenueScreen.js updates
+
+**Testing Checklist:**
+- [ ] Dashboards load data correctly
+- [ ] Charts render without errors
+- [ ] Filters work as expected
+- [ ] No console errors
+
+**Files Affected:**
+- `src/screens/Dashboard.js`
+- `src/screens/CEOFYProgressScreen.js`
+- `src/screens/ExecutiveRevenueDashboardScreen.js`
+- `src/screens/ThunderAnalyticsScreen.js`
+- `src/screens/OpportunityPipelineScreen.js`
+- `src/screens/PartnerROIAgentScreen.js`
+- `src/screens/ProjectsScreen.js`
+- `src/screens/RevenueScreen.js`
+
+---
+
+#### 1️⃣1️⃣ Job & Client Management
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Changes:**
+- JobDetails.js improvements
+- ClientManagementScreen.js enhancements
+
+**Testing Checklist:**
+- [ ] Job details display correctly
+- [ ] Client list shows all clients
+- [ ] Edit functionality works
+
+**Files Affected:**
+- `src/screens/JobDetails.js`
+- `src/screens/ClientManagementScreen.js`
+
+---
+
+### PHASE 4: API & UTILITY SERVICES
+
+#### 1️⃣2️⃣ API Service Updates
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Changes:**
+- users.js service enhancements (multi-role endpoints)
+- employees.js updates (conversion flow)
+- clients.js improvements
+- opportunities.js updates
+- flash.js enhancements
+- autonomousJobs.js (NEW - needs careful review)
+
+**Testing Checklist:**
+- [ ] User API calls return correct data
+- [ ] Employee conversion endpoint works
+- [ ] Client listing functional
+- [ ] Opportunity pipeline updates functional
+- [ ] Flash API integration works
+- [ ] autonomousJobs.js endpoints accessible
+
+**Files Affected:**
+- `src/services/api/users.js`
+- `src/services/api/employees.js`
+- `src/services/api/clients.js`
+- `src/services/api/opportunities.js`
+- `src/services/api/flash.js`
+- `src/services/api/autonomousJobs.js` (NEW)
+
+---
+
+#### 1️⃣3️⃣ Utilities & Configuration
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Changes:**
+- permissions.js updates (permission checking utilities)
+- Routes.js new route definitions
+- index.js imports/exports
+
+**Testing Checklist:**
+- [ ] Permission checks work correctly
+- [ ] All routes defined and accessible
+- [ ] No import errors
+
+**Files Affected:**
+- `src/utils/permissions.js`
+- `src/utils/Routes.js`
+- `src/index.js`
+
+---
+
+#### 1️⃣4️⃣ Authentication
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Changes:**
+- AuthPage.js - Multi-role storage, permission array handling
+
+**Testing Checklist:**
+- [ ] Login stores roles[] array
+- [ ] Login stores permissions[] array
+- [ ] JWT token decoded correctly
+- [ ] No localStorage errors
+
+**Files Affected:**
+- `src/pages/AuthPage.js`
+
+---
+
+### PHASE 5: NEW SCREENS (Integrate Carefully)
+
+#### 1️⃣5️⃣ HrUserManagement.js (NEW)
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Note:** Wire to correct nav item (usersAccessControl, not separate "hrUsers")
+**Testing Checklist:**
+- [ ] Screen loads without errors
+- [ ] User list displays
+- [ ] CRUD operations work
+- [ ] Integrated with UsersAndAccessControl
+
+---
+
+#### 1️⃣6️⃣ RbacSettingsScreen.js (NEW)
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Note:** Wire to correct nav item (usersAccessControl, not separate "rbac")
+**Testing Checklist:**
+- [ ] RBAC settings screen loads
+- [ ] Role management works
+- [ ] Permission assignment functional
+
+---
+
+#### 1️⃣7️⃣ UsersLifecycleScreen.js (NEW)
+**Status:** ⏳ PENDING  
+**Priority:** 🟡 MEDIUM  
+**Testing Checklist:**
+- [ ] User lifecycle management works
+- [ ] Create, edit, terminate, reinstate functions
+
+---
+
+---
+
+## ✅ COMPLETION TRACKING
+
+| # | Item | Status | Tests | Branch | Commit |
+|---|------|--------|-------|--------|--------|
+| 1 | JobCreate.js | ⏳ | - | feat/selective | - |
+| 2 | CandidateDetailsScreen.js | ⏳ | - | feat/selective | - |
+| 3 | Navigation (SKIP bad changes) | ⏳ | - | feat/selective | - |
+| 4 | UI Component Library | ⏳ | - | feat/selective | - |
+| 5 | FlashWidget.js | ✅ | ✅ | main | 9952b605 |
+| 6 | Component Improvements | ⏳ | - | feat/selective | - |
+| 7 | Bulk Import Screen | ⏳ | - | feat/selective | - |
+| 8 | Candidate/Employee Screens | ⏳ | - | feat/selective | - |
+| 9 | Admin & Settings | ⏳ | - | feat/selective | - |
+| 10 | Dashboard & Analytics | ⏳ | - | feat/selective | - |
+| 11 | Job & Client Mgmt | ⏳ | - | feat/selective | - |
+| 12 | API Services | ⏳ | - | feat/selective | - |
+| 13 | Utilities | ⏳ | - | feat/selective | - |
+| 14 | HrUserManagement.js | ⏳ | - | feat/selective | - |
+| 15 | RbacSettingsScreen.js | ⏳ | - | feat/selective | - |
+| 16 | UsersLifecycleScreen.js | ⏳ | - | feat/selective | - |
+| 17 | AuthPage.js | ⏳ | - | feat/selective | - |
+
+---
+
+**Next Step:** Start with Item #1 (JobCreate.js) - merge, test, then commit to feature branch. Do NOT merge to main until all items complete.
+
+---
+
 **Project Lead:** Avinash Mukundan  
-**Last Updated:** 2026-08-15 19:30 UTC  
-**Status:** Complete, Deployed, and Verified ✅  
+**Last Updated:** 2026-08-16 18:45 UTC  
+**Status:** Laundry list created, selective merge in progress ✅  
 
