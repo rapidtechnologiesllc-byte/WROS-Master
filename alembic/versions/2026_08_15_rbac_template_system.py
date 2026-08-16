@@ -89,8 +89,10 @@ def upgrade() -> None:
         sa.Index('ix_role_template_permissions_resource_id', 'resource_id'),
     )
 
-    # Add role_template_id column to users table
+    # Add columns to users table
+    op.add_column('users', sa.Column('job_title', sa.String(100), nullable=True))
     op.add_column('users', sa.Column('role_template_id', sa.Integer(), nullable=True))
+    op.create_index('ix_users_job_title', 'users', ['job_title'])
     op.create_index('ix_users_role_template_id', 'users', ['role_template_id'])
     op.create_foreign_key('fk_users_role_template_id', 'users', 'role_templates', ['role_template_id'], ['id'])
 
@@ -98,7 +100,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_constraint('fk_users_role_template_id', 'users', type_='foreignkey')
     op.drop_index('ix_users_role_template_id', 'users')
+    op.drop_index('ix_users_job_title', 'users')
     op.drop_column('users', 'role_template_id')
+    op.drop_column('users', 'job_title')
 
     op.drop_table('role_template_permissions')
     op.drop_table('role_templates')

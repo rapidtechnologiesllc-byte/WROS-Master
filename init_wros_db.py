@@ -52,38 +52,32 @@ def init_database():
         init_rbac_template_system(db, tenant_id)
         print("    [OK] RBAC templates initialized")
 
-        # Create users with role templates
+        # Create users with job titles (role templates will be created via UI)
         print("\n[3] Setting up users...")
-        from app.models.rbac_template import RoleTemplate
 
         test_users = [
-            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "role_template": "CEO"},
-            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "role_template": "Admin"},
-            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "role_template": "HR Manager"},
-            {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "role_template": "Super User"},
-            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "role_template": "Recruiter"},
-            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "role_template": "Recruiter"},
-            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "role_template": "HR Manager"},
-            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "role_template": "HR Manager"},
+            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "job_title": "CEO"},
+            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "job_title": "Admin"},
+            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "job_title": "HR Manager"},
+            {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "job_title": "Super User"},
+            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "job_title": "Recruiter"},
+            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "job_title": "Recruiter"},
+            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "job_title": "HR Manager"},
+            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "job_title": "HR Manager"},
         ]
 
         created_count = 0
         for user_data in test_users:
             existing = db.query(Users).filter(Users.UserEmail == user_data["email"]).first()
             if not existing:
-                # Get role template
-                role_template = db.query(RoleTemplate).filter(
-                    RoleTemplate.name == user_data["role_template"],
-                    RoleTemplate.tenant_id == tenant_id
-                ).first()
-
                 user = Users(
                     UserID=str(uuid.uuid4()),
                     UserEmail=user_data["email"],
                     UserPassword=get_password_hash(user_data["password"]),
                     UserName=user_data["name"],
-                    UserRole=user_data["role_template"],  # Keep for backward compatibility
-                    role_template_id=role_template.id if role_template else None,
+                    UserRole=user_data["job_title"],  # Keep for backward compatibility
+                    job_title=user_data["job_title"],
+                    role_template_id=None,  # Will be assigned via UI
                     tenant_id=tenant_id,
                     mfa_enabled=False,
                     digest_enabled=True,
@@ -92,7 +86,7 @@ def init_database():
                 )
                 db.add(user)
                 created_count += 1
-                print(f"    [OK] Created {user_data['email']} with role template '{user_data['role_template']}'")
+                print(f"    [OK] Created {user_data['email']} (job_title: {user_data['job_title']})")
 
         db.commit()
         print(f"    [SUMMARY] {created_count} users created/updated")
