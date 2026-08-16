@@ -83,7 +83,7 @@ export default function CandidateSearch({
 
   useEffect(() => {
     const role = localStorage.getItem("permission_role");
-    if (job_title === 'HR Manager') {
+    if (role === 'HR Manager') {
       offerApprovalCandidates();
     }
   }, []);
