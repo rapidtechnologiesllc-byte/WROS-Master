@@ -119,26 +119,38 @@ import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 
-// Wrapper component that renders the appropriate dashboard based on user role
-const DashboardRouter = ({ candidates, jobs, interviews, offers, role }) => {
-  const normalizedRole = String(role || "").trim().toUpperCase();
-  const isCEO = normalizedRole === "CEO";
-  const isCFO = normalizedRole === "CFO";
-  const isPartner = normalizedRole.includes("PARTNER");
+// Wrapper component that renders the appropriate dashboard based on user job_title
+const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
+  const normalized = String(jobTitle || "").trim().toUpperCase();
 
   // CEO gets the CEO dashboard
-  if (isCEO) {
+  if (normalized === "CEO") {
     return <CEOUnifiedDashboard />;
   }
 
   // CFO gets the CFO dashboard
-  if (isCFO) {
+  if (normalized === "CFO") {
     return <CFOAgentScreen />;
   }
 
   // Partner gets Partner ROI dashboard
-  if (isPartner) {
+  if (normalized.includes("PARTNER")) {
     return <PartnerROIAgentScreen />;
+  }
+
+  // HR Manager gets HR dashboard (when built)
+  if (normalized === "HR MANAGER") {
+    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
+  }
+
+  // Resource Manager gets resource management dashboard (when built)
+  if (normalized === "RESOURCE MANAGER") {
+    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
+  }
+
+  // Admin gets admin dashboard (when built)
+  if (normalized === "ADMIN") {
+    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
   }
 
   // Everyone else gets the generic dashboard
@@ -306,6 +318,7 @@ export default function AppRoutes() {
   }
 
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
+  const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
     .trim()
@@ -339,6 +352,10 @@ export default function AppRoutes() {
           if (user.user_role) {
             localStorage.setItem("permission_role", user.user_role);
             setStoredRole(user.user_role);
+          }
+          if (user.job_title) {
+            localStorage.setItem("job_title", user.job_title);
+            setStoredJobTitle(user.job_title);
           }
           if (user.roles && Array.isArray(user.roles)) {
             localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
@@ -578,7 +595,7 @@ export default function AppRoutes() {
               index
               element={
                 <DashboardRouter
-                  role={storedRole}
+                  jobTitle={storedJobTitle}
                   candidates={candidates}
                   jobs={jobs}
                   interviews={interviews}
@@ -831,6 +848,7 @@ export default function AppRoutes() {
             index
             element={
               <DashboardRouter
+                jobTitle={storedJobTitle}
                 candidates={candidates}
                 jobs={jobs}
                 interviews={interviews}

@@ -147,8 +147,8 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
         setLoadingRecruiters(true);
         const allUsers = await getAllUsers();
         const recruitersList = Array.isArray(allUsers)
-          ? allUsers.filter(u => u.user_role === "Recruiter" || u.permission_role === "Recruiter")
-          : allUsers?.users?.filter(u => u.user_role === "Recruiter" || u.permission_role === "Recruiter") || [];
+          ? allUsers.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter')
+          : allUsers?.users?.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter') || [];
         console.log("Loaded recruiters:", recruitersList);
         setRecruiters(recruitersList);
       } catch (error) {

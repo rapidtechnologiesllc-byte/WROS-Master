@@ -90,6 +90,7 @@ export const NAV_ITEMS = {
   ceoFyProgress: { path: ROUTES.CEO_FY_PROGRESS, label: "CEO FY Progress", icon: BarChart3 },
   cfoDashboard: { path: ROUTES.CFO_DASHBOARD, label: "CFO Agent", icon: LineChart },
   usersAccessControl: { path: ROUTES.USERS_ACCESS_CONTROL, label: "Users & Access Control", icon: Shield },
+  roleTemplates: { path: ROUTES.USERS_ACCESS_CONTROL, label: "Role Templates", icon: Shield },
   certifications: { path: ROUTES.CERTIFICATIONS, label: "Certifications", icon: Award },
   // S-219/HRMS-0121 -- tenant-wide setting, grouped under Admin.
   tenantLocale: { path: ROUTES.TENANT_LOCALE, label: "Locale & Currency", icon: Globe2 },

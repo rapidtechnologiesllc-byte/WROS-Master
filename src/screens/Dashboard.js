@@ -11,7 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
-import { getRoles } from "../utils/permissionsRbac";
+import { getRoles } from "../utils/permissions";
 import { getHrMe } from "../services/api/users";
 
 function StatCard({ title, value, icon, onClick }) {
