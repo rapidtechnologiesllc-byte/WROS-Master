@@ -198,7 +198,7 @@ export default function Shell({
   // Root cause fix: Refresh permissions from /hr/me on app load with retries
   useEffect(() => {
     let retryCount = 0;
-    const maxRetries = 6; // Retry at 0s, 5s, 10s, 15s, 20s, 25s (stop at 30s)
+    const maxRetries = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)
     const retryInterval = 5000; // 5 seconds
     let timeoutId = null;
 
@@ -207,13 +207,15 @@ export default function Shell({
         const { getHrMe } = await import("../services/api/users");
         const user = await getHrMe();
         if (user) {
-          // Update localStorage with fresh permissions
+          // Update localStorage with fresh permissions (even if empty array)
           if (user.roles && Array.isArray(user.roles)) {
             localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
           }
-          if (user.permissions && Array.isArray(user.permissions)) {
-            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions));
+          if (user.permissions !== undefined) {
+            // Store permissions even if empty - means we got a response
+            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || []));
             setPermissionsLoaded(true); // Trigger re-render with new permissions
+            console.debug(`Permissions loaded: ${(user.permissions || []).length} permissions`);
             return true; // Success, stop retrying
           }
         }
