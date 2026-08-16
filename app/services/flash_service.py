@@ -78,7 +78,7 @@ from app.core.revenue_visibility_scope import can_view_pnl, is_revenue_bu_scoped
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.invoice import Invoice
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
 from app.models.task import Task
 from app.models.user import Users

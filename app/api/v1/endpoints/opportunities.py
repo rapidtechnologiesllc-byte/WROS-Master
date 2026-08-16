@@ -28,7 +28,7 @@ from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
-from app.models.rbac import Permission, Role, RolePermission
+from app.models.permission import DetailedPermission, DetailedRolePermission
 from app.models.user import Users
 from app.schemas.opportunity import (
     OpportunityCreateRequest, OpportunityItem, OpportunityListResponse,

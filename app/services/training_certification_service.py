@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from app.models.certification import Certification, EmployeeCertification
 from app.models.employee import Employee
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.utils.agent_logger import log_agent_execution
 
 

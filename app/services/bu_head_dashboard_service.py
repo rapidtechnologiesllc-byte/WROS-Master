@@ -6,7 +6,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from datetime import datetime, timedelta
 
 

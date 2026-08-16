@@ -96,7 +96,7 @@ def forecast_2030_revenue(ytd_revenue: int, current_year: int) -> int:
 
 def get_metrics_by_tier(db: Session) -> Dict[str, Any]:
     """Get KPI breakdown by BU (AXION, PRISM)."""
-    from app.models.rbac import BusinessUnit
+    from app.models.business_unit import BusinessUnit
 
     tiers = {}
     for bu in db.query(BusinessUnit).all():
