@@ -52,26 +52,12 @@ class RoleTemplateResponse(BaseModel):
         from_attributes = True
 
 
-def check_rbac_permission(current_user: Users) -> None:
-    """Check if user can manage RBAC templates (must have rbac.manage permission)."""
-    # Only CEO, Admin, Super User can manage role templates
-    allowed_roles = {"CEO", "ADMIN", "SUPER USER"}
-    user_role_upper = (current_user.UserRole or "").upper()
-    if user_role_upper not in allowed_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only CEOs, Admins, and Super Users can manage role templates"
-        )
-
-
 @router.get("")
 def list_role_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """List all role templates."""
-    check_rbac_permission(current_user)
-
     templates = db.query(RoleTemplate).filter(
         RoleTemplate.tenant_id == current_user.tenant_id
     ).all()
@@ -115,8 +101,6 @@ def get_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Get single role template with all permissions."""
-    check_rbac_permission(current_user)
-
     template = db.query(RoleTemplate).filter(
         RoleTemplate.id == template_id,
         RoleTemplate.tenant_id == current_user.tenant_id
@@ -160,8 +144,6 @@ def create_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create new role template."""
-    check_rbac_permission(current_user)
-
     # Check if template name already exists
     existing = db.query(RoleTemplate).filter(
         RoleTemplate.name == data.name,
@@ -215,8 +197,6 @@ def update_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update role template permissions."""
-    check_rbac_permission(current_user)
-
     template = db.query(RoleTemplate).filter(
         RoleTemplate.id == template_id,
         RoleTemplate.tenant_id == current_user.tenant_id
@@ -264,8 +244,6 @@ def grant_permission(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Grant a permission to a role template."""
-    check_rbac_permission(current_user)
-
     template = db.query(RoleTemplate).filter(
         RoleTemplate.id == template_id,
         RoleTemplate.tenant_id == current_user.tenant_id
@@ -324,8 +302,6 @@ def revoke_permission(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Revoke a permission from a role template."""
-    check_rbac_permission(current_user)
-
     template = db.query(RoleTemplate).filter(
         RoleTemplate.id == template_id,
         RoleTemplate.tenant_id == current_user.tenant_id
@@ -375,8 +351,6 @@ def delete_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete role template."""
-    check_rbac_permission(current_user)
-
     template = db.query(RoleTemplate).filter(
         RoleTemplate.id == template_id,
         RoleTemplate.tenant_id == current_user.tenant_id
