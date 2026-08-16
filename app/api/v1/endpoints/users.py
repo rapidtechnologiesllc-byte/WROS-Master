@@ -52,46 +52,32 @@ def get_me(
     Useful for:
     - Restoring session state after page reload
     - Refreshing the token without a full re-login
-    - Fetching up-to-date role / business-unit information
+    - Fetching up-to-date role / business-unit / permission information
     """
-    from app.models.user import UserRole as UserRoleModel
-    from app.models.rbac import RolePermission, Permission
+    from app.models.rbac_template import RoleTemplate, RoleTemplatePermission, Resource
+    from app.services.rbac_service_template import RBACService
 
-    # Get actual roles from user_roles junction table (not legacy UserRole column)
-    user_roles = db.query(UserRoleModel).filter(UserRoleModel.user_id == current_user.UserID).all()
-    assigned_roles = []
-    roles_list = []
-    for ur in user_roles:
-        if ur.role:
-            assigned_roles.append(ur.role.name)
-            roles_list.append({"id": ur.role.id, "name": ur.role.name})
+    # Get role template and permissions
+    role_template = None
+    permissions = []
 
-    # Display role: if has roles, join them; otherwise fall back to legacy UserRole
-    display_role = ", ".join(assigned_roles) if assigned_roles else current_user.UserRole
+    if current_user.role_template_id:
+        role_template = db.query(RoleTemplate).filter(
+            RoleTemplate.id == current_user.role_template_id
+        ).first()
 
-    # Get all permissions for this user (union of all role permissions)
-    permissions_set = set()
-    for ur in user_roles:
-        if ur.role:
-            role_perms = db.query(RolePermission).filter(
-                RolePermission.role_id == ur.role.id
-            ).all()
-            for rp in role_perms:
-                if rp.permission:
-                    permissions_set.add(rp.permission.name)
-
-    permissions = list(permissions_set)
-
-    # Resolve the RBAC role name (if any)
-    role = db.query(Role).filter(Role.id == current_user.role_id).first() if current_user.role_id else None
+        # Get permissions from role template
+        if role_template:
+            permissions = RBACService.get_user_permissions_flat(db, current_user.UserID)
 
     # Mint a fresh token using the same claims as login
     access_token = create_access_token(
         data={
             "sub": current_user.UserEmail,
-            "type": display_role,
+            "type": current_user.UserRole,  # Legacy field for backward compat
             "name": current_user.UserName,
-            "roles": roles_list,
+            "job_title": current_user.job_title,
+            "role_template": role_template.name if role_template else None,
             "permissions": permissions,
         }
     )
@@ -100,14 +86,15 @@ def get_me(
         user_id=current_user.UserID,
         user_name=current_user.UserName,
         user_email=current_user.UserEmail,
-        user_role=display_role,
-        permission_role=role.name if role else None,
-        role_id=current_user.role_id,
-        business_unit_id=current_user.business_unit_id,
+        user_role=current_user.UserRole,
+        permission_role=current_user.job_title,  # Dashboard routing via job_title
+        job_title=current_user.job_title,
+        role_id=current_user.role_template_id,
+        business_unit_id=current_user.business_unit_id if current_user.bu_context_id else None,
         created_at=current_user.CreatedAt,
         access_token=access_token,
         digest_enabled=current_user.digest_enabled,
-        roles=roles_list,
+        roles=[],  # Deprecated, kept for backward compat
         permissions=permissions,
     )
 

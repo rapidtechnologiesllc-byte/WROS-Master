@@ -12,6 +12,8 @@ from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.interview_decision import router as interview_decision_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
 from app.api.v1.endpoints.rbac import router as rbac_router
+from app.api.v1.endpoints.rbac_templates import router as rbac_templates_router
+from app.api.v1.endpoints.rbac_modules import router as rbac_modules_router
 from app.api.v1.endpoints.checklists import router as checklists_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 # from app.api.v1.endpoints.ats import router as ats_router  # DISABLED: requires GEMINI_API_KEY
@@ -113,6 +115,8 @@ router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
 router.include_router(router=rbac_router)
+router.include_router(router=rbac_templates_router)
+router.include_router(router=rbac_modules_router)
 router.include_router(router=org_structure_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
