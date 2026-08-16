@@ -54,6 +54,34 @@ def get_me(
     - Refreshing the token without a full re-login
     - Fetching up-to-date role / business-unit information
     """
+    from app.models.user import UserRole as UserRoleModel
+    from app.models.rbac import RolePermission, Permission
+
+    # Get actual roles from user_roles junction table (not legacy UserRole column)
+    user_roles = db.query(UserRoleModel).filter(UserRoleModel.user_id == current_user.UserID).all()
+    assigned_roles = []
+    roles_list = []
+    for ur in user_roles:
+        if ur.role:
+            assigned_roles.append(ur.role.name)
+            roles_list.append({"id": ur.role.id, "name": ur.role.name})
+
+    # Display role: if has roles, join them; otherwise fall back to legacy UserRole
+    display_role = ", ".join(assigned_roles) if assigned_roles else current_user.UserRole
+
+    # Get all permissions for this user (union of all role permissions)
+    permissions_set = set()
+    for ur in user_roles:
+        if ur.role:
+            role_perms = db.query(RolePermission).filter(
+                RolePermission.role_id == ur.role.id
+            ).all()
+            for rp in role_perms:
+                if rp.permission:
+                    permissions_set.add(rp.permission.name)
+
+    permissions = list(permissions_set)
+
     # Resolve the RBAC role name (if any)
     role = db.query(Role).filter(Role.id == current_user.role_id).first() if current_user.role_id else None
 
@@ -61,8 +89,10 @@ def get_me(
     access_token = create_access_token(
         data={
             "sub": current_user.UserEmail,
-            "type": current_user.UserRole,
+            "type": display_role,
             "name": current_user.UserName,
+            "roles": roles_list,
+            "permissions": permissions,
         }
     )
 
@@ -70,13 +100,15 @@ def get_me(
         user_id=current_user.UserID,
         user_name=current_user.UserName,
         user_email=current_user.UserEmail,
-        user_role=current_user.UserRole,
+        user_role=display_role,
         permission_role=role.name if role else None,
         role_id=current_user.role_id,
         business_unit_id=current_user.business_unit_id,
         created_at=current_user.CreatedAt,
         access_token=access_token,
         digest_enabled=current_user.digest_enabled,
+        roles=roles_list,
+        permissions=permissions,
     )
 
 
@@ -107,6 +139,7 @@ def get_all_users(
     """
     Get all users (HR, Admin, etc.) from the system.
     Does not include candidates.
+    Returns actual roles assigned via user_roles junction table, not legacy UserRole column.
 
     Args:
         db: Database session
@@ -116,17 +149,30 @@ def get_all_users(
         AllUsersResponse with list of all users and total count
     """
     try:
+        from app.models.user import UserRole
+        from app.models.rbac import Role
+
         # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
         users = db.query(Users).all()
 
         # Build response
         users_data = []
         for u in users:
+            # Get actual roles from user_roles junction table (not legacy UserRole column)
+            user_roles = db.query(UserRole).filter(UserRole.user_id == u.UserID).all()
+            assigned_roles = []
+            for ur in user_roles:
+                if ur.role:
+                    assigned_roles.append(ur.role.name)
+
+            # Display role: if has roles, join them; otherwise fall back to legacy UserRole
+            display_role = ", ".join(assigned_roles) if assigned_roles else u.UserRole
+
             users_data.append(UserResponse(
                 user_id=u.UserID,
                 user_name=u.UserName or "",
                 user_email=u.UserEmail,
-                user_role=u.UserRole,
+                user_role=display_role,
                 created_at=u.CreatedAt,
                 permission_role=u.role.name if u.role else None,
                 department_id=u.department_id,
@@ -565,8 +611,16 @@ def create_user_with_roles(
     from app.models.rbac import Role
     from app.models.user import UserRole
 
-    # Verify user can create in target BU if BU is specified
-    if payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
+    # Check if any org-level roles are being assigned
+    from app.models.rbac import Role
+    org_level_role_names = {"CEO", "CFO", "Super User"}
+
+    # Get all roles being assigned
+    roles_to_assign = db.query(Role).filter(Role.id.in_(payload.role_ids)).all()
+    has_org_level_role = any(r.name in org_level_role_names for r in roles_to_assign)
+
+    # Verify BU access (skip if assigning org-level roles)
+    if not has_org_level_role and payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
         raise HTTPException(
             status_code=403,
             detail="Cannot create users outside your Business Unit"
@@ -578,12 +632,26 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail=f"User with email {payload.user_email} already exists")
 
     # Create user
+    # Note: business_unit_id is a property; actual column is bu_context_id
+    # Org-level roles should NOT have BU restriction (no BU set)
+    bu_context_id = None
+    if has_org_level_role:
+        # Org-level roles have no BU restriction
+        bu_context_id = None
+    elif payload.business_unit_id:
+        from app.models.business_unit import BusinessUnitContext
+        bu_context = db.query(BusinessUnitContext).filter(
+            BusinessUnitContext.id == payload.business_unit_id
+        ).first()
+        if bu_context:
+            bu_context_id = bu_context.id
+
     new_user = Users(
         UserID=user_id_generator(),
         UserName=payload.user_name,
         UserEmail=payload.user_email,
         UserPassword=get_password_hash(payload.user_password),
-        business_unit_id=payload.business_unit_id,
+        bu_context_id=bu_context_id,
         UserRole="MultiRole"  # Indicates user has multiple roles
     )
     db.add(new_user)
@@ -600,7 +668,7 @@ def create_user_with_roles(
             id=f"ur_{new_user.UserID}_{role_id}",
             user_id=new_user.UserID,
             role_id=role_id,
-            business_unit_id=payload.business_unit_id
+            # Note: UserRole doesn't have business_unit_id field; BU scoping done via Users.business_unit_id
         )
         db.add(user_role)
 
@@ -647,8 +715,16 @@ def update_user_with_roles(
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
-    # Verify user can update in target BU if BU is specified
-    if payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
+    # Check if any org-level roles are being assigned
+    from app.models.rbac import Role
+    org_level_role_names = {"CEO", "CFO", "Super User"}
+
+    # Get all roles being assigned
+    roles_to_assign = db.query(Role).filter(Role.id.in_(payload.role_ids)).all()
+    has_org_level_role = any(r.name in org_level_role_names for r in roles_to_assign)
+
+    # Verify BU access (skip if assigning org-level roles)
+    if not has_org_level_role and payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
         raise HTTPException(
             status_code=403,
             detail="Cannot update users outside your Business Unit"
@@ -656,8 +732,19 @@ def update_user_with_roles(
 
     # Update user name and BU
     target.UserName = payload.user_name
-    target.business_unit_id = payload.business_unit_id
-    target.UserRole = "MultiRole" if payload.role_ids else target.UserRole
+    # Note: business_unit_id is a property; actual column is bu_context_id
+    # Org-level roles should NOT have BU restriction (no BU set)
+    if has_org_level_role:
+        # Clear BU for org-level roles
+        target.bu_context_id = None
+    elif payload.business_unit_id:
+        # Get business unit context for BU-scoped roles
+        from app.models.business_unit import BusinessUnitContext
+        bu_context = db.query(BusinessUnitContext).filter(
+            BusinessUnitContext.id == payload.business_unit_id
+        ).first()
+        if bu_context:
+            target.bu_context_id = bu_context.id
 
     db.flush()
 
@@ -665,31 +752,69 @@ def update_user_with_roles(
     db.query(UserRole).filter(UserRole.user_id == user_id).delete()
     db.flush()
 
-    # Assign new roles
+    # Assign new roles and collect role names for display
+    assigned_role_names = []
     for role_id in payload.role_ids:
         # Verify role exists
         role = db.query(Role).filter(Role.id == role_id).first()
         if not role:
             raise HTTPException(status_code=404, detail=f"Role {role_id} not found")
 
+        assigned_role_names.append(role.name)
+
+        # Create user role with assigned_at timestamp
         user_role = UserRole(
             id=f"ur_{user_id}_{role_id}",
             user_id=user_id,
             role_id=role_id,
-            business_unit_id=payload.business_unit_id
+            # Note: UserRole doesn't have business_unit_id field; BU scoping done via Users.business_unit_id
         )
         db.add(user_role)
 
     db.commit()
     db.refresh(target)
 
+    # Return the actual assigned roles, not "MultiRole"
+    display_role = ", ".join(assigned_role_names) if assigned_role_names else target.UserRole
+
     return UserResponse(
         user_id=target.UserID,
         user_name=target.UserName or "",
         user_email=target.UserEmail,
-        user_role="MultiRole",
+        user_role=display_role,
         created_at=target.CreatedAt
     )
+
+
+@router.get(
+    "/users/{user_id}/roles",
+    summary="Get all roles assigned to a user",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def get_user_roles(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_hr_or_admin)
+):
+    """
+    Get all roles assigned to a specific user via the user_roles junction table.
+    Returns list of role objects with id and name.
+    """
+    from app.models.user import UserRole
+    from app.models.rbac import Role
+
+    # Get all user roles
+    user_roles = db.query(UserRole).filter(UserRole.user_id == user_id).all()
+    roles = []
+
+    for ur in user_roles:
+        if ur.role:
+            roles.append({
+                "id": ur.role.id,
+                "name": ur.role.name
+            })
+
+    return {"roles": roles}
 
 
 @router.put(

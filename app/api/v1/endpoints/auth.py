@@ -118,17 +118,40 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role = getattr(user, 'UserRole', 'Employee')
             logger.warning(f"[LOGIN] Step 6: user_role={user_role}")
 
-            logger.warning(f"[LOGIN] Step 7: Creating access token")
+            logger.warning(f"[LOGIN] Step 7: Fetching user roles and permissions")
+            from app.models.rbac import Role, RolePermission, Permission
+            from app.models.user import UserRole
+
+            # Get all roles for this user (from user_roles junction table)
+            user_roles_records = db.query(UserRole).filter(UserRole.user_id == user.UserID).all()
+            roles = [{"id": ur.role.id, "name": ur.role.name} for ur in user_roles_records if ur.role]
+
+            # Get all permissions for this user (union of all role permissions)
+            permissions_set = set()
+            for ur in user_roles_records:
+                if ur.role:
+                    role_perms = db.query(RolePermission).filter(
+                        RolePermission.role_id == ur.role.id
+                    ).all()
+                    for rp in role_perms:
+                        if rp.permission:
+                            permissions_set.add(rp.permission.name)
+
+            permissions = list(permissions_set)
+
+            logger.warning(f"[LOGIN] Step 8: Creating access token")
             access_token = create_access_token(
                 data={
                     "sub": user.UserEmail,
                     "type": user_role,
                     "name": user.UserName or "",
+                    "roles": roles,
+                    "permissions": permissions,
                 }
             )
-            logger.warning(f"[LOGIN] Step 8: Token created, length={len(access_token)}")
+            logger.warning(f"[LOGIN] Step 9: Token created, length={len(access_token)}")
 
-            logger.warning(f"[LOGIN] Step 9: Returning response")
+            logger.warning(f"[LOGIN] Step 10: Returning response with {len(roles)} roles and {len(permissions)} permissions")
             return {
                 "entity_type": "user",
                 "access_token": access_token,
@@ -136,6 +159,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 "user_role": user_role,
                 "user_name": user.UserName or "",
                 "user_email": user.UserEmail,
+                "roles": roles,
+                "permissions": permissions,
+                "business_unit_id": user.business_unit_id,
             }
 
         # Try authenticating as a Candidate
