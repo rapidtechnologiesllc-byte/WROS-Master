@@ -90,10 +90,7 @@ class Task(Base):
         nullable=False, default="NEW",
     )
 
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
-    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
-    # Optional: org-wide tasks may not be BU-scoped; cross-BU tasks leave this null
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     assigned_to_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
     created_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
     # Parent-child pattern (Freshdesk/Zendesk precedent) -- one cross-
@@ -151,7 +148,6 @@ class Task(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     department = relationship("Department", foreign_keys=[department_id])
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
     assigned_to = relationship("Users", foreign_keys=[assigned_to_user_id])
     created_by = relationship("Users", foreign_keys=[created_by_user_id])
     parent_task = relationship("Task", remote_side=[id], foreign_keys=[parent_task_id])
@@ -161,7 +157,7 @@ class Task(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "priority NOT IN ('URGENT') OR priority_challenge_note IS NOT NULL OR priority_challenged = FALSE",
+            "priority NOT IN ('URGENT') OR priority_challenge_note IS NOT NULL OR priority_challenged = 0",
             name="ck_task_urgent_has_validation_attempt",
         ),
     )
@@ -204,7 +200,7 @@ class TaskCapacityAlert(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
 
     open_task_count = Column(Integer, nullable=False)
     reason = Column(Text, nullable=False)

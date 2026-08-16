@@ -1,4 +1,4 @@
-﻿"""
+"""
 Client list + create.
 
 The GET here originally powered filter dropdowns only, on the
@@ -23,10 +23,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.client import Client, ClientContact
 from app.models.employee import Employee
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.models.user import Users
 from app.schemas.client import (
     ClientContactAddRequest, ClientContactResponse, ClientContactsListResponse,
@@ -71,14 +70,14 @@ def list_clients(
     # 2026-08-12, Avinash: BU and Client Owner (account manager) weren't
     # visible anywhere in the UI -- resolved names here so the frontend
     # doesn't have to cross-reference raw IDs itself.
-    bu_names = _bu_name_map(db, (c.bu_context_id for c in clients))
+    bu_names = _bu_name_map(db, (c.business_unit_id for c in clients))
     am_names = _employee_name_map(db, (c.account_manager_employee_id for c in clients))
     return ClientListResponse(
         clients=[
             ClientListItem(
                 id=c.id, company_name=c.company_name, status=c.status,
-                business_unit_id=c.bu_context_id,
-                business_unit_name=bu_names.get(c.bu_context_id),
+                business_unit_id=c.business_unit_id,
+                business_unit_name=bu_names.get(c.business_unit_id),
                 account_manager_employee_id=c.account_manager_employee_id,
                 account_manager_name=am_names.get(c.account_manager_employee_id),
                 line_type=c.line_type,
@@ -104,7 +103,7 @@ def get_business_unit_assignments(
     the caller can fall back to manual assignment rather than silently
     failing."""
     from app.models.employee import Employee
-    from app.models.business_unit import BusinessUnit
+    from app.models.rbac import BusinessUnit
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
     if bu is None:
@@ -156,25 +155,16 @@ def create_client_endpoint(
 
 def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     bu_name = None
-    if client.bu_context_id is not None:
-        bu = db.query(BusinessUnit).filter(BusinessUnit.id == client.bu_context_id).first()
+    if client.business_unit_id is not None:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == client.business_unit_id).first()
         bu_name = bu.name if bu else None
     am_name = None
     if client.account_manager_employee_id is not None:
         am = db.query(Employee).filter(Employee.id == client.account_manager_employee_id).first()
         am_name = f"{am.first_name} {am.last_name}".strip() if am else None
-    am_user_name = None
-    if client.account_manager_id is not None:
-        am_user = db.query(Users).filter(Users.UserID == client.account_manager_id).first()
-        am_user_name = f"{am_user.first_name} {am_user.last_name}".strip() if am_user else None
-    co_name = None
-    if client.client_owner_id is not None:
-        co_user = db.query(Users).filter(Users.UserID == client.client_owner_id).first()
-        co_name = f"{co_user.first_name} {co_user.last_name}".strip() if co_user else None
     return ClientDetailResponse(
         **{c: getattr(client, c) for c in ClientDetailResponse.__fields__ if hasattr(client, c)},
         business_unit_name=bu_name, account_manager_name=am_name,
-        account_manager_user_name=am_user_name, client_owner_name=co_name,
     )
 
 
@@ -255,4 +245,3 @@ def update_client_endpoint(
     db.commit()
     db.refresh(client)
     return _to_detail_response(db, client)
-

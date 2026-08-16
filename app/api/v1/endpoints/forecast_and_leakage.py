@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-242 (Forecast vs Actual) + S-243 (Revenue Leakage Detection).
 
 Gated behind revenue.view / revenue.view_pnl same as every other
@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_permission
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.core.revenue_visibility_scope import (
     apply_revenue_bu_scope_to_client_query, get_revenue_scoped_client_ids, is_revenue_bu_scoped,
 )
@@ -41,7 +40,7 @@ def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List
     query rather than a second BU-membership lookup."""
     if not is_revenue_bu_scoped(db, current_user):
         return None
-    query = apply_revenue_bu_scope_to_client_query(db, db.query(Client.bu_context_id).distinct(), current_user)
+    query = apply_revenue_bu_scope_to_client_query(db, db.query(Client.business_unit_id).distinct(), current_user)
     return [row[0] for row in query.all() if row[0] is not None]
 
 
@@ -122,4 +121,3 @@ def resolve_flag(
     db.commit()
     db.refresh(flag)
     return flag
-

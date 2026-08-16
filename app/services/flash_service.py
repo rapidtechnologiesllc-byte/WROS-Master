@@ -78,7 +78,7 @@ from app.core.revenue_visibility_scope import can_view_pnl, is_revenue_bu_scoped
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.invoice import Invoice
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
 from app.models.task import Task
 from app.models.user import Users
@@ -92,12 +92,13 @@ INTENT_BENCH_AVAILABILITY = "bench_availability"
 INTENT_FINANCE_PNL = "finance_pnl"
 INTENT_AR_AGING = "ar_aging"
 INTENT_MY_TASKS = "my_tasks"
+INTENT_JOB_CREATE = "job_create"
 INTENT_UNKNOWN = "unknown"
 
 UNSUPPORTED_QUERY_MESSAGE = (
     "I can't answer that yet -- right now I can only help with sourcing candidates, "
     "checking a candidate's pipeline status, who's on the bench, BU P&L/margin, "
-    "overdue invoices, or your own open tasks. Try one of those, or use the relevant "
+    "overdue invoices, your own open tasks, or creating jobs. Try one of those, or use the relevant "
     "screen directly for anything else."
 )
 
@@ -197,6 +198,12 @@ _SOURCING_PATTERN = re.compile(
     r"\bwho\s+(do\s+we\s+have|has)\b",
     re.IGNORECASE,
 )
+_JOB_CREATE_PATTERN = re.compile(
+    r"\b(create|post|open)\s+(a|an|new)?\s*(job|role|position)\b|"
+    r"\bneed\s+to\s+(create|post|open)\s+(a|an)?\s*(job|role|position)\b|"
+    r"\b(hire|hiring|recruiting)\s+for\b",
+    re.IGNORECASE,
+)
 # Simple proper-noun heuristic for candidate-name extraction: 1-3
 # consecutive Title-Case words. Imperfect (no real NER without an LLM),
 # but reliable enough for the common real phrasing ("how is Priya Sharma
@@ -282,12 +289,84 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
         keywords = _extract_keywords(_NOISE_WORD_PATTERN.sub("", _SOURCING_PATTERN.sub("", text)))
         return {"intent": INTENT_SOURCING, "query": " ".join(keywords)}
 
+    if _JOB_CREATE_PATTERN.search(text):
+        # Extract job description from the message (everything after create/post/open/hire)
+        job_desc = _JOB_CREATE_PATTERN.sub("", text).strip()
+        return {"intent": INTENT_JOB_CREATE, "query": job_desc}
+
     return {"intent": INTENT_UNKNOWN, "query": ""}
 
 
 def _extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return [t for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS]
+
+
+def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+    """
+    Find candidates matching a job's structured skill requirements using AND/OR boolean logic.
+    AND mode: all mandatory skills required
+    OR mode: any skill match counts
+    """
+    from app.models.user import Jobs
+
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    if not job or not job.required_skills_canonical:
+        return []
+
+    skills_required = job.required_skills_canonical
+    boolean_mode = job.job_skills_boolean_mode or "AND"
+
+    candidates = db.query(Candidate).filter(
+        Candidate.candidateSkills.isnot(None),
+        Candidate.candidateExperience.isnot(None)
+    ).limit(500).all()
+
+    matched = []
+    for candidate in candidates:
+        candidate_skills = (candidate.candidateSkills or "").lower()
+        candidate_exp = candidate.candidateExperience or ""
+
+        if boolean_mode == "AND":
+            # All mandatory skills must match
+            matches_mandatory = all(
+                skill["name"].lower() in candidate_skills
+                for skill in skills_required if skill.get("mandatory", True)
+            )
+            if matches_mandatory:
+                # Check if experience meets minimum
+                try:
+                    years = int(candidate_exp.split()[0]) if candidate_exp else 0
+                    min_years = min((s.get("years", 0) for s in skills_required if s.get("mandatory")), default=0)
+                    if years >= min_years:
+                        matched.append({
+                            "candidate_id": candidate.candidateID,
+                            "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+                            "skills": candidate.candidateSkills,
+                            "experience": candidate_exp,
+                            "job_title": candidate.candidateJobTitle,
+                        })
+                except (ValueError, IndexError):
+                    if any(skill["name"].lower() in candidate_skills for skill in skills_required):
+                        matched.append({
+                            "candidate_id": candidate.candidateID,
+                            "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+                            "skills": candidate.candidateSkills,
+                            "experience": candidate_exp,
+                            "job_title": candidate.candidateJobTitle,
+                        })
+        else:  # OR mode
+            # At least one skill must match
+            if any(skill["name"].lower() in candidate_skills for skill in skills_required):
+                matched.append({
+                    "candidate_id": candidate.candidateID,
+                    "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+                    "skills": candidate.candidateSkills,
+                    "experience": candidate_exp,
+                    "job_title": candidate.candidateJobTitle,
+                })
+
+    return matched[:top_n]
 
 
 def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
@@ -583,8 +662,233 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
     return f"{len(results)} available {label}:\n" + "\n".join(lines)
 
 
+def _user_can_create_jobs(db: Session, user: Users) -> bool:
+    """Check if user has permission to create jobs (HR Manager or Admin)"""
+    if user.UserRole in ("Admin", "HR Manager", "Hiring Manager"):
+        return True
+    return False
+
+
+def _extract_job_details_from_history(history: Optional[List[Dict]]) -> Dict:
+    """Extract job creation details from conversation history"""
+    details = {
+        "oneliner": None,
+        "experience_level": None,
+        "is_remote": None,
+        "country": None,
+        "pay_amount": None,
+        "pay_rate_type": "$/Year",
+        "client": None,
+    }
+
+    if not history:
+        return details
+
+    # Parse previous exchanges to extract details
+    for turn in history[-5:]:  # Look back at last 5 turns
+        reply = str((turn or {}).get("reply") or "").lower()
+
+        # Extract experience level
+        if "year" in reply:
+            import re
+            exp_match = re.search(r"(\d+)(?:\s*[-–]\s*(\d+))?\s*years?", reply)
+            if exp_match:
+                details["experience_level"] = exp_match.group(0)
+
+        # Extract remote status
+        if "remote" in reply:
+            details["is_remote"] = "yes" in reply or "true" in reply or "remote" in reply
+
+        # Extract pay
+        if "$" in reply or "k" in reply:
+            import re
+            pay_match = re.search(r"\$?(\d+k?)", reply, re.IGNORECASE)
+            if pay_match:
+                details["pay_amount"] = pay_match.group(1)
+
+    return details
+
+
+def _get_next_job_question(details: Dict) -> tuple:
+    """Determine next question to ask based on collected details
+    Returns (question_text, field_name, response_type)"""
+
+    if details["oneliner"] is None:
+        return (
+            "Great! I'll help you create a job. First, briefly describe the role (e.g., 'Senior Java Developer with Spring Boot experience')",
+            "oneliner",
+            "text"
+        )
+
+    if details["experience_level"] is None:
+        return (
+            "What's the required experience level? (e.g., '5-7 years', 'Mid-level', 'Senior')",
+            "experience_level",
+            "text"
+        )
+
+    if details["is_remote"] is None:
+        return (
+            "Is this a remote role? (yes/no)",
+            "is_remote",
+            "boolean"
+        )
+
+    if details["is_remote"] and details["country"] is None:
+        return (
+            "Which country is this remote role for? (e.g., 'USA', 'India', 'Canada')",
+            "country",
+            "text"
+        )
+
+    if details["pay_amount"] is None:
+        return (
+            "What's the pay rate? (e.g., '150000', '150k' for annual, or '75/hour' for hourly)",
+            "pay_amount",
+            "text"
+        )
+
+    if details["client"] is None:
+        return (
+            "Who is the client/company? (e.g., 'Internal', 'Acme Corp')",
+            "client",
+            "text"
+        )
+
+    if "skills" not in details or details["skills"] is None:
+        return (
+            "What skills are required? (Format: 'Skill Name:Years:Mandatory' e.g., 'Java:5:yes, Spring Boot:3:yes, Docker:2:no')",
+            "skills",
+            "text"
+        )
+
+    return (None, None, None)
+
+
+def _handle_job_creation(db: Session, user: Users, oneliner: str, history: Optional[List[Dict]], conversation_state: Optional[Dict] = None) -> Dict:
+    """Handle conversational job creation flow"""
+    # Use conversation state if provided, otherwise extract from history
+    if conversation_state:
+        details = conversation_state.copy()
+    else:
+        details = _extract_job_details_from_history(history)
+
+    # If we have a one-liner from the initial message, use it
+    if oneliner:
+        details["oneliner"] = oneliner
+
+    # Determine next question to ask
+    next_q, field_name, q_type = _get_next_job_question(details)
+
+    if next_q is None:
+        # All details collected, create the job
+        return _create_job_from_details(db, user, details)
+
+    # Return next question
+    return {
+        "intent": INTENT_JOB_CREATE,
+        "reply": next_q,
+        "requires_response": True,
+        "expected_field": field_name,
+        "response_type": q_type,
+        "conversation_state": details
+    }
+
+
+def _parse_skills_from_string(skills_str: str) -> list:
+    """Parse skills string into structured format
+    Input: 'Java:5:yes, Spring Boot:3:yes, Docker:2:no'
+    Output: [{"name": "Java", "years": 5, "mandatory": True}, ...]
+    """
+    if not skills_str:
+        return []
+
+    skills = []
+    try:
+        for skill_part in skills_str.split(","):
+            parts = [p.strip() for p in skill_part.strip().split(":")]
+            if len(parts) >= 3:
+                name, years_str, mandatory_str = parts[0], parts[1], parts[2]
+                try:
+                    years = int(years_str)
+                    mandatory = mandatory_str.lower() in ("yes", "true", "1", "mandatory")
+                    skills.append({
+                        "name": name,
+                        "years": years,
+                        "mandatory": mandatory
+                    })
+                except ValueError:
+                    continue
+    except Exception as e:
+        logger.warning(f"Failed to parse skills string: {e}")
+
+    return skills if skills else [{"name": skill_str.strip(), "years": 0, "mandatory": True} for skill_str in skills_str.split(",")]
+
+
+def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
+    """Create a job from collected details and assign to recruiter"""
+    try:
+        from app.models.user import Jobs
+        from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
+        from app.utils.uniq_id_generator import job_id_generator
+        from datetime import datetime
+
+        # Extract job title from oneliner
+        job_title = details["oneliner"].split(" ")[0] if details["oneliner"] else "Job"
+
+        # Parse skills into structured format
+        skills_str = details.get("skills", "")
+        structured_skills = _parse_skills_from_string(skills_str)
+
+        # Determine boolean mode: if any skill is optional, use OR, otherwise use AND
+        boolean_mode = "OR" if any(not s.get("mandatory", True) for s in structured_skills) else "AND"
+
+        # Create the job
+        job = Jobs(
+            jobID=job_id_generator(),
+            jobTitle=job_title,
+            jobDescription=details["oneliner"],  # Will be expanded later
+            jobSkills=details.get("skills", ""),  # Free text for backward compatibility
+            jobExperience=details.get("experience_level", ""),
+            jobLocation=details.get("country", "Remote"),
+            salaryRange=details.get("pay_amount", ""),
+            companyType="Full time",  # Default, can be updated
+            companyName=details.get("client", ""),
+            hiringManagerID=user.UserID,
+            jobStatus="Draft",
+            required_skills_canonical=structured_skills,
+            job_skills_boolean_mode=boolean_mode,
+            jobCreatedAt=datetime.utcnow(),
+        )
+
+        db.add(job)
+        db.flush()  # Flush to get the job ID
+
+        # Assign to recruiter via round-robin
+        recruiter = assign_to_recruiter_roundrobin(db)
+
+        if recruiter:
+            job.assigned_recruiter_id = recruiter.UserID
+
+        db.commit()
+
+        return {
+            "intent": INTENT_JOB_CREATE,
+            "reply": f"✓ Job created successfully! Job ID: {job.job_id}\nAssigned to recruiter: {recruiter.UserName if recruiter else 'Pending'}",
+            "job_id": job.job_id
+        }
+
+    except Exception as e:
+        logger.error(f"[Flash] Job creation failed: {e}")
+        db.rollback()
+        return {
+            "intent": INTENT_JOB_CREATE,
+            "reply": f"Sorry, I couldn't create the job. Error: {str(e)[:100]}"
+        }
+
+
 def answer_internal_query(
-    db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None,
+    db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,
 ) -> Dict:
     """
     Full turn: classify -> real DB lookup -> deterministic, honest
@@ -647,5 +951,16 @@ def answer_internal_query(
     if intent == INTENT_MY_TASKS:
         tasks = get_my_tasks_answer(db, current_user)
         return {"intent": intent, "reply": _format_my_tasks_reply(tasks)}
+
+    if intent == INTENT_JOB_CREATE:
+        if current_user is None:
+            return {"intent": intent, "reply": "You must be logged in to create jobs."}
+
+        # Check if user has permission to create jobs (HR Manager or Admin)
+        if not _user_can_create_jobs(db, current_user):
+            return {"intent": intent, "reply": "You don't have permission to create jobs. Contact HR."}
+
+        # Handle job creation conversational flow
+        return _handle_job_creation(db, current_user, query, history, conversation_state)
 
     return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}

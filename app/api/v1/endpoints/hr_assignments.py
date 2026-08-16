@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission, get_current_user
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.candidate import Candidate
 from app.models.hr_assignment import HRAssignment
 from app.models.user import Users
@@ -70,7 +69,6 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
         candidate_id=row.candidate_id,
         candidate_name=_candidate_name(candidate) if candidate else None,
         candidate_email=candidate.candidateEmail if candidate else None,
-        business_unit_id=candidate.business_unit_id if candidate else None,
         hr1=_user_summary(hr1),
         hr2=_user_summary(hr2),
         assigned_by=_user_summary(assigner),

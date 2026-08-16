@@ -50,8 +50,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # (GET) and X-Hub-Signature-256 HMAC (POST) -- see
         # app.services.whatsapp_webhook_service.
         "/webhooks/whatsapp",
-        # BU dropdown - needed in user creation form before user is authenticated
-        "/bu-context/available-buses",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for

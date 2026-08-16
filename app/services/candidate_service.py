@@ -49,24 +49,21 @@ def find_duplicate_candidate(
     linkedin_url: Optional[str] = None,
 ) -> Tuple[Optional[Candidate], Optional[str]]:
     """
-    R-07 (Updated 2026-08-14): Merge candidates if email OR phone matches.
-    Both email and phone are primary identifiers (equal priority).
-    If either one matches existing candidate, consolidate into that record.
-    Priority: email (checked first for deterministic ordering), phone, then LinkedIn.
+    R-07: each identifying field is checked independently -- a match on
+    ANY of the three is a duplicate, checked in this order (email,
+    phone, LinkedIn) so the reported `matched_on` is deterministic when
+    more than one would match.
     """
-    # Email is a primary identifier - check first for deterministic ordering
     if email:
         hit = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
         if hit:
             return hit, "email"
 
-    # Phone is also a primary identifier - check second
     if mobile:
         hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
         if hit:
             return hit, "phone"
 
-    # LinkedIn is also checked
     if linkedin_url:
         hit = db.query(Candidate).filter(Candidate.linkedin_url == linkedin_url).first()
         if hit:

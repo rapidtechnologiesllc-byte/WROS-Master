@@ -68,7 +68,6 @@ class Project(Base):
     # (e.g. an existing client's direct follow-on request) -- HRMS-0801's
     # own data mapping calls this out explicitly.
     opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
-    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
 
     name = Column(String(300), nullable=False)
     status = Column(

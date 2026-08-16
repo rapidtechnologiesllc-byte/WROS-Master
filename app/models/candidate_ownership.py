@@ -43,10 +43,10 @@ class CandidateOwnership(Base):
         server_default=POOL_ORG,
     )
 
-    # Which BU Context currently owns the candidate (null when Org Pool)
-    owned_by_bu_context_id = Column(
+    # Which BU currently owns the candidate (null when Org Pool)
+    owned_by_bu_id = Column(
         Integer,
-        ForeignKey("business_unit_context.id", ondelete="SET NULL"),
+        ForeignKey("business_units.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -72,5 +72,5 @@ class CandidateOwnership(Base):
     )
 
     # Relationships
-    candidate    = relationship("Candidate", foreign_keys=[candidateID], lazy="select")
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[owned_by_bu_context_id], lazy="select")
+    candidate    = relationship("Candidate",     foreign_keys=[candidateID], lazy="select")
+    business_unit = relationship("BusinessUnit", foreign_keys=[owned_by_bu_id], lazy="select")

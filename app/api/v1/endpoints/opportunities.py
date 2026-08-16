@@ -28,7 +28,7 @@ from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
-from app.models.permission import DetailedPermission, DetailedRolePermission
+from app.models.rbac import Permission, Role, RolePermission
 from app.models.user import Users
 from app.schemas.opportunity import (
     OpportunityCreateRequest, OpportunityItem, OpportunityListResponse,
@@ -47,9 +47,9 @@ router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
 def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     client = db.query(Client).filter(Client.id == opportunity.client_id).first()
-    account_manager = (
-        db.query(Users).filter(Users.UserID == opportunity.account_manager_id).first()
-        if opportunity.account_manager_id else None
+    owner = (
+        db.query(Employee).filter(Employee.id == opportunity.owner_employee_id).first()
+        if opportunity.owner_employee_id else None
     )
     client_owner = (
         db.query(Users).filter(Users.UserID == opportunity.client_owner_id).first()
@@ -58,8 +58,8 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     return OpportunityItem(
         id=opportunity.id, client_id=opportunity.client_id,
         client_name=client.company_name if client else None,
-        account_manager_id=opportunity.account_manager_id,
-        account_manager_name=(f"{account_manager.first_name} {account_manager.last_name}".strip() if account_manager else None),
+        owner_employee_id=opportunity.owner_employee_id,
+        owner_name=(f"{owner.first_name} {owner.last_name}".strip() if owner else None),
         client_owner_id=opportunity.client_owner_id,
         client_owner_name=(f"{client_owner.first_name} {client_owner.last_name}".strip() if client_owner else None),
         stage=opportunity.stage, revenue_value_usd_cents=opportunity.revenue_value_usd_cents,
@@ -68,7 +68,6 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         weighted_forecast_usd_cents=calculate_weighted_forecast(opportunity),
         expected_close_date=opportunity.expected_close_date,
         created_at=opportunity.created_at, updated_at=opportunity.updated_at,
-        engagement_type=opportunity.engagement_type,
     )
 
 
@@ -92,10 +91,8 @@ def create_opportunity_endpoint(
             revenue_value_usd_cents=body.revenue_value_usd_cents,
             currency=body.currency,
             revenue_value_native=body.revenue_value_native,
-            account_manager_id=body.account_manager_id,
-            client_owner_id=body.client_owner_id,
+            owner_employee_id=body.owner_employee_id,
             expected_close_date=body.expected_close_date, stage=body.stage,
-            engagement_type=body.engagement_type,
         )
         db.commit()
         db.refresh(opportunity)
@@ -141,35 +138,6 @@ def list_eligible_owners(
         .distinct()
         .all()
     )
-    # Fallback to users if no employees exist (for early stages / testing)
-    if not rows:
-        users = db.query(Users).all()
-        return {"employees": [{"id": u.UserID, "first_name": u.UserName, "last_name": ""} for u in users]}
-    return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
-
-
-@router.get("/client-owners")
-def list_client_owners(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
-):
-    """Client Owner options - users with Sales module access from Users & Access Control.
-    Filters to employees with access to the Sales/Opportunity Pipeline module
-    (revenue.view permission via the admin-assigned roles in Users & Access Control)."""
-    rows = (
-        db.query(Employee)
-        .join(Users, Users.UserID == Employee.wros_user_id)
-        .join(Role, Role.id == Users.role_id)
-        .join(RolePermission, RolePermission.role_id == Role.id)
-        .join(Permission, Permission.id == RolePermission.permission_id)
-        .filter(Permission.name == "revenue.view")
-        .distinct()
-        .all()
-    )
-    # Fallback to users if no employees exist (for early stages / testing)
-    if not rows:
-        users = db.query(Users).all()
-        return {"employees": [{"id": u.UserID, "first_name": u.UserName, "last_name": ""} for u in users]}
     return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
 
 
@@ -228,19 +196,11 @@ def transition_opportunity_stage(
         raise HTTPException(status_code=400, detail=str(exc))
 
     project_id = None
-    demand_id = None
     if isinstance(result, tuple):
-        opportunity, created_obj = result
-        if isinstance(created_obj, Demand):
-            demand_id = created_obj.id
-        else:
-            project_id = created_obj.id
+        opportunity, project = result
+        project_id = project.id
     db.refresh(opportunity)
-    return OpportunityStageTransitionResponse(
-        opportunity=_to_item(db, opportunity),
-        project_id=project_id,
-        demand_id=demand_id
-    )
+    return OpportunityStageTransitionResponse(opportunity=_to_item(db, opportunity), project_id=project_id)
 
 
 @router.get("/{opportunity_id}/revenue-rollup")

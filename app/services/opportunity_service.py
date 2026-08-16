@@ -65,26 +65,18 @@ def create_opportunity(
     revenue_value_usd_cents: int,
     currency: str = "USD",
     revenue_value_native: Optional[int] = None,
-    account_manager_id: Optional[str] = None,
-    client_owner_id: Optional[str] = None,
+    owner_employee_id: Optional[str] = None,
     expected_close_date=None,
     stage: str = "QUALIFICATION",
-    engagement_type: str = "STAFF_AUGMENTATION",
 ) -> Opportunity:
-    """Create opportunity with account_manager_id for P&L tracking.
-
-    account_manager_id is inherited by auto-created Demands and Projects,
-    enabling end-to-end P&L aggregation by account manager."""
     if revenue_value_usd_cents <= 0:
         raise OpportunityValidationError("revenue_value_usd_cents must be positive.")
 
     opportunity = Opportunity(
-        tenant_id=tenant_id, client_id=client_id, account_manager_id=account_manager_id,
-        client_owner_id=client_owner_id,
+        tenant_id=tenant_id, client_id=client_id, owner_employee_id=owner_employee_id,
         stage=stage, revenue_value_usd_cents=revenue_value_usd_cents,
         revenue_value_native=revenue_value_native, currency=currency,
         probability_pct=default_probability_for_stage(stage), expected_close_date=expected_close_date,
-        engagement_type=engagement_type,
     )
     db.add(opportunity)
     return opportunity
@@ -133,12 +125,10 @@ def transition_stage(
     continent: Optional[str] = None, changed_by: Optional[str] = None,
 ):
     """
-    Returns the Opportunity, unless new_stage='WON'/'ACTIVE' or engagement_type-specific
-    auto-creation triggers, in which case returns (opportunity, project/demand).
-
-    Auto-creates:
-    - Demand (job) for STAFF_AUGMENTATION when transitioning to ACTIVE
-    - Project for PROJECT_BASED when transitioning to WON/ACTIVE
+    Returns the Opportunity, unless new_stage='WON', in which case
+    returns (opportunity, project) -- HRMS-0801 BR-0801-01: winning an
+    opportunity auto-creates a Project inheriting client_id/currency,
+    no manual re-entry.
 
     Also auto-syncs parent Client.status to match the most-advanced
     opportunity stage (WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST).
@@ -158,27 +148,7 @@ def transition_stage(
     # Auto-sync parent Client status to match opportunity progression
     _update_client_status_from_opportunities(db, opportunity.client_id)
 
-    # Auto-create Demand for staff-augmentation opportunities transitioning to ACTIVE
-    if new_stage == "ACTIVE" and opportunity.engagement_type == "STAFF_AUGMENTATION":
-        demand = create_demand(
-            db,
-            tenant_id=opportunity.tenant_id,
-            client_id=opportunity.client_id,
-            job_title=f"Staff Augmentation - {opportunity.id}",
-            required_skills="TBD",
-            min_experience_years=0,
-            work_location="REMOTE",
-            headcount=1,
-            status="DRAFT",
-            opportunity_id=opportunity.id,
-            source_type="OPPORTUNITY",
-            created_by=changed_by,
-            client_owner_id=opportunity.client_owner_id,
-        )
-        return opportunity, demand
-
-    # Auto-create Project for project-based opportunities transitioning to WON/ACTIVE
-    if new_stage in ("WON", "ACTIVE") and opportunity.engagement_type == "PROJECT_BASED":
+    if new_stage == "WON":
         project = create_project_from_won_opportunity(
             db, opportunity,
             name=project_name or f"Project for Opportunity {opportunity.id}",

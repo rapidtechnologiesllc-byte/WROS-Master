@@ -117,7 +117,7 @@ class Employee(Base):
     employment_type = Column(Enum(*EMPLOYMENT_TYPES, name="employment_type", native_enum=False, create_constraint=True), nullable=False, default="PERMANENT")
     status = Column(Enum(*EMPLOYEE_STATUSES, name="employee_status", native_enum=False, create_constraint=True), nullable=False, default="PRE_JOINING")
 
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
+    bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     manager_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
 
     # Organizational hierarchy position (links to org_nodes for approval chains, role-based access)
@@ -166,7 +166,6 @@ class Employee(Base):
     created_by = Column(String(50), nullable=True)
 
     manager = relationship("Employee", remote_side=[id], foreign_keys=[manager_id])
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id])
     # OrgNode relationship for approval chains and role-based access
     org_node = relationship("OrgNode", foreign_keys=[org_node_id])
 
@@ -176,7 +175,7 @@ class Employee(Base):
         # code -- delivery_engine can never be CORE unless core_certified
         # is already TRUE, even via a raw SQL UPDATE bypassing the ORM.
         CheckConstraint(
-            "delivery_engine != 'CORE' OR core_certified = true",
+            "delivery_engine != 'CORE' OR core_certified = 1",
             name="ck_core_requires_certification",
         ),
     )

@@ -50,5 +50,11 @@ def ask_flash(
     current_user=Depends(get_current_hr_or_admin),
 ):
     history = [{"question": turn.question, "reply": turn.reply} for turn in body.history]
-    result = answer_internal_query(db, body.message, current_user=current_user, history=history)
+    result = answer_internal_query(
+        db,
+        body.message,
+        current_user=current_user,
+        history=history,
+        conversation_state=body.conversation_state
+    )
     return FlashResponse(**result)

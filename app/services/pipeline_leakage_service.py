@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-243 (EPIC-02 Revenue Leakage Detection). See app.models.pipeline_leakage
 for the 4-pattern design and why sub-vendor cost overruns aren't built.
 """
@@ -47,7 +47,7 @@ def scan_stalled_opportunities(
     cutoff = now - timedelta(days=stale_days)
 
     query = (
-        db.query(Opportunity, Client.bu_context_id)
+        db.query(Opportunity, Client.business_unit_id)
         .outerjoin(Client, Client.id == Opportunity.client_id)
         .filter(Opportunity.stage.notin_(CLOSED_STAGES), Opportunity.updated_at <= cutoff)
     )
@@ -109,7 +109,7 @@ def scan_unbilled_time(db: Session, *, tenant_id: Optional[int] = None) -> List[
         project = db.query(Project).filter(Project.id == rlf.project_id).first()
         if project is not None:
             client = db.query(Client).filter(Client.id == project.client_id).first()
-            bu_id = Client.bu_context_id if client else None
+            bu_id = client.business_unit_id if client else None
         flag = _get_or_create(
             db, pattern_type="UNBILLED_TIME", match_filters={"revenue_leakage_flag_id": rlf.id},
             tenant_id=rlf.tenant_id, business_unit_id=bu_id,
@@ -157,4 +157,3 @@ def resolve_leakage_flag(db: Session, flag: PipelineLeakageFlag, *, resolution_n
     flag.resolution_note = resolution_note
     db.add(flag)
     return flag
-

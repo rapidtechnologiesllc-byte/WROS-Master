@@ -1,4 +1,4 @@
-﻿"""
+"""
 EPIC-16 -- Fully Loaded Cost + Blended Delivery Rate. See
 app.models.cost_rate_config for the config-driven design rationale.
 """
@@ -27,7 +27,7 @@ def set_cost_rate_config(
     if statutory_pct < 0 or overhead_pct < 0:
         raise CostRateConfigError("statutory_pct and overhead_pct must both be non-negative.")
     config = CostRateConfig(
-        tenant_id=tenant_id, bu_context_id=business_unit_id,
+        tenant_id=tenant_id, business_unit_id=business_unit_id,
         statutory_pct=statutory_pct, overhead_pct=overhead_pct,
         effective_date=effective_date or date.today(), created_by=created_by, notes=notes,
     )
@@ -44,7 +44,7 @@ def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] 
     if business_unit_id is not None:
         bu_specific = (
             db.query(CostRateConfig)
-            .filter(CostRateConfig.bu_context_id == business_unit_id)
+            .filter(CostRateConfig.business_unit_id == business_unit_id)
             .order_by(CostRateConfig.id.desc())
             .first()
         )
@@ -52,7 +52,7 @@ def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] 
             return bu_specific
     return (
         db.query(CostRateConfig)
-        .filter(CostRateConfig.bu_context_id.is_(None))
+        .filter(CostRateConfig.business_unit_id.is_(None))
         .order_by(CostRateConfig.id.desc())
         .first()
     )
@@ -79,7 +79,7 @@ def calculate_blended_delivery_rate(
     period / total approved billable hours delivered in the same
     period -- a real, derived $/hour figure, not a per-employee rate
     card. None when there are no approved billable hours to divide by."""
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.bu_context_id == business_unit_id).all()]
+    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
     if not client_ids:
         return None
 
@@ -102,4 +102,3 @@ def calculate_blended_delivery_rate(
     if total_billable_hours <= 0:
         return None
     return round(revenue_usd_cents / total_billable_hours, 2)
-

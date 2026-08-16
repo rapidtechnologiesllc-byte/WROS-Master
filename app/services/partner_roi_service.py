@@ -1,4 +1,4 @@
-﻿"""Partner ROI Agent â€” computes weekly Partner scorecard based on BlitzenX Operating Model KPIs."""
+"""Partner ROI Agent — computes weekly Partner scorecard based on BlitzenX Operating Model KPIs."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, text
@@ -41,7 +41,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
         raise ValueError(f"Partner {partner_id} not found")
 
     # Partner owns exactly one BU per the Operating Model
-    bu_id = partner.bu_context_id
+    bu_id = partner.business_unit_id
     if not bu_id:
         return {
             "error": "Partner has no assigned Business Unit",
@@ -58,7 +58,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
 
     # 1. Revenue: total invoiced revenue for this BU this month
     invoices = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
-        Invoice.bu_context_id == bu_id,
+        Invoice.business_unit_id == bu_id,
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -72,7 +72,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
 
     # 3. Net New Logos: new clients added this month to this BU (status=ACTIVE, first invoice this month)
     new_clients = db.query(func.count(Client.id)).filter(
-        Client.bu_context_id == bu_id,
+        Client.business_unit_id == bu_id,
         Client.status == "ACTIVE",
         Client.created_at >= period_start,
         Client.created_at < period_end
@@ -85,7 +85,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
     # 5. Practice Utilization: billable hours / total available hours for allocated employees
     # Available hours = 40 hours/week, roughly 4.33 weeks/month = 173 hours
     allocated_employees = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).filter(
-        EmployeeAllocation.bu_context_id == bu_id,
+        EmployeeAllocation.business_unit_id == bu_id,
         EmployeeAllocation.start_date <= period_end,
         and_(
             EmployeeAllocation.end_date.is_(None),
@@ -95,18 +95,12 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
 
     available_hours = allocated_employees * 173 if allocated_employees > 0 else 1
 
-    # Billable hours from invoice line items
-    from app.models.invoice import InvoiceLineItem
-    billable_hours = db.query(func.sum(InvoiceLineItem.hours)).join(
-        Invoice, Invoice.id == InvoiceLineItem.invoice_id
-    ).filter(
-        Invoice.bu_context_id == bu_id,
+    # Billable hours from invoices (approximation: invoice line items have hours)
+    billable_hours = db.query(func.sum(Invoice.billable_hours)).filter(
+        Invoice.business_unit_id == bu_id,
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end
     ).scalar() or 0
-
-    # Convert Decimal to float if needed
-    billable_hours = float(billable_hours) if billable_hours else 0
 
     practice_utilization_pct = (billable_hours / available_hours * 100) if available_hours > 0 else 0
 
@@ -121,7 +115,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
         prev_period_end = datetime(prev_year, prev_month + 1, 1)
 
     prev_invoices = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
-        Invoice.bu_context_id == bu_id,
+        Invoice.business_unit_id == bu_id,
         Invoice.created_at >= prev_period_start,
         Invoice.created_at < prev_period_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -205,7 +199,7 @@ def get_partner_actions(db: Session, partner_id: str) -> list:
         actions.append({
             "priority": "HIGH",
             "category": "UTILIZATION",
-            "message": f"Practice utilization at {kpis['practice_utilization_pct']}% â€” below 70% target. Review open demands and bench allocation.",
+            "message": f"Practice utilization at {kpis['practice_utilization_pct']}% — below 70% target. Review open demands and bench allocation.",
             "metric": "practice_utilization_pct"
         })
 
@@ -214,7 +208,7 @@ def get_partner_actions(db: Session, partner_id: str) -> list:
         actions.append({
             "priority": "HIGH",
             "category": "MARGIN",
-            "message": f"Gross margin at {kpis['pnl_margin_pct']}% â€” below 20% target. Review pricing and delivery costs.",
+            "message": f"Gross margin at {kpis['pnl_margin_pct']}% — below 20% target. Review pricing and delivery costs.",
             "metric": "pnl_margin_pct"
         })
 
@@ -223,7 +217,7 @@ def get_partner_actions(db: Session, partner_id: str) -> list:
         actions.append({
             "priority": "MEDIUM",
             "category": "GROWTH",
-            "message": f"Year-over-year revenue declined {abs(kpis['practice_growth_yoy_pct'])}% â€” accelerate new customer acquisition.",
+            "message": f"Year-over-year revenue declined {abs(kpis['practice_growth_yoy_pct'])}% — accelerate new customer acquisition.",
             "metric": "practice_growth_yoy_pct"
         })
 
@@ -232,9 +226,8 @@ def get_partner_actions(db: Session, partner_id: str) -> list:
         actions.append({
             "priority": "MEDIUM",
             "category": "LOGOS",
-            "message": f"Only {kpis['net_new_logos']} new logos this month â€” increase pipeline activity.",
+            "message": f"Only {kpis['net_new_logos']} new logos this month — increase pipeline activity.",
             "metric": "net_new_logos"
         })
 
     return sorted(actions, key=lambda x: ({"HIGH": 0, "MEDIUM": 1, "LOW": 2}.get(x["priority"], 3), x["category"]))
-

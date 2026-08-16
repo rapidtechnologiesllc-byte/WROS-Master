@@ -9,15 +9,11 @@ from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
-from app.api.v1.endpoints.interview_decision import router as interview_decision_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
-# DEPRECATED: Old RBAC system deleted, use role_templates_router instead
 from app.api.v1.endpoints.rbac import router as rbac_router
-from app.api.v1.endpoints.role_templates import router as role_templates_router
-from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
 from app.api.v1.endpoints.checklists import router as checklists_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
-# from app.api.v1.endpoints.ats import router as ats_router  # DISABLED: requires GEMINI_API_KEY
+from app.api.v1.endpoints.ats import router as ats_router
 from app.api.v1.endpoints.email import router as email_router
 from app.api.v1.endpoints.candidate_history import router as candidate_history_router
 from app.api.v1.endpoints.candidate_ownership import router as candidate_ownership_router
@@ -26,7 +22,7 @@ from app.api.v1.endpoints.internal import router as internal_router
 from app.api.v1.endpoints.hr_assignments import router as hr_assignments_router
 from app.api.v1.endpoints.ai_agent import router as ai_agent_router
 from app.api.v1.endpoints.mfa import router as mfa_router
-# from app.api.v1.endpoints.thunder import router as thunder_router  # DISABLED: incomplete implementation
+from app.api.v1.endpoints.thunder import router as thunder_router
 from app.api.v1.endpoints.resource_management import router as resource_management_router
 from app.api.v1.endpoints.core_pull import router as core_pull_router
 from app.api.v1.endpoints.demand_confirmation import router as demand_confirmation_router
@@ -35,7 +31,7 @@ from app.api.v1.endpoints.submissions import router as submissions_router
 from app.api.v1.endpoints.allocations import router as allocations_router
 from app.api.v1.endpoints.timesheets import router as timesheets_router
 from app.api.v1.endpoints.resource_forecast import router as resource_forecast_router
-# from app.api.v1.endpoints.invoices import router as invoices_router  # DISABLED: depends on functions moved to P&L API
+from app.api.v1.endpoints.invoices import router as invoices_router
 from app.api.v1.endpoints.revenue import router as revenue_router
 from app.api.v1.endpoints.finance_operations import router as finance_operations_router
 from app.api.v1.endpoints.tenants import router as tenants_router
@@ -50,21 +46,19 @@ from app.api.v1.endpoints.partner_incentives import router as partner_incentives
 from app.api.v1.endpoints.revenue_targets import router as revenue_targets_router
 from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_leakage_router
 from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_router
-from app.api.v1.endpoints.revenue_recognition import router as revenue_recognition_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
-# from app.api.v1.endpoints.public_chat import router as public_chat_router  # DISABLED: depends on incomplete Thunder
+from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
 from app.api.v1.endpoints.portal_messages import router as portal_messages_router
 from app.api.v1.endpoints.ai_recruiter_assignment import router as ai_recruiter_assignment_router
-# from app.api.v1.endpoints.message_templates import router as message_templates_router  # DISABLED: depends on incomplete Thunder
+from app.api.v1.endpoints.message_templates import router as message_templates_router
 from app.api.v1.endpoints.conversation_search import router as conversation_search_router
 from app.api.v1.endpoints.candidate_portal import router as candidate_portal_router
 from app.api.v1.endpoints.sla_breach import router as sla_breach_router
 from app.api.v1.endpoints.technical_scoring import router as technical_scoring_router
 from app.api.v1.endpoints.abandonment_scoring import router as abandonment_scoring_router
 from app.api.v1.endpoints.offer_readiness import router as offer_readiness_router
-from app.api.v1.endpoints.offers import router as offers_router
 from app.api.v1.endpoints.candidate_journey import router as candidate_journey_router
 from app.api.v1.endpoints.drop_risk import router as drop_risk_router
 from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
@@ -105,19 +99,12 @@ from app.api.v1.endpoints.agent_performance_dashboard import router as agent_per
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 from app.api.v1.endpoints.org_structure import router as org_structure_router
 from app.api.v1.endpoints.work_orders import router as work_orders_router
-# from app.api.v1.endpoints.training_dashboards import router as training_dashboards_router  # DISABLED: endpoint not found
-# from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router  # DISABLED: endpoint not found
-from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
-from app.api.v1.endpoints.certifications_admin import router as certifications_admin_router
-from app.api.v1.endpoints.candidate_ranking import router as candidate_ranking_router
-from app.api.v1.endpoints.candidate_rejection import router as candidate_rejection_router
+from app.api.v1.endpoints.autonomous_job_management import router as autonomous_job_management_router
 
 router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
 router.include_router(router=rbac_router)
-router.include_router(router=role_templates_router)
-router.include_router(router=role_template_modules_router)
 router.include_router(router=org_structure_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
@@ -127,11 +114,10 @@ router.include_router(router=candidates_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
-router.include_router(router=interview_decision_router)
 router.include_router(router=newsletter_router)
 router.include_router(router=checklists_router)
 router.include_router(router=candidate_status_router)
-# router.include_router(router=ats_router)  # DISABLED: requires GEMINI_API_KEY
+router.include_router(router=ats_router)
 router.include_router(router=email_router)
 router.include_router(router=candidate_history_router)
 router.include_router(router=candidate_ownership_router)
@@ -140,7 +126,7 @@ router.include_router(router=internal_router)
 router.include_router(router=hr_assignments_router)
 router.include_router(router=ai_agent_router)
 router.include_router(router=mfa_router)
-# router.include_router(router=thunder_router)  # DISABLED: incomplete implementation
+router.include_router(router=thunder_router)
 router.include_router(router=resource_management_router)
 router.include_router(router=core_pull_router)
 router.include_router(router=demand_confirmation_router)
@@ -149,9 +135,8 @@ router.include_router(router=submissions_router)
 router.include_router(router=allocations_router)
 router.include_router(router=timesheets_router)
 router.include_router(router=resource_forecast_router)
-# router.include_router(router=invoices_router)  # DISABLED: depends on functions moved to P&L API
+router.include_router(router=invoices_router)
 router.include_router(router=revenue_router)
-router.include_router(router=revenue_recognition_router)
 router.include_router(router=finance_operations_router)
 router.include_router(router=tenants_router)
 router.include_router(router=projects_router)
@@ -166,19 +151,18 @@ router.include_router(router=revenue_targets_router)
 router.include_router(router=forecast_and_leakage_router)
 router.include_router(router=revenue_to_demand_router)
 router.include_router(router=cost_rate_router)
-# router.include_router(router=public_chat_router)  # DISABLED: depends on incomplete Thunder
+router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
-# router.include_router(router=message_templates_router)  # DISABLED: depends on incomplete Thunder
+router.include_router(router=message_templates_router)
 router.include_router(router=conversation_search_router)
 router.include_router(router=candidate_portal_router)
 router.include_router(router=technical_scoring_router)
 router.include_router(router=sla_breach_router)
 router.include_router(router=abandonment_scoring_router)
 router.include_router(router=offer_readiness_router)
-router.include_router(router=offers_router)
 router.include_router(router=candidate_journey_router)
 router.include_router(router=drop_risk_router)
 router.include_router(router=desire_intelligence_router)
@@ -218,9 +202,4 @@ router.include_router(router=spartan_phalanx_router)
 router.include_router(router=agent_performance_dashboard_router)
 router.include_router(router=employee_referrals_router)
 router.include_router(router=work_orders_router)
-# router.include_router(router=training_dashboards_router)  # DISABLED: endpoint not found
-# router.include_router(router=bi_explorer_router)  # DISABLED: endpoint not found
-router.include_router(router=bu_head_dashboard_router)
-router.include_router(router=certifications_admin_router)
-router.include_router(router=candidate_ranking_router)
-router.include_router(router=candidate_rejection_router)
+router.include_router(router=autonomous_job_management_router)

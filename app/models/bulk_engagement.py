@@ -26,7 +26,7 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED", "CANCELLED", "FAILED")
+BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED")
 
 
 class BulkEngagementJob(Base):

@@ -61,9 +61,8 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    # If type is not "candidate", it's an internal user (role name like "Super User", "Admin", etc.)
-    # "sub" contains email for internal users
-    if user_type != "candidate":
+    if user_type == "user":
+        # "sub" contains email, not UserID
         user = db.query(Users).filter(Users.UserEmail == user_id).first()
     else:
         user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
@@ -245,7 +244,7 @@ def require_permission(permission: str):
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-        from app.services.rbac_service_template import RBACService
+        from app.services.rbac_service import RBACService
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -260,7 +259,15 @@ def require_permission(permission: str):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Check permissions via role template
+        # Super User & Admin bypass — always has all permissions
+        # Check both the legacy UserRole string AND the RBAC role relationship
+        is_super_user = (
+            (user.UserRole and user.UserRole.lower() in ("super user", "admin"))
+            or (user.role and user.role.name and user.role.name.lower() in ("super user", "admin"))
+        )
+        if is_super_user:
+            return user
+
         if not RBACService.has_permission(db, user.UserID, permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -287,7 +294,7 @@ def require_attribute(attribute: str, expected: bool = True):
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-        from app.services.rbac_service_template import RBACService
+        from app.services.rbac_service import RBACService
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -302,16 +309,18 @@ def require_attribute(attribute: str, expected: bool = True):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Super User bypass — check job_title for Super User
-        if user.job_title and user.job_title.lower() == "super user":
+        # Super User bypass — check both legacy UserRole string and RBAC role relationship
+        is_super_user = (
+            (user.UserRole and user.UserRole.lower() == "super user")
+            or (user.role and user.role.name and user.role.name.lower() == "super user")
+        )
+        if is_super_user:
             return user
 
-        # Check attribute via role template
-        # Note: has_attribute is deprecated; use has_permission instead for permission-based checks
-        if not RBACService.has_permission(db, user.UserID, attribute):
+        if not RBACService.has_attribute(db, user.UserID, attribute, expected):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: attribute '{attribute}' required",
+                detail=f"Access denied: role attribute '{attribute}' required",
             )
         return user
 

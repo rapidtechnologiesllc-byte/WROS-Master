@@ -7,7 +7,7 @@ from app.models.employee import Employee
 from app.models.candidate import Candidate
 from app.models.client import Client
 from app.models.opportunity import Opportunity
-from app.models.invoice import Invoice, InvoiceLineItem
+from app.models.invoice import Invoice
 from app.services.pnl_service import get_org_pnl_summary
 from app.utils.agent_logger import log_agent_execution
 
@@ -47,15 +47,15 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     fy_progress_pct = min(100, (days_elapsed / total_fy_days) * 100)
 
     # 1. Headcount: active employees (ACTIVE status, not archived)
-    total_headcount = db.query(func.count(Employee.id)).filter(
-        Employee.status == "ACTIVE"
+    total_headcount = db.query(func.count(Employee.EmployeeID)).filter(
+        Employee.EmployeeStatus == "ACTIVE"
     ).scalar() or 0
 
     headcount_target = targets["headcount_target"]
     headcount_pct = (total_headcount / headcount_target * 100) if headcount_target > 0 else 0
 
     # 2. Revenue: total invoiced YTD
-    ytd_revenue = db.query(func.sum(Invoice.total_usd_cents)).filter(
+    ytd_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
         Invoice.created_at >= fy_start,
         Invoice.created_at <= today,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -94,9 +94,7 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     retention_pct = 100
 
     # 6. Utilization: billable hours / available hours
-    billable_hours_ytd = db.query(func.sum(InvoiceLineItem.hours)).join(
-        Invoice, InvoiceLineItem.invoice_id == Invoice.id
-    ).filter(
+    billable_hours_ytd = db.query(func.sum(Invoice.billable_hours)).filter(
         Invoice.created_at >= fy_start,
         Invoice.created_at <= today
     ).scalar() or 0
@@ -107,12 +105,13 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     utilization_progress_pct = (utilization_pct / utilization_target * 100) if utilization_target > 0 else 0
 
     # 7. Margin: org-wide this FY
-    pnl = get_org_pnl_summary(db, year=today.year, month=today.month)
-    margin_pct = (pnl.get("margin_pct") or 0) if pnl else 0
+    current_month = today.strftime("%Y-%m")
+    pnl = get_org_pnl_summary(db, current_month)
+    margin_pct = pnl.get("margin_pct", 0) if pnl else 0
     margin_target = targets["margin_target_pct"]
-    margin_progress_pct = ((margin_pct or 0) / margin_target * 100) if margin_target > 0 else 0
+    margin_progress_pct = (margin_pct / margin_target * 100) if margin_target > 0 else 0
 
-    result = {
+    return {
         "fy_year": fy_year,
         "fy_progress_pct": round(fy_progress_pct, 1),
         "days_elapsed": days_elapsed,
@@ -177,22 +176,22 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
         }
     }
 
+    result_dict = {
+        "fy_year": fy_year,
+        "headcount_progress": total_headcount,
+        "revenue_progress_usd_cents": ytd_revenue,
+        "margin_pct": margin_pct,
+        "fy_progress_pct": fy_progress_pct
+    }
+
     log_agent_execution(
         db=db,
         agent_name="CEO/FY Progress Agent",
         action_taken="get_fy_progress",
         tenant_id="system",
-        action_data={
-            "fy_year": fy_year,
-            "headcount_progress": total_headcount,
-            "revenue_progress_usd_cents": ytd_revenue,
-            "margin_pct": margin_pct,
-            "fy_progress_pct": fy_progress_pct
-        },
+        action_data=result_dict,
         success=True,
     )
-
-    return result
 
 
 def get_fy_executive_summary(db: Session) -> dict:

@@ -86,10 +86,6 @@ class UnifiedLoginResponse(BaseModel):
     user_role: Optional[str] = None
     user_name: Optional[str] = None
     user_email: Optional[EmailStr] = None
-    business_unit_id: Optional[int] = None
-    business_unit_name: Optional[str] = None
-    roles: List[str] = []  # Multi-role support: list of role names
-    permissions: List[str] = []  # Flattened permissions from all roles
 
     # Candidate-specific (None for users)
     candidate_id: Optional[str] = None

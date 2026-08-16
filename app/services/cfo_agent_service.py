@@ -1,4 +1,4 @@
-﻿"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
+"""CFO Agent — financial Q&A and insights for Chief Financial Officer."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -37,23 +37,20 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
         period_end = datetime(year, month + 1, 1)
 
     # 1. Total Revenue (all invoices, all BUs, this month)
-    total_revenue = db.query(func.sum(Invoice.total_usd_cents)).filter(
+    total_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
     ).scalar() or 0
 
     # 2. Org-wide P&L (all BUs combined)
-    pnl = get_org_pnl_summary(db, year=year, month=month)
+    pnl = get_org_pnl_summary(db, year_month)
 
     # 3. AR Aging (unpaid invoices by age bucket)
-    ar_aging = scan_overdue_invoices(db)
+    ar_aging = scan_overdue_invoices(db, year_month)
 
-    # 4. Reserve Fund Status (org-wide aggregation not yet implemented, return default)
-    reserve = {
-        "target_usd_cents": 0,
-        "current_balance_usd_cents": 0
-    }
+    # 4. Reserve Fund Status
+    reserve = get_reserve_fund_status(db)
 
     # 5. Revenue Leakage (gap between invoiced and earned hours)
     leakage = db.query(func.sum(RevenueLeakageFlag.unbilled_hours)).filter(
@@ -68,32 +65,28 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
     ).scalar() or 0
 
     # 7. Cash Position (invoices PAID, minus expenses)
-    cash_paid = db.query(func.sum(Invoice.total_usd_cents)).filter(
+    cash_paid = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
         Invoice.status == "PAID",
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end
     ).scalar() or 0
 
-    def safe_div(numerator, divisor):
-        return (numerator or 0) / divisor if numerator else 0
-
-    pnl = pnl or {}
     result = {
         "period": year_month,
         "total_revenue_usd": total_revenue / 100 if total_revenue else 0,
         "total_revenue_usd_cents": total_revenue,
-        "gross_margin_pct": pnl.get("margin_pct") or 0,
-        "net_position_usd": safe_div(pnl.get("net_position_usd_cents"), 100),
-        "net_position_usd_cents": pnl.get("net_position_usd_cents") or 0,
-        "cost_of_delivery_usd": safe_div(pnl.get("total_cost_usd_cents"), 100),
-        "cost_of_delivery_usd_cents": pnl.get("total_cost_usd_cents") or 0,
+        "gross_margin_pct": pnl.get("margin_pct", 0) if pnl else 0,
+        "net_position_usd": (pnl.get("net_position_usd_cents", 0) / 100) if pnl else 0,
+        "net_position_usd_cents": pnl.get("net_position_usd_cents", 0) if pnl else 0,
+        "cost_of_delivery_usd": (pnl.get("total_cost_usd_cents", 0) / 100) if pnl else 0,
+        "cost_of_delivery_usd_cents": pnl.get("total_cost_usd_cents", 0) if pnl else 0,
         "cash_position_usd": cash_paid / 100 if cash_paid else 0,
         "cash_position_usd_cents": cash_paid,
-        "ar_aging_summary": ar_aging or [],
-        "reserve_fund_target_usd": (reserve.get("target_usd_cents", 0) or 0) / 100,
-        "reserve_fund_current_usd": (reserve.get("current_balance_usd_cents", 0) or 0) / 100,
-        "revenue_leakage_hours": leakage or 0,
-        "open_disputes_count": disputes or 0
+        "ar_aging_summary": ar_aging,
+        "reserve_fund_target_usd": (reserve.get("target_usd_cents", 0) / 100) if reserve else 0,
+        "reserve_fund_current_usd": (reserve.get("current_balance_usd_cents", 0) / 100) if reserve else 0,
+        "revenue_leakage_hours": leakage,
+        "open_disputes_count": disputes
     }
 
     log_agent_execution(
@@ -177,16 +170,16 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     # Get all BUs (from Users with Partner role + their BU)
     partners = db.query(Users).filter(
         Users.UserRole == "Partner",
-        Users.bu_context_id.isnot(None)
+        Users.business_unit_id.isnot(None)
     ).all()
 
     comparison = []
     for partner in partners:
         try:
-            pnl = get_bu_pnl(db, partner.bu_context_id, year_month)
+            pnl = get_bu_pnl(db, partner.business_unit_id, year_month)
             comparison.append({
                 "partner_name": partner.UserName,
-                "bu_id": partner.bu_context_id,
+                "bu_id": partner.business_unit_id,
                 "revenue_usd": (pnl.get("total_revenue_usd_cents", 0) / 100) if pnl else 0,
                 "cost_usd": (pnl.get("total_cost_usd_cents", 0) / 100) if pnl else 0,
                 "net_position_usd": (pnl.get("net_position_usd_cents", 0) / 100) if pnl else 0,
@@ -204,12 +197,9 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
         today = datetime.utcnow()
         year_month = today.strftime("%Y-%m")
 
-    year, month = year_month.split("-")
-    year, month = int(year), int(month)
-
     # This would ideally come from detailed expense tracking
     # For now, derive from P&L
-    pnl = get_org_pnl_summary(db, year=year, month=month)
+    pnl = get_org_pnl_summary(db, year_month)
 
     return {
         "period": year_month,
@@ -217,7 +207,7 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
         "salary_cost_pct": 70,  # Estimated
         "overhead_cost_pct": 20,  # Estimated
         "other_cost_pct": 10,  # Estimated
-        "note": "Breakdown is estimated â€” detailed expense tracking not yet implemented"
+        "note": "Breakdown is estimated — detailed expense tracking not yet implemented"
     }
 
 
@@ -259,4 +249,3 @@ def get_financial_forecast(db: Session, months_ahead: int = 3) -> dict:
         "forecast_basis": "6-month linear trend",
         "months": forecast
     }
-

@@ -25,7 +25,7 @@ class CostRateConfig(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     # Null = org-wide default, applied when no BU-specific row exists.
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     statutory_pct = Column(Numeric(5, 2), nullable=False)
     overhead_pct = Column(Numeric(5, 2), nullable=False)

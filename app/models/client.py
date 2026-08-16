@@ -78,7 +78,7 @@ class Client(Base):
     # Nullable: a prospect with no partner/BU assigned yet is visible
     # to everyone until claimed, same "Org Pool" posture
     # CandidateOwnership already established for candidates.
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     company_name = Column(String(300), nullable=False)
     company_short_name = Column(String(50), nullable=True)
@@ -100,8 +100,6 @@ class Client(Base):
     tier = Column(Enum(*CLIENT_TIERS, name="client_tier", native_enum=False, create_constraint=True), nullable=False, default="STANDARD")
     status = Column(Enum(*CLIENT_STATUSES, name="client_status", native_enum=False, create_constraint=True), nullable=False, default="PROSPECT")
 
-    account_manager_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)  # Account manager from users table
-    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)  # Sales contact who opened the account
     account_manager_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True)
 
     billing_address = Column(Text, nullable=True)
@@ -128,10 +126,6 @@ class Client(Base):
     created_by = Column(String(50), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
-    account_manager_user = relationship("Users", foreign_keys=[account_manager_id], lazy="select")
-    client_owner_user = relationship("Users", foreign_keys=[client_owner_id], lazy="select")
-    account_manager_employee = relationship("Employee", foreign_keys=[account_manager_employee_id], lazy="select")
     contacts = relationship("ClientContact", back_populates="client", lazy="select")
 
     __table_args__ = (

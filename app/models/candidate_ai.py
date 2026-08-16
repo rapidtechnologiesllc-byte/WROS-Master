@@ -57,10 +57,10 @@ class CandidateConversation(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    # Tenant ID — organizational context for this conversation
-    # Note: FK constraint removed (schema design issue; should reference tenants table, not users)
+    # Tenant — maps to users.UserID (the org owner / admin user)
     tenant_id = Column(
         String(50),
+        ForeignKey("users.UserID", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -131,7 +131,7 @@ class CandidateConversation(Base):
     )
 
     # ORM relationships
-    # Note: tenant relationship removed (FK removed; tenant_id is just a string context, not a Users reference)
+    tenant    = relationship("Users",     foreign_keys=[tenant_id],    lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     events    = relationship(
         "ConversationEvent",
@@ -162,10 +162,10 @@ class CandidateAIAssignment(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    # Tenant ID — organizational context for this assignment
-    # Note: FK constraint removed (schema design issue; should reference tenants table, not users)
+    # Tenant — maps to users.UserID
     tenant_id = Column(
         String(50),
+        ForeignKey("users.UserID", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -182,8 +182,8 @@ class CandidateAIAssignment(Base):
     ai_agent_name = Column(String(100), nullable=False)
 
     # The persona/prompt profile the agent uses for this candidate
-    # Can be 800-1000+ words for detailed system prompts
-    ai_agent_persona = Column(Text, nullable=True)
+    # (e.g. "friendly-hr", "formal-recruiter")
+    ai_agent_persona = Column(String(100), nullable=True)
 
     # When the assignment was made
     assigned_at = Column(DateTime(timezone=False), server_default=func.now())
@@ -199,7 +199,7 @@ class CandidateAIAssignment(Base):
     is_active = Column(Boolean, nullable=False, server_default="1")
 
     # ORM relationships
-    # Note: tenant relationship removed (FK removed; tenant_id is just a string context, not a Users reference)
+    tenant    = relationship("Users",     foreign_keys=[tenant_id],    lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     assigner  = relationship("Users",     foreign_keys=[assigned_by],  lazy="select")
 

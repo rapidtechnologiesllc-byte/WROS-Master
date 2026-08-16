@@ -12,9 +12,6 @@ class AnalyticsSummary(BaseModel):
     avg_messages_per_candidate: float
     human_intervention_rate: float
     human_dependency_target_pct: int
-    candidates_reached: int
-    candidates_responded: int
-    jobs_connected_to_thunder: int
 
 
 class TrendPoint(BaseModel):
