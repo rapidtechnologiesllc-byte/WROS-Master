@@ -18,6 +18,8 @@ class Users(Base):
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # RBAC — nullable so existing users are not broken on upgrade
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
+    # New role template system (2026-08-15) — single role template replaces multi-role complexity
+    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason: existing rows get backfilled
@@ -90,6 +92,7 @@ class Users(Base):
     terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
+    role_template = relationship("RoleTemplate", foreign_keys=[role_template_id], lazy="select")
     bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")

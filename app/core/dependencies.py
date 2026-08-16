@@ -260,34 +260,7 @@ def require_permission(permission: str):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Super User bypass — CEO, Admin, and Super User roles have all permissions
-        # This applies to all endpoints, present and future, without requiring manual configuration
-        # Check: (1) legacy UserRole, (2) single role relationship, (3) user_roles junction table
-        from app.models.user import UserRole as UserRoleModel
-
-        super_user_roles = {"super user", "admin", "ceo", "cfo"}
-        is_super_user = False
-
-        # Check legacy UserRole string
-        if user.UserRole and user.UserRole.lower() in super_user_roles:
-            is_super_user = True
-
-        # Check single role relationship
-        if not is_super_user and user.role and user.role.name:
-            if user.role.name.lower() in super_user_roles:
-                is_super_user = True
-
-        # Check user_roles junction table (multi-role support)
-        if not is_super_user:
-            user_roles = db.query(UserRoleModel).filter(UserRoleModel.user_id == user.UserID).all()
-            for ur in user_roles:
-                if ur.role and ur.role.name.lower() in super_user_roles:
-                    is_super_user = True
-                    break
-
-        if is_super_user:
-            return user
-
+        # Check permissions via role template
         if not RBACService.has_permission(db, user.UserID, permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
