@@ -118,26 +118,12 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role = getattr(user, 'UserRole', 'Employee')
             logger.warning(f"[LOGIN] Step 6: user_role={user_role}")
 
-            logger.warning(f"[LOGIN] Step 7: Fetching user roles and permissions")
-            from app.models.rbac import Role, RolePermission, Permission
-            from app.models.user import UserRole
+            logger.warning(f"[LOGIN] Step 7: Fetching user permissions from role template")
+            from app.services.rbac_service_template import RBACService
 
-            # Get all roles for this user (from user_roles junction table)
-            user_roles_records = db.query(UserRole).filter(UserRole.user_id == user.UserID).all()
-            roles = [{"id": ur.role.id, "name": ur.role.name} for ur in user_roles_records if ur.role]
-
-            # Get all permissions for this user (union of all role permissions)
-            permissions_set = set()
-            for ur in user_roles_records:
-                if ur.role:
-                    role_perms = db.query(RolePermission).filter(
-                        RolePermission.role_id == ur.role.id
-                    ).all()
-                    for rp in role_perms:
-                        if rp.permission:
-                            permissions_set.add(rp.permission.name)
-
-            permissions = list(permissions_set)
+            # Get permissions based on role template
+            permissions = RBACService.get_user_permissions_flat(db, user.UserID)
+            roles = []  # Deprecated, kept for backward compat
 
             logger.warning(f"[LOGIN] Step 8: Creating access token")
             access_token = create_access_token(
@@ -145,6 +131,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     "sub": user.UserEmail,
                     "type": user_role,
                     "name": user.UserName or "",
+                    "job_title": user.job_title,
                     "roles": roles,
                     "permissions": permissions,
                 }
@@ -159,6 +146,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 "user_role": user_role,
                 "user_name": user.UserName or "",
                 "user_email": user.UserEmail,
+                "job_title": user.job_title,  # For dashboard routing
                 "roles": roles,
                 "permissions": permissions,
                 "business_unit_id": user.business_unit_id,
