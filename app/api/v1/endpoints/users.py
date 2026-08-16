@@ -12,7 +12,7 @@ from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 logger = logging.getLogger(__name__)
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
+from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
