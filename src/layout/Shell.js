@@ -193,9 +193,15 @@ export default function Shell({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
-  // Root cause fix: Refresh permissions from /hr/me on app load to ensure latest permissions
+  // Root cause fix: Refresh permissions from /hr/me on app load with retries
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 6; // Retry at 0s, 5s, 10s, 15s, 20s, 25s (stop at 30s)
+    const retryInterval = 5000; // 5 seconds
+    let timeoutId = null;
+
     const refreshPermissions = async () => {
       try {
         const { getHrMe } = await import("../services/api/users");
@@ -207,18 +213,42 @@ export default function Shell({
           }
           if (user.permissions && Array.isArray(user.permissions)) {
             localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions));
+            setPermissionsLoaded(true); // Trigger re-render with new permissions
+            return true; // Success, stop retrying
           }
         }
       } catch (error) {
-        // Silently fail - use cached permissions if /hr/me unavailable
-        console.debug("Could not refresh permissions from /hr/me:", error);
+        console.debug(`Permission refresh attempt ${retryCount + 1} failed:`, error);
+      }
+      return false; // Failed, continue retrying
+    };
+
+    const attemptRefresh = async () => {
+      if (!localStorage.getItem("hrms_token")) {
+        return; // No token, stop
+      }
+
+      const success = await refreshPermissions();
+      if (success) {
+        return; // Permissions loaded successfully
+      }
+
+      retryCount++;
+      if (retryCount < maxRetries) {
+        // Schedule next retry
+        timeoutId = setTimeout(attemptRefresh, retryInterval);
       }
     };
 
-    // Only refresh if we have a token
-    if (localStorage.getItem("hrms_token")) {
-      refreshPermissions();
-    }
+    // Start the first attempt immediately
+    attemptRefresh();
+
+    // Cleanup timeouts on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []); // Run once on mount
 
   const normalizedRole = String(role || "")
@@ -287,7 +317,7 @@ export default function Shell({
       return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
     }
     return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses, NAV_ITEMS.myReferrals], groups: [] };
-  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations, getPermissions, buildGroupsByPermissions]);
+  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations, getPermissions, buildGroupsByPermissions, permissionsLoaded]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
 
