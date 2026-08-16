@@ -649,7 +649,7 @@ def create_user_with_roles(
         # Org-level roles have no BU restriction
         bu_context_id = None
     elif payload.business_unit_id:
-        from app.models.business_unit import BusinessUnitContext
+        from app.models.business_unit_context import BusinessUnitContext
         bu_context = db.query(BusinessUnitContext).filter(
             BusinessUnitContext.id == payload.business_unit_id
         ).first()
@@ -759,7 +759,7 @@ def update_user_with_roles(
         target.bu_context_id = None
     elif payload.business_unit_id:
         # Get business unit context for BU-scoped roles
-        from app.models.business_unit import BusinessUnitContext
+        from app.models.business_unit_context import BusinessUnitContext
         bu_context = db.query(BusinessUnitContext).filter(
             BusinessUnitContext.id == payload.business_unit_id
         ).first()
