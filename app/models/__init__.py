@@ -10,7 +10,6 @@ from app.models.consent import ConsentRecord
 from app.models.user import (
     Users,
     Jobs,
-    UserRole,
     CandidateAssignment,
     InterviewPanel,
     PanelMember,
@@ -29,15 +28,9 @@ from app.models.candidate import (
 )
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
-from app.models.offer import Offer, OfferStatus
 from app.models.newsletter import Newsletter, NewsletterSubscriber
-from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
-from app.models.business_unit import BusinessUnit
-from app.models.business_unit_context import BusinessUnitContext
+from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
 from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
-from app.models.permission import (
-    JobTitle, JobTitleRole, DetailedPermission, DetailedRolePermission, FieldPermission, DataScopePermission
-)
 from app.models.employee import (
     Employee,
     EmployeeEmploymentHistory,
@@ -48,8 +41,6 @@ from app.models.client import Client, ClientContact, ClientHistory
 from app.models.demand import Demand, DemandHistory
 from app.models.submission import Submission, SubmissionViolation
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
-from app.models.interview import InterviewFeedback, InterviewDecisionLog, InterviewPanelDecision
-from app.models.offer import Offer, OfferStatus
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.notification import Notification
@@ -57,18 +48,11 @@ from app.models.opportunity import Opportunity
 from app.models.expense import ExpenseRecord
 from app.models.partner_incentive import PartnerIncentiveRule, PartnerIncentiveEvent
 from app.models.revenue_target import BURevenueTarget, PartnerGoal
-from app.models.thunder_session import ThunderSession, ThunderSessionStatus
-from app.models.hiring_manager_validation import (
-    HiringManagerValidation,
-    HMValidationResponse,
-    HMValidationStatus,
-)
 from app.models.timesheet_dispute import TimesheetDispute
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser, ClarificationQA
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
 from app.models.project import Project, ProjectMilestone
 from app.models.invoice import Invoice, InvoiceLineItem
-from app.models.revenue import Revenue
 from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
 from app.models.pipeline_leakage import PipelineLeakageFlag
 from app.models.cost_rate_config import CostRateConfig
@@ -85,7 +69,6 @@ from app.models.checklist import (
 )
 from app.models.ats import ATSScore
 from app.models.candidate_history import CandidateHistory
-from app.models.candidate_rejection import CandidateRejection, CandidateRejectionReason
 from app.models.candidate_ownership import CandidateOwnership
 from app.models.internal_note import InternalNote
 from app.models.hr_assignment import HRAssignment
@@ -180,20 +163,11 @@ __all__ = [
     "Newsletter",
     "NewsletterSubscriber",
     # RBAC
-    "Module",
-    "Resource",
-    "RoleTemplate",
-    "RoleTemplatePermission",
+    "Role",
+    "RoleAttribute",
+    "Permission",
+    "RolePermission",
     "BusinessUnit",
-    "UserRole",
-    "BusinessUnitContext",
-    # Permission System (2026-08-13)
-    "JobTitle",
-    "JobTitleRole",
-    "DetailedPermission",
-    "DetailedRolePermission",
-    "FieldPermission",
-    "DataScopePermission",
     # Organizational Hierarchy
     "Department",
     "OrgNode",
@@ -243,8 +217,6 @@ __all__ = [
     # Invoice (HRMS-0907, Phase 2 Domain 4)
     "Invoice",
     "InvoiceLineItem",
-    # Revenue Recognition & P&L Attribution
-    "Revenue",
     # Revenue Leakage + Reconciliation (HRMS-0906/0903, Phase 2 Domain 4)
     "RevenueLeakageFlag",
     "ReconciliationAlert",
@@ -259,9 +231,6 @@ __all__ = [
     "ATSScore",
     # Candidate History
     "CandidateHistory",
-    # Candidate Rejection Workflow (S-322, 2026-08-15)
-    "CandidateRejection",
-    "CandidateRejectionReason",
     # Candidate Pool Ownership
     "CandidateOwnership",
     # Internal HR Notes
@@ -312,6 +281,8 @@ __all__ = [
     "CandidateEngagementMetrics",
     "BulkEngagementJob",
     "BulkEngagementError",
+    "TenantAIConfig",
+    "TenantAIConfigChangeLog",
     "EventLog",
     "AgentExecutionLog",
     "PreboardingTouchpoint",

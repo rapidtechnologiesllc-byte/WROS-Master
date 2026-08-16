@@ -8,12 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
+from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
-from app.models.business_unit import BusinessUnit
 from app.models.candidate import (
     Candidate,
     CandidateEducationForm,
@@ -264,7 +263,7 @@ def get_all_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.bu_context_id,
+            business_unit=j.business_unit_id,
             department_id=j.department_id,
             salary_range=j.salaryRange
         ))
@@ -315,7 +314,7 @@ def get_active_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.bu_context_id,
+            business_unit=j.business_unit_id,
             department_id=j.department_id,
             salary_range=j.salaryRange
         )
@@ -395,7 +394,7 @@ def filter_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.bu_context_id,
+            business_unit=j.business_unit_id,
             department_id=j.department_id,
             salary_range=j.salaryRange
         )
@@ -424,7 +423,7 @@ def get_my_jobs(
     the user matches more than one column.
     """
     from sqlalchemy import or_
-    from app.models.rbac_template import RoleTemplate
+    from app.models.rbac import Role
 
     my_id = user.UserID
     
@@ -441,10 +440,9 @@ def get_my_jobs(
         Jobs.hiringManagerID == my_id,
         Jobs.contactPerson == my_id,
     ]
-
+    
     # If the user is a BU Head, they should see all jobs belonging to their Business Unit
-    # (unless they're an org-level user who sees all jobs regardless)
-    if is_bu_head and user.business_unit_id and not should_bypass_bu_filter(user):
+    if is_bu_head and user.business_unit_id:
         filters.append(Jobs.business_unit_id == user.business_unit_id)
 
     jobs = (
@@ -471,7 +469,7 @@ def get_my_jobs(
             end_date=j.endDate,
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
-            business_unit=j.bu_context_id,
+            business_unit=j.business_unit_id,
             department_id=j.department_id,
             salary_range=j.salaryRange,
         )
@@ -547,7 +545,9 @@ def get_job_by_id(
         recuriter_id=job.recuriterID,
         business_unit=job.business_unit_id,
         department_id=job.department_id,
-        salary_range=job.salaryRange
+        salary_range=job.salaryRange,
+        required_skills_canonical=job.required_skills_canonical,
+        job_skills_boolean_mode=job.job_skills_boolean_mode
     )
 
 
@@ -603,7 +603,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         
         # Check if we can assign approval to the Business Unit Head
         if request.business_unit:
-            from app.models.rbac_template import RoleTemplate
+            from app.models.rbac import Role
             bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
             if bu_head_role:
                 bu_head = db.query(Users).filter(
@@ -654,6 +654,11 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         # is exactly the "real match might now exist" event per
         # [[wros_ready_for_opportunity_workflow]].
         background_tasks.add_task(scan_new_job_for_matches, db, job)
+    elif job_status == "pending_approval":
+        # Send approval notification email
+        from app.services.job_approval_workflow_service import handle_job_creation_approval_flow
+        approval_info = handle_job_creation_approval_flow(db, job, user, send_emails=True)
+        logger.info(f"[JobCreation] Job {job_id} pending approval. {approval_info['routing_reason']}")
 
     return JobCreateResponse(job_id=job_id, response=response_message)
 
@@ -704,13 +709,19 @@ def approve_job(
     db.commit()
     db.refresh(job)
 
+    # Assign recruiter and send notifications
+    from app.services.job_approval_workflow_service import handle_job_approval
+    approval_result = handle_job_approval(db, job, user, send_emails=True)
+
     background_tasks.add_task(scan_new_job_for_matches, db, job)
 
     approver_name = user.UserName or user.UserEmail
+    recruiter_msg = f" Assigned to recruiter: {approval_result.get('recruiter_name', 'N/A')}" if approval_result.get('recruiter_name') else ""
+
     return JobApproveResponse(
         job_id=job_id,
         status="active",
-        message=f"Job '{job.jobTitle}' approved and is now live.",
+        message=f"Job '{job.jobTitle}' approved and is now live.{recruiter_msg}",
         approved_by=approver_name
     )
 
@@ -1138,7 +1149,7 @@ def assign_candidate_to_job(
     # If the job has a BU, candidate moves to BU Owned; otherwise stays Org Pool
     if job.business_unit_id:
         from app.services.candidate_pool_service import set_bu_owned
-        bu = db.query(BusinessUnit).filter_by(id=job.business_unit_id).first()
+        bu = db.query(__import__('app.models.rbac', fromlist=['BusinessUnit']).BusinessUnit).filter_by(id=job.business_unit_id).first()
         bu_name = bu.name if bu else f"BU #{job.business_unit_id}"
         performed_by = getattr(user, 'UserID', None)
         set_bu_owned(

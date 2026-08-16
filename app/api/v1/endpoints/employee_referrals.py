@@ -7,11 +7,10 @@ from datetime import datetime
 from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, get_current_internal_user
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
+from app.core.dependencies import require_permission
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
-from app.models.user import Users
+# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
@@ -109,11 +108,10 @@ def setup_job_referrals(
     }
 
 
-@router.post("/record-referral")
+@router.post("/record-referral", dependencies=[Depends(require_permission("hrms.referral_submit"))])
 def record_referral(
     request: RecordReferralRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Record an employee referral when they submit a candidate.
@@ -150,14 +148,15 @@ def record_referral(
     ```
     """
 
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    # TODO: Implement auth - get current_user from session
+    # if not current_user:
+    #     raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Record the referral with actual user ID
+    # Record the referral
     result = EmployeeReferralService.record_referral(
         db,
         request.job_id,
-        current_user.UserID,
+        "temp_employee_id",  # TODO: Use current_user.id when auth is implemented
         request.referred_candidate_email,
         request.referred_candidate_name,
     )
@@ -172,48 +171,6 @@ def record_referral(
         "candidate": result["candidate"],
         "bonus_potential": result["bonus_potential"],
         "message": f"Thank you for referring {result['candidate']}! If hired, you'll receive ${result['bonus_potential']:.2f}",
-    }
-
-
-@router.get("/my-referrals")
-def get_my_referrals(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    Get all referrals made by the current employee.
-
-    **Returns:**
-    - List of candidates referred by this employee
-    - Each referral's status (PENDING, SCREENING, INTERVIEW_SCHEDULED, etc.)
-    - Target job for each referral
-    - Potential bonus amount
-    - Dates and last activity
-
-    **Use this to:**
-    - Track your referrals' progress through hiring pipeline
-    - See which referrals might convert to hired (and bonuses)
-    - Get updates on candidates you referred
-    """
-
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    result = EmployeeReferralService.get_employee_referrals(db, current_user.UserID)
-
-    if result.get("status") == "error":
-        raise HTTPException(status_code=404, detail=result.get("message"))
-
-    referrals = result.get("referrals", [])
-    total_potential_bonus = sum(r.get("bonus_potential", 0) for r in referrals)
-
-    return {
-        "status": "retrieved",
-        "employee_id": current_user.UserID,
-        "employee_name": current_user.UserName,
-        "total_referrals": len(referrals),
-        "total_potential_bonus": total_potential_bonus,
-        "referrals": referrals,
     }
 
 
@@ -387,7 +344,6 @@ def get_job_referral_stats(
 @router.get("/dashboard/referrals", dependencies=[Depends(require_permission("hrms.view"))])
 def get_referral_dashboard(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get role-based referral dashboard for logged-in user.
@@ -424,15 +380,18 @@ def get_referral_dashboard(
     - Bonus payout timeline
     """
 
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    # TODO: Implement auth - get current_user from session
+    # if not current_user:
+    #     raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_role = current_user.UserRole
-    user_bu = getattr(current_user, 'business_unit_id', None)
+    # Get user's role and BU from session/database
+    # For now, assume role and bu_context are available on current_user
+    user_role = "EMPLOYEE"  # TODO: Get from current_user.role
+    user_bu = None  # TODO: Get from current_user.business_unit
 
     dashboard = ReferralAccessControl.get_dashboard_view_for_role(
         db,
-        current_user.UserID,
+        "temp_user_id",  # TODO: Use current_user.id when auth is implemented
         user_role,
         user_bu,
     )
@@ -448,7 +407,6 @@ def get_referral_dashboard(
 @router.get("/referrals/all", dependencies=[Depends(require_permission("hrms.view"))])
 def get_all_referrals(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get all referrals visible to this user (role-based filtering).
@@ -462,15 +420,16 @@ def get_all_referrals(
     - Employee: Only their own referrals
     """
 
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    # TODO: Implement auth - get current_user from session
+    # if not current_user:
+    #     raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_role = current_user.UserRole
-    user_bu = getattr(current_user, 'business_unit_id', None)
+    user_role = "EMPLOYEE"  # TODO: Get from current_user.role
+    user_bu = None  # TODO: Get from current_user.business_unit
 
     referrals = ReferralAccessControl.get_referrals_for_user(
         db,
-        current_user.UserID,
+        "temp_user_id",  # TODO: Use current_user.id when auth is implemented
         user_role,
         user_bu,
     )
@@ -485,7 +444,6 @@ def get_all_referrals(
 @router.get("/bonuses/all", dependencies=[Depends(require_permission("finance.view"))])
 def get_all_bonuses(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get all bonuses visible to this user (role-based filtering).
@@ -499,15 +457,16 @@ def get_all_bonuses(
     - Employee: Only their own bonuses
     """
 
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    # TODO: Implement auth - get current_user from session
+    # if not current_user:
+    #     raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_role = current_user.UserRole
-    user_bu = getattr(current_user, 'business_unit_id', None)
+    user_role = "EMPLOYEE"  # TODO: Get from current_user.role
+    user_bu = None  # TODO: Get from current_user.business_unit
 
     bonuses = ReferralAccessControl.get_bonuses_for_user(
         db,
-        current_user.UserID,
+        "temp_user_id",  # TODO: Use current_user.id when auth is implemented
         user_role,
         user_bu,
     )
@@ -519,121 +478,4 @@ def get_all_bonuses(
         "total_bonuses": len(bonuses),
         "total_amount": total_amount,
         "bonuses": bonuses,
-    }
-
-
-# Admin endpoints for referral bonus tier configuration
-
-
-class ReferralBonusTierRequest(BaseModel):
-    """Request to configure referral bonus by years of experience."""
-
-    years_tier: str  # "0", "<3", "<5", ">7", ">10", ">15"
-    bonus_amount_usd_cents: int  # e.g., 50000 for $500
-
-
-@router.get("/admin/bonus-tiers", dependencies=[Depends(require_permission("hrms.referral_management"))])
-def get_bonus_tiers(
-    db: Session = Depends(get_db),
-):
-    """
-    Get all configured referral bonus tiers by years of experience.
-
-    **Response includes:**
-    - All configured tiers (0, <3, <5, >7, >10, >15)
-    - Bonus amount for each tier
-    - Last updated timestamp
-    - Who updated it
-
-    **Used for:**
-    - Display to employees showing their potential bonus based on candidate's tenure
-    - Finance processing of bonuses (90 days after referred candidate starts)
-    - Admin configuration of company-wide referral incentives
-    """
-
-    result = EmployeeReferralService.get_all_bonus_tiers(db)
-    return {
-        "status": "retrieved",
-        "tiers": result.get("tiers", []),
-        "last_updated": result.get("last_updated"),
-    }
-
-
-@router.post("/admin/bonus-tiers", dependencies=[Depends(require_permission("hrms.referral_management"))])
-def create_or_update_bonus_tier(
-    request: ReferralBonusTierRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    Create or update a referral bonus tier configuration.
-
-    **When to call:** When configuring how much bonus to pay for referring candidates
-
-    **Years tiers:**
-    - "0": No tenure (less than 1 year)
-    - "<3": Less than 3 years
-    - "<5": Less than 5 years
-    - ">7": More than 7 years
-    - ">10": More than 10 years
-    - ">15": More than 15 years
-
-    **Bonus calculation:**
-    - Bonus paid 90 days after referred candidate's start date
-    - Amount depends on candidate's years of tenure tier
-    - Example: If tier "<5" is set to $500, and you refer someone with <5 years tenure, you get $500
-
-    **Example:**
-    ```json
-    {
-      "years_tier": "<5",
-      "bonus_amount_usd_cents": 50000
-    }
-    ```
-    """
-
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    result = EmployeeReferralService.create_or_update_bonus_tier(
-        db,
-        request.years_tier,
-        request.bonus_amount_usd_cents,
-        current_user.UserID,
-    )
-
-    if result["status"] != "updated":
-        raise HTTPException(status_code=400, detail=result.get("message"))
-
-    return {
-        "status": "configured",
-        "years_tier": request.years_tier,
-        "bonus_amount_usd": request.bonus_amount_usd_cents / 100,
-        "message": f"Referral bonus for {request.years_tier} years tier set to ${request.bonus_amount_usd_cents / 100:.2f}",
-    }
-
-
-@router.delete("/admin/bonus-tiers/{years_tier}", dependencies=[Depends(require_permission("hrms.referral_management"))])
-def delete_bonus_tier(
-    years_tier: str,
-    db: Session = Depends(get_db),
-):
-    """
-    Delete a referral bonus tier configuration.
-
-    **Years tier:** "0", "<3", "<5", ">7", ">10", ">15"
-
-    **Note:** Bonuses already owed to employees are NOT affected by deleting a tier.
-    Only new referrals going forward will use the updated tier configuration.
-    """
-
-    result = EmployeeReferralService.delete_bonus_tier(db, years_tier)
-
-    if result["status"] != "deleted":
-        raise HTTPException(status_code=404, detail=result.get("message"))
-
-    return {
-        "status": "deleted",
-        "years_tier": years_tier,
-        "message": f"Bonus tier {years_tier} deleted. Existing bonuses are unaffected.",
     }

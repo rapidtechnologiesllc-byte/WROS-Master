@@ -15,6 +15,7 @@ Logs all actions to agent_execution_log for maturity tracking.
 
 from typing import Dict, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
 import os
 import json
 from dotenv import load_dotenv
@@ -22,18 +23,31 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# max_retries=1: the default backoff (2s/4s/8s/16s) burns ~30s and extra quota
-# on every call before falling back — fail fast instead so _get_fallback_response
-# kicks in immediately when the free-tier daily quota (20 req/day) is exhausted.
-llm = None
-if GEMINI_API_KEY:
-    try:
-        llm = ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
-    except Exception as e:
-        print(f"Warning: Could not initialize Gemini LLM: {e}")
-        print("Continuing without AI job creation agent")
-else:
-    print("Warning: GEMINI_API_KEY not set. Job creation agent will use fallback responses.")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+
+# Round-robin LLM providers: Gemini (primary) → Claude (backup) → fallback response
+def _get_llm_provider():
+    """Get LLM provider with round-robin fallback: Gemini → Claude → fallback responses."""
+    # Try Gemini first (primary) - skip if dummy key
+    if GEMINI_API_KEY and GEMINI_API_KEY not in ["AIzaSyDummy_For_Local_Dev", ""]:
+        try:
+            return ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
+        except Exception as e:
+            print(f"Gemini provider failed: {e}, trying Claude...", flush=True)
+
+    # Fall back to Claude (backup) - skip if dummy key
+    if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY not in ["sk-ant-d01-dummy-for-local-dev", ""]:
+        try:
+            return ChatAnthropic(api_key=ANTHROPIC_API_KEY, model="claude-opus-4-1", temperature=0, max_retries=1)
+        except Exception as e:
+            print(f"Claude provider failed: {e}, using fallback responses...", flush=True)
+
+    # If all real providers fail/unavailable, return a dummy LLM that will always fail
+    # and trigger the _get_fallback_response() in the agent
+    return ChatGoogleGenerativeAI(api_key="dummy", model="gemini-3-flash-preview", temperature=0, max_retries=1)
+
+llm = _get_llm_provider()
 
 
 class RecruitmentJobCreationAgent:

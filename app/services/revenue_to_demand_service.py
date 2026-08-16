@@ -1,4 +1,4 @@
-﻿"""
+"""
 Task 6 (EPIC-03, "AI Revenue-to-Workforce Conversion"): converts a BU's
 revenue forecast into a projected headcount need, so Demand planning
 has a real number to plan against instead of guessing.
@@ -27,7 +27,7 @@ from app.services.forecast_variance_service import (
 
 
 def _client_ids_for_bu(db: Session, business_unit_id: int) -> list:
-    return [c.id for c in db.query(Client.id).filter(Client.bu_context_id == business_unit_id).all()]
+    return [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
 
 
 def get_current_bu_headcount(db: Session, business_unit_id: int) -> int:
@@ -102,4 +102,3 @@ def get_revenue_to_demand_projection(
         "open_demand_headcount": open_demand_headcount,
         "workforce_gap": workforce_gap,
     }
-

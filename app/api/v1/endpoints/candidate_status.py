@@ -355,6 +355,24 @@ def update_candidate_status(
         )
         db.commit()
 
+    # ── Autonomous job closure: Check if job is filled when candidate is hired ──
+    # Trigger ONLY if candidate has been converted to employee (has employee record)
+    if request.pipeline_status == "Hired" and candidate.job_id:
+        from app.services.autonomous_job_closure_service import check_and_close_job_if_filled
+        from app.models.employee import Employee
+
+        # Verify employee record exists (candidate has been onboarded)
+        employee = db.query(Employee).filter(
+            Employee.candidate_id == candidate_id
+        ).first()
+
+        if employee:
+            closure_result = check_and_close_job_if_filled(db, candidate.job_id)
+            if closure_result:
+                logger.info(f"[Autonomous] Job {candidate.job_id} auto-closed after hiring {closure_result['hired']} candidates")
+        else:
+            logger.info(f"[Autonomous] Candidate {candidate_id} marked hired but no employee record yet - skipping job closure check")
+
     return StatusActionResponse(
         status="success",
         message=f"Candidate '{candidate_id}' updated: {', '.join(changed_fields)}.",

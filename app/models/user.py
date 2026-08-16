@@ -16,12 +16,10 @@ class Users(Base):
     UserEmail = Column(String(200), unique=True, nullable=False, index=True)
     UserPassword = Column(String(200), nullable=False)
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    # Job title determines dashboard type (CEO, CFO, Admin, HR Manager, Resource Manager, Recruiter, etc.)
-    job_title = Column(String(100), nullable=True, index=True)
-    # Role template system (2026-08-15) — defines what permissions user has
-    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
+    # RBAC — nullable so existing users are not broken on upgrade
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason: existing rows get backfilled
     # in a follow-up step, not broken by this migration. Every tenant-scoped
     # query must filter on this column via app.core.tenant_context, never
@@ -91,44 +89,14 @@ class Users(Base):
     terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
     terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
 
-    role_template = relationship("RoleTemplate", foreign_keys=[role_template_id], lazy="select")
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
+    role = relationship("Role", foreign_keys=[role_id], lazy="select")
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
-
-    # Job title and org hierarchy (2026-08-13 Permission System)
-    # TEMPORARY: Commented out until DB migration applies these columns
-    # job_title_id = Column(Integer, ForeignKey("job_titles.id"), nullable=True, index=True)
-    # org_position_id = Column(Integer, ForeignKey("org_positions.id"), nullable=True, index=True)
-    # org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
-
-    # job_title = relationship("JobTitle", foreign_keys=[job_title_id], lazy="select")
-    # org_position = relationship("OrgPosition", foreign_keys=[org_position_id], lazy="select")
-    # org_node = relationship("OrgNode", foreign_keys=[org_node_id], lazy="select")
 
     def is_active(self) -> bool:
         """Return True if user is not terminated."""
         return self.terminated_at is None
-
-    @property
-    def business_unit_id(self):
-        """Return business_unit_id from bu_context if available, else None."""
-        if self.bu_context:
-            return self.bu_context.id
-        return None
-
-
-class UserRole(Base):
-    """Multi-role assignment junction table (2026-08-12 RBAC)"""
-    __tablename__ = "user_roles"
-    id = Column(String(255), primary_key=True, index=True)
-    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    role_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False, index=True)
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
-    created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
-
-    role = relationship("RoleTemplate", foreign_keys=[role_id], lazy="select")
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 class Jobs(Base):
     __tablename__ = "jobs"
@@ -149,18 +117,16 @@ class Jobs(Base):
     endDate = Column(Date, nullable=True)
     recuriterID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    # S-037/HRMS-0437 -- structured requirements the spec assumes exist on
-    # the job record already (required_skills/min_experience_years/domain/
-    # certifications_preferred). The real jobSkills/jobExperience columns
-    # above are free text a recruiter typed, never structured -- these are
-    # lazily populated the first time technical_scoring_service parses
-    # them (see that module), not filled in at job-creation time, since no
-    # recruiter UI exists yet to enter them directly.
-    required_skills_canonical = Column(JSON, nullable=True)
+    # S-037/HRMS-0437 -- structured requirements with boolean AND/OR matching
+    # Skills format: [{"name": "Java", "years": 5, "mandatory": true}, ...]
+    # mandatory=true means AND (all mandatory skills required), false means OR (optional)
+    required_skills_canonical = Column(JSON, nullable=True, default=list)
+    # job_skills_boolean_mode: "AND" requires all mandatory skills, "OR" allows any skill
+    job_skills_boolean_mode = Column(String(10), nullable=False, server_default="AND", default="AND")
     min_experience_years = Column(Integer, nullable=True)
     domain = Column(String(100), nullable=True)
     certifications_preferred = Column(JSON, nullable=True)
@@ -183,15 +149,7 @@ class Jobs(Base):
         Enum(*JOB_URGENCY_LEVELS, name="job_urgency", native_enum=False, create_constraint=True),
         nullable=True,
     )
-    # EPIC-06-HM-SCREENING -- Hiring Manager validation checkpoint
-    # Questions HM must answer before candidate can be interviewed
-    hm_validation_questions = Column(JSON, nullable=True)  # Array of validation questions
-    hm_validation_required = Column(Boolean, nullable=False, server_default="0", default=False)  # Enable/disable
-    hm_validation_timeout_hours = Column(Integer, nullable=False, server_default="24", default=24)  # Response deadline
-    auto_schedule_after_approval = Column(Boolean, nullable=False, server_default="1", default=True)  # Auto-schedule interview if HM approves
-    hm_auto_reject_threshold = Column(Integer, nullable=True)  # Auto-reject if <N responses negative
-
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
+    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
     recuriter = relationship("Users", foreign_keys=[recuriterID], lazy="select")
@@ -240,7 +198,6 @@ class Interview(Base):
     __tablename__ = "interviews"
 
     id = Column(Integer, primary_key=True)
-    interviewID = Column(String(50), unique=True, nullable=False, index=True)  # String ID for API/exports
     panel_id = Column(Integer, ForeignKey("interview_panels.id"))
     candidate_id = Column(String(50), ForeignKey("candidates.candidateID"))
 
@@ -248,7 +205,7 @@ class Interview(Base):
     end_time = Column(DateTime)
     meeting_link = Column(Text)
     outlook_event_id = Column(Text)
-
+ 
     status = Column(String(50))  # Scheduled, Completed, Cancelled
 
     feedback_status = Column(String(50), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled

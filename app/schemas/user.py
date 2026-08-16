@@ -166,6 +166,8 @@ class JobResponse(BaseModel):
     business_unit: Optional[int] = None
     department_id: Optional[int] = None
     salary_range: Optional[str] = None
+    required_skills_canonical: Optional[list] = None
+    job_skills_boolean_mode: Optional[str] = None
 
 class AllJobsResponse(BaseModel):
     total_jobs: int
@@ -372,16 +374,13 @@ class HrMeResponse(BaseModel):
     user_name: Optional[str]
     user_email: str
     user_role: str
-    permission_role: Optional[str] = None  # job_title for dashboard routing
-    job_title: Optional[str] = None  # Dashboard type selector
-    role_id: Optional[int] = None  # role_template_id
+    permission_role: Optional[str] = None
+    role_id: Optional[int] = None
     business_unit_id: Optional[int] = None
     created_at: datetime
     access_token: str
     token_type: str = "bearer"
     digest_enabled: bool = True  # S-065/HRMS-0465
-    roles: Optional[List[dict]] = None  # Deprecated: kept for backward compat
-    permissions: Optional[List[str]] = None  # Permissions from role template
 
 
 class DigestPreferenceRequest(BaseModel):
@@ -563,22 +562,4 @@ class HiringManagerAssignedCandidateResponse(BaseModel):
     candidate_current_salary: Optional[str] = None
     candidate_is_verified: Optional[bool] = None
     pipeline_status: Optional[str] = None
-
-
-# ── User Creation with Multi-Role and BU Assignment ──────────────────────────
-
-class CreateUserWithRolesRequest(BaseModel):
-    """Create user with multi-role and Business Unit assignment"""
-    user_name: str
-    user_email: EmailStr
-    user_password: str
-    business_unit_id: Optional[int] = None
-    role_ids: List[int]
-
-
-class UpdateUserWithRolesRequest(BaseModel):
-    """Update user with multi-role and Business Unit assignment"""
-    user_name: str
-    business_unit_id: Optional[int] = None
-    role_ids: List[int]
     assigned_at: datetime

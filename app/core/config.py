@@ -40,11 +40,12 @@ class Settings:
     # Database Settings
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     
-    # JWT Settings
-    JWT_ALGORITHM: str = "RS256"
+    # JWT Settings (HS256 with symmetric key)
+    JWT_ALGORITHM: str = "HS256"
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-    JWT_PRIVATE_KEY: str = os.getenv("JWT_PRIVATE_KEY", "").replace("\\n", "\n").replace("\r\n", "\n")
-    JWT_PUBLIC_KEY: str = os.getenv("JWT_PUBLIC_KEY", "").replace("\\n", "\n").replace("\r\n", "\n")
+    JWT_PRIVATE_KEY: str = ""  # Deprecated: using HS256 with JWT_SECRET instead
+    JWT_PUBLIC_KEY: str = ""   # Deprecated: using HS256 with JWT_SECRET instead
     
     # Microsoft Graph API Settings
     TENANT_ID: str = os.getenv("TENANT_ID", "")
@@ -107,15 +108,14 @@ class Settings:
         """Validate that required configuration is present."""
         required_vars = [
             ("DATABASE_URL", cls.DATABASE_URL),
-            ("JWT_PRIVATE_KEY", cls.JWT_PRIVATE_KEY),
-            ("JWT_PUBLIC_KEY", cls.JWT_PUBLIC_KEY),
+            ("JWT_SECRET", cls.JWT_SECRET),
         ]
-        
+
         missing = [var_name for var_name, var_value in required_vars if not var_value]
-        
+
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
-        
+
         return True
 
 

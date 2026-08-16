@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.core.security import create_access_token, decode_access_token
-from app.models import Users
+from app.models import Users,Role
 from app.core.logging import logger
 from app.core.msgraph_session_store import (
     account_id_by_user_id as _account_id_by_user_id,
@@ -31,7 +31,7 @@ CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 AUTHORITY = os.getenv("AUTHORITY") or f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_URI = os.getenv("REDIRECT_URI")
-SCOPES = os.getenv("SCOPES").split()
+SCOPES = (os.getenv("SCOPES") or "https://graph.microsoft.com/.default").split()
 
 redirect_url = os.getenv("REDIRECT_RESPONSE")
 

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Partner incentive eligibility + calculation, 2026-08-05.
 
 check_new_logo_incentive() is the one entry point -- explicitly
@@ -18,19 +18,19 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.invoice import Invoice
 from app.models.partner_incentive import PartnerIncentiveEvent, PartnerIncentiveRule
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.models.user import Users
 
 
 def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional[Users]:
     """The 1:1 Partner-per-BU pairing from the Operating Model (Troy=
     AXION, Curtis=PRISM) -- resolved by role+BU, not a separate mapping
-    table, since Users.bu_context_id + UserRole already say this."""
+    table, since Users.business_unit_id + UserRole already say this."""
     if business_unit_id is None:
         return None
     return (
         db.query(Users)
-        .filter(Users.UserRole == "Partner", Users.bu_context_id == business_unit_id)
+        .filter(Users.UserRole == "Partner", Users.business_unit_id == business_unit_id)
         .first()
     )
 
@@ -59,7 +59,7 @@ def check_new_logo_incentive(db: Session, client: Client) -> Optional[PartnerInc
     issued. A Partner with no NEW_LOGO_BONUS rule row (e.g. Curtis, per
     Avinash's explicit "not applicable to Curtis") can never trigger
     this, structurally -- no special-case check needed."""
-    partner = get_partner_for_bu(db, Client.bu_context_id)
+    partner = get_partner_for_bu(db, client.business_unit_id)
     if partner is None:
         return None
 
@@ -180,14 +180,14 @@ def calculate_revenue_share_payout(
         return existing
 
     partner = db.query(Users).filter(Users.UserID == partner_user_id).first()
-    if partner is None or partner.bu_context_id is None:
+    if partner is None or partner.business_unit_id is None:
         return None
 
     from app.services.forecast_variance_service import get_monthly_actual_revenue
 
     client_ids = [
         c.id for c in db.query(Client.id).filter(
-            Client.bu_context_id == partner.bu_context_id, Client.line_type == "CORE",
+            Client.business_unit_id == partner.business_unit_id, Client.line_type == "CORE",
         ).all()
     ]
     revenue_usd_cents = get_monthly_actual_revenue(db, client_ids=client_ids, year=year, month=month)
@@ -203,5 +203,3 @@ def calculate_revenue_share_payout(
     db.commit()
     db.refresh(event)
     return event
-
-

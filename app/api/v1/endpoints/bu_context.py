@@ -30,8 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.models.user import Users
 from app.schemas.bu_context import BUAccessItem, MyBUAccessResponse, SwitchBURequest
 from app.services.bu_context_service import (
@@ -99,25 +98,3 @@ def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: S
     except NotAuthorizedForAllBUs as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     return {"activated": True, "audit_log_id": entry.id}
-
-
-@router.get("/available-buses")
-def get_available_buses(db: Session = Depends(get_db)):
-    """Get list of all available business units for dropdown selection.
-
-    This is a public endpoint - no authentication required since BU list is
-    needed in user creation form before user is authenticated.
-    """
-    # Get all business units (tenant_id filtering not needed for BU list display)
-    buses = db.query(BusinessUnit).order_by(BusinessUnit.name).all()
-    return {
-        "business_units": [
-            {
-                "id": bu.id,
-                "name": bu.name,
-                "region": getattr(bu, "region", None),
-                "continent": getattr(bu, "continent", None),
-            }
-            for bu in buses
-        ]
-    }

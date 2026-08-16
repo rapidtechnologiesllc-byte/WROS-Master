@@ -20,10 +20,9 @@ a separate story.
 import uuid
 
 from sqlalchemy import (
-    CheckConstraint, Column, Date, DateTime, Enum, ForeignKey, Index, Integer,
+    CheckConstraint, Column, Date, DateTime, Enum, ForeignKey, Integer,
     Numeric, String, Text, UniqueConstraint, func,
 )
-from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
@@ -46,9 +45,6 @@ class Timesheet(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
-    # Denormalized from employee.bu_context_id for faster queries by BU
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     # Backlog item, 2026-08-05 (Task<->Timesheet tie): allocation_id is
     # now nullable -- a timesheet backed by internal Task work (an HR
     # ticket, an IT request) has no client allocation to bill against.
@@ -93,10 +89,7 @@ class Timesheet(Base):
             "(allocation_id IS NOT NULL) OR (task_id IS NOT NULL)",
             name="ck_timesheet_allocation_or_task",
         ),
-        Index("ix_timesheet_tenant_bu", "tenant_id", "bu_context_id"),
     )
-
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 
 class TimesheetEntry(Base):

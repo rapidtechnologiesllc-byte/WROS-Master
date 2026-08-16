@@ -19,7 +19,7 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 # Partner ROI Agent Endpoints
 # ============================================================================
 
-@router.get("/partner-roi/{partner_id}/kpis")
+@router.get("/partner-roi/{partner_id}/kpis", dependencies=[Depends(require_permission("revenue.view"))])
 def get_partner_roi_kpis(
     partner_id: str,
     year_month: str = None,
@@ -29,24 +29,25 @@ def get_partner_roi_kpis(
     """
     Get Partner's ROI and KPIs for a given month.
 
-    Permissions: Partners can see their own; Finance/CEO/Admin see all
+    Permissions: revenue.view (Finance + Partners can see their own; CEO/Finance see all)
     """
     try:
-        # Scope check: Partner can only see their own KPIs; Finance/CEO/Admin see all
-        if current_user.UserRole not in ["Finance", "Super User", "Admin", "CEO"]:
+        kpis = get_partner_kpis(db, partner_id, year_month)
+
+        # Scope check: Partner can only see their own KPIs; Finance/CEO see all
+        if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
             if current_user.UserID != partner_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Can only view your own KPIs"
                 )
 
-        kpis = get_partner_kpis(db, partner_id, year_month)
         return {"status": "success", "data": kpis}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/partner-roi/{partner_id}/trend")
+@router.get("/partner-roi/{partner_id}/trend", dependencies=[Depends(require_permission("revenue.view"))])
 def get_partner_roi_trend(
     partner_id: str,
     months_back: int = 6,
@@ -55,8 +56,8 @@ def get_partner_roi_trend(
 ):
     """Get Partner's KPI trend over last N months."""
     try:
-        # Scope check: Partner can only see their own trend; Finance/CEO/Admin see all
-        if current_user.UserRole not in ["Finance", "Super User", "Admin", "CEO"]:
+        # Same scope check as KPIs
+        if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
             if current_user.UserID != partner_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -69,7 +70,7 @@ def get_partner_roi_trend(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/partner-roi/{partner_id}/actions")
+@router.get("/partner-roi/{partner_id}/actions", dependencies=[Depends(require_permission("revenue.view"))])
 def get_partner_roi_actions(
     partner_id: str,
     db: Session = Depends(get_db),
@@ -77,8 +78,7 @@ def get_partner_roi_actions(
 ):
     """Get prioritized action items for Partner based on KPIs."""
     try:
-        # Scope check: Partner can only see their own actions; Finance/CEO/Admin see all
-        if current_user.UserRole not in ["Finance", "Super User", "Admin", "CEO"]:
+        if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
             if current_user.UserID != partner_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

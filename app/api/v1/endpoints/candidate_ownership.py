@@ -17,7 +17,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin, require_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.schemas.candidate_ownership import (
     CandidateOwnershipListItem,
     CandidateOwnershipListResponse,

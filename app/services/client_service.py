@@ -16,7 +16,7 @@ from app.models.client import (
 )
 from app.models.demand import Demand
 from app.models.employee import Employee
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.user import Users
@@ -120,7 +120,7 @@ def create_client(
 
     client = Client(
         company_name=company_name,
-        tenant_id=created_by_user.tenant_id,
+        business_unit_id=business_unit_id,
         line_type=line_type,
         client_type=client_type,
         industry=industry,
@@ -190,7 +190,6 @@ EDITABLE_CLIENT_FIELDS = {
     "website", "tier", "billing_address", "billing_currency", "payment_terms_days",
     "tax_id_client", "contract_start_date", "contract_end_date",
     "contract_url", "nda_signed", "nda_url", "notes",
-    "account_manager_id", "client_owner_id",  # User IDs for account manager and client owner
 }
 
 

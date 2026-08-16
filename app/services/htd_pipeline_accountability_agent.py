@@ -21,7 +21,7 @@ from sqlalchemy import and_, func
 from app.core.agent_logging import log_agent_execution
 from app.models.employee import Employee
 from app.models.htd_phase_gate import HTDPhaseGate, HTD_GATE_PHASES
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.models.user import Users
 from app.services.performance_store_service import write_performance_event
 

@@ -53,7 +53,7 @@ class PipelineLeakageFlag(Base):
         Enum(*LEAKAGE_PATTERN_TYPES, name="leakage_pattern_type", native_enum=False, create_constraint=True),
         nullable=False, index=True,
     )
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
     demand_id = Column(String(36), ForeignKey("demands.id"), nullable=True, index=True)

@@ -9,7 +9,6 @@ import time
 import app.schemas as schema
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -80,6 +79,12 @@ def create_candidate(
     Raises:
         HTTPException: If candidate with email already exists, or location not provided
     """
+    # Validate location is provided (required for candidate search)
+    if not request.candidate_current_location or not request.candidate_current_location.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Location (City, State, Country) is mandatory for candidate creation"
+        )
 
     # R-07: createCandidateSafe() is the only sanctioned creation path --
     # runs email/phone/LinkedIn dedup (each independently) before any insert.
@@ -238,26 +243,9 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     # docstring for why this endpoint specifically needed the fix
     # (a correctly-scoped sibling endpoint already existed but no
     # frontend screen ever called it).
-    from sqlalchemy.orm import selectinload
-
     candidates = apply_bu_scope_to_candidate_query(
         db, db.query(Candidate), current_user=user,
     ).all()
-
-    # Fetch all related data at once (avoid N+1 query problem)
-    # This is much faster than querying each form type separately for each candidate
-    candidate_ids = [c.candidateID for c in candidates]
-    if candidate_ids:
-        info_forms = {f.candidateID: f for f in db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID.in_(candidate_ids)).all()}
-        education_records_map = {}
-        for e in db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID.in_(candidate_ids)).all():
-            education_records_map.setdefault(e.candidateID, []).append(e)
-        experience_records_map = {}
-        for e in db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID.in_(candidate_ids)).all():
-            experience_records_map.setdefault(e.candidateID, []).append(e)
-        aadhar_forms = {f.candidateID: f for f in db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID.in_(candidate_ids)).all()}
-        pan_forms = {f.candidateID: f for f in db.query(CandidatePanForm).filter(CandidatePanForm.candidateID.in_(candidate_ids)).all()}
-        candidate_statuses = {s.candidateID: s for s in db.query(CandidateStatus).filter(CandidateStatus.candidateID.in_(candidate_ids)).all()}
 
     candidates_data = []
     for candidate in candidates:
@@ -268,14 +256,36 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
             candidate.candidateLastName or ""
         ]
         candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
+        
+        # Get personal info form
+        personal_info = db.query(CandidateInfoForm).filter(
+            CandidateInfoForm.candidateID == candidate.candidateID
+        ).first()
+        
+        # Get all education records
+        education_records = db.query(CandidateEducationForm).filter(
+            CandidateEducationForm.candidateID == candidate.candidateID
+        ).all()
+        
+        # Get all experience records
+        experience_records = db.query(CandidateExperienceForm).filter(
+            CandidateExperienceForm.candidateID == candidate.candidateID
+        ).all()
+        
+        # Get Aadhar form
+        aadhar_form = db.query(CandidateAadharForm).filter(
+            CandidateAadharForm.candidateID == candidate.candidateID
+        ).first()
+        
+        # Get PAN form
+        pan_form = db.query(CandidatePanForm).filter(
+            CandidatePanForm.candidateID == candidate.candidateID
+        ).first()
 
-        # Use pre-fetched data from maps (no additional queries)
-        personal_info = info_forms.get(candidate.candidateID) if candidate_ids else None
-        education_records = education_records_map.get(candidate.candidateID, []) if candidate_ids else []
-        experience_records = experience_records_map.get(candidate.candidateID, []) if candidate_ids else []
-        aadhar_form = aadhar_forms.get(candidate.candidateID) if candidate_ids else None
-        pan_form = pan_forms.get(candidate.candidateID) if candidate_ids else None
-        candidate_status = candidate_statuses.get(candidate.candidateID) if candidate_ids else None
+        # Get candidate status (scoped per candidate)
+        candidate_status = db.query(CandidateStatus).filter(
+            CandidateStatus.candidateID == candidate.candidateID
+        ).first()
 
         # Build response object
         candidate_response = CandidateCompleteResponse(
@@ -558,12 +568,9 @@ def get_candidates_by_my_bu(
 
     # ── Resolve the calling user's BU ─────────────────────────────────────────
     calling_user = db.query(Users).filter(Users.UserID == user.UserID).first()
+    bu_id = calling_user.business_unit_id if calling_user else None
 
-    # Check if user is org-level (should see all data)
-    is_org_level = should_bypass_bu_filter(calling_user)
-    bu_id = get_user_bu_id(calling_user)
-
-    if not is_org_level and not bu_id:
+    if not bu_id:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -572,19 +579,12 @@ def get_candidates_by_my_bu(
             ),
         )
 
-    # ── Find candidate IDs that belong to this BU (or all candidates if org-level) ─────────────────────────────
-    if is_org_level:
-        # Org-level users see all BU-owned candidates + org pool
-        bu_candidate_ids = {row.candidateID for row in db.query(CandidateOwnership).filter(
-            CandidateOwnership.pool_status == POOL_BU,
-        ).all()}
-    else:
-        # Regular users see only their BU's candidates
-        ownership_query = db.query(CandidateOwnership).filter(
-            CandidateOwnership.owned_by_bu_id == bu_id,
-            CandidateOwnership.pool_status == POOL_BU,
-        )
-        bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
+    # ── Find candidate IDs that belong to this BU ─────────────────────────────
+    ownership_query = db.query(CandidateOwnership).filter(
+        CandidateOwnership.owned_by_bu_id == bu_id,
+        CandidateOwnership.pool_status == POOL_BU,
+    )
+    bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
 
     # ── Optionally include Org Pool candidates ────────────────────────────────
     if include_org_pool:

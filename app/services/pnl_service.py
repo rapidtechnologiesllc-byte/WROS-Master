@@ -1,4 +1,4 @@
-﻿"""
+"""
 EPIC-16 -- BU P&L Engine. Real workbook has both a BU P&L sheet (Axion
 vs Prism) and a Location P&L sheet (BXIN vs BXUS legal entities) --
 only BU P&L is built here. Location P&L is NOT built: no field
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.business_unit import BusinessUnit
+from app.models.rbac import BusinessUnit
 from app.services.cost_rate_service import calculate_fully_loaded_cost_usd_cents, get_active_cost_rate_config
 from app.services.forecast_variance_service import get_monthly_actual_revenue
 
@@ -29,7 +29,7 @@ def get_bu_pnl(db: Session, *, business_unit_id: int, year: int, month: int) -> 
     those clients this month). Both real, derived numbers -- no
     invented allocation formula beyond what cost_rate_service already
     established."""
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.bu_context_id == business_unit_id).all()]
+    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
     revenue_usd_cents = get_monthly_actual_revenue(db, client_ids=client_ids, year=year, month=month)
 
     config = get_active_cost_rate_config(db, business_unit_id=business_unit_id)
@@ -116,4 +116,3 @@ def get_org_pnl_summary(db: Session, *, year: int, month: int, tenant_id: Option
         "org_cost_data_complete": org_cost_data_complete,
         "by_business_unit": by_bu,
     }
-

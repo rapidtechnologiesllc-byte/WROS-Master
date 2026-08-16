@@ -110,9 +110,6 @@ class EmployeeReferralService:
         """Record an employee referral."""
 
         try:
-            from app.models.candidate import Candidate
-            from app.utils.uniq_id_generator import candidate_id_generator
-
             # Get job referral settings to get bonus amount
             settings = db.query(JobReferralSettings).filter(
                 JobReferralSettings.job_id == job_id
@@ -121,27 +118,6 @@ class EmployeeReferralService:
             bonus_amount = (
                 settings.referral_bonus_amount_usd_cents if settings else 50000
             )  # $500 default
-
-            # Create candidate record if it doesn't exist
-            existing_candidate = db.query(Candidate).filter(
-                Candidate.candidateEmail == referred_candidate_email
-            ).first()
-
-            if not existing_candidate:
-                name_parts = referred_candidate_name.split(' ', 1)
-                candidate = Candidate(
-                    candidateID=candidate_id_generator(),
-                    candidateEmail=referred_candidate_email,
-                    candidateFirstName=name_parts[0],
-                    candidateLastName=name_parts[1] if len(name_parts) > 1 else '',
-                    candidateStatus="REFERRED",
-                    created_at=datetime.utcnow(),
-                )
-                db.add(candidate)
-                db.flush()
-                candidate_id = candidate.candidateID
-            else:
-                candidate_id = existing_candidate.candidateID
 
             referral = EmployeeReferral(
                 referral_id=f"ref_{uuid.uuid4().hex[:12]}",
@@ -156,26 +132,10 @@ class EmployeeReferralService:
 
             db.add(referral)
 
-            # Assign to Thunder autonomous hiring system
-            try:
-                from app.models.thunder_assignment import ThunderAssignment
-                thunder_assignment = ThunderAssignment(
-                    assignment_id=f"ta_{uuid.uuid4().hex[:12]}",
-                    job_id=job_id,
-                    candidate_email=referred_candidate_email,
-                    candidate_name=referred_candidate_name,
-                    assignment_status="PENDING_SCREENING",
-                    assigned_date=datetime.utcnow(),
-                )
-                db.add(thunder_assignment)
-            except:
-                pass
-
             # Update job referral settings
             if settings:
                 settings.total_referrals_received += 1
-
-            db.commit()
+                db.commit()
 
             return {
                 "status": "recorded",
@@ -404,117 +364,6 @@ class EmployeeReferralService:
                 ),
                 "total_bonuses_owed": sum(r.referral_bonus_amount_usd_cents for r in hired_referrals) / 100,
                 "bonuses_paid": sum(r.referral_bonus_amount_usd_cents for r in hired_referrals if r.bonus_paid) / 100,
-            }
-
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    @staticmethod
-    def get_employee_referrals(db: Session, employee_id: str) -> Dict[str, Any]:
-        """Get all referrals made by an employee."""
-
-        try:
-            referrals = db.query(EmployeeReferral).filter(
-                EmployeeReferral.referring_employee_id == employee_id
-            ).all()
-
-            result = []
-            for referral in referrals:
-                result.append({
-                    "referral_id": referral.referral_id,
-                    "job_id": referral.job_id,
-                    "candidate_name": referral.referred_candidate_name,
-                    "candidate_email": referral.referred_candidate_email,
-                    "status": referral.referral_status,
-                    "bonus_potential": referral.referral_bonus_amount_usd_cents / 100,
-                    "bonus_paid": referral.bonus_paid,
-                    "created_at": referral.created_at.isoformat() if referral.created_at else None,
-                    "updated_at": referral.updated_at.isoformat() if referral.updated_at else None,
-                })
-
-            return {
-                "status": "retrieved",
-                "referrals": result,
-            }
-
-        except Exception as e:
-            return {"status": "error", "message": str(e), "referrals": []}
-
-    @staticmethod
-    def get_all_bonus_tiers(db: Session) -> Dict[str, Any]:
-        """Get all configured referral bonus tiers."""
-
-        try:
-            # Store tiers in a simple in-memory structure for now
-            # This can be replaced with a database table later
-            tiers = [
-                {"years_tier": "0", "bonus_amount_usd": 500},
-                {"years_tier": "<3", "bonus_amount_usd": 1000},
-                {"years_tier": "<5", "bonus_amount_usd": 1500},
-                {"years_tier": ">7", "bonus_amount_usd": 2000},
-                {"years_tier": ">10", "bonus_amount_usd": 2500},
-                {"years_tier": ">15", "bonus_amount_usd": 3000},
-            ]
-
-            return {
-                "status": "retrieved",
-                "tiers": tiers,
-                "last_updated": datetime.utcnow().isoformat(),
-            }
-
-        except Exception as e:
-            return {"status": "error", "message": str(e), "tiers": []}
-
-    @staticmethod
-    def create_or_update_bonus_tier(
-        db: Session,
-        years_tier: str,
-        bonus_amount_usd_cents: int,
-        updated_by: str,
-    ) -> Dict[str, Any]:
-        """Create or update a referral bonus tier."""
-
-        try:
-            # Validate tier
-            valid_tiers = ["0", "<3", "<5", ">7", ">10", ">15"]
-            if years_tier not in valid_tiers:
-                return {
-                    "status": "error",
-                    "message": f"Invalid tier. Must be one of: {', '.join(valid_tiers)}",
-                }
-
-            # In production, this would update a database table
-            # For now, return success
-            return {
-                "status": "updated",
-                "years_tier": years_tier,
-                "bonus_amount_usd_cents": bonus_amount_usd_cents,
-                "updated_by": updated_by,
-                "updated_at": datetime.utcnow().isoformat(),
-            }
-
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    @staticmethod
-    def delete_bonus_tier(db: Session, years_tier: str) -> Dict[str, Any]:
-        """Delete a referral bonus tier configuration."""
-
-        try:
-            # Validate tier
-            valid_tiers = ["0", "<3", "<5", ">7", ">10", ">15"]
-            if years_tier not in valid_tiers:
-                return {
-                    "status": "error",
-                    "message": f"Invalid tier. Must be one of: {', '.join(valid_tiers)}",
-                }
-
-            # In production, this would delete from a database table
-            # For now, return success
-            return {
-                "status": "deleted",
-                "years_tier": years_tier,
-                "message": "Bonus tier deleted successfully",
             }
 
         except Exception as e:

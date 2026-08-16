@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum, CheckConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -18,15 +18,6 @@ CANDIDATE_SOURCE_CHANNELS = ("DIRECT", "SUBVENDOR")
 
 class Candidate(Base):
     __tablename__ = "candidates"
-    __table_args__ = (
-        # R-01: 5-year experience floor (60 months)
-        # Allows NULL (not yet verified) or >= 60 months
-        CheckConstraint(
-            "(total_experience_months IS NULL OR total_experience_months >= 60)",
-            name="chk_candidate_experience_5yr_floor"
-        ),
-    )
-
     candidateID = Column(String(50), primary_key=True, index=True)
     candidateRole = Column(String(50), nullable=True, default="Candidate")
     # Employee type: "Intern" | "Full Time Employee"
@@ -86,13 +77,8 @@ class Candidate(Base):
         nullable=False, server_default="DIRECT", default="DIRECT",
     )
     vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=True)
-    # Multi-tenancy: tenant this candidate belongs to (default: 1 for single tenant)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1", index=True)
     # Job mapping — which job this candidate applied for / was assigned to
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
-    # Business Unit Context assignment — unified reference to BU + partner + head + HR manager
-    # Nullable initially for existing candidates; becomes required once populated.
-    bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
     # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half) --
     # opt-in email OTP, reusing app.core.mfa's role-agnostic EMAIL_OTP_*
     # functions. Tri-state, not a plain boolean: NULL = never asked
@@ -104,31 +90,10 @@ class Candidate(Base):
     email_2fa_opted_in = Column(Boolean, nullable=True)
     email_otp_code_hash = Column(String(64), nullable=True)
     email_otp_expires_at = Column(DateTime, nullable=True)
-    # Thunder engagement tracking: should this candidate have Thunder building relationship?
-    # False/NULL (default) = Thunder should engage; True = candidate opted out, skip Thunder
-    do_not_contact = Column(Boolean, nullable=False, server_default="0", default=False)
-    # Track when Thunder was first assigned (for analytics and to avoid duplicate assignments)
-    thunder_assigned_at = Column(DateTime(timezone=False), nullable=True)
-
-    # Thunder Integration (HRMS-0410) — Thunder conversation engine's user ID for this candidate
-    thunder_channel_user_id = Column(String(100), nullable=True, index=True)
-
-    # Overall Candidate Score (denormalized from candidate_desire_profiles for fast reads)
-    # 0-100 scale, updated by auto-scoring services
-    overall_desire_score = Column(Integer, nullable=True)
-
-    # Consent Management (HRMS-P605) — Has candidate given consent for communication?
-    # Tri-state: NULL=not asked, True=yes, False=no
-    consent_given = Column(Boolean, nullable=True)
-
-    # Employment Type Confirmation (HRMS-P606, R-03)
-    # Has HR explicitly confirmed W2_FULLTIME status? Prevents UNKNOWN from being used.
-    employment_type_confirmed = Column(Boolean, nullable=True, server_default="0", default=False)
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
-    bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id], lazy="select")
 
 
 class CandidateInfoForm(Base):

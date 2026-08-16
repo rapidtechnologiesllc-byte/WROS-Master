@@ -39,34 +39,16 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
-# Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
-# docstring for the known in-memory/multi-worker limitation.
-# Note: Increased to 500 req/60s for development dashboard (which loads 20+ widgets in parallel)
-from app.middleware import RateLimitMiddleware
-app.add_middleware(RateLimitMiddleware, max_requests=500, window_seconds=60)
+# Setup CORS middleware
+setup_cors(app)
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
-# Setup CORS middleware LAST so it wraps all other middleware
-# (FastAPI applies middleware in reverse order of addition)
-setup_cors(app)
-
-
-# Handle HTTPException (401, 403, etc.) with CORS headers
-from fastapi import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTPException and add CORS headers to the response"""
-    from app.middleware.cors import add_cors_headers
-
-    response = JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
-    )
-    return add_cors_headers(response, origin=request.headers.get("origin", "*"))
+# Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
+# docstring for the known in-memory/multi-worker limitation.
+from app.middleware import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 
 
 # S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
@@ -79,8 +61,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def log_unhandled_exception(request: Request, exc: Exception):
     from app.core.database import SessionLocal
     from app.services.error_log_service import log_error
-    from app.middleware.cors import add_cors_headers
-    import traceback
 
     db = SessionLocal()
     try:
@@ -93,13 +73,8 @@ async def log_unhandled_exception(request: Request, exc: Exception):
     finally:
         db.close()
 
-    # Log full traceback for debugging
-    full_traceback = traceback.format_exc()
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
-    logger.error(f"Full traceback:\n{full_traceback}")
-
-    response = JSONResponse(status_code=500, content={"detail": "Internal server error."})
-    return add_cors_headers(response, origin=request.headers.get("origin", "*"))
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 
 @app.on_event("startup")
@@ -128,7 +103,6 @@ async def startup_event():
         def _run():
             import time
             from sqlalchemy.exc import OperationalError
-            from datetime import datetime, timedelta
 
             try:
                 # checkfirst=True skips tables that already exist — much faster on restarts
@@ -138,35 +112,38 @@ async def startup_event():
                 logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
                 return  # Can't continue without tables
 
-            # Clean up orphaned PROCESSING import jobs from backend crashes
-            try:
-                from app.core.database import SessionLocal
-                from app.models.bulk_engagement import BulkEngagementJob
+            # Seed RBAC with retries — transient network blips (08S01) are common on cold start
+            from app.core.database import SessionLocal
+            from app.services.rbac_service import RBACService
 
+            MAX_RETRIES = 3
+            RETRY_DELAY = 5  # seconds
+
+            for attempt in range(1, MAX_RETRIES + 1):
                 _db = SessionLocal()
-                now = datetime.utcnow()
-                orphaned_jobs = _db.query(BulkEngagementJob).filter(
-                    BulkEngagementJob.status == "PROCESSING"
-                ).all()
-
-                for job in orphaned_jobs:
-                    # If job has been PROCESSING for more than 30 seconds and has no updated timestamp, it's orphaned
-                    if job.created_at and (now - job.created_at) > timedelta(seconds=30):
-                        job.status = "FAILED"
-                        logger.warning(f"[Startup] Marked orphaned import job {job.id} as FAILED (no progress since {job.created_at})")
-
-                if orphaned_jobs:
-                    _db.commit()
-                _db.close()
-            except Exception as e:
-                logger.warning(f"[Startup] Failed to clean orphaned jobs: {e}")
-
-            # Role-template based RBAC now in use (2026-08-15+ refactor)
-            # Seeding handled via database migrations, not at startup
-            logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-            logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-
-            _db.close()
+                try:
+                    RBACService.seed_roles_and_permissions(_db)
+                    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+                    logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+                    break  # Success — exit retry loop
+                except OperationalError as exc:
+                    logger.warning(
+                        f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
+                        f"(DB connectivity issue): {exc}"
+                    )
+                    if attempt < MAX_RETRIES:
+                        logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        logger.error(
+                            "[Startup] RBAC seed failed after all retries. "
+                            "The app will run but role/permission data may be incomplete."
+                        )
+                except Exception as exc:
+                    logger.error(f"Background startup error: {exc}", exc_info=True)
+                    break  # Non-retryable error
+                finally:
+                    _db.close()
 
         await loop.run_in_executor(executor, _run)
 
@@ -207,23 +184,17 @@ app.include_router(router)
 from app.core.route_security_audit import assert_all_routes_have_permission_declarations
 from app.middleware.auth_middleware import AuthenticationMiddleware
 
-# Temporarily disabled for testing - routes need permission declarations added
-# assert_all_routes_have_permission_declarations(
-#     app,
-#     AuthenticationMiddleware.PUBLIC_ROUTES + AuthenticationMiddleware.PUBLIC_ROUTE_TEMPLATES,
-#     known_exceptions=[
-#         "GET /msgraph/calendar/meetings",
-#         "POST /msgraph/calendar/schedule",
-#         "POST /msgraph/mail/send",
-#         "GET /rbac/modules-and-verbs",
-#         "GET /candidates/bulk-import/list",
-#         "GET /candidates/bulk-import/{job_id}/progress",
-#         "GET /candidate/opt-out/status/{candidate_id}",
-#         "POST /candidate/opt-out/{candidate_id}",
-#     ],
-# )
-# logger.info("[OK] HRMS-0114 route permission audit passed")
-logger.info("[SKIP] HRMS-0114 route permission audit disabled for testing")
+assert_all_routes_have_permission_declarations(
+    app,
+    AuthenticationMiddleware.PUBLIC_ROUTES + AuthenticationMiddleware.PUBLIC_ROUTE_TEMPLATES,
+    known_exceptions=[
+        "GET /msgraph/calendar/meetings",
+        "POST /msgraph/calendar/schedule",
+        "POST /msgraph/mail/send",
+        "GET /rbac/modules-and-verbs",
+    ],
+)
+logger.info("[OK] HRMS-0114 route permission audit passed")
 
 # Mount static files directory
 static_dir = Path("static")
