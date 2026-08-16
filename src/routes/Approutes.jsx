@@ -5,6 +5,7 @@ import ActiveJobs from "../screens/ActiveJobs";
 import InterviewSchedule from "../screens/InterviewSchedule";
 import InterviewStatus from "../screens/InterviewStatus";
 import InterviewAnalytics from "../screens/InterviewAnalytics";
+import HrUserManagement from "../screens/HrUserManagement";
 import JobCreate from "../screens/JobCreate";
 import JobDetails from "../screens/JobDetails";
 import JobsOverview from "../screens/JobsOverview";
@@ -15,7 +16,7 @@ import OfferScreen from "../screens/OfferScreen";
 import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
-import UsersAndAccessControl from "../screens/UsersAndAccessControl";
+import RbacSettingsScreen from "../screens/RbacSettingsScreen";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
@@ -82,7 +83,6 @@ import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
 import ForecastVsActualScreen from "../screens/ForecastVsActualScreen";
 import InvoicesScreen from "../screens/InvoicesScreen";
-import InvoiceManagementScreen from "../screens/InvoiceManagementScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
@@ -103,66 +103,12 @@ import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ErrorLogScreen from "../screens/ErrorLogScreen";
 import AdminSettingsScreen from "../screens/AdminSettingsScreen";
 import PartnerROIAgentScreen from "../screens/PartnerROIAgentScreen";
-import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
+import CEOFYProgressScreen from "../screens/CEOFYProgressScreen";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
-import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
-import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
-import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
-import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
-import CertificationManagementScreen from "../screens/CertificationManagementScreen";
-import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
-import BIExplorerScreen from "../screens/BIExplorerScreen";
-import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
-import MyReferralsScreen from "../screens/MyReferralsScreen";
-
-// Wrapper component that renders the appropriate dashboard based on user job_title
-const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
-  const normalized = String(jobTitle || "").trim().toUpperCase();
-
-  // CEO gets the CEO dashboard
-  if (normalized === "CEO") {
-    return <CEOUnifiedDashboard />;
-  }
-
-  // CFO gets the CFO dashboard
-  if (normalized === "CFO") {
-    return <CFOAgentScreen />;
-  }
-
-  // Partner gets Partner ROI dashboard
-  if (normalized.includes("PARTNER")) {
-    return <PartnerROIAgentScreen />;
-  }
-
-  // HR Manager gets HR dashboard (when built)
-  if (normalized === "HR MANAGER") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Resource Manager gets resource management dashboard (when built)
-  if (normalized === "RESOURCE MANAGER") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Admin gets admin dashboard (when built)
-  if (normalized === "ADMIN") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Everyone else gets the generic dashboard
-  return (
-    <Dashboard
-      candidates={candidates}
-      jobs={jobs}
-      interviews={interviews}
-      offers={offers}
-    />
-  );
-};
 
 const mapCandidateFromApi = (c) => {
   const parseSkills = (raw) => {
@@ -195,7 +141,6 @@ const mapCandidateFromApi = (c) => {
     assignedReportManagerId: c.assigned_report_manager_id || "",
     pipelineStatus: c.pipline_status || c.pipeline_status || "",
     accountStatus: c.status || "",
-    businessUnitId: c.business_unit_id || null,
   };
 };
 
@@ -252,7 +197,6 @@ export const mapJobFromApi = (j, users = []) => {
     startDate: j.start_date || "",
     endDate: j.end_date || "",
     jobDescription: j.job_description || "",
-    businessUnitId: j.business_unit || null,
   };
 };
 
@@ -317,9 +261,7 @@ export default function AppRoutes() {
     return <AuthPage />;
   }
 
-  const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
-  const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const storedRole = localStorage.getItem("permission_role");
   const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
     .trim()
     .toLowerCase();
@@ -335,49 +277,8 @@ export default function AppRoutes() {
     localStorage.removeItem("hrms_user_email");
     localStorage.removeItem("hrms_candidate_id");
     localStorage.removeItem("hrms_user_type");
-    localStorage.removeItem("hrms_roles");
-    localStorage.removeItem("hrms_permissions");
     window.location.href = "/";
   };
-
-  // Root cause fix: Refresh role and permissions from /hr/me on app initialization
-  // CRITICAL: This runs BEFORE Shell renders to ensure fresh permissions are loaded
-  useEffect(() => {
-    const refreshUserData = async () => {
-      try {
-        const { getHrMe } = await import("../services/api/users");
-        const user = await getHrMe();
-        if (user) {
-          // Update localStorage with fresh data from backend
-          if (user.user_role) {
-            localStorage.setItem("permission_role", user.user_role);
-            setStoredRole(user.user_role);
-          }
-          if (user.job_title) {
-            localStorage.setItem("job_title", user.job_title);
-            setStoredJobTitle(user.job_title);
-          }
-          if (user.roles && Array.isArray(user.roles)) {
-            localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
-          }
-          if (user.permissions && Array.isArray(user.permissions)) {
-            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions));
-          }
-        }
-      } catch (error) {
-        console.debug("Could not refresh user data from /hr/me:", error);
-      } finally {
-        // CRITICAL: Mark loading as complete so Shell can render
-        setPermissionsLoading(false);
-      }
-    };
-
-    if (localStorage.getItem("hrms_token")) {
-      refreshUserData();
-    } else {
-      setPermissionsLoading(false);
-    }
-  }, []);
 
   if (
     isCandidateUser({
@@ -558,22 +459,6 @@ export default function AppRoutes() {
     permissionRole: storedRole,
   });
 
-  // Root cause fix: Don't render Shell until permissions are loaded from /hr/me
-  if (permissionsLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        fontSize: '18px',
-        color: '#666'
-      }}>
-        Loading permissions...
-      </div>
-    );
-  }
-
   if (hasWorkspaceAccess) {
     return (
       <>
@@ -591,18 +476,10 @@ export default function AppRoutes() {
               />
             }
           >
-            <Route
-              index
-              element={
-                <DashboardRouter
-                  jobTitle={storedJobTitle}
-                  candidates={candidates}
-                  jobs={jobs}
-                  interviews={interviews}
-                  offers={offers}
-                />
-              }
-            />
+            {/* TODO: Create proper CEO dashboard using our UI components (Card, Table, StatusBadge)
+                AdminWeeklyRecapDashboard imports Ant Design which isn't available.
+                For now, use MyWorkspace for all roles. */}
+            <Route index element={<MyWorkspace onLogout={handleLogout} />} />
 
             <Route path="thunder" element={<ThunderChatScreen />} />
 
@@ -615,7 +492,6 @@ export default function AppRoutes() {
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
-            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -626,19 +502,17 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
-            <Route path="invoice-management" element={<InvoiceManagementScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
-            <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
+            <Route path="ceo-fy-progress" element={<CEOFYProgressScreen />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
-            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -646,22 +520,14 @@ export default function AppRoutes() {
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="my-timesheet" element={<MyTimesheetScreen />} />
             <Route path="my-expenses" element={<MyExpensesScreen />} />
-            <Route path="my-referrals" element={<MyReferralsScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
-            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
-            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
-            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
-            <Route path="training-certification" element={<TrainingCertificationDashboard />} />
-            <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
-            <Route path="bi-explorer" element={<BIExplorerScreen />} />
-            <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
 
             <Route
               path="candidates"
@@ -712,7 +578,7 @@ export default function AppRoutes() {
             />
 
             <Route
-              path="jobs"
+              path="/jobs"
               element={
                 <JobsOverview
                   jobs={jobs}
@@ -847,8 +713,7 @@ export default function AppRoutes() {
           <Route
             index
             element={
-              <DashboardRouter
-                jobTitle={storedJobTitle}
+              <Dashboard
                 candidates={candidates}
                 jobs={jobs}
                 interviews={interviews}
@@ -865,7 +730,6 @@ export default function AppRoutes() {
             <Route path="client-management" element={<ClientManagementScreen />} />
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
-            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -876,19 +740,17 @@ export default function AppRoutes() {
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
-            <Route path="invoice-management" element={<InvoiceManagementScreen />} />
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
-            <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
+            <Route path="ceo-fy-progress" element={<CEOFYProgressScreen />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
-            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -896,15 +758,12 @@ export default function AppRoutes() {
             <Route path="my-tasks" element={<MyTasksScreen />} />
             <Route path="my-timesheet" element={<MyTimesheetScreen />} />
             <Route path="my-expenses" element={<MyExpensesScreen />} />
-            <Route path="my-referrals" element={<MyReferralsScreen />} />
             <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
             <Route path="buddy-program" element={<BuddyProgramListScreen />} />
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/settings" element={<AdminSettingsScreen />} />
-            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
-            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
           <Route
@@ -932,27 +791,11 @@ export default function AppRoutes() {
                   try {
                     const fullCandidate = await fetchCandidateById(c.id);
                     setCandidates((prev) => [fullCandidate, ...prev]);
-
-                    // Check if we're coming from referral flow
-                    const isFromReferral = sessionStorage.getItem("referralRedirect");
-                    if (isFromReferral) {
-                      sessionStorage.removeItem("referralRedirect");
-                      navigate(`/my-referrals`);
-                    } else {
-                      navigate(`/candidates/${fullCandidate.id}`);
-                    }
+                    navigate(`/candidates/${fullCandidate.id}`);
                   } catch (err) {
                     console.error("Failed to fetch candidate after creation, adding minimal data:", err);
                     setCandidates((prev) => [c, ...prev]);
-
-                    // Check if we're coming from referral flow
-                    const isFromReferral = sessionStorage.getItem("referralRedirect");
-                    if (isFromReferral) {
-                      sessionStorage.removeItem("referralRedirect");
-                      navigate(`/my-referrals`);
-                    } else {
-                      navigate(`/candidates/${c.id}`);
-                    }
+                    navigate(`/candidates/${c.id}`);
                   }
                 }}
               />
@@ -1062,7 +905,9 @@ export default function AppRoutes() {
               />
             }
           />
-          <Route path="offers" element={<OfferLettersScreen />} />
+          <Route path="/offers" element={<OfferLettersScreen />} />
+          <Route path="hr-users" element={<HrUserManagement />} />
+          <Route path="rbac" element={<RbacSettingsScreen />} />
         </Route>
       </Routes>
       <ToastContainer position="top-right" autoClose={3000} />

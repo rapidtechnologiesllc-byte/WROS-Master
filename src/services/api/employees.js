@@ -91,12 +91,3 @@ export const bulkImportEmployees = async (file) => {
   });
   return data;
 };
-
-// S-DEFECT-1: Update employee certifications (Guidewire certification levels)
-export const updateEmployeeCertifications = async (employeeId, certifications) => {
-  const { data } = await apiRequest(`/employees/${employeeId}/certifications`, {
-    method: "PUT",
-    body: JSON.stringify(certifications),
-  });
-  return data;
-};

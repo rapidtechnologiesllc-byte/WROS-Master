@@ -1,138 +1,81 @@
-// DEFECT-5: Inline Validation Summary (replaces toasts)
-import { useEffect, useState } from "react";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+// DEFECT-5: Screen-level banner for success/error messages
+// Replaces toast notifications with persistent, inline banners
 
-export function ValidationSummary({ errors, onFieldClick }) {
-  if (!errors || Object.keys(errors).length === 0) return null;
+import { useState, useEffect } from "react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { Button } from "./ui";
 
-  const errorFields = Object.entries(errors).map(([field, message]) => ({ field, message }));
-
-  return (
-    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 animate-slide-down">
-      <div className="flex gap-3">
-        <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-red-800 mb-2">
-            {errorFields.length} field{errorFields.length > 1 ? 's' : ''} required
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {errorFields.map(({ field, message }) => (
-              <button
-                key={field}
-                onClick={() => onFieldClick?.(field)}
-                className="text-xs font-medium text-red-700 hover:text-red-900 hover:underline px-2 py-1 rounded hover:bg-red-100 transition-colors"
-              >
-                {message.replace(' is required.', '').trim()}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes slide-down {
-          from {
-            transform: translateY(-10px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-        .animate-slide-down {
-          animation: slide-down 0.25s ease-out;
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// Toast-replacement for success/API errors (still needed for global messages)
-export function ScreenLevelBanner({ type, message, onDismiss, onRetry, autoDismissMs = 5000 }) {
-  useEffect(() => {
-    if (type === "success" && autoDismissMs) {
-      const timer = setTimeout(onDismiss, autoDismissMs);
-      return () => clearTimeout(timer);
-    }
-  }, [type, autoDismissMs, onDismiss]);
-
-  if (!message) return null;
-
-  const isSuccess = type === "success";
-  const bgClass = isSuccess ? "bg-emerald-500" : "bg-red-500";
-  const hoverClass = isSuccess ? "hover:bg-emerald-600" : "hover:bg-red-600";
-
-  return (
-    <div className={`fixed top-16 left-0 right-0 ${bgClass} z-50 px-4 py-2.5 animate-slide-down`}>
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-white">
-        <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          {isSuccess ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          <p className="text-xs font-medium truncate">{message}</p>
-        </div>
-
-        <div className="flex-shrink-0 flex items-center gap-1.5">
-          {onRetry && !isSuccess && (
-            <button
-              onClick={onRetry}
-              className={`text-xs font-semibold px-2.5 py-1 rounded transition-colors ${hoverClass}`}
-            >
-              Retry
-            </button>
-          )}
-          <button
-            onClick={onDismiss}
-            className={`flex-shrink-0 p-0.5 rounded transition-colors opacity-80 hover:opacity-100 ${hoverClass}`}
-            aria-label="Dismiss message"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes slide-down {
-          from {
-            transform: translateY(-10px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-        .animate-slide-down {
-          animation: slide-down 0.25s ease-out;
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// Hook for managing banner state
 export function useScreenBanner() {
   const [banner, setBanner] = useState(null);
 
-  const showSuccess = (message) => {
+  const showSuccess = (message, autoDismissMs = 3000) => {
     setBanner({ type: "success", message });
+    if (autoDismissMs) {
+      setTimeout(() => setBanner(null), autoDismissMs);
+    }
   };
 
   const showError = (message) => {
-    setBanner({ type: "error", message });
+    setBanner({ type: "error", message, onDismiss: () => setBanner(null) });
   };
 
-  const dismiss = () => {
-    setBanner(null);
+  const showErrorWithRetry = (message, onRetry) => {
+    setBanner({ type: "error", message, onRetry, onDismiss: () => setBanner(null) });
   };
 
-  return {
-    banner,
-    showSuccess,
-    showError,
-    dismiss,
-  };
+  const dismiss = () => setBanner(null);
+
+  return { banner, showSuccess, showError, showErrorWithRetry, dismiss };
+}
+
+export function ScreenLevelBanner({ type, message, onRetry, onDismiss }) {
+  if (!type || !message) return null;
+
+  if (type === "success") {
+    return (
+      <div className="fixed top-16 left-0 right-0 z-40 mx-auto max-w-4xl">
+        <div className="mx-4 flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-700">
+          <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
+          <span className="flex-1 text-sm font-medium">{message}</span>
+          <button
+            onClick={onDismiss}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "error") {
+    return (
+      <div className="fixed top-16 left-0 right-0 z-40 mx-auto max-w-4xl">
+        <div className="mx-4 flex items-center gap-3 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-rose-700">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <span className="flex-1 text-sm font-medium">{message}</span>
+          <div className="flex gap-2">
+            {onRetry && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRetry}
+                className="text-rose-700 hover:bg-rose-100"
+              >
+                Retry
+              </Button>
+            )}
+            <button
+              onClick={onDismiss}
+              className="text-rose-600 hover:text-rose-800"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }

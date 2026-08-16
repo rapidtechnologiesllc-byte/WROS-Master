@@ -117,25 +117,17 @@ function BuTargetForm() {
 
   const buOptions = [
     { label: "Select Business Unit", value: "", disabled: true },
-    ...(businessUnits || []).map((bu) => ({ label: bu.name, value: String(bu.id) })),
+    ...businessUnits.map((bu) => ({ label: bu.name, value: bu.id })),
   ];
 
   const handleSave = async () => {
     setError("");
-    if (!businessUnitId) {
-      setError("Please select a Business Unit");
-      return;
-    }
-    if (!amount) {
-      setError("Please enter an Annual Target");
-      return;
-    }
     try {
       const res = await createBuTarget({
         business_unit_id: Number(businessUnitId),
         target_period: "ANNUAL",
-        fiscal_year: Number(fiscalYear) || new Date().getFullYear(),
-        target_amount_usd_cents: Math.round(parseFloat(amount) * 100),
+        fiscal_year: Number(fiscalYear),
+        target_amount_usd_cents: Math.round(parseFloat(amount || "0") * 100),
       });
       setResult(res);
     } catch (err) {
@@ -203,30 +195,20 @@ function PartnerGoalForm() {
 
   const partnerOptions = [
     { label: "Select Partner", value: "", disabled: true },
-    ...(partners || []).map((p) => ({ label: `${p.user_name} (${p.user_email})`, value: p.user_id })),
+    ...partners.map((p) => ({ label: `${p.user_name} (${p.user_email})`, value: p.user_id })),
   ];
 
   const handleSave = async () => {
     setError("");
-    if (!partnerUserId) {
-      setError("Please select a Partner");
-      return;
-    }
-    if (!amount) {
-      setError("Please enter an Annual Target");
-      return;
-    }
     try {
       await createPartnerGoal({
-        partner_user_id: partnerUserId,
-        target_period: "ANNUAL",
-        fiscal_year: Number(fiscalYear) || new Date().getFullYear(),
-        target_amount_usd_cents: Math.round(parseFloat(amount) * 100),
+        partner_user_id: partnerUserId, target_period: "ANNUAL",
+        fiscal_year: Number(fiscalYear), target_amount_usd_cents: Math.round(parseFloat(amount || "0") * 100),
       });
       const pos = await getPartnerPosition(partnerUserId);
       setPosition(pos);
     } catch (err) {
-      setError(err.message || "Failed to set partner goal. This action requires CEO permission.");
+      setError(err.message || "Failed to set goal (CEO/Super User only).");
     }
   };
 
@@ -234,7 +216,7 @@ function PartnerGoalForm() {
 
   return (
     <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="mb-3 text-sm font-semibold text-gray-900">Set Partner Annual Goal</div>
+      <div className="mb-3 text-sm font-semibold text-gray-900">Set Partner Annual Goal (CEO only)</div>
       {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Select label="Partner" value={partnerUserId} onChange={setPartnerUserId} options={partnerOptions} />

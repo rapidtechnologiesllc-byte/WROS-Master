@@ -7,12 +7,9 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
-import { getRoles } from "../utils/permissions";
-import { getHrMe } from "../services/api/users";
 
 function StatCard({ title, value, icon, onClick }) {
   return (
@@ -37,75 +34,10 @@ export default function Dashboard({
   onGo,
 }) {
   const navigate = useNavigate();
-  const navigationAttemptedRef = useRef(false);
-
-  useEffect(() => {
-    if (navigationAttemptedRef.current) return;
-
-    const checkRoleAndRedirect = async () => {
-      let roles = getRoles() || [];
-
-      // If roles aren't in localStorage, fetch fresh data from backend
-      if (!Array.isArray(roles) || roles.length === 0) {
-        try {
-          const user = await getHrMe();
-
-          // Try to get roles from multiple sources
-          if (user?.roles && Array.isArray(user.roles)) {
-            roles = user.roles;
-          } else if (user?.user_role) {
-            // Fall back to single user_role string
-            roles = [user.user_role];
-          }
-
-          // Store in localStorage for future use
-          if (roles.length > 0) {
-            localStorage.setItem("hrms_roles", JSON.stringify(roles));
-          }
-        } catch (err) {
-          console.error("Failed to fetch fresh user data for role check:", err);
-        }
-      }
-
-      if (Array.isArray(roles) && roles.length > 0) {
-        navigationAttemptedRef.current = true;
-        if (roles.includes("CEO")) {
-          console.log("Redirecting to CEO dashboard...");
-          window.location.replace("/ceo-fy-progress");
-          return;
-        }
-        if (roles.includes("CFO")) {
-          window.location.replace("/cfo-dashboard");
-          return;
-        }
-        if (roles.includes("Partner")) {
-          window.location.replace("/partner-dashboard");
-          return;
-        }
-      }
-    };
-
-    checkRoleAndRedirect();
-  }, []);
-
-  // Get user's BU and role for filtering
-  const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
-  const roles = getRoles() || [];
-  const isSuperUser = roles.includes("super user") || roles.includes("admin") || roles.includes("ceo") || roles.includes("cfo");
-
-  // Filter data based on user role
-  const filteredCandidates = isSuperUser
-    ? candidates
-    : candidates.filter((c) => !c.businessUnitId || c.businessUnitId === userBuId);
-
-  const filteredJobs = isSuperUser
-    ? jobs
-    : jobs.filter((j) => !j.businessUnitId || j.businessUnitId === userBuId);
-
-  const openJobs = filteredJobs.filter(
+  const openJobs = jobs.filter(
     (j) => j.status === "Open" || j.status === "Public",
   ).length;
-  const inPipeline = filteredCandidates.filter((c) => {
+  const inPipeline = candidates.filter((c) => {
     const p = (c.pipelineStatus || "").trim();
     if (p === "Rejected") return false;
     const a = (c.accountStatus || "").trim();

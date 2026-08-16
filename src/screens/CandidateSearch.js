@@ -76,14 +76,14 @@ export default function CandidateSearch({
 
   useEffect(() => {
     const role = localStorage.getItem("permission_role");
-    if (role === 'HR Manager') {
+    if (role === "HR Operations") {
       fetchCandidates();
     }
   }, []);
 
   useEffect(() => {
     const role = localStorage.getItem("permission_role");
-    if (role === 'HR Manager') {
+    if (role === "HR Manager") {
       offerApprovalCandidates();
     }
   }, []);
@@ -495,7 +495,8 @@ export default function CandidateSearch({
               { key: "contact", header: "Contact" },
               { key: "jobTitle", header: "Job Title" },
               { key: "pipeline", header: "Pipeline" },
-              { key: "businessUnit", header: "Business Unit" },
+              { key: "account", header: "Account" },
+              { key: "status", header: "Verified" },
               { key: "actions", header: "" },
             ]}
             rows={filtered.map((c) => ({
@@ -521,10 +522,10 @@ export default function CandidateSearch({
               ) : (
                 <span className="text-xs text-gray-400">—</span>
               ),
-              businessUnit: c.business_unit_name ? (
-                <span className="text-xs font-medium text-gray-900">{c.business_unit_name}</span>
+              account: c.accountStatus ? (
+                <StatusBadge status={c.accountStatus} />
               ) : (
-                <span className="text-xs text-gray-400">Unassigned</span>
+                <span className="text-xs text-gray-400">—</span>
               ),
               status: <StatusBadge status={c.status} />,
               actions: (

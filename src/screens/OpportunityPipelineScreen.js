@@ -29,7 +29,6 @@ import {
   getOpportunityRevenueRollup,
   createRoleDemandFromOpportunity,
   listEligibleOpportunityOwners,
-  listClientOwners,
 } from "../services/api/opportunities";
 
 // Stage-based win probability -- mirrors app.services.opportunity_service.
@@ -54,69 +53,14 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const [clientId, setClientId] = useState("");
   const [dealName, setDealName] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
-  const [accountManagerId, setAccountManagerId] = useState(""); // Account manager
-  const [clientOwnerId, setClientOwnerId] = useState(""); // Client owner (from users list)
+  const [ownerId, setOwnerId] = useState(""); // Opportunity owner
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
-  const [service, setService] = useState("");
-  const [module, setModule] = useState("");
-  const [clientType, setClientType] = useState("");
-  const [pricingModel, setPricingModel] = useState("");
   const [users, setUsers] = useState([]);
-  const [clientOwners, setClientOwners] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [addingClient, setAddingClient] = useState(false);
   const [newClientWebsite, setNewClientWebsite] = useState("");
-
-  const serviceOptions = [
-    "Consulting & Advisory",
-    "System Integration",
-    "System Implementation & Managed Services",
-    "QA & Testing",
-    "Data Migration",
-    "Cloud Migration",
-    "Analytics and Insights",
-    "Digital Experiences",
-    "Staff Augmentation",
-    "Others",
-  ];
-
-  const moduleOptions = [
-    "PolicyCenter",
-    "ClaimsCenter",
-    "BillingCenter",
-    "InsuranceSuite",
-    "InsuranceNow",
-    "PricingCenter",
-    "UnderwritingCenter",
-    "Jutro Digital",
-    "Data and Analytics",
-    "ProNavigator",
-    "Guidewire Marketplace accelerators",
-    "Others",
-  ];
-
-  const clientTypeOptions = [
-    "Personal lines",
-    "Commercial lines",
-    "Specialty lines",
-    "Others",
-  ];
-
-  const pricingModelOptions = [
-    "FTE-based",
-    "Transaction-based",
-    "Per policy",
-    "Outcome based/profit and risk sharing",
-    "Rebadge of Carrier FTEs",
-    "Monetization of Carrier Assets",
-    "Time and Material (T&M)",
-    "Fixed Bid",
-    "As-a-Service/Managed service",
-    "Service-as-a-software",
-    "Others",
-  ];
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -129,23 +73,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         // real FK to employees.id, not users.UserID).
         const employeeList = await listEligibleOpportunityOwners();
         setUsers(employeeList || []);
-
-        // DEFECT-8: Auto-default opportunity owner to current user
-        const userInfo = localStorage.getItem("user_info");
-        if (userInfo && !accountManagerId) {
-          try {
-            const user = JSON.parse(userInfo);
-            // Find current user in the eligible owners list
-            const currentUser = employeeList?.find((e) => e.id === user.id || e.user_id === user.id);
-            if (currentUser) {
-              setAccountManagerId(String(currentUser.id || currentUser.user_id));
-              // DEFECT-4: Also auto-set client owner to current user
-              setClientOwnerId(String(currentUser.id || currentUser.user_id));
-            }
-          } catch (err) {
-            console.error("Failed to auto-set owner:", err);
-          }
-        }
       } catch (err) {
         console.error("Failed to load employees:", err);
       } finally {
@@ -153,18 +80,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       }
     };
     loadUsers();
-  }, []);
-
-  useEffect(() => {
-    const loadClientOwners = async () => {
-      try {
-        const owners = await listClientOwners();
-        setClientOwners(owners || []);
-      } catch (err) {
-        console.error("Failed to load client owners:", err);
-      }
-    };
-    loadClientOwners();
   }, []);
 
   const handleAddClient = async () => {
@@ -194,28 +109,8 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       setError("Client is required.");
       return;
     }
-    if (!accountManagerId) {
+    if (!ownerId) {
       setError("Owner is required.");
-      return;
-    }
-    if (!clientOwnerId) {
-      setError("Client Owner is required.");
-      return;
-    }
-    if (!service) {
-      setError("Service is required.");
-      return;
-    }
-    if (!module) {
-      setError("Guidewire Module is required.");
-      return;
-    }
-    if (!clientType) {
-      setError("Client Type is required.");
-      return;
-    }
-    if (!pricingModel) {
-      setError("Pricing Model is required.");
       return;
     }
     const usdCents = Math.round(parseFloat(revenueValue || "0") * 100);
@@ -229,14 +124,9 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       await createOpportunity({
         client_id: clientId,
         revenue_value_usd_cents: usdCents,
-        account_manager_id: accountManagerId,
-        client_owner_id: clientOwnerId || null,
+        owner_employee_id: ownerId,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
-        service: service,
-        module: module,
-        client_type: clientType,
-        pricing_model: pricingModel,
       });
       onCreated();
     } catch (err) {
@@ -282,9 +172,9 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           )}
         </div>
         <Select
-          label="Account Manager"
-          value={accountManagerId}
-          onChange={setAccountManagerId}
+          label="Owner"
+          value={ownerId}
+          onChange={setOwnerId}
           options={[
             { label: "Select owner", value: "", disabled: true },
             ...users.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
@@ -292,18 +182,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           disabled={loadingUsers}
         />
         <Input label="Revenue Value (USD)" value={revenueValue} onChange={setRevenueValue} placeholder="500000" />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
-        <Select
-          label="Client Owner *"
-          value={clientOwnerId}
-          onChange={setClientOwnerId}
-          options={[
-            { label: "Select client owner", value: "", disabled: true },
-            ...clientOwners.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
-          ]}
-          disabled={loadingUsers}
-        />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
         <Input
@@ -321,46 +199,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
             System-generated from stage — updates automatically as this opportunity moves through the pipeline.
           </div>
         </div>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
-        <Select
-          label="Service"
-          value={service}
-          onChange={setService}
-          options={[
-            { label: "Select service", value: "", disabled: true },
-            ...serviceOptions.map((s) => ({ label: s, value: s })),
-          ]}
-        />
-        <Select
-          label="Guidewire Module"
-          value={module}
-          onChange={setModule}
-          options={[
-            { label: "Select module", value: "", disabled: true },
-            ...moduleOptions.map((m) => ({ label: m, value: m })),
-          ]}
-        />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
-        <Select
-          label="Client Type"
-          value={clientType}
-          onChange={setClientType}
-          options={[
-            { label: "Select client type", value: "", disabled: true },
-            ...clientTypeOptions.map((ct) => ({ label: ct, value: ct })),
-          ]}
-        />
-        <Select
-          label="Pricing Model"
-          value={pricingModel}
-          onChange={setPricingModel}
-          options={[
-            { label: "Select pricing model", value: "", disabled: true },
-            ...pricingModelOptions.map((pm) => ({ label: pm, value: pm })),
-          ]}
-        />
       </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
@@ -569,7 +407,6 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
             Weighted Forecast: <span className="font-semibold">{formatUsdCents(opportunity.weighted_forecast_usd_cents)}</span>
           </div>
           {opportunity.owner_name ? <div>Owner: <span className="font-semibold">{opportunity.owner_name}</span></div> : null}
-          {opportunity.client_owner_name ? <div>Client Owner: <span className="font-semibold">{opportunity.client_owner_name}</span></div> : null}
           {opportunity.expected_close_date ? (
             <div>Expected Close: <span className="font-semibold">{opportunity.expected_close_date}</span></div>
           ) : null}
@@ -735,7 +572,6 @@ export default function OpportunityPipelineScreen() {
     probability: `${o.probability_pct}%`,
     weighted: formatUsdCents(o.weighted_forecast_usd_cents),
     owner: o.owner_name || "—",
-    client_owner: o.client_owner_name || "—",
     close_date: o.expected_close_date || "—",
     actions: (
       <Button variant="ghost" onClick={() => setSelectedOpportunity(o)}>
@@ -860,7 +696,6 @@ export default function OpportunityPipelineScreen() {
                   { key: "probability", header: "Win %" },
                   { key: "weighted", header: "Weighted" },
                   { key: "owner", header: "Owner" },
-                  { key: "client_owner", header: "Client Owner" },
                   { key: "close_date", header: "Expected Close" },
                   { key: "actions", header: "" },
                 ]}

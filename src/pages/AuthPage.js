@@ -82,23 +82,6 @@ export default function AuthPage() {
     if (data?.user_role) {
       localStorage.setItem("permission_role", data.user_role);
     }
-
-    // Multi-role RBAC: Store roles[] and permissions[] from login response
-    if (Array.isArray(data?.roles)) {
-      localStorage.setItem("hrms_roles", JSON.stringify(data.roles));
-    }
-    if (Array.isArray(data?.permissions)) {
-      localStorage.setItem("hrms_permissions", JSON.stringify(data.permissions));
-    }
-
-    // Store business unit info
-    if (data?.business_unit_id) {
-      localStorage.setItem("hrms_business_unit_id", String(data.business_unit_id));
-    }
-    if (data?.business_unit_name) {
-      localStorage.setItem("hrms_business_unit_name", data.business_unit_name);
-    }
-
     const entityType = String(data?.entity_type || "")
       .trim()
       .toLowerCase();
@@ -108,7 +91,6 @@ export default function AuthPage() {
         data?.candidate_id || data?.candidate_email || data?.candidate_role,
       );
 
-    let redirectPath = "/";
     if (looksLikeCandidate) {
       localStorage.setItem("hrms_user_type", "candidate");
       localStorage.setItem(
@@ -135,45 +117,13 @@ export default function AuthPage() {
       if (data?.user_email) {
         localStorage.setItem("hrms_user_email", data.user_email);
       }
-
-      // Role-based landing page redirection for all roles
-      // Check new RBAC roles array first, then fall back to legacy user_role
-      let userRole = null;
-      if (Array.isArray(data?.roles) && data.roles.length > 0) {
-        // Use first role from RBAC system (convert to uppercase for matching)
-        userRole = String(data.roles[0] || "").trim().toUpperCase();
-      } else {
-        // Fall back to legacy user_role field
-        userRole = String(data?.user_role || "").trim().toUpperCase();
-      }
-
-      const roleRedirectMap = {
-        "CEO": "/ceo-fy-progress",
-        "CFO": "/cfo-dashboard",
-        "PARTNER": "/partner-roi",
-        "BU_HEAD": "/bu-dashboard",
-        "BU HEAD": "/bu-dashboard",
-        "HR_MANAGER": "/employees",
-        "HR MANAGER": "/employees",
-        "HR": "/candidates",
-        "RECRUITMENT_MANAGER": "/candidates",
-        "RECRUITMENT MANAGER": "/candidates",
-        "RECRUITER": "/candidates",
-        "HIRING_MANAGER": "/candidates",
-        "HIRING MANAGER": "/candidates",
-        "EMPLOYEE": "/my-tasks"
-      };
-
-      if (roleRedirectMap[userRole]) {
-        redirectPath = roleRedirectMap[userRole];
-      }
     }
 
     if (offer2faOptIn) {
       setShow2faOptInPopup(true);
       return;
     }
-    window.location.href = redirectPath;
+    window.location.href = "/";
   };
 
   const submitLogin = async (event) => {
