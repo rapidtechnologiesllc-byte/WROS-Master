@@ -1177,36 +1177,37 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         return;
       }
 
-      // Create a minimal template object to ensure state update triggers re-render
-      const minimalTemplate = {
-        id: newTemplateId,
-        name: createResponse?.name || `template_${Date.now()}`,
-        display_name: "New role template",
-        description: "",
-        is_system: false,
-        permissions: []
-      };
+      // Fetch the newly created template directly
+      const fetchResponse = await apiRequest(`/admin/role-templates/${newTemplateId}`, {
+        method: "GET"
+      });
 
-      // Set both state variables to ensure component updates
-      setEditingTemplate(minimalTemplate);
-      setEditingTemplateId(newTemplateId);
       setCreatingTemplate(false);
-      toast.success("New role template created. Configure it below.");
 
-      // Fetch the full template data in the background
-      setTimeout(() => {
-        apiRequest(`/admin/role-templates/${newTemplateId}`, {
-          method: "GET"
-        })
-          .then(templateData => {
-            if (templateData) {
-              setEditingTemplate(templateData);
-            }
-          })
-          .catch(err => console.warn("Failed to fetch template data:", err));
-      }, 100);
+      if (fetchResponse) {
+        // Set the template and show edit UI
+        setEditingTemplate(fetchResponse);
+        setEditingTemplateId(newTemplateId);
+        toast.success("New role template created. Configure it below.");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        // Fallback: create minimal template if fetch fails
+        const minimalTemplate = {
+          id: newTemplateId,
+          name: createResponse?.name || `template_${Date.now()}`,
+          display_name: "New role template",
+          description: "",
+          is_system: false,
+          permissions: []
+        };
+        setEditingTemplate(minimalTemplate);
+        setEditingTemplateId(newTemplateId);
+        toast.success("New role template created. Configure it below.");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (err) {
       setCreatingTemplate(false);
+      console.error("handleNewRoleTemplate error:", err);
       toast.error(err.message || "Failed to create role template.");
     }
   };
