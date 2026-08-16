@@ -504,12 +504,13 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ---
 
-## 📋 SCRATCHPAD MERGE LAUNDRY LIST (45 Files + 18 Items)
+## 📋 SCRATCHPAD MERGE LAUNDRY LIST (45 Files + 20 Items)
 
-**Timeline:** Complete all 18 items before merging to main  
+**Timeline:** Complete all 20 items before merging to main  
 **Branch:** `feat/selective-scratchpad-merge`  
 **Testing:** Golden path + edge cases for each item  
 **Status:** Item #1 (JobCreate.js) ready to start  
+**Critical Additions:** Items #19-20 (Missing UI fields from last session)  
 
 ### PHASE 1: CRITICAL PATH (Must Complete First)
 
@@ -825,7 +826,7 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ---
 
-### PHASE 5: NEW SCREENS (Integrate Carefully)
+### PHASE 5: NEW SCREENS & MISSING UI (Integrate Carefully - Items 15-19)
 
 #### 1️⃣5️⃣ HrUserManagement.js (NEW)
 **Status:** ⏳ PENDING  
@@ -879,6 +880,52 @@ Waiting for Tier 1-3 enablers to be completed first.
 
 ---
 
+#### 1️⃣9️⃣ Users Modal - Missing Fields (MISSING CRITICAL FIELDS)
+**Status:** ⏳ PENDING  
+**Priority:** 🔴 CRITICAL (Missing from Add/Edit User)  
+**Changes:**
+- Add User modal missing: Select Partner (dropdown)
+- Add User modal missing: Select BU (Business Unit dropdown)
+- Edit User modal missing: Select Partner (dropdown)
+- Edit User modal missing: Select BU (Business Unit dropdown)
+- Job Title field should be dropdown, currently is text input
+
+**Current (Broken):**
+```
+Edit User Modal:
+- Name (text)
+- Job Title (text input) ❌ Should be dropdown
+- Role Template (select)
+- Permissions (collapsible sections)
+```
+
+**Should Be:**
+```
+Edit User Modal:
+- Name (text)
+- Job Title (dropdown) ✅ 
+- Select Partner (dropdown) ✅
+- Select Business Unit (dropdown) ✅
+- Role Template (select)
+- Permissions (collapsible sections)
+```
+
+**Testing Checklist:**
+- [ ] Add User modal shows all 5 fields (Name, Job Title dropdown, Partner, BU, Role Template)
+- [ ] Edit User modal shows all 5 fields
+- [ ] Partner dropdown loads and filters correctly
+- [ ] BU dropdown loads and filters correctly
+- [ ] Job Title dropdown loads with predefined titles
+- [ ] All dropdowns save correctly
+- [ ] Form validation works for required fields
+- [ ] No console errors
+
+**Location:** `src/screens/UsersAndAccessControl.js`  
+**Files Affected:**
+- `src/screens/UsersAndAccessControl.js` (Add/Edit User modals)
+
+---
+
 ---
 
 ## ✅ COMPLETION TRACKING
@@ -903,6 +950,7 @@ Waiting for Tier 1-3 enablers to be completed first.
 | 16 | UsersLifecycleScreen.js | ⏳ | - | feat/selective | - |
 | 17 | AuthPage.js | ⏳ | - | feat/selective | - |
 | 18 | Role Templates On/Off Toggle | ⏳ | - | feat/selective | - |
+| 19 | Users Modal - Missing Fields | ⏳ | - | feat/selective | - |
 
 ---
 
