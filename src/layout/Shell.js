@@ -98,66 +98,67 @@ function buildGroups(includedKeys) {
 
 // Permission-based navigation builder (2026-08-12)
 // Maps nav keys to their required permissions
+// NOTE: Updated to match actual permission names from CEO role in database
 const NAV_PERMISSIONS = {
-  // Recruitment Module
-  candidates: "recruitment.view",
-  jobs: "recruitment.view",
-  candidateReview: "recruitment.view",
-  offerLetters: "recruitment.view",
-  offerLettersListing: "recruitment.view",
-  submissions: "recruitment.view",
-  interventionQueue: "recruitment.view",
-  rehireApprovals: "recruitment.view",
-  riskDashboard: "recruitment.view",
-  thunderAnalytics: "recruitment.view",
-  bulkLaunch: "recruitment.view",
+  // Recruitment Module (using actual permission names from database)
+  candidates: "candidates.view",
+  jobs: "jobs.view",
+  candidateReview: "candidate_review.view",
+  offerLetters: "offers.view",
+  offerLettersListing: "offers.view",
+  submissions: "submissions.view",
+  interventionQueue: "intervention_queue.view",
+  rehireApprovals: "rehire_approvals.view",
+  riskDashboard: "risk_dashboard.view",
+  thunderAnalytics: "thunder_analytics.view",
+  bulkLaunch: "bulk_launch.view",
 
   // Sales/Client Module
-  clientManagement: "business_unit.manage",
-  demandConfirmation: "recruitment.view",
-  opportunityPipeline: "business_unit.manage",
-  partnerRoi: "business_unit.manage",
+  clientManagement: "clients.view",
+  demandConfirmation: "demand.view",
+  opportunityPipeline: "opportunities.view",
+  partnerRoi: "partner_roi.view",
 
   // Workforce/HR Module
-  employees: "employee.view",
-  employeeConversion: "employee.manage",
-  htdIntake: "recruitment.view",
-  buddyProgram: "employee.manage",
+  employees: "employees.view",
+  employeeConversion: "employees.view",  // convert uses employee.view permission
+  htdIntake: "htd_intake.view",
+  buddyProgram: "buddy_program.view",
   buHeadDashboard: "business_unit.view",
 
   // Resource Management Module
-  corePull: "resource_management.view",
-  projects: "project.manage",
-  allocations: "project.manage",
+  corePull: "core_pull.view",
+  projects: "projects.view",
+  allocations: "allocations.view",
   resourceManagement: "resource_management.view",
-  utilization: "project.view",
-  forecast: "project.view",
+  utilization: "utilization.view",
+  forecast: "forecast.view",
 
   // Finance Module
-  myExpenses: "invoice.view",
-  timesheets: "timesheet.view",
-  invoices: "invoice.view",
-  invoiceManagement: "invoice.manage",
-  revenue: "reports.financial",
-  forecastVsActual: "reports.financial",
-  executiveRevenueDashboard: "reports.financial",
-  financeOperations: "finance.view",
+  myExpenses: "expenses.view",
+  timesheets: "timesheets.view",
+  invoices: "invoices.view",
+  invoiceManagement: "invoices.view",
+  revenue: "revenue.view",
+  forecastVsActual: "forecast.view",
+  executiveRevenueDashboard: "reports.view",
+  financeOperations: "finance_operations.view",
 
   // Admin Module
-  usersAccessControl: "user.manage",
-  certifications: "system.manage",
-  tenantLocale: "tenant.manage",
-  tenantAiConfig: "agent.manage",
-  messageTemplates: "communication.manage",
-  ticketRoutingAdmin: "ticket.manage",
-  executiveSignal: "reports.view",
-  errorLog: "system.view",
-  adminSettings: "system.manage",
-  adminWeeklyRecap: "reports.view",
+  usersAccessControl: "users.view",
+  certifications: "certifications.view",
+  tenantLocale: "locale.view",
+  tenantAiConfig: "ai_config.view",
+  messageTemplates: "message_templates.view",
+  ticketRoutingAdmin: "ticket_routing.view",
+  executiveSignal: "executive_signal.view",
+  errorLog: "error_log.view",
+  adminSettings: "admin_settings.view",
+  adminWeeklyRecap: "admin_weekly_recap.view",
 
   // Dashboard/Agent Screens
-  ceoFyProgress: "reports.financial",
-  cfoDashboard: "reports.financial",
+  ceoFyProgress: "reports.view",
+  cfoDashboard: "reports.view",
 };
 
 function buildGroupsByPermissions() {
@@ -192,6 +193,34 @@ export default function Shell({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Root cause fix: Refresh permissions from /hr/me on app load to ensure latest permissions
+  useEffect(() => {
+    const refreshPermissions = async () => {
+      try {
+        const { getHrMe } = await import("../services/api/users");
+        const user = await getHrMe();
+        if (user) {
+          // Update localStorage with fresh permissions
+          if (user.roles && Array.isArray(user.roles)) {
+            localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
+          }
+          if (user.permissions && Array.isArray(user.permissions)) {
+            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions));
+          }
+        }
+      } catch (error) {
+        // Silently fail - use cached permissions if /hr/me unavailable
+        console.debug("Could not refresh permissions from /hr/me:", error);
+      }
+    };
+
+    // Only refresh if we have a token
+    if (localStorage.getItem("hrms_token")) {
+      refreshPermissions();
+    }
+  }, []); // Run once on mount
+
   const normalizedRole = String(role || "")
     .trim()
     .toUpperCase();
