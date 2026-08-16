@@ -1142,7 +1142,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         body: JSON.stringify({
           name: createRoleForm.name,
           display_name: createRoleForm.name,
-          description: createRoleForm.description
+          description: createRoleForm.description,
+          permissions: []
         })
       });
       toast.success("Role created successfully.");
@@ -1156,6 +1157,60 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
+  const handleNewRoleTemplate = async () => {
+    setCreatingTemplate(true);
+    try {
+      const createResponse = await apiRequest("/admin/role-templates", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `template_${Date.now()}`,
+          display_name: "New role template",
+          description: "",
+          permissions: []
+        })
+      });
+
+      const newTemplateId = createResponse?.id;
+      if (!newTemplateId) {
+        toast.error("Failed to create role template.");
+        setCreatingTemplate(false);
+        return;
+      }
+
+      // Create a minimal template object to ensure state update triggers re-render
+      const minimalTemplate = {
+        id: newTemplateId,
+        name: createResponse?.name || `template_${Date.now()}`,
+        display_name: "New role template",
+        description: "",
+        is_system: false,
+        permissions: []
+      };
+
+      // Set both state variables to ensure component updates
+      setEditingTemplate(minimalTemplate);
+      setEditingTemplateId(newTemplateId);
+      setCreatingTemplate(false);
+      toast.success("New role template created. Configure it below.");
+
+      // Fetch the full template data in the background
+      setTimeout(() => {
+        apiRequest(`/admin/role-templates/${newTemplateId}`, {
+          method: "GET"
+        })
+          .then(templateData => {
+            if (templateData) {
+              setEditingTemplate(templateData);
+            }
+          })
+          .catch(err => console.warn("Failed to fetch template data:", err));
+      }, 100);
+    } catch (err) {
+      setCreatingTemplate(false);
+      toast.error(err.message || "Failed to create role template.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -1166,11 +1221,12 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           className="max-w-xs"
         />
         <Button
-          onClick={() => setShowCreateModal(true)}
+          onClick={handleNewRoleTemplate}
+          disabled={creatingTemplate}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
-          Add New Role
+          {creatingTemplate ? "Creating..." : "New role template"}
         </Button>
       </div>
 
@@ -1322,51 +1378,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         </div>
       ) : (
         <>
-          {/* Create Role Modal */}
-          <SimpleModal
-            isOpen={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            title="Add New Role"
-          >
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Senior Recruiter"
-                  value={createRoleForm.name}
-                  onChange={(e) => setCreateRoleForm({ ...createRoleForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  placeholder="What permissions does this role have?"
-                  value={createRoleForm.description}
-                  onChange={(e) => setCreateRoleForm({ ...createRoleForm, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  rows="3"
-                />
-              </div>
-              <div className="flex gap-3 justify-end pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={creatingTemplate}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateRole}
-                  disabled={creatingTemplate}
-                >
-                  {creatingTemplate ? "Creating..." : "Create Role"}
-                </Button>
-              </div>
-            </div>
-          </SimpleModal>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
             const userCount = getUserCount(role.id);
@@ -1482,8 +1493,18 @@ export default function UsersAndAccessControl() {
   const inactiveTabClasses = "border-transparent text-gray-600 hover:text-gray-900";
 
   // Check if user has permission to manage role templates (Super User, Admin, CEO)
-  const canManageRoleTemplates = currentUserPermissions?.["role.manage"] ||
-                                 roles.some(r => r.name?.toLowerCase() === "super user");
+  const hrmsRole = localStorage.getItem("hrms_role") || "";
+  const permissionRole = localStorage.getItem("permission_role") || "";
+  const hrmsPermissionsStr = localStorage.getItem("hrms_permissions") || "[]";
+  const hrmsPermissions = JSON.parse(hrmsPermissionsStr) || [];
+
+  const canManageRoleTemplates = hrmsRole.toLowerCase() === "admin" ||
+                                 hrmsRole.toLowerCase() === "super user" ||
+                                 permissionRole.toLowerCase() === "admin" ||
+                                 permissionRole.toLowerCase() === "super user" ||
+                                 hrmsPermissions.some(p => p.includes("role") && p.includes("manage")) ||
+                                 hrmsPermissions.some(p => p.includes("rbac") && p.includes("manage")) ||
+                                 currentUserPermissions?.["role.manage"];
 
   return (
     <div className="mx-auto max-w-7xl p-6">
