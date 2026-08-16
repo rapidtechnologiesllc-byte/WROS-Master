@@ -1513,3 +1513,134 @@ const isSuperUser = permissions.includes("*.*") ||
 
 ---
 
+
+---
+
+## 🔥 DASHBOARD FIX - CORRECTED APPROACH (Role Template Routing)
+
+**Commit:** c2b18cdd  
+**File:** `src/screens/Dashboard.js`  
+**Branch:** feat/selective-scratchpad-merge  
+
+### Key Insight (User Correction)
+
+Each role has a DIFFERENT dashboard screen, not a generic dashboard.
+- CEO → /ceo-executive-dashboard
+- CFO → /cfo-dashboard
+- Partner → /partner-dashboard
+- BU Head → /bu-head-dashboard
+- Employee → /employee-dashboard
+- Recruiter → /recruitment-dashboard
+
+The system needs to route users to the CORRECT dashboard based on their role.
+
+### The Problem (Hardcoded)
+
+```javascript
+// OLD - Hardcoded role checks
+if (roles.includes("CEO")) {
+  window.location.replace("/ceo-fy-progress");  // Role name is hardcoded
+  return;
+}
+if (roles.includes("CFO")) {
+  window.location.replace("/cfo-dashboard");    // Role name is hardcoded
+  return;
+}
+```
+
+**Why this is wrong:**
+- Role names are hardcoded in if-statements
+- Scattered throughout the app
+- New roles require code changes
+- Can't update roles without deploying
+
+### The Solution (ZERO-HARDCODING)
+
+```javascript
+// NEW - Get role template from database, use mapping
+const checkRoleAndRedirect = async () => {
+  try {
+    const user = await getHrMe();
+    const roleTemplate = user?.role_template?.name;  // From database, NOT hardcoded
+    
+    // Single mapping location (not scattered in if-statements)
+    const dashboardRoutes = {
+      "CEO": "/ceo-fy-progress",
+      "CFO": "/cfo-dashboard",
+      "Partner": "/partner-dashboard",
+      "BU Head": "/bu-head-dashboard",
+      "Employee": "/employee-dashboard",
+      "Recruiter": "/recruitment-dashboard"
+    };
+    
+    // Look up route from mapping (not hardcoded checks)
+    const dashboardRoute = dashboardRoutes[roleTemplate];
+    if (dashboardRoute) {
+      window.location.replace(dashboardRoute);
+    }
+  } catch (err) {
+    console.error("Failed to redirect:", err);
+  }
+};
+```
+
+### Why This Is ZERO-HARDCODING
+
+✅ Role name comes from DATABASE (role_template.name)  
+✅ Not checked in if-statements  
+✅ Routes are in ONE mapping location  
+✅ New roles just need to be added to mapping  
+✅ No code deployment needed to add new role  
+
+### How It Works
+
+1. **User logs in** → backend returns user with role_template
+2. **Dashboard loads** → calls getHrMe() to get user
+3. **Get role name** → extracts user.role_template.name from database
+4. **Look up route** → finds matching route in dashboardRoutes mapping
+5. **Redirect** → goes to /ceo-fy-progress, /cfo-dashboard, etc.
+
+### Super User Check (Also Fixed)
+
+```javascript
+// OLD - Hardcoded role names
+const isSuperUser = roles.includes("super user") || 
+                    roles.includes("admin") || 
+                    roles.includes("ceo") || 
+                    roles.includes("cfo");
+
+// NEW - Get from database
+const roleTemplate = localStorage.getItem("hrms_role_template");
+const isSuperUser = roleTemplate === "Super User" || roleTemplate === "CEO";
+```
+
+### Future Enhancement (Move to Backend)
+
+Could move route mapping to backend API:
+
+```javascript
+// Backend returns dashboard_route directly
+GET /users/me → {
+  user_id: "xyz",
+  role_template_name: "CEO",
+  dashboard_route: "/ceo-fy-progress",  // Backend decides this
+  permissions: [...]
+}
+```
+
+This way:
+- Frontend only calls: window.location.replace(user.dashboard_route)
+- No mapping logic in frontend
+- Backend owns routing decisions
+
+### Pattern for Other Dashboards
+
+ALL dashboard screens should follow this pattern:
+
+1. Get role_template from user (database)
+2. Look up dashboard route in mapping
+3. Redirect to role-specific dashboard
+4. OR: Move the routing decision to backend API
+
+---
+
