@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-242 (EPIC-02 Forecast vs Actual). Actuals come from Invoice, the same
 computation revenue_target_service._fy_invoice_total_for_clients()
 already established for the fiscal-year granularity (no
@@ -81,7 +81,7 @@ def get_forecast_vs_actual(
 
 
 def get_forecast_vs_actual_by_bu(db: Session, *, business_unit_id: int, year: int, month: int) -> dict:
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
+    client_ids = [c.id for c in db.query(Client.id).filter(Client.bu_context_id == business_unit_id).all()]
     return get_forecast_vs_actual(db, client_ids=client_ids, year=year, month=month, business_unit_id=business_unit_id)
 
 
@@ -95,3 +95,4 @@ def get_forecast_vs_actual_trend(
         get_forecast_vs_actual(db, client_ids=client_ids, year=year, month=m, business_unit_id=business_unit_id)
         for m in range(1, 13)
     ]
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Client list + create.
 
 The GET here originally powered filter dropdowns only, on the
@@ -71,14 +71,14 @@ def list_clients(
     # 2026-08-12, Avinash: BU and Client Owner (account manager) weren't
     # visible anywhere in the UI -- resolved names here so the frontend
     # doesn't have to cross-reference raw IDs itself.
-    bu_names = _bu_name_map(db, (c.business_unit_id for c in clients))
+    bu_names = _bu_name_map(db, (c.bu_context_id for c in clients))
     am_names = _employee_name_map(db, (c.account_manager_employee_id for c in clients))
     return ClientListResponse(
         clients=[
             ClientListItem(
                 id=c.id, company_name=c.company_name, status=c.status,
-                business_unit_id=c.business_unit_id,
-                business_unit_name=bu_names.get(c.business_unit_id),
+                business_unit_id=c.bu_context_id,
+                business_unit_name=bu_names.get(c.bu_context_id),
                 account_manager_employee_id=c.account_manager_employee_id,
                 account_manager_name=am_names.get(c.account_manager_employee_id),
                 line_type=c.line_type,
@@ -156,8 +156,8 @@ def create_client_endpoint(
 
 def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     bu_name = None
-    if client.business_unit_id is not None:
-        bu = db.query(BusinessUnit).filter(BusinessUnit.id == client.business_unit_id).first()
+    if client.bu_context_id is not None:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == client.bu_context_id).first()
         bu_name = bu.name if bu else None
     am_name = None
     if client.account_manager_employee_id is not None:
@@ -255,3 +255,4 @@ def update_client_endpoint(
     db.commit()
     db.refresh(client)
     return _to_detail_response(db, client)
+

@@ -1,4 +1,4 @@
-"""BU Head Dashboard Service - Real data aggregation for Business Unit leadership."""
+﻿"""BU Head Dashboard Service - Real data aggregation for Business Unit leadership."""
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -18,7 +18,7 @@ class BUHeadDashboardService:
         """
         Get comprehensive BU dashboard data:
         - Team size and utilization
-        - Revenue (billed hours × rate)
+        - Revenue (billed hours Ã— rate)
         - Active projects
         - Allocation distribution
         - Bench time and costs
@@ -43,7 +43,7 @@ class BUHeadDashboardService:
         # Bench: active employees with no active allocation
         bench_count = team_count - utilized
 
-        # Revenue MTD: sum of (hours × rate_usd_cents) from invoice line items
+        # Revenue MTD: sum of (hours Ã— rate_usd_cents) from invoice line items
         # Group by invoices and their billing period
         from sqlalchemy import text
         mtd_start = datetime.utcnow().replace(day=1).date()
@@ -55,7 +55,7 @@ class BUHeadDashboardService:
             Invoice.billing_period_start >= mtd_start
         ).scalar() or 0
 
-        # Annual run rate (simple: MTD × 12)
+        # Annual run rate (simple: MTD Ã— 12)
         revenue_arn = revenue_mtd * 12
 
         # Active projects in this BU (join with Client to get business_unit_id)
@@ -63,7 +63,7 @@ class BUHeadDashboardService:
         active_projects = db.query(func.count(Project.id)).join(
             Client, Project.client_id == Client.id
         ).filter(
-            Client.business_unit_id == bu_id,
+            Client.bu_context_id == bu_id,
             Project.status.in_(["ACTIVE", "IN_PROGRESS"])
         ).scalar() or 0
 
@@ -84,7 +84,7 @@ class BUHeadDashboardService:
         ).join(
             Client, Project.client_id == Client.id
         ).filter(
-            Client.business_unit_id == bu_id,
+            Client.bu_context_id == bu_id,
             EmployeeAllocation.status == "ACTIVE"
         ).group_by(Project.id, Project.name).all()
 
@@ -154,3 +154,4 @@ class BUHeadDashboardService:
             }
             for e in employees
         ]
+
