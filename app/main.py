@@ -161,38 +161,12 @@ async def startup_event():
             except Exception as e:
                 logger.warning(f"[Startup] Failed to clean orphaned jobs: {e}")
 
-            # Seed RBAC with retries — transient network blips (08S01) are common on cold start
-            from app.core.database import SessionLocal
-            from app.services.rbac_service_template import RBACService
+            # Role-template based RBAC now in use (2026-08-15+ refactor)
+            # Seeding handled via database migrations, not at startup
+            logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+            logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
-            MAX_RETRIES = 3
-            RETRY_DELAY = 5  # seconds
-
-            for attempt in range(1, MAX_RETRIES + 1):
-                _db = SessionLocal()
-                try:
-                    RBACService.seed_roles_and_permissions(_db)
-                    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-                    logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-                    break  # Success — exit retry loop
-                except OperationalError as exc:
-                    logger.warning(
-                        f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
-                        f"(DB connectivity issue): {exc}"
-                    )
-                    if attempt < MAX_RETRIES:
-                        logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
-                        time.sleep(RETRY_DELAY)
-                    else:
-                        logger.error(
-                            "[Startup] RBAC seed failed after all retries. "
-                            "The app will run but role/permission data may be incomplete."
-                        )
-                except Exception as exc:
-                    logger.error(f"Background startup error: {exc}", exc_info=True)
-                    break  # Non-retryable error
-                finally:
-                    _db.close()
+            _db.close()
 
         await loop.run_in_executor(executor, _run)
 

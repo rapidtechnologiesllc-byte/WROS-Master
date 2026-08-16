@@ -180,12 +180,13 @@ __all__ = [
     "Newsletter",
     "NewsletterSubscriber",
     # RBAC
-    "Role",
-    "RoleAttribute",
-    "Permission",
-    "RolePermission",
+    "Module",
+    "Resource",
+    "RoleTemplate",
+    "RoleTemplatePermission",
     "BusinessUnit",
     "UserRole",
+    "BusinessUnitContext",
     # Permission System (2026-08-13)
     "JobTitle",
     "JobTitleRole",

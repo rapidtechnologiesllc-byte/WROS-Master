@@ -126,7 +126,7 @@ def get_all_users(
     """
     Get all users (HR, Admin, etc.) from the system.
     Does not include candidates.
-    Returns actual roles assigned via user_roles junction table, not legacy UserRole column.
+    Uses role_template system (2026-08-15+), not legacy RBAC.
 
     Args:
         db: Database session
@@ -136,7 +136,6 @@ def get_all_users(
         AllUsersResponse with list of all users and total count
     """
     try:
-        from app.models.user import UserRole
         from app.models.rbac_template import RoleTemplate
 
         # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
@@ -145,15 +144,17 @@ def get_all_users(
         # Build response
         users_data = []
         for u in users:
-            # Get actual roles from user_roles junction table (not legacy UserRole column)
-            user_roles = db.query(UserRole).filter(UserRole.user_id == u.UserID).all()
-            assigned_roles = []
-            for ur in user_roles:
-                if ur.role:
-                    assigned_roles.append(ur.role.name)
+            # Get role template name if assigned
+            role_template_name = None
+            if u.role_template_id:
+                role_template = db.query(RoleTemplate).filter(
+                    RoleTemplate.id == u.role_template_id
+                ).first()
+                if role_template:
+                    role_template_name = role_template.name
 
-            # Display role: if has roles, join them; otherwise fall back to legacy UserRole
-            display_role = ", ".join(assigned_roles) if assigned_roles else u.UserRole
+            # Display role: prefer role_template name, fall back to UserRole
+            display_role = role_template_name or u.UserRole
 
             users_data.append(UserResponse(
                 user_id=u.UserID,
@@ -161,10 +162,10 @@ def get_all_users(
                 user_email=u.UserEmail,
                 user_role=display_role,
                 created_at=u.CreatedAt,
-                permission_role=u.role.name if u.role else None,
+                permission_role=role_template_name or u.job_title,
                 department_id=u.department_id,
                 department_name=u.department.name if u.department else None,
-                business_unit_id=u.business_unit_id,
+                business_unit_id=u.bu_context_id,
                 business_unit_name=u.bu_context.business_unit.name if u.bu_context and u.bu_context.business_unit else None,
             ))
 
@@ -268,18 +269,26 @@ def search_users(
 
     users_data = []
     for u in matched_users:
-        role = db.query(Role).filter(Role.id == u.role_id).first()
+        # Get role template if assigned (new role_template system, 2026-08-15+)
+        role_template_name = None
+        if u.role_template_id:
+            role_template = db.query(RoleTemplate).filter(
+                RoleTemplate.id == u.role_template_id
+            ).first()
+            if role_template:
+                role_template_name = role_template.name
+
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
             user_email=u.UserEmail,
-            user_role=u.UserRole,
+            user_role=role_template_name or u.UserRole,
             created_at=u.CreatedAt,
-            permission_role=role.name if role else None,
+            permission_role=role_template_name or u.job_title,
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
-            business_unit_id=u.business_unit_id,
-            business_unit_name=u.bu_context.name if u.bu_context else None,
+            business_unit_id=u.bu_context_id,
+            business_unit_name=u.bu_context.business_unit.name if u.bu_context and u.bu_context.business_unit else None,
         ))
 
     return AllUsersResponse(
@@ -308,7 +317,14 @@ def get_user_details_by_id(
             detail=f"User with ID '{user_id}' not found"
         )
 
-    role = db.query(Role).filter(Role.id == u.role_id).first() if u.role_id else None
+    # Get role template if assigned (new role_template system, 2026-08-15+)
+    role_template_name = None
+    if u.role_template_id:
+        role_template = db.query(RoleTemplate).filter(
+            RoleTemplate.id == u.role_template_id
+        ).first()
+        if role_template:
+            role_template_name = role_template.name
 
     return UserResponse(
         user_id=u.UserID,
