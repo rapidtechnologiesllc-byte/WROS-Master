@@ -115,6 +115,7 @@ async def startup_event():
             # Seed RBAC with retries — transient network blips (08S01) are common on cold start
             from app.core.database import SessionLocal
             from app.services.rbac_service import RBACService
+            from app.services.role_template_seed import seed_role_templates
 
             MAX_RETRIES = 3
             RETRY_DELAY = 5  # seconds
@@ -123,6 +124,7 @@ async def startup_event():
                 _db = SessionLocal()
                 try:
                     RBACService.seed_roles_and_permissions(_db)
+                    seed_role_templates(_db, tenant_id=1)
                     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
                     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
                     break  # Success — exit retry loop
