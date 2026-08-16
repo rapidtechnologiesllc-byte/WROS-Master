@@ -495,7 +495,95 @@ class RBACService:
 
     @staticmethod
     def has_permission(db: Session, user_id: str, permission: str) -> bool:
-        return permission in RBACService.get_user_permissions(db, user_id)
+        """
+        Check if user has a specific permission.
+
+        ZERO-HARDCODING: This method dynamically loads permissions from role templates
+        instead of checking hardcoded permission lists.
+
+        Supports two formats:
+        1. 'resource.action' format (e.g., 'job.create', 'candidate.view')
+        2. Legacy format (backward compatibility)
+
+        Process:
+        1. Get user's assigned role template (via UserRole)
+        2. Query RoleTemplatePermission for that template
+        3. Check if resource.action is granted
+
+        Returns True if permission granted, False otherwise.
+        """
+        try:
+            from app.models.user import Users, UserRole
+            from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
+
+            # Get user
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user:
+                return False
+
+            # SUPER USER bypass: has everything
+            # Check by role name or is_admin flag
+            if hasattr(user, 'is_admin') and user.is_admin:
+                return True
+
+            # Get user's assigned role template (via UserRole junction table)
+            user_role = db.query(UserRole).filter(UserRole.user_id == user_id).first()
+            if not user_role or not user_role.role_template_id:
+                # Fallback to legacy role-based permission check
+                return permission in RBACService.get_user_permissions(db, user_id)
+
+            # Get the role template
+            role_template = db.query(RoleTemplate).filter(
+                RoleTemplate.id == user_role.role_template_id
+            ).first()
+            if not role_template:
+                # Fallback to legacy
+                return permission in RBACService.get_user_permissions(db, user_id)
+
+            # Parse permission string: 'resource.action' format
+            # Example: 'job.create' → resource='jobs', action='create'
+            if '.' not in permission:
+                # If no dot, assume it's legacy format or a module-level permission
+                return permission in RBACService.get_user_permissions(db, user_id)
+
+            parts = permission.split('.')
+            resource_name = parts[0]  # e.g., 'job' → 'jobs'
+            action = parts[1]  # e.g., 'create'
+
+            # Make resource name plural (job → jobs, candidate → candidates)
+            if not resource_name.endswith('s'):
+                resource_name = resource_name + 's'
+
+            # Query RoleTemplatePermission for this resource-action combination
+            # SELECT * FROM RoleTemplatePermission
+            # WHERE role_template_id = ?
+            # AND resource.name = ?
+            # AND can_<action> = True
+
+            perm_record = db.query(RoleTemplatePermission).join(
+                Resource, RoleTemplatePermission.resource_id == Resource.id
+            ).filter(
+                RoleTemplatePermission.role_template_id == role_template.id,
+                Resource.name == resource_name
+            ).first()
+
+            if not perm_record:
+                return False
+
+            # Check the specific action permission
+            action_field = f'can_{action}'
+            if not hasattr(perm_record, action_field):
+                return False
+
+            return getattr(perm_record, action_field, False)
+
+        except ImportError:
+            # If role template models not available, fallback to legacy
+            return permission in RBACService.get_user_permissions(db, user_id)
+        except Exception as e:
+            logger.error(f"Error checking permission '{permission}' for user '{user_id}': {e}")
+            # Fail closed: deny access on error (security)
+            return False
 
     @staticmethod
     def has_attribute(db: Session, user_id: str, attribute: str, expected: bool = True) -> bool:
