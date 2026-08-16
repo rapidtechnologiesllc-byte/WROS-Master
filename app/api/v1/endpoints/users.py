@@ -613,14 +613,24 @@ def create_user_with_roles(
 
     # Check if any org-level roles are being assigned
     from app.models.rbac import Role
-    org_level_role_names = {"CEO", "CFO", "Super User"}
+    org_level_role_names = {"CEO", "CFO", "Super User", "ADMIN", "SUPER_USER"}
 
     # Get all roles being assigned
     roles_to_assign = db.query(Role).filter(Role.id.in_(payload.role_ids)).all()
     has_org_level_role = any(r.name in org_level_role_names for r in roles_to_assign)
 
-    # Verify BU access (skip if assigning org-level roles)
-    if not has_org_level_role and payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
+    # Check if current user has org-level role(s)
+    current_user_roles = db.query(UserRole).filter(UserRole.user_id == current_user.UserID).all()
+    current_user_has_org_role = any(
+        ur.role and ur.role.name in org_level_role_names
+        for ur in current_user_roles
+    )
+    # Also check legacy UserRole field
+    if current_user.UserRole and current_user.UserRole.upper() in org_level_role_names:
+        current_user_has_org_role = True
+
+    # Verify BU access (skip if assigning org-level roles OR if current user is org-level)
+    if not has_org_level_role and not current_user_has_org_role and payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
         raise HTTPException(
             status_code=403,
             detail="Cannot create users outside your Business Unit"
@@ -717,14 +727,24 @@ def update_user_with_roles(
 
     # Check if any org-level roles are being assigned
     from app.models.rbac import Role
-    org_level_role_names = {"CEO", "CFO", "Super User"}
+    org_level_role_names = {"CEO", "CFO", "Super User", "ADMIN", "SUPER_USER"}
 
     # Get all roles being assigned
     roles_to_assign = db.query(Role).filter(Role.id.in_(payload.role_ids)).all()
     has_org_level_role = any(r.name in org_level_role_names for r in roles_to_assign)
 
-    # Verify BU access (skip if assigning org-level roles)
-    if not has_org_level_role and payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
+    # Check if current user has org-level role(s)
+    current_user_roles = db.query(UserRole).filter(UserRole.user_id == current_user.UserID).all()
+    current_user_has_org_role = any(
+        ur.role and ur.role.name in org_level_role_names
+        for ur in current_user_roles
+    )
+    # Also check legacy UserRole field
+    if current_user.UserRole and current_user.UserRole.upper() in org_level_role_names:
+        current_user_has_org_role = True
+
+    # Verify BU access (skip if assigning org-level roles OR if current user is org-level)
+    if not has_org_level_role and not current_user_has_org_role and payload.business_unit_id and current_user.business_unit_id != payload.business_unit_id:
         raise HTTPException(
             status_code=403,
             detail="Cannot update users outside your Business Unit"
