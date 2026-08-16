@@ -32,12 +32,12 @@ class JobTitleRole(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     job_title_id = Column(Integer, ForeignKey("job_titles.id"), nullable=False, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     job_title = relationship("JobTitle", back_populates="roles")
-    role = relationship("Role", foreign_keys=[role_id])
+    role = relationship("RoleTemplate", foreign_keys=[role_id])
 
     __table_args__ = (
         UniqueConstraint("job_title_id", "role_id", name="uq_job_title_role"),
@@ -76,12 +76,12 @@ class DetailedRolePermission(Base):
     __tablename__ = "detailed_role_permissions"
 
     id = Column(Integer, primary_key=True, index=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False)
     permission_id = Column(Integer, ForeignKey("detailed_permissions.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
-    role = relationship("Role", foreign_keys=[role_id])
+    role = relationship("RoleTemplate", foreign_keys=[role_id])
     permission = relationship("DetailedPermission", back_populates="role_permissions")
 
     __table_args__ = (
@@ -97,7 +97,7 @@ class FieldPermission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False)
     table_name = Column(String(100), nullable=False)  # "employees", "candidates", "invoices"
     field_name = Column(String(100), nullable=False)  # "salary", "ssn", "bank_account"
     access_level = Column(String(20), nullable=False)  # "hidden", "masked", "readonly", "editable"
@@ -118,7 +118,7 @@ class DataScopePermission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False)
     module = Column(String(100), nullable=False)  # "candidates", "employees", "invoices"
     scope_type = Column(String(50), nullable=False)  # "ORG_WIDE", "MULTI_BU", "BU_ONLY", "TEAM_ONLY", "OWN_ONLY", "CUSTOM"
     filter_rule = Column(Text, nullable=True)  # JSON filter rule for custom scoping

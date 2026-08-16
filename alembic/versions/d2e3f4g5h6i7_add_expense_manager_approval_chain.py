@@ -1,6 +1,6 @@
 """Add expense manager approval chain (PRIORITY-3: DEFECT-2026-08-12T6)
 
-Revision ID: c1d2e3f4a5b6
+Revision ID: d2e3f4g5h6i7
 Revises: a3c5e7f9b1d3
 Create Date: 2026-08-12 00:00:00.000000
 
@@ -16,7 +16,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = 'c1d2e3f4a5b6'
+revision: str = 'd2e3f4g5h6i7'
 down_revision: Union[str, Sequence[str], None] = 'a3c5e7f9b1d3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
