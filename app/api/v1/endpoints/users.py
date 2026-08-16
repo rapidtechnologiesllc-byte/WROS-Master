@@ -218,7 +218,10 @@ def search_users(
     # ── Business unit filter — join through BusinessUnit ─────────────────────
     if business_unit:
         bu_pattern = f"%{business_unit.lower()}%"
-        query = query.join(BusinessUnit, BusinessUnit.id == Users.business_unit_id).filter(
+        from app.models.business_unit import BusinessUnitContext
+        query = query.join(BusinessUnitContext, BusinessUnitContext.user_id == Users.UserID).join(
+            BusinessUnit, BusinessUnit.id == BusinessUnitContext.business_unit_id
+        ).filter(
             sql_func.lower(BusinessUnit.name).like(bu_pattern)
         )
 

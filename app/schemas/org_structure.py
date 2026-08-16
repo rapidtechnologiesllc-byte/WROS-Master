@@ -1,6 +1,7 @@
 """
 Schemas for Organizational Structure API requests and responses.
 """
+from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
@@ -45,8 +46,8 @@ class DepartmentResponse(BaseModel):
     hiring_manager_id: Optional[str] = None
     cost_center_code: Optional[str] = None
     active: bool = True
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -62,8 +63,8 @@ class ApprovalChainResponse(BaseModel):
     auto_escalate: bool = True
     escalate_after_days: Optional[int] = None
     active: bool = True
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
