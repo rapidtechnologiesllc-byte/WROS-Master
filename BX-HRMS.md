@@ -1416,3 +1416,100 @@ IF No UserRole: Fall back to legacy Role system
 
 ---
 
+
+---
+
+## 🔥 DASHBOARD FIX - Permission-Based Access (Frontend)
+
+**Commit:** 5c73c6f6  
+**File:** `src/screens/Dashboard.js`  
+**Branch:** feat/selective-scratchpad-merge  
+
+### What Was Hardcoded
+
+```javascript
+// OLD - Lines 72-85: Hardcoded role redirects
+if (roles.includes("CEO")) {
+  window.location.replace("/ceo-fy-progress");
+  return;
+}
+if (roles.includes("CFO")) {
+  window.location.replace("/cfo-dashboard");
+  return;
+}
+if (roles.includes("Partner")) {
+  window.location.replace("/partner-dashboard");
+  return;
+}
+
+// OLD - Line 94: Hardcoded super user check
+const isSuperUser = roles.includes("super user") || 
+                    roles.includes("admin") || 
+                    roles.includes("ceo") || 
+                    roles.includes("cfo");
+```
+
+### The Fix
+
+```javascript
+// NEW - Lines 42-89: Permission-based redirect
+const checkPermissionsAndRedirect = async () => {
+  let permissions = [];
+  
+  try {
+    const user = await getHrMe();
+    permissions = user?.permissions || [];
+    localStorage.setItem("hrms_permissions", JSON.stringify(permissions));
+  } catch (err) {
+    // Fall back to cached permissions
+  }
+
+  // Check specific permissions (from role template)
+  // NOT hardcoded role names
+  if (permissions.includes("revenue.view_pnl")) {
+    window.location.replace("/revenue-dashboard");
+    return;
+  }
+  
+  if (permissions.includes("candidate.create")) {
+    window.location.replace("/recruitment-dashboard");
+    return;
+  }
+};
+
+// NEW - Lines 91-105: Permission-based super user check
+const isSuperUser = permissions.includes("*.*") ||
+                    permissions.some(p => p.startsWith("revenue.view_pnl")) ||
+                    permissions.some(p => p.endsWith(".*"));
+```
+
+### How It Works Now
+
+1. **Fetch:** User's permissions from backend (loaded from their role template)
+2. **Check:** Specific permissions like "revenue.view_pnl" (NOT role names)
+3. **Redirect:** To dashboard based on capabilities
+4. **Cache:** Store in localStorage for performance
+
+### Impact
+
+✅ No more hardcoded role names (CEO, CFO, Partner, Admin)  
+✅ Dashboards access is dynamic and permission-based  
+✅ New roles can be created without code changes  
+✅ Permission changes instantly update who sees what  
+
+### Other Dashboards Still Using Hardcoding
+
+**Identified files with similar hardcoding:**
+- CEOExecutiveDashboardScreen.js - Needs same fix
+- CEOFYProgressScreen.js - Needs same fix
+- BuHeadDashboardScreen.js - Needs same fix
+- RoleDashboard.js - Needs same fix
+- AdminWeeklyRecapDashboard.js - Needs same fix
+- ExecutiveRevenueDashboardScreen.js - Needs same fix
+- RiskDashboardScreen.js - Needs same fix
+- EmployeeKPIDashboard.js - Needs same fix
+
+**Total:** 8+ dashboard screens need similar refactoring
+
+---
+
