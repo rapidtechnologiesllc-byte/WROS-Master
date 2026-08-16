@@ -9,116 +9,12 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.user import Users, Jobs
 from app.models.candidate import Candidate
-from app.models.rbac import Role, Permission, RolePermission
 from app.core.security import get_password_hash
+from app.services.rbac_template_init_service import init_rbac_template_system
 from datetime import datetime, timedelta
 import uuid
 import random
 
-def init_roles_and_permissions(db):
-    """Initialize RBAC roles and permissions."""
-    print("\n[RBAC] Initializing roles and permissions...")
-
-    # All permissions that need to exist
-    all_permissions = [
-        "users.view", "users.create", "users.edit", "users.delete", "users.manage",
-        "candidate.view", "candidate.create", "candidate.edit", "candidate.delete", "candidates.view",
-        "recruitment.view", "recruitment.manage",
-        "employee.view", "employee.manage", "employee.create",
-        "business_unit.view", "business_unit.manage",
-        "certifications.view",
-        "locale.view", "locale.edit",
-        "ai_config.view", "ai_config.edit",
-        "message_templates.view", "message_templates.create", "message_templates.edit", "message_templates.delete",
-        "ticket_routing.view", "ticket_routing.edit",
-        "executive_signal.view",
-        "error_log.view",
-        "admin_settings.view", "admin_settings.edit",
-        "invoice.view", "invoice.manage",
-        "reports.view", "reports.financial",
-        "interview.manage", "interview.view",
-        "system.manage",
-        "rbac.view", "rbac.manage",
-    ]
-
-    # Create permissions
-    created_perms = 0
-    for perm_name in all_permissions:
-        existing = db.query(Permission).filter(Permission.name == perm_name).first()
-        if not existing:
-            perm = Permission(name=perm_name)
-            db.add(perm)
-            created_perms += 1
-    if created_perms > 0:
-        db.commit()
-        print(f"    [OK] Created {created_perms} new permissions")
-
-    # Define roles and their permissions
-    role_permissions = {
-        "CEO": "all",  # Gets all permissions
-        "CFO": "all",  # Gets all permissions
-        "Admin": "all",  # Gets all permissions
-        "Super User": "all",  # Gets all permissions
-        "Partner": [
-            "business_unit.manage", "employee.view", "employee.manage",
-            "recruitment.view", "candidate.view", "candidate.edit"
-        ],
-        "BU Head": [
-            "business_unit.view", "employee.view", "employee.manage",
-            "recruitment.view", "candidate.view",
-            "reports.view", "interview.manage"
-        ],
-        "Recruiter": [
-            "candidate.view", "candidate.create", "candidate.edit", "candidates.view",
-            "recruitment.view", "interview.manage"
-        ],
-        "HR Manager": [
-            "candidate.view", "candidate.edit", "candidates.view",
-            "employee.view", "employee.manage",
-            "reports.view", "interview.view"
-        ],
-    }
-
-    # Create roles and assign permissions
-    created_roles = 0
-    for role_name, perms in role_permissions.items():
-        role = db.query(Role).filter(Role.name == role_name).first()
-        if not role:
-            role = Role(name=role_name)
-            db.add(role)
-            db.flush()
-            created_roles += 1
-
-        # Assign permissions
-        if perms == "all":
-            # Assign ALL permissions
-            all_perms = db.query(Permission).all()
-            for perm in all_perms:
-                existing_rp = db.query(RolePermission).filter(
-                    RolePermission.role_id == role.id,
-                    RolePermission.permission_id == perm.id
-                ).first()
-                if not existing_rp:
-                    rp = RolePermission(role_id=role.id, permission_id=perm.id)
-                    db.add(rp)
-        else:
-            # Assign specific permissions
-            for perm_name in perms:
-                perm = db.query(Permission).filter(Permission.name == perm_name).first()
-                if perm:
-                    existing_rp = db.query(RolePermission).filter(
-                        RolePermission.role_id == role.id,
-                        RolePermission.permission_id == perm.id
-                    ).first()
-                    if not existing_rp:
-                        rp = RolePermission(role_id=role.id, permission_id=perm.id)
-                        db.add(rp)
-
-    db.commit()
-    if created_roles > 0:
-        print(f"    [OK] Created {created_roles} new roles with permissions")
-    else:
-        print(f"    [OK] All roles already configured")
 
 
 def init_database():
@@ -151,32 +47,43 @@ def init_database():
 
         tenant_id = tenant.id
 
-        # Initialize RBAC system (roles and permissions)
-        init_roles_and_permissions(db)
+        # Initialize RBAC template system (modules, resources, role templates)
+        print("\n[2b] Initializing RBAC template system...")
+        init_rbac_template_system(db, tenant_id)
+        print("    [OK] RBAC templates initialized")
 
-        # Create users
+        # Create users with role templates
         print("\n[3] Setting up users...")
+        from app.models.rbac_template import RoleTemplate
+
         test_users = [
-            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "role": "Admin"},
-            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "role": "Admin"},
-            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "role": "HR Manager"},
-            {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "role": "Super User"},
-            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "role": "Recruiter"},
-            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "role": "Recruiter"},
-            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "role": "HR Manager"},
-            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "role": "HR Manager"},
+            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "role_template": "CEO"},
+            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "role_template": "Admin"},
+            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "role_template": "HR Manager"},
+            {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "role_template": "Super User"},
+            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "role_template": "Recruiter"},
+            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "role_template": "Recruiter"},
+            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "role_template": "HR Manager"},
+            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "role_template": "HR Manager"},
         ]
 
         created_count = 0
         for user_data in test_users:
             existing = db.query(Users).filter(Users.UserEmail == user_data["email"]).first()
             if not existing:
+                # Get role template
+                role_template = db.query(RoleTemplate).filter(
+                    RoleTemplate.name == user_data["role_template"],
+                    RoleTemplate.tenant_id == tenant_id
+                ).first()
+
                 user = Users(
                     UserID=str(uuid.uuid4()),
                     UserEmail=user_data["email"],
                     UserPassword=get_password_hash(user_data["password"]),
                     UserName=user_data["name"],
-                    UserRole=user_data["role"],
+                    UserRole=user_data["role_template"],  # Keep for backward compatibility
+                    role_template_id=role_template.id if role_template else None,
                     tenant_id=tenant_id,
                     mfa_enabled=False,
                     digest_enabled=True,
@@ -185,7 +92,7 @@ def init_database():
                 )
                 db.add(user)
                 created_count += 1
-                print(f"    [OK] Created {user_data['email']}")
+                print(f"    [OK] Created {user_data['email']} with role template '{user_data['role_template']}'")
 
         db.commit()
         print(f"    [SUMMARY] {created_count} users created/updated")
