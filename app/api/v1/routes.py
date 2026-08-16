@@ -11,7 +11,8 @@ from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.interview_decision import router as interview_decision_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
-from app.api.v1.endpoints.rbac import router as rbac_router
+# DEPRECATED: Old RBAC system deleted, use rbac_templates_router instead
+# from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.rbac_templates import router as rbac_templates_router
 from app.api.v1.endpoints.rbac_modules import router as rbac_modules_router
 from app.api.v1.endpoints.checklists import router as checklists_router
@@ -114,7 +115,7 @@ from app.api.v1.endpoints.candidate_rejection import router as candidate_rejecti
 router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
-router.include_router(router=rbac_router)
+# router.include_router(router=rbac_router)  # DEPRECATED: Old RBAC system
 router.include_router(router=rbac_templates_router)
 router.include_router(router=rbac_modules_router)
 router.include_router(router=org_structure_router)

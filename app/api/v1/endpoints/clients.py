@@ -26,7 +26,7 @@ from app.core.dependencies import get_current_hr_or_admin
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.client import Client, ClientContact
 from app.models.employee import Employee
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.client import (
     ClientContactAddRequest, ClientContactResponse, ClientContactsListResponse,
@@ -104,7 +104,7 @@ def get_business_unit_assignments(
     the caller can fall back to manual assignment rather than silently
     failing."""
     from app.models.employee import Employee
-    from app.models.rbac import BusinessUnit
+    from app.models.business_unit import BusinessUnit
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
     if bu is None:

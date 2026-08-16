@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.services.cost_rate_service import calculate_fully_loaded_cost_usd_cents, get_active_cost_rate_config
 from app.services.forecast_variance_service import get_monthly_actual_revenue
 

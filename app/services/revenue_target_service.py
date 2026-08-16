@@ -74,7 +74,7 @@ def set_bu_revenue_target(
         raise RevenueTargetValidationError("target_amount_usd_cents must be positive.")
 
     # Validate business_unit exists and belongs to the tenant
-    from app.models.rbac import BusinessUnit
+    from app.models.business_unit import BusinessUnit
     bu = db.query(BusinessUnit).filter(
         BusinessUnit.id == business_unit_id,
         BusinessUnit.tenant_id == tenant_id

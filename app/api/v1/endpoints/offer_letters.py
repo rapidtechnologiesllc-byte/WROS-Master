@@ -354,7 +354,7 @@ def create_offer_letter(
             linked_job = db.query(Jobs).filter(Jobs.jobID == new_offer.job_id).first()
         if linked_job and linked_job.business_unit_id:
             from app.services.candidate_pool_service import set_bu_owned_with_expiry
-            from app.models.rbac import BusinessUnit
+            from app.models.business_unit import BusinessUnit
             bu = db.query(BusinessUnit).filter(BusinessUnit.id == linked_job.business_unit_id).first()
             bu_name = bu.name if bu else f"BU #{linked_job.business_unit_id}"
             set_bu_owned_with_expiry(

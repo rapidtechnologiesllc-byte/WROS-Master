@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
