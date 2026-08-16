@@ -613,7 +613,7 @@ def create_user_with_roles(
 
     # Check if any org-level roles are being assigned
     from app.models.rbac import Role
-    org_level_role_names = {"CEO", "CFO", "Super User", "ADMIN", "SUPER_USER"}
+    org_level_role_names = {"CEO", "CFO", "PARTNER", "Super User", "ADMIN", "SUPER_USER"}
 
     # Get all roles being assigned
     roles_to_assign = db.query(Role).filter(Role.id.in_(payload.role_ids)).all()
@@ -727,7 +727,7 @@ def update_user_with_roles(
 
     # Check if any org-level roles are being assigned
     from app.models.rbac import Role
-    org_level_role_names = {"CEO", "CFO", "Super User", "ADMIN", "SUPER_USER"}
+    org_level_role_names = {"CEO", "CFO", "PARTNER", "Super User", "ADMIN", "SUPER_USER"}
 
     # Get all roles being assigned
     roles_to_assign = db.query(Role).filter(Role.id.in_(payload.role_ids)).all()
