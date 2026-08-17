@@ -74,7 +74,12 @@ async def log_unhandled_exception(request: Request, exc: Exception):
         db.close()
 
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
-    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
+    response = JSONResponse(status_code=500, content={"detail": "Internal server error."})
+    # Add CORS headers to exception response so browser doesn't block it
+    origin = request.headers.get("origin", "http://localhost:3000")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 
 @app.on_event("startup")
