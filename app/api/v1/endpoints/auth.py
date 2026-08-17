@@ -1,3 +1,4 @@
+# 2026-08-17: Fixed PostgreSQL column quoting in unified_login
 from datetime import datetime
 from typing import Optional
 
