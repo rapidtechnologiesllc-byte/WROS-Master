@@ -198,6 +198,18 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
   ]);
 
+  const [partners, setPartners] = useState([
+    { id: 1, name: "Partner 1" },
+    { id: 2, name: "Partner 2" },
+    { id: 3, name: "Partner 3" }
+  ]);
+
+  const JOB_TITLES = [
+    "CEO", "CFO", "Admin", "Finance Manager", "Recruiter", "HR Manager",
+    "Hiring Manager", "HR BP", "BU Head", "Report Manager", "Partner",
+    "Sales Manager", "Project Manager", "Developer", "Designer", "Other"
+  ];
+
   const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
 
   const [createForm, setCreateForm] = useState({
@@ -207,6 +219,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     user_password: "",
     user_role: roles[0]?.name || "",
     business_unit_id: "",
+    partner_id: "",
     role_ids: [] // Multi-role support
   });
 
@@ -215,6 +228,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     job_title: "",
     user_role: "",
     business_unit_id: "",
+    partner_id: "",
     role_ids: [], // Multi-role support for edit
     expandAllPermissions: false,
     expanded_candidates: false,
@@ -334,6 +348,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         payload.business_unit_id = parseInt(createForm.business_unit_id, 10);
       }
 
+      // Include partner if selected
+      if (createForm.partner_id) {
+        payload.partner_id = parseInt(createForm.partner_id, 10);
+      }
+
       // Use new multi-role endpoint when roles are selected
       if (roleIds.length > 0) {
         await apiRequest("/hr/users/create-with-roles", {
@@ -344,7 +363,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       toast.success("User created successfully.");
       setShowCreateModal(false);
-      setCreateForm({ user_name: "", job_title: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", role_ids: [] });
+      setCreateForm({ user_name: "", job_title: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", partner_id: "", role_ids: [] });
       window.location.reload();
     } catch (err) {
       toast.error(err.message || "Failed to create user.");
@@ -392,6 +411,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       // Only include BU if it's not an org-level-only user
       if (!hasOrgLevelRole && editForm.business_unit_id) {
         payload.business_unit_id = parseInt(editForm.business_unit_id, 10);
+      }
+
+      // Include partner if selected
+      if (editForm.partner_id) {
+        payload.partner_id = parseInt(editForm.partner_id, 10);
       }
 
       // Use new multi-role endpoint
@@ -634,12 +658,34 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             value={createForm.user_name}
             onChange={(val) => setCreateForm({ ...createForm, user_name: val })}
           />
-          <Input
-            label="Job Title"
-            placeholder="e.g., Recruiter, HR Manager, CEO"
-            value={createForm.job_title || ""}
-            onChange={(val) => setCreateForm({ ...createForm, job_title: val })}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+            <select
+              value={createForm.job_title || ""}
+              onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a job title...</option>
+              {JOB_TITLES.map(title => (
+                <option key={title} value={title}>{title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
+            <select
+              value={createForm.partner_id || ""}
+              onChange={(e) => setCreateForm({ ...createForm, partner_id: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a partner...</option>
+              {partners.map(partner => (
+                <option key={partner.id} value={partner.id}>{partner.name}</option>
+              ))}
+            </select>
+          </div>
+
           <Input
             label="Email"
             type="email"
@@ -745,12 +791,33 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             value={editForm.user_name}
             onChange={(val) => setEditForm({ ...editForm, user_name: val })}
           />
-          <Input
-            label="Job Title"
-            placeholder="e.g., Recruiter, HR Manager, CEO"
-            value={editForm.job_title || ""}
-            onChange={(val) => setEditForm({ ...editForm, job_title: val })}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+            <select
+              value={editForm.job_title || ""}
+              onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a job title...</option>
+              {JOB_TITLES.map(title => (
+                <option key={title} value={title}>{title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
+            <select
+              value={editForm.partner_id || ""}
+              onChange={(e) => setEditForm({ ...editForm, partner_id: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a partner...</option>
+              {partners.map(partner => (
+                <option key={partner.id} value={partner.id}>{partner.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Role Template Selection (required) - Dropdown */}
           <div>
