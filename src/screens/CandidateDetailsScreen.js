@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button } from "../components/ui";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import ProfileTabEditable from "./tabs/ProfileTabEditable";
 import FeedbackTab from "./tabs/FeedbackTab";
 import DocumentsTab from "./tabs/DocumentsTab";
@@ -398,7 +399,6 @@ export default function CandidateDetailsScreen({
   const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
-  const currentRole = localStorage.getItem("permission_role");
   const candidateTabs = limitedMode
     ? ["feedback"]
     : [
@@ -1446,7 +1446,7 @@ ${formattedJD}
                   Show Previous Offers
                 </Button>
               ) : null}
-              {currentRole === "HIRING MANAGER" &&
+              {hasPermission("candidates", "edit") &&
               candidate?.pipelineStatus == "Pre-onboarding-Approval" ? (
                 <AcceptButton
                   disabled={isApproved}
@@ -1455,8 +1455,7 @@ ${formattedJD}
                   {isApproved ? "Approved" : "Accept"}
                 </AcceptButton>
               ) : null}
-              {(currentRole === "HR Manager" ||
-                currentRole === "HR Operations") &&
+              {hasPermission("offers", "create") &&
                 candidateDocCount?.total_documents > 0 &&
                 candidateDocCount?.verified_count ===
                   candidateDocCount?.total_documents && (
@@ -1469,8 +1468,7 @@ ${formattedJD}
                   </Button>
                 )}
 
-              {(currentRole === "HR Manager" ||
-                currentRole === "HR Operations") &&
+              {hasPermission("employees", "create") &&
                 candidate?.pipelineStatus === "Offer" &&
                 candidate?.candidateJoiningDate &&
                 new Date(candidate?.candidateJoiningDate) <= new Date() && (

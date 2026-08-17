@@ -8,6 +8,7 @@ import {
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { toast } from "react-toastify";
 import { canEdit, canDelete } from "../services/permissions";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   getAllUsers,
   createHrUser,
@@ -1577,6 +1578,8 @@ export default function UsersAndAccessControl() {
   const [modules, setModules] = useState([]);
   const [verbMatrix, setVerbMatrix] = useState({});
   const [currentUserPermissions, setCurrentUserPermissions] = useState({});
+
+  const canManageRoles = hasPermission("user_roles", "edit");
 
   useEffect(() => {
     loadData();

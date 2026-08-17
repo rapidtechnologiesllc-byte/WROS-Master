@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Label, SectionTitle } from "../styles/Pre-onboardingModal";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { getAllJobs } from "../services/api/jobs";
 import { Select } from "antd";
 import { Card } from "../components/ui";
@@ -49,7 +50,7 @@ const OfferListing = () => {
   const [rejectModalShow, setRejectModalShow] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [statusSelected, setStatusSelected] = useState("");
-  const currentRole = localStorage.getItem("permission_role");
+  const canManageOffers = hasPermission("offers", "edit");
   const offerStatusOptions = [
     { label: "Released", value: "Released" },
     { label: "AwaitingApproval", value: "AwaitingApproval" },
@@ -271,7 +272,7 @@ const OfferListing = () => {
       title: "Offer Status",
       dataIndex: "offer_status",
     },
-    ...(currentRole === "HR Manager"
+    ...(canManageOffers
       ? [
           {
             title: "Action",

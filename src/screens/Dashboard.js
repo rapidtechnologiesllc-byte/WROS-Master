@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
 import { getRoles } from "../utils/permissions";
 import { getHrMe } from "../services/api/users";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 function StatCard({ title, value, icon, onClick }) {
   return (
@@ -85,17 +86,16 @@ export default function Dashboard({
   // Get user's BU for filtering
   const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
 
-  // ZERO-HARDCODING: Get role from database (role template), not hardcoded
-  // Super user check based on role template name from database
-  const roleTemplate = localStorage.getItem("hrms_role_template");
-  const isSuperUser = roleTemplate === "Super User" || roleTemplate === "CEO";
+  // ZERO-HARDCODING: Get permission from role template, not hardcoded roles
+  // Check if user has org-level view permission (not BU-scoped)
+  const canViewAllData = hasPermission("candidates", "view") || hasPermission("system", "manage");
 
-  // Filter data based on user role
-  const filteredCandidates = isSuperUser
+  // Filter data based on user permission
+  const filteredCandidates = canViewAllData
     ? candidates
     : candidates.filter((c) => !c.businessUnitId || c.businessUnitId === userBuId);
 
-  const filteredJobs = isSuperUser
+  const filteredJobs = canViewAllData
     ? jobs
     : jobs.filter((j) => !j.businessUnitId || j.businessUnitId === userBuId);
 
