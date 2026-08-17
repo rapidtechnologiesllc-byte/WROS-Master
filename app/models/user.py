@@ -19,6 +19,7 @@ class Users(Base):
     # RBAC — nullable so existing users are not broken on upgrade
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    job_title = Column(String(150), nullable=True)  # e.g., "CEO", "Developer", "HR Manager"
     department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — nullable for the same reason: existing rows get backfilled
     # in a follow-up step, not broken by this migration. Every tenant-scoped

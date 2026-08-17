@@ -32,7 +32,7 @@ class EmployeeConversionService:
         return user
 
     @staticmethod
-    def convert_candidate_to_employee(db, candidate, *, joining_date, business_unit_id=None, role_ids=None, employee_email=None, phone=None, first_name=None, last_name=None, employment_type="PERMANENT", tenant_id=None, changed_by=None, **fields):
+    def convert_candidate_to_employee(db, candidate, *, joining_date, business_unit_id=None, role_ids=None, employee_email=None, phone=None, first_name=None, last_name=None, employment_type="PERMANENT", tenant_id=None, changed_by=None, job_title=None, **fields):
         if hasattr(candidate, "status") and candidate.status == "CONVERTED_TO_EMPLOYEE":
             raise InvalidCandidateState("Candidate already converted")
         email = employee_email or candidate.candidateEmail
@@ -41,6 +41,8 @@ class EmployeeConversionService:
         tid = tenant_id or getattr(candidate, "tenant_id", 1) or 1
         ph = phone or getattr(candidate, "candidateMobile", None)
         user = EmployeeConversionService.create_employee_account(db=db, employee_name=f"{fn} {ln}".strip(), employee_email=email, business_unit_id=business_unit_id or 1, tenant_id=tid, role_ids=role_ids, phone=ph)
+        if job_title:
+            user.job_title = job_title
         fields.pop("delivery_engine", None)
         emp = Employee(tenant_id=tid, candidate_id=candidate.candidateID, first_name=fn, last_name=ln, email=email, phone=ph, joining_date=joining_date, employment_type=employment_type, delivery_engine="SPECIALITY", engine_entry_date=joining_date, wros_user_id=user.UserID, **fields)
         db.add(emp)

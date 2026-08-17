@@ -349,9 +349,18 @@ async def require_admin_role(
     # activate_tenant_scope(user.tenant_id)
 
     # Check admin permission via PermissionHelper (database-driven RBAC)
-    # Admin users have "admin.manage" or "rbac.manage" permission
+    # Admin users have admin.edit (or other admin CRUD) permissions
+    # Also support legacy UserRole="Admin" for backwards compatibility
     from app.services.permission_helper import PermissionHelper
-    if not PermissionHelper.has_any_permission(user.UserID, ["admin.manage", "rbac.manage"], db, user.tenant_id):
+    has_admin_perms = PermissionHelper.has_any_permission(
+        user.UserID,
+        ["admin.manage", "admin.edit", "admin.create", "rbac.manage"],
+        db,
+        user.tenant_id
+    )
+    has_legacy_admin = user.UserRole == "Admin"
+
+    if not (has_admin_perms or has_legacy_admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user
 
