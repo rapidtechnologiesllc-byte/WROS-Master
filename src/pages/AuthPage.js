@@ -87,7 +87,8 @@ export default function AuthPage() {
     if (Array.isArray(data?.roles)) {
       localStorage.setItem("hrms_roles", JSON.stringify(data.roles));
     }
-    if (Array.isArray(data?.permissions)) {
+    // Store role template permissions (can be array or object)
+    if (data?.permissions) {
       localStorage.setItem("hrms_permissions", JSON.stringify(data.permissions));
     }
 

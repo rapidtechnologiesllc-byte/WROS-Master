@@ -86,7 +86,7 @@ function EmployeeListTab() {
             <tr>
               <th className="px-4 py-2 text-left font-semibold">Name</th>
               <th className="px-4 py-2 text-left font-semibold">Email</th>
-              <th className="px-4 py-2 text-left font-semibold">Title</th>
+              <th className="px-4 py-2 text-left font-semibold">Job Title</th>
               <th className="px-4 py-2 text-left font-semibold">Status</th>
               <th className="px-4 py-2 text-left font-semibold">Utilization</th>
               <th className="px-4 py-2 text-left font-semibold">Action</th>
@@ -97,7 +97,7 @@ function EmployeeListTab() {
               <tr key={emp.id} className="border-b hover:bg-gray-50">
                 <td className="px-4 py-2">{emp.first_name} {emp.last_name}</td>
                 <td className="px-4 py-2 text-gray-600">{emp.email}</td>
-                <td className="px-4 py-2">{emp.current_title || "—"}</td>
+                <td className="px-4 py-2">{emp.job_title || emp.current_title || "—"}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={emp.hire_status === "ACTIVE" ? "active" : "inactive"}>
                     {emp.hire_status || "Active"}
