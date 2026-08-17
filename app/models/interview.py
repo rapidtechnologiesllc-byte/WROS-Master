@@ -63,7 +63,7 @@ class InterviewDecisionLog(Base):
 
     # Reference to interview
     interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     # Decision Outcome
     outcome = Column(
@@ -111,7 +111,7 @@ class InterviewPanelDecision(Base):
 
     # Reference
     interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=False, unique=True, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     # Final Decision
     decision = Column(

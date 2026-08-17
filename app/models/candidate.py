@@ -94,8 +94,8 @@ class Candidate(Base):
     # submission_bu_id: IMMUTABLE - which BU first submitted this candidate (NULL = not yet submitted)
     # associated_bu_id: READ-ONLY - current BU association (follows submission_bu_id, used for queries)
     # Candidate visibility: unassociated (NULL) = visible to all HR, associated = visible only to that BU
-    submission_bu_id = Column(String(36), ForeignKey("business_units.id"), nullable=True, index=True)
-    associated_bu_id = Column(String(36), ForeignKey("business_units.id"), nullable=True, index=True)
+    submission_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    associated_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
 
     # Relationships
@@ -210,8 +210,7 @@ class CandidateJobApplication(Base):
     __tablename__ = "candidate_job_applications"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(
-        String(50),
+    candidate_id = Column(String(36),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

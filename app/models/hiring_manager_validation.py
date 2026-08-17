@@ -29,7 +29,7 @@ class HiringManagerValidation(Base):
     __tablename__ = "hiring_manager_validations"
 
     id = Column(String(36), primary_key=True, index=True)  # UUID
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     job_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)  # References Demand (job)
     hiring_manager_id = Column(String(36), ForeignKey("users.UserID"), nullable=False, index=True)
 

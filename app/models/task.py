@@ -90,7 +90,7 @@ class Task(Base):
         nullable=False, default="NEW",
     )
 
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
+    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
     assigned_to_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
     created_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
     # Parent-child pattern (Freshdesk/Zendesk precedent) -- one cross-
@@ -109,7 +109,7 @@ class Task(Base):
     # nullable -- every non-document-review Task leaves these null,
     # same "polymorphic-lite, not a forced generic link table" posture
     # as parent_task_id above.
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True, index=True)
     document_id = Column(Integer, ForeignKey("candidate_documents.id"), nullable=True, index=True)
     # 2026-08-05 -- interview feedback/HM-decision linkage (backlog item:
     # distinguish "interviewer hasn't submitted feedback yet" from
@@ -200,7 +200,7 @@ class TaskCapacityAlert(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True)
 
     open_task_count = Column(Integer, nullable=False)
     reason = Column(Text, nullable=False)

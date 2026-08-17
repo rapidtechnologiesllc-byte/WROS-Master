@@ -41,7 +41,7 @@ class Offer(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # ── Foreign Keys ──────────────────────────────────────────────────────────
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"),
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"),
                          nullable=False, index=True)
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=False, index=True)
     created_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False)
@@ -68,7 +68,7 @@ class Offer(Base):
 
     # ── Candidate Response ────────────────────────────────────────────────────
     sent_to_email = Column(String(255), nullable=True)
-    accepted_by_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"),
+    accepted_by_candidate_id = Column(String(36), ForeignKey("candidates.candidateID"),
                                      nullable=True)
     accepted_at = Column(DateTime(timezone=False), nullable=True)
 
