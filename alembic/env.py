@@ -52,8 +52,7 @@ from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.offer import Offer, OfferStatus
 from app.models.newsletter import Newsletter, NewsletterSubscriber
-from app.models.rbac_template import Module, Resource, RoleTemplate, RoleTemplatePermission
-from app.models.business_unit_context import BusinessUnitContext
+from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
 from app.models.permission import JobTitle, JobTitleRole, DetailedPermission, DetailedRolePermission, FieldPermission, DataScopePermission
 from app.models.employee import Employee, EmployeeEmploymentHistory, EmployeeDocuments, EmployeeEngineHistory
