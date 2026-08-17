@@ -606,7 +606,302 @@ Data Scope: Filtered by BU (Partner/BU Head view only their scope), Role-based
 
 ## 4. MICROSERVICES ARCHITECTURE (Future Split)
 
-### 4.1 Service Boundaries
+### 4.1 Critical Implementation Decisions
+
+#### Q1: Organizational Hierarchy Service - SEPARATE ✅
+
+**Decision:** Create separate Organization Service
+
+**Rationale:** 
+- Hierarchy is foundational to multiple systems (WROS, Finance, Reporting)
+- Other services depend on it (Auth, RBAC, Workforce)
+- Isolating changes without affecting WROS operations
+- Single source of truth for org structure
+
+**Organization Service Owns:**
+```
+├─ Employees (emp_id, name, email, manager_id, location_id, bu_id, department_id)
+├─ Manager Hierarchy (manager_id foreign key to employees - recursion)
+├─ Locations (country-based: India, Canada, US, UK)
+├─ Business Units (partner, bu_head, location)
+├─ Departments (Recruitment, Delivery, HR, Finance, Sales)
+├─ Roles (job titles, levels)
+└─ Org Relationships (who reports to whom, BU structure)
+
+Other Services Reference It:
+├─ WROS: "Get employee hierarchy" → calls Org Service
+├─ Auth: "Validate user exists" → calls Org Service
+├─ RBAC: "Get user's BU/Location" → calls Org Service
+├─ Finance: "Get employee cost center" → calls Org Service
+└─ Reporting: "Build org chart" → calls Org Service
+```
+
+---
+
+#### Q2: Role Templates & Cascading Permissions - DATABASE-DRIVEN ✅
+
+**Decision:** Role templates in database, permissions cascade via hierarchy queries
+
+**Implementation:**
+```sql
+-- Role Templates (Admin UI configures these, code reads them)
+role_templates (id, name, department_id, level, is_active)
+├─ Level 1: Intern
+├─ Level 5: Consultant
+├─ Level 10: Manager
+├─ Level 12: Senior Manager
+├─ Level 14: Director
+├─ Level 16: Principal Architect
+├─ Level 18: Associate Partner
+├─ Level 19: BU Head (VP)
+└─ Level 20: Partner
+
+-- Module Access (what each role can access)
+role_template_module_access (role_template_id, module_id, access_level)
+├─ Example: Recruiter + Recruitment module = "manage"
+├─ Example: Consultant + Workforce module = "view_own"
+├─ Example: Manager + Workforce module = "manage_team"
+└─ Example: Partner + Finance module = "manage_bu"
+
+-- Cascading Permission Query
+def get_user_accessible_modules(user_id):
+    user_roles = db.query(UserRole).filter(user_id=user_id).all()
+    
+    # Get all modules accessible via any user role
+    modules = db.query(Module).join(
+        RoleTemplateModuleAccess
+    ).filter(
+        RoleTemplateModuleAccess.role_template_id.in_(
+            [r.role_template_id for r in user_roles]
+        )
+    ).distinct().all()
+    
+    return modules
+
+-- Hierarchical Permission Cascading
+def get_user_data_access_scope(user_id):
+    user = db.query(Employee).filter(id=user_id).first()
+    
+    # Manager hierarchy: user owns reports
+    subordinates = get_all_subordinates(user_id)  # Recursive query
+    
+    # Data scope includes:
+    return {
+        'own_data': user_id,
+        'team_data': subordinates,  # All reports in hierarchy
+        'bu_data': user.bu_id if user.level >= MANAGER_LEVEL else None,
+        'location_data': user.location_id,
+        'tenant_id': user.tenant_id,
+        'department_id': user.department_id
+    }
+```
+
+**Cascading Rule:**
+```
+Manager automatically sees:
+├─ All direct reports' data
+├─ All reports' reports' data (entire chain)
+├─ All data those reports can access
+└─ No code change needed when org hierarchy changes
+
+Director sees:
+├─ Multiple managers + all their chains
+├─ All data in the organizational tree below them
+└─ Applied per department (Recruitment only sees recruitment data)
+
+Partner sees:
+├─ All BUs they own
+├─ All data in those BUs
+├─ All departments' data
+└─ Complete P&L accountability
+```
+
+---
+
+#### Q3: Data Filtering at Query Level - QUERY-TIME WITH ISOLATION ✅
+
+**Decision:** Option A (Query-time filtering) + Candidate Isolation Rule
+
+**Implementation Pattern:**
+```sql
+-- All queries follow this pattern:
+SELECT * FROM table
+WHERE 
+  tenant_id = :tenant_id
+  AND location_id IN :accessible_locations
+  AND bu_id IN :accessible_bus
+  AND department_id = :user_department
+  AND (
+    -- Manager sees their reporting chain
+    created_by_id IN :all_subordinates
+    OR assigned_to_id IN :all_subordinates
+    OR user_id = :current_user_id
+  )
+
+-- SPECIAL RULE: Candidate Isolation
+-- Once a candidate is submitted to a BU, they are LOCKED to that BU
+```
+
+**Recruitment Global Visibility (Pre-Isolation):**
+```sql
+-- Recruiter sees ALL candidates (across all BUs)
+-- ONLY if candidate.associated_bu_id IS NULL (unassociated)
+SELECT * FROM candidates
+WHERE 
+  tenant_id = :tenant_id
+  AND associated_bu_id IS NULL  -- Unassociated candidate pool
+  AND status IN ('sourced', 'screening', 'qualified')
+
+-- Recruiter sees BU-specific candidates
+-- (candidates associated with their BU)
+SELECT * FROM candidates
+WHERE 
+  tenant_id = :tenant_id
+  AND associated_bu_id = :current_user_bu_id
+```
+
+**Candidate Isolation Rule (Post-Submission):**
+```
+Timeline:
+
+1. SOURCING PHASE:
+   ├─ Candidate: associated_bu_id = NULL
+   ├─ Visibility: ALL recruiters across ALL BUs
+   ├─ Action: Any recruiter can view/qualify
+   └─ Candidate can be matched to ANY BU job
+
+2. SUBMISSION TO JOB:
+   ├─ When: Candidate submitted to Job (in Job/BU)
+   ├─ Then: candidate.associated_bu_id = that BU
+   ├─ Visibility: LOCKED to that BU only
+   └─ Only recruiters for that BU see this candidate
+
+3. ONBOARDING PHASE:
+   ├─ Candidate: associated_bu_id = BU (unchanged)
+   ├─ Visibility: That BU only
+   ├─ Data follows: Recruitment → Onboarding → Employee
+   └─ Cannot move between BUs
+
+4. EMPLOYEE PHASE:
+   ├─ Candidate: Now Employee
+   ├─ employee.bu_id = original associated_bu_id
+   ├─ Visibility: That BU only
+   └─ Locked for employment lifecycle
+
+RULES:
+✅ Recruiter can see all unassociated candidates (global pool)
+✅ Recruiter can see all candidates associated with their BU
+❌ Recruiter CANNOT see candidates associated with other BUs
+❌ Candidate CANNOT be moved between BUs once submitted
+❌ Candidate CANNOT be double-offered to multiple BUs
+
+PURPOSE:
+├─ Prevents candidate confusion (who owns them?)
+├─ Prevents cross-BU poaching
+├─ Makes BU accountability clear
+├─ Ensures fair hiring (first BU to submit wins)
+└─ Simplifies tracking through lifecycle
+```
+
+**Query Implementation:**
+```python
+def get_recruitment_candidates(current_user_id: str):
+    user = get_employee(current_user_id)  # Organization Service
+    
+    # Unassociated candidates (global pool)
+    global_candidates = db.query(Candidate).filter(
+        Candidate.tenant_id == user.tenant_id,
+        Candidate.associated_bu_id == None,  # Not assigned to any BU
+        Candidate.status.in_(['sourced', 'screening', 'qualified'])
+    ).all()
+    
+    # BU-specific candidates (locked to user's BU)
+    bu_candidates = db.query(Candidate).filter(
+        Candidate.tenant_id == user.tenant_id,
+        Candidate.associated_bu_id == user.bu_id
+    ).all()
+    
+    return global_candidates + bu_candidates
+```
+
+---
+
+#### Q4: Multi-Tenancy Implementation - SHARED DATABASE ✅
+
+**Decision:** Option B (Single database, tenant_id on all tables)
+
+**Implementation:**
+```sql
+-- Architecture: Single PostgreSQL database
+-- Isolation: Row-level via tenant_id + query filters
+
+CREATE TABLE candidates (
+  id UUID PRIMARY KEY,
+  tenant_id INT NOT NULL,      -- BlitzenX=1, Poliqs=2, BX Realty=3, etc.
+  associated_bu_id UUID,        -- Which BU owns this candidate (NULL = unassociated)
+  location_id UUID NOT NULL,
+  bu_id UUID,                   -- Their BU (set when associated)
+  created_at TIMESTAMP,
+  UNIQUE(tenant_id, id)
+);
+
+CREATE TABLE employees (
+  id UUID PRIMARY KEY,
+  tenant_id INT NOT NULL,      -- Isolate by company
+  bu_id UUID NOT NULL,
+  manager_id UUID,
+  created_at TIMESTAMP,
+  UNIQUE(tenant_id, id)
+);
+
+-- Shared Services (Multi-tenant aware)
+Auth Service:
+├─ Knows: tenant_id from login
+├─ Issues: JWT with tenant_id + user_id
+├─ Validates: Each request's tenant_id
+
+RBAC Service:
+├─ Stores: role_templates per tenant
+├─ Checks: user roles per tenant
+├─ Returns: permissions per tenant
+
+Organization Service:
+├─ Owns: employees per tenant
+├─ Isolates: by tenant_id
+├─ Returns: hierarchy per tenant
+
+Config Service:
+├─ Stores: configuration per tenant
+├─ Returns: settings per tenant
+└─ Enables: tenant-specific features
+
+-- Query Pattern (ALL queries)
+WHERE tenant_id = :current_tenant_id
+```
+
+**Multi-Tenant Onboarding (Zero Code Change):**
+```
+Add new company (BX Realty) in 2027:
+
+1. INSERT INTO tenants:
+   ├─ INSERT INTO tenants (id, name, slug) 
+   │  VALUES (3, 'BX Realty', 'bx-realty')
+
+2. Create company users (via Auth Service):
+   ├─ CEO for BX Realty (tenant_id=3)
+   ├─ Partners for BX Realty (tenant_id=3)
+   └─ Users automatically scoped to tenant_id=3
+
+3. All queries automatically isolated:
+   └─ BX Realty users see only tenant_id=3 data
+   └─ BlitzenX users see only tenant_id=1 data
+
+NO CODE CHANGES NEEDED - All infrastructure supports it
+```
+
+---
+
+### 4.1 Service Boundaries (After Critical Decisions)
 
 **Current:** Monolithic backend (OnboardingModule-Backend)
 
