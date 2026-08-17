@@ -5,6 +5,7 @@ from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup
+from app.services.rbac_service import RBACService
 
 router = APIRouter(prefix="/admin/agent-standups", tags=["Agent Standups Dashboard"])
 
@@ -25,7 +26,7 @@ def get_standups_dashboard(
     Required: admin.view (CEO/Super User only)
     """
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
+        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only CEO/Super User can view Agent Standups Dashboard"
