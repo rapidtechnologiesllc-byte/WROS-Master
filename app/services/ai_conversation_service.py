@@ -312,10 +312,28 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     own docstring), that comparison would never match any real user and
     Thunder would silently always fall back to hardcoded defaults,
     quietly losing whatever name/persona an admin actually configured.
-    Decoupled: this always resolves the same designated Super User
-    directly, regardless of what tenant_id was passed.
+    Decoupled: this always resolves the same admin user with config permissions,
+    regardless of what tenant_id was passed.
+
+    Zero-hardcoding: Finds admin via permission check, not hardcoded role name.
     """
-    tenant_user = db.query(Users).filter(Users.UserRole == "Super User").order_by(Users.UserID.asc()).first()
+    from app.services.rbac_service import RBACService
+
+    # Find first user with admin permissions (tenant configuration access)
+    all_users = db.query(Users).order_by(Users.UserID.asc()).all()
+    tenant_user = None
+    for user in all_users:
+        if RBACService.has_permission(db, user.UserID, "tenant.ai_config"):
+            tenant_user = user
+            break
+
+    # Fallback: just get first admin
+    if not tenant_user:
+        all_users = db.query(Users).order_by(Users.UserID.asc()).all()
+        for user in all_users:
+            if RBACService.has_permission(db, user.UserID, "admin.manage"):
+                tenant_user = user
+                break
 
     name = (tenant_user.ai_agent_name if tenant_user else None) or ""
     name = name.strip()

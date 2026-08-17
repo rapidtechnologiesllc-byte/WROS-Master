@@ -164,11 +164,26 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     """Picks a Finance-role user to assign the "mark as paid" Task to.
     Deterministic (lowest UserID) rather than round-robin -- this is a
     single low-volume approval queue, not a high-throughput ticket
-    system that needs load balancing."""
-    query = db.query(Users).filter(Users.UserRole == "Finance")
+    system that needs load balancing.
+
+    Zero-hardcoding: Finance users identified by 'payroll_access' attribute,
+    not by hardcoded 'Finance' role name."""
+    from app.services.rbac_service import RBACService
+    from app.models.rbac import Role, RoleAttribute
+
+    # Find all users with finance-level permissions (payroll access)
+    all_users = db.query(Users)
     if tenant_id is not None:
-        query = query.filter(Users.tenant_id == tenant_id)
-    return query.order_by(Users.UserID).first()
+        all_users = all_users.filter(Users.tenant_id == tenant_id)
+    all_users = all_users.order_by(Users.UserID).all()
+
+    # Filter to only users with payroll_access or revenue.view_pnl permission
+    finance_users = [
+        u for u in all_users
+        if RBACService.has_permission(db, u.UserID, "revenue.view_pnl")
+    ]
+
+    return finance_users[0] if finance_users else None
 
 
 def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:

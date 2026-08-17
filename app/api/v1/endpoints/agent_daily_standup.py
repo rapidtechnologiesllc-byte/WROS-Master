@@ -63,19 +63,13 @@ async def get_scrum_of_scrums(
 
     Requires: admin.view (CEO/Super User only)
     """
+    # Permission check is enforced via decorator above (require_permission("admin.view"))
+    # No need for hardcoded role check here - removed for zero-hardcoding principle
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only CEO/Super User can view Scrum of Scrums"
-            )
-
         scrum = await AgentDailyStandup.scrum_of_scrums(
             tenant_id=current_user.tenant_id,
             db=db
         )
         return scrum
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
