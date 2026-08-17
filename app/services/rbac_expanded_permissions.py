@@ -2,14 +2,20 @@
 Expanded RBAC Permission Model - HubSpot Style (Module × Verb)
 
 Replaces the coarse 28-permission model with a granular per-module, per-verb model.
-This file defines:
-1. The module list
-2. The applicable verbs per module
-3. The new permission names
-4. Role-to-permissions mapping for common roles
+
+NOTE: Modules and verbs are now FETCHED FROM DATABASE via ModuleService.
+The lists below are SEED DATA and FALLBACKS only - they are used during initial database
+setup and as fallback if database queries fail. All production code should use
+ModuleService.get_all_modules() and ModuleService.get_verb_matrix() instead.
+
+HARDCODED SEED DATA ONLY (use ModuleService for runtime queries):
 """
 
-# Modules in the system - organized by functional area
+# ════════════════════════════════════════════════════════════════════════════
+# SEED DATA: Hardcoded module list for database initialization
+# DO NOT USE IN CODE - use ModuleService.get_all_modules() instead
+# ════════════════════════════════════════════════════════════════════════════
+
 MODULES = [
     # Recruitment
     "candidates",
@@ -492,3 +498,30 @@ def get_module_description(module: str) -> str:
         "executive_signal": "Executive Dashboard",
     }
     return descriptions.get(module, module.replace("_", " ").title())
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# DATABASE-DRIVEN MODULE & VERB QUERIES
+# These functions query from database and fall back to hardcoded data
+# ════════════════════════════════════════════════════════════════════════════
+
+def get_modules_from_db(db) -> list:
+    """Get all modules from database, fallback to hardcoded MODULES if database unavailable."""
+    try:
+        from app.services.module_service import ModuleService
+        db_modules = ModuleService.get_module_names(db, tenant_id=1, active_only=True)
+        return db_modules if db_modules else MODULES
+    except Exception:
+        # Fallback to hardcoded data if database query fails
+        return MODULES
+
+
+def get_verb_matrix_from_db(db) -> dict:
+    """Get verb matrix from database, fallback to hardcoded VERB_MATRIX if database unavailable."""
+    try:
+        from app.services.module_service import ModuleService
+        db_matrix = ModuleService.get_verb_matrix(db, tenant_id=1)
+        return db_matrix if db_matrix else VERB_MATRIX
+    except Exception:
+        # Fallback to hardcoded data if database query fails
+        return VERB_MATRIX

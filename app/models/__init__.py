@@ -31,7 +31,8 @@ from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.rbac import Role, RoleAttribute, Permission, RolePermission, BusinessUnit
-from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.models.role_template import Module as RoleTemplateModule, Resource, RoleTemplate, RoleTemplatePermission
+from app.models.module import Module, ModulePermission
 from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
 from app.models.employee import (
     Employee,
@@ -172,10 +173,13 @@ __all__ = [
     "RolePermission",
     "BusinessUnit",
     # Role Templates (ZERO-HARDCODING)
-    "Module",
+    "RoleTemplateModule",
     "Resource",
     "RoleTemplate",
     "RoleTemplatePermission",
+    # Modules & Permissions (Database-Driven Configuration)
+    "Module",
+    "ModulePermission",
     # Organizational Hierarchy
     "Department",
     "OrgNode",
