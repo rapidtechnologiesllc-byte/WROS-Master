@@ -105,20 +105,40 @@ Demand → Revenue → Workforce → Deployment → Delivery → Client Satisfac
 - Building leadership bench (avoid Partner/CEO dependency)
 - Ensuring all functions operate against measurable outcomes
 
-**Workforce Allocation to BUs:**
+**Workforce Allocation by Hiring Type (Not BU Allocation):**
 ```
-Incremental hiring allocation (planning baseline):
-├─ AXION: 60% of new hires
-├─ PRISM: 40% of new hires
-└─ Applied to both Lateral and HTD hiring
+Incremental hiring allocation by sourcing strategy (planning baseline):
 
-Allocation distributed within 60/40 split:
-├─ 60% AXION (HTD + Lateral combined)
-└─ 40% PRISM (HTD + Lateral combined)
+LATERAL HIRING: 60% of new hires
+├─ Profile: Experienced Guidewire consultants (5+ years Guidewire experience)
+├─ Benefit: Immediate productivity, deep Guidewire knowledge, can mentor HTD
+├─ Cost: Higher compensation, limited supply in market
+└─ Example: Out of 100 hires → 60 Lateral (experienced Guidewire resources)
 
-NOT an excuse for BU to miss commitments
-WROS recommends adjustments based on demand, pipeline, capacity, utilization, skill requirements, economic return
-Partner remains accountable for final BU outcome
+HTD HIRING: 40% of new hires
+├─ Profile: Experienced Java developers (5+ years Java development)
+├─ Training: Intensive Guidewire training + mentoring + certification
+├─ Benefit: Lower cost, larger talent pool, long-term retention, builds bench
+├─ Pipeline: Java Dev → HTD Training → Specialty Work → CORE Certification
+└─ Example: Out of 100 hires → 40 HTD (Java devs ready to learn Guidewire)
+
+Strategic Mix Rationale:
+├─ 60% Lateral ensures immediate client delivery capacity
+├─ 40% HTD builds long-term talent bench and reduces Guidewire market dependency
+├─ Combined: Steady-state capability + growth capacity
+
+WROS adjusts based on:
+├─ Lateral market availability (harder to find 5+ year Guidewire resources)
+├─ HTD conversion success rate (training completion, certification pass rate)
+├─ Client demand urgency (immediate need favors Lateral)
+├─ Long-term bench strength (future need favors HTD)
+├─ Budget constraints (Lateral costs more upfront)
+└─ CORE capacity requirements
+
+This allocation applies independently to each BU
+├─ AXION hires: 60% Lateral + 40% HTD
+├─ PRISM hires: 60% Lateral + 40% HTD
+└─ WROS recommends adjustments, Partner remains accountable for final outcome
 ```
 
 ---
@@ -1149,13 +1169,32 @@ Capital vs Facilities vs Systems Requirements
 Auto-identifies: Ahead/behind trajectory
 ```
 
-### 10.2 Growth Allocation
+### 10.2 Hiring Type Allocation (Lateral vs HTD)
 
 ```
-Incremental hiring: 60/40 split (AXION/PRISM)
-├─ HTD distributed within split
-├─ Lateral distributed within split
-└─ WROS recommends adjustments based on demand/pipeline/capacity/economics
+Strategic hiring mix: 60% Lateral / 40% HTD
+
+LATERAL (60%):
+├─ Experienced Guidewire consultants (5+ years Guidewire)
+├─ Immediate client delivery
+├─ High cost, limited market supply
+└─ Applied across all BUs
+
+HTD (40%):
+├─ Experienced Java developers (5+ years Java)
+├─ Convert to Guidewire via intensive training
+├─ Lower cost, builds long-term bench
+├─ Creates competitive advantage (don't depend on Guidewire market)
+
+WROS adjusts based on:
+├─ Lateral market availability
+├─ HTD conversion success rate
+├─ Client demand urgency
+├─ Long-term bench strength
+└─ Budget constraints
+
+Applied per-BU (not aggregate):
+└─ Each BU's hiring follows 60/40 strategy independently
 ```
 
 ---
