@@ -123,6 +123,7 @@ export const apiRequest = async (path, options = {}) => {
 
   const response = await fetch(url, {
     headers: skipAuth ? baseHeaders : withAuthHeaders(baseHeaders),
+    credentials: 'omit',
     body,
     ...rest,
   });
