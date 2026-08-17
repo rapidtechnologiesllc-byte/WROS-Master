@@ -11,7 +11,7 @@ from typing import List, Optional, Set
 from sqlalchemy.orm import Session
 
 from app.models.user import Users, UserRole
-from app.models.role_template import RoleTemplate, RoleTemplateModuleAccess, Module
+from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
 from app.services.permission_helper import PermissionHelper
 
 
