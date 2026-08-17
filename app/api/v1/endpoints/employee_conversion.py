@@ -33,6 +33,7 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
             first_name=request.first_name,
             last_name=request.last_name,
             employment_type=request.employment_type,
+            job_title=request.job_title,
             changed_by=current_user.UserID if current_user else None
         )
         db.commit()

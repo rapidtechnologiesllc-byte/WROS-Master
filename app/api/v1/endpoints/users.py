@@ -68,6 +68,7 @@ def get_me(
         user_name=current_user.UserName,
         user_email=current_user.UserEmail,
         user_role=current_user.UserRole,
+        job_title=current_user.job_title,
         permission_role=role.name if role else None,
         role_id=current_user.role_id,
         business_unit_id=current_user.business_unit_id,
@@ -124,6 +125,7 @@ def get_all_users(
             user_name=u.UserName or "",
             user_email=u.UserEmail,
             user_role=u.UserRole,
+            job_title=u.job_title,
             created_at=u.CreatedAt,
             permission_role=role.name if role else None,
             department_id=u.department_id,
@@ -240,6 +242,7 @@ def search_users(
             user_name=u.UserName or "",
             user_email=u.UserEmail,
             user_role=u.UserRole,
+            job_title=u.job_title,
             created_at=u.CreatedAt,
             permission_role=role.name if role else None,
             department_id=u.department_id,
@@ -281,6 +284,7 @@ def get_user_details_by_id(
         user_name=u.UserName or "",
         user_email=u.UserEmail,
         user_role=u.UserRole,
+        job_title=u.job_title,
         created_at=u.CreatedAt,
         permission_role=role.name if role else None,
         department_id=u.department_id,
@@ -534,6 +538,120 @@ def create_user(
         user_email=new_user.UserEmail,
         user_role=new_user.UserRole,
         created_at=new_user.CreatedAt
+    )
+
+
+@router.post(
+    "/users/create-with-roles",
+    response_model=UserResponse,
+    summary="Create a new user with roles and optional job title",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def create_user_with_roles(
+    user_name: str = None,
+    user_email: str = None,
+    user_password: str = None,
+    job_title: str = None,
+    partner_id: int = None,
+    business_unit_id: int = None,
+    role_ids: list = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin)
+):
+    """
+    Create a new user with roles and job title.
+    Requires permission: user.manage
+    """
+    if not user_name or not user_name.strip():
+        raise HTTPException(status_code=400, detail="User name is required")
+    if not user_email or not user_email.strip():
+        raise HTTPException(status_code=400, detail="User email is required")
+    if not user_password or not user_password.strip():
+        raise HTTPException(status_code=400, detail="Password is required")
+    if not role_ids or len(role_ids) == 0:
+        raise HTTPException(status_code=400, detail="At least one role is required")
+
+    from app.core.database import check_user
+    existing = check_user(db, user_email)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
+
+    new_user = Users(
+        UserID=user_id_generator(),
+        UserName=user_name,
+        UserEmail=user_email,
+        UserPassword=get_password_hash(user_password),
+        UserRole="Admin"  # Default role
+    )
+
+    # Set job_title if provided
+    if job_title:
+        new_user.job_title = job_title
+
+    # Set partner_id if provided
+    if partner_id:
+        new_user.partner_id = partner_id
+
+    # Set business_unit_id if provided
+    if business_unit_id:
+        new_user.business_unit_id = business_unit_id
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return UserResponse(
+        user_id=new_user.UserID,
+        user_name=new_user.UserName or "",
+        user_email=new_user.UserEmail,
+        user_role=new_user.UserRole,
+        created_at=new_user.CreatedAt
+    )
+
+
+@router.put(
+    "/users/{user_id}/update-with-roles",
+    response_model=UserResponse,
+    summary="Update user with roles, job title, and business unit",
+    dependencies=[Depends(require_permission("user.manage"))],
+)
+def update_user_with_roles(
+    user_id: str,
+    user_name: Optional[str] = None,
+    job_title: Optional[str] = None,
+    partner_id: Optional[int] = None,
+    business_unit_id: Optional[int] = None,
+    role_ids: Optional[list] = None,
+    assigned_at: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin)
+):
+    """
+    Update a user with roles, job title, partner, and business unit.
+    Requires permission: user.manage
+    """
+    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
+    if user_name is not None:
+        target.UserName = user_name
+    if job_title is not None:
+        target.job_title = job_title
+    if partner_id is not None:
+        target.partner_id = partner_id
+    if business_unit_id is not None:
+        target.business_unit_id = business_unit_id
+
+    db.commit()
+    db.refresh(target)
+
+    return UserResponse(
+        user_id=target.UserID,
+        user_name=target.UserName or "",
+        user_email=target.UserEmail,
+        user_role=target.UserRole,
+        created_at=target.CreatedAt
     )
 
 
@@ -913,22 +1031,27 @@ def get_job_titles(
     Used to populate dropdowns in user creation/edit forms.
     Only returns active job titles (active=true).
     """
-    # Get tenant ID from current user
-    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+    try:
+        # Get tenant ID from current user (default to 1 if None or missing)
+        tenant_id = current_user.tenant_id if (hasattr(current_user, 'tenant_id') and current_user.tenant_id) else 1
 
-    job_titles = db.query(JobTitle).filter(
-        JobTitle.tenant_id == tenant_id,
-        JobTitle.active == True
-    ).order_by(JobTitle.name).all()
+        job_titles = db.query(JobTitle).filter(
+            JobTitle.tenant_id == tenant_id,
+            JobTitle.active == True
+        ).order_by(JobTitle.name).all()
 
-    return {
-        "job_titles": [
-            {
-                "id": jt.id,
-                "name": jt.name,
-                "description": jt.description
-            }
-            for jt in job_titles
-        ]
-    }
+        return {
+            "job_titles": [
+                {
+                    "id": jt.id,
+                    "name": jt.name,
+                    "description": jt.description
+                }
+                for jt in job_titles
+            ]
+        }
+    except Exception as e:
+        # If table doesn't exist or other DB error, return empty list
+        # (migration may not have run yet)
+        return {"job_titles": []}
 

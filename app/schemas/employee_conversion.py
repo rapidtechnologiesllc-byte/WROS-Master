@@ -12,6 +12,7 @@ class EmployeeConversionRequest(BaseModel):
     employment_type: str = "PERMANENT"
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    job_title: Optional[str] = None
 
 class EmployeeAccountRequest(BaseModel):
     employee_name: str

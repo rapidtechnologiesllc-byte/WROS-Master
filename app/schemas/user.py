@@ -106,6 +106,7 @@ class UserResponse(BaseModel):
     user_name: str
     user_email: str
     user_role: str
+    job_title: Optional[str] = None
     permission_role: Optional[str] = None
     department_id: Optional[int] = None
     department_name: Optional[str] = None
@@ -374,6 +375,7 @@ class HrMeResponse(BaseModel):
     user_name: Optional[str]
     user_email: str
     user_role: str
+    job_title: Optional[str] = None
     permission_role: Optional[str] = None
     role_id: Optional[int] = None
     business_unit_id: Optional[int] = None
@@ -539,6 +541,7 @@ class SingleUserResponse(BaseModel):
     user_name: Optional[str]
     user_email: str
     user_role: str
+    job_title: Optional[str] = None
     permission_role: Optional[str] = None
     role_id: Optional[int] = None
     business_unit_id: Optional[int] = None
