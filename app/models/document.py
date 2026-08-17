@@ -38,7 +38,7 @@ class CandidateDocument(Base):
     verified_at = Column(DateTime, nullable=True)
     
     # Versioning
-    version = Column(Integer, default=1)
+    version = Column(Integer, default = True)
     is_latest = Column(Boolean, default=True)
     replaced_by = Column(Integer, ForeignKey("candidate_documents.id"), nullable=True)
     

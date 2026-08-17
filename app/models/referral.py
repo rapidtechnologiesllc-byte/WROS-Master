@@ -63,10 +63,10 @@ class JobReferralSettings(Base):
     referral_email_template = Column(String(100))  # Email template to use
 
     # Email tracking
-    referral_emails_sent = Column(Integer, default=0)  # How many sent
-    referral_emails_opened = Column(Integer, default=0)  # How many opened
-    referral_links_clicked = Column(Integer, default=0)  # How many clicked
-    total_referrals_received = Column(Integer, default=0)  # Total referrals for job
+    referral_emails_sent = Column(Integer, default = False)  # How many sent
+    referral_emails_opened = Column(Integer, default = False)  # How many opened
+    referral_links_clicked = Column(Integer, default = False)  # How many clicked
+    total_referrals_received = Column(Integer, default = False)  # Total referrals for job
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

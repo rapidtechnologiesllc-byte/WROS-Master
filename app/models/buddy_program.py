@@ -35,7 +35,7 @@ class BuddyProgramRecord(Base):
     actual_end_date = Column(Date, nullable=True)
 
     status = Column(String(20), nullable=False, default="IN_PROGRESS")
-    extension_count = Column(Integer, nullable=False, default=0)
+    extension_count = Column(Integer, nullable=False, default = False)
     extension_reason = Column(Text, nullable=True)
     bu_head_decision_notes = Column(Text, nullable=True)
 

@@ -34,12 +34,12 @@ class ATSScore(Base):
     )
 
     # ---------- Dimension scores ----------
-    overall_score   = Column(Integer, nullable=False, default=0)  # 0–100
-    skills_score    = Column(Integer, nullable=False, default=0)  # 0–25
-    experience_score = Column(Integer, nullable=False, default=0) # 0–25
-    education_score  = Column(Integer, nullable=False, default=0) # 0–20
-    location_score   = Column(Integer, nullable=False, default=0) # 0–15
-    culture_fit_score = Column(Integer, nullable=False, default=0) # 0–15
+    overall_score   = Column(Integer, nullable=False, default = False)  # 0–100
+    skills_score    = Column(Integer, nullable=False, default = False)  # 0–25
+    experience_score = Column(Integer, nullable=False, default = False) # 0–25
+    education_score  = Column(Integer, nullable=False, default = False) # 0–20
+    location_score   = Column(Integer, nullable=False, default = False) # 0–15
+    culture_fit_score = Column(Integer, nullable=False, default = False) # 0–15
 
     # ---------- Qualitative output ----------
     profile_summary  = Column(Text, nullable=True)

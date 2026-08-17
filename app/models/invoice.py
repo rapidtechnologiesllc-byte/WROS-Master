@@ -48,7 +48,7 @@ class Invoice(Base):
         nullable=False, default="DRAFT",
     )
     # R-09: BIGINT USD cents storage; currency is the client's display currency only.
-    total_usd_cents = Column(Integer, nullable=False, default=0)
+    total_usd_cents = Column(Integer, nullable=False, default = False)
     currency = Column(
         Enum(*BILLING_CURRENCIES, name="invoice_currency", native_enum=False, create_constraint=True),
         nullable=False, default="USD",

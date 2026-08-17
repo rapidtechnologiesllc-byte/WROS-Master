@@ -55,9 +55,9 @@ class ThunderSession(Base):
 
     # Progress tracking
     last_question_reached = Column(String(10), nullable=True)  # "Q1", "Q2", ..., "Q12"
-    questions_answered = Column(Integer, nullable=False, server_default="0", default=0)
+    questions_answered = Column(Integer, nullable=False, server_default="0", default = False)
     questions_total = Column(Integer, nullable=False, server_default="12", default=12)  # Total questions in flow
-    completion_percentage = Column(Integer, nullable=False, server_default="0", default=0)  # 0-100
+    completion_percentage = Column(Integer, nullable=False, server_default="0", default = False)  # 0-100
 
     # Form state (persistent across sessions)
     form_state = Column(JSON, nullable=True)  # Current form state for resume
@@ -83,7 +83,7 @@ class ThunderSession(Base):
 
     # Error handling
     last_error = Column(String(500), nullable=True)
-    error_count = Column(Integer, nullable=False, server_default="0", default=0)
+    error_count = Column(Integer, nullable=False, server_default="0", default = False)
     retry_batch_id = Column(String(36), nullable=True)  # References error batch for retry
 
     # Downstream pipeline

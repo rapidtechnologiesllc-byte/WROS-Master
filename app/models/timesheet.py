@@ -57,9 +57,9 @@ class Timesheet(Base):
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, index=True)
 
     week_starting_date = Column(Date, nullable=False)  # always a Monday
-    total_hours = Column(Numeric(6, 2), nullable=False, default=0)
-    billable_hours = Column(Numeric(6, 2), nullable=False, default=0)
-    non_billable_hours = Column(Numeric(6, 2), nullable=False, default=0)
+    total_hours = Column(Numeric(6, 2), nullable=False, default = False)
+    billable_hours = Column(Numeric(6, 2), nullable=False, default = False)
+    non_billable_hours = Column(Numeric(6, 2), nullable=False, default = False)
 
     status = Column(
         Enum(*TIMESHEET_STATUSES, name="timesheet_status", native_enum=False, create_constraint=True),

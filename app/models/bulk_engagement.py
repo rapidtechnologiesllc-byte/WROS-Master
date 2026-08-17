@@ -38,10 +38,10 @@ class BulkEngagementJob(Base):
 
     candidate_ids = Column(JSON, nullable=False)  # full target list, in order
     total_count = Column(Integer, nullable=False)
-    queued_count = Column(Integer, nullable=False, default=0)
-    success_count = Column(Integer, nullable=False, default=0)
-    failed_count = Column(Integer, nullable=False, default=0)
-    skipped_count = Column(Integer, nullable=False, default=0)  # BR-02: already-engaged candidates
+    queued_count = Column(Integer, nullable=False, default = False)
+    success_count = Column(Integer, nullable=False, default = False)
+    failed_count = Column(Integer, nullable=False, default = False)
+    skipped_count = Column(Integer, nullable=False, default = False)  # BR-02: already-engaged candidates
     status = Column(String(20), nullable=False, default="QUEUED")
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())

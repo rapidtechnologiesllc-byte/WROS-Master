@@ -32,8 +32,8 @@ class AgentMaturityLevel(Base):
     maturity_level = Column(Float, nullable=False, default=0.0)  # 0-100 scale
     success_rate = Column(Float, nullable=False, default=0.0)  # % of successful executions
     avg_execution_time_ms = Column(Integer, nullable=True)  # Average execution time in milliseconds
-    total_executions = Column(Integer, nullable=False, default=0)  # Total executions tracked
-    total_successes = Column(Integer, nullable=False, default=0)  # Total successful executions
+    total_executions = Column(Integer, nullable=False, default = False)  # Total executions tracked
+    total_successes = Column(Integer, nullable=False, default = False)  # Total successful executions
     quality_score = Column(Float, nullable=True)  # LLM-assessed quality (0-100)
 
     # Trend tracking
@@ -68,9 +68,9 @@ class AgentPerformanceMetric(Base):
     week_starting = Column(DateTime, nullable=False, index=True)  # Monday of the week
 
     # Performance metrics
-    executions_count = Column(Integer, nullable=False, default=0)
-    success_count = Column(Integer, nullable=False, default=0)
-    failure_count = Column(Integer, nullable=False, default=0)
+    executions_count = Column(Integer, nullable=False, default = False)
+    success_count = Column(Integer, nullable=False, default = False)
+    failure_count = Column(Integer, nullable=False, default = False)
     success_rate = Column(Float, nullable=False, default=0.0)  # %
 
     # Quality metrics
@@ -81,7 +81,7 @@ class AgentPerformanceMetric(Base):
 
     # Context
     top_error_type = Column(String(255), nullable=True)  # Most common error
-    error_count = Column(Integer, nullable=False, default=0)
+    error_count = Column(Integer, nullable=False, default = False)
     notes = Column(Text, nullable=True)  # Reporting agent's notes on performance
 
     # Maturity assessment

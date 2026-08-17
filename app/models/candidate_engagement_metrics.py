@@ -20,9 +20,9 @@ class CandidateEngagementMetrics(Base):
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
-    response_rate = Column(Numeric(5, 2), nullable=False, default=0)
+    response_rate = Column(Numeric(5, 2), nullable=False, default = False)
     avg_response_time_minutes = Column(Integer, nullable=True)
-    total_messages_exchanged = Column(Integer, nullable=False, default=0)
+    total_messages_exchanged = Column(Integer, nullable=False, default = False)
     days_to_qualification = Column(Integer, nullable=True)
     avg_sentiment_score = Column(Numeric(3, 2), nullable=True)
     last_inbound_at = Column(DateTime(timezone=False), nullable=True)

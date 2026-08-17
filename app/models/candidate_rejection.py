@@ -70,7 +70,7 @@ class CandidateRejection(Base):
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Tenant scoping (R-01: every table has tenant_id, NOT NULL, indexed)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1", index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default = True, server_default="1", index=True)
 
     # Relationships
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
@@ -107,7 +107,7 @@ class CandidateRejectionReason(Base):
     is_active = Column(Boolean, nullable=False, server_default="1", default=True)
 
     # Tenant scoping
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1", index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default = True, server_default="1", index=True)
 
     # Audit
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)

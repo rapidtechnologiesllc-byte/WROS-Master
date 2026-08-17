@@ -55,7 +55,7 @@ class ChecklistTemplateItem(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     item_type = Column(String(10), nullable=False, default="todo")   # 'todo' | 'queue'
-    order_index = Column(Integer, nullable=False, default=0)
+    order_index = Column(Integer, nullable=False, default = False)
     due_days_offset = Column(Integer, nullable=True)  # days after assignment
     created_at = Column(DateTime(timezone=False), server_default=func.now())
 
@@ -126,7 +126,7 @@ class CandidateChecklistItem(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     item_type = Column(String(10), nullable=False, default="todo")   # 'todo' | 'queue'
-    order_index = Column(Integer, nullable=False, default=0)
+    order_index = Column(Integer, nullable=False, default = False)
 
     # Status lifecycle:
     #   todo  items:  'pending' → 'submitted' (candidate) → 'completed' (HR)
