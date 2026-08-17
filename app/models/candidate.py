@@ -90,10 +90,19 @@ class Candidate(Base):
     email_2fa_opted_in = Column(Boolean, nullable=True)
     email_otp_code_hash = Column(String(64), nullable=True)
     email_otp_expires_at = Column(DateTime, nullable=True)
+    # CANDIDATE ISOLATION: Once submitted to a BU, candidate is locked to that BU
+    # submission_bu_id: IMMUTABLE - which BU first submitted this candidate (NULL = not yet submitted)
+    # associated_bu_id: READ-ONLY - current BU association (follows submission_bu_id, used for queries)
+    # Candidate visibility: unassociated (NULL) = visible to all HR, associated = visible only to that BU
+    submission_bu_id = Column(String(36), ForeignKey("business_units.id"), nullable=True, index=True)
+    associated_bu_id = Column(String(36), ForeignKey("business_units.id"), nullable=True, index=True)
+    submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
+    submission_bu = relationship("BusinessUnit", foreign_keys=[submission_bu_id], lazy="select")
+    associated_bu = relationship("BusinessUnit", foreign_keys=[associated_bu_id], lazy="select")
 
 
 class CandidateInfoForm(Base):
