@@ -1,12 +1,13 @@
 """Role Template management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit
+from app.services.rbac_audit_service import RBACauditService
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -140,6 +141,7 @@ def get_role_template(
 @router.post("")
 def create_role_template(
     data: RoleTemplateCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -179,6 +181,22 @@ def create_role_template(
 
     db.commit()
     db.refresh(template)
+
+    # Audit log
+    RBACauditService.log_role_template_created(
+        db=db,
+        template_id=template.id,
+        template_name=template.name,
+        template_data={
+            "name": template.name,
+            "display_name": template.display_name,
+            "description": template.description,
+            "permissions_count": len(data.permissions)
+        },
+        user_id=current_user.UserID,
+        tenant_id=current_user.tenant_id,
+        ip_address=request.client.host if request.client else None
+    )
 
     return {
         "id": template.id,
@@ -240,6 +258,7 @@ def update_role_template(
 def grant_permission(
     template_id: int,
     data: GrantRevokePermissionInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -291,6 +310,18 @@ def grant_permission(
         perm.can_delete = True
 
     db.commit()
+
+    # Audit log
+    RBACauditService.log_permission_granted(
+        db=db,
+        template_id=template.id,
+        resource_name=resource_name,
+        action=action,
+        user_id=current_user.UserID,
+        tenant_id=current_user.tenant_id,
+        ip_address=request.client.host if request.client else None
+    )
+
     return {"message": f"Permission granted: {resource_name} - {action}"}
 
 
@@ -298,6 +329,7 @@ def grant_permission(
 def revoke_permission(
     template_id: int,
     data: GrantRevokePermissionInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -341,6 +373,18 @@ def revoke_permission(
         perm.can_delete = False
 
     db.commit()
+
+    # Audit log
+    RBACauditService.log_permission_revoked(
+        db=db,
+        template_id=template.id,
+        resource_name=resource_name,
+        action=action,
+        user_id=current_user.UserID,
+        tenant_id=current_user.tenant_id,
+        ip_address=request.client.host if request.client else None
+    )
+
     return {"message": f"Permission revoked: {resource_name} - {action}"}
 
 
@@ -406,3 +450,54 @@ def list_business_units(
         })
 
     return {"business_units": result}
+
+
+@router.get("/{template_id}/audit-trail")
+def get_template_audit_trail(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get complete audit trail for a specific role template."""
+    template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == template_id,
+        RoleTemplate.tenant_id == current_user.tenant_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Role template not found")
+
+    audit_logs = RBACauditService.get_audit_trail_for_template(
+        db=db,
+        template_id=template_id,
+        tenant_id=current_user.tenant_id
+    )
+
+    return {
+        "template_id": template_id,
+        "template_name": template.name,
+        "audit_trail": audit_logs
+    }
+
+
+@router.get("/audit/logs")
+def get_rbac_audit_logs(
+    entity_type: str = None,
+    action: str = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get RBAC audit logs for the current tenant."""
+    logs = RBACauditService.get_audit_logs(
+        db=db,
+        entity_type=entity_type,
+        action=action,
+        tenant_id=current_user.tenant_id,
+        limit=min(limit, 500)
+    )
+
+    return {
+        "total": len(logs),
+        "logs": logs
+    }
