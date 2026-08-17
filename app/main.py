@@ -1,4 +1,4 @@
-# main.py
+# main.py  # 2026-08-17 - Force reload for bug fixes
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
