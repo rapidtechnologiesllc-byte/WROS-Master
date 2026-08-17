@@ -1,183 +1,197 @@
-"""
-Permission Helper Functions - Dynamic Permission Loading from Role Templates
+"""Permission Helper Service - Centralized permission and data scope management.
 
-This module provides functions to check permissions dynamically from role templates
-instead of using hardcoded permission strings throughout the application.
+Core functions for:
+- Getting user permissions from role templates
+- Checking specific permissions
+- Getting accessible modules
+- Calculating data access scope (BU, Location, Hierarchy)
+- Getting user's subordinates
 
+All permission checks should use these functions instead of hardcoded checks.
 ZERO-HARDCODING principle: All permission checks go through these helpers.
-No 'job.create', 'candidate.view' etc. hardcoded anywhere.
 """
 
+from typing import List, Set
+from dataclasses import dataclass
 from sqlalchemy.orm import Session
+
 from app.models.user import Users, UserRole
-from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource, Module
+from app.models.role_template import RoleTemplate, RoleTemplateModuleAccess, Module, Resource
+from app.services.organization_service import OrganizationService
 
 
-def get_user_permissions(db: Session, user_id: str) -> dict:
-    """
-    Get all permissions for a user based on their assigned role template.
+@dataclass
+class DataScope:
+    """User's data access scope - what data they can see."""
+    tenant_id: int
+    user_id: str
+    accessible_locations: List[str]  # Geographic boundary
+    accessible_bus: List[str]  # Business units
+    subordinates: List[str]  # Reporting chain
+    can_see_global_data: bool  # Cross-BU visibility
 
-    Returns: {
-        'modules': ['Recruitment', 'Finance', ...],
-        'resources_by_module': {
-            'Recruitment': {
-                'candidates': {'view': True, 'create': True, 'edit': False, 'delete': False},
-                'jobs': {'view': True, 'create': False, ...},
-                ...
-            },
-            ...
-        },
-        'all_resources_permission': {  # Flattened for easy checks
-            'candidates.view': True,
-            'candidates.create': True,
-            'jobs.view': True,
-            ...
-        }
-    }
-    """
-    try:
-        # Get user and their role template assignment
-        user = db.query(Users).filter_by(UserID=user_id).first()
+
+class PermissionHelper:
+    """Centralized permission and scope checking."""
+
+    @staticmethod
+    def get_user_permissions(user_id: str, db: Session, tenant_id: int = 1) -> Set[str]:
+        """Get all permissions for user via role templates.
+
+        Returns set of permission strings: {'recruitment.manage', 'project.view', ...}
+        """
+        user = db.query(Users).filter(
+            Users.UserID == user_id,
+            Users.tenant_id == tenant_id
+        ).first()
+
         if not user:
-            return {'modules': [], 'resources_by_module': {}, 'all_resources_permission': {}}
+            return set()
 
-        # Get user's assigned role template
-        user_role = db.query(UserRole).filter_by(user_id=user_id).first()
-        if not user_role or not user_role.role_template_id:
-            return {'modules': [], 'resources_by_module': {}, 'all_resources_permission': {}}
+        permissions = set()
 
-        role_template = db.query(RoleTemplate).filter_by(id=user_role.role_template_id).first()
-        if not role_template:
-            return {'modules': [], 'resources_by_module': {}, 'all_resources_permission': {}}
-
-        # Build permission structure
-        result = {
-            'modules': [],
-            'resources_by_module': {},
-            'all_resources_permission': {}
-        }
-
-        # Get all permissions for this role template
-        permissions = db.query(RoleTemplatePermission).filter_by(
-            role_template_id=role_template.id
+        # Get all user's role templates
+        user_roles = db.query(UserRole).filter(
+            UserRole.user_id == user_id,
+            UserRole.tenant_id == tenant_id
         ).all()
 
+        for user_role in user_roles:
+            # Get all module accesses for this role template
+            module_accesses = db.query(RoleTemplateModuleAccess).filter(
+                RoleTemplateModuleAccess.role_template_id == user_role.role_template_id
+            ).all()
+
+            for access in module_accesses:
+                module = db.query(Module).filter(Module.id == access.module_id).first()
+                if module:
+                    # Format: module_name.action (e.g., 'recruitment.manage')
+                    perm_name = f"{module.name}.{access.access_level}".lower()
+                    permissions.add(perm_name)
+
+        return permissions
+
+    @staticmethod
+    def has_permission(user_id: str, permission: str, db: Session, tenant_id: int = 1) -> bool:
+        """Check if user has specific permission.
+
+        permission format: 'resource.action' (e.g., 'recruitment.manage', 'project.view')
+        """
+        permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
+        return permission.lower() in permissions
+
+    @staticmethod
+    def has_any_permission(user_id: str, permissions: List[str], db: Session, tenant_id: int = 1) -> bool:
+        """Check if user has any of the given permissions."""
+        user_permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
         for perm in permissions:
-            resource = perm.resource
-            module = resource.module
+            if perm.lower() in user_permissions:
+                return True
+        return False
 
-            # Add module if not already added
-            if module.name not in result['modules']:
-                result['modules'].append(module.name)
-                result['resources_by_module'][module.name] = {}
+    @staticmethod
+    def has_all_permissions(user_id: str, permissions: List[str], db: Session, tenant_id: int = 1) -> bool:
+        """Check if user has all of the given permissions."""
+        user_permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
+        for perm in permissions:
+            if perm.lower() not in user_permissions:
+                return False
+        return True
 
-            # Add resource permissions
-            result['resources_by_module'][module.name][resource.name] = {
-                'view': perm.can_view,
-                'create': perm.can_create,
-                'edit': perm.can_edit,
-                'delete': perm.can_delete,
-            }
+    @staticmethod
+    def is_super_admin(user_id: str, db: Session, tenant_id: int = 1) -> bool:
+        """Check if user is super admin (has admin.manage permission)."""
+        return PermissionHelper.has_permission(user_id, "admin.manage", db, tenant_id)
 
-            # Flatten for easy lookup (e.g., 'candidates.view')
-            for action in ['view', 'create', 'edit', 'delete']:
-                perm_key = f"{resource.name}.{action}"
-                perm_value = getattr(perm, f'can_{action}')
-                result['all_resources_permission'][perm_key] = perm_value
+    @staticmethod
+    def get_accessible_modules(user_id: str, db: Session, tenant_id: int = 1) -> List[Module]:
+        """Get list of modules user can access."""
+        user = db.query(Users).filter(
+            Users.UserID == user_id,
+            Users.tenant_id == tenant_id
+        ).first()
 
-        return result
+        if not user:
+            return []
 
-    except Exception as e:
-        print(f"Error getting user permissions: {e}")
-        return {'modules': [], 'resources_by_module': {}, 'all_resources_permission': {}}
+        modules = set()
 
+        user_roles = db.query(UserRole).filter(
+            UserRole.user_id == user_id,
+            UserRole.tenant_id == tenant_id
+        ).all()
 
-def has_permission(db: Session, user_id: str, resource: str, action: str) -> bool:
-    """
-    Check if user has a specific permission.
+        for user_role in user_roles:
+            module_accesses = db.query(RoleTemplateModuleAccess).filter(
+                RoleTemplateModuleAccess.role_template_id == user_role.role_template_id
+            ).all()
 
-    Args:
-        db: Database session
-        user_id: User ID to check
-        resource: Resource name (e.g., 'candidates', 'jobs', 'invoices')
-        action: Action type ('view', 'create', 'edit', 'delete')
+            for access in module_accesses:
+                module = db.query(Module).filter(Module.id == access.module_id).first()
+                if module:
+                    modules.add(module)
 
-    Returns: bool - True if user has permission, False otherwise
+        return list(modules)
 
-    Example:
-        if has_permission(db, user.UserID, 'jobs', 'create'):
-            # User can create jobs
-    """
-    permissions = get_user_permissions(db, user_id)
-    perm_key = f"{resource}.{action}"
-    return permissions['all_resources_permission'].get(perm_key, False)
+    @staticmethod
+    def get_data_access_scope(user_id: str, db: Session, tenant_id: int = 1) -> DataScope:
+        """Calculate user's data access scope.
 
+        Returns DataScope object with accessible locations, BUs, subordinates, and global visibility.
+        """
+        user = db.query(Users).filter(
+            Users.UserID == user_id,
+            Users.tenant_id == tenant_id
+        ).first()
 
-def has_module_access(db: Session, user_id: str, module: str) -> bool:
-    """
-    Check if user has access to any resource in a module.
+        if not user:
+            return DataScope(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                accessible_locations=[],
+                accessible_bus=[],
+                subordinates=[],
+                can_see_global_data=False
+            )
 
-    Args:
-        db: Database session
-        user_id: User ID to check
-        module: Module name (e.g., 'Recruitment', 'Finance', 'Admin')
+        # Get accessible locations
+        accessible_locations = OrganizationService.get_user_accessible_locations(user_id, db, tenant_id)
 
-    Returns: bool - True if user has access to at least one resource in module
-    """
-    permissions = get_user_permissions(db, user_id)
-    return module in permissions['modules']
+        # Get accessible business units
+        accessible_bus = OrganizationService.get_user_accessible_business_units(user_id, db, tenant_id)
 
+        # Get subordinates in reporting chain
+        subordinates = OrganizationService.get_all_subordinates(user_id, db, tenant_id)
 
-def get_accessible_resources(db: Session, user_id: str, module: str, action: str = 'view') -> list:
-    """
-    Get list of resources user can access in a module.
+        # Check if user can see global data
+        can_see_global = PermissionHelper.has_any_permission(
+            user_id,
+            ["admin.manage", "finance.view_global", "revenue.view_pnl"],
+            db,
+            tenant_id
+        )
 
-    Args:
-        db: Database session
-        user_id: User ID to check
-        module: Module name
-        action: Action type to check ('view', 'create', 'edit', 'delete')
+        return DataScope(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            accessible_locations=accessible_locations or ["*"],
+            accessible_bus=accessible_bus or ["*"],
+            subordinates=subordinates,
+            can_see_global_data=can_see_global
+        )
 
-    Returns: list of resource names user can access
+    @staticmethod
+    def get_user_subordinates(user_id: str, db: Session, tenant_id: int = 1) -> List[str]:
+        """Get all subordinates in reporting chain (recursive)."""
+        return OrganizationService.get_all_subordinates(user_id, db, tenant_id)
 
-    Example:
-        resources = get_accessible_resources(db, user.UserID, 'Recruitment', 'view')
-        # Returns: ['candidates', 'jobs', 'submissions', ...]
-    """
-    permissions = get_user_permissions(db, user_id)
-    resources_in_module = permissions['resources_by_module'].get(module, {})
+    @staticmethod
+    def is_manager_of(manager_id: str, employee_id: str, db: Session, tenant_id: int = 1) -> bool:
+        """Check if manager_id manages employee_id."""
+        return OrganizationService.is_manager_of(manager_id, employee_id, db, tenant_id)
 
-    accessible = []
-    for resource_name, actions in resources_in_module.items():
-        if actions.get(action, False):
-            accessible.append(resource_name)
-
-    return accessible
-
-
-def is_super_user(user: Users) -> bool:
-    """
-    Check if user is a super user (global admin).
-    Super users have access to everything.
-    """
-    # Could be determined by a flag on the user model or a special role template
-    return user.is_admin if hasattr(user, 'is_admin') else False
-
-
-# --- DEPRECATED ---
-# These functions should NO LONGER be used anywhere in the codebase.
-# They represent the old hardcoding pattern.
-
-def _DEPRECATED_check_hardcoded_permission(permission_string: str) -> None:
-    """
-    DEPRECATED - DO NOT USE
-
-    This represents the old pattern of checking hardcoded permission strings
-    like 'job.create', 'candidate.view', etc.
-
-    All code checking hardcoded permissions should be replaced with calls to:
-    - has_permission(db, user_id, resource, action)
-    - has_module_access(db, user_id, module)
-    - get_accessible_resources(db, user_id, module, action)
-    """
-    raise NotImplementedError("Hardcoded permission checks are deprecated. Use has_permission() instead.")
+    @staticmethod
+    def get_permissions_by_module(user_id: str, module_name: str, db: Session, tenant_id: int = 1) -> List[str]:
+        """Get all permissions user has for a specific module."""
+        all_permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
+        return [p for p in all_permissions if p.startswith(f"{module_name.lower()}.")]
