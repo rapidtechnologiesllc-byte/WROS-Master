@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
+from app.services.rbac_service import RBACService
 from app.services.business_metrics_service import compile_daily_business_standup
 
 router = APIRouter(prefix="/business-metrics", tags=["Business Metrics"])
@@ -28,7 +29,7 @@ def get_daily_business_standup(
     Required: admin.view
     """
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
+        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
             raise HTTPException(
                 status_code=403,
                 detail="Only CEO/Admin can view business metrics"
