@@ -15,7 +15,7 @@ class CandidateDocument(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     
     # Foreign key to candidate
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     
     # Document information
     document_type = Column(String(50), nullable=False, index=True)  # resume, pan, aadhar, etc.

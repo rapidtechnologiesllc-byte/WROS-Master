@@ -66,8 +66,7 @@ class CandidateConversation(Base):
     )
 
     # The candidate this conversation belongs to
-    candidate_id = Column(
-        String(50),
+    candidate_id = Column(String(36),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -171,8 +170,7 @@ class CandidateAIAssignment(Base):
     )
 
     # The candidate being assigned to an AI agent
-    candidate_id = Column(
-        String(50),
+    candidate_id = Column(String(36),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

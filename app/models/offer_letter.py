@@ -8,7 +8,7 @@ class OfferLetter(Base):
     __tablename__ = "offer_letters"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False)
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
     hiring_manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     reporting_manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)

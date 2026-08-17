@@ -23,7 +23,7 @@ class CandidateResumeParsed(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     raw_text = Column(Text, nullable=True)
     full_name = Column(String(200), nullable=True)

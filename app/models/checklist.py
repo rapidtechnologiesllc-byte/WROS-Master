@@ -74,8 +74,7 @@ class CandidateChecklist(Base):
     __tablename__ = "candidate_checklists"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    candidate_id = Column(
-        String(50),
+    candidate_id = Column(String(36),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True

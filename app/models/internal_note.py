@@ -24,8 +24,7 @@ class InternalNote(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # ── Candidate linkage ─────────────────────────────────────────────────────
-    candidate_id = Column(
-        String(50),
+    candidate_id = Column(String(36),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

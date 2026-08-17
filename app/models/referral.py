@@ -15,7 +15,7 @@ class EmployeeReferral(Base):
     # Foreign keys
     job_id = Column(String(50), nullable=False)  # Which job
     referring_employee_id = Column(String(50), nullable=False)  # Who referred
-    referred_candidate_id = Column(String(50))  # The candidate they referred (can be null initially)
+    referred_candidate_id = Column(String(36))  # The candidate they referred (can be null initially)
 
     # Referral details
     referred_candidate_email = Column(String(255))  # Email of referred person
