@@ -1960,3 +1960,56 @@ Fix method:
 
 ---
 
+
+---
+
+## ZERO-HARDCODING ARCHITECTURAL REWRITE - FULL IMPLEMENTATION
+
+Status: COMPLETE SYSTEM REDESIGN IN PROGRESS
+Timeline: 8 Days (4 Phases)
+Scope: Eliminate all 92 hardcoded references, 100% database-driven
+
+THE CORE PROBLEM:
+- Current: Hardcoded logic in 30+ locations
+- Issue: Adding a role requires code changes + recompile + redeploy
+- Target: Zero code changes for new roles
+
+THE SOLUTION:
+- All roles in database role_templates table
+- All permissions in role_template_permissions table
+- Code queries database, never knows role/permission names
+- Admin UI manages everything
+
+PHASE 1: BACKEND FOUNDATION (Days 1-3)
+Files to rewrite:
+- app/core/dependencies.py (lines 265-357, CRITICAL)
+- app/services/role_based_dashboard_service.py (lines 38-47)
+- app/api/v1/endpoints/role_based_dashboard.py (lines 60-156)
+- 8 service files with hardcoded role queries
+- 15+ endpoint files with hardcoded permission strings
+- 7+ agent endpoints with hardcoded role conditionals
+
+PHASE 2: ADMIN UI (Days 3-5)
+New screens to build:
+- RoleTemplateManagementScreen.js (create/edit/delete roles)
+- UserRoleAssignmentScreen.js (assign users to roles)
+- PermissionRegistryScreen.js (view/create permissions)
+
+PHASE 3: FRONTEND (Days 5-7)
+Files to rewrite:
+- src/screens/Dashboard.js (remove hardcoded role routing)
+- src/layout/Shell.js (dynamic nav based on permissions)
+- src/utils/permissions.js (add permission helpers)
+
+PHASE 4: DATABASE MIGRATION (Day 7-8)
+- Migrate existing users to role_templates
+- Verify all assignments complete
+- All new code uses only role_templates
+
+SUCCESS CRITERIA:
+- Zero role names hardcoded in code
+- Zero permission strings hardcoded in code
+- All access control via database
+- Admin UI full control
+- New roles = zero code changes
+
