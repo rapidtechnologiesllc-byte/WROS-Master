@@ -10,7 +10,7 @@ from app.services.agent_kill_switch_service import AgentKillSwitchService
 router = APIRouter(prefix="/agent-kill-switch", tags=["Agent Kill Switch"])
 
 
-@router.get("/evaluate/{agent_name}")
+@router.get("/evaluate/{agent_name}", dependencies=[Depends(require_permission("admin.view"))])
 def evaluate_agent_for_kill_switch(
     agent_name: str,
     db: Session = Depends(get_db),
@@ -29,12 +29,7 @@ def evaluate_agent_for_kill_switch(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
-            raise HTTPException(
-                status_code=403,
-                detail="Only executives can evaluate kill switch"
-            )
-
+        # Permission check is enforced via decorator above (require_permission("admin.view"))
         result = AgentKillSwitchService.evaluate_agent(db, agent_name)
 
         return {
@@ -49,7 +44,7 @@ def evaluate_agent_for_kill_switch(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/evaluate-all")
+@router.get("/evaluate-all", dependencies=[Depends(require_permission("admin.view"))])
 def evaluate_all_agents_for_kill_switch(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -66,12 +61,7 @@ def evaluate_all_agents_for_kill_switch(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
-            raise HTTPException(
-                status_code=403,
-                detail="Only executives can evaluate kill switches"
-            )
-
+        # Permission check is enforced via decorator above (require_permission("admin.view"))
         results = AgentKillSwitchService.evaluate_all_agents(db)
 
         return {
@@ -120,12 +110,7 @@ def execute_kill_switch(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
-            raise HTTPException(
-                status_code=403,
-                detail="Only executives can execute kill switches"
-            )
-
+        # Permission check is enforced via decorator above (require_permission("admin.modify"))
         result = AgentKillSwitchService.execute_kill_switch(
             db=db,
             agent_name=agent_name,
@@ -172,12 +157,7 @@ def reenable_agent(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
-            raise HTTPException(
-                status_code=403,
-                detail="Only CEO can re-enable agents"
-            )
-
+        # Permission check is enforced via decorator above (require_permission("admin.modify"))
         result = AgentKillSwitchService.reenable_agent(
             db=db,
             agent_name=agent_name,

@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_internal_user, require_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.role_based_dashboard_service import RoleBasedDashboardService
+from app.services.rbac_service import RBACService
 
 router = APIRouter(prefix="/dashboard", tags=["Role-Based Dashboard"])
 
@@ -57,7 +58,8 @@ def get_ceo_dashboard(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
+        # Permission-based check: only users with admin.manage permission can view CEO dashboard
+        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
             raise HTTPException(
                 status_code=403,
                 detail="Only CEO/Admin can view strategic dashboard"
@@ -89,7 +91,13 @@ def get_recruiter_dashboard(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "Recruiter"]:
+        # Permission-based check: recruiters can create candidates, which is their key permission
+        # Also allow admins (admin.manage permission)
+        can_recruit = (
+            RBACService.has_permission(db, current_user.UserID, "candidate.create") or
+            RBACService.has_permission(db, current_user.UserID, "admin.manage")
+        )
+        if not can_recruit:
             raise HTTPException(
                 status_code=403,
                 detail="Only Recruiters can view pipeline dashboard"
@@ -121,7 +129,13 @@ def get_hr_dashboard(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "HR Manager"]:
+        # Permission-based check: HR can edit employees, which is their key permission
+        # Also allow admins (admin.manage permission)
+        can_access_hr = (
+            RBACService.has_permission(db, current_user.UserID, "employee.edit") or
+            RBACService.has_permission(db, current_user.UserID, "admin.manage")
+        )
+        if not can_access_hr:
             raise HTTPException(
                 status_code=403,
                 detail="Only HR Managers can view people dashboard"
@@ -153,7 +167,13 @@ def get_finance_dashboard(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "Finance"]:
+        # Permission-based check: Finance has revenue.view_pnl permission
+        # Also allow admins (admin.manage permission)
+        can_access_finance = (
+            RBACService.has_permission(db, current_user.UserID, "revenue.view_pnl") or
+            RBACService.has_permission(db, current_user.UserID, "admin.manage")
+        )
+        if not can_access_finance:
             raise HTTPException(
                 status_code=403,
                 detail="Only Finance staff can view revenue dashboard"

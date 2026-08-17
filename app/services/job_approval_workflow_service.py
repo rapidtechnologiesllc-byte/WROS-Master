@@ -18,50 +18,61 @@ from app.models.user import Jobs, Users
 from app.models.rbac import Role, BusinessUnit
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
 from app.services.email_service import EmailService
+from app.services.rbac_service import RBACService
 
 
 def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Optional[Users], str]:
     """
-    Determine who should approve this job based on creator role and hierarchy.
+    Determine who should approve this job based on creator permissions and hierarchy.
+
+    Zero-hardcoding: Uses permission checks instead of hardcoded role names.
 
     Returns: (approver_user, routing_reason)
     """
     # CEO/SuperUser - no approval needed
-    if creator.UserRole and creator.UserRole.lower() in ("admin", "super user"):
+    # Check via admin.manage permission, not hardcoded role name
+    if RBACService.has_permission(db, creator.UserID, "admin.manage"):
         return None, "Creator is SuperUser - no approval needed"
 
     # BU Head creates job - route to their reporting manager
-    if creator.role and creator.role.name == "BU Head":
+    # Check via 'business_unit.manage' permission (BU Head level)
+    if RBACService.has_permission(db, creator.UserID, "business_unit.manage"):
         if creator.business_unit_id:
             # Find reporting manager for this BU Head
-            reporting_manager = db.query(Users).filter(
-                Users.business_unit_id == creator.business_unit_id,
-                Users.role.has(Role.name == "CFO")  # Or whatever role reports
-            ).first()
-            if reporting_manager:
-                return reporting_manager, f"BU Head {creator.UserName} must be approved by {reporting_manager.UserName}"
-        # Fallback: route to SuperUser
-        super_user = db.query(Users).filter(
-            Users.role.has(Role.name.in_(["Admin", "SuperUser"]))
-        ).first()
-        return super_user, "Route to SuperUser (no reporting manager found)"
+            # Look for users in same BU with CFO or higher permissions
+            managers = db.query(Users).filter(
+                Users.business_unit_id == creator.business_unit_id
+            ).all()
+
+            # Find manager with admin or finance permissions
+            for mgr in managers:
+                if RBACService.has_permission(db, mgr.UserID, "revenue.view_pnl"):
+                    return mgr, f"BU Head {creator.UserName} must be approved by {mgr.UserName}"
+
+        # Fallback: route to Admin user
+        admins = db.query(Users).all()
+        for admin in admins:
+            if RBACService.has_permission(db, admin.UserID, "admin.manage"):
+                return admin, "Route to Admin (no reporting manager found)"
 
     # All others - route to their BU Head
     if job.business_unit_id:
-        bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
-        if bu_head_role:
-            bu_head = db.query(Users).filter(
-                Users.role_id == bu_head_role.id,
-                Users.business_unit_id == job.business_unit_id
-            ).first()
-            if bu_head:
-                return bu_head, f"Route to BU Head {bu_head.UserName}"
+        bu_users = db.query(Users).filter(
+            Users.business_unit_id == job.business_unit_id
+        ).all()
 
-    # Fallback: SuperUser
-    super_user = db.query(Users).filter(
-        Users.role.has(Role.name.in_(["Admin", "SuperUser"]))
-    ).first()
-    return super_user, "Route to SuperUser (default)"
+        # Find BU Head (user with business_unit.manage permission in this BU)
+        for user in bu_users:
+            if RBACService.has_permission(db, user.UserID, "business_unit.manage"):
+                return user, f"Route to BU Head {user.UserName}"
+
+    # Fallback: Admin user
+    all_users = db.query(Users).all()
+    for admin in all_users:
+        if RBACService.has_permission(db, admin.UserID, "admin.manage"):
+            return admin, "Route to Admin (default)"
+
+    return None, "No approver found"
 
 
 def send_approval_notification_email(db: Session, job: Jobs, approver: Users, reason: str) -> bool:

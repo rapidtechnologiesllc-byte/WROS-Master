@@ -167,11 +167,16 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
         today = datetime.utcnow()
         year_month = today.strftime("%Y-%m")
 
-    # Get all BUs (from Users with Partner role + their BU)
+    # Get all users with business_unit_id assigned (replaces hardcoded Partner role check)
+    # Partner role is identified via role template permissions, not UserRole string
+    # This query gets all users managing a BU, regardless of role name
+    from app.services.rbac_service import RBACService
     partners = db.query(Users).filter(
-        Users.UserRole == "Partner",
         Users.business_unit_id.isnot(None)
     ).all()
+
+    # Filter to only those with Partner-level permissions (business unit management)
+    partners = [p for p in partners if RBACService.has_permission(db, p.UserID, "business_unit.manage")]
 
     comparison = []
     for partner in partners:

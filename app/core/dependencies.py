@@ -260,12 +260,9 @@ def require_permission(permission: str):
         # activate_tenant_scope(user.tenant_id)
 
         # Super User & Admin bypass — always has all permissions
-        # Check both the legacy UserRole string AND the RBAC role relationship
-        is_super_user = (
-            (user.UserRole and user.UserRole.lower() in ("super user", "admin"))
-            or (user.role and user.role.name and user.role.name.lower() in ("super user", "admin"))
-        )
-        if is_super_user:
+        # Check via RBAC: has 'admin.manage' permission (Super User has all permissions via role template)
+        from app.services.rbac_service import RBACService
+        if RBACService.has_permission(db, user.UserID, "admin.manage"):
             return user
 
         if not RBACService.has_permission(db, user.UserID, permission):
@@ -309,12 +306,10 @@ def require_attribute(attribute: str, expected: bool = True):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Super User bypass — check both legacy UserRole string and RBAC role relationship
-        is_super_user = (
-            (user.UserRole and user.UserRole.lower() == "super user")
-            or (user.role and user.role.name and user.role.name.lower() == "super user")
-        )
-        if is_super_user:
+        # Super User bypass — check via RBAC permission system
+        # Super User role has all permissions; we check a fundamental permission that only Super User has
+        from app.services.rbac_service import RBACService
+        if RBACService.has_permission(db, user.UserID, "admin.manage"):
             return user
 
         if not RBACService.has_attribute(db, user.UserID, attribute, expected):
@@ -353,8 +348,11 @@ async def require_admin_role(
     # from app.core.tenant_context import activate_tenant_scope
     # activate_tenant_scope(user.tenant_id)
 
-    role_name = (user.UserRole or "").lower()
-    if role_name not in ("admin", "super user"):
+    # Check admin permission via RBAC system instead of hardcoded role name check
+    # Admin users have "admin.manage" or "rbac.manage" permission
+    from app.services.rbac_service import RBACService
+    if not (RBACService.has_permission(db, user.UserID, "admin.manage") or
+            RBACService.has_permission(db, user.UserID, "rbac.manage")):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user
 

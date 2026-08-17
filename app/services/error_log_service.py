@@ -29,10 +29,18 @@ def _page_on_call(db: Session, error: ErrorLog) -> None:
     from app.core.logging import logger
     from app.models.user import Users
     from app.services.notification_service import send_notification
+    from app.services.rbac_service import RBACService
 
-    on_call = db.query(Users).filter(Users.UserRole == "Super User").order_by(Users.UserID.asc()).first()
+    # Zero-hardcoding: Find admin via permission check, not hardcoded role name
+    all_users = db.query(Users).order_by(Users.UserID.asc()).all()
+    on_call = None
+    for user in all_users:
+        if RBACService.has_permission(db, user.UserID, "admin.manage"):
+            on_call = user
+            break
+
     if not on_call:
-        logger.warning(f"[ErrorLog] CRITICAL error {error.id} could not page on-call -- no Super User found.")
+        logger.warning(f"[ErrorLog] CRITICAL error {error.id} could not page on-call -- no admin found.")
         return
 
     send_notification(

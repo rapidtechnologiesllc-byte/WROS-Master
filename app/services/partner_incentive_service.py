@@ -24,15 +24,26 @@ from app.models.user import Users
 
 def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional[Users]:
     """The 1:1 Partner-per-BU pairing from the Operating Model (Troy=
-    AXION, Curtis=PRISM) -- resolved by role+BU, not a separate mapping
-    table, since Users.business_unit_id + UserRole already say this."""
+    AXION, Curtis=PRISM) -- resolved by permissions+BU, not role name.
+
+    Zero-hardcoding: Partner identified by 'business_unit.manage' permission,
+    not by hardcoded 'Partner' role name."""
+    from app.services.rbac_service import RBACService
+
     if business_unit_id is None:
         return None
-    return (
-        db.query(Users)
-        .filter(Users.UserRole == "Partner", Users.business_unit_id == business_unit_id)
-        .first()
-    )
+
+    # Find users assigned to this BU
+    bu_users = db.query(Users).filter(
+        Users.business_unit_id == business_unit_id
+    ).all()
+
+    # Filter to those with business_unit.manage permission (Partner-level)
+    for user in bu_users:
+        if RBACService.has_permission(db, user.UserID, "business_unit.manage"):
+            return user
+
+    return None
 
 
 def create_incentive_rule(

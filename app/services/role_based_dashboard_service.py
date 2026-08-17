@@ -5,6 +5,7 @@ from typing import Optional
 from app.models.user import Users
 from app.services.agent_state_service import get_agent_state_target, get_all_agent_states
 from app.services.agent_kill_switch_service import AgentKillSwitchService
+from app.services.rbac_service import RBACService
 
 class RoleBasedDashboardService:
     """Generate role-specific dashboard views based on user authority."""
@@ -25,32 +26,39 @@ class RoleBasedDashboardService:
         Operations: Resource Mgmt + Utilization
         """
 
-        role = user.UserRole
         dashboard = {
             "user_email": user.UserEmail,
-            "user_role": role,
+            "user_role": user.UserRole,  # Keep for backward compatibility, but not used for routing
             "dashboard_type": None,
             "featured_agents": [],
             "widgets": [],
             "refresh_interval": 60,  # Seconds
         }
 
-        if role in ["Super User", "Admin", "CEO"]:
+        # Permission-based dashboard routing (replaces hardcoded role name checks)
+        # Route by permission instead of UserRole string
+        if RBACService.has_permission(db, user.UserID, "admin.manage"):
+            # CEO/Admin dashboard: strategic view of all agents
             dashboard.update(RoleBasedDashboardService._ceo_dashboard(db, tenant_id))
 
-        elif role == "Recruiter":
+        elif RBACService.has_permission(db, user.UserID, "candidate.create"):
+            # Recruiter dashboard: recruitment pipeline (recruiters can create candidates)
             dashboard.update(RoleBasedDashboardService._recruiter_dashboard(db, tenant_id))
 
-        elif role == "HR Manager":
+        elif RBACService.has_permission(db, user.UserID, "employee.edit"):
+            # HR Manager dashboard: people & culture (HR can edit employees)
             dashboard.update(RoleBasedDashboardService._hr_dashboard(db, tenant_id))
 
-        elif role == "Finance":
+        elif RBACService.has_permission(db, user.UserID, "revenue.view_pnl"):
+            # Finance dashboard: revenue & profitability (Finance has P&L view)
             dashboard.update(RoleBasedDashboardService._finance_dashboard(db, tenant_id))
 
-        elif role == "Manager":
+        elif RBACService.has_permission(db, user.UserID, "employee.view"):
+            # Manager dashboard: team & utilization (can view employee data)
             dashboard.update(RoleBasedDashboardService._manager_dashboard(db, tenant_id))
 
         else:
+            # Default: employee dashboard (personal view)
             dashboard.update(RoleBasedDashboardService._employee_dashboard(db, tenant_id))
 
         return dashboard
