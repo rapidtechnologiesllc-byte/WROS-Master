@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, get_current_internal_user
 from app.schemas.org_structure import (
     OrgPositionResponse,
     OrgNodeResponse,
@@ -116,10 +116,13 @@ def list_org_positions(
     dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_org_nodes(
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> List[OrgNodeResponse]:
     """Get all organizational nodes for the current tenant."""
-    # Tenant ID is extracted from token by require_permission middleware
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
     nodes = db.query(OrgNode).filter(OrgNode.tenant_id == tenant_id).all()
     return [OrgNodeResponse.from_orm(n) for n in nodes]
@@ -134,10 +137,15 @@ def list_org_nodes(
 )
 def get_org_node(
     org_node_id: str,
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> OrgNodeResponse:
     """Get a specific organizational node by ID."""
-    node = db.query(OrgNode).filter(OrgNode.id == org_node_id).first()
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
+
+    node = db.query(OrgNode).filter(OrgNode.id == org_node_id, OrgNode.tenant_id == tenant_id).first()
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Org node not found")
     return OrgNodeResponse.from_orm(node)
@@ -152,13 +160,18 @@ def get_org_node(
 )
 def get_approvers_for_node(
     org_node_id: str,
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> List[OrgNodeResponse]:
     """Get the approval chain (all approvers up to CEO) for a given org node."""
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
+
     approvers_list = get_employee_approvers(db, org_node_id)
     nodes = []
     for approver_info in approvers_list:
-        node = db.query(OrgNode).filter(OrgNode.id == approver_info["org_node_id"]).first()
+        node = db.query(OrgNode).filter(OrgNode.id == approver_info["org_node_id"], OrgNode.tenant_id == tenant_id).first()
         if node:
             nodes.append(OrgNodeResponse.from_orm(node))
     return nodes
@@ -172,10 +185,13 @@ def get_approvers_for_node(
     dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_departments(
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> List[DepartmentResponse]:
     """Get all departments for the current tenant."""
-    # Tenant ID is extracted from token by require_permission middleware
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
     departments = db.query(Department).filter(Department.tenant_id == tenant_id).all()
     return [DepartmentResponse.from_orm(d) for d in departments]
@@ -189,13 +205,58 @@ def list_departments(
     dependencies=[Depends(require_permission("admin.view"))],
 )
 def list_approval_chains(
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> List[ApprovalChainResponse]:
     """Get all approval chain configurations for the current tenant."""
-    # Tenant ID is extracted from token by require_permission middleware
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
     chains = db.query(ApprovalChain).filter(
         ApprovalChain.tenant_id == tenant_id,
         ApprovalChain.active == True
     ).all()
     return [ApprovalChainResponse.from_orm(c) for c in chains]
+
+
+@router.post(
+    "/nodes",
+    response_model=OrgNodeResponse,
+    summary="Create an organizational node",
+    description="Create a new organizational node (position instance)",
+    dependencies=[Depends(require_permission("admin.create"))],
+)
+def create_org_node_endpoint(
+    employee_name: str,
+    position_id: int,
+    reports_to_id: Optional[str] = None,
+    business_unit_id: Optional[int] = None,
+    location: Optional[str] = None,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+) -> OrgNodeResponse:
+    """Create a new organizational node for the current tenant."""
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
+
+    try:
+        node = create_org_node(
+            db=db,
+            tenant_id=tenant_id,
+            employee_name=employee_name,
+            position_id=position_id,
+            reports_to_id=reports_to_id,
+            business_unit_id=business_unit_id,
+            location=location,
+        )
+        db.commit()
+        return OrgNodeResponse.from_orm(node)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[OrgNode] Tenant {tenant_id}: Failed to create node: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create org node: {str(e)}"
+        )
