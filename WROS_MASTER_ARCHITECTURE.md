@@ -30,19 +30,22 @@ WROS is the **Agentic Enterprise Operating System** for BlitzenX, enabling auton
 ### 1.1 Corporate Hierarchy
 
 ```
-BXHolding (Future)
-├─ BlitzenX (Today - Operational)
+BXHolding (Multi-Tenant from Start)
+├─ BlitzenX (Operational - Tenant ID: 1)
 │  ├─ AXION BU (Partner: Troy)
 │  │  └─ Hemant (Delivery Lead)
 │  └─ PRISM BU (Partner: Curtis)
 │     └─ Manian (Delivery Lead)
-├─ Poliqs (Today - Operational)
-├─ BX Realty (Future)
-├─ BX MGA (Future)
-└─ BX Life Insurance (Future)
+├─ Poliqs (Operational - Tenant ID: 2)
+├─ BX Realty (Future - Tenant ID: 3)
+├─ BX MGA (Future - Tenant ID: 4)
+└─ BX Life Insurance (Future - Tenant ID: 5)
 
-Current Implementation: Single-tenant BlitzenX
-Future Implementation: Multi-tenant (BXHolding companies)
+Current Implementation: Multi-tenant (BXHolding companies)
+- BlitzenX (Tenant 1) & Poliqs (Tenant 2) operational
+- Architecture supports unlimited tenants
+- New company = single database insert (tenant row)
+- Zero code changes to add new company
 ```
 
 ### 1.2 Employee Hierarchy (Single Reporting Chain)
@@ -881,22 +884,23 @@ WHERE tenant_id = :current_tenant_id
 
 **Multi-Tenant Onboarding (Zero Code Change):**
 ```
-Add new company (BX Realty) in 2027:
+Add new company (BX Realty, BX MGA, or BX Life Insurance):
 
 1. INSERT INTO tenants:
    ├─ INSERT INTO tenants (id, name, slug) 
    │  VALUES (3, 'BX Realty', 'bx-realty')
 
 2. Create company users (via Auth Service):
-   ├─ CEO for BX Realty (tenant_id=3)
-   ├─ Partners for BX Realty (tenant_id=3)
+   ├─ CEO for new company (tenant_id=3)
+   ├─ Partners for new company (tenant_id=3)
    └─ Users automatically scoped to tenant_id=3
 
 3. All queries automatically isolated:
-   └─ BX Realty users see only tenant_id=3 data
+   └─ New company users see only tenant_id=3 data
    └─ BlitzenX users see only tenant_id=1 data
+   └─ Poliqs users see only tenant_id=2 data
 
-NO CODE CHANGES NEEDED - All infrastructure supports it
+NO CODE CHANGES NEEDED - All infrastructure supports unlimited tenants
 ```
 
 ---
@@ -1494,26 +1498,26 @@ Applied per-BU (not aggregate):
 
 ---
 
-## 11. MULTI-TENANCY ARCHITECTURE (Future)
+## 11. MULTI-TENANCY ARCHITECTURE (From Start)
 
 ### 11.1 Tenant Isolation
 
 ```
-BXHolding (Parent)
-├─ BlitzenX (Tenant 1)
-├─ Poliqs (Tenant 2 - Future)
-├─ BX Realty (Tenant 3 - Future)
-├─ BX MGA (Tenant 4 - Future)
-└─ BX Life Insurance (Tenant 5 - Future)
+BXHolding (Multi-Tenant Platform from Day 1)
+├─ BlitzenX (Tenant 1) - OPERATIONAL
+├─ Poliqs (Tenant 2) - OPERATIONAL
+├─ BX Realty (Tenant 3) - Future
+├─ BX MGA (Tenant 4) - Future
+└─ BX Life Insurance (Tenant 5) - Future
 
 Database design:
-├─ Single database, tenant_id on all tables
+├─ Single database, tenant_id on ALL tables
 ├─ Row-level security enforced via tenant_id filter
-├─ Shared Auth Service (authenticates across all tenants)
+├─ Shared Auth Service (authenticates all tenants)
 ├─ Shared RBAC Service (manages roles per tenant)
 └─ Shared Config Service (manages configuration per tenant)
 
-Queries automatically scoped: WHERE tenant_id = current_tenant
+Queries automatically scoped: WHERE tenant_id = :current_tenant_id
 ```
 
 ---
@@ -1524,7 +1528,7 @@ Queries automatically scoped: WHERE tenant_id = current_tenant
 - ✅ PostgreSQL migration (SQLite elimination)
 - ✅ 169 tables created and connected
 - ✅ RBAC model designed
-- ✅ Multi-tenancy architecture planned
+- ✅ Multi-tenancy architecture implemented (BlitzenX & Poliqs operational)
 
 ### Phase 2: Backend Zero-Hardcoding Rewrite (IN PROGRESS)
 - **Duration:** 2-3 weeks
