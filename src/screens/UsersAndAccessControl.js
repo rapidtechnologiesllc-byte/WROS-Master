@@ -714,7 +714,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               required
             >
               <option value="">Select a role template...</option>
-              {roles.filter(role => role.name !== "Super User" || role.id).map(role => {
+              {roles.filter(role => (role.name !== "Super User" || role.id) && (role.is_active !== false)).map(role => {
                 const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
                 return (
                   <option key={role.id} value={role.id}>
@@ -723,7 +723,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 );
               })}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options</p>
+            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
           </div>
 
           {/* Business Unit Selection (conditional) */}
@@ -832,7 +832,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               required
             >
               <option value="">Select a role template...</option>
-              {roles.filter(role => role.name !== "Super User" || role.id).map(role => {
+              {roles.filter(role => (role.name !== "Super User" || role.id) && (role.is_active !== false)).map(role => {
                 const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
                 return (
                   <option key={role.id} value={role.id}>
@@ -841,7 +841,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 );
               })}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options</p>
+            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
           </div>
 
           {/* Business Unit Selection (conditional) */}
@@ -1038,6 +1038,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
+  const [togglingTemplate, setTogglingTemplate] = useState({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createRoleForm, setCreateRoleForm] = useState({ name: "", description: "" });
   const [creatingTemplate, setCreatingTemplate] = useState(false);
@@ -1224,6 +1225,34 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
+  const handleToggleTemplateStatus = async (templateId, currentStatus) => {
+    setTogglingTemplate({ ...togglingTemplate, [templateId]: true });
+
+    try {
+      // Call backend to toggle template active status
+      await apiRequest(`/admin/role-templates/${templateId}/toggle-status`, {
+        method: "POST",
+        body: JSON.stringify({
+          is_active: !currentStatus
+        })
+      });
+
+      // Update the roles array with toggled status
+      setRoles(roles.map(r =>
+        r.id === templateId
+          ? { ...r, is_active: !currentStatus }
+          : r
+      ));
+
+      toast.success(`Template ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
+    } catch (err) {
+      console.error("Failed to toggle template status:", err);
+      toast.error(err.message || "Failed to toggle template status");
+    } finally {
+      setTogglingTemplate({ ...togglingTemplate, [templateId]: false });
+    }
+  };
+
   const handleNewRoleTemplate = async () => {
     setCreatingTemplate(true);
     try {
@@ -1233,7 +1262,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           name: `template_${Date.now()}`,
           display_name: "New role template",
           description: "",
-          permissions: []
+          permissions: [],
+          is_active: true
         })
       });
 
@@ -1265,6 +1295,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           display_name: "New role template",
           description: "",
           is_system: false,
+          is_active: true,
           permissions: []
         };
         setEditingTemplate(minimalTemplate);
@@ -1449,20 +1480,54 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
             const userCount = getUserCount(role.id);
+            const isActive = role.is_active !== false; // Default to true if not specified
             return (
-              <div key={role.id} className="border rounded-lg p-4 bg-white hover:shadow-md transition">
-                <div className="flex items-start justify-between mb-3">
+              <div
+                key={role.id}
+                className={`border rounded-lg p-4 transition ${
+                  isActive
+                    ? 'bg-white hover:shadow-md'
+                    : 'bg-gray-50 opacity-60'
+                }`}
+              >
+                {/* Template Status Toggle */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{role.name}</h3>
-                    <p className="text-xs text-gray-600 mt-1">{role.description}</p>
+                    <h3 className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
+                      {role.name}
+                    </h3>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleToggleTemplateStatus(role.id, isActive)}
+                      disabled={togglingTemplate[role.id]}
+                      className={`px-2 py-1 rounded text-xs font-semibold transition ${
+                        isActive
+                          ? 'bg-green-500 text-white hover:bg-green-600'
+                          : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                      }`}
+                      title={isActive ? 'Click to disable' : 'Click to enable'}
+                    >
+                      {togglingTemplate[role.id] ? '...' : (isActive ? 'ON' : 'OFF')}
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t">
+                <p className={`text-xs ${isActive ? 'text-gray-600' : 'text-gray-500'} mb-3`}>
+                  {role.description}
+                </p>
+
+                <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">{userCount} user{userCount !== 1 ? 's' : ''}</span>
                   <button
                     onClick={() => setEditingTemplateId(role.id)}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    disabled={!isActive}
+                    className={`text-sm font-medium transition ${
+                      isActive
+                        ? 'text-blue-600 hover:text-blue-700'
+                        : 'text-gray-400 cursor-not-allowed'
+                    }`}
+                    title={isActive ? 'Edit permissions' : 'Enable template to edit'}
                   >
                     Edit Permissions
                   </button>
