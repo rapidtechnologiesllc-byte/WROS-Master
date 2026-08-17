@@ -157,7 +157,7 @@ class Task(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "priority NOT IN ('URGENT') OR priority_challenge_note IS NOT NULL OR priority_challenged = 0",
+            "priority NOT IN ('URGENT') OR priority_challenge_note IS NOT NULL OR NOT priority_challenged",
             name="ck_task_urgent_has_validation_attempt",
         ),
     )
