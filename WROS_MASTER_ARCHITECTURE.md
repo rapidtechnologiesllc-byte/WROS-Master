@@ -64,7 +64,7 @@ CAREER PATH (Common to all departments):
 ├─ Associate Director
 ├─ Director
 ├─ Principal Architect
-├─ Associate Partner (AP)
+├─ AVP - Associate Vice President
 ├─ BU Head (VP)
 ├─ Senior Vice President (SVP)
 ├─ Partner (P&L Owner)
@@ -655,7 +655,7 @@ role_templates (id, name, department_id, level, is_active)
 ├─ Level 12: Senior Manager
 ├─ Level 14: Director
 ├─ Level 16: Principal Architect
-├─ Level 18: Associate Partner
+├─ Level 18: AVP - Associate Vice President
 ├─ Level 19: BU Head (VP)
 └─ Level 20: Partner
 
