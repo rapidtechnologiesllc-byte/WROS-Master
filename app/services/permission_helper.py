@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.models.user import Users, UserRole
-from app.models.role_template import RoleTemplate, RoleTemplateModuleAccess, Module, Resource
+from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
 from app.services.organization_service import OrganizationService
 
 
@@ -57,17 +57,23 @@ class PermissionHelper:
         ).all()
 
         for user_role in user_roles:
-            # Get all module accesses for this role template
-            module_accesses = db.query(RoleTemplateModuleAccess).filter(
-                RoleTemplateModuleAccess.role_template_id == user_role.role_template_id
+            # Get all permissions for this role template
+            perms = db.query(RoleTemplatePermission).filter(
+                RoleTemplatePermission.role_template_id == user_role.role_template_id
             ).all()
 
-            for access in module_accesses:
-                module = db.query(Module).filter(Module.id == access.module_id).first()
-                if module:
-                    # Format: module_name.action (e.g., 'recruitment.manage')
-                    perm_name = f"{module.name}.{access.access_level}".lower()
-                    permissions.add(perm_name)
+            for perm in perms:
+                resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
+                if resource:
+                    # Format: resource_name.action (e.g., 'candidates.view', 'candidates.create')
+                    if perm.can_view:
+                        permissions.add(f"{resource.name}.view")
+                    if perm.can_create:
+                        permissions.add(f"{resource.name}.create")
+                    if perm.can_edit:
+                        permissions.add(f"{resource.name}.edit")
+                    if perm.can_delete:
+                        permissions.add(f"{resource.name}.delete")
 
         return permissions
 
@@ -122,14 +128,16 @@ class PermissionHelper:
         ).all()
 
         for user_role in user_roles:
-            module_accesses = db.query(RoleTemplateModuleAccess).filter(
-                RoleTemplateModuleAccess.role_template_id == user_role.role_template_id
+            perms = db.query(RoleTemplatePermission).filter(
+                RoleTemplatePermission.role_template_id == user_role.role_template_id
             ).all()
 
-            for access in module_accesses:
-                module = db.query(Module).filter(Module.id == access.module_id).first()
-                if module:
-                    modules.add(module)
+            for perm in perms:
+                resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
+                if resource and resource.module_id:
+                    module = db.query(Module).filter(Module.id == resource.module_id).first()
+                    if module:
+                        modules.add(module)
 
         return list(modules)
 
