@@ -260,12 +260,12 @@ def require_permission(permission: str):
         # activate_tenant_scope(user.tenant_id)
 
         # Super User & Admin bypass — always has all permissions
-        # Check via RBAC: has 'admin.manage' permission (Super User has all permissions via role template)
-        from app.services.rbac_service import RBACService
-        if RBACService.has_permission(db, user.UserID, "admin.manage"):
+        # Check via PermissionHelper: has 'admin.manage' permission (Super User has all permissions via role template)
+        from app.services.permission_helper import PermissionHelper
+        if PermissionHelper.is_super_admin(user.UserID, db, user.tenant_id):
             return user
 
-        if not RBACService.has_permission(db, user.UserID, permission):
+        if not PermissionHelper.has_permission(user.UserID, permission, db, user.tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Permission denied: '{permission}' required",
@@ -306,10 +306,10 @@ def require_attribute(attribute: str, expected: bool = True):
         # from app.core.tenant_context import activate_tenant_scope
         # activate_tenant_scope(user.tenant_id)
 
-        # Super User bypass — check via RBAC permission system
-        # Super User role has all permissions; we check a fundamental permission that only Super User has
-        from app.services.rbac_service import RBACService
-        if RBACService.has_permission(db, user.UserID, "admin.manage"):
+        # Super User bypass — check via PermissionHelper
+        # Super User role has all permissions; check fundamental admin.manage permission
+        from app.services.permission_helper import PermissionHelper
+        if PermissionHelper.is_super_admin(user.UserID, db, user.tenant_id):
             return user
 
         if not RBACService.has_attribute(db, user.UserID, attribute, expected):
@@ -348,11 +348,10 @@ async def require_admin_role(
     # from app.core.tenant_context import activate_tenant_scope
     # activate_tenant_scope(user.tenant_id)
 
-    # Check admin permission via RBAC system instead of hardcoded role name check
+    # Check admin permission via PermissionHelper (database-driven RBAC)
     # Admin users have "admin.manage" or "rbac.manage" permission
-    from app.services.rbac_service import RBACService
-    if not (RBACService.has_permission(db, user.UserID, "admin.manage") or
-            RBACService.has_permission(db, user.UserID, "rbac.manage")):
+    from app.services.permission_helper import PermissionHelper
+    if not PermissionHelper.has_any_permission(user.UserID, ["admin.manage", "rbac.manage"], db, user.tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user
 
