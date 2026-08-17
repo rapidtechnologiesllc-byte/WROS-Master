@@ -9,6 +9,7 @@ Endpoints for:
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -220,6 +221,14 @@ def list_approval_chains(
     return [ApprovalChainResponse.from_orm(c) for c in chains]
 
 
+class CreateOrgNodeRequest(BaseModel):
+    employee_name: str
+    position_id: int
+    reports_to_id: Optional[str] = None
+    business_unit_id: Optional[int] = None
+    location: Optional[str] = None
+
+
 @router.post(
     "/nodes",
     response_model=OrgNodeResponse,
@@ -228,11 +237,7 @@ def list_approval_chains(
     dependencies=[Depends(require_permission("admin.create"))],
 )
 def create_org_node_endpoint(
-    employee_name: str,
-    position_id: int,
-    reports_to_id: Optional[str] = None,
-    business_unit_id: Optional[int] = None,
-    location: Optional[str] = None,
+    request: CreateOrgNodeRequest,
     current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> OrgNodeResponse:
@@ -245,11 +250,11 @@ def create_org_node_endpoint(
         node = create_org_node(
             db=db,
             tenant_id=tenant_id,
-            employee_name=employee_name,
-            position_id=position_id,
-            reports_to_id=reports_to_id,
-            business_unit_id=business_unit_id,
-            location=location,
+            employee_name=request.employee_name,
+            position_id=request.position_id,
+            reports_to_id=request.reports_to_id,
+            business_unit_id=request.business_unit_id,
+            location=request.location,
         )
         db.commit()
         return OrgNodeResponse.from_orm(node)

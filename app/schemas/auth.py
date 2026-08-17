@@ -86,6 +86,7 @@ class UnifiedLoginResponse(BaseModel):
     user_role: Optional[str] = None
     user_name: Optional[str] = None
     user_email: Optional[EmailStr] = None
+    permissions: Optional[dict] = None  # Role template permissions {resource: {can_view, can_create, can_edit, can_delete}}
 
     # Candidate-specific (None for users)
     candidate_id: Optional[str] = None

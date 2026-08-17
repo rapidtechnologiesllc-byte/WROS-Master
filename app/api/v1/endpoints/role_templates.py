@@ -89,6 +89,7 @@ def list_role_templates(
             "display_name": template.display_name,
             "description": template.description,
             "is_system": template.is_system,
+            "enabled": template.enabled,
             "permissions": perm_list,
         })
 
@@ -134,6 +135,7 @@ def get_role_template(
         "display_name": template.display_name,
         "description": template.description,
         "is_system": template.is_system,
+        "enabled": template.enabled,
         "permissions": perm_list,
     }
 
@@ -426,6 +428,35 @@ def delete_role_template(
     db.commit()
 
     return {"message": "Role template deleted successfully"}
+
+
+@router.post("/{template_id}/toggle-status")
+def toggle_template_status(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Toggle role template enabled/disabled status."""
+    template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == template_id,
+        RoleTemplate.tenant_id == current_user.tenant_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Role template not found")
+
+    # Toggle the enabled status
+    template.enabled = not template.enabled
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+
+    return {
+        "id": template.id,
+        "name": template.name,
+        "enabled": template.enabled,
+        "message": f"Role template {'enabled' if template.enabled else 'disabled'} successfully"
+    }
 
 
 @rbac_router.get("/business-units")

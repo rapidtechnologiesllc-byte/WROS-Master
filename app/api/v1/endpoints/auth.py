@@ -195,6 +195,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 "name": user.UserName,
             }
         )
+
+        # Get user's role template permissions
+        from app.services.role_template_permission_service import RoleTemplatePermissionService
+        permissions = RoleTemplatePermissionService.get_user_permissions(db, user.UserID, user.tenant_id)
+
         return UnifiedLoginResponse(
             entity_type="user",
             access_token=access_token,
@@ -202,6 +207,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
+            permissions=permissions,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────

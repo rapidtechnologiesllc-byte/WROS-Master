@@ -52,6 +52,7 @@ class RoleTemplate(Base):
     display_name = Column(String(150), nullable=False)
     description = Column(Text)
     is_system = Column(Boolean, default=False)  # True for built-in roles, False for custom
+    enabled = Column(Boolean, default=True)  # Enable/disable this role template
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_by = Column(String(255))  # user email who created it
     created_at = Column(DateTime, default=datetime.utcnow)
