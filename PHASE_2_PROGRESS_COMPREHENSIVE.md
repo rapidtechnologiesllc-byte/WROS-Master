@@ -1,38 +1,65 @@
 # Phase 2 Comprehensive Progress Report
 
 **Date:** 2026-08-16  
-**Status:** SUBSTANTIAL PROGRESS - 35% Complete (Foundation + Dependencies Done)  
-**Token Budget Remaining:** ~25K of 200K
+**Status:** MAJOR PROGRESS - 55% Complete (Foundation + RBACService + Isolation)  
+**Token Budget Remaining:** ~75K of 200K
 
 ---
 
-## ✅ COMPLETED (Week 1 Days 1-5)
+## ✅ COMPLETED (Week 1 Days 1-5 + Session Continuation)
 
-### 1. Foundation Services Created (550+ lines)
-- **OrganizationService** - Organizational hierarchy queries
-  - `get_employee()`, `get_direct_reports()`, `get_all_subordinates()` (recursive)
-  - `get_reporting_chain_to_ceo()`, `get_hierarchy_info()`
-  - `get_user_accessible_locations()`, `get_user_accessible_business_units()`
-  - `is_manager_of()`, `get_org_hierarchy_tree()`
-
-- **PermissionHelper** - Centralized permission system
-  - `get_user_permissions()` - queries role_template chain
-  - `has_permission()`, `has_any_permission()`, `has_all_permissions()`
-  - `is_super_admin()`, `get_data_access_scope()` (returns DataScope object)
-  - `get_accessible_modules()`, `get_permissions_by_module()`
-  - DataScope class with geographic/BU/hierarchy boundaries
+### 1. Foundation Services Created (550+ lines) ✅
+- **OrganizationService** - Organizational hierarchy queries (COMPLETE)
+- **PermissionHelper** - Centralized permission system (COMPLETE)
+- **ServiceHelpers** - Database-driven user queries (COMPLETE)
 
 ### 2. Dependencies.py Refactored ✅
-- Updated to use PermissionHelper instead of direct RBACService calls
-- `require_permission()` now uses `PermissionHelper.has_permission()`
-- `require_attribute()` now uses `PermissionHelper.is_super_admin()`
-- `require_admin_role()` now uses `PermissionHelper.has_any_permission()`
-- Result: Zero hardcoded role checks in core dependencies
+- Zero hardcoded role checks in core dependencies (COMPLETE)
 
-### 3. Service Helpers Created ✅
-- `get_users_with_permission()` - database-driven user query
-- `get_users_with_any_permission()` - OR-based permission query
-- Ready for bulk application to 8 service files
+### 3. RBACService Complete Rewrite ✅ (NEW - Session Continuation)
+- **Removed:** 445+ lines of hardcoded seed data (ROLES_SEED, PERMISSIONS_SEED, etc.)
+- **Created:** Clean database-driven RBACService (160 lines)
+- All permission checks route through PermissionHelper
+- All methods query role_templates database
+- Old hardcoded version moved to rbac_service_deprecated.py
+- **Impact:** Eliminates entire category of zero-hardcoding violations
+
+### 4. Service Layer Refactored ✅ (NEW - Session Continuation)
+- **Verified 8 service files:**
+  - ✅ cfo_agent_service.py - Already using RBACService.has_permission()
+  - ✅ expense_service.py - Already using get_users_with_permission()
+  - ✅ partner_incentive_service.py - Already using RBACService.has_permission()
+  - ✅ job_approval_workflow_service.py - Already using RBACService.has_permission()
+  - ✅ referral_access_control.py - **FIXED** hardcoded role hierarchy (see below)
+  - ✅ ai_conversation_service.py - Already using RBACService.has_permission()
+  - ✅ error_log_service.py - Already using RBACService.has_permission()
+  - ✅ revenue_target_service.py - Already using RBACService.has_permission()
+
+### 5. Referral Access Control Refactored ✅ (NEW - Session Continuation)
+- **Removed:** ROLE_HIERARCHY hardcoded dictionary
+- **Refactored:** All methods to use permission checks
+- Methods updated:
+  - `can_view_referral()` - uses admin.manage, business_unit.manage, employee.manage
+  - `get_referrals_for_user()` - permission-based scoping
+  - `get_bonuses_for_user()` - permission-based scoping
+  - `get_job_referral_stats_for_user()` - permission-based scoping
+  - `get_dashboard_view_for_role()` - permission-based dashboard routing
+- **Impact:** Eliminates hardcoded role hierarchy from referral system
+
+### 6. Candidate Isolation Logic Added ✅ (NEW - Session Continuation)
+- **Database schema updates:**
+  - Added submission_bu_id (immutable, set on first submission)
+  - Added associated_bu_id (for query-time filtering)
+  - Added submission_timestamp (audit trail)
+- **New service:** candidate_isolation_service.py (240 lines)
+  - `submit_candidate_to_bu()` - locks candidate to BU permanently
+  - `can_view_candidate()` - enforces visibility rules
+  - `get_candidates_for_user()` - returns visible candidates with BU filtering
+  - `get_candidate_isolation_status()` - returns isolation info
+- **Isolation rules:**
+  - Unassociated (NULL): visible to all HR
+  - Associated: visible ONLY to users in that BU (immutable)
+- **Impact:** Prevents candidate data leakage across BU boundaries
 
 ---
 
@@ -72,17 +99,18 @@ ROLE_PERMISSIONS_SEED = {   # 200+ lines role→permission mapping
 
 ---
 
-## 📋 REMAINING WORK (65% of Phase 2)
+## 📋 REMAINING WORK (45% of Phase 2)
 
-### CRITICAL PATH (Blocking)
+### CRITICAL PATH STATUS
 
 | Task | Files | Lines | Status | Impact |
 |------|-------|-------|--------|--------|
-| **Rewrite RBACService** | `rbac_service.py` | 445+ | ❌ BLOCKED | Core permission system |
-| **Fix 8 Service Files** | See below | 50-100 each | ⏳ READY | Service layer compliance |
-| **Candidate Isolation** | `candidate.py`, `candidate_service.py` | 100+ | ⏳ READY | BU locking logic |
-| **Cleanup 45+ Decorators** | All endpoints | Various | ⏳ READY | Permission string standards |
-| **Query-Time Filtering** | 20+ endpoints | 50+ lines | ⏳ READY | Data scope enforcement |
+| **Rewrite RBACService** | `rbac_service.py` | 160 | ✅ COMPLETE | Core permission system |
+| **Fix 8 Service Files** | All 8 files | Verified | ✅ COMPLETE | Service layer compliance |
+| **Candidate Isolation** | `candidate.py`, `candidate_isolation_service.py` | 250 | ✅ COMPLETE | BU locking logic |
+| **Cleanup 45+ Decorators** | All endpoints | Various | ⏳ IN PROGRESS | Permission string standards |
+| **Query-Time Filtering** | 20+ endpoints | 100+ lines | ⏳ NEXT | Data scope enforcement |
+| **Integration Testing** | Full suite | TBD | ⏳ NEXT | End-to-end verification |
 
 ### 8 Service Layer Files (Ready to Fix)
 
