@@ -84,7 +84,7 @@ const GROUP_DEFS = [
   {
     label: "Admin",
     icon: Shield,
-    keys: ["usersAccessControl", "roleTemplates", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
+    keys: ["usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
   },
 ];
 
@@ -146,7 +146,6 @@ const NAV_PERMISSIONS = {
 
   // Admin Module
   usersAccessControl: "users.view",
-  roleTemplates: "rbac.manage",
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",

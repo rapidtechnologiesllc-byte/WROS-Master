@@ -1063,6 +1063,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
 function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
   const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
   const [togglingTemplate, setTogglingTemplate] = useState({});
@@ -1071,6 +1072,26 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [expandedModules, setExpandedModules] = useState({});
   const [moduleStates, setModuleStates] = useState({});
+
+  // Fetch template details when editingTemplateId changes
+  useEffect(() => {
+    if (editingTemplateId) {
+      const fetchTemplate = async () => {
+        try {
+          const { data } = await apiRequest(`/admin/role-templates/${editingTemplateId}`, {
+            method: "GET"
+          });
+          setEditingTemplate(data || { name: "New Template", description: "", permissions: [] });
+        } catch (err) {
+          console.error("Failed to fetch template:", err);
+          setEditingTemplate({ name: "New Template", description: "", permissions: [] });
+        }
+      };
+      fetchTemplate();
+    } else {
+      setEditingTemplate(null);
+    }
+  }, [editingTemplateId]);
 
   const filteredRoles = useMemo(() => {
     if (!searchTerm) return roles;
@@ -1085,8 +1106,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const getUserCount = (roleId) => {
     return users.filter(u => u.role_id === roleId).length;
   };
-
-  const editingTemplate = roles.find(r => r.id === editingTemplateId);
 
   // Convert flat permission list to hierarchical structure { module: { verb: true } }
   const convertPermissionsToHierarchy = (perms) => {
@@ -1283,7 +1302,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const handleNewRoleTemplate = async () => {
     setCreatingTemplate(true);
     try {
-      const createResponse = await apiRequest("/admin/role-templates", {
+      const { data: createData } = await apiRequest("/admin/role-templates", {
         method: "POST",
         body: JSON.stringify({
           name: `template_${Date.now()}`,
@@ -1294,42 +1313,17 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         })
       });
 
-      const newTemplateId = createResponse?.id;
+      const newTemplateId = createData?.id;
       if (!newTemplateId) {
         toast.error("Failed to create role template.");
         setCreatingTemplate(false);
         return;
       }
 
-      // Fetch the newly created template directly
-      const fetchResponse = await apiRequest(`/admin/role-templates/${newTemplateId}`, {
-        method: "GET"
-      });
-
       setCreatingTemplate(false);
-
-      if (fetchResponse) {
-        // Set the template and show edit UI
-        setEditingTemplate(fetchResponse);
-        setEditingTemplateId(newTemplateId);
-        toast.success("New role template created. Configure it below.");
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        // Fallback: create minimal template if fetch fails
-        const minimalTemplate = {
-          id: newTemplateId,
-          name: createResponse?.name || `template_${Date.now()}`,
-          display_name: "New role template",
-          description: "",
-          is_system: false,
-          is_active: true,
-          permissions: []
-        };
-        setEditingTemplate(minimalTemplate);
-        setEditingTemplateId(newTemplateId);
-        toast.success("New role template created. Configure it below.");
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      setEditingTemplateId(newTemplateId);
+      toast.success("New role template created successfully!");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setCreatingTemplate(false);
       console.error("handleNewRoleTemplate error:", err);
