@@ -1,62 +1,56 @@
-"""Role-Based Access Control for Employee Referrals."""
+"""Role-Based Access Control for Employee Referrals.
+
+ZERO-HARDCODING: All access rules determined by database-driven role_templates,
+not hardcoded role names or hierarchy dictionaries.
+
+Access determined by permissions:
+- admin.manage: CEO, Workforce Manager (sees everything)
+- revenue.manage: CFO, Finance (sees all for payment processing)
+- business_unit.manage: BU Head, Partner (sees only their BU)
+- employee.manage: HR Manager (sees only their BU)
+- No special permission: Regular Employee (sees only own referrals)
+"""
 
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralBonus
 from app.models.employee import Employee
+from app.models.user import Users
 
 
 class ReferralAccessControl:
-    """
-    Role-based access to referral data.
-
-    Access Rules:
-    - CEO: Sees ALL referrals across ALL business units (org-level)
-    - Workforce Manager (Corporate): Sees ALL referrals across ALL business units
-    - BU Head/Partner: Sees only their business unit's referrals
-    - HR Manager: Sees only their business unit's referrals
-    - Finance: Sees ALL referrals (for payment processing)
-    - Regular Employee: Sees only their own referrals
-    """
-
-    ROLE_HIERARCHY = {
-        "SUPER_ADMIN": 5,  # Highest - sees everything
-        "CEO": 5,
-        "WORKFORCE_MANAGER": 4,  # Corporate level - sees everything
-        "CFO": 4,  # Finance lead - sees all bonuses
-        "BU_HEAD": 3,  # Business unit head - sees their BU only
-        "PARTNER": 3,  # Partner - sees their BU only
-        "HR_MANAGER": 2,  # HR - sees their BU only
-        "FINANCE": 4,  # Finance team - sees all for payment
-        "EMPLOYEE": 1,  # Regular employee - sees own referrals
-    }
+    """Database-driven access control for employee referrals via role_templates."""
 
     @staticmethod
     def can_view_referral(
-        user_role: str,
+        db: Session,
+        user_id: str,
         user_bu: Optional[str],
         referral_bu: Optional[str],
     ) -> bool:
-        """
-        Determine if user can view a specific referral.
+        """Determine if user can view a specific referral (database-driven).
 
         Args:
-            user_role: User's role (CEO, BU_HEAD, HR_MANAGER, etc.)
+            db: Database session
+            user_id: User ID
             user_bu: User's business unit
             referral_bu: Business unit of the referral
 
         Returns:
             True if user can view, False otherwise
         """
+        from app.services.rbac_service import RBACService
 
-        role_level = ReferralAccessControl.ROLE_HIERARCHY.get(user_role, 0)
-
-        # CEO and Workforce Manager see everything
-        if role_level >= 4:
+        # Admin and Workforce Manager see everything
+        if RBACService.has_any_permission(db, user_id, ["admin.manage", "revenue.manage"]):
             return True
 
-        # BU Head and HR Manager see only their BU
-        if role_level == 3 or role_level == 2:
+        # BU Head/Partner see only their BU
+        if RBACService.has_permission(db, user_id, "business_unit.manage"):
+            return user_bu == referral_bu
+
+        # HR Manager sees only their BU
+        if RBACService.has_permission(db, user_id, "employee.manage"):
             return user_bu == referral_bu
 
         # Regular employees see only own referrals (checked elsewhere)
@@ -66,32 +60,25 @@ class ReferralAccessControl:
     def get_referrals_for_user(
         db: Session,
         user_id: str,
-        user_role: str,
         user_bu: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Get referrals visible to this user based on role and BU.
-        """
-
-        role_level = ReferralAccessControl.ROLE_HIERARCHY.get(user_role, 0)
+        """Get referrals visible to this user (database-driven permissions)."""
+        from app.services.rbac_service import RBACService
 
         try:
-            if role_level >= 4:  # CEO, Workforce Manager, Finance
-                # See ALL referrals
+            # Admin and Finance see ALL referrals
+            if RBACService.has_any_permission(db, user_id, ["admin.manage", "revenue.manage"]):
                 referrals = db.query(EmployeeReferral).all()
-
-            elif role_level == 3 or role_level == 2:  # BU Head, HR Manager
-                # See only their BU's referrals
-                # Need to join with employee to get business unit
+            # BU Head/Partner and HR Manager see only their BU's referrals
+            elif RBACService.has_any_permission(db, user_id, ["business_unit.manage", "employee.manage"]):
                 referrals = (
                     db.query(EmployeeReferral)
                     .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
                     .filter(Employee.business_unit == user_bu)
                     .all()
                 )
-
-            else:  # Regular Employee
-                # See only own referrals
+            else:
+                # Regular Employee sees only own referrals
                 referrals = db.query(EmployeeReferral).filter(
                     EmployeeReferral.referring_employee_id == user_id
                 ).all()
@@ -117,36 +104,25 @@ class ReferralAccessControl:
     def get_bonuses_for_user(
         db: Session,
         user_id: str,
-        user_role: str,
         user_bu: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Get referral bonuses visible to this user.
-
-        Finance sees ALL bonuses for payment processing.
-        CEO/Workforce Manager see all bonuses.
-        BU Head/HR see only their BU's bonuses.
-        Employee sees own bonuses.
-        """
-
-        role_level = ReferralAccessControl.ROLE_HIERARCHY.get(user_role, 0)
+        """Get referral bonuses visible to this user (database-driven permissions)."""
+        from app.services.rbac_service import RBACService
 
         try:
-            if role_level >= 4:  # CEO, Finance, Workforce Manager
-                # See ALL bonuses
+            # Admin and Finance see ALL bonuses for payment processing
+            if RBACService.has_any_permission(db, user_id, ["admin.manage", "revenue.manage"]):
                 bonuses = db.query(ReferralBonus).all()
-
-            elif role_level == 3 or role_level == 2:  # BU Head, HR Manager
-                # See only their BU's bonuses
+            # BU Head/Partner and HR Manager see only their BU's bonuses
+            elif RBACService.has_any_permission(db, user_id, ["business_unit.manage", "employee.manage"]):
                 bonuses = (
                     db.query(ReferralBonus)
                     .join(Employee, ReferralBonus.referring_employee_id == Employee.id)
                     .filter(Employee.business_unit == user_bu)
                     .all()
                 )
-
-            else:  # Regular Employee
-                # See only own bonuses
+            else:
+                # Regular Employee sees only own bonuses
                 bonuses = db.query(ReferralBonus).filter(
                     ReferralBonus.referring_employee_id == user_id
                 ).all()
@@ -172,26 +148,21 @@ class ReferralAccessControl:
         db: Session,
         job_id: str,
         user_id: str,
-        user_role: str,
         user_bu: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Get job referral stats visible to this user.
+        """Get job referral stats visible to this user (database-driven permissions)."""
+        from app.services.rbac_service import RBACService
 
-        Finance can see stats for all jobs.
-        CEO can see stats for all jobs.
-        BU Head/HR can only see stats for jobs in their BU.
-        Regular employees cannot see job stats.
-        """
-
-        role_level = ReferralAccessControl.ROLE_HIERARCHY.get(user_role, 0)
-
-        # Only manager-level and above can see job stats
-        if role_level < 2:
+        # Only admin, finance, and manager-level and above can see job stats
+        can_view_stats = RBACService.has_any_permission(
+            db, user_id,
+            ["admin.manage", "revenue.manage", "business_unit.manage", "employee.manage"]
+        )
+        if not can_view_stats:
             return None
 
         # BU Head/HR can only see their BU's jobs
-        if role_level == 2 or role_level == 3:
+        if RBACService.has_any_permission(db, user_id, ["business_unit.manage", "employee.manage"]):
             # Verify this job is in their BU
             # For now, assume job belongs to a BU (would need job model update)
             # TODO: Add business_unit field to Jobs model
@@ -229,64 +200,37 @@ class ReferralAccessControl:
     def get_dashboard_view_for_role(
         db: Session,
         user_id: str,
-        user_role: str,
         user_bu: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Get the appropriate referral dashboard view for this user (database-driven).
+
+        CEO/Admin Dashboard: org-wide view
+        Finance Dashboard: payment processing view
+        BU Head/Partner Dashboard: BU-specific view
+        HR Manager Dashboard: HR-specific view
+        Employee Dashboard: personal view
         """
-        Get the appropriate referral dashboard view for this user's role.
-
-        CEO Dashboard:
-        - Total referrals across all BUs
-        - Total bonuses owed/paid
-        - Referral stats by BU
-        - Top referrers
-        - Pending bonuses to approve
-
-        Workforce Manager Dashboard:
-        - Same as CEO (corporate view)
-
-        BU Head/Partner Dashboard:
-        - Referrals in their BU
-        - Stats specific to their BU
-        - Top referrers in their BU
-        - Pending bonuses in their BU
-
-        HR Manager Dashboard:
-        - Referrals in their BU
-        - Referral stats for their BU
-        - Candidate status updates
-
-        Finance Dashboard:
-        - All pending bonuses
-        - Bonds ready to pay
-        - Payment status tracking
-        - Approval workflow
-
-        Employee Dashboard:
-        - Own referrals and status
-        - Bonuses earned/pending
-        - Bonus payout timeline
-        """
-
-        role_level = ReferralAccessControl.ROLE_HIERARCHY.get(user_role, 0)
+        from app.services.rbac_service import RBACService
 
         try:
-            if role_level >= 5:  # CEO
+            # CEO/Admin see org-wide dashboard
+            if RBACService.has_permission(db, user_id, "admin.manage"):
                 return ReferralAccessControl._get_ceo_dashboard(db)
 
-            elif role_level == 4:  # Workforce Manager or Finance
-                if user_role == "FINANCE" or user_role == "CFO":
-                    return ReferralAccessControl._get_finance_dashboard(db)
-                else:
-                    return ReferralAccessControl._get_ceo_dashboard(db)  # Same as CEO
+            # Finance sees payment processing dashboard
+            elif RBACService.has_permission(db, user_id, "revenue.manage"):
+                return ReferralAccessControl._get_finance_dashboard(db)
 
-            elif role_level == 3:  # BU Head/Partner
+            # BU Head/Partner see BU-specific dashboard
+            elif RBACService.has_permission(db, user_id, "business_unit.manage"):
                 return ReferralAccessControl._get_bu_dashboard(db, user_bu)
 
-            elif role_level == 2:  # HR Manager
+            # HR Manager sees HR-specific dashboard
+            elif RBACService.has_permission(db, user_id, "employee.manage"):
                 return ReferralAccessControl._get_hr_dashboard(db, user_bu)
 
-            else:  # Regular Employee
+            # Regular Employee sees personal dashboard
+            else:
                 return ReferralAccessControl._get_employee_dashboard(db, user_id)
 
         except Exception as e:
