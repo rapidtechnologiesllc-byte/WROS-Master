@@ -125,7 +125,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     if user:
         # Get authoritative UserRole from database (ORM not loading correctly)
         from sqlalchemy import text
-        user_role = db.execute(text("SELECT UserRole FROM users WHERE UserEmail = :email"), {"email": request.email}).scalar()
+        user_role = db.execute(text('SELECT "UserRole" FROM "users" WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
         if not user_role:
             user_role = user.UserRole
         # Phase 1 B3 -- gate is off by default (mfa_enforcement_enabled())
