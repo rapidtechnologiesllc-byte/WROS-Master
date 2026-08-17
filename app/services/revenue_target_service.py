@@ -124,13 +124,18 @@ def set_partner_goal(
     target_amount_usd_cents: int, created_by_user: Users, tenant_id: Optional[int] = None,
     notes: Optional[str] = None,
 ) -> PartnerGoal:
-    """CEO-only, enforced here (RBAC question, not a schema one).
-    'CEO' has no distinct RBAC role in this codebase -- Super User is
-    the CEO-equivalent, same convention app.core.revenue_visibility_scope
-    already established."""
-    is_ceo = (created_by_user.UserRole or "").lower() == "super user"
-    if not is_ceo:
-        raise RevenueTargetValidationError("Only the CEO (Super User) can set a Partner goal.")
+    """CEO-only, enforced via RBAC permission system.
+    Users must have admin.manage or revenue.manage permission to set partner goals."""
+    from app.services.rbac_service import RBACService
+
+    has_permission = (
+        RBACService.has_permission(db, created_by_user.UserID, "admin.manage") or
+        RBACService.has_permission(db, created_by_user.UserID, "revenue.manage")
+    )
+    if not has_permission:
+        raise RevenueTargetValidationError(
+            "Permission denied: only users with admin or revenue management access can set partner goals."
+        )
     if target_amount_usd_cents <= 0:
         raise RevenueTargetValidationError("target_amount_usd_cents must be positive.")
 

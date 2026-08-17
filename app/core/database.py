@@ -21,21 +21,12 @@ load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 # Build the SQL Server connection string
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Resolve SQLite paths relative to the backend repo root, not the process CWD.
-# This fixes the issue where relative paths like `sqlite:///./local_dev.sqlite3`
-# would resolve to the process's working directory (e.g., .claude) instead of
-# the backend directory. With this fix, the database is always found regardless
-# of what directory the backend is launched from.
-if DATABASE_URL and DATABASE_URL.startswith("sqlite:///./"):
-    # Extract the relative path (e.g., "./local_dev.sqlite3" -> "local_dev.sqlite3")
-    rel_path = DATABASE_URL.replace("sqlite:///./", "")
-    abs_path = os.path.join(_REPO_ROOT, rel_path)
-    DATABASE_URL = f"sqlite:///{abs_path}"
+# PostgreSQL is the single source of truth for all database operations.
+# SQLite is no longer supported in any environment.
+# All DATABASE_URL environment variables must use postgresql:// protocol.
 
 # fast_executemany and the pyodbc-style connect_args are SQL-Server-only
-# (mssql+pyodbc) -- SQLite (used for local dev via .env.local, and for
-# every test in this repo) doesn't accept either kwarg and raises
-# TypeError on create_engine() if they're passed unconditionally.
+# (mssql+pyodbc). PostgreSQL uses standard SQLAlchemy kwargs.
 _is_sqlserver = DATABASE_URL and DATABASE_URL.startswith("mssql")
 _engine_kwargs = {
     "pool_pre_ping": False,   # Disabled: avoids a SELECT 1 round-trip to Azure on every checkout

@@ -125,14 +125,20 @@ class AgentImprovement(Base):
 
 
 def run_migration():
-    """Execute migration to create agent state tables."""
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./local_dev.sqlite3")
+    """Execute migration to create agent state tables.
 
-    if db_url.startswith("sqlite:///./"):
-        rel_path = db_url.replace("sqlite:///./", "")
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        abs_path = os.path.join(repo_root, rel_path)
-        db_url = f"sqlite:///{abs_path}"
+    Requires DATABASE_URL environment variable set to a PostgreSQL connection string.
+    """
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError(
+            "DATABASE_URL environment variable must be set. "
+            "PostgreSQL is the only supported database."
+        )
+    if not db_url.startswith("postgresql://"):
+        raise ValueError(
+            f"DATABASE_URL must use PostgreSQL protocol. Got: {db_url.split('://')[0]}://..."
+        )
 
     engine = create_engine(db_url)
     Base.metadata.create_all(engine)

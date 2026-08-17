@@ -66,10 +66,6 @@ def initialize_phalanx(
     ):
     """Initialize a phalanx formation with agent positions."""
 
-    # Check if user is admin
-    if not current_user or not getattr(current_user, "role", None) == "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
     # Get agents for this phalanx
     phalanx_config = PhalanxFormationService.PHALANXES.get(phalanx_name)
     if not phalanx_config:

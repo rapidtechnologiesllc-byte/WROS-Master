@@ -1,82 +1,105 @@
-# PowerShell script to create a superuser in WROS
-# This script uses Python to hash the password with bcrypt, ensuring compatibility with the backend
+# PowerShell script to create a superuser in WROS using PostgreSQL
+# This script uses Python with SQLAlchemy, requiring:
+#  - PostgreSQL running (DATABASE_URL set in environment)
+#  - SQLAlchemy + psycopg2 installed
+#
+# Usage:
+#   $env:DATABASE_URL = "postgresql://postgres:123@localhost:5432/wros_dev"
+#   .\create_superuser.ps1
 
-$DBPath = ".\local_dev.sqlite3"
 $SUPERUSER_EMAIL = "superuser@blitzenx.com"
 $SUPERUSER_PASSWORD = "Superuser!123"
 
 Write-Host "Creating superuser: $SUPERUSER_EMAIL" -ForegroundColor Cyan
 
-# Use Python to hash the password with bcrypt
+# Check if DATABASE_URL is set
+if ([string]::IsNullOrEmpty($env:DATABASE_URL)) {
+    Write-Host "ERROR: DATABASE_URL environment variable not set!" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Set DATABASE_URL to your PostgreSQL connection string:" -ForegroundColor Yellow
+    Write-Host '  $env:DATABASE_URL = "postgresql://postgres:password@localhost:5432/wros_dev"'
+    Write-Host ""
+    exit 1
+}
+
+if (-not $env:DATABASE_URL.StartsWith("postgresql://")) {
+    Write-Host "ERROR: DATABASE_URL must use PostgreSQL protocol!" -ForegroundColor Red
+    Write-Host "Current: $($env:DATABASE_URL.Split('@')[0])@..."
+    exit 1
+}
+
+Write-Host "Using database: $($env:DATABASE_URL.Split('@')[0])@..." -ForegroundColor Yellow
+
+# Create superuser using SQLAlchemy
 $PythonCode = @"
-import bcrypt
+import os
 import sys
+sys.path.insert(0, '.')
 
-password = '$SUPERUSER_PASSWORD'
-# Generate bcrypt hash with salt
-salt = bcrypt.gensalt(rounds=12)
-hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-# Print the hash as a string
-print(hashed.decode('utf-8'))
-"@
-
-# Run Python to generate the hash
-$HashedPassword = python -c $PythonCode
-
-Write-Host "Generated bcrypt hash: $($HashedPassword.Substring(0, 50))..." -ForegroundColor Green
-
-# Create the superuser in the database
-$SqliteCode = @"
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.models.user import Users
+from app.core.security import get_password_hash
 import uuid
 from datetime import datetime
 
-db_path = r'$DBPath'
 email = '$SUPERUSER_EMAIL'
-hashed_password = '$HashedPassword'
+password = '$SUPERUSER_PASSWORD'
 
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
+db_url = os.getenv('DATABASE_URL')
+if not db_url:
+    print('ERROR: DATABASE_URL not set')
+    sys.exit(1)
+
+if not db_url.startswith('postgresql://'):
+    print('ERROR: DATABASE_URL must use PostgreSQL protocol')
+    sys.exit(1)
 
 try:
-    # Delete existing superuser if exists
-    cursor.execute('DELETE FROM users WHERE UserEmail = ?', (email,))
-    conn.commit()
-    print(f'Deleted existing user: {email}')
+    engine = create_engine(db_url)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    # Delete existing user if exists
+    existing = session.query(Users).filter(Users.UserEmail == email).first()
+    if existing:
+        session.delete(existing)
+        session.commit()
+        print(f'Deleted existing user: {email}')
 
     # Create new superuser
+    hashed_password = get_password_hash(password)
     user_id = str(uuid.uuid4())
-    created_at = datetime.utcnow().isoformat()
 
-    cursor.execute('''
-        INSERT INTO users
-        (UserID, UserEmail, UserPassword, UserName, UserRole, CreatedAt, mfa_enabled, digest_enabled, thunder_enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        user_id,
-        email,
-        hashed_password,
-        'Super User',
-        'Super User',
-        created_at,
-        0,
-        0,
-        0
-    ))
+    user = Users(
+        UserID=user_id,
+        UserEmail=email,
+        UserPassword=hashed_password,
+        UserName='Super User',
+        UserRole='Super User',
+        CreatedAt=datetime.utcnow(),
+        mfa_enabled=False,
+        digest_enabled=False,
+        thunder_enabled=False,
+    )
 
-    conn.commit()
+    session.add(user)
+    session.commit()
+
     print(f'✓ Superuser created successfully!')
     print(f'  Email: {email}')
-    print(f'  Password: $SUPERUSER_PASSWORD')
+    print(f'  Password: {password}')
     print(f'  User ID: {user_id}')
     print(f'  Role: Super User')
 
 except Exception as e:
     print(f'✗ Error creating superuser: {e}')
-    conn.rollback()
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
 finally:
-    conn.close()
+    session.close()
 "@
 
 # Run Python to create the user
-python -c $SqliteCode
+python -c $PythonCode

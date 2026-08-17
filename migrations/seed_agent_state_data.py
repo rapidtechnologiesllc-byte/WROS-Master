@@ -13,12 +13,17 @@ from datetime import datetime
 import uuid
 
 def get_db_url():
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./local_dev.sqlite3")
-    if db_url.startswith("sqlite:///./"):
-        rel_path = db_url.replace("sqlite:///./", "")
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        abs_path = os.path.join(repo_root, rel_path)
-        db_url = f"sqlite:///{abs_path}"
+    """Get database URL from environment. PostgreSQL is required."""
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError(
+            "DATABASE_URL environment variable must be set. "
+            "PostgreSQL is the only supported database."
+        )
+    if not db_url.startswith("postgresql://"):
+        raise ValueError(
+            f"DATABASE_URL must use PostgreSQL protocol. Got: {db_url.split('://')[0]}://..."
+        )
     return db_url
 
 

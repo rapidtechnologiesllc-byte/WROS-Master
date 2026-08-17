@@ -12,6 +12,7 @@ from app.models import Users, Candidate, CandidateAssignment, Interview, Intervi
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
+from app.models.role_template import RoleTemplate
 from app.models.newsletter import Newsletter
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
@@ -198,9 +199,11 @@ def search_users(
             )
         )
 
-    # ── legacy role filter ────────────────────────────────────────────────────
+    # ── role template filter (via role_template_id) ──────────────────────────
     if user_role:
-        query = query.filter(Users.UserRole == user_role)
+        query = query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id).filter(
+            RoleTemplate.name == user_role
+        )
 
     # ── RBAC permission role filter — join through Role ───────────────────────
     if permission_role:
