@@ -49,7 +49,7 @@ class Offer(Base):
     # ── Offer Details ─────────────────────────────────────────────────────────
     position_title = Column(String(200), nullable=False)
     base_salary_usd_cents = Column(BigInteger, nullable=False)  # Base annual salary in USD cents
-    signing_bonus_usd_cents = Column(BigInteger, default=0, nullable=False)  # One-time signing bonus
+    signing_bonus_usd_cents = Column(BigInteger, default = False, nullable=False)  # One-time signing bonus
     benefits = Column(JSON, default={}, nullable=False)  # Health insurance, 401k, PTO, etc.
 
     # ── Dates ─────────────────────────────────────────────────────────────────

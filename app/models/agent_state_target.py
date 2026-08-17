@@ -34,7 +34,7 @@ class AgentStateTarget(Base):
 
     # MINIMUM ACCEPTABLE PERFORMANCE (kill switch threshold)
     min_success_rate = Column(Float, default=95.0)  # % — below this: consider kill switch
-    min_executions_per_day = Column(Integer, default=1)
+    min_executions_per_day = Column(Integer, default = True)
     min_quality_score = Column(Float, default=70.0)  # 0-100
 
     # ACCELERATION REQUIREMENTS
@@ -68,7 +68,7 @@ class AgentActualPerformance(Base):
     success_rate = Column(Float)  # 0-100%
     executions_count = Column(Integer)  # how many times ran
     avg_execution_time_ms = Column(Integer)
-    error_count = Column(Integer, default=0)
+    error_count = Column(Integer, default = False)
     quality_score = Column(Float)  # 0-100
 
     # CALCULATED FIELDS

@@ -74,8 +74,8 @@ class Demand(Base):
     employment_type = Column(Enum(*EMPLOYMENT_TYPES, name="demand_employment_type", native_enum=False, create_constraint=True), nullable=False, default="W2_FULLTIME")
     interview_type_required = Column(Enum(*INTERVIEW_TYPES, name="demand_interview_type", native_enum=False, create_constraint=True), nullable=False, default="L1_AND_L2")
 
-    headcount = Column(Integer, nullable=False, default=1)
-    positions_filled = Column(Integer, nullable=False, default=0)
+    headcount = Column(Integer, nullable=False, default = True)
+    positions_filled = Column(Integer, nullable=False, default = False)
 
     billing_rate_usd_cents = Column(Integer, nullable=True)
     budget_min_usd_cents = Column(Integer, nullable=True)

@@ -88,7 +88,7 @@ class ShieldWatch(Base):
 
     # Alert tracking
     status = Column(String(50))  # HEALTHY, WARNING, CRITICAL
-    alert_count = Column(Integer, default=0)
+    alert_count = Column(Integer, default = False)
     alert_triggered_at = Column(DateTime)
 
     # Escalation

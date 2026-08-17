@@ -73,12 +73,12 @@ class InterviewDecisionLog(Base):
     )
 
     # Voting Analysis
-    strong_yes_count = Column(Integer, nullable=False, default=0)
-    yes_count = Column(Integer, nullable=False, default=0)
-    no_count = Column(Integer, nullable=False, default=0)
-    strong_no_count = Column(Integer, nullable=False, default=0)
-    abstain_count = Column(Integer, nullable=False, default=0)
-    total_panelists = Column(Integer, nullable=False, default=0)
+    strong_yes_count = Column(Integer, nullable=False, default = False)
+    yes_count = Column(Integer, nullable=False, default = False)
+    no_count = Column(Integer, nullable=False, default = False)
+    strong_no_count = Column(Integer, nullable=False, default = False)
+    abstain_count = Column(Integer, nullable=False, default = False)
+    total_panelists = Column(Integer, nullable=False, default = False)
 
     # Average Scores
     avg_technical_score = Column(Float, nullable=True)

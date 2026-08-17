@@ -35,7 +35,7 @@ class OutreachSequence(Base):
 
     # BR-1104-04: capped at 3, enforced at insert -- see
     # app.services.outreach_agent_service._record_touch().
-    touch_count = Column(Integer, nullable=False, default=0)
+    touch_count = Column(Integer, nullable=False, default = False)
 
     # Data Mapping: "snapshot, re-checked live at send time, not trusted
     # from snapshot alone" -- this column is informational/audit only,

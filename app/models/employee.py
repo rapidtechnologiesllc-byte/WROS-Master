@@ -126,7 +126,7 @@ class Employee(Base):
     current_title = Column(String(200), nullable=True)
     current_skills = Column(Text, nullable=True)  # JSON-encoded array; see current_skills_list()/set_current_skills()
     total_experience_months = Column(Integer, nullable=True)
-    blitzenx_experience_months = Column(Integer, nullable=False, default=0)
+    blitzenx_experience_months = Column(Integer, nullable=False, default = False)
 
     base_salary_usd_cents = Column(Integer, nullable=True)  # monthly
     billing_rate_usd_cents = Column(Integer, nullable=True)  # hourly

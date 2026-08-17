@@ -67,7 +67,7 @@ class Opportunity(Base):
         Enum(*BILLING_CURRENCIES, name="opportunity_currency", native_enum=False, create_constraint=True),
         nullable=False, default="USD",
     )
-    probability_pct = Column(Integer, nullable=False, default=0)
+    probability_pct = Column(Integer, nullable=False, default = False)
 
     expected_close_date = Column(Date, nullable=True)
 

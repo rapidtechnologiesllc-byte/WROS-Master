@@ -41,7 +41,7 @@ class MessageTemplate(Base):
     subject = Column(String(500), nullable=True)
     body = Column(Text, nullable=False)
 
-    version = Column(Integer, nullable=False, default=1)
+    version = Column(Integer, nullable=False, default = True)
     # BR-01: only one is_active=true per (tenant_id, template_key,
     # channel) -- enforced in application logic (activate_template()),
     # not a DB constraint (a partial/filtered unique index would need

@@ -57,20 +57,20 @@ class AgentFearState(Base):
     weeks_until_retirement = Column(Integer, nullable=True)  # If under threat, weeks remaining
 
     # Performance pressure
-    consecutive_poor_weeks = Column(Integer, nullable=False, default=0)
-    consecutive_good_weeks = Column(Integer, nullable=False, default=0)
+    consecutive_poor_weeks = Column(Integer, nullable=False, default = False)
+    consecutive_good_weeks = Column(Integer, nullable=False, default = False)
 
     # Work intensity
     work_intensity_score = Column(Float, nullable=False, default=50.0)  # How hard agent is working (0-100)
     # Inferred from: execution frequency, optimization depth, error-correction speed
 
     # Stress indicators
-    failure_incidents_this_week = Column(Integer, nullable=False, default=0)
-    quality_failures_total = Column(Integer, nullable=False, default=0)
-    missed_targets = Column(Integer, nullable=False, default=0)
+    failure_incidents_this_week = Column(Integer, nullable=False, default = False)
+    quality_failures_total = Column(Integer, nullable=False, default = False)
+    missed_targets = Column(Integer, nullable=False, default = False)
 
     # Relief/confidence
-    excellent_weeks_streak = Column(Integer, nullable=False, default=0)
+    excellent_weeks_streak = Column(Integer, nullable=False, default = False)
     confidence_level = Column(Float, nullable=False, default=50.0)  # How confident agent feels (0-100)
 
     # Motivation state
@@ -100,8 +100,8 @@ class AgentStressTesting(Base):
     difficulty_level = Column(Integer, nullable=False)  # 1-10 (10 = hardest)
 
     # Results
-    success_count = Column(Integer, nullable=False, default=0)
-    failure_count = Column(Integer, nullable=False, default=0)
+    success_count = Column(Integer, nullable=False, default = False)
+    failure_count = Column(Integer, nullable=False, default = False)
     success_rate = Column(Float, nullable=False, default=0.0)  # % of times agent passed
     avg_solve_time_ms = Column(Integer, nullable=True)  # How fast agent solved it
 
@@ -141,8 +141,8 @@ class AgentPerformanceCommitment(Base):
     quality_variance = Column(Float, nullable=False, default=0.0)
 
     # Penalty system
-    times_missed_target = Column(Integer, nullable=False, default=0)
-    consecutive_misses = Column(Integer, nullable=False, default=0)
+    times_missed_target = Column(Integer, nullable=False, default = False)
+    consecutive_misses = Column(Integer, nullable=False, default = False)
 
     # Timestamps
     created_at = Column(DateTime, server_default=func.now())

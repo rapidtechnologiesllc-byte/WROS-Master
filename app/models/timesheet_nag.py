@@ -20,7 +20,7 @@ class TimesheetNagLog(Base):
     week_starting_date = Column(Date, nullable=False)
 
     # 1 = employee nagged directly, 2 = escalated to reporting manager.
-    escalation_level = Column(Integer, nullable=False, default=1)
+    escalation_level = Column(Integer, nullable=False, default = True)
     last_nagged_at = Column(DateTime, server_default=func.now())
     resolved = Column(Boolean, nullable=False, default=False)
 

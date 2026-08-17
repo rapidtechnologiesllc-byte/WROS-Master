@@ -91,7 +91,7 @@ class SourcingAlert(Base):
     sourced_at = Column(DateTime(timezone=False), nullable=True)
     # BR-1103's Boolean Search Engine failure counter -- 2 consecutive
     # failures pages the RM (AC-6). Reset to 0 on any successful search.
-    consecutive_search_failures = Column(Integer, nullable=False, default=0)
+    consecutive_search_failures = Column(Integer, nullable=False, default = False)
 
     demand = relationship("Demand", foreign_keys=[demand_id], lazy="select")
 
@@ -113,7 +113,7 @@ class SourcingSearchRun(Base):
     manual_query_override = Column(Text, nullable=True)   # recruiter-supplied, takes precedence when set
 
     status = Column(String(20), nullable=False, default="QUEUED")  # one of SEARCH_RUN_STATUSES
-    staged_candidate_count = Column(Integer, nullable=False, default=0)
+    staged_candidate_count = Column(Integer, nullable=False, default = False)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     completed_at = Column(DateTime(timezone=False), nullable=True)
