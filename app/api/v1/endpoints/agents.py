@@ -26,8 +26,7 @@ def get_partner_roi_kpis(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """
-    Get Partner's ROI and KPIs for a given month.
+    """Get Partner's ROI and KPIs for a given month.
 
     Permissions: revenue.view (Finance + Partners can see their own; CEO/Finance see all)
     """
@@ -35,12 +34,13 @@ def get_partner_roi_kpis(
         kpis = get_partner_kpis(db, partner_id, year_month)
 
         # Scope check: Partner can only see their own KPIs; Finance/CEO see all
-        if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-            if current_user.UserID != partner_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Can only view your own KPIs"
-                )
+        from app.services.rbac_service import RBACService
+        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        if not can_see_all and current_user.UserID != partner_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only view your own KPIs"
+            )
 
         return {"status": "success", "data": kpis}
     except ValueError as e:
@@ -56,13 +56,14 @@ def get_partner_roi_trend(
 ):
     """Get Partner's KPI trend over last N months."""
     try:
-        # Same scope check as KPIs
-        if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-            if current_user.UserID != partner_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Can only view your own trend"
-                )
+        # Scope check: Partner can only see their own; Finance/CEO see all
+        from app.services.rbac_service import RBACService
+        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        if not can_see_all and current_user.UserID != partner_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only view your own trend"
+            )
 
         trend = get_partner_trend(db, partner_id, months_back)
         return {"status": "success", "data": trend}
@@ -78,12 +79,13 @@ def get_partner_roi_actions(
 ):
     """Get prioritized action items for Partner based on KPIs."""
     try:
-        if current_user.UserRole not in ["Finance", "Super User", "Admin"]:
-            if current_user.UserID != partner_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Can only view your own actions"
-                )
+        from app.services.rbac_service import RBACService
+        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        if not can_see_all and current_user.UserID != partner_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only view your own actions"
+            )
 
         actions = get_partner_actions(db, partner_id)
         return {"status": "success", "data": actions}
