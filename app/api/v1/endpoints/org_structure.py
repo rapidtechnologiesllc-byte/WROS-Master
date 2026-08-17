@@ -36,7 +36,7 @@ from app.services.org_structure_service import (
     get_employee_approvers,
 )
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 
 
 router = APIRouter(prefix="/org", tags=["Organization Structure"])

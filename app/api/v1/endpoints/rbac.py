@@ -25,7 +25,8 @@ from app.services.rbac_service import RBACService
 from app.services.rbac_expanded_permissions import MODULES, VERB_MATRIX, generate_all_permissions, get_role_permissions
 from app.services.user_lifecycle_service import UserLifecycleService
 from app.core.logging import logger
-from app.models.rbac import BusinessUnit, Permission
+from app.models.rbac import Permission
+from app.models.business_unit import BusinessUnit
 from app.models.org_structure import Department
 from app.models.user import Users, Jobs
 from app.models.candidate_ownership import CandidateOwnership
