@@ -8,6 +8,19 @@
 
 ---
 
+## 📝 SESSION SUMMARY (2026-08-17 - Scratchpad Merge Continuation)
+
+**Completed This Session:**
+- ✅ Item #2: CandidateDetailsScreen.js - All features already implemented (Resume, Skills Modal, Notes)
+- ✅ Item #18: Role Templates On/Off Toggle (Commit 73f5028f)
+- ✅ Item #19: Users Modal Missing Fields (Commit e1d619d5)
+
+**Scratchpad Merge Status:** 3 Items Complete (Items #1, #2, #18, #19) | 15 Items Pending
+**Critical Items:** 2 of 2 CRITICAL items now complete
+**Branch:** feat/selective-scratchpad-merge (4 commits this session)
+
+---
+
 ## 🗄️ DATABASE MIGRATION (2026-08-16)
 
 **Status:** ✅ **PHASES 1-3 COMPLETE** | ⏳ Phases 4-5 Pending (1-2 hours remaining)
@@ -1058,7 +1071,7 @@ Edit User Modal:
 | # | Item | Status | Tests | Branch | Commit |
 |---|------|--------|-------|--------|--------|
 | 1 | JobCreate.js | ✅ DONE | 8/8 | feat/selective | 45f04280 |
-| 2 | CandidateDetailsScreen.js | ⏳ | - | feat/selective | - |
+| 2 | CandidateDetailsScreen.js | ✅ DONE | ✅ | feat/selective | Built-in |
 | 3 | Navigation (SKIP bad changes) | ⏳ | - | feat/selective | - |
 | 4 | UI Component Library | ⏳ | - | feat/selective | - |
 | 5 | FlashWidget.js | ✅ | ✅ | main | 9952b605 |
@@ -1074,8 +1087,8 @@ Edit User Modal:
 | 15 | RbacSettingsScreen.js | ⏳ | - | feat/selective | - |
 | 16 | UsersLifecycleScreen.js | ⏳ | - | feat/selective | - |
 | 17 | AuthPage.js | ⏳ | - | feat/selective | - |
-| 18 | Role Templates On/Off Toggle | ⏳ | - | feat/selective | - |
-| 19 | Users Modal - Missing Fields | ⏳ | - | feat/selective | - |
+| 18 | Role Templates On/Off Toggle | ✅ DONE | ✅ | feat/selective | 73f5028f |
+| 19 | Users Modal - Missing Fields | ✅ DONE | ✅ | feat/selective | e1d619d5 |
 
 ---
 
