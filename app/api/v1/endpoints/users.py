@@ -14,6 +14,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
 from app.models.role_template import RoleTemplate
 from app.models.newsletter import Newsletter
+from app.models.permission import JobTitle
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
     AllUsersResponse, UserResponse,
@@ -895,4 +896,39 @@ def get_hiring_manager_assigned_candidates(
         )
 
     return results
+
+
+@router.get(
+    "/job-titles",
+    summary="Get all active job titles for the tenant",
+    tags=["reference-data"]
+)
+def get_job_titles(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Fetch all active job titles for the current tenant.
+
+    Used to populate dropdowns in user creation/edit forms.
+    Only returns active job titles (active=true).
+    """
+    # Get tenant ID from current user
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+
+    job_titles = db.query(JobTitle).filter(
+        JobTitle.tenant_id == tenant_id,
+        JobTitle.active == True
+    ).order_by(JobTitle.name).all()
+
+    return {
+        "job_titles": [
+            {
+                "id": jt.id,
+                "name": jt.name,
+                "description": jt.description
+            }
+            for jt in job_titles
+        ]
+    }
 
