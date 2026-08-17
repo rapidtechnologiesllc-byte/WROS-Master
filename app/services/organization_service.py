@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
 from app.models.org_structure import OrgNode
-from app.models.business_unit import BusinessUnitContext
 
 
 class OrganizationService:
