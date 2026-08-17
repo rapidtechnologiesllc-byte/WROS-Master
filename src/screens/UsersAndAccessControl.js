@@ -204,11 +204,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     { id: 3, name: "Partner 3" }
   ]);
 
-  const JOB_TITLES = [
-    "CEO", "CFO", "Admin", "Finance Manager", "Recruiter", "HR Manager",
-    "Hiring Manager", "HR BP", "BU Head", "Report Manager", "Partner",
-    "Sales Manager", "Project Manager", "Developer", "Designer", "Other"
-  ];
+  const [jobTitles, setJobTitles] = useState([]);
 
   const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
 
@@ -287,6 +283,21 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     }
   };
 
+  // Load job titles from database (via API)
+  const loadJobTitles = async () => {
+    try {
+      const { data } = await apiRequest("/hr/job-titles", {
+        method: "GET"
+      });
+      const titles = Array.isArray(data?.job_titles) ? data.job_titles : [];
+      setJobTitles(titles);
+    } catch (err) {
+      console.error("Failed to load job titles:", err);
+      // If API fails, use empty list (user can still type or fallback to defaults)
+      setJobTitles([]);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     if (!Array.isArray(users)) return [];
     if (!searchTerm) return users;
@@ -296,6 +307,14 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       (u.user_email || "").toLowerCase().includes(term)
     );
   }, [users, searchTerm]);
+
+  // Load job titles and business units when modals open
+  useEffect(() => {
+    if (showCreateModal || showEditModal) {
+      loadJobTitles();
+      loadBusinessUnits();
+    }
+  }, [showCreateModal, showEditModal]);
 
   const selectedUser = users.find(u => u.user_id === selectedUserId);
 
@@ -666,9 +685,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a job title...</option>
-              {JOB_TITLES.map(title => (
-                <option key={title} value={title}>{title}</option>
-              ))}
+              {jobTitles.length > 0 ? (
+                jobTitles.map(title => (
+                  <option key={title.id} value={title.name}>{title.name}</option>
+                ))
+              ) : (
+                <option disabled>Loading job titles...</option>
+              )}
             </select>
           </div>
 
@@ -799,9 +822,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a job title...</option>
-              {JOB_TITLES.map(title => (
-                <option key={title} value={title}>{title}</option>
-              ))}
+              {jobTitles.length > 0 ? (
+                jobTitles.map(title => (
+                  <option key={title.id} value={title.name}>{title.name}</option>
+                ))
+              ) : (
+                <option disabled>Loading job titles...</option>
+              )}
             </select>
           </div>
 
