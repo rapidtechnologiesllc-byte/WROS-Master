@@ -16,7 +16,7 @@ from app.models.client import (
 )
 from app.models.demand import Demand
 from app.models.employee import Employee
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.user import Users

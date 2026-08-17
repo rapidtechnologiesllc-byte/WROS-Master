@@ -19,7 +19,7 @@ from app.core.database import SessionLocal
 from app.models.user import Users
 from app.models.client import Client, ClientContact
 from app.models.business_unit_context import BusinessUnitContext
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.revenue_target import BURevenueTarget, PartnerGoal
 from app.models.opportunity import Opportunity
 from app.models.demand import Demand

@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.bu_context import BUAccessItem, MyBUAccessResponse, SwitchBURequest
 from app.services.bu_context_service import (

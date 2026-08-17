@@ -25,7 +25,7 @@ from sqlalchemy import func
 from app.core.agent_logging import log_agent_execution
 from app.models.opportunity import Opportunity
 from app.models.employee import Employee
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent

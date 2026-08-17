@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models.user import Jobs, Users
-from app.models.rbac import Role, BusinessUnit
+from app.models.rbac import Role, 
+from app.models.business_unit import BusinessUnit
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
 from app.services.email_service import EmailService
 from app.services.rbac_service import RBACService

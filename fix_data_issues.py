@@ -17,7 +17,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users, Jobs
 from app.models.candidate import Candidate
 from app.models.business_unit_context import BusinessUnitContext
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.models.opportunity import Opportunity
 from datetime import datetime
 import uuid

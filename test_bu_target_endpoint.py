@@ -6,7 +6,7 @@ sys.path.insert(0, '.')
 
 from app.core.database import SessionLocal
 from app.models.tenant import Tenant
-from app.models.rbac import BusinessUnit
+from app.models.business_unit import BusinessUnit
 from app.services.revenue_target_service import set_bu_revenue_target, get_bu_target_vs_actual
 
 db = SessionLocal()
