@@ -10,12 +10,27 @@ env:
   PROD_USER: ${{ secrets.PROD_USER }}
   PROD_PATH: /home/HRMS/OnboardingModule-Backend
   PM2_SERVICE: onboarding-backend
-  DATABASE_URL: sqlite:///./test.sqlite3
 
 jobs:
   test:
     name: Run Tests & Smoke Checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wros_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wros_test
 
     steps:
       - uses: actions/checkout@v4

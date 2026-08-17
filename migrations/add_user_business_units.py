@@ -1,58 +1,44 @@
-"""Migration to add user_business_units junction table for multi-BU assignment."""
+"""Migration to add user_business_units junction table for multi-BU assignment.
+
+NOTE: This migration uses Alembic and PostgreSQL. SQLite is no longer supported.
+Use Alembic for all database migrations: alembic upgrade head
+"""
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import sqlite3
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 
 def upgrade():
-    """Create the user_business_units table."""
-    db_path = os.path.join(os.path.dirname(__file__), '..', 'local_dev.sqlite3')
+    """Create the user_business_units table via Alembic.
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    # Create the junction table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_business_units (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id VARCHAR(50) NOT NULL,
-            business_unit_id INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(UserID) ON DELETE CASCADE,
-            FOREIGN KEY (business_unit_id) REFERENCES business_units(id) ON DELETE CASCADE,
-            UNIQUE(user_id, business_unit_id)
-        )
-    ''')
-
-    # Create index for faster lookups
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_user_bu_user_id
-        ON user_business_units(user_id)
-    ''')
-
-    conn.commit()
-    conn.close()
-
-    print("✓ Created user_business_units table")
+    This script is deprecated. Use Alembic for migrations:
+    $ alembic upgrade head
+    """
+    raise NotImplementedError(
+        "This migration script is deprecated. "
+        "Please use Alembic migrations instead: alembic upgrade head"
+    )
 
 
 def downgrade():
-    """Drop the user_business_units table."""
-    db_path = os.path.join(os.path.dirname(__file__), '..', 'local_dev.sqlite3')
+    """Drop the user_business_units table via Alembic.
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('DROP TABLE IF EXISTS user_business_units')
-    conn.commit()
-    conn.close()
-
-    print("✓ Dropped user_business_units table")
+    This script is deprecated. Use Alembic for migrations:
+    $ alembic downgrade -1
+    """
+    raise NotImplementedError(
+        "This migration script is deprecated. "
+        "Please use Alembic migrations instead: alembic downgrade -1"
+    )
 
 
 if __name__ == "__main__":
-    print("Running migration: add_user_business_units")
-    upgrade()
-    print("Migration complete!")
+    print("ERROR: This migration script is deprecated.")
+    print("Use Alembic instead:")
+    print("  $ alembic upgrade head")
+    print("  $ alembic downgrade -1")
+    sys.exit(1)

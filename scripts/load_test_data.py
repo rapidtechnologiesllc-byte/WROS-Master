@@ -1,36 +1,32 @@
-"""
-Loads bulk local-only test data (20+ Opportunities, 40+ open Demands,
-more Clients/Employees/Invoices) on top of the base seed from
-setup_local_db.py, so every screen built this session has enough
-realistic volume to actually click through and validate.
+"""DEPRECATED: SQLite test data loading is no longer supported.
 
-HARD SAFETY GUARD: refuses to run against anything that isn't the
-local SQLite file -- this data must never reach production. Run
-scripts/setup_local_db.py first (it rebuilds local_dev.sqlite3 from
-scratch), then this script on top of it.
+This script was used to load test data into local SQLite databases.
+SQLite has been completely replaced with PostgreSQL.
 
-Run from the repo root:
-    python scripts/load_test_data.py
+For loading test data into PostgreSQL:
+
+1. Ensure PostgreSQL is running and DATABASE_URL is configured:
+   DATABASE_URL=postgresql://postgres:123@localhost:5432/wros_dev
+
+2. Use API endpoints to create test data:
+   $ curl -X POST http://localhost:8000/api/v1/... -d '...'
+
+3. Or write a PostgreSQL-compatible data loading script using SQLAlchemy
+
+For details, see DEVELOPER_ONBOARDING.md
 """
-import os
-import random
 import sys
-from datetime import date, datetime, timedelta
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "local_dev.sqlite3")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
-os.environ["DATABASE_URL"] = DATABASE_URL
-
-# Hard guard -- this script must never run against anything but the
-# local SQLite file. If .env.local somehow points elsewhere, or this
-# is ever accidentally run in a context where DATABASE_URL got
-# overridden to mssql/production, refuse outright rather than risk it.
-if not DATABASE_URL.startswith("sqlite"):
-    raise SystemExit(f"REFUSING TO RUN: DATABASE_URL is not local SQLite ({DATABASE_URL}). This script only ever runs against local test data.")
-if not os.path.exists(DB_PATH):
-    raise SystemExit(f"{DB_PATH} doesn't exist yet -- run scripts/setup_local_db.py first.")
+if __name__ == "__main__":
+    print("ERROR: This script is deprecated.")
+    print()
+    print("SQLite is no longer supported. Use PostgreSQL instead.")
+    print()
+    print("To load test data:")
+    print("  1. Ensure DATABASE_URL=postgresql://... in .env.local")
+    print("  2. Use API endpoints or write a SQLAlchemy-based data loader")
+    print()
+    sys.exit(1)
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

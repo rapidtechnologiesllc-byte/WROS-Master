@@ -9,6 +9,12 @@ class RoleTemplateService:
     """Service for permission checking via role templates."""
 
     @staticmethod
+    def _user_is_super_admin(db: Session, user_id: str) -> bool:
+        """Check if user is super admin via RBAC permission, not hardcoded role name."""
+        from app.services.rbac_service import RBACService
+        return RBACService.has_permission(db, user_id, "admin.manage")
+
+    @staticmethod
     def get_user_permissions(db: Session, user_id: str) -> dict:
         """
         Get all permissions for a user based on their role template.
@@ -18,9 +24,8 @@ class RoleTemplateService:
         if not user or not user.role_template_id:
             return {}
 
-        # Check if user has Super User role
-        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-        if role_template and role_template.name.lower() == "super user":
+        # Check if user is super admin via RBAC permission
+        if RoleTemplateService._user_is_super_admin(db, user_id):
             return {"*": {"can_view": True, "can_create": True, "can_edit": True, "can_delete": True}}
 
         permissions = db.query(RoleTemplatePermission).filter(
@@ -47,9 +52,8 @@ class RoleTemplateService:
         if not user or not user.role_template_id:
             return []
 
-        # Check if user has Super User role
-        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-        if role_template and role_template.name.lower() == "super user":
+        # Check if user is super admin via RBAC permission
+        if RoleTemplateService._user_is_super_admin(db, user_id):
             return ["*.*"]
 
         permissions = db.query(RoleTemplatePermission).filter(
@@ -81,9 +85,8 @@ class RoleTemplateService:
         if not user or not user.role_template_id:
             return False
 
-        # Check if user has Super User role
-        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-        if role_template and role_template.name.lower() == "super user":
+        # Check if user is super admin via RBAC permission
+        if RoleTemplateService._user_is_super_admin(db, user_id):
             return True
 
         # Get resource by name

@@ -51,12 +51,7 @@ async def get_scrum_of_scrums(
     Requires: admin.view (CEO, Super User only)
     """
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only CEO/Super User can view Scrum of Scrums"
-            )
-
+        # Permission check is enforced via decorator above (require_permission("admin.view"))
         scrum = await AgentStandupsCoordinator.scrum_of_scrums(
             tenant_id=current_user.tenant_id,
             db=db

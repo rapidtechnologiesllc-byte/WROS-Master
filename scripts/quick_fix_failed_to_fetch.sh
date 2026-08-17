@@ -16,10 +16,23 @@ set -e
 echo "🔧 Fixing 'Failed to Fetch' Login Issue..."
 echo "==========================================="
 
-# Check if DATABASE_URL is set
+# Check if DATABASE_URL is set (PostgreSQL is required)
 if [ -z "$DATABASE_URL" ]; then
-    echo "⚠️  DATABASE_URL not set. Using local SQLite..."
-    export DATABASE_URL="sqlite:///./local_dev.sqlite3"
+    echo "❌ ERROR: DATABASE_URL environment variable must be set."
+    echo ""
+    echo "Configure PostgreSQL:"
+    echo "  export DATABASE_URL='postgresql://user:pass@localhost:5432/wros_dev'"
+    echo ""
+    echo "Then run this script again."
+    exit 1
+fi
+
+# Verify PostgreSQL is configured
+if [[ ! "$DATABASE_URL" =~ postgresql:// ]]; then
+    echo "❌ ERROR: DATABASE_URL must use PostgreSQL protocol."
+    echo "Current: ${DATABASE_URL%%@*}@..."
+    echo "Expected: postgresql://user:pass@host:port/dbname"
+    exit 1
 fi
 
 echo "📍 Using database: ${DATABASE_URL%@*}@..."
@@ -42,7 +55,7 @@ from sqlalchemy import create_engine, text
 import os
 
 db_url = os.getenv('DATABASE_URL')
-engine = create_engine(db_url) if 'sqlite' not in db_url else create_engine(db_url, connect_args={'check_same_thread': False})
+engine = create_engine(db_url)
 
 try:
     with engine.connect() as conn:
