@@ -1,5 +1,6 @@
 import { react, useEffect, useRef, useState, useLayoutEffect } from "react";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { toast } from "react-toastify";
 import { updateCandidateStatus } from "../services/api/candidates";
 import {
@@ -114,7 +115,7 @@ const PreonboardingModal = ({
   const [form] = Form.useForm();
   const localName = localStorage.getItem("hrms_user_name");
   const localEmail = localStorage.getItem("hrms_user_email");
-  const currentRole = localStorage.getItem("permission_role");
+  const canProcessOffers = hasPermission("offers", "edit");
   const options = [
     { label: "Eligible for Provident fund (pf)", value: "pf" },
     { label: "Eligible for ESI", value: "esi" },
@@ -458,7 +459,7 @@ const PreonboardingModal = ({
   };
 
   const handleButtonClick = () => {
-    if (currentRole === "HR Operations") {
+    if (canProcessOffers) {
       if (current === 0) {
         offerLetterHandler();
       } else if (current === 1) {
@@ -727,7 +728,7 @@ const PreonboardingModal = ({
           <Button onClick={handleButtonClick} disabled={isSaving}>
             {isSaving
               ? "Processing..."
-              : currentRole === "HR Operations"
+              : canProcessOffers
                 ? current === 0
                   ? "Next"
                   : "Send Email"

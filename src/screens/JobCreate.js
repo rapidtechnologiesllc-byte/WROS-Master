@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Briefcase } from "lucide-react";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   generateJobDescription,
   createJob,
@@ -62,7 +63,7 @@ export default function JobCreate({
   const [hiringManagers, setHiringManagers] = useState([]);
   const [current, setCurrent] = useState(0);
   const [isInternalRole, setIsInternalRole] = useState(null); // null = auto-detect, true = internal, false = external
-  const storedRole = localStorage.getItem("permission_role");
+  const canCreateJobDirectly = hasPermission("jobs", "create");
 
   // Ask Flash Modal state
   const [showAskFlash, setShowAskFlash] = useState(false);
@@ -977,7 +978,7 @@ export default function JobCreate({
             <Button onClick={handleCreateJob} disabled={isSaving}>
               {isSaving
                 ? "Creating..."
-                : storedRole === "BU Head" || storedRole === "Super User"
+                : canCreateJobDirectly
                   ? "Create Job"
                   : "Submit For Approval"}
             </Button>

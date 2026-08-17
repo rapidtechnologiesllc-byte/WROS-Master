@@ -1,6 +1,7 @@
 // Candidate search/listing and selection screen.
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Users } from "lucide-react";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   Button,
   Card,
@@ -61,36 +62,30 @@ export default function CandidateSearch({
   const [candidateList, setCandidateList] = useState(candidates);
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [preonboardingModal, setPreonboardingModal] = useState(false);
-  const currentRole = localStorage.getItem("permission_role");
   const [candidateActions, setCandidateActions] = useState({});
   const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
   const [managerCandidatesList, setManagerCandidatesList] = useState([]);
   const [approvalCandidates, setApprovalCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const isAntTableRole = [
-    "Hiring Manager",
-    "HR Operations",
-    "HR Manager",
-  ].includes(currentRole);
+  const isAntTableRole =
+    hasPermission("candidates", "view") ||
+    hasPermission("candidates", "edit");
 
   useEffect(() => {
-    const role = localStorage.getItem("permission_role");
-    if (role === 'HR Manager') {
+    if (hasPermission("candidates", "view")) {
       fetchCandidates();
     }
   }, []);
 
   useEffect(() => {
-    const role = localStorage.getItem("permission_role");
-    if (role === 'HR Manager') {
+    if (hasPermission("offers", "view")) {
       offerApprovalCandidates();
     }
   }, []);
 
   useEffect(() => {
-    let currentRole = localStorage.getItem("permission_role");
-    if (currentRole === "Hiring Manager") {
+    if (hasPermission("candidates", "edit")) {
       fetchApprovalCandidates();
     }
   }, []);
