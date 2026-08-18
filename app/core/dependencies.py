@@ -232,19 +232,70 @@ get_current_candidate_otp_pending.__wros_authn__ = "candidate_otp_pending_sessio
 
 def require_permission(permission: str):
     """
-    FastAPI dependency factory that enforces a named RBAC permission.
+    DEPRECATED: Use require_resource_permission() instead.
 
-    Usage:
+    Legacy function that maps old hardcoded permission strings to new resource-based system.
+    This is kept for backward compatibility during migration.
+
+    Old Usage (deprecated):
         @router.get("/path", dependencies=[Depends(require_permission("candidate.view"))])
 
-    Returns 403 if the authenticated user's role does not include the permission.
-    Falls back gracefully if the user has no RBAC role assigned (denies access).
+    New Usage (preferred):
+        @router.post("/path", dependencies=[Depends(require_resource_permission("candidates", "create"))])
     """
     async def _check(
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-        from app.services.rbac_service import RBACService
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        _reject_if_mfa_pending(payload)
+        user_email: str = payload.get("sub", "")
+
+        user = db.query(Users).filter(Users.UserEmail == user_email).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+        # Use new role template permission service
+        from app.services.role_template_permission_service import RoleTemplatePermissionService
+
+        # Super User & Admin bypass — always has all permissions
+        if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
+            return user
+
+        # For legacy support: map old permission strings to new resource names
+        # This will return False if the resource doesn't exist in the database
+        if not RoleTemplatePermissionService.has_permission(db, user.UserID, permission, "view", user.tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: '{permission}' required",
+            )
+        return user
+
+    _check.__wros_permission__ = permission
+    return _check
+
+
+def require_resource_permission(resource_name: str, action: str = "view"):
+    """
+    NEW: FastAPI dependency factory using database-driven role templates.
+
+    Checks if user has the specified action (view, create, edit, delete) on a resource.
+
+    Usage:
+        @router.get("/candidates", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+        @router.post("/candidates", dependencies=[Depends(require_resource_permission("candidates", "create"))])
+        @router.put("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+        @router.delete("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "delete"))])
+
+    Returns 403 if the user doesn't have the required permission.
+    Super Users automatically have all permissions.
+    """
+    async def _check(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: Session = Depends(get_db),
+    ):
+        from app.services.role_template_permission_service import RoleTemplatePermissionService
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -255,26 +306,19 @@ def require_permission(permission: str):
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-        # DISABLED - Single company deployment, no tenant scoping needed
-        # from app.core.tenant_context import activate_tenant_scope
-        # activate_tenant_scope(user.tenant_id)
-
-        # Super User & Admin bypass — always has all permissions
-        # Check via PermissionHelper: has 'admin.manage' permission (Super User has all permissions via role template)
-        from app.services.permission_helper import PermissionHelper
-        if PermissionHelper.is_super_admin(user.UserID, db, user.tenant_id):
+        # Super User bypass
+        if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
             return user
 
-        if not PermissionHelper.has_permission(user.UserID, permission, db, user.tenant_id):
+        # Check resource + action permission
+        if not RoleTemplatePermissionService.has_permission(db, user.UserID, resource_name, action, user.tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: '{permission}' required",
+                detail=f"Permission denied: {action} access to '{resource_name}' required",
             )
         return user
 
-    # HRMS-0114 — marks this closure as a permission declaration so
-    # app.core.route_security_audit can find it on a route at startup.
-    _check.__wros_permission__ = permission
+    _check.__wros_permission__ = f"{resource_name}.{action}"
     return _check
 
 

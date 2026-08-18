@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-236/HRMS-0207 (Create Opportunity), S-237/HRMS-0208 (Pipeline Kanban),
 S-239/HRMS-0210 (Role Demand from Opportunity), S-240/HRMS-0211
 (Revenue Potential rollup).
@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.client import Client
 from app.models.demand import Demand
@@ -83,7 +83,7 @@ def _scoped_query(db: Session, current_user: Users):
 def create_opportunity_endpoint(
     body: OpportunityCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     try:
         opportunity = create_opportunity(
@@ -107,7 +107,7 @@ def list_opportunities(
     stage: Optional[str] = None,
     client_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     query = _scoped_query(db, current_user)
     if stage:
@@ -121,7 +121,7 @@ def list_opportunities(
 @router.get("/eligible-owners")
 def list_eligible_owners(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     """Opportunity Owner options -- 2026-08-12, Avinash: "anyone with
     access to opportunity should be in the dropdown," not the full
@@ -144,7 +144,7 @@ def list_eligible_owners(
 @router.get("/pipeline", response_model=PipelineResponse)
 def get_pipeline(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     """S-237 Kanban -- columns per configured stage, revenue + weighted
     forecast totals per column, respecting the same BU scope as the
@@ -166,7 +166,7 @@ def get_pipeline(
 def get_opportunity(
     opportunity_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
     if not opportunity:
@@ -179,7 +179,7 @@ def transition_opportunity_stage(
     opportunity_id: str,
     body: OpportunityStageTransitionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
     if not opportunity:
@@ -207,7 +207,7 @@ def transition_opportunity_stage(
 def get_revenue_rollup(
     opportunity_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
     if not opportunity:
@@ -220,7 +220,7 @@ def create_role_demand(
     opportunity_id: str,
     body: RoleDemandFromOpportunityRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
     if not opportunity:

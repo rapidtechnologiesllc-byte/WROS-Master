@@ -1,13 +1,13 @@
-"""
+﻿"""
 HR Assignments API
 ==================
 Routes (prefix: /hr-assignments, tag: hr-assignments):
 
-  POST   /hr-assignments/                          — Create a new HR assignment
-  GET    /hr-assignments/my-candidates             — Get candidates assigned to the calling HR/Recruiter
-  GET    /hr-assignments/by-candidate/{candidate_id} — Get HR assignment for a specific candidate
-  PATCH  /hr-assignments/by-candidate/{candidate_id} — Update HR assignment for a candidate
-  DELETE /hr-assignments/by-candidate/{candidate_id} — Delete HR assignment for a candidate
+  POST   /hr-assignments/                          â€” Create a new HR assignment
+  GET    /hr-assignments/my-candidates             â€” Get candidates assigned to the calling HR/Recruiter
+  GET    /hr-assignments/by-candidate/{candidate_id} â€” Get HR assignment for a specific candidate
+  PATCH  /hr-assignments/by-candidate/{candidate_id} â€” Update HR assignment for a candidate
+  DELETE /hr-assignments/by-candidate/{candidate_id} â€” Delete HR assignment for a candidate
 """
 
 from typing import Optional
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission, get_current_user
+from app.core.dependencies import get_current_hr_or_admin, require_permission, get_current_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.hr_assignment import HRAssignment
 from app.models.user import Users
@@ -78,14 +78,14 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
 
 
 # ---------------------------------------------------------------------------
-# POST /hr-assignments/  — Create HR assignment
+# POST /hr-assignments/  â€” Create HR assignment
 # ---------------------------------------------------------------------------
 
 @router.post(
     "/",
     response_model=HRAssignmentResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Create a new HR assignment for a candidate",
 )
 def create_hr_assignment(
@@ -149,13 +149,13 @@ def create_hr_assignment(
 
 
 # ---------------------------------------------------------------------------
-# GET /hr-assignments/candidates  — Get all candidates (for dashboard/admin)
+# GET /hr-assignments/candidates  â€” Get all candidates (for dashboard/admin)
 # ---------------------------------------------------------------------------
 
 @router.get(
     "/candidates",
     response_model=HRAssignmentListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get all candidates (for dashboard display)",
 )
 def get_all_candidates(
@@ -180,13 +180,13 @@ def get_all_candidates(
 
 
 # ---------------------------------------------------------------------------
-# GET /hr-assignments/my-candidates  — Get my assigned candidates (as HR)
+# GET /hr-assignments/my-candidates  â€” Get my assigned candidates (as HR)
 # ---------------------------------------------------------------------------
 
 @router.get(
     "/my-candidates",
     response_model=HRAssignmentListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get all candidates assigned to me (as HR / Recruiter)",
 )
 def get_my_candidates(
@@ -217,13 +217,13 @@ def get_my_candidates(
 
 
 # ---------------------------------------------------------------------------
-# GET /hr-assignments/by-candidate/{candidate_id}  — Get HR by candidate ID
+# GET /hr-assignments/by-candidate/{candidate_id}  â€” Get HR by candidate ID
 # ---------------------------------------------------------------------------
 
 @router.get(
     "/by-candidate/{candidate_id}",
     response_model=HRAssignmentResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get HR assignment for a specific candidate",
 )
 def get_hr_by_candidate(
@@ -255,13 +255,13 @@ def get_hr_by_candidate(
 
 
 # ---------------------------------------------------------------------------
-# PATCH /hr-assignments/by-candidate/{candidate_id}  — Update HR assignment
+# PATCH /hr-assignments/by-candidate/{candidate_id}  â€” Update HR assignment
 # ---------------------------------------------------------------------------
 
 @router.patch(
     "/by-candidate/{candidate_id}",
     response_model=HRAssignmentResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Update HR assignment for a candidate",
 )
 def update_hr_assignment(
@@ -314,13 +314,13 @@ def update_hr_assignment(
 
 
 # ---------------------------------------------------------------------------
-# DELETE /hr-assignments/by-candidate/{candidate_id}  — Delete HR assignment
+# DELETE /hr-assignments/by-candidate/{candidate_id}  â€” Delete HR assignment
 # ---------------------------------------------------------------------------
 
 @router.delete(
     "/by-candidate/{candidate_id}",
     status_code=200,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Delete HR assignment for a candidate",
 )
 def delete_hr_assignment(

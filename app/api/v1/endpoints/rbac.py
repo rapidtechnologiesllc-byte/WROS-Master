@@ -1,5 +1,5 @@
-"""
-RBAC Admin Endpoints — manage roles, permissions, and user role assignments.
+﻿"""
+RBAC Admin Endpoints â€” manage roles, permissions, and user role assignments.
 All routes require Super User or Admin access.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.schemas.rbac import (
     RoleCreate, RoleResponse, RoleListItem,
     PermissionCreate, PermissionResponse,
@@ -57,7 +57,7 @@ def list_roles(
     response_model=RoleListItem,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new role",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def create_role(
     data: RoleCreate,
@@ -78,7 +78,7 @@ def create_role(
     "/roles/{role_id}",
     response_model=RoleResponse,
     summary="Get a role with its attributes and permissions",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_role(
     role_id: int,
@@ -129,7 +129,7 @@ def list_permissions(
     response_model=PermissionResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new permission",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def create_permission(
     data: PermissionCreate,
@@ -147,14 +147,14 @@ def create_permission(
 
 
 # ===========================================================================
-# Role ↔ Permission Management
+# Role â†” Permission Management
 # ===========================================================================
 
 @router.post(
     "/roles/{role_id}/permissions",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Assign a permission to a role",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def assign_permission_to_role(
     role_id: int,
@@ -162,7 +162,7 @@ def assign_permission_to_role(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
-    """Add a permission to a role. Idempotent — no error if already assigned."""
+    """Add a permission to a role. Idempotent â€” no error if already assigned."""
     try:
         RBACService.assign_permission_to_role(db, role_id, data.permission_id)
         return {"message": "Permission assigned successfully"}
@@ -177,7 +177,7 @@ def assign_permission_to_role(
     "/roles/{role_id}/permissions/{permission_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a permission from a role",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def remove_permission_from_role(
     role_id: int,
@@ -204,7 +204,7 @@ def remove_permission_from_role(
     "/users/{user_id}/assign-role",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Assign a role to a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def assign_role_to_user(
     user_id: str,
@@ -229,7 +229,7 @@ def assign_role_to_user(
     "/users/{user_id}/permissions",
     response_model=UserPermissionSummary,
     summary="Get a user's effective permissions and attributes",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_user_permissions(
     user_id: str,
@@ -247,7 +247,7 @@ def get_user_permissions(
     "/users/set-business-unit",
     response_model=SetBusinessUnitResponse,
     summary="Assign a business unit to a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def set_business_unit_for_user(
     data: SetBusinessUnitRequest,
@@ -278,7 +278,7 @@ def set_business_unit_for_user(
     "/users/{user_id}/business-unit",
     response_model=SetBusinessUnitResponse,
     summary="Update a user's business unit",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def update_business_unit_for_user(
     user_id: str,
@@ -310,7 +310,7 @@ def update_business_unit_for_user(
     "/users/{user_id}/business-unit",
     response_model=BusinessUnitResponse,
     summary="Get the business unit assigned to a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_user_business_unit(
     user_id: str,
@@ -337,7 +337,7 @@ def get_user_business_unit(
     response_model=BusinessUnitResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new business unit",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def create_business_unit(
     data: BusinessUnitCreate,
@@ -354,7 +354,7 @@ def create_business_unit(
         business_unit = BusinessUnit(
             name=data.name,
             description=data.description,
-            # created_at is set by server_default — do NOT pass it manually
+            # created_at is set by server_default â€” do NOT pass it manually
         )
         db.add(business_unit)
         db.commit()
@@ -385,7 +385,7 @@ def list_business_units(
     "/business-units/{business_unit_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a business unit",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def delete_business_unit(
     business_unit_id: int,
@@ -410,24 +410,24 @@ def delete_business_unit(
 
 
 # ===========================================================================
-# Expanded Module × Verb Permissions (HubSpot-Style RBAC Grid)
+# Expanded Module Ã— Verb Permissions (HubSpot-Style RBAC Grid)
 # ===========================================================================
 
 @router.get(
     "/modules-and-verbs",
     summary="Get all modules and their applicable verbs",
     response_model=dict,
-    dependencies=[Depends(require_permission("rbac.view"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "view"))],
 )
 def get_modules_and_verbs(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Return the complete module×verb matrix for building the RBAC settings grid.
+    Return the complete moduleÃ—verb matrix for building the RBAC settings grid.
     Includes module list and verb list per module.
 
-    No permission check required — read-only data for UI rendering.
+    No permission check required â€” read-only data for UI rendering.
     """
     try:
         return {
@@ -451,7 +451,7 @@ def get_roles_and_permissions_matrix(
 ):
     """
     Return all roles with their assigned permissions in matrix format.
-    Used to render the RBAC settings grid (roles as rows, modules×verbs as columns).
+    Used to render the RBAC settings grid (roles as rows, modulesÃ—verbs as columns).
 
     Response format:
     {
@@ -472,7 +472,7 @@ def get_roles_and_permissions_matrix(
         }
     }
 
-    No permission check required — read-only data for UI rendering.
+    No permission check required â€” read-only data for UI rendering.
     """
     try:
         roles = RBACService.list_roles(db)
@@ -504,7 +504,7 @@ def get_roles_and_permissions_matrix(
     "/grant-permission",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Grant a permission to a role (by permission name)",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def grant_permission(
     role_id: int,
@@ -548,7 +548,7 @@ def grant_permission(
     "/revoke-permission",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Revoke a permission from a role (by permission name)",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def revoke_permission(
     role_id: int,
@@ -596,7 +596,7 @@ def revoke_permission(
     "/roles/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a role",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def delete_role(
     role_id: int,
@@ -617,7 +617,7 @@ def delete_role(
     "/roles/{role_id}",
     response_model=RoleListItem,
     summary="Update a role name/description",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def update_role(
     role_id: int,
@@ -642,7 +642,7 @@ def update_role(
     "/permissions/{permission_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a permission",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def delete_permission(
     permission_id: int,
@@ -666,7 +666,7 @@ def delete_permission(
     "/users/{user_id}/role",
     response_model=RoleListItem,
     summary="Get the RBAC role assigned to a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_user_role(
     user_id: str,
@@ -690,7 +690,7 @@ def get_user_role(
     "/users/{user_id}/role",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Revoke the RBAC role from a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def revoke_user_role(
     user_id: str,
@@ -713,7 +713,7 @@ def revoke_user_role(
     "/business-units/{business_unit_id}",
     response_model=BusinessUnitResponse,
     summary="Get a single business unit by ID",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_business_unit(
     business_unit_id: int,
@@ -731,7 +731,7 @@ def get_business_unit(
     "/business-units/{business_unit_id}",
     response_model=BusinessUnitResponse,
     summary="Update a business unit",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def update_business_unit(
     business_unit_id: int,
@@ -763,7 +763,7 @@ def update_business_unit(
     response_model=DepartmentResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new department",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def create_department(
     data: DepartmentCreate,
@@ -832,7 +832,7 @@ def list_departments(
     "/departments/{department_id}",
     response_model=DepartmentResponse,
     summary="Get a single department by ID",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_department(
     department_id: int,
@@ -857,7 +857,7 @@ def get_department(
     "/departments/{department_id}",
     response_model=DepartmentResponse,
     summary="Update a department",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def update_department(
     department_id: int,
@@ -911,7 +911,7 @@ def update_department(
     "/departments/{department_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a department",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def delete_department(
     department_id: int,
@@ -937,7 +937,7 @@ def delete_department(
     "/users/set-department",
     response_model=SetDepartmentResponse,
     summary="Assign a department to a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def set_department_for_user(
     data: SetDepartmentRequest,
@@ -972,7 +972,7 @@ def set_department_for_user(
     "/users/{user_id}/department",
     response_model=SetDepartmentResponse,
     summary="Update a user's department",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def update_department_for_user(
     user_id: str,
@@ -1008,7 +1008,7 @@ def update_department_for_user(
     "/users/{user_id}/department",
     response_model=DepartmentResponse,
     summary="Get the department assigned to a user",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_user_department(
     user_id: str,
@@ -1038,14 +1038,14 @@ def get_user_department(
 
 
 # ===========================================================================
-# BU ↔ Department cross-lookup endpoints
+# BU â†” Department cross-lookup endpoints
 # ===========================================================================
 
 @router.get(
     "/business-units/{business_unit_id}/departments",
     response_model=BusinessUnitWithDepartmentsResponse,
     summary="Get all departments that belong to a Business Unit",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_departments_by_business_unit(
     business_unit_id: int,
@@ -1072,7 +1072,7 @@ def get_departments_by_business_unit(
     "/departments/{department_id}/business-unit",
     response_model=BusinessUnitResponse,
     summary="Get the Business Unit that a department belongs to",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def get_business_unit_by_department(
     department_id: int,
@@ -1166,7 +1166,7 @@ def get_roles_matrix(
 @router.post(
     "/grant-permission",
     summary="Grant a permission to a role",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def grant_permission(
     body: dict,
@@ -1220,7 +1220,7 @@ def grant_permission(
 @router.post(
     "/revoke-permission",
     summary="Revoke a permission from a role",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def revoke_permission(
     body: dict,
@@ -1264,7 +1264,7 @@ def revoke_permission(
 @router.get(
     "/users",
     summary="List all users with optional filtering",
-    dependencies=[Depends(require_permission("users.view"))],
+    dependencies=[Depends(require_resource_permission("users", "view"))],
 )
 def list_users(
     db: Session = Depends(get_db),
@@ -1327,7 +1327,7 @@ def list_users(
 @router.get(
     "/users/{user_id}",
     summary="Get user details",
-    dependencies=[Depends(require_permission("users.view"))],
+    dependencies=[Depends(require_resource_permission("users", "view"))],
 )
 def get_user(
     user_id: str,
@@ -1362,7 +1362,7 @@ def get_user(
 @router.put(
     "/users/{user_id}",
     summary="Update user name and email",
-    dependencies=[Depends(require_permission("users.edit"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def update_user(
     user_id: str,
@@ -1408,7 +1408,7 @@ def update_user(
 @router.post(
     "/users/{user_id}/permissions",
     summary="Update user role (permissions)",
-    dependencies=[Depends(require_permission("users.edit"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def update_user_permissions(
     user_id: str,
@@ -1442,7 +1442,7 @@ def update_user_permissions(
 @router.post(
     "/users/{user_id}/terminate",
     summary="Terminate a user (soft-deactivate with task redistribution)",
-    dependencies=[Depends(require_permission("users.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def terminate_user(
     user_id: str,
@@ -1483,7 +1483,7 @@ def terminate_user(
 @router.post(
     "/users/{user_id}/reinstate",
     summary="Reinstate a terminated user",
-    dependencies=[Depends(require_permission("users.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def reinstate_user(
     user_id: str,
@@ -1515,7 +1515,7 @@ def reinstate_user(
 @router.get(
     "/users/{user_id}/audit-trail",
     summary="Get complete audit trail for a user",
-    dependencies=[Depends(require_permission("users.view"))],
+    dependencies=[Depends(require_resource_permission("users", "view"))],
 )
 def get_user_audit_trail(
     user_id: str,

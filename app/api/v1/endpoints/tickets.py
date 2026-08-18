@@ -1,4 +1,4 @@
-"""
+﻿"""
 Help Desk / IT-HR Ticketing.
 ==================================================================
 Prefix: /tickets
@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.models.task import TASK_PRIORITIES, Task
 from app.models.ticket import TicketCategoryRoute, TicketDetail, TicketSLAPolicy
 from app.models.user import Users
@@ -75,12 +75,12 @@ def get_ticket_detail(task_id: int, current_user: Users = Depends(get_current_in
     return detail
 
 
-@router.get("/admin/routing", response_model=list[TicketCategoryResponse], dependencies=[Depends(require_permission("rbac.manage"))])
+@router.get("/admin/routing", response_model=list[TicketCategoryResponse], dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))])
 def list_routing_rules(db: Session = Depends(get_db)):
     return db.query(TicketCategoryRoute).order_by(TicketCategoryRoute.category).all()
 
 
-@router.post("/admin/routing", response_model=TicketCategoryResponse, dependencies=[Depends(require_permission("rbac.manage"))])
+@router.post("/admin/routing", response_model=TicketCategoryResponse, dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))])
 def create_routing_rule(body: TicketCategoryRouteCreateRequest, db: Session = Depends(get_db)):
     existing = db.query(TicketCategoryRoute).filter(
         TicketCategoryRoute.category == body.category, TicketCategoryRoute.subcategory == body.subcategory,
@@ -94,12 +94,12 @@ def create_routing_rule(body: TicketCategoryRouteCreateRequest, db: Session = De
     return route
 
 
-@router.get("/admin/sla-policies", response_model=list[TicketSLAPolicyResponse], dependencies=[Depends(require_permission("rbac.manage"))])
+@router.get("/admin/sla-policies", response_model=list[TicketSLAPolicyResponse], dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))])
 def list_sla_policies(db: Session = Depends(get_db)):
     return db.query(TicketSLAPolicy).all()
 
 
-@router.patch("/admin/sla-policies/{priority}", response_model=TicketSLAPolicyResponse, dependencies=[Depends(require_permission("rbac.manage"))])
+@router.patch("/admin/sla-policies/{priority}", response_model=TicketSLAPolicyResponse, dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))])
 def update_sla_policy(priority: str, body: TicketSLAPolicyUpdateRequest, db: Session = Depends(get_db)):
     if priority not in TASK_PRIORITIES:
         raise HTTPException(status_code=422, detail=f"Unknown priority {priority!r}")

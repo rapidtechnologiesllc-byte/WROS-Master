@@ -1,11 +1,11 @@
-"""
+﻿"""
 AI Conversation Agent Service
 ==============================
 Core brain for the email-based AI hiring agent.
 
 Responsibilities:
   1. Detect missing fields in the candidate record (core table + info form only,
-     NOT Aadhar/PAN — those are handled as document uploads).
+     NOT Aadhar/PAN â€” those are handled as document uploads).
   2. Build and send a branded missing-fields email to the candidate.
   3. Poll the service mailbox (helpdesk_hrms@blitzenx.com) via Microsoft Graph
      to read candidate replies.
@@ -58,13 +58,13 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # per-tenant, admin-configurable without a code deployment.
 DEFAULT_THUNDER_DISPLAY_NAME = "Thunder"
 DEFAULT_THUNDER_PERSONA_TEXT = (
-    "I am Thunder, Talent Scout at BlitzenX — Powering our global team at "
+    "I am Thunder, Talent Scout at BlitzenX â€” Powering our global team at "
     "lightning speed. I help candidates through the application process "
     "with professionalism and speed."
 )
 
 # Ordered list of (candidate_field, friendly_label) tuples.
-# Only core `candidates` table fields — Aadhar / PAN are handled as documents.
+# Only core `candidates` table fields â€” Aadhar / PAN are handled as documents.
 CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
     ("candidateFirstName",       "First Name"),
     ("candidateLastName",        "Last Name"),
@@ -99,7 +99,7 @@ CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
 INFO_FORM_FIELDS: List[Tuple[str, str]] = [
     ("marital_status",   "Marital Status"),
     ("nationality",      "Nationality"),
-    ("permanent_address","Permanent Address (City, State, Country only — no street address needed)"),
+    ("permanent_address","Permanent Address (City, State, Country only â€” no street address needed)"),
 ]
 
 
@@ -114,13 +114,13 @@ def get_missing_fields(candidate: Candidate, db: Session) -> List[Dict[str, str]
     """
     missing: List[Dict[str, str]] = []
 
-    # ── Core candidate table ──────────────────────────────────────────────
+    # â”€â”€ Core candidate table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     for field, label in CANDIDATE_CORE_FIELDS:
         value = getattr(candidate, field, None)
         if not value:
             missing.append({"field": field, "label": label, "source": "candidate"})
 
-    # ── CandidateInfoForm ─────────────────────────────────────────────────
+    # â”€â”€ CandidateInfoForm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     info = (
         db.query(CandidateInfoForm)
         .filter(CandidateInfoForm.candidateID == candidate.candidateID)
@@ -175,7 +175,7 @@ def _build_missing_fields_email(
     </table>
     <p style="font-size:13px;color:#6b7280;line-height:1.6;">
       Simply hit <strong>Reply</strong> to this email and provide the details above.
-      Our AI assistant will automatically update your profile — no login required.
+      Our AI assistant will automatically update your profile â€” no login required.
     </p>
     <p style="font-size:13px;color:#9ca3af;margin-top:8px;">
       Reference ID: <code>CONV-{conversation_id}</code>
@@ -323,7 +323,7 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     tenant_user = None
     for user in all_users:
-        if RBACService.has_permission(db, user.UserID, "tenant.ai_config"):
+        if RBACService.has_permission(db, user.UserID, "tenant-config", "edit"):
             tenant_user = user
             break
 
@@ -331,7 +331,7 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     if not tenant_user:
         all_users = db.query(Users).order_by(Users.UserID.asc()).all()
         for user in all_users:
-            if RBACService.has_permission(db, user.UserID, "admin.manage"):
+            if RBACService.has_permission(db, user.UserID, "admin-settings", "edit"):
                 tenant_user = user
                 break
 
@@ -383,7 +383,7 @@ def assign_ai_agent(
       1. Deactivate any existing active assignment.
       2. Create a new CandidateAIAssignment row.
       3. Open a new CandidateConversation.
-      4. Detect missing fields → send email → log events.
+      4. Detect missing fields â†’ send email â†’ log events.
 
     assigned_by is None for system-triggered assignments (HRMS-0401's own
     spec: assignment should happen automatically when a candidate is
@@ -677,7 +677,7 @@ def _send_missing_fields_email(
 ) -> bool:
     """Build and dispatch the missing-fields email; log the event."""
     name = _candidate_display_name(candidate)
-    subject = f"Action Required: Complete Your Candidate Profile — CONV-{conversation.id}"
+    subject = f"Action Required: Complete Your Candidate Profile â€” CONV-{conversation.id}"
     html = _build_missing_fields_email(name, missing, conversation.id)
 
     try:
@@ -720,8 +720,8 @@ _GRAPH_MAIL_BASE = "https://graph.microsoft.com/v1.0/users/{mailbox}/mailFolders
 _MAIL_READ_PERMISSION_HINT = (
     "The Azure AD application is missing 'Mail.Read' or 'Mail.ReadWrite' "
     "application permission for the service mailbox. "
-    "Go to Azure Portal → App registrations → API permissions → Add "
-    "'Mail.Read' (Application) → Grant admin consent."
+    "Go to Azure Portal â†’ App registrations â†’ API permissions â†’ Add "
+    "'Mail.Read' (Application) â†’ Grant admin consent."
 )
 
 
@@ -737,7 +737,7 @@ def _graph_inbox_get(
 
     NOTE: We build the URL query string manually instead of passing a
     ``params`` dict to requests.  The requests library percent-encodes
-    dict *keys*, turning ``$filter`` into ``%24filter`` — which Microsoft
+    dict *keys*, turning ``$filter`` into ``%24filter`` â€” which Microsoft
     Graph rejects with a 400 Bad Request.  Encoding only the *values*
     keeps the OData ``$``-prefixed keywords intact.
 
@@ -774,7 +774,7 @@ def _graph_inbox_get(
     resp = requests.get(url, headers=headers, timeout=15)
 
     if resp.status_code == 403:
-        logger.error(f"[AIAgent] Graph 403 — Mail.Read permission missing: {resp.text[:300]}")
+        logger.error(f"[AIAgent] Graph 403 â€” Mail.Read permission missing: {resp.text[:300]}")
         raise HTTPException(
             status_code=403,
             detail=(
@@ -802,7 +802,7 @@ def _parse_graph_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     body_content = msg.get("body", {}).get("content", "")
     # 1. Strip HTML tags
     plain = re.sub(r"<[^>]+>", " ", body_content)
-    # 2. Decode HTML entities (&nbsp; → space, &lt; → <, &amp; → &, etc.)
+    # 2. Decode HTML entities (&nbsp; â†’ space, &lt; â†’ <, &amp; â†’ &, etc.)
     plain = _html.unescape(plain)
     # 3. Collapse whitespace
     plain = re.sub(r"[ \t]+", " ", plain)
@@ -931,7 +931,7 @@ def parse_reply_with_gemini(
         logger.error("[AIAgent] GEMINI_API_KEY not set.")
         return {}
 
-    # Strip quoted threads — only pass the candidate's actual new text
+    # Strip quoted threads â€” only pass the candidate's actual new text
     clean_text = _extract_candidate_reply(reply_text)
     logger.info(f"[AIAgent] Cleaned reply for Gemini ({len(clean_text)} chars): {clean_text[:200]}")
 
@@ -966,9 +966,9 @@ Rules:
 - Keys MUST be the field_name values listed above (not the labels).
 - Include only fields you can confidently identify in the reply.
 - For Employment Type: accepted values are Intern, Full Time, Contract, Guidewire Employee.
-  Map "intern" → "Intern", "full time" → "Full Time", "contract" → "Contract".
+  Map "intern" â†’ "Intern", "full time" â†’ "Full Time", "contract" â†’ "Contract".
 - For Marital Status: accepted values are Single, Married, Divorced, Widowed.
-  Map "unmarried" or "single" → "Single".
+  Map "unmarried" or "single" â†’ "Single".
 - For dates, use YYYY-MM-DD format.
 - For Gender, use: Male, Female, Other.
 - If a field is clearly absent, omit it from the JSON.
@@ -1022,25 +1022,25 @@ JSON output:"""
 
 
 # ===========================================================================
-# 7. LangGraph ReAct Agent — field extraction + DB merge + follow-up email
+# 7. LangGraph ReAct Agent â€” field extraction + DB merge + follow-up email
 # ===========================================================================
 #
 # Architecture
-# ─────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #   create_reply_processing_agent()
 #     Returns a compiled LangGraph ReAct agent with three tools:
 #
-#     Tool 1 ─ extract_fields_from_reply
+#     Tool 1 â”€ extract_fields_from_reply
 #         LLM-based extractor.  Receives the clean candidate reply text and
 #         the list of still-missing fields.  Returns a JSON dict mapping
-#         field_name → extracted_value.
+#         field_name â†’ extracted_value.
 #
-#     Tool 2 ─ merge_fields_to_db
+#     Tool 2 â”€ merge_fields_to_db
 #         Writes the extracted values to the candidates / candidate_forms
 #         tables via the existing merge_extracted_fields() helper.
 #         Returns {"updated": [...], "skipped": [...]}.
 #
-#     Tool 3 ─ send_followup_email
+#     Tool 3 â”€ send_followup_email
 #         Sends a follow-up email to the candidate listing any fields that
 #         are still empty after the merge.  Returns a status dict.
 #
@@ -1060,7 +1060,7 @@ order/whether-to-call) with a straight-line pipeline:
     4. if still missing: send_followup_email(...)  else: mark conversation closed
 
 The LLM is used ONLY for step 1 (genuinely fuzzy NLP extraction).
-Steps 2-4 are plain, deterministic, testable Python — no tool-calling agent,
+Steps 2-4 are plain, deterministic, testable Python â€” no tool-calling agent,
 no risk of the model skipping/reordering/hallucinating a step.
 """
 
@@ -1081,7 +1081,7 @@ from sqlalchemy.orm import Session
 
 
 # ===========================================================================
-# Step 1: Extraction (LLM) — plain function, not an agent tool
+# Step 1: Extraction (LLM) â€” plain function, not an agent tool
 # ===========================================================================
 
 def extract_fields_from_reply(reply_text: str, missing_fields: List[Dict[str, str]]) -> Dict[str, Any]:
@@ -1169,7 +1169,7 @@ JSON output:"""
 
 
 # ===========================================================================
-# Step 2: Merge to DB — plain function, returns real result (no swallowing)
+# Step 2: Merge to DB â€” plain function, returns real result (no swallowing)
 # ===========================================================================
 
 def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session) -> Dict[str, List[str]]:
@@ -1244,7 +1244,7 @@ def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session
 
 
 # ===========================================================================
-# Step 4: Follow-up email — plain function, called only when needed
+# Step 4: Follow-up email â€” plain function, called only when needed
 # ===========================================================================
 
 def send_followup_email(candidate, still_missing: List[Dict[str, str]], conversation_id: int) -> Dict[str, Any]:
@@ -1256,7 +1256,7 @@ def send_followup_email(candidate, still_missing: List[Dict[str, str]], conversa
         return {"sent": False, "reason": "Candidate or email not found"}
 
     name = _candidate_display_name(candidate)
-    subject = f"Follow-up: Additional Information Needed — CONV-{conversation_id}"
+    subject = f"Follow-up: Additional Information Needed â€” CONV-{conversation_id}"
     html = _build_followup_email(name, still_missing, conversation_id)
 
     try:
@@ -1282,7 +1282,7 @@ def send_followup_email(candidate, still_missing: List[Dict[str, str]], conversa
 
 
 # ===========================================================================
-# The pipeline itself — deterministic, no agent/tool-calling involved
+# The pipeline itself â€” deterministic, no agent/tool-calling involved
 # ===========================================================================
 
 def run_reply_pipeline(
@@ -1311,7 +1311,7 @@ def run_reply_pipeline(
       }
     """
     if not GEMINI_API_KEY:
-        logger.error("[ReplyPipeline] GEMINI_API_KEY not set — cannot run reply pipeline.")
+        logger.error("[ReplyPipeline] GEMINI_API_KEY not set â€” cannot run reply pipeline.")
         return {"error": "GEMINI_API_KEY not configured"}
 
     # Step 1: extract
@@ -1357,7 +1357,7 @@ def run_reply_pipeline(
 
 
 # ===========================================================================
-# 8. Process a candidate reply (full pipeline) — orchestration unchanged,
+# 8. Process a candidate reply (full pipeline) â€” orchestration unchanged,
 #    just calls run_reply_pipeline instead of the old agent
 # ===========================================================================
 
@@ -1376,7 +1376,7 @@ def process_candidate_reply(
       5. Log fields_merged / status_changed events.
       6. Return structured summary.
     """
-    # ── Load active conversation ──────────────────────────────────────────
+    # â”€â”€ Load active conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     conversation = (
         db.query(CandidateConversation)
         .filter(
@@ -1396,7 +1396,7 @@ def process_candidate_reply(
         Candidate.candidateID == candidate_id
     ).first()
 
-    # ── Step 1: Obtain reply text ─────────────────────────────────────────
+    # â”€â”€ Step 1: Obtain reply text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if raw_reply_text is None:
         last_sent_event = (
             db.query(ConversationEvent)
@@ -1437,7 +1437,7 @@ def process_candidate_reply(
     if not raw_reply_text or not raw_reply_text.strip():
         raw_reply_text = "[Non-text email received]"
 
-    # ── Step 2: Log candidate_reply event ────────────────────────────────
+    # â”€â”€ Step 2: Log candidate_reply event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     reply_event = _log_event(
         db, conversation.id, "candidate_reply",
         {
@@ -1487,7 +1487,7 @@ def process_candidate_reply(
     if _prior_gap is not None:
         record_response_speed_signal(db, conversation.tenant_id, candidate.candidateID, _prior_gap)
 
-    # ── Step 3: Check if anything is still missing before running pipeline ─
+    # â”€â”€ Step 3: Check if anything is still missing before running pipeline â”€
     missing = get_missing_fields(candidate, db)
     if not missing:
         from app.services.conversation_state_service import transition_status
@@ -1501,7 +1501,7 @@ def process_candidate_reply(
             "updated_fields": [],
         }
 
-    # ── Step 4: Run deterministic extract -> merge -> recheck -> resend ───
+    # â”€â”€ Step 4: Run deterministic extract -> merge -> recheck -> resend â”€â”€â”€
     logger.info(
         f"[ReplyPipeline] Processing reply for candidate '{candidate_id}' "
         f"| {len(missing)} missing field(s) | conv #{conversation.id}"
@@ -1533,7 +1533,7 @@ def process_candidate_reply(
         },
     )
 
-    # ── Step 5: Decide conversation status based on real still_missing list ─
+    # â”€â”€ Step 5: Decide conversation status based on real still_missing list â”€
     still_missing_fields = pipeline_result["still_missing"]
 
     if not still_missing_fields:
@@ -1554,7 +1554,7 @@ def process_candidate_reply(
             "followup_sent": False,
         }
 
-    # Fields still missing — pipeline should have sent a follow-up
+    # Fields still missing â€” pipeline should have sent a follow-up
     if pipeline_result.get("followup_sent"):
         _log_event(
             db, conversation.id, "ai_message_sent",
@@ -1574,7 +1574,7 @@ def process_candidate_reply(
         )
         conversation.next_action = "wait_for_reply"
     else:
-        # Email failed to send — surface this clearly instead of silently
+        # Email failed to send â€” surface this clearly instead of silently
         # leaving the conversation in a stale state.
         _log_event(
             db, conversation.id, "followup_email_failed",
@@ -1669,7 +1669,7 @@ def get_conversation_thread(
     Return all conversations for a candidate, each with their full event log,
     ordered newest-first.
 
-    Used by the UI to render the agent ↔ candidate dialogue timeline.
+    Used by the UI to render the agent â†” candidate dialogue timeline.
     """
     conversations = (
         db.query(CandidateConversation)

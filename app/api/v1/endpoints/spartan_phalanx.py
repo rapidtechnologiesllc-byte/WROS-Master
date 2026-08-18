@@ -1,24 +1,24 @@
-"""Spartan Phalanx Formation API - Shield wall monitoring and integrity tracking."""
+﻿"""Spartan Phalanx Formation API - Shield wall monitoring and integrity tracking."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.services.agent_shield_service import PhalanxFormationService
 # from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
 
 router = APIRouter(prefix="/phalanx", tags=["phalanx"])
 
 
-@router.get("/formations", dependencies=[Depends(require_permission("agent.view"))])
+@router.get("/formations", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_phalanx_formations(
     db: Session = Depends(get_db),
 ):
     """
     Get all phalanx formations and their status.
 
-    Recruitment → Resource → Finance phalanxes
+    Recruitment â†’ Resource â†’ Finance phalanxes
     Each showing formation strength, agent shields, and critical alerts.
     """
     try:
@@ -36,7 +36,7 @@ def get_phalanx_formations(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/formations/{phalanx_name}", dependencies=[Depends(require_permission("agent.view"))])
+@router.get("/formations/{phalanx_name}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_phalanx_status(
     phalanx_name: str,
     db: Session = Depends(get_db),
@@ -59,7 +59,7 @@ def get_phalanx_status(
     return status
 
 
-@router.post("/formations/{phalanx_name}/initialize", dependencies=[Depends(require_permission("agent.manage"))])
+@router.post("/formations/{phalanx_name}/initialize", dependencies=[Depends(require_resource_permission("agents", "edit"))])
 def initialize_phalanx(
     phalanx_name: str,
     db: Session = Depends(get_db),
@@ -87,7 +87,7 @@ def initialize_phalanx(
         raise HTTPException(status_code=500, detail="Failed to initialize phalanx")
 
 
-@router.put("/agent-shield/{phalanx_name}/{agent_name}", dependencies=[Depends(require_permission("agent.manage"))])
+@router.put("/agent-shield/{phalanx_name}/{agent_name}", dependencies=[Depends(require_resource_permission("agents", "edit"))])
 def update_agent_shield(
     phalanx_name: str,
     agent_name: str,
@@ -125,7 +125,7 @@ def update_agent_shield(
     return result
 
 
-@router.get("/formation-integrity/{phalanx_name}", dependencies=[Depends(require_permission("agent.view"))])
+@router.get("/formation-integrity/{phalanx_name}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_formation_integrity(
     phalanx_name: str,
     db: Session = Depends(get_db),
@@ -150,7 +150,7 @@ def get_formation_integrity(
     return integrity
 
 
-@router.get("/dashboard/phalanx-wall", dependencies=[Depends(require_permission("agent.view"))])
+@router.get("/dashboard/phalanx-wall", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_phalanx_wall_dashboard(
     db: Session = Depends(get_db),
     ):

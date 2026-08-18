@@ -1,4 +1,4 @@
-"""
+﻿"""
 Partner/BU spend tracking, 2026-08-05. Self-service, same ownership
 boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
@@ -13,7 +13,7 @@ app.services.client_service.create_client().
 PRIORITY-3 (2026-08-12): Expense Approval Chain
 - Receipt reference is mandatory (NOT NULL)
 - Manager approval step before Finance review
-- Flow: Employee logs (receipt required) → Manager approves (via Task) → Finance reviews → marks paid
+- Flow: Employee logs (receipt required) â†’ Manager approves (via Task) â†’ Finance reviews â†’ marks paid
 """
 from datetime import date, datetime
 from typing import List, Optional
@@ -180,7 +180,7 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     # Filter to only users with payroll_access or revenue.view_pnl permission
     finance_users = [
         u for u in all_users
-        if RBACService.has_permission(db, u.UserID, "revenue.view_pnl")
+        if RBACService.has_permission(db, u.UserID, "revenue", "view")
     ]
 
     return finance_users[0] if finance_users else None
@@ -194,7 +194,7 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
 
     Flow:
     1. Employee logs (manager_approval_status = PENDING)
-    2. Manager approves (manager_approval_status = APPROVED) ← THIS FUNCTION
+    2. Manager approves (manager_approval_status = APPROVED) â† THIS FUNCTION
     3. Finance reviews (payment_status changes)
     4. Finance marks as REIMBURSED
     """

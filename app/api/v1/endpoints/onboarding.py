@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -37,7 +37,7 @@ from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership
 
-from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission
+from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission, require_resource_permission
 
 from app.schemas.candidate import (CandidateCreateRequest,
 CandidateCreateResponse, CandidateCompleteResponse,
@@ -56,7 +56,7 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 @router.post(
     "/hr/create_candidate",
     response_model=CandidateCreateResponse,
-    dependencies=[Depends(require_permission("candidate.create"))],
+    dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
 def create_candidate(
     request: CandidateCreateRequest,
@@ -381,7 +381,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
 @router.get(
     "/hr/candidate/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_candidate_by_id(
     candidate_id: str,
@@ -537,7 +537,7 @@ def get_candidate_by_id(
 @router.get(
     "/hr/my-bu/candidates",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get all candidates owned by the calling user's Business Unit",
 )
 def get_candidates_by_my_bu(
@@ -557,7 +557,7 @@ def get_candidates_by_my_bu(
     Business Unit** (pool_status = 'BU Owned').
 
     - The BU is determined automatically from the logged-in user's
-      `business_unit_id` — no parameter needed.
+      `business_unit_id` â€” no parameter needed.
     - Use `include_org_pool=true` to also fetch unassigned Org Pool candidates
       (useful for BU managers who want to pick new candidates).
     - Optionally filter by `pipeline_status`.
@@ -566,7 +566,7 @@ def get_candidates_by_my_bu(
     """
     from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 
-    # ── Resolve the calling user's BU ─────────────────────────────────────────
+    # â”€â”€ Resolve the calling user's BU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     calling_user = db.query(Users).filter(Users.UserID == user.UserID).first()
     bu_id = calling_user.business_unit_id if calling_user else None
 
@@ -579,14 +579,14 @@ def get_candidates_by_my_bu(
             ),
         )
 
-    # ── Find candidate IDs that belong to this BU ─────────────────────────────
+    # â”€â”€ Find candidate IDs that belong to this BU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ownership_query = db.query(CandidateOwnership).filter(
         CandidateOwnership.owned_by_bu_id == bu_id,
         CandidateOwnership.pool_status == POOL_BU,
     )
     bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
 
-    # ── Optionally include Org Pool candidates ────────────────────────────────
+    # â”€â”€ Optionally include Org Pool candidates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if include_org_pool:
         owned_ids = {row.candidateID for row in db.query(CandidateOwnership).all()}
         all_candidate_ids = db.query(Candidate.candidateID).all()
@@ -601,7 +601,7 @@ def get_candidates_by_my_bu(
     if not bu_candidate_ids:
         return AllCandidatesResponse(total_candidates=0, candidates=[])
 
-    # ── Fetch candidate rows ──────────────────────────────────────────────────
+    # â”€â”€ Fetch candidate rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     candidate_query = db.query(Candidate).filter(
         Candidate.candidateID.in_(bu_candidate_ids)
     )
@@ -616,7 +616,7 @@ def get_candidates_by_my_bu(
 
     candidates = candidate_query.all()
 
-    # ── Build full response (reusing exact same pattern as get_all_candidates) ─
+    # â”€â”€ Build full response (reusing exact same pattern as get_all_candidates) â”€
     candidates_data = []
     for candidate in candidates:
         name_parts = [
@@ -736,7 +736,7 @@ def get_candidates_by_my_bu(
 @router.put(
     "/hr/update_candidate/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
 def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
@@ -850,7 +850,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_permission("candidate.delete"))],
+    dependencies=[Depends(require_resource_permission("candidates", "delete"))],
 )
 def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
@@ -879,7 +879,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     # Delete child records in FK-safe order (deepest children first)
     # ---------------------------------------------------------------
 
-    # 1. InterviewFeedback → references interviews.id
+    # 1. InterviewFeedback â†’ references interviews.id
     feedback_ids = [
         row.id for row in
         db.query(Interview.id).filter(Interview.candidate_id == candidate_id).all()
@@ -887,7 +887,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     if feedback_ids:
         db.query(InterviewFeedback).filter(InterviewFeedback.interview_id.in_(feedback_ids)).delete(synchronize_session=False)
 
-    # 2. PanelMember → references interview_panels.id
+    # 2. PanelMember â†’ references interview_panels.id
     panel_ids = [
         row.id for row in
         db.query(InterviewPanel.id).filter(InterviewPanel.candidate_id == candidate_id).all()
@@ -895,16 +895,16 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     if panel_ids:
         db.query(PanelMember).filter(PanelMember.panel_id.in_(panel_ids)).delete(synchronize_session=False)
 
-    # 3. Interviews → references interview_panels.id + candidates.candidateID
+    # 3. Interviews â†’ references interview_panels.id + candidates.candidateID
     db.query(Interview).filter(Interview.candidate_id == candidate_id).delete(synchronize_session=False)
 
-    # 4. InterviewPanel → references candidates.candidateID
+    # 4. InterviewPanel â†’ references candidates.candidateID
     db.query(InterviewPanel).filter(InterviewPanel.candidate_id == candidate_id).delete(synchronize_session=False)
 
-    # 5. CandidateAssignment → references candidates.candidateID
+    # 5. CandidateAssignment â†’ references candidates.candidateID
     db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == candidate_id).delete(synchronize_session=False)
 
-    # 6. CandidateDocument (SharePoint file metadata) → references candidates.candidateID
+    # 6. CandidateDocument (SharePoint file metadata) â†’ references candidates.candidateID
     db.query(CandidateDocument).filter(CandidateDocument.candidate_id == candidate_id).delete(synchronize_session=False)
 
     # 7. Candidate form tables
@@ -928,34 +928,34 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         CandidateChecklist.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 9. CandidateHistory — has backref="history" which makes SQLAlchemy try to
+    # 9. CandidateHistory â€” has backref="history" which makes SQLAlchemy try to
     #    SET candidateID=NULL before the parent delete; column is NOT NULL so we
     #    must delete these rows explicitly first.
     db.query(CandidateHistory).filter(
         CandidateHistory.candidateID == candidate_id
     ).delete(synchronize_session=False)
 
-    # 10. OfferLetter — no ondelete="CASCADE" on FK; must be deleted manually.
+    # 10. OfferLetter â€” no ondelete="CASCADE" on FK; must be deleted manually.
     db.query(OfferLetter).filter(
         OfferLetter.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 11. InternalNote — has backref="internal_notes"; same NULL risk as CandidateHistory.
+    # 11. InternalNote â€” has backref="internal_notes"; same NULL risk as CandidateHistory.
     db.query(InternalNote).filter(
         InternalNote.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 12. ATSScore — has ondelete="CASCADE" but ORM may still interfere; explicit is safer.
+    # 12. ATSScore â€” has ondelete="CASCADE" but ORM may still interfere; explicit is safer.
     db.query(ATSScore).filter(
         ATSScore.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 13. HRAssignment — has ondelete="CASCADE" but explicit delete ensures no ORM conflict.
+    # 13. HRAssignment â€” has ondelete="CASCADE" but explicit delete ensures no ORM conflict.
     db.query(HRAssignment).filter(
         HRAssignment.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 14. CandidateOwnership — has ondelete="CASCADE".
+    # 14. CandidateOwnership â€” has ondelete="CASCADE".
     db.query(CandidateOwnership).filter(
         CandidateOwnership.candidateID == candidate_id
     ).delete(synchronize_session=False)
@@ -978,13 +978,13 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         CandidateAIAssignment.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 16. CandidateJobApplication — has ondelete="CASCADE".
+    # 16. CandidateJobApplication â€” has ondelete="CASCADE".
     from app.models.candidate import CandidateJobApplication
     db.query(CandidateJobApplication).filter(
         CandidateJobApplication.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 17. Finally delete the candidate row — all FKs cleared above.
+    # 17. Finally delete the candidate row â€” all FKs cleared above.
     db.delete(candidate)
     db.commit()
     
@@ -999,7 +999,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
 
 @router.post(
     "/candidates/{candidate_id}/convert-to-employee",
-    dependencies=[Depends(require_permission("candidate.manage"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Convert candidate to employee (only when status=OFFER and start_date met)"
 )
 def convert_candidate_to_employee(
@@ -1074,7 +1074,7 @@ def convert_candidate_to_employee(
         ))
 
         db.commit()
-        logger.info(f"✅ Candidate {candidate_id} converted to Employee {employee.id}")
+        logger.info(f"âœ… Candidate {candidate_id} converted to Employee {employee.id}")
 
         return {
             "status": "success",
@@ -1084,7 +1084,7 @@ def convert_candidate_to_employee(
         }
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Conversion failed: {str(e)}")
+        logger.error(f"âŒ Conversion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
 
 
@@ -1106,7 +1106,7 @@ def _user_info(user: Users | None) -> dict | None:
 
 @router.get(
     "/hr/candidate/{candidate_id}/contacts",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get assigned managers and job contact person for a candidate",
 )
 def get_candidate_contacts(
@@ -1118,13 +1118,13 @@ def get_candidate_contacts(
     Returns the full contact details for everyone connected to a candidate:
 
     **From CandidateAssignment (direct assignment):**
-    - `assigned_hiring_manager` — the HR user directly assigned to manage this candidate
-    - `assigned_reporting_manager` — the reporting manager directly assigned to the candidate
+    - `assigned_hiring_manager` â€” the HR user directly assigned to manage this candidate
+    - `assigned_reporting_manager` â€” the reporting manager directly assigned to the candidate
 
     **From the candidate's linked Job (via `candidate.job_id`):**
-    - `job_contact_person` — the contact person recorded on the job posting
-    - `job_hiring_manager` — the hiring manager recorded on the job posting
-    - `job_recruiter` — the recruiter recorded on the job posting
+    - `job_contact_person` â€” the contact person recorded on the job posting
+    - `job_hiring_manager` â€” the hiring manager recorded on the job posting
+    - `job_recruiter` â€” the recruiter recorded on the job posting
 
     All fields are `null` when the corresponding record does not exist.
     """

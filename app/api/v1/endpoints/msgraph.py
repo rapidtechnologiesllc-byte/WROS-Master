@@ -1,4 +1,4 @@
-
+﻿
 import os
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -11,7 +11,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.core.security import create_access_token, decode_access_token
 from app.models import Users,Role
 from app.core.logging import logger
@@ -201,7 +201,7 @@ def callback(request: Request, db: Session = Depends(get_db)):
 
     role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
 
-    # Create JWT — this is all the client needs going forward
+    # Create JWT â€” this is all the client needs going forward
     jwt_token = create_access_token(
         data={
             "sub": user.UserEmail,
@@ -459,7 +459,7 @@ from app.core.graph_auth import get_graph_token, GraphServiceAuth
 
 @router.get(
     "/service/calendar/events/{user_email}",
-    dependencies=[Depends(require_permission("calendar.view"))],
+    dependencies=[Depends(require_resource_permission("calendar", "view"))],
 )
 def get_user_calendar_events(
     user_email: str,
@@ -582,7 +582,7 @@ def get_user_calendar_events(
 
 @router.post(
     "/service/calendar/schedule",
-    dependencies=[Depends(require_permission("calendar.manage"))],
+    dependencies=[Depends(require_resource_permission("calendar", "edit"))],
 )
 def schedule_meeting_for_user(
     organizer_email: str,
@@ -713,7 +713,7 @@ def schedule_meeting_for_user(
 
 @router.get(
     "/sharepoint/test-connection",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def test_sharepoint_connection(
     current_user: Users = Depends(get_current_hr_or_admin)
@@ -865,7 +865,7 @@ def test_sharepoint_connection(
 
 @router.get(
     "/sharepoint/list-drives",
-    dependencies=[Depends(require_permission("rbac.manage"))],
+    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def list_sharepoint_drives(
     current_user: Users = Depends(get_current_hr_or_admin)

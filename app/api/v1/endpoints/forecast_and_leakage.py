@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-242 (Forecast vs Actual) + S-243 (Revenue Leakage Detection).
 
 Gated behind revenue.view / revenue.view_pnl same as every other
@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.core.revenue_visibility_scope import (
     apply_revenue_bu_scope_to_client_query, get_revenue_scoped_client_ids, is_revenue_bu_scoped,
 )
@@ -48,7 +48,7 @@ def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List
 def forecast_vs_actual(
     year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     return get_forecast_vs_actual(
@@ -60,7 +60,7 @@ def forecast_vs_actual(
 def forecast_vs_actual_by_bu(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     scoped_bu_ids = _caller_business_unit_ids(db, current_user)
     if scoped_bu_ids is not None and business_unit_id not in scoped_bu_ids:
@@ -72,7 +72,7 @@ def forecast_vs_actual_by_bu(
 def forecast_vs_actual_trend(
     year: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     months = get_forecast_vs_actual_trend(
@@ -84,7 +84,7 @@ def forecast_vs_actual_trend(
 @router.post("/revenue-leakage/scan", response_model=PipelineLeakageScanResponse)
 def scan_leakage(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     """Leakage detail (which opportunity, which demand) is P&L-adjacent
     -- gated at revenue.view_pnl same tier as target-setting, not the
@@ -100,7 +100,7 @@ def scan_leakage(
 @router.get("/revenue-leakage/active", response_model=PipelineLeakageScanResponse)
 def active_leakage(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     scoped_bu_ids = _caller_business_unit_ids(db, current_user)
     flags = get_active_leakage_flags(db, business_unit_ids=scoped_bu_ids, tenant_id=current_user.tenant_id)
@@ -112,7 +112,7 @@ def active_leakage(
 def resolve_flag(
     flag_id: str, body: ResolveLeakageFlagRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     flag = db.query(PipelineLeakageFlag).filter(PipelineLeakageFlag.id == flag_id).first()
     if flag is None:

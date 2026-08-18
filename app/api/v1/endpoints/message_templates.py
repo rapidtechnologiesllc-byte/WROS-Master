@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-014/HRMS-0414 -- Message Template Engine
 =============================================
 Prefix: /templates
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.models.user import Users
 from app.schemas.message_template import (
     CreateTemplateRequest,
@@ -98,8 +98,8 @@ def get_template_endpoint(
 @router.post(
     "/{template_id}/activate",
     response_model=TemplateResponse,
-    dependencies=[Depends(require_permission("template.manage"))],
-    summary="Activate a template version — template.manage permission only",
+    dependencies=[Depends(require_resource_permission("templates", "edit"))],
+    summary="Activate a template version â€” template.manage permission only",
 )
 def activate_template_endpoint(
     template_id: int,

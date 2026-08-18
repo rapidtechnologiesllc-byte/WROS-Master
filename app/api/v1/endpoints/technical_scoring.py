@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-037/HRMS-0437 -- Technical Qualification Score
 S-038/HRMS-0438 -- Compensation Fit Score
 S-039/HRMS-0439 -- Availability Score
@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.models.user import Jobs
 from app.schemas.technical_scoring import RankedCandidatesResponse, TechnicalScoreResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -39,7 +39,7 @@ router = APIRouter(tags=["technical-scoring"])
 @router.get(
     "/candidates/{candidate_id}/jobs/{job_id}/score",
     response_model=TechnicalScoreResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a candidate's full fit score for a job (S-037/S-038/S-039/S-040)",
     description=(
         "Technical: skill-match (40%) + experience (35%) + certification "
@@ -75,7 +75,7 @@ def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(ge
 @router.get(
     "/jobs/{job_id}/candidates/ranked",
     response_model=RankedCandidatesResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
     summary="Get candidates ranked by overall fit score for a job (S-040/HRMS-0440)",
     description=(
         "BR-02: ranking only, never auto-rejects or blocks submission. "
