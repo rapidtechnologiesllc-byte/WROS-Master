@@ -259,51 +259,78 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Simple rate limiting middleware to prevent abuse (Phase 1 B4).
-    Tracks requests per IP address.
+    Rate limiting middleware supporting both in-memory and Redis backends.
 
-    KNOWN LIMITATION: state is in-process memory. VPS_DEPLOYMENT.md's
-    gunicorn config runs multiple worker processes (-w 4), each with
-    its OWN independent request_counts dict -- so the effective limit
-    in production is roughly max_requests * worker_count, not
-    max_requests. A single attacker's requests get distributed across
-    workers, each of which only sees a fraction and throttles
-    independently. Correct fix is a shared store (Redis) keyed the same
-    way; not implemented here since Redis isn't otherwise in this
-    stack. Tracked as a known gap, not silently pretended away.
+    MULTI-WORKER SUPPORT: Automatically detects and uses Redis if available
+    for shared state across worker processes. Falls back to in-memory if
+    Redis is not configured.
+
+    Configuration:
+    - RATE_LIMIT_REDIS_URL: Set to enable Redis backend (e.g., redis://localhost:6379)
+    - Falls back to in-memory if not set or connection fails
+
+    Default behavior: 100 requests per 60 seconds per IP
     """
-    
-    def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
+
+    def __init__(self, app, max_requests: int = 100, window_seconds: int = 60, redis_url: str = None):
         """
-        Initialize rate limiter.
-        
+        Initialize rate limiter with optional Redis backend.
+
         Args:
             app: FastAPI application
             max_requests: Maximum requests allowed per window
             window_seconds: Time window in seconds
+            redis_url: Optional Redis URL for shared state (auto-detected from env if not provided)
         """
         super().__init__(app)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self.request_counts = {}  # {ip: [(timestamp, count), ...]}
+        self.request_counts = {}  # {ip: [(timestamp, count), ...]} for in-memory mode
+        self.redis_client = None
+        self.use_redis = False
+
+        # Try to initialize Redis if URL is provided or env var is set
+        import os
+        redis_url = redis_url or os.getenv("RATE_LIMIT_REDIS_URL")
+        if redis_url:
+            self._init_redis(redis_url)
     
+    def _init_redis(self, redis_url: str):
+        """
+        Initialize Redis client for shared rate limit state across workers.
+
+        Args:
+            redis_url: Redis connection URL (e.g., redis://localhost:6379)
+        """
+        try:
+            import redis
+            self.redis_client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
+            # Test connection
+            self.redis_client.ping()
+            self.use_redis = True
+            logger.info(f"Rate limiting: Using Redis backend at {redis_url}")
+        except Exception as e:
+            logger.warning(f"Rate limiting: Redis unavailable ({e}), falling back to in-memory")
+            self.redis_client = None
+            self.use_redis = False
+
     async def dispatch(self, request: Request, call_next: Callable):
         """
         Check rate limit and process request.
-        
+
         Args:
             request: Incoming HTTP request
             call_next: Next middleware or route handler
-            
+
         Returns:
             Response or rate limit error
         """
         client_ip = request.client.host if request.client else "unknown"
         current_time = time.time()
-        
+
         # Clean old entries
         self._clean_old_entries(client_ip, current_time)
-        
+
         # Check rate limit
         if self._is_rate_limited(client_ip, current_time):
             log_security_event(
@@ -316,33 +343,62 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "detail": f"Rate limit exceeded. Maximum {self.max_requests} requests per {self.window_seconds} seconds."
                 }
             )
-        
+
         # Record request
         self._record_request(client_ip, current_time)
-        
+
         # Process request
         response = await call_next(request)
         return response
     
     def _clean_old_entries(self, ip: str, current_time: float):
         """Remove entries older than the time window."""
+        if self.use_redis:
+            # Redis handles expiration via TTL; nothing to do here
+            return
+
+        # In-memory cleanup
         if ip in self.request_counts:
             cutoff_time = current_time - self.window_seconds
             self.request_counts[ip] = [
                 (ts, count) for ts, count in self.request_counts[ip]
                 if ts > cutoff_time
             ]
-    
+
     def _is_rate_limited(self, ip: str, current_time: float) -> bool:
         """Check if IP has exceeded rate limit."""
+        if self.use_redis:
+            try:
+                key = f"rate_limit:{ip}"
+                current_count = int(self.redis_client.get(key) or 0)
+                return current_count >= self.max_requests
+            except Exception as e:
+                logger.warning(f"Redis rate limit check failed: {e}, using in-memory fallback")
+                self.use_redis = False
+                # Fall through to in-memory check
+
+        # In-memory check
         if ip not in self.request_counts:
             return False
-        
+
         total_requests = sum(count for _, count in self.request_counts[ip])
         return total_requests >= self.max_requests
-    
+
     def _record_request(self, ip: str, current_time: float):
         """Record a new request for the IP."""
+        if self.use_redis:
+            try:
+                key = f"rate_limit:{ip}"
+                self.redis_client.incr(key)
+                # Set TTL to window_seconds (key will auto-expire)
+                self.redis_client.expire(key, self.window_seconds)
+                return
+            except Exception as e:
+                logger.warning(f"Redis request recording failed: {e}, using in-memory fallback")
+                self.use_redis = False
+                # Fall through to in-memory recording
+
+        # In-memory recording
         if ip not in self.request_counts:
             self.request_counts[ip] = []
         self.request_counts[ip].append((current_time, 1))
