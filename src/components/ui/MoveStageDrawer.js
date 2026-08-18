@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { Drawer, Select, Button, Space } from "antd";
 import { updateCandidateStatus } from "../../services/api/candidates";
 import { toast } from "react-toastify";
+import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
 const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
   const [stage, setStage] = useState();
+  const [screenError, setScreenError] = useState(null);
   const stageOptions = [
     { label: "Applied", value: "Applied" },
     { label: "Hired", value: "Hired" },
@@ -27,14 +29,16 @@ const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
         onSubmit(result?.data);
       }
     } catch (err) {
-      toast.error(err)
+      setScreenError(err?.message || String(err))
     } finally {
       onClose();
     }
   };
   return (
-    <Drawer title="Move Stage" open={open} onClose={onClose} width={400}>
-      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <Drawer title="Move Stage" open={open} onClose={onClose} width={400}>
+        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Select
           placeholder="Current Stage"
           options={stageOptions}
@@ -54,8 +58,9 @@ const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
         <Button type="primary" block onClick={handleSubmit} disabled={!stage}>
           Move
         </Button>
-      </Space>
-    </Drawer>
+        </Space>
+      </Drawer>
+    </>
   );
 };
 

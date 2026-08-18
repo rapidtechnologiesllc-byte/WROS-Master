@@ -3,10 +3,12 @@ import { Button, Card } from "./ui";
 import { AlertTriangle } from "lucide-react";
 import { recordNoShow } from "../services/api/hiringWorkflow";
 import { toast } from "react-toastify";
+import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
 export default function NoShowConfirmation({ interviewId, candidateName, onNoShowRecorded }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [screenError, setScreenError] = useState(null);
 
   const handleConfirmNoShow = async () => {
     setConfirming(true);
@@ -16,7 +18,7 @@ export default function NoShowConfirmation({ interviewId, candidateName, onNoSho
       setConfirmed(true);
       onNoShowRecorded?.(result);
     } catch (err) {
-      toast.error("Failed to record no-show: " + err.message);
+      setScreenError("Failed to record no-show: " + err.message);
     } finally {
       setConfirming(false);
     }
@@ -24,16 +26,21 @@ export default function NoShowConfirmation({ interviewId, candidateName, onNoSho
 
   if (confirmed) {
     return (
-      <Card className="bg-blue-50 border-blue-200">
-        <div className="text-sm text-blue-900">
-          ✓ No-show recorded for {candidateName}. Interview dropped from panelist load.
-        </div>
-      </Card>
+      <>
+        <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+        <Card className="bg-blue-50 border-blue-200">
+          <div className="text-sm text-blue-900">
+            ✓ No-show recorded for {candidateName}. Interview dropped from panelist load.
+          </div>
+        </Card>
+      </>
     );
   }
 
   return (
-    <Card className="bg-amber-50 border-amber-200">
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <Card className="bg-amber-50 border-amber-200">
       <div className="flex items-start gap-3">
         <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
@@ -62,6 +69,7 @@ export default function NoShowConfirmation({ interviewId, candidateName, onNoSho
           </div>
         </div>
       </div>
-    </Card>
+      </Card>
+    </>
   );
 }

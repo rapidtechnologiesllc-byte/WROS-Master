@@ -8,6 +8,7 @@ import {
   createL2Panel,
 } from "../services/api/hiringWorkflow";
 import { toast } from "react-toastify";
+import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
 export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissionId, onL2Created }) {
   const [checking, setChecking] = useState(true);
@@ -17,6 +18,7 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
   const [selectedPanelists, setSelectedPanelists] = useState([]);
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState("trigger"); // trigger → panelist → create
+  const [screenError, setScreenError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -35,7 +37,7 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
           setAffordability(aff);
         }
       } catch (err) {
-        toast.error("Failed to check L1→L2 trigger: " + err.message);
+        setScreenError("Failed to check L1→L2 trigger: " + err.message);
       } finally {
         setChecking(false);
       }
@@ -52,7 +54,7 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
 
   const handleCreateL2 = async () => {
     if (selectedPanelists.length === 0) {
-      toast.error("Select at least one panelist for L2 interview.");
+      setScreenError("Select at least one panelist for L2 interview.");
       return;
     }
 
@@ -62,39 +64,54 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
       toast.success("L2 interview panel created successfully.");
       onL2Created?.(result);
     } catch (err) {
-      toast.error("Failed to create L2 panel: " + err.message);
+      setScreenError("Failed to create L2 panel: " + err.message);
     } finally {
       setCreating(false);
     }
   };
 
   if (checking) {
-    return <Card>Checking if L2 interview should auto-trigger...</Card>;
+    return (
+      <>
+        <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+        <Card>Checking if L2 interview should auto-trigger...</Card>
+      </>
+    );
   }
 
   if (!triggerResult) {
-    return <Card className="bg-amber-50 border-amber-200">Could not check L1→L2 trigger.</Card>;
+    return (
+      <>
+        <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+        <Card className="bg-amber-50 border-amber-200">Could not check L1→L2 trigger.</Card>
+      </>
+    );
   }
 
   if (!triggerResult.should_trigger_l2) {
     return (
-      <Card className="bg-yellow-50 border-yellow-200">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <div className="font-semibold text-yellow-900">Manual HM Decision Required</div>
-            <div className="text-sm text-yellow-800 mt-1">
-              Negative vote detected ({triggerResult.negative_votes} no-hire, {triggerResult.positive_votes} hire).
-              Hiring Manager must decide whether to advance to L2.
+      <>
+        <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+        <Card className="bg-yellow-50 border-yellow-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-yellow-900">Manual HM Decision Required</div>
+              <div className="text-sm text-yellow-800 mt-1">
+                Negative vote detected ({triggerResult.negative_votes} no-hire, {triggerResult.positive_votes} hire).
+                Hiring Manager must decide whether to advance to L2.
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </>
     );
   }
 
   return (
-    <Card title="L2 Interview Auto-Trigger" className="border-green-200 bg-green-50">
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <Card title="L2 Interview Auto-Trigger" className="border-green-200 bg-green-50">
       <div className="space-y-4">
         {/* Trigger Status */}
         <div className="flex items-center gap-2">
@@ -156,6 +173,7 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
           </Button>
         </div>
       </div>
-    </Card>
+      </Card>
+    </>
   );
 }

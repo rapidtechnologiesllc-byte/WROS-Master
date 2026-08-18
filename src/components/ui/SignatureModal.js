@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { toast } from "react-toastify";
+import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
 const SignatureModal = ({
   isOpen,
@@ -12,6 +13,7 @@ const SignatureModal = ({
   const sigCanvas = useRef(null);
   const [signatureType, setSignatureType] = useState("draw");
   const [typedSignature, setTypedSignature] = useState("");
+  const [screenError, setScreenError] = useState(null);
 
   if (!isOpen) return null;
 
@@ -24,7 +26,7 @@ const SignatureModal = ({
     let pngData = "";
     if (signatureType === "draw") {
       if (sigCanvas.current?.isEmpty()) {
-        toast.error("Please provide signature");
+        setScreenError("Please provide signature");
         return;
       }
       const canvas = sigCanvas.current.getCanvas();
@@ -40,7 +42,7 @@ const SignatureModal = ({
     }
     if (signatureType === "type") {
       if (!typedSignature.trim()) {
-        toast.error("Please enter signature");
+        setScreenError("Please enter signature");
         return;
       }
       const canvas = document.createElement("canvas");
@@ -60,8 +62,10 @@ const SignatureModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center">
-      <div className="bg-white p-6 rounded-lg w-[650px] shadow-xl">
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg w-[650px] shadow-xl">
         <h2 className="text-xl font-semibold mb-4">Add Signature</h2>
         <div className="flex gap-4 mb-4">
           <button onClick={() => setSignatureType("draw")}>Draw</button>
@@ -99,8 +103,9 @@ const SignatureModal = ({
             {loading ? "Processing..." : submitButtonText}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
