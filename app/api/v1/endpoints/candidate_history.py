@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_history import CandidateHistory
@@ -71,7 +71,7 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
     "/{candidate_id}",
     response_model=CandidateHistoryCreateResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("history.create"))],
+    dependencies=[Depends(require_resource_permission("history", "create"))],
     summary="Log a new timeline event for a candidate",
 )
 def create_candidate_history(
@@ -171,7 +171,7 @@ def create_candidate_history(
 @router.get(
     "/{candidate_id}",
     response_model=CandidateHistoryListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get the full history / timeline for a candidate",
 )
 def get_candidate_history(
@@ -224,7 +224,7 @@ def get_candidate_history(
 @router.get(
     "/{candidate_id}/latest",
     response_model=CandidateHistoryListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get the N most recent history events for a candidate",
 )
 def get_latest_candidate_history(

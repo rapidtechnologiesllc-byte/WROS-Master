@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.schemas.rbac import (
     RoleCreate, RoleResponse, RoleListItem,
     PermissionCreate, PermissionResponse,

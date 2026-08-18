@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.task import TASK_PRIORITIES, Task
 from app.models.ticket import TicketCategoryRoute, TicketDetail, TicketSLAPolicy
 from app.models.user import Users

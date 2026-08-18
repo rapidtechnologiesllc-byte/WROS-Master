@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import (
+from app.core.dependencies import (, require_resource_permission)
     get_current_hr_or_admin,
     get_current_candidate,
     require_permission,
@@ -194,7 +194,7 @@ def _complete_item_logic(
 @router.post(
     "/hr/templates",
     response_model=ChecklistTemplateResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Create a new checklist template",
 )
 def create_template(
@@ -230,7 +230,7 @@ def create_template(
 @router.get(
     "/hr/templates",
     response_model=ChecklistTemplateListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="List all checklist templates",
 )
 def list_templates(
@@ -255,7 +255,7 @@ def list_templates(
 @router.get(
     "/hr/templates/{template_id}",
     response_model=ChecklistTemplateResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a single template with all its items",
 )
 def get_template(
@@ -272,7 +272,7 @@ def get_template(
 @router.put(
     "/hr/templates/{template_id}",
     response_model=ChecklistTemplateResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Update template name / description",
 )
 def update_template(
@@ -298,7 +298,7 @@ def update_template(
 @router.delete(
     "/hr/templates/{template_id}",
     response_model=ChecklistActionResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Delete a template (cascade deletes its items)",
 )
 def delete_template(
@@ -325,7 +325,7 @@ def delete_template(
 @router.post(
     "/hr/templates/{template_id}/items",
     response_model=ChecklistItemResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Add an item to a checklist template",
 )
 def add_template_item(
@@ -355,7 +355,7 @@ def add_template_item(
 @router.put(
     "/hr/templates/{template_id}/items/{item_id}",
     response_model=ChecklistItemResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Update a template item",
 )
 def update_template_item(
@@ -395,7 +395,7 @@ def update_template_item(
 @router.delete(
     "/hr/templates/{template_id}/items/{item_id}",
     response_model=ChecklistActionResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Delete a template item",
 )
 def delete_template_item(
@@ -427,7 +427,7 @@ def delete_template_item(
 @router.post(
     "/hr/assign",
     response_model=CandidateChecklistResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Assign a checklist template to a candidate",
 )
 def assign_checklist(
@@ -516,7 +516,7 @@ def assign_checklist(
 @router.get(
     "/hr/candidate/{candidate_id}",
     response_model=CandidateChecklistListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="View all checklists for a specific candidate",
 )
 def get_candidate_checklists(
@@ -544,7 +544,7 @@ def get_candidate_checklists(
 @router.put(
     "/hr/candidate-item/{item_id}/complete",
     response_model=CompleteItemResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="HR manually marks a checklist item as complete",
 )
 def hr_complete_item(

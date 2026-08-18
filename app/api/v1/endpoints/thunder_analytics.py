@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_resource_permission
+from app.core.dependencies import require_resource_permission
 from app.schemas.thunder_analytics import ThunderAnalyticsResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.thunder_analytics_service import get_thunder_analytics

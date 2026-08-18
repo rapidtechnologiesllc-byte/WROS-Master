@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_resource_permission
+from app.core.dependencies import require_resource_permission
 from app.core.revenue_visibility_scope import (
     apply_revenue_bu_scope_to_client_query, get_revenue_scoped_client_ids, is_revenue_bu_scoped,
 )

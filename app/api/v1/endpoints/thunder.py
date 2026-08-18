@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_resource_permission
+from app.core.dependencies import require_resource_permission
 from app.models.user import Users
 from app.schemas.thunder import (
     TestChatHistoryItem,

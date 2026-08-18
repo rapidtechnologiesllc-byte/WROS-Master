@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.models.user import Users
 from app.schemas.ai_recruiter_assignment import (
     AIAssignmentResponse,
@@ -76,7 +76,7 @@ def get_candidate_ai_assignment(
     "/admin/tenant/thunder-enabled",
     response_model=TenantThunderEnabledResponse,
     summary="Get this org's Thunder global kill switch — Super User only",
-    dependencies=[Depends(require_permission("tenant.ai_config"))],
+    dependencies=[Depends(require_resource_permission("ai-config", "view"))],
     description=(
         "S-075/HRMS-0475 BR-03 -- global pause takes precedence over "
         "every individual conversation's own pause flag. Same "
@@ -94,7 +94,7 @@ def get_tenant_thunder_enabled(
     "/admin/tenant/thunder-enabled",
     response_model=TenantThunderEnabledResponse,
     summary="Set this org's Thunder global kill switch — Super User only",
-    dependencies=[Depends(require_permission("tenant.ai_config"))],
+    dependencies=[Depends(require_resource_permission("ai-config", "view"))],
     description="S-075/HRMS-0475 Step 2 -- disabling this halts every automated Thunder send across the whole org.",
 )
 def update_tenant_thunder_enabled(

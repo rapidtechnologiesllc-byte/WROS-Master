@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationOutcome
@@ -83,7 +83,7 @@ def _build_response(db: Session, candidate_id: str) -> DesireIntelligenceRespons
 @router.get(
     "/candidates/{candidate_id}/desire-intelligence",
     response_model=DesireIntelligenceResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a candidate's Desire Intelligence profile (S-350/HRMS-P120)",
 )
 def get_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)):
@@ -96,7 +96,7 @@ def get_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)):
 @router.post(
     "/candidates/{candidate_id}/desire-intelligence/refresh",
     response_model=DesireIntelligenceResponse,
-    dependencies=[Depends(require_permission("candidate.desire_intelligence.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Regenerate a candidate's Desire narrative + talking points on demand (S-350 Step 3)",
 )
 def refresh_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)):

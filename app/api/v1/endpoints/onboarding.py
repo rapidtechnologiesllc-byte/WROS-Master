@@ -37,7 +37,7 @@ from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership
 
-from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_permission, require_resource_permission
+from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_resource_permission
 
 from app.schemas.candidate import (CandidateCreateRequest,
 CandidateCreateResponse, CandidateCompleteResponse,

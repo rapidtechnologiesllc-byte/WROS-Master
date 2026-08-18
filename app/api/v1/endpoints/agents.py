@@ -2,7 +2,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission)
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.partner_roi_service import get_partner_kpis, get_partner_trend, get_partner_actions
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 # Partner ROI Agent Endpoints
 # ============================================================================
 
-@router.get("/partner-roi/{partner_id}/kpis", dependencies=[Depends(require_permission("revenue.view"))])
+@router.get("/partner-roi/{partner_id}/kpis", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_kpis(
     partner_id: str,
     year_month: str = None,
@@ -47,7 +47,7 @@ def get_partner_roi_kpis(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/partner-roi/{partner_id}/trend", dependencies=[Depends(require_permission("revenue.view"))])
+@router.get("/partner-roi/{partner_id}/trend", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_trend(
     partner_id: str,
     months_back: int = 6,
@@ -71,7 +71,7 @@ def get_partner_roi_trend(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/partner-roi/{partner_id}/actions", dependencies=[Depends(require_permission("revenue.view"))])
+@router.get("/partner-roi/{partner_id}/actions", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_actions(
     partner_id: str,
     db: Session = Depends(get_db),
@@ -97,7 +97,7 @@ def get_partner_roi_actions(
 # CFO Agent Endpoints
 # ============================================================================
 
-@router.get("/cfo/financial-snapshot", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/cfo/financial-snapshot", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_snapshot(
     year_month: str = None,
     db: Session = Depends(get_db),
@@ -115,7 +115,7 @@ def get_cfo_snapshot(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/cfo/alerts", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/cfo/alerts", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_critical_alerts(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -128,7 +128,7 @@ def get_cfo_critical_alerts(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/cfo/bu-comparison", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/cfo/bu-comparison", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_bu_comparison(
     year_month: str = None,
     db: Session = Depends(get_db),
@@ -142,7 +142,7 @@ def get_cfo_bu_comparison(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/cfo/expense-breakdown", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/cfo/expense-breakdown", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_expenses(
     year_month: str = None,
     db: Session = Depends(get_db),
@@ -156,7 +156,7 @@ def get_cfo_expenses(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/cfo/forecast", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/cfo/forecast", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_forecast(
     months_ahead: int = 3,
     db: Session = Depends(get_db),
@@ -174,7 +174,7 @@ def get_cfo_forecast(
 # CEO FY Progress Dashboard Endpoints
 # ============================================================================
 
-@router.get("/ceo/fy-progress", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/ceo/fy-progress", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ceo_fy_progress(
     fy_year: int = 2026,
     db: Session = Depends(get_db),
@@ -192,7 +192,7 @@ def get_ceo_fy_progress(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/ceo/fy-summary", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/ceo/fy-summary", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ceo_fy_summary(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -210,7 +210,7 @@ def get_ceo_fy_summary(
 # ============================================================================
 # NOTE: Endpoints commented out - AgentRegistry class not yet implemented
 # TODO: Implement AgentRegistry, AgentTier, AgentStatus in agent_registry_service.py
-# @router.get("/registry/all", dependencies=[Depends(require_permission("admin.view"))])
+# @router.get("/registry/all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 # def list_all_agents(db: Session = Depends(get_db)):
 #     """List all 70+ agents with status and metadata."""
 #     pass

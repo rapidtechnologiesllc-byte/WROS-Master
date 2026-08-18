@@ -18,7 +18,7 @@ import json
 
 import app.schemas as schema
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.core.logging import logger
 from app.core.tenant_context import get_current_tenant_id
 

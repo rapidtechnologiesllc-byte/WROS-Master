@@ -14,7 +14,7 @@ from app.schemas.newsletter import (
 )
 from app.services.newsletter_service import NewsletterService
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.api.v1.endpoints.msgraph import _require_account, _graph_client_for
 
 router = APIRouter(prefix="/newsletters", tags=["Newsletter"])

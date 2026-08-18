@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from pydantic import BaseModel
 
-from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent

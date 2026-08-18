@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_resource_permission
+from app.core.dependencies import require_resource_permission
 from app.models.candidate_drop_risk import CandidateDropRisk
 from app.models.recruiter_intervention_queue import PRIORITY_CRITICAL, PRIORITY_HIGH
 from app.schemas.risk_dashboard import RiskDashboardResponse

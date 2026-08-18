@@ -1,7 +1,7 @@
 """Daily standup (8:00 AM EST) and scrum of scrums (8:30 AM EST) endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission)
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup
@@ -9,7 +9,7 @@ from app.services.agent_daily_standup_service import AgentDailyStandup
 router = APIRouter(prefix="/standups", tags=["Daily Standup"])
 
 
-@router.get("/daily", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/daily", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_daily_standup(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -44,7 +44,7 @@ async def get_daily_standup(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/scrum-8-30", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/scrum-8-30", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_scrum_of_scrums(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -63,7 +63,7 @@ async def get_scrum_of_scrums(
 
     Requires: admin.view (CEO/Super User only)
     """
-    # Permission check is enforced via decorator above (require_permission("admin.view"))
+    # Permission check is enforced via decorator above (require_resource_permission("admin-settings", "view"))
     # No need for hardcoded role check here - removed for zero-hardcoding principle
     try:
         scrum = await AgentDailyStandup.scrum_of_scrums(

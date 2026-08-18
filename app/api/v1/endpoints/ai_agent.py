@@ -67,7 +67,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.core.webhook_auth import require_webhook_secret_or_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
@@ -157,7 +157,7 @@ def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConv
     "/assign",
     response_model=AIAgentAssignResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Assign AI agent to a candidate",
     description=(
         "Assigns the onboarding AI agent to a candidate. "
@@ -204,7 +204,7 @@ def assign_agent(
 @router.get(
     "/missing-fields/{candidate_id}",
     response_model=MissingFieldsResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Preview missing fields for a candidate (dry-run, no email sent)",
     description=(
         "Returns a list of all profile fields that are currently empty for "
@@ -232,7 +232,7 @@ def preview_missing_fields(
 
 @router.get(
     "/portal-link/{candidate_id}",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get this candidate's Candidate Portal magic link (S-017/HRMS-0417)",
     description=(
         "Returns the /candidate/{token} URL a recruiter can send the "
@@ -259,7 +259,7 @@ def get_candidate_portal_link(
 @router.get(
     "/memory/{candidate_id}",
     response_model=CandidateMemoryResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Candidate Memory Viewer (S-021/HRMS-0421)",
     description=(
         "Returns Thunder's rolling summary and categorized facts for this "
@@ -290,7 +290,7 @@ def get_candidate_memory(
 @router.patch(
     "/memory/{candidate_id}/facts/{fact_id}",
     response_model=MemoryFactItem,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Correct a Thunder memory fact (S-023/HRMS-0423)",
     description=(
         "A recruiter's manual correction is treated as verified ground "
@@ -328,7 +328,7 @@ def correct_candidate_memory_fact(
 
 @router.get(
     "/skill-suggestions",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Skills not yet in the synonym library, for BA review (S-029/HRMS-0429)",
     description=(
         "Real equivalent of the spec's admin skill-suggestions report -- "
@@ -358,7 +358,7 @@ def get_skill_suggestions(
 
 @router.get(
     "/resume-completeness/{candidate_id}",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Resume completeness score (S-030/HRMS-0430)",
     description=(
         "BR-01: distinct from profile completeness (missing-fields) -- this "
@@ -380,7 +380,7 @@ def get_resume_completeness(
 
 @router.get(
     "/prompt-templates",
-    dependencies=[Depends(require_permission("tenant.ai_config"))],
+    dependencies=[Depends(require_resource_permission("ai-config", "view"))],
     summary="AI prompt template catalog, admin-only (S-031/HRMS-0431)",
     description=(
         "Real equivalent of GET /api/admin/prompt-templates -- gated behind "
@@ -441,7 +441,7 @@ def webhook_email_reply(
 @router.post(
     "/poll/{candidate_id}",
     response_model=ProcessReplyResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Manually poll Graph inbox and process reply for a candidate",
     description=(
         "Polls the service mailbox (`helpdesk_hrms@blitzenx.com`) for new reply "
@@ -584,7 +584,7 @@ def get_active_conversation(
     "/conversations/{conversation_id}/send",
     response_model=SendMessageResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Manually send a message to the candidate on this conversation (S-009)",
     description=(
         "Sends a WhatsApp message from the current HR user to the candidate. "
@@ -646,7 +646,7 @@ def send_manual_message(
 @router.post(
     "/conversations/{conversation_id}/take-over",
     response_model=ConversationOwnershipResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Take over a conversation from the AI agent or another HR user (S-010)",
     description=(
         "HRMS-0410 BR-03: any HR user can take over a conversation from "
@@ -698,7 +698,7 @@ def take_over(
 @router.post(
     "/conversations/{conversation_id}/hand-back",
     response_model=ConversationOwnershipResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Hand a conversation back to the AI agent (S-010)",
     description="HRMS-0410 HAND_BACK: returns the conversation to Thunder.",
 )
@@ -756,7 +756,7 @@ def hand_back(
 @router.post(
     "/conversations/{conversation_id}/thunder-pause",
     response_model=ThunderPauseResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Pause Thunder for this candidate, optionally with an auto-resume time (S-075)",
     description=(
         "HRMS-0475 BR-01: does not change owner_type -- the conversation "
@@ -810,7 +810,7 @@ def thunder_pause(
 @router.post(
     "/conversations/{conversation_id}/thunder-resume",
     response_model=ThunderPauseResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Resume Thunder for this candidate immediately (S-075)",
 )
 def thunder_resume(
@@ -877,7 +877,7 @@ def get_assignments(
 @router.delete(
     "/assign/{candidate_id}",
     status_code=200,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Deactivate AI agent for a candidate",
     description=(
         "Marks all active AI agent assignments for the candidate as inactive "
@@ -941,7 +941,7 @@ def deactivate_agent(
 @router.get(
     "/inbox",
     response_model=InboxResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Show all inbox messages from the service mailbox",
     description=(
         "Returns the most recent emails received in the `helpdesk_hrms@blitzenx.com` "
@@ -976,7 +976,7 @@ def list_inbox(
 @router.get(
     "/inbox/by-email",
     response_model=InboxResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Show all inbox messages from a specific sender email",
     description=(
         "Returns all inbox messages from `helpdesk_hrms@blitzenx.com` that were "
@@ -1009,7 +1009,7 @@ def list_inbox_by_email(
 @router.get(
     "/candidates/{candidate_id}/audit-log",
     response_model=AuditLogResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Compliance-grade audit trail for a candidate's conversation actions (S-076)",
     description=(
         "Returns every ConversationAuditLog entry for this candidate, ordered "
@@ -1064,7 +1064,7 @@ from app.services.thunder_explanation_service import get_explanation_log, get_me
 @router.get(
     "/messages/{event_id}/explanation",
     response_model=MessageExplanationResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Why Thunder sent this specific message (S-064/HRMS-0464)",
 )
 def get_thunder_message_explanation(event_id: int, db: Session = Depends(get_db)):
@@ -1077,7 +1077,7 @@ def get_thunder_message_explanation(event_id: int, db: Session = Depends(get_db)
 @router.get(
     "/candidates/{candidate_id}/thunder-explanation-log",
     response_model=ExplanationLogResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Full immutable history of Thunder's explained decisions for a candidate (S-064/HRMS-0464)",
 )
 def get_thunder_explanation_log(candidate_id: str, db: Session = Depends(get_db)):
