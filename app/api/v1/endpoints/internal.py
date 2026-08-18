@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_resource_permission
+from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.internal_note import InternalNote

@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
@@ -66,7 +66,7 @@ def _can_auto_approve_job(user) -> bool:
 
 @router.post(
     "/generate_job_description",
-    dependencies=[Depends(require_permission("job.create"))],
+    dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
 def generate_job_description(
     request: GenerateJobDescriptionRequest,
@@ -105,7 +105,7 @@ def generate_job_description(
 @router.post(
     "/generate-with-agent",
     response_model=GenerateJobWithAgentResponse,
-    dependencies=[Depends(require_permission("job.create"))],
+    dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
 def generate_job_with_agent(
     request: GenerateJobWithAgentRequest,
@@ -163,7 +163,7 @@ def generate_job_with_agent(
 @router.post(
     "/generate-complete",
     response_model=GenerateJobCompleteResponse,
-    dependencies=[Depends(require_permission("job.create"))],
+    dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
 def generate_job_complete(
     request: GenerateJobCompleteRequest,
@@ -224,7 +224,7 @@ def generate_job_complete(
 @router.get(
     "/all",
     response_model=AllJobsResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
 )
 def get_all_jobs(
     db: Session = Depends(get_db),
@@ -277,7 +277,7 @@ def get_all_jobs(
 @router.get(
     "/active-jobs",
     response_model=AllJobsResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
 )
 def get_active_jobs(
     db: Session = Depends(get_db),
@@ -330,7 +330,7 @@ def get_active_jobs(
 @router.get(
     "/filter",
     response_model=AllJobsResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
 )
 def filter_jobs(
     business_unit: Optional[int] = None,
@@ -407,7 +407,7 @@ def filter_jobs(
 @router.get(
     "/my-jobs",
     response_model=AllJobsResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
 )
 def get_my_jobs(
     db: Session = Depends(get_db),
@@ -482,7 +482,7 @@ def get_my_jobs(
 @router.get(
     "/job-details/{job_id}",
     response_model=JobResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
 )
 def get_job_by_id(
     job_id: str,
@@ -554,7 +554,7 @@ def get_job_by_id(
 @router.post(
     "/create_job",
     response_model=JobCreateResponse,
-    dependencies=[Depends(require_permission("job.create"))],
+    dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
 def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
@@ -666,7 +666,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 @router.post(
     "/{job_id}/approve",
     response_model=JobApproveResponse,
-    dependencies=[Depends(require_permission("job.approve"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
 )
 def approve_job(
     job_id: str,
@@ -729,7 +729,7 @@ def approve_job(
 @router.put(
     "/update_job/{job_id}",
     response_model=JobResponse,
-    dependencies=[Depends(require_permission("job.edit"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
 )
 def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
@@ -820,7 +820,7 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
 @router.delete(
     "/delete_job/{job_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_permission("job.delete"))],
+    dependencies=[Depends(require_resource_permission("jobs", "delete"))],
 )
 def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
@@ -857,7 +857,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
 @router.post(
     "/post-on-linkedin",
     response_model=LinkedInPostResponse,
-    dependencies=[Depends(require_permission("job.create"))],
+    dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
 def post_job_on_linkedin(
     request: LinkedInPostRequest,
@@ -1119,7 +1119,7 @@ async def apply_for_job(
 @router.put(
     "/{job_id}/assign-candidate/{candidate_id}",
     response_model=CandidateJobSummary,
-    dependencies=[Depends(require_permission("job.edit"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
     summary="Assign or re-assign a candidate to a job",
 )
 def assign_candidate_to_job(
@@ -1176,7 +1176,7 @@ def assign_candidate_to_job(
 @router.put(
     "/unassign-candidate/{candidate_id}",
     response_model=CandidateJobSummary,
-    dependencies=[Depends(require_permission("job.edit"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
     summary="Remove a candidate's job assignment",
 )
 def unassign_candidate_from_job(
@@ -1220,7 +1220,7 @@ def unassign_candidate_from_job(
 @router.get(
     "/{job_id}/candidates",
     response_model=CandidatesByJobResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
     summary="Get all candidates assigned to a job",
 )
 def get_candidates_by_job(
@@ -1271,7 +1271,7 @@ from app.schemas.user import (
     "/{job_id}/applications/{candidate_id}",
     response_model=JobApplicationEntry,
     status_code=201,
-    dependencies=[Depends(require_permission("job.edit"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
     summary="Assign a candidate to a job (multi-job support)",
 )
 def create_job_application(
@@ -1328,7 +1328,7 @@ def create_job_application(
 
 @router.delete(
     "/{job_id}/applications/{candidate_id}",
-    dependencies=[Depends(require_permission("job.edit"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
     summary="Remove a candidate from a job (multi-job)",
 )
 def remove_job_application(
@@ -1359,7 +1359,7 @@ def remove_job_application(
 @router.put(
     "/{job_id}/applications/{candidate_id}/status",
     response_model=JobApplicationEntry,
-    dependencies=[Depends(require_permission("job.edit"))],
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
     summary="Update per-application status",
 )
 def update_job_application_status(
@@ -1401,7 +1401,7 @@ def update_job_application_status(
 @router.get(
     "/{job_id}/applications",
     response_model=JobCandidatesMultiResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
     summary="List all candidates assigned to a job (multi-job)",
 )
 def get_job_applications(
@@ -1449,7 +1449,7 @@ def get_job_applications(
 @router.get(
     "/candidate-applications/{candidate_id}",
     response_model=CandidateJobsResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
     summary="List all jobs a candidate is assigned to (multi-job)",
 )
 def get_candidate_applications(
@@ -1510,7 +1510,7 @@ from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
 @router.get(
     "/{job_id}/statistics",
     response_model=JobStatisticsResponse,
-    dependencies=[Depends(require_permission("job.view"))],
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
     summary="Get statistics for a job",
 )
 def get_job_statistics(

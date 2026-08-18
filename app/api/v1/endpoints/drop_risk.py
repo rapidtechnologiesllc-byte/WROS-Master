@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.schemas.drop_risk import DropRiskResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.drop_risk_service import calculate_drop_risk
@@ -33,7 +33,7 @@ router = APIRouter(tags=["drop-risk"])
 @router.get(
     "/candidates/{candidate_id}/drop-risk",
     response_model=DropRiskResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a candidate's drop risk score (S-060/HRMS-0460)",
     description=(
         "Stage-gated 0-100 drop risk score (abandonment/sentiment/stage-time for "

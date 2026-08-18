@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.models import (
     Users, Candidate, Interview, InterviewPanel,
     InterviewFeedback, PanelMember,

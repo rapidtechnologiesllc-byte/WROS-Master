@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission)
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.rbac_service import RBACService
@@ -11,7 +11,7 @@ from app.services.business_metrics_service import compile_daily_business_standup
 router = APIRouter(prefix="/business-metrics", tags=["Business Metrics"])
 
 
-@router.get("/daily-standup", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/daily-standup", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_daily_business_standup(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -49,7 +49,7 @@ def get_daily_business_standup(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/recruitment/{days_back}", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/recruitment/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_recruitment_metrics_period(
     days_back: int = 7,
     db: Session = Depends(get_db),
@@ -71,7 +71,7 @@ def get_recruitment_metrics_period(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/interviews/{days_back}", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/interviews/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_interview_metrics_period(
     days_back: int = 7,
     db: Session = Depends(get_db),
@@ -93,7 +93,7 @@ def get_interview_metrics_period(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/offers/{days_back}", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/offers/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_offer_metrics_period(
     days_back: int = 7,
     db: Session = Depends(get_db),
@@ -115,7 +115,7 @@ def get_offer_metrics_period(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/revenue/{days_back}", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/revenue/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_revenue_metrics_period(
     days_back: int = 7,
     db: Session = Depends(get_db),

@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.models.user import Users
 from app.schemas.event_log import EventLogResponse
 from app.services.event_emitter_service import get_events
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/admin/events", tags=["event-log"])
     "",
     response_model=EventLogResponse,
     summary="Filterable event log — Super User only",
-    dependencies=[Depends(require_permission("tenant.ai_config"))],
+    dependencies=[Depends(require_resource_permission("ai-config", "view"))],
 )
 def list_events(
     event_type: Optional[str] = Query(None),

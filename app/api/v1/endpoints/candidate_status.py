@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import CandidateAssignment, Jobs, Users
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
@@ -275,7 +275,7 @@ def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) 
 @router.put(
     "/{candidate_id}",
     response_model=StatusActionResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Update candidate account status and/or pipeline status",
 )
 def update_candidate_status(
@@ -383,7 +383,7 @@ def update_candidate_status(
 @router.get(
     "/all",
     response_model=AllCandidateStatusResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get status summary for all candidates",
 )
 def get_all_candidate_statuses(
@@ -444,7 +444,7 @@ def get_all_candidate_statuses(
 @router.get(
     "/{candidate_id}",
     response_model=CandidateStatusResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get status for a specific candidate",
 )
 def get_candidate_status(

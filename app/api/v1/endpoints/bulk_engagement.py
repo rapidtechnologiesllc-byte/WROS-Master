@@ -16,7 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.models.user import Users
 from app.schemas.bulk_engagement import BulkEngageRequest, BulkEngageResponse, BulkImportResponse, BulkJobStatusResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -41,7 +41,7 @@ def _run_worker_in_background(job_id: str) -> None:
         db.close()
 
 
-@router.post("/candidates/bulk-import", response_model=BulkImportResponse, dependencies=[Depends(require_permission("candidate.create"))])
+@router.post("/candidates/bulk-import", response_model=BulkImportResponse, dependencies=[Depends(require_resource_permission("candidates", "create"))])
 async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv file.")
@@ -55,7 +55,7 @@ async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_u
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_permission("candidate.edit"))])
+@router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
     tenant_id = resolve_default_tenant_id(db)
     try:
@@ -66,7 +66,7 @@ def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, d
     return result
 
 
-@router.get("/candidates/bulk-jobs/{job_id}/status", response_model=BulkJobStatusResponse, dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/candidates/bulk-jobs/{job_id}/status", response_model=BulkJobStatusResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def bulk_job_status(job_id: str, db: Session = Depends(get_db)):
     status = get_bulk_job_status(db, job_id)
     if status is None:

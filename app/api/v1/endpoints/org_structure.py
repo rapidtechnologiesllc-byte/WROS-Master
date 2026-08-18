@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import require_permission, get_current_internal_user, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.org_structure import (
     OrgPositionResponse,
     OrgNodeResponse,

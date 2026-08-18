@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.certification import Certification, EmployeeCertification
 from app.models.kpi import EmployeeKPITarget, EmployeeKPIScore
@@ -61,7 +61,7 @@ class KPITargetResponse(BaseModel):
 @router.post(
     "/create",
     response_model=CertificationResponse,
-    dependencies=[Depends(require_permission("system.manage"))],
+    dependencies=[Depends(require_resource_permission("system", "edit"))],
 )
 def create_certification(
     request: CertificationRequest,
@@ -96,7 +96,7 @@ def create_certification(
 @router.get(
     "/list",
     response_model=List[CertificationResponse],
-    dependencies=[Depends(require_permission("system.manage"))],
+    dependencies=[Depends(require_resource_permission("system", "edit"))],
 )
 def list_certifications(db: Session = Depends(get_db)):
     """List all certification templates."""
@@ -107,7 +107,7 @@ def list_certifications(db: Session = Depends(get_db)):
 @router.post(
     "/assign-target",
     response_model=KPITargetResponse,
-    dependencies=[Depends(require_permission("system.manage"))],
+    dependencies=[Depends(require_resource_permission("system", "edit"))],
 )
 def assign_kpi_target(
     request: KPITargetRequest,
@@ -151,7 +151,7 @@ def assign_kpi_target(
 
 @router.post(
     "/mark-achieved/{target_id}",
-    dependencies=[Depends(require_permission("system.manage"))],
+    dependencies=[Depends(require_resource_permission("system", "edit"))],
 )
 def mark_target_achieved(
     target_id: str,
@@ -177,7 +177,7 @@ def mark_target_achieved(
 @router.get(
     "/employee/{employee_id}/targets",
     response_model=List[KPITargetResponse],
-    dependencies=[Depends(require_permission("employee.view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
 )
 def get_employee_kpi_targets(
     employee_id: str,
@@ -193,7 +193,7 @@ def get_employee_kpi_targets(
 
 @router.get(
     "/employee/{employee_id}/score",
-    dependencies=[Depends(require_permission("employee.view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
 )
 def get_employee_kpi_score(
     employee_id: str,

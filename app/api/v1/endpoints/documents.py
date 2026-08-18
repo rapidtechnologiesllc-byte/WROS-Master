@@ -9,7 +9,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_resource_permission)
 from app.core.graph_auth import get_graph_token
 from app.schemas.document import DocumentUploadResponse
 from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID, MULTI_UPLOAD_TYPES
@@ -125,7 +125,7 @@ async def _upload_document_helper(
 @router.post(
     "/upload/resume",
     response_model=DocumentUploadResponse,
-    dependencies=[Depends(require_permission("document.upload"))],
+    dependencies=[Depends(require_resource_permission("documents", "create"))],
 )
 async def upload_resume(
     candidate_id: str,
@@ -319,7 +319,7 @@ async def get_my_documents(
 
 @router.get(
     "/candidate/{candidate_id}",
-    dependencies=[Depends(require_permission("document.view"))],
+    dependencies=[Depends(require_resource_permission("documents", "view"))],
 )
 async def get_candidate_documents(
     candidate_id: str,
@@ -498,7 +498,7 @@ async def get_document_by_id(
 
 @router.get(
     "/{document_id}/view",
-    dependencies=[Depends(require_permission("document.view"))],
+    dependencies=[Depends(require_resource_permission("documents", "view"))],
     summary="Stream a document from SharePoint for inline viewing",
 )
 async def view_document(
@@ -587,7 +587,7 @@ async def view_document(
 
 @router.patch(
     "/verify/{document_id}",
-    dependencies=[Depends(require_permission("document.verify"))],
+    dependencies=[Depends(require_resource_permission("documents", "edit"))],
 )
 async def update_document_verification(
     document_id: int,
@@ -679,7 +679,7 @@ async def update_document_verification(
 
 @router.delete(
     "/candidate/{candidate_id}/all",
-    dependencies=[Depends(require_permission("document.manage"))],
+    dependencies=[Depends(require_resource_permission("documents", "edit"))],
     summary="Delete ALL documents for a candidate (DB + SharePoint)",
 )
 async def delete_all_candidate_documents(

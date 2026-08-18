@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
 from app.schemas.abandonment_scoring import AbandonmentScoreResponse
@@ -29,7 +29,7 @@ router = APIRouter(tags=["abandonment-scoring"])
 @router.get(
     "/candidates/{candidate_id}/abandonment-score",
     response_model=AbandonmentScoreResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a candidate's abandonment risk score (S-046/HRMS-0446)",
     description=(
         "0-100 formula-based score (not ML, per spec): response rate (30%) "

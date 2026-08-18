@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.models.ats import ATSScore
 from app.models.candidate import Candidate, CandidateEducationForm, CandidateExperienceForm
 from app.models.user import Jobs
@@ -74,7 +74,7 @@ def _build_response(score: ATSScore, db: Session) -> ATSScoreResponse:
     "/scores/all",
     response_model=AllATSScoresResponse,
     summary="List all ATS scores across every job and candidate",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def list_all_ats_scores(
     db: Session = Depends(get_db),
@@ -124,7 +124,7 @@ def list_all_ats_scores(
     "/scores/job/{job_id}",
     response_model=AllATSScoresResponse,
     summary="ATS scores for all applicants on a specific job",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def list_scores_for_job(
     job_id: str,
@@ -184,7 +184,7 @@ def list_scores_for_job(
     "/scores/candidate/{candidate_id}",
     response_model=AllATSScoresResponse,
     summary="All ATS scores recorded for a specific candidate",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def list_scores_for_candidate(
     candidate_id: str,
@@ -240,7 +240,7 @@ def list_scores_for_candidate(
     "/scores/{score_id}",
     response_model=ATSScoreResponse,
     summary="Full ATS score detail for a single record",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_ats_score(
     score_id: int,
@@ -261,7 +261,7 @@ def get_ats_score(
     "/rescore",
     response_model=ATSScoreResponse,
     summary="Re-run ATS scoring for a specific candidate + job",
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
 async def rescore_candidate(
     request: ATSRescoringRequest,

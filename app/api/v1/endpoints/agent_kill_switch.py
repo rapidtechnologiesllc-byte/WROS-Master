@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission)
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_kill_switch_service import AgentKillSwitchService
@@ -10,7 +10,7 @@ from app.services.agent_kill_switch_service import AgentKillSwitchService
 router = APIRouter(prefix="/agent-kill-switch", tags=["Agent Kill Switch"])
 
 
-@router.get("/evaluate/{agent_name}", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/evaluate/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def evaluate_agent_for_kill_switch(
     agent_name: str,
     db: Session = Depends(get_db),
@@ -29,7 +29,7 @@ def evaluate_agent_for_kill_switch(
     """
 
     try:
-        # Permission check is enforced via decorator above (require_permission("admin.view"))
+        # Permission check is enforced via decorator above (require_resource_permission("admin-settings", "view"))
         result = AgentKillSwitchService.evaluate_agent(db, agent_name)
 
         return {
@@ -44,7 +44,7 @@ def evaluate_agent_for_kill_switch(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/evaluate-all", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/evaluate-all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def evaluate_all_agents_for_kill_switch(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -61,7 +61,7 @@ def evaluate_all_agents_for_kill_switch(
     """
 
     try:
-        # Permission check is enforced via decorator above (require_permission("admin.view"))
+        # Permission check is enforced via decorator above (require_resource_permission("admin-settings", "view"))
         results = AgentKillSwitchService.evaluate_all_agents(db)
 
         return {
@@ -84,7 +84,7 @@ def evaluate_all_agents_for_kill_switch(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/execute/{agent_name}", dependencies=[Depends(require_permission("admin.modify"))])
+@router.post("/execute/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def execute_kill_switch(
     agent_name: str,
     reason: str,
@@ -110,7 +110,7 @@ def execute_kill_switch(
     """
 
     try:
-        # Permission check is enforced via decorator above (require_permission("admin.modify"))
+        # Permission check is enforced via decorator above (require_resource_permission("admin-settings", "edit"))
         result = AgentKillSwitchService.execute_kill_switch(
             db=db,
             agent_name=agent_name,
@@ -137,7 +137,7 @@ def execute_kill_switch(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/reenable/{agent_name}", dependencies=[Depends(require_permission("admin.modify"))])
+@router.post("/reenable/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def reenable_agent(
     agent_name: str,
     db: Session = Depends(get_db),
@@ -157,7 +157,7 @@ def reenable_agent(
     """
 
     try:
-        # Permission check is enforced via decorator above (require_permission("admin.modify"))
+        # Permission check is enforced via decorator above (require_resource_permission("admin-settings", "edit"))
         result = AgentKillSwitchService.reenable_agent(
             db=db,
             agent_name=agent_name,

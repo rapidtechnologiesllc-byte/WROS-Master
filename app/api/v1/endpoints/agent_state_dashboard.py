@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission)
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.rbac_service import RBACService
@@ -13,7 +13,7 @@ from app.services.agent_state_service import (
 router = APIRouter(prefix="/agent-state", tags=["Agent State Dashboard"])
 
 
-@router.get("/all", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_all_agents_state(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -136,7 +136,7 @@ def get_all_agents_state(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{agent_name}", dependencies=[Depends(require_permission("admin.view"))])
+@router.get("/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_agent_state(
     agent_name: str,
     db: Session = Depends(get_db),
@@ -169,7 +169,7 @@ def get_agent_state(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{agent_name}/kill-switch", dependencies=[Depends(require_permission("admin.modify"))])
+@router.put("/{agent_name}/kill-switch", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def toggle_kill_switch(
     agent_name: str,
     enabled: bool,

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, get_current_user, require_resource_permission
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.core.logging import logger
 from app.schemas.offer import (
     OfferCreateRequest, OfferApproveRequest, OfferRejectRequest,

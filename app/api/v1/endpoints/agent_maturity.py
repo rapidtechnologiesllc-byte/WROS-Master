@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.models.agent_maturity import AgentMaturityLevel, AgentPerformanceMetric
 from app.schemas.agent_maturity import (
     AgentMaturityLevelResponse,
@@ -46,7 +46,7 @@ router = APIRouter(prefix="/admin/agents", tags=["admin-agents"])
 @router.get(
     "/maturity",
     response_model=AllAgentsMaturitiesResponse,
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def get_all_agents_maturity(
     db: Session = Depends(get_db),
@@ -82,7 +82,7 @@ def get_all_agents_maturity(
 @router.get(
     "/maturity/{agent_name}",
     response_model=AgentMaturityDashboardResponse,
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def get_agent_maturity_dashboard(
     agent_name: str,
@@ -148,7 +148,7 @@ def get_agent_maturity_dashboard(
 
 @router.get(
     "/{agent_name}/health",
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def check_agent_health_status(
     agent_name: str,
@@ -167,7 +167,7 @@ def check_agent_health_status(
 @router.post(
     "/{agent_name}/retire",
     response_model=RetireAgentResponse,
-    dependencies=[Depends(require_permission("admin.write"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "edit"))]
 )
 def retire_agent(
     agent_name: str,
@@ -190,7 +190,7 @@ def retire_agent(
 
 @router.get(
     "/retired",
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def get_retired_agents(db: Session = Depends(get_db)):
     """
@@ -218,7 +218,7 @@ def get_retired_agents(db: Session = Depends(get_db)):
 
 @router.get(
     "/fear",
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def get_fear_dashboard(db: Session = Depends(get_db)):
     """
@@ -240,7 +240,7 @@ def get_fear_dashboard(db: Session = Depends(get_db)):
 
 @router.get(
     "/fear/{agent_name}",
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def get_agent_fear_state(
     agent_name: str,
@@ -269,7 +269,7 @@ def get_agent_fear_state(
 
 @router.get(
     "/fear/{agent_name}/retirement-check",
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 def check_retirement_status(
     agent_name: str,

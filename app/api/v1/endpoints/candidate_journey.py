@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 from app.schemas.candidate_journey import CandidateJourneyResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -28,7 +28,7 @@ router = APIRouter(tags=["candidate-journey"])
 @router.get(
     "/candidates/{candidate_id}/journey",
     response_model=CandidateJourneyResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a candidate's 7-stage pipeline journey (S-059/HRMS-0459)",
     description=(
         "Derives Engaged/Qualifying/Screened/Interview/Offer/Preboarding/Joined "

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_resource_permission
 from app.schemas.engagement_metrics import EngagementMetricsResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.engagement_metrics_service import calculate_engagement_health
@@ -24,7 +24,7 @@ router = APIRouter(tags=["engagement-metrics"])
 @router.get(
     "/candidates/{candidate_id}/engagement-metrics",
     response_model=EngagementMetricsResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get a candidate's engagement health metrics (S-070/HRMS-0470)",
 )
 def get_engagement_metrics(candidate_id: str, db: Session = Depends(get_db)):

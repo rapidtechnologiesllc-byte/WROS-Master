@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 from app.models.business_unit import BusinessUnit
@@ -70,7 +70,7 @@ def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> Candid
 @router.get(
     "/",
     response_model=CandidateOwnershipListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="List all candidates with their pool ownership status",
 )
 def list_candidate_pool(
@@ -139,7 +139,7 @@ def list_candidate_pool(
 @router.get(
     "/{candidate_id}",
     response_model=CandidateOwnershipResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get pool ownership status for a specific candidate",
 )
 def get_candidate_pool_status(
@@ -168,7 +168,7 @@ def get_candidate_pool_status(
 @router.post(
     "/{candidate_id}/override",
     response_model=CandidateOwnershipResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Manually override candidate pool ownership (HR Admin)",
 )
 def override_candidate_pool(
