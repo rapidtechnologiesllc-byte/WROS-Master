@@ -1,4 +1,4 @@
-"""
+﻿"""
 Partner incentive rules + events, 2026-08-05.
 Prefix: /partner-incentives
 
@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.models.client import Client
 from app.models.partner_incentive import PartnerIncentiveEvent
 from app.models.user import Users
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/partner-incentives", tags=["partner-incentives"])
 def create_rule(
     body: IncentiveRuleCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return create_incentive_rule(
         db, partner_user_id=body.partner_user_id, incentive_type=body.incentive_type,
@@ -45,7 +45,7 @@ def create_rule(
 def get_partner_events(
     partner_user_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return IncentiveEventListResponse(events=list_incentive_events_for_partner(db, partner_user_id))
 
@@ -54,7 +54,7 @@ def get_partner_events(
 def check_new_logo(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -69,7 +69,7 @@ def check_new_logo(
 def calculate_revenue_share(
     partner_user_id: str, year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     """EPIC-16 Partner Incentive Calculator. Idempotent per (partner,
     period) -- calling this twice for the same month never double-pays,
@@ -86,7 +86,7 @@ def calculate_revenue_share(
 def mark_paid(
     event_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     event = db.query(PartnerIncentiveEvent).filter(PartnerIncentiveEvent.id == event_id).first()
     if not event:

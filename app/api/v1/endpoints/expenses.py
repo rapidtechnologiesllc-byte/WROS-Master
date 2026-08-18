@@ -1,4 +1,4 @@
-"""
+﻿"""
 Partner/BU spend tracking, 2026-08-05.
 Prefix: /expenses
 
@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.models.expense import ExpenseRecord
 from app.models.user import Users
 from app.schemas.expense import (
@@ -73,7 +73,7 @@ def list_all_expenses(
     client_id: Optional[str] = None,
     purpose: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     query = db.query(ExpenseRecord)
     if client_id:
@@ -88,7 +88,7 @@ def list_all_expenses(
 def approve_expense_endpoint(
     expense_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id).first()
     if not expense:
@@ -100,7 +100,7 @@ def approve_expense_endpoint(
 def mark_expense_paid_endpoint(
     expense_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id).first()
     if not expense:
@@ -115,7 +115,7 @@ def mark_expense_paid_endpoint(
 def get_investment_position(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     try:
         return get_client_investment_position(db, client_id)

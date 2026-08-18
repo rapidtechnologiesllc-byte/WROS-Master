@@ -1,12 +1,12 @@
-"""
+﻿"""
 Pre-Onboarding API
 
 Endpoints related to the Hiring Manager review and approval workflow,
 which gate candidates into the 'Pre-Onboarding' pipeline stage.
 
 Routes:
-  GET  /preonboarding/hiring-manager/review            — list candidates ready for HM review
-  POST /preonboarding/{candidate_id}/hiring-manager-approval — approve or reject a candidate
+  GET  /preonboarding/hiring-manager/review            â€” list candidates ready for HM review
+  POST /preonboarding/{candidate_id}/hiring-manager-approval â€” approve or reject a candidate
 """
 
 from datetime import datetime
@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_history import CandidateHistory
@@ -83,9 +83,9 @@ def _assign_preboarding_checklist(
     Auto-assign a pre-boarding checklist based on candidate employee type.
 
     Mapping:
-      - "Intern"             → 'Intern Document Collection'
-      - "Full Time Employee" → 'Experience Document Collection'
-      - (not set / unknown)  → falls back to experience check for backward compatibility
+      - "Intern"             â†’ 'Intern Document Collection'
+      - "Full Time Employee" â†’ 'Experience Document Collection'
+      - (not set / unknown)  â†’ falls back to experience check for backward compatibility
 
     2026-08-05: a "Guidewire" employee-type option used to exist on the
     Employee Type dropdown (CandidateEditModal.js) -- a bug, per
@@ -214,13 +214,13 @@ def _send_approval_notifications(
 ) -> None:
     """
     Email notifications upon Hiring Manager approval:
-      1. Candidate  — "Congratulations! You have been approved…"
-      2. Hiring Manager — confirmation of their approval action
-      3. Recruiter  — FYI that the candidate was moved to Pre-Onboarding
+      1. Candidate  â€” "Congratulations! You have been approvedâ€¦"
+      2. Hiring Manager â€” confirmation of their approval action
+      3. Recruiter  â€” FYI that the candidate was moved to Pre-Onboarding
     """
     candidate_name = _candidate_display_name(candidate)
 
-    # ── 1. Find recruiter details ──
+    # â”€â”€ 1. Find recruiter details â”€â”€
     recruiter_email: str | None = None
     recruiter_name = "Recruiter"
     job = None
@@ -232,7 +232,7 @@ def _send_approval_notifications(
                 recruiter_email = rec.UserEmail
                 recruiter_name = rec.UserName or "Recruiter"
 
-    # ── 2. Find hiring manager details ──
+    # â”€â”€ 2. Find hiring manager details â”€â”€
     hiring_manager_email: str | None = None
     hiring_manager_name = "Hiring Manager"
     if assignment and assignment.hiring_manager_id:
@@ -246,7 +246,7 @@ def _send_approval_notifications(
             hiring_manager_email = hm.UserEmail
             hiring_manager_name = hm.UserName or "Hiring Manager"
 
-    # ── 3. Email to candidate ──
+    # â”€â”€ 3. Email to candidate â”€â”€
     if candidate.candidateEmail:
         try:
             EmailService.send_notification(
@@ -267,7 +267,7 @@ def _send_approval_notifications(
         except Exception as exc:
             logger.warning(f"[Approval] Could not email candidate: {exc}")
 
-    # ── 4. Email to hiring manager ──
+    # â”€â”€ 4. Email to hiring manager â”€â”€
     if hiring_manager_email:
         try:
             EmailService.send_notification(
@@ -285,7 +285,7 @@ def _send_approval_notifications(
         except Exception as exc:
             logger.warning(f"[Approval] Could not email hiring manager: {exc}")
 
-    # ── 5. Email to recruiter ──
+    # â”€â”€ 5. Email to recruiter â”€â”€
     if recruiter_email:
         try:
             EmailService.send_notification(
@@ -311,22 +311,22 @@ def _send_approval_notifications(
 @router.get(
     "/hiring-manager/review",
     response_model=HMCandidateReviewListResponse,
-    dependencies=[Depends(require_permission("interview.manage"))],
-    summary="Hiring Manager: list candidates with ≥2 completed interviews (ready for approval/rejection)",
+
+    summary="Hiring Manager: list candidates with â‰¥2 completed interviews (ready for approval/rejection)",
 )
 def get_hm_candidate_review(
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Returns candidates who have **≥ 2 completed interview rounds** across panels
+    Returns candidates who have **â‰¥ 2 completed interview rounds** across panels
     that are linked to a job managed by the authenticated Hiring Manager.
 
     **Mapping logic (source of truth: InterviewPanel.job_id)**
 
     1. Collect all `job_id`s where `job.hiringManagerID == authenticated_user`.
     2. Query all `InterviewPanel` rows whose `job_id` is in that set.
-    3. Group panels by `(candidate_id, job_id)` — each group represents one
+    3. Group panels by `(candidate_id, job_id)` â€” each group represents one
        candidate's interview journey for a specific job.
     4. For each group, count `Interview` rows with `status == "Completed"`.
        Skip the group if < 2 completed rounds.
@@ -340,7 +340,7 @@ def get_hm_candidate_review(
     hm_id:   str = user.UserID
     hm_name: str = getattr(user, "UserName", None) or "Hiring Manager"
 
-    # ── Step 1: jobs this HM manages ─────────────────────────────────────────
+    # â”€â”€ Step 1: jobs this HM manages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     managed_jobs = (
         db.query(Jobs)
         .filter(Jobs.hiringManagerID == hm_id)
@@ -357,7 +357,7 @@ def get_hm_candidate_review(
             candidates=[],
         )
 
-    # ── Step 2: all panels for those jobs ────────────────────────────────────
+    # â”€â”€ Step 2: all panels for those jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     all_panels = (
         db.query(InterviewPanel)
         .filter(InterviewPanel.job_id.in_(managed_job_ids))
@@ -372,7 +372,7 @@ def get_hm_candidate_review(
             candidates=[],
         )
 
-    # ── Step 3: group panel IDs by (candidate_id, job_id) ───────────────────
+    # â”€â”€ Step 3: group panel IDs by (candidate_id, job_id) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # One candidate may have been interviewed multiple times via different
     # panels for the same job (e.g. HR Round, Tech Round, Manager Round).
     # We want to keep those rounds together.
@@ -381,7 +381,7 @@ def get_hm_candidate_review(
         if panel.candidate_id:
             group_panels[(panel.candidate_id, panel.job_id)].append(panel.id)
 
-    # ── Step 4: for each group, collect completed interviews ─────────────────
+    # â”€â”€ Step 4: for each group, collect completed interviews â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     results: list[HMCandidateReviewItem] = []
 
     for (candidate_id, job_id), panel_ids in group_panels.items():
@@ -417,7 +417,7 @@ def get_hm_candidate_review(
         )
         pipeline_status = cs.piplineStatus if cs else "Unknown"
 
-        # ── Build interview round details with feedback ───────────────────────
+        # â”€â”€ Build interview round details with feedback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         hm_rounds: list[HMInterviewRound] = []
 
         for iv in completed_ivs:
@@ -490,7 +490,7 @@ def get_hm_candidate_review(
                 )
             )
 
-        # ── Job details ──────────────────────────────────────────────────────
+        # â”€â”€ Job details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         job_obj   = job_map.get(job_id)
         job_title = job_obj.jobTitle if job_obj else None
 
@@ -501,7 +501,7 @@ def get_hm_candidate_review(
                 candidate_email=candidate.candidateEmail,
                 candidate_mobile=candidate.candidateMobile,
                 candidate_experience=candidate.candidateExperience,
-                job_id=job_id,          # job from panel — most accurate
+                job_id=job_id,          # job from panel â€” most accurate
                 job_title=job_title,
                 pipeline_status=pipeline_status,
                 completed_interview_count=len(completed_ivs),
@@ -522,7 +522,7 @@ def get_hm_candidate_review(
 @router.post(
     "/{candidate_id}/hiring-manager-approval",
     response_model=StatusActionResponse,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Hiring Manager Approval for a candidate",
 )
 def hiring_manager_approval(
@@ -537,26 +537,26 @@ def hiring_manager_approval(
     The candidate must be in the 'Pre-onboarding-Approval' pipeline stage.
 
     Permitted roles:
-      - Super User  — full bypass
-      - BU Head     — business-unit authority
-      - Hiring Manager — the specific HM assigned to this candidate / job
+      - Super User  â€” full bypass
+      - BU Head     â€” business-unit authority
+      - Hiring Manager â€” the specific HM assigned to this candidate / job
 
     If Approved -> Candidate moves to 'Pre-Onboarding' (checklist auto-assigned)
     If Rejected -> Candidate moves to 'Rejected' (and goes to Org Pool)
     """
-    # ── 0. Validate action early (before any DB writes) ─────────────────────
+    # â”€â”€ 0. Validate action early (before any DB writes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if request.action not in ("Approve", "Reject"):
         raise HTTPException(
             status_code=400,
             detail="Invalid action. Must be 'Approve' or 'Reject'.",
         )
 
-    # ── 1. Verify candidate exists ───────────────────────────────────────────
+    # â”€â”€ 1. Verify candidate exists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
-    # ── 2. Verify candidate is in the 'Pre-onboarding-Approval' stage ────────
+    # â”€â”€ 2. Verify candidate is in the 'Pre-onboarding-Approval' stage â”€â”€â”€â”€â”€â”€â”€â”€
     cs = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).first()
     if not cs:
         raise HTTPException(status_code=400, detail="Candidate does not have a status record.")
@@ -570,7 +570,7 @@ def hiring_manager_approval(
             ),
         )
 
-    # ── 4. Apply pipeline status change ─────────────────────────────────────
+    # â”€â”€ 4. Apply pipeline status change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     old_status = cs.piplineStatus
     new_status = "Pre-Onboarding" if request.action == "Approve" else "Rejected"
     cs.piplineStatus = new_status
@@ -594,7 +594,7 @@ def hiring_manager_approval(
     # Flush the status change and history before side-effects
     db.flush()
 
-    # ── 5. Approval side-effects ─────────────────────────────────────────────
+    # â”€â”€ 5. Approval side-effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if request.action == "Approve":
         # Auto-assign pre-boarding checklist(s) based on candidate experience
         try:
@@ -607,10 +607,10 @@ def hiring_manager_approval(
         db.commit()
         db.refresh(cs)
 
-        # Email notifications (non-critical — errors are logged, not raised)
+        # Email notifications (non-critical â€” errors are logged, not raised)
         #_send_approval_notifications(candidate, cs, assignment, db)
 
-    # ── 6. Rejection side-effects ────────────────────────────────────────────
+    # â”€â”€ 6. Rejection side-effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     elif request.action == "Reject":
         db.commit()
         db.refresh(cs)
@@ -619,7 +619,7 @@ def hiring_manager_approval(
             from app.services.candidate_pool_service import set_org_pool
 
             reason_msg = (
-                "Rejected at Hiring Manager Approval stage — returned to Org Pool"
+                "Rejected at Hiring Manager Approval stage â€” returned to Org Pool"
             )
             if request.comments:
                 reason_msg += f". Comments: {request.comments}"

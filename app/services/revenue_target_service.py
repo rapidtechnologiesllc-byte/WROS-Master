@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-267/HRMS-0301 (Set BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage,
 exposed via calculate_pipeline_coverage_ratio() -- already built,
@@ -129,8 +129,8 @@ def set_partner_goal(
     from app.services.rbac_service import RBACService
 
     has_permission = (
-        RBACService.has_permission(db, created_by_user.UserID, "admin.manage") or
-        RBACService.has_permission(db, created_by_user.UserID, "revenue.manage")
+        RBACService.has_permission(db, created_by_user.UserID, "admin-settings", "edit") or
+        RBACService.has_permission(db, created_by_user.UserID, "revenue", "edit")
     )
     if not has_permission:
         raise RevenueTargetValidationError(

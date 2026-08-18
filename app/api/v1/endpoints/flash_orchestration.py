@@ -1,8 +1,8 @@
-"""Flash Orchestration Engine endpoints - Daily command coordination."""
+﻿"""Flash Orchestration Engine endpoints - Daily command coordination."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.flash_orchestration_engine import FlashOrchestrationEngine
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/flash", tags=["Flash Orchestration"])
 
 @router.get(
     "/daily-coordination",
-    dependencies=[Depends(require_permission("admin.view"))]
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
 )
 async def get_daily_coordination(
     db: Session = Depends(get_db),
@@ -22,7 +22,7 @@ async def get_daily_coordination(
     Flash's daily coordination engine.
 
     Analyzes:
-    1. HTD Pipeline health (SPECIALTY→CORE conversion by partner)
+    1. HTD Pipeline health (SPECIALTYâ†’CORE conversion by partner)
     2. Opportunity health (sales pipeline, stalled deals)
     3. Agent state (performance of recruiting/resource agents)
 

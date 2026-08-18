@@ -1,4 +1,4 @@
-"""Role-Based Access Control for Employee Referrals.
+﻿"""Role-Based Access Control for Employee Referrals.
 
 ZERO-HARDCODING: All access rules determined by database-driven role_templates,
 not hardcoded role names or hierarchy dictionaries.
@@ -42,15 +42,15 @@ class ReferralAccessControl:
         from app.services.rbac_service import RBACService
 
         # Admin and Workforce Manager see everything
-        if RBACService.has_any_permission(db, user_id, ["admin.manage", "revenue.manage"]):
+        if RBACService.has_any_permission(db, user_id, ["admin-settings", "edit", "revenue", "edit"]):
             return True
 
         # BU Head/Partner see only their BU
-        if RBACService.has_permission(db, user_id, "business_unit.manage"):
+        if RBACService.has_permission(db, user_id, "business-units", "edit"):
             return user_bu == referral_bu
 
         # HR Manager sees only their BU
-        if RBACService.has_permission(db, user_id, "employee.manage"):
+        if RBACService.has_permission(db, user_id, "employees", "edit"):
             return user_bu == referral_bu
 
         # Regular employees see only own referrals (checked elsewhere)
@@ -67,10 +67,10 @@ class ReferralAccessControl:
 
         try:
             # Admin and Finance see ALL referrals
-            if RBACService.has_any_permission(db, user_id, ["admin.manage", "revenue.manage"]):
+            if RBACService.has_any_permission(db, user_id, ["admin-settings", "edit", "revenue", "edit"]):
                 referrals = db.query(EmployeeReferral).all()
             # BU Head/Partner and HR Manager see only their BU's referrals
-            elif RBACService.has_any_permission(db, user_id, ["business_unit.manage", "employee.manage"]):
+            elif RBACService.has_any_permission(db, user_id, ["business-units", "edit", "employees", "edit"]):
                 referrals = (
                     db.query(EmployeeReferral)
                     .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
@@ -111,10 +111,10 @@ class ReferralAccessControl:
 
         try:
             # Admin and Finance see ALL bonuses for payment processing
-            if RBACService.has_any_permission(db, user_id, ["admin.manage", "revenue.manage"]):
+            if RBACService.has_any_permission(db, user_id, ["admin-settings", "edit", "revenue", "edit"]):
                 bonuses = db.query(ReferralBonus).all()
             # BU Head/Partner and HR Manager see only their BU's bonuses
-            elif RBACService.has_any_permission(db, user_id, ["business_unit.manage", "employee.manage"]):
+            elif RBACService.has_any_permission(db, user_id, ["business-units", "edit", "employees", "edit"]):
                 bonuses = (
                     db.query(ReferralBonus)
                     .join(Employee, ReferralBonus.referring_employee_id == Employee.id)
@@ -156,13 +156,13 @@ class ReferralAccessControl:
         # Only admin, finance, and manager-level and above can see job stats
         can_view_stats = RBACService.has_any_permission(
             db, user_id,
-            ["admin.manage", "revenue.manage", "business_unit.manage", "employee.manage"]
+            ["admin-settings", "edit", "revenue", "edit", "business-units", "edit", "employees", "edit"]
         )
         if not can_view_stats:
             return None
 
         # BU Head/HR can only see their BU's jobs
-        if RBACService.has_any_permission(db, user_id, ["business_unit.manage", "employee.manage"]):
+        if RBACService.has_any_permission(db, user_id, ["business-units", "edit", "employees", "edit"]):
             # Verify this job is in their BU
             # For now, assume job belongs to a BU (would need job model update)
             # TODO: Add business_unit field to Jobs model
@@ -214,19 +214,19 @@ class ReferralAccessControl:
 
         try:
             # CEO/Admin see org-wide dashboard
-            if RBACService.has_permission(db, user_id, "admin.manage"):
+            if RBACService.has_permission(db, user_id, "admin-settings", "edit"):
                 return ReferralAccessControl._get_ceo_dashboard(db)
 
             # Finance sees payment processing dashboard
-            elif RBACService.has_permission(db, user_id, "revenue.manage"):
+            elif RBACService.has_permission(db, user_id, "revenue", "edit"):
                 return ReferralAccessControl._get_finance_dashboard(db)
 
             # BU Head/Partner see BU-specific dashboard
-            elif RBACService.has_permission(db, user_id, "business_unit.manage"):
+            elif RBACService.has_permission(db, user_id, "business-units", "edit"):
                 return ReferralAccessControl._get_bu_dashboard(db, user_bu)
 
             # HR Manager sees HR-specific dashboard
-            elif RBACService.has_permission(db, user_id, "employee.manage"):
+            elif RBACService.has_permission(db, user_id, "employees", "edit"):
                 return ReferralAccessControl._get_hr_dashboard(db, user_bu)
 
             # Regular Employee sees personal dashboard

@@ -1,7 +1,7 @@
-"""Interview → Hire → Onboarding workflow API endpoints."""
+﻿"""Interview â†’ Hire â†’ Onboarding workflow API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.hiring_workflow_service import (
@@ -15,7 +15,7 @@ from app.services.hiring_workflow_service import (
 router = APIRouter(prefix="/hiring-workflow", tags=["Hiring Workflow"])
 
 
-@router.get("/suggestions/{demand_id}/panelists", dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/suggestions/{demand_id}/panelists", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_panelist_suggestions(
     demand_id: str,
     level: str = "L1",
@@ -30,7 +30,7 @@ def get_panelist_suggestions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/interviews/{interview_id}/l1-to-l2-trigger", dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/interviews/{interview_id}/l1-to-l2-trigger", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def check_l1_l2_trigger(
     interview_id: str,
     db: Session = Depends(get_db),
@@ -48,7 +48,7 @@ def check_l1_l2_trigger(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/submissions/{submission_id}/affordability", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/submissions/{submission_id}/affordability", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def check_affordability(
     submission_id: str,
     bu_id: int = None,
@@ -67,7 +67,7 @@ def check_affordability(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/interviews/{demand_id}/create-l2-panel", dependencies=[Depends(require_permission("candidate.manage"))])
+@router.post("/interviews/{demand_id}/create-l2-panel", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def create_l2_panel(
     demand_id: str,
     submission_id: str,
@@ -87,7 +87,7 @@ def create_l2_panel(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/interviews/{interview_id}/no-show", dependencies=[Depends(require_permission("candidate.manage"))])
+@router.post("/interviews/{interview_id}/no-show", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def record_no_show(
     interview_id: str,
     db: Session = Depends(get_db),

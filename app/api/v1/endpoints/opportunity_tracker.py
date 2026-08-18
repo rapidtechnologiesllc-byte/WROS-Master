@@ -1,10 +1,10 @@
-"""Opportunity Tracker Agent endpoints for sales pipeline management."""
+﻿"""Opportunity Tracker Agent endpoints for sales pipeline management."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
 from pydantic import BaseModel
 
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
@@ -32,7 +32,7 @@ class LogActivityRequest(BaseModel):
     next_step: str = None
 
 
-@router.post("/log", dependencies=[Depends(require_permission("sales.create"))])
+@router.post("/log", dependencies=[Depends(require_resource_permission("opportunities", "create"))])
 async def log_new_opportunity(
     req: LogOpportunityRequest,
     db: Session = Depends(get_db),
@@ -62,7 +62,7 @@ async def log_new_opportunity(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/pipeline-health", dependencies=[Depends(require_permission("sales.view"))])
+@router.get("/pipeline-health", dependencies=[Depends(require_resource_permission("opportunities", "view"))])
 async def get_pipeline_health(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -90,7 +90,7 @@ async def get_pipeline_health(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.patch("/opportunities/{opportunity_id}/stage", dependencies=[Depends(require_permission("sales.update"))])
+@router.patch("/opportunities/{opportunity_id}/stage", dependencies=[Depends(require_resource_permission("opportunities", "edit"))])
 async def update_opportunity_stage(
     opportunity_id: str,
     req: UpdateOpportunityStageRequest,
@@ -101,7 +101,7 @@ async def update_opportunity_stage(
     Update opportunity as it progresses through sales cycle.
 
     Valid stage progression:
-    prospect → qualified → proposal → negotiation → commitment → closed_won
+    prospect â†’ qualified â†’ proposal â†’ negotiation â†’ commitment â†’ closed_won
     (or closed_lost at any stage)
 
     Example: "Moving opportunity to proposal stage - formal quote submitted"
@@ -122,7 +122,7 @@ async def update_opportunity_stage(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/opportunities/{opportunity_id}/activity", dependencies=[Depends(require_permission("sales.update"))])
+@router.post("/opportunities/{opportunity_id}/activity", dependencies=[Depends(require_resource_permission("opportunities", "edit"))])
 async def log_opportunity_activity(
     opportunity_id: str,
     req: LogActivityRequest,

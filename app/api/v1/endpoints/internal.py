@@ -1,12 +1,12 @@
-"""
+﻿"""
 Internal HR Notes API
 =====================
 Private notes that HR team members can attach to a candidate for internal
 tracking. Notes are never exposed to the candidate.
 
 Routes:
-  GET  /internal/notes/{candidate_id}  — list all notes for a candidate
-  POST /internal/notes/{candidate_id}  — add a new note to a candidate
+  GET  /internal/notes/{candidate_id}  â€” list all notes for a candidate
+  POST /internal/notes/{candidate_id}  â€” add a new note to a candidate
 """
 
 from typing import Optional
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.internal_note import InternalNote
@@ -36,7 +36,7 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 @router.get(
     "/notes/{candidate_id}",
     response_model=InternalNoteListResponse,
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get all internal HR notes for a candidate",
 )
 def get_notes_by_candidate(
@@ -55,7 +55,7 @@ def get_notes_by_candidate(
     internal and **never** exposed to the candidate.
 
     **Optional query params**:
-    - `category` — filter to notes matching a specific category tag.
+    - `category` â€” filter to notes matching a specific category tag.
     """
     # Verify the candidate exists
     candidate = (
@@ -100,7 +100,7 @@ def create_note(
     candidate_id: str,
     payload: InternalNoteCreate,
     db: Session = Depends(get_db),
-    user=Depends(require_permission("candidate.edit")),
+    user=Depends(require_resource_permission("candidates", "edit")),
 ):
     """
     Creates a new **internal HR note** on a candidate.

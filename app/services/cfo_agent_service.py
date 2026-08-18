@@ -1,4 +1,4 @@
-"""CFO Agent — financial Q&A and insights for Chief Financial Officer."""
+﻿"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -176,7 +176,7 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     ).all()
 
     # Filter to only those with Partner-level permissions (business unit management)
-    partners = [p for p in partners if RBACService.has_permission(db, p.UserID, "business_unit.manage")]
+    partners = [p for p in partners if RBACService.has_permission(db, p.UserID, "business-units", "edit")]
 
     comparison = []
     for partner in partners:
@@ -212,7 +212,7 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
         "salary_cost_pct": 70,  # Estimated
         "overhead_cost_pct": 20,  # Estimated
         "other_cost_pct": 10,  # Estimated
-        "note": "Breakdown is estimated — detailed expense tracking not yet implemented"
+        "note": "Breakdown is estimated â€” detailed expense tracking not yet implemented"
     }
 
 

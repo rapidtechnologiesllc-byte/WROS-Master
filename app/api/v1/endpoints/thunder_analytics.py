@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-071/HRMS-0471 -- AI Recruiter Performance Analytics
 ==================================================================
 Prefix: /analytics
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.schemas.thunder_analytics import ThunderAnalyticsResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.thunder_analytics_service import get_thunder_analytics
@@ -23,7 +23,7 @@ from app.services.thunder_analytics_service import get_thunder_analytics
 router = APIRouter(prefix="/analytics", tags=["thunder-analytics"])
 
 
-@router.get("/thunder", response_model=ThunderAnalyticsResponse, dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/thunder", response_model=ThunderAnalyticsResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def thunder_analytics(
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),

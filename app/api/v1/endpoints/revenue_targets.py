@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-267/HRMS-0301 (BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage).
 
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.user import Users
 from app.schemas.revenue_target import (
@@ -35,7 +35,7 @@ router = APIRouter(tags=["revenue-targets"])
 def create_bu_target(
     body: BUTargetCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     try:
         set_bu_revenue_target(
@@ -54,7 +54,7 @@ def get_bu_target(
     target_period: str,
     fiscal_year: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_bu_target_vs_actual(db, business_unit_id, target_period, fiscal_year)
 
@@ -63,7 +63,7 @@ def get_bu_target(
 def create_partner_goal(
     body: PartnerGoalCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     try:
         return set_partner_goal(
@@ -79,7 +79,7 @@ def create_partner_goal(
 def get_partner_position(
     partner_user_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view_pnl")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_partner_multi_year_position(db, partner_user_id)
 
@@ -87,7 +87,7 @@ def get_partner_position(
 @router.get("/revenue-targets/dashboard", response_model=ExecutiveRevenueDashboardResponse)
 def executive_dashboard(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     return get_executive_revenue_dashboard(db, client_ids=list(client_ids) if client_ids is not None else None)
@@ -97,7 +97,7 @@ def executive_dashboard(
 def pipeline_coverage(
     revenue_target_usd_cents: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("revenue.view")),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     ratio = get_pipeline_coverage(

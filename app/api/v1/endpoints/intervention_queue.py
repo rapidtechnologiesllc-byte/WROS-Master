@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-062/HRMS-0462 -- Recruiter Intervention Queue
 ==================================================================
 Prefix: /intervention-queue
@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.models.user import Users
 from app.schemas.intervention_queue import QueueResponse, QueueSummaryResponse, ResolveRequest, ResolveResponse, TakeOverResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -28,19 +28,19 @@ from app.services.intervention_queue_service import QueueItemNotFound, get_queue
 router = APIRouter(prefix="/intervention-queue", tags=["intervention-queue"])
 
 
-@router.get("", response_model=QueueResponse, dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("", response_model=QueueResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def list_queue(status: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     return QueueResponse(items=get_queue(db, tenant_id, status=status))
 
 
-@router.get("/summary", response_model=QueueSummaryResponse, dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/summary", response_model=QueueSummaryResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def queue_summary(db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     return get_queue_summary(db, tenant_id)
 
 
-@router.post("/{queue_item_id}/take-over", response_model=TakeOverResponse, dependencies=[Depends(require_permission("candidate.edit"))])
+@router.post("/{queue_item_id}/take-over", response_model=TakeOverResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
     tenant_id = resolve_default_tenant_id(db)
     try:
@@ -49,7 +49,7 @@ def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: U
         raise HTTPException(status_code=404, detail=f"Queue item {queue_item_id} not found.")
 
 
-@router.post("/{queue_item_id}/resolve", response_model=ResolveResponse, dependencies=[Depends(require_permission("candidate.edit"))])
+@router.post("/{queue_item_id}/resolve", response_model=ResolveResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def resolve(queue_item_id: int, payload: ResolveRequest, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
     tenant_id = resolve_default_tenant_id(db)
     try:

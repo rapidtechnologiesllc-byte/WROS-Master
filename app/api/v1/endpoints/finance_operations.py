@@ -1,7 +1,7 @@
-"""EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
+﻿"""EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.finance_operations_service import (
@@ -13,7 +13,7 @@ from app.services.finance_operations_service import (
 router = APIRouter(prefix="/finance-operations", tags=["Finance Operations"])
 
 
-@router.get("/bank-reconciliation", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/bank-reconciliation", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_bank_reconciliation(
     as_of_date: str = None,
     db: Session = Depends(get_db),
@@ -27,7 +27,7 @@ def get_bank_reconciliation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/ar-aging", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/ar-aging", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ar_aging(
     as_of_date: str = None,
     db: Session = Depends(get_db),
@@ -41,7 +41,7 @@ def get_ar_aging(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/invoices/{invoice_id}/detail", dependencies=[Depends(require_permission("revenue.view_pnl"))])
+@router.get("/invoices/{invoice_id}/detail", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_invoice_detail(
     invoice_id: str,
     db: Session = Depends(get_db),

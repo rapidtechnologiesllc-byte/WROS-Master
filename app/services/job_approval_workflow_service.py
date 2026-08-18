@@ -1,12 +1,12 @@
-"""
+﻿"""
 Job Approval Workflow Service
 ==============================
 Handles job approval routing and recruiter assignment after approval.
 
 Approval Hierarchy:
-- CEO/SuperUser creates job → No approval needed (auto-active)
-- BU Head creates job → Routing Manager approval required
-- Others create job → BU Head approval required
+- CEO/SuperUser creates job â†’ No approval needed (auto-active)
+- BU Head creates job â†’ Routing Manager approval required
+- Others create job â†’ BU Head approval required
 """
 
 from datetime import datetime
@@ -32,12 +32,12 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
     """
     # CEO/SuperUser - no approval needed
     # Check via admin.manage permission, not hardcoded role name
-    if RBACService.has_permission(db, creator.UserID, "admin.manage"):
+    if RBACService.has_permission(db, creator.UserID, "admin-settings", "edit"):
         return None, "Creator is SuperUser - no approval needed"
 
     # BU Head creates job - route to their reporting manager
     # Check via 'business_unit.manage' permission (BU Head level)
-    if RBACService.has_permission(db, creator.UserID, "business_unit.manage"):
+    if RBACService.has_permission(db, creator.UserID, "business-units", "edit"):
         if creator.business_unit_id:
             # Find reporting manager for this BU Head
             # Look for users in same BU with CFO or higher permissions
@@ -47,13 +47,13 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
 
             # Find manager with admin or finance permissions
             for mgr in managers:
-                if RBACService.has_permission(db, mgr.UserID, "revenue.view_pnl"):
+                if RBACService.has_permission(db, mgr.UserID, "revenue", "view"):
                     return mgr, f"BU Head {creator.UserName} must be approved by {mgr.UserName}"
 
         # Fallback: route to Admin user
         admins = db.query(Users).all()
         for admin in admins:
-            if RBACService.has_permission(db, admin.UserID, "admin.manage"):
+            if RBACService.has_permission(db, admin.UserID, "admin-settings", "edit"):
                 return admin, "Route to Admin (no reporting manager found)"
 
     # All others - route to their BU Head
@@ -64,13 +64,13 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
 
         # Find BU Head (user with business_unit.manage permission in this BU)
         for user in bu_users:
-            if RBACService.has_permission(db, user.UserID, "business_unit.manage"):
+            if RBACService.has_permission(db, user.UserID, "business-units", "edit"):
                 return user, f"Route to BU Head {user.UserName}"
 
     # Fallback: Admin user
     all_users = db.query(Users).all()
     for admin in all_users:
-        if RBACService.has_permission(db, admin.UserID, "admin.manage"):
+        if RBACService.has_permission(db, admin.UserID, "admin-settings", "edit"):
             return admin, "Route to Admin (default)"
 
     return None, "No approver found"

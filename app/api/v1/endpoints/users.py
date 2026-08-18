@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
@@ -169,20 +169,20 @@ def search_users(
         description="Partial, case-insensitive match on business unit name",
     ),
     skip: int = Query(default=0, ge=0, description="Records to skip"),
-    limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1–200)"),
+    limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1â€“200)"),
 ):
     """
-    Search users with any combination of filters.  All filters are optional —
+    Search users with any combination of filters.  All filters are optional â€”
     omit all of them to get a paginated list of every user.
 
     **Filters:**
-    - `name` — partial, case-insensitive match on `UserName` **or** `UserEmail`
-    - `permission_role` — exact match on the RBAC `Role.name`
+    - `name` â€” partial, case-insensitive match on `UserName` **or** `UserEmail`
+    - `permission_role` â€” exact match on the RBAC `Role.name`
       (e.g. `'HR Manager'`, `'Recruiter'`, `'Admin'`)
-    - `user_role` — exact match on the legacy `UserRole` column
+    - `user_role` â€” exact match on the legacy `UserRole` column
       (e.g. `'HR'`, `'Admin'`)
-    - `department` — partial, case-insensitive match on `Department.name`
-    - `business_unit` — partial, case-insensitive match on `BusinessUnit.name`
+    - `department` â€” partial, case-insensitive match on `Department.name`
+    - `business_unit` â€” partial, case-insensitive match on `BusinessUnit.name`
 
     **Pagination:** use `skip` / `limit`.
     """
@@ -192,7 +192,7 @@ def search_users(
     # optional filters below narrow it further.
     query = db.query(Users)
 
-    # ── name filter — partial match on UserName OR UserEmail ─────────────────
+    # â”€â”€ name filter â€” partial match on UserName OR UserEmail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if name:
         pattern = f"%{name.lower()}%"
         query = query.filter(
@@ -202,26 +202,26 @@ def search_users(
             )
         )
 
-    # ── role template filter (via role_template_id) ──────────────────────────
+    # â”€â”€ role template filter (via role_template_id) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if user_role:
         query = query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id).filter(
             RoleTemplate.name == user_role
         )
 
-    # ── RBAC permission role filter — join through Role ───────────────────────
+    # â”€â”€ RBAC permission role filter â€” join through Role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if permission_role:
         query = query.join(Role, Role.id == Users.role_id).filter(
             Role.name == permission_role
         )
 
-    # ── Department filter — join through Department ───────────────────────────
+    # â”€â”€ Department filter â€” join through Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if department:
         dept_pattern = f"%{department.lower()}%"
         query = query.join(Department, Department.id == Users.department_id).filter(
             sql_func.lower(Department.name).like(dept_pattern)
         )
 
-    # ── Business unit filter — join through BusinessUnit ─────────────────────
+    # â”€â”€ Business unit filter â€” join through BusinessUnit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if business_unit:
         bu_pattern = f"%{business_unit.lower()}%"
         from app.models.business_unit import BusinessUnitContext
@@ -299,7 +299,7 @@ def get_user_details_by_id(
     "/assignments/create",
     response_model=CandidateAssignmentResponse,
     status_code=201,
-    dependencies=[Depends(require_permission("candidate.edit"))],
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
 def create_candidate_assignment(
     request: CandidateAssignmentCreate,
@@ -369,7 +369,7 @@ def create_candidate_assignment(
 @router.get(
     "/assignments/candidates",
     response_model=list[AssignedCandidateResponse],
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_assigned_candidates(
     db: Session = Depends(get_db),
@@ -430,7 +430,7 @@ def get_assigned_candidates(
 @router.get(
     "/interviews/assigned",
     response_model=list[AssignedInterviewResponse],
-    dependencies=[Depends(require_permission("interview.view"))],
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
 )
 def get_assigned_interviews(
     db: Session = Depends(get_db),
@@ -506,7 +506,7 @@ def get_assigned_interviews(
     response_model=UserResponse,
     status_code=201,
     summary="Create a new HR/Admin user",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def create_user(
     request: SignupRequest,
@@ -545,7 +545,7 @@ def create_user(
     "/users/create-with-roles",
     response_model=UserResponse,
     summary="Create a new user with roles and optional job title",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def create_user_with_roles(
     user_name: str = None,
@@ -613,7 +613,7 @@ def create_user_with_roles(
     "/users/{user_id}/update-with-roles",
     response_model=UserResponse,
     summary="Update user with roles, job title, and business unit",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def update_user_with_roles(
     user_id: str,
@@ -659,7 +659,7 @@ def update_user_with_roles(
     "/users/{user_id}",
     response_model=UserResponse,
     summary="Update an HR/Admin user's profile or role",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def update_user(
     user_id: str,
@@ -694,7 +694,7 @@ def update_user(
     "/users/{user_id}",
     response_model=DeleteResponse,
     summary="Delete an HR/Admin user account",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def delete_user(
     user_id: str,
@@ -718,7 +718,7 @@ def delete_user(
     # Null out every FK that references this user before deleting them
     # ------------------------------------------------------------------
 
-    # 1. Jobs — recruiter / hiring-manager
+    # 1. Jobs â€” recruiter / hiring-manager
     db.query(Jobs).filter(Jobs.recuriterID == user_id).update(
         {Jobs.recuriterID: None}, synchronize_session=False
     )
@@ -726,7 +726,7 @@ def delete_user(
         {Jobs.hiringManagerID: None}, synchronize_session=False
     )
 
-    # 2. CandidateAssignment — hiring / reporting manager
+    # 2. CandidateAssignment â€” hiring / reporting manager
     db.query(CandidateAssignment).filter(
         CandidateAssignment.hiring_manager_id == user_id
     ).update({CandidateAssignment.hiring_manager_id: None}, synchronize_session=False)
@@ -734,17 +734,17 @@ def delete_user(
         CandidateAssignment.reporting_manager_id == user_id
     ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
 
-    # 3. PanelMember — interviewer
+    # 3. PanelMember â€” interviewer
     db.query(PanelMember).filter(PanelMember.interviewer_id == user_id).update(
         {PanelMember.interviewer_id: None}, synchronize_session=False
     )
 
-    # 4. InterviewFeedback — interviewer
+    # 4. InterviewFeedback â€” interviewer
     db.query(InterviewFeedback).filter(InterviewFeedback.interviewer_id == user_id).update(
         {InterviewFeedback.interviewer_id: None}, synchronize_session=False
     )
 
-    # 5. OfferLetter — hiring manager / reporting manager / created_by / cancelled_by
+    # 5. OfferLetter â€” hiring manager / reporting manager / created_by / cancelled_by
     db.query(OfferLetter).filter(OfferLetter.hiring_manager_id == user_id).update(
         {OfferLetter.hiring_manager_id: None}, synchronize_session=False
     )
@@ -758,12 +758,12 @@ def delete_user(
         {OfferLetter.cancelled_by: None}, synchronize_session=False
     )
 
-    # 6. CandidateDocument — verified_by
+    # 6. CandidateDocument â€” verified_by
     db.query(CandidateDocument).filter(CandidateDocument.verified_by == user_id).update(
         {CandidateDocument.verified_by: None}, synchronize_session=False
     )
 
-    # 7. Newsletter — created_by
+    # 7. Newsletter â€” created_by
     db.query(Newsletter).filter(Newsletter.created_by == user_id).update(
         {Newsletter.created_by: None}, synchronize_session=False
     )
@@ -784,7 +784,7 @@ def delete_user(
     "/users/me/change-password",
     response_model=DeleteResponse,
     summary="Change current user's password",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def change_password(
     request: ChangePasswordRequest,
@@ -828,7 +828,7 @@ def change_password(
     "/admin/users/{user_id}/reset-password",
     response_model=DeleteResponse,
     summary="Admin force reset user password",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def admin_reset_password(
     user_id: str,
@@ -886,7 +886,7 @@ def admin_reset_password(
     "/users/{user_id}",
     response_model=SingleUserResponse,
     summary="Get a single user by ID",
-    dependencies=[Depends(require_permission("user.manage"))],
+    dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def get_user_by_id(
     user_id: str,
@@ -939,7 +939,7 @@ def get_user_by_id(
     "/hiring_manager/assigned/candidate",
     response_model=list[HiringManagerAssignedCandidateResponse],
     summary="List candidates assigned to the authenticated hiring manager",
-    dependencies=[Depends(require_permission("candidate.view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_hiring_manager_assigned_candidates(
     db: Session = Depends(get_db),

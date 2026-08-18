@@ -1,4 +1,4 @@
-"""Candidate Isolation Service - Enforces BU-based candidate visibility and locking.
+﻿"""Candidate Isolation Service - Enforces BU-based candidate visibility and locking.
 
 ZERO-HARDCODING: All visibility rules determined by database-driven role_templates
 and BU assignments. No hardcoded visibility rules.
@@ -74,7 +74,7 @@ class CandidateIsolationService:
             raise ValueError(f"Submitting user {submitted_by_user_id} not found")
 
         # Check if user has BU management permission and access to this BU
-        if not RBACService.has_permission(db, submitted_by_user_id, "business_unit.manage"):
+        if not RBACService.has_permission(db, submitted_by_user_id, "business-units", "edit"):
             raise ValueError(f"User {submitted_by_user_id} not authorized to submit candidates")
 
         # Check if user has access to this BU

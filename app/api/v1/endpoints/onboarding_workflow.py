@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-324/HRMS-ONBOARDING-WORKFLOW -- REST API Endpoints.
 
 Provides REST endpoints for onboarding workflow operations:
@@ -18,7 +18,7 @@ import json
 
 import app.schemas as schema
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_permission
+from app.core.dependencies import get_current_hr_or_admin, require_permission, require_resource_permission
 from app.core.logging import logger
 from app.core.tenant_context import get_current_tenant_id
 
@@ -134,7 +134,7 @@ class TrainingSessionResponse(schema.BaseModel):
 
 @router.post(
     "/start",
-    dependencies=[Depends(require_permission("onboarding.manage"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "edit"))],
     summary="Start onboarding workflow for new employee"
 )
 def start_onboarding_endpoint(
@@ -176,7 +176,7 @@ def start_onboarding_endpoint(
 
 @router.post(
     "/assign-buddy",
-    dependencies=[Depends(require_permission("onboarding.manage"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "edit"))],
     summary="Assign buddy to new employee"
 )
 def assign_buddy_endpoint(
@@ -215,7 +215,7 @@ def assign_buddy_endpoint(
 
 @router.post(
     "/send-welcome-kit",
-    dependencies=[Depends(require_permission("onboarding.manage"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "edit"))],
     summary="Send welcome kit to new employee"
 )
 def send_welcome_kit_endpoint(
@@ -261,7 +261,7 @@ def send_welcome_kit_endpoint(
 
 @router.post(
     "/schedule-training",
-    dependencies=[Depends(require_permission("onboarding.manage"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "edit"))],
     summary="Schedule training session for new employee"
 )
 def schedule_training_endpoint(
@@ -312,7 +312,7 @@ def schedule_training_endpoint(
 @router.get(
     "/{workflow_id}",
     response_model=OnboardingWorkflowResponse,
-    dependencies=[Depends(require_permission("onboarding.view"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "view"))],
     summary="Get onboarding workflow details"
 )
 def get_workflow(
@@ -347,7 +347,7 @@ def get_workflow(
 
 @router.get(
     "/employee/{employee_id}",
-    dependencies=[Depends(require_permission("onboarding.view"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "view"))],
     summary="Get onboarding workflow by employee ID"
 )
 def get_workflow_by_employee(
@@ -441,7 +441,7 @@ def get_workflow_by_employee(
 
 @router.get(
     "/{workflow_id}/tasks",
-    dependencies=[Depends(require_permission("onboarding.view"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "view"))],
     summary="Get all onboarding tasks for workflow"
 )
 def get_workflow_tasks(
@@ -485,7 +485,7 @@ def get_workflow_tasks(
 
 @router.get(
     "/{workflow_id}/training",
-    dependencies=[Depends(require_permission("onboarding.view"))],
+    dependencies=[Depends(require_resource_permission("onboarding", "view"))],
     summary="Get all training sessions for workflow"
 )
 def get_workflow_training_sessions(

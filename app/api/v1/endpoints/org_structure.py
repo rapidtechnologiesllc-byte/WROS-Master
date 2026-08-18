@@ -1,5 +1,5 @@
-"""
-Organizational Structure API — Initialize and manage org hierarchy.
+﻿"""
+Organizational Structure API â€” Initialize and manage org hierarchy.
 
 Endpoints for:
 - Initializing org positions and approval chains for a tenant
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import require_permission, get_current_internal_user
+from app.core.dependencies import require_permission, get_current_internal_user, require_resource_permission
 from app.schemas.org_structure import (
     OrgPositionResponse,
     OrgNodeResponse,
@@ -48,7 +48,7 @@ router = APIRouter(prefix="/org", tags=["Organization Structure"])
     response_model=OrgInitializeResponse,
     summary="Initialize org hierarchy for a tenant",
     description="Creates default org positions and approval chains for a new tenant",
-    dependencies=[Depends(require_permission("admin.create"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "create"))],
 )
 def initialize_org_structure(
     request: OrgInitializeRequest,
@@ -99,7 +99,7 @@ def initialize_org_structure(
     response_model=List[OrgPositionResponse],
     summary="List all org positions",
     description="Returns all organizational positions (CEO, Partner, BU Head, etc.)",
-    dependencies=[Depends(require_permission("admin.view"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def list_org_positions(
     db: Session = Depends(get_db),
@@ -114,7 +114,7 @@ def list_org_positions(
     response_model=List[OrgNodeResponse],
     summary="List org nodes for a tenant",
     description="Returns all organizational nodes (instances of positions)",
-    dependencies=[Depends(require_permission("admin.view"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def list_org_nodes(
     current_user = Depends(get_current_internal_user),
@@ -134,7 +134,7 @@ def list_org_nodes(
     response_model=OrgNodeResponse,
     summary="Get a specific org node",
     description="Returns details of a specific organizational node",
-    dependencies=[Depends(require_permission("admin.view"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def get_org_node(
     org_node_id: str,
@@ -157,7 +157,7 @@ def get_org_node(
     response_model=List[OrgNodeResponse],
     summary="Get approval chain for an org node",
     description="Returns the chain of approvers up to CEO for a given org node",
-    dependencies=[Depends(require_permission("admin.view"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def get_approvers_for_node(
     org_node_id: str,
@@ -183,7 +183,7 @@ def get_approvers_for_node(
     response_model=List[DepartmentResponse],
     summary="List departments for a tenant",
     description="Returns all departments organized by business unit",
-    dependencies=[Depends(require_permission("admin.view"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def list_departments(
     current_user = Depends(get_current_internal_user),
@@ -203,7 +203,7 @@ def list_departments(
     response_model=List[ApprovalChainResponse],
     summary="List approval chain workflows",
     description="Returns all approval workflows for the tenant",
-    dependencies=[Depends(require_permission("admin.view"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def list_approval_chains(
     current_user = Depends(get_current_internal_user),
@@ -234,7 +234,7 @@ class CreateOrgNodeRequest(BaseModel):
     response_model=OrgNodeResponse,
     summary="Create an organizational node",
     description="Create a new organizational node (position instance)",
-    dependencies=[Depends(require_permission("admin.create"))],
+    dependencies=[Depends(require_resource_permission("admin-settings", "create"))],
 )
 def create_org_node_endpoint(
     request: CreateOrgNodeRequest,

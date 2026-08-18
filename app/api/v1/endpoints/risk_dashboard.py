@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-063/HRMS-0463 -- Candidate Risk Dashboard
 ==================================================================
 Prefix: /risk
@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.models.candidate_drop_risk import CandidateDropRisk
 from app.models.recruiter_intervention_queue import PRIORITY_CRITICAL, PRIORITY_HIGH
 from app.schemas.risk_dashboard import RiskDashboardResponse
@@ -27,13 +27,13 @@ from app.services.risk_dashboard_service import get_risk_dashboard
 router = APIRouter(prefix="/risk", tags=["risk-dashboard"])
 
 
-@router.get("/dashboard", response_model=RiskDashboardResponse, dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/dashboard", response_model=RiskDashboardResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def risk_dashboard(db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     return get_risk_dashboard(db, tenant_id)
 
 
-@router.post("/dashboard/candidates/{candidate_id}/add-to-queue", dependencies=[Depends(require_permission("candidate.edit"))])
+@router.post("/dashboard/candidates/{candidate_id}/add-to-queue", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def add_candidate_to_queue(candidate_id: str, db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     risk = db.query(CandidateDropRisk).filter(CandidateDropRisk.tenant_id == tenant_id, CandidateDropRisk.candidate_id == candidate_id).first()

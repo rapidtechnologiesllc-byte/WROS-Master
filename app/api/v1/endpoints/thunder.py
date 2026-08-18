@@ -1,5 +1,5 @@
-"""
-"Test Thunder" — API Endpoints
+﻿"""
+"Test Thunder" â€” API Endpoints
 ================================
 Prefix: /thunder
 Tag:    thunder
@@ -16,8 +16,8 @@ depth for anyone still hitting the route directly by URL.
 Lets a permitted internal user chat with Thunder as if they were a
 candidate, without a live WhatsApp Business API (none is provisioned in
 this codebase). The real send path
-(app.services.thunder_service.send_thunder_message) still runs underneath —
-R-08 ownership lock, consent, and the 60s debounce are all live — only the
+(app.services.thunder_service.send_thunder_message) still runs underneath â€”
+R-08 ownership lock, consent, and the 60s debounce are all live â€” only the
 outbound WhatsApp transport is mocked.
 
 Routes:
@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.models.user import Users
 from app.schemas.thunder import (
     TestChatHistoryItem,
@@ -67,7 +67,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
         "Sends `message` as if it came from a candidate over WhatsApp, generates "
         "Thunder's reply with the real LLM (Gemini) using the candidate's full "
         "cross-channel context, and sends it back through the real, governed send "
-        "path — R-08 ownership lock, consent, and the 60s duplicate-message "
+        "path â€” R-08 ownership lock, consent, and the 60s duplicate-message "
         "debounce all still apply. Only the outbound WhatsApp transport is mocked "
         "(no live WhatsApp Business API is provisioned in this codebase)."
     ),
@@ -75,7 +75,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
 def send_test_chat_message(
     body: TestChatMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("thunder.test")),
+    current_user: Users = Depends(require_resource_permission("thunder", "edit")),
 ):
     try:
         result = run_test_chat_turn(
@@ -107,7 +107,7 @@ def send_test_chat_message(
 )
 def get_test_chat_history_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("thunder.test")),
+    current_user: Users = Depends(require_resource_permission("thunder", "edit")),
 ):
     messages = get_test_chat_history(db, tenant_id=current_user.UserID)
     return TestChatHistoryResponse(
@@ -122,13 +122,13 @@ def get_test_chat_history_endpoint(
     summary="Start a fresh Test Thunder conversation",
     description=(
         "Closes the current tester's test conversation so the next message "
-        "starts a clean thread. Nothing is deleted — the prior conversation and "
+        "starts a clean thread. Nothing is deleted â€” the prior conversation and "
         "its events stay in the database."
     ),
 )
 def reset_test_chat_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_permission("thunder.test")),
+    current_user: Users = Depends(require_resource_permission("thunder", "edit")),
 ):
     reset_test_chat(db, tenant_id=current_user.UserID)
     return {"message": "Test Thunder conversation reset."}

@@ -1,4 +1,4 @@
-"""
+﻿"""
 S-053/HRMS-0453 -- Offer Readiness Check
 ==================================================================
 Prefix: /candidates
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_resource_permission
 from app.schemas.offer_readiness import OfferReadinessResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.offer_readiness_service import check_offer_readiness
@@ -28,7 +28,7 @@ router = APIRouter(tags=["offer-readiness"])
 @router.get(
     "/candidates/{candidate_id}/jobs/{job_id}/offer-readiness",
     response_model=OfferReadinessResponse,
-    dependencies=[Depends(require_permission("offer.readiness_check"))],
+    dependencies=[Depends(require_resource_permission("offer-letters", "view"))],
     summary="Check whether a candidate is ready for an offer (S-053/HRMS-0453)",
     description=(
         "Validates L1+L2 interview PASS (BR-01), no COMPLIANCE_BLOCK flag, no "

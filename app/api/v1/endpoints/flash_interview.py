@@ -1,7 +1,7 @@
-"""Flash Interview Analysis endpoints — AI-powered interview assessment."""
+﻿"""Flash Interview Analysis endpoints â€” AI-powered interview assessment."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_permission
+from app.core.dependencies import get_current_internal_user, require_permission, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.flash_transcript_service import FlashTranscriptService
@@ -9,7 +9,7 @@ from app.services.flash_transcript_service import FlashTranscriptService
 router = APIRouter(prefix="/flash/interviews", tags=["Flash Interview Analysis"])
 
 
-@router.get("/{interview_id}/analysis", dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/{interview_id}/analysis", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_interview_analysis(
     interview_id: str,
     use_mock: bool = Query(False, description="Use mock transcript for testing (local only)"),
@@ -49,7 +49,7 @@ def get_flash_interview_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{interview_id}/comparison", dependencies=[Depends(require_permission("candidate.view"))])
+@router.get("/{interview_id}/comparison", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_panel_comparison(
     interview_id: str,
     db: Session = Depends(get_db),
@@ -74,7 +74,7 @@ def get_flash_panel_comparison(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{interview_id}/coaching-email", dependencies=[Depends(require_permission("candidate.manage"))])
+@router.post("/{interview_id}/coaching-email", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def send_coaching_email_to_panel_member(
     interview_id: str,
     payload: dict,
