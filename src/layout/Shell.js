@@ -41,59 +41,47 @@ import {
   canViewModule,
 } from "../utils/permissions";
 
-// Nav reorganized 2026-08-12 -- business-focused sections for clarity.
-// Sales (deal pipeline) / Project Management (execution) / Finance (billing)
-// + Recruitment (hiring) + Admin. Collapsible so the common case stays
-// short, with the group containing your current screen auto-expanded.
-const GROUP_DEFS = [
-  {
-    label: "Executive",
-    icon: BarChart3,
-    keys: ["ceoFyProgress", "executiveRevenueDashboard", "cfoDashboard", "buHeadDashboard", "partnerRoi"],
-  },
-  {
-    label: "Recruitment",
-    icon: Users,
-    keys: ["candidates", "jobs", "candidateReview", "offerLetters", "offerLettersListing", "submissions", "interventionQueue", "rehireApprovals", "riskDashboard", "thunderAnalytics", "bulkLaunch"],
-  },
-  {
-    label: "Sales",
-    icon: TrendingUp,
-    keys: ["clientManagement", "demandConfirmation", "opportunityPipeline"],
-  },
-  {
-    label: "Workforce",
-    icon: Users2,
-    keys: ["employees", "htdIntake", "buddyProgram", "corePull"],
-  },
-  {
-    label: "Project Management",
-    icon: FolderKanban,
-    keys: [
-      "projects", "allocations", "resourceManagement",
-      "utilization", "forecast",
-    ],
-  },
-  {
-    label: "Finance",
-    icon: BadgeDollarSign,
-    // 2026-08-12, Avinash: "anything monetary stays in finance" -- myExpenses
-    // moved in from standalone. Finance owns billing, invoicing, and revenue reporting.
-    keys: ["myExpenses", "timesheets", "invoices", "revenue", "forecastVsActual", "financeOperations"],
-  },
-  {
-    label: "Admin",
-    icon: Shield,
-    keys: ["usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings", "adminWeeklyRecap"],
-  },
-];
+// Dynamic navigation driven by role template permissions from backend
+// Navigation structure is fetched from /hr/me/navigation endpoint
+// which returns groups and items based on user's actual permissions
 
-function buildGroups(includedKeys) {
-  const included = new Set(includedKeys);
-  return GROUP_DEFS.map((g) => ({
-    ...g,
-    items: g.keys.filter((k) => included.has(k)).map((k) => NAV_ITEMS[k]),
-  })).filter((g) => g.items.length > 0);
+// Icon mapping for module names
+const ICON_MAP = {
+  "Recruitment": Users,
+  "Sales": TrendingUp,
+  "Workforce": Users2,
+  "Project Management": FolderKanban,
+  "Finance": BadgeDollarSign,
+  "Admin": Shield,
+  "Executive": BarChart3,
+};
+
+// Map nav keys to NAV_ITEMS for backward compatibility
+function buildGroupsFromNavigation(navGroups) {
+  if (!Array.isArray(navGroups)) return [];
+
+  return navGroups.map((group) => {
+    const IconComponent = ICON_MAP[group.label] || Briefcase;
+    return {
+      label: group.label,
+      icon: IconComponent,
+      items: (group.items || []).map((item) => NAV_ITEMS[item.key]).filter(Boolean),
+    };
+  }).filter((g) => g.items && g.items.length > 0);
+}
+
+// Fetch navigation structure from backend based on user's role template permissions
+async function fetchDynamicNavigation() {
+  try {
+    const { apiRequest } = await import("../services/api/client");
+    const response = await apiRequest("/hr/me/navigation", {
+      method: "GET",
+    });
+    return response.data?.groups || [];
+  } catch (error) {
+    console.warn("Failed to fetch dynamic navigation:", error);
+    return [];
+  }
 }
 
 // Permission-based navigation builder (2026-08-12)
@@ -161,24 +149,10 @@ const NAV_PERMISSIONS = {
   cfoDashboard: "reports.view",
 };
 
-function buildGroupsByPermissions() {
-  const permissions = getPermissions() || [];
-  const isSuperUserFlag = isSuperUser();
-
-  const getIncludedKeys = () => {
-    if (isSuperUserFlag) {
-      // Super users see everything
-      return Object.keys(NAV_PERMISSIONS);
-    }
-
-    // Filter by permission
-    return Object.keys(NAV_PERMISSIONS).filter(key => {
-      const requiredPerm = NAV_PERMISSIONS[key];
-      return hasPermission(requiredPerm);
-    });
-  };
-
-  return buildGroups(getIncludedKeys());
+async function buildGroupsByPermissions() {
+  // Fetch navigation structure from backend based on role template permissions
+  const navGroups = await fetchDynamicNavigation();
+  return buildGroupsFromNavigation(navGroups);
 }
 
 export default function Shell({
@@ -264,62 +238,21 @@ export default function Shell({
   const isHiringManager = normalizedRole === "HIRING MANAGER";
   const isHrOperations = normalizedRole === "HR OPERATIONS";
 
-  const nav = useMemo(() => {
-    // 2026-08-12: Permission-based navigation (new RBAC system)
-    const permissions = getPermissions();
-    const rolesArray = getRoles();
+  // Fetch navigation structure from backend based on role template permissions
+  const [nav, setNav] = useState({
+    standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
+    groups: []
+  });
 
-    // Use permission-based navigation if permissions are available
-    if (Array.isArray(permissions) && permissions.length > 0) {
-      const permissionGroups = buildGroupsByPermissions();
+  useEffect(() => {
+    const loadNavigation = async () => {
+      const navGroups = await buildGroupsByPermissions();
       const standalone = [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals];
-      return { standalone, groups: permissionGroups };
-    }
+      setNav({ standalone, groups: navGroups });
+    };
 
-    // Fallback: Legacy role-based navigation for backward compatibility
-    if (isSuperUser) {
-      // Super User gets ALL navigation items
-      return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
-        groups: buildGroups(Object.keys(NAV_PERMISSIONS)),
-      };
-    }
-    if (isAdmin) {
-      return {
-        standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
-        groups: buildGroups([
-          "candidates", "jobs",
-          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          "myExpenses", "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "financeOperations", "partnerRoi", "ceoFyProgress", "cfoDashboard",
-          "usersAccessControl", "certifications", "tenantLocale", "tenantAiConfig", "messageTemplates", "ticketRoutingAdmin", "executiveSignal", "errorLog", "adminSettings",
-        ]),
-      };
-    }
-    if (isHR_Manager) {
-      return {
-        standalone: [NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
-        groups: buildGroups([
-          "candidates", "offerLettersListing",
-          "employees", "resourceManagement", "allocations", "corePull", "clientManagement",
-          "demandConfirmation", "utilization", "forecast", "htdIntake", "projects", "buddyProgram",
-          // financeOperations deliberately excluded -- Avinash's explicit
-          // "finance & HR manager (no actual p&l)" rule. executiveRevenueDashboard
-          // stays (revenue.view-level content, backend gates the P&L bits
-          // separately at revenue.view_pnl). Agent dashboards (CEO FY Progress,
-          // CFO Agent, Partner ROI) follow the same RBAC gates as executiveRevenueDashboard.
-          "myExpenses", "timesheets", "invoices", "revenue", "opportunityPipeline", "forecastVsActual", "executiveRevenueDashboard", "ceoFyProgress", "cfoDashboard",
-        ]),
-      };
-    }
-    if (isHiringManager) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
-    }
-    if (isHrOperations) {
-      return { standalone: [NAV_ITEMS.candidates, NAV_ITEMS.jobs, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses], groups: [] };
-    }
-    return { standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myExpenses, NAV_ITEMS.myReferrals], groups: [] };
-  }, [isSuperUser, isAdmin, isHR_Manager, isHiringManager, isHrOperations, getPermissions, buildGroupsByPermissions, permissionsLoaded]);
+    loadNavigation();
+  }, [permissionsLoaded]);
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
 
