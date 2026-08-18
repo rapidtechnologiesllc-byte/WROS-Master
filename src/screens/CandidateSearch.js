@@ -59,7 +59,7 @@ export default function CandidateSearch({
   const [overrideEditingCandidate, setOverrideEditingCandidate] =
     useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [candidateList, setCandidateList] = useState(candidates);
+  const [candidateList, setCandidateList] = useState(candidates || []);
   const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [preonboardingModal, setPreonboardingModal] = useState(false);
   const [candidateActions, setCandidateActions] = useState({});
@@ -442,10 +442,10 @@ export default function CandidateSearch({
   let tableData = [];
   if (hasPermission("candidates", "edit")) {
     // Users who can edit candidates see approval workflow candidates
-    tableData = approvalCandidates.length > 0 ? approvalCandidates : managerCandidatesList;
+    tableData = (approvalCandidates?.length > 0 ? approvalCandidates : managerCandidatesList) || [];
   } else if (hasPermission("candidates", "view")) {
     // Users who can only view see pre-onboarding candidates
-    tableData = preOnboardingCandidates;
+    tableData = preOnboardingCandidates || [];
   }
 
   return (
