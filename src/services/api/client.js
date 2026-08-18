@@ -121,12 +121,22 @@ export const apiRequest = async (path, options = {}) => {
   const url = `${API_BASE_URL}${path}`;
   console.log(`[API] ${method} ${path}`);
 
-  const response = await fetch(url, {
-    headers: skipAuth ? baseHeaders : withAuthHeaders(baseHeaders),
-    credentials: 'omit',
-    body,
-    ...rest,
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: skipAuth ? baseHeaders : withAuthHeaders(baseHeaders),
+      credentials: 'omit',
+      body,
+      ...rest,
+    });
+  } catch (error) {
+    console.error(`[API] Network error on ${method} ${path}:`, error.message);
+    console.error('[API] Debugging info:');
+    console.error('  URL:', url);
+    console.error('  Method:', method);
+    console.error('  Headers:', withAuthHeaders(baseHeaders));
+    throw new Error(`Network error: ${error.message}. Is the backend running on ${API_BASE_URL}?`);
+  }
 
   let data = null;
   try {
