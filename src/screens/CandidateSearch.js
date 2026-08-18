@@ -410,8 +410,13 @@ export default function CandidateSearch({
     },
     {
       title: "Job Title",
-      dataIndex: "job_title",
+      dataIndex: "candidateJobTitle",
       width: 120,
+      render: (_, record) => (
+        <div className="text-sm text-gray-700">
+          {record?.candidateJobTitle || record?.job_title || "-"}
+        </div>
+      ),
     },
     {
       title: "Location",
