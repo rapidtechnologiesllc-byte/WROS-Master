@@ -663,10 +663,14 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
 
 
 def _user_can_create_jobs(db: Session, user: Users) -> bool:
-    """Check if user has permission to create jobs (HR Manager or Admin)"""
-    if user.UserRole in ("Admin", "HR Manager", "Hiring Manager"):
-        return True
-    return False
+    """Check if user has permission to create jobs (via RBAC)"""
+    from app.services.permission_helper import PermissionHelper
+    return PermissionHelper.has_any_permission(
+        user.UserID,
+        ["admin.manage", "admin.create", "jobs", "create"],
+        db,
+        user.tenant_id
+    )
 
 
 def _extract_job_details_from_history(history: Optional[List[Dict]]) -> Dict:

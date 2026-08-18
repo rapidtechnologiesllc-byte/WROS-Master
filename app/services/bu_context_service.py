@@ -67,8 +67,16 @@ def activate_all_bus_view(db: Session, user: Users) -> AuditLog:
     """BR-0107-02/AC-4: privileged, tracked action -- exactly one real
     audit_log row per activation, reusing the existing HRMS-0110
     append-only table (never a second audit mechanism)."""
-    if user.UserRole not in ALL_BUS_ROLES:
-        raise NotAuthorizedForAllBUs(f"Role {user.UserRole!r} is not authorized for the unscoped All BUs view.")
+    # Check permission via RBAC (not hardcoded role name)
+    from app.services.permission_helper import PermissionHelper
+    has_admin_perms = PermissionHelper.has_any_permission(
+        user.UserID,
+        ["admin.manage", "business-units", "edit"],
+        db,
+        user.tenant_id
+    )
+    if not has_admin_perms:
+        raise NotAuthorizedForAllBUs("Permission denied: only users with admin access can view all business units.")
 
     entry = AuditLog(
         tenant_id=user.tenant_id, entity_type="bu_context", entity_id="ALL_BUS",
