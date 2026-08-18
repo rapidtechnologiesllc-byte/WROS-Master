@@ -34,11 +34,22 @@ from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.bu_context import BUAccessItem, MyBUAccessResponse, SwitchBURequest
 from app.services.bu_context_service import (
-    ALL_BUS_ROLES, NotAuthorizedForAllBUs, NotYourBusinessUnit, activate_all_bus_view,
+    NotAuthorizedForAllBUs, NotYourBusinessUnit, activate_all_bus_view,
     ensure_default_bu_access, get_user_bu_access, switch_active_bu, validate_active_bu,
 )
 
 router = APIRouter(prefix="/bu-context", tags=["bu-context"])
+
+
+def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
+    """Check if user has permission to view all business units (not scoped to their BU)."""
+    from app.services.permission_helper import PermissionHelper
+    return PermissionHelper.has_any_permission(
+        current_user.UserID,
+        ["admin.manage", "business-units", "edit"],
+        db,
+        current_user.tenant_id
+    )
 
 
 async def get_active_business_unit_id(
@@ -78,7 +89,7 @@ def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: S
             )
             for r in rows
         ],
-        can_view_all_bus=current_user.UserRole in ALL_BUS_ROLES,
+        can_view_all_bus=_user_can_view_all_bus(db, current_user),
     )
 
 
