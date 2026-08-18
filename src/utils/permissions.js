@@ -38,15 +38,29 @@ export const canAccessMyWorkspace = ({ permissionRole, jobTitle }) => {
 // Permission checking against localStorage (set by AuthPage.js after login)
 
 export function hasPermission(permission) {
-  const permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  // Try new RBAC system first (hrms_permissions from role template backend)
+  let permissions = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+
+  // Fall back to legacy 'permissions' key
+  if (!permissions || permissions.length === 0) {
+    permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  }
 
   if (!Array.isArray(permissions)) return false;
 
   // Wildcard check for super user
   if (permissions.includes('*.*')) return true;
 
-  // Direct permission match
+  // Direct permission match (e.g., "candidates", "jobs")
   if (permissions.includes(permission)) return true;
+
+  // Exact action match (e.g., "candidates.view", "jobs.create")
+  if (permissions.includes(`${permission}.view`) ||
+      permissions.includes(`${permission}.create`) ||
+      permissions.includes(`${permission}.edit`) ||
+      permissions.includes(`${permission}.delete`)) {
+    return true;
+  }
 
   // Wildcard module match (e.g., candidate.* matches candidate.view)
   const parts = permission.split('.');
@@ -69,16 +83,27 @@ export function hasAllPermissions(permissionList) {
 }
 
 export function hasRole(roleName) {
-  const roles = JSON.parse(localStorage.getItem('roles') || '[]');
+  // Try new RBAC system first (hrms_roles from backend)
+  let roles = JSON.parse(localStorage.getItem('hrms_roles') || '[]');
+
+  // Fall back to legacy 'roles' key
+  if (!roles || roles.length === 0) {
+    roles = JSON.parse(localStorage.getItem('roles') || '[]');
+  }
+
   if (!Array.isArray(roles)) return false;
   return roles.some(role => role.toLowerCase() === roleName.toLowerCase());
 }
 
 export function isSuperUser() {
-  const roles = JSON.parse(localStorage.getItem('roles') || '[]');
-  const permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  const roles = JSON.parse(localStorage.getItem('hrms_roles') || '[]');
+  let permissions = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
 
-  if (permissions.includes('*.*')) return true;
+  if (!permissions || permissions.length === 0) {
+    permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  }
+
+  if (Array.isArray(permissions) && permissions.includes('*.*')) return true;
   if (Array.isArray(roles)) {
     return roles.some(role => role.toLowerCase() === 'super user');
   }
@@ -86,18 +111,39 @@ export function isSuperUser() {
 }
 
 export function isAdmin() {
-  const roles = JSON.parse(localStorage.getItem('roles') || '[]');
+  // Try new RBAC system first (hrms_roles from backend)
+  let roles = JSON.parse(localStorage.getItem('hrms_roles') || '[]');
+
+  // Fall back to legacy 'roles' key
+  if (!roles || roles.length === 0) {
+    roles = JSON.parse(localStorage.getItem('roles') || '[]');
+  }
+
   if (!Array.isArray(roles)) return false;
   return roles.some(role => role.toLowerCase() === 'admin');
 }
 
 export function getRoles() {
-  const roles = JSON.parse(localStorage.getItem('roles') || '[]');
+  // Try new RBAC system first (hrms_roles from backend)
+  let roles = JSON.parse(localStorage.getItem('hrms_roles') || '[]');
+
+  // Fall back to legacy 'roles' key
+  if (!roles || roles.length === 0) {
+    roles = JSON.parse(localStorage.getItem('roles') || '[]');
+  }
+
   return Array.isArray(roles) ? roles : [];
 }
 
 export function getPermissions() {
-  const permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  // Try new RBAC system first (hrms_permissions from role template backend)
+  let permissions = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+
+  // Fall back to legacy 'permissions' key
+  if (!permissions || permissions.length === 0) {
+    permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  }
+
   return Array.isArray(permissions) ? permissions : [];
 }
 
