@@ -68,6 +68,7 @@ WHATSAPP_OUTREACH_CONSENT_TYPE = "whatsapp_outreach"
 # own consent type so a visitor who only ever used the web widget is never
 # treated as having consented to WhatsApp outreach, or vice versa.
 WEB_CHAT_CONSENT_TYPE = "web_chat_outreach"
+EMAIL_OUTREACH_CONSENT_TYPE = "email_outreach"
 DEBOUNCE_SECONDS = 60
 
 # Reply-generation -- reuses the exact Gemini pattern already wired for
@@ -137,10 +138,12 @@ def _is_duplicate_send(
 # need one -- the reply IS the HTTP response the browser is waiting on
 # (see send_web_chat_message below) -- but it still goes through the
 # exact same consent/debounce/ownership gates, because it's a real
-# candidate-facing channel, not a mock.
+# candidate-facing channel, not a mock. 'email' is the third real
+# candidate-facing channel and requires email_outreach consent.
 CHANNEL_CONSENT_TYPES = {
     "whatsapp": WHATSAPP_OUTREACH_CONSENT_TYPE,
     "web_chat": WEB_CHAT_CONSENT_TYPE,
+    "email": EMAIL_OUTREACH_CONSENT_TYPE,
 }
 
 
@@ -255,10 +258,9 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
     follow_up_scheduler_service._send_followup() and
     outreach_campaign_service._send_touchpoint(); consolidated here
     once a third caller needed the exact same logic. whatsapp reuses
-    the real, gated send_thunder_message(); email reuses this
-    codebase's existing ungated candidate-email convention (every
-    other candidate email in this codebase, e.g. the missing-fields
-    email, already goes out this way).
+    the real, gated send_thunder_message(); email requires
+    EMAIL_OUTREACH_CONSENT_TYPE consent (same as whatsapp requires
+    WHATSAPP_OUTREACH_CONSENT_TYPE).
 
     S-075/HRMS-0475: checked directly here too (not just inside
     send_thunder_message()) since the email branch below never calls
@@ -268,6 +270,11 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
 
     if channel == "whatsapp":
         send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="whatsapp", auto_generated=True)
+        return
+
+    # Email channel: validate consent before sending
+    if not has_active_consent(db, candidate.candidateID, consent_type=EMAIL_OUTREACH_CONSENT_TYPE):
+        logger.warning(f"[Thunder] Email consent not given for candidate {candidate.candidateID!r}, skipping outreach")
         return
 
     from app.services.email_service import EmailService
