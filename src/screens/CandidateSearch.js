@@ -21,11 +21,6 @@ import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { Table as AntTable } from "antd";
 import {
-  AcceptButton,
-  ButtonDiv,
-  RejectButton,
-} from "../styles/CandidateSearchStyles";
-import {
   managerReviewApprove,
   managerReviewList,
 } from "../services/api/preOnboarding";
@@ -420,30 +415,6 @@ export default function CandidateSearch({
       dataIndex: "status",
       width: 80,
     },
-    ...(hasPermission("candidates", "edit")
-      ? [
-          {
-            title: "Action",
-            key: "action",
-            render: (_, record) => {
-              const isApproved = record?.pipeline_status === "Pre-Onboarding";
-              return (
-                <ButtonDiv>
-                  <AcceptButton
-                    disabled={isApproved}
-                    onClick={() => handlePreOnboardingAction(record, "Approve")}
-                  >
-                    {isApproved ? "Approved" : "Accept"}
-                  </AcceptButton>
-                  <RejectButton onClick={() => managerRejectCandidate(record)}>
-                    Reject
-                  </RejectButton>
-                </ButtonDiv>
-              );
-            },
-          },
-        ]
-      : []),
     {
       title: "More Options",
       key: "more_options",
