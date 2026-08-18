@@ -96,19 +96,23 @@ class Settings:
 
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).
-    # Defaults to the real production frontend origin already listed
-    # in CORS_ORIGINS below; override via env for other environments.
-    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://46.224.149.7:3005")
+    # Defaults to localhost for development; must be set via FRONTEND_BASE_URL
+    # environment variable for production/staging deployments.
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
-    # CORS Settings
+    # CORS Settings - Environment-based configuration
+    # Default: localhost for development
+    # Production: Use CORS_ORIGINS env var as comma-separated list
     CORS_ORIGINS: list = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://46.224.149.7:3005",
-        "http://46.224.149.7:8080",
         "http://localhost:8080",
-        # Add production frontend URLs here
     ]
+
+    # Allow additional origins from environment variable (production/staging)
+    _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()
+    if _CORS_ENV:
+        CORS_ORIGINS.extend([origin.strip() for origin in _CORS_ENV.split(",") if origin.strip()])
     
     # Security Settings
     BCRYPT_ROUNDS: int = 12
