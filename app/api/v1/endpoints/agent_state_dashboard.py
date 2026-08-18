@@ -191,10 +191,18 @@ def toggle_kill_switch(
     """
 
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
+        # Check admin permission via RBAC (not hardcoded role name)
+        from app.services.permission_helper import PermissionHelper
+        has_admin_perms = PermissionHelper.has_any_permission(
+            current_user.UserID,
+            ["admin.manage", "admin.edit"],
+            db,
+            current_user.tenant_id
+        )
+        if not has_admin_perms:
             raise HTTPException(
                 status_code=403,
-                detail="Only CEO/Admin can disable agents"
+                detail="Permission denied: only users with admin access can disable agents"
             )
 
         from app.models.agent_state_target import AgentStateTarget
