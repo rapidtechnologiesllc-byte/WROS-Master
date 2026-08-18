@@ -36,6 +36,33 @@ class RoleTemplatePermissionService:
         ).first()
 
     @staticmethod
+    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
+        """
+        Check if user is a Super User (bypass all permission checks).
+
+        Args:
+            db: Database session
+            user_id: User ID
+            tenant_id: Tenant ID for multi-tenancy
+
+        Returns:
+            True if user is Super User, False otherwise
+        """
+        try:
+            # Get user's role templates
+            user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
+
+            # Check if any role is "Super User"
+            for role in user_roles:
+                if role.name and role.name.lower() in ['super user', 'super_user', 'admin']:
+                    return True
+
+            return False
+        except Exception as e:
+            logger.error(f"Error checking super user status: {e}")
+            return False
+
+    @staticmethod
     def has_permission(
         db: Session,
         user_id: str,
@@ -57,6 +84,11 @@ class RoleTemplatePermissionService:
             True if user has permission, False otherwise
         """
         try:
+            # SUPER USER BYPASS: Super Users have all permissions
+            if RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id):
+                logger.info(f"Super User {user_id} granted all permissions (bypass)")
+                return True
+
             # Get user's role templates
             user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
             if not user_roles:
