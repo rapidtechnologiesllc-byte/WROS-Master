@@ -395,7 +395,7 @@ export default function CandidateSearch({
       dataIndex: "status",
       width: 80,
     },
-    ...(currentRole === "Hiring Manager"
+    ...(hasPermission("candidates", "edit")
       ? [
           {
             title: "Action",
@@ -438,12 +438,15 @@ export default function CandidateSearch({
     },
   ];
 
-  const tableDataMap = {
-    "Hiring Manager": managerCandidatesList,
-    "HR Manager": approvalCandidates,
-    "HR Operations": preOnboardingCandidates,
-  };
-  const tableData = tableDataMap[currentRole] || [];
+  // Determine which candidate data to show based on permissions
+  let tableData = [];
+  if (hasPermission("candidates", "edit")) {
+    // Users who can edit candidates see approval workflow candidates
+    tableData = approvalCandidates.length > 0 ? approvalCandidates : managerCandidatesList;
+  } else if (hasPermission("candidates", "view")) {
+    // Users who can only view see pre-onboarding candidates
+    tableData = preOnboardingCandidates;
+  }
 
   return (
     <>
