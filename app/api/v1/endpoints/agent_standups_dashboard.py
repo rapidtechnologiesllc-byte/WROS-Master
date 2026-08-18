@@ -84,10 +84,18 @@ async def ceo_provide_feedback(
     the weekly performance review cycle.
     """
     try:
-        if current_user.UserRole not in ["Super User", "Admin", "CEO"]:
+        # Check admin permission via RBAC (not hardcoded role name)
+        from app.services.permission_helper import PermissionHelper
+        has_admin_perms = PermissionHelper.has_any_permission(
+            current_user.UserID,
+            ["admin.manage", "admin.edit"],
+            db,
+            current_user.tenant_id
+        )
+        if not has_admin_perms:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only CEO can provide agent feedback"
+                detail="Permission denied: only users with admin access can provide agent feedback"
             )
 
         # Log the CEO's feedback as an agent action

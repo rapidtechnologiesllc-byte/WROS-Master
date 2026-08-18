@@ -97,8 +97,10 @@ def query_table(
     if where_clauses:
         query_str += " WHERE " + " AND ".join(where_clauses)
 
-    # Add pagination
-    query_str += f" LIMIT {min(limit, 1000)} OFFSET {offset}"
+    # Add pagination with parameterization
+    query_str += " LIMIT :limit OFFSET :offset"
+    params["limit"] = min(limit, 1000)
+    params["offset"] = offset
 
     try:
         # Execute safe parameterized query
