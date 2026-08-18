@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError

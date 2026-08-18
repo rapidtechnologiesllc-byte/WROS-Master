@@ -16,7 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.models.user import Users
 from app.schemas.bulk_engagement import BulkEngageRequest, BulkEngageResponse, BulkImportResponse, BulkJobStatusResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id

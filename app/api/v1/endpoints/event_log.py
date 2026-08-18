@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.models.user import Users
 from app.schemas.event_log import EventLogResponse
 from app.services.event_emitter_service import get_events
