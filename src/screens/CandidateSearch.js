@@ -18,6 +18,7 @@ import {
 } from "../services/api/candidates";
 import { toast } from "react-toastify";
 import MoveStageDrawer from "../components/ui/MoveStageDrawer";
+import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { Table as AntTable } from "antd";
 import {
   AcceptButton,
@@ -67,6 +68,7 @@ export default function CandidateSearch({
   const [managerCandidatesList, setManagerCandidatesList] = useState([]);
   const [approvalCandidates, setApprovalCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [screenError, setScreenError] = useState(null);
   const navigate = useNavigate();
   const isAntTableRole =
     hasPermission("candidates", "view") ||
@@ -96,7 +98,7 @@ export default function CandidateSearch({
       const canData = await managerReviewList();
       setManagerCandidatesList(canData?.candidates);
     } catch (err) {
-      toast.error(err?.message);
+      setScreenError(err?.message || "Failed to fetch candidates");
     } finally {
       setLoading(false);
     }
@@ -209,7 +211,7 @@ export default function CandidateSearch({
         );
       }
     } catch (err) {
-      toast.error(err);
+      setScreenError(err?.message || "Failed to update candidate status");
       console.log(err);
     }
   };
@@ -274,7 +276,7 @@ export default function CandidateSearch({
         }
       }
     } catch (err) {
-      toast.error(
+      setScreenError(
         action === "Approve"
           ? "Candidate already moved to Pre-Onboarding"
           : "Failed to reject candidate",
@@ -319,7 +321,7 @@ export default function CandidateSearch({
         }
       }
     } catch (err) {
-      toast.error(err?.message);
+      setScreenError(err?.message || "Failed to process candidate");
     }
   };
 
@@ -451,6 +453,10 @@ export default function CandidateSearch({
   return (
     <>
       <div className="grid gap-6">
+        <ScreenErrorDisplay
+          error={screenError}
+          onDismiss={() => setScreenError(null)}
+        />
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

@@ -14,6 +14,7 @@ import RateField from "../components/ui/RateField";
 import { searchUsers } from "../services/api/users";
 import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
 import { toast } from "react-toastify";
+import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import {
   listBusinessUnits,
 } from "../services/api/rbac";
@@ -78,6 +79,7 @@ export default function JobCreate({
     city: "",
   });
   const [isJobLocationRemote, setIsJobLocationRemote] = useState(false);
+  const [screenError, setScreenError] = useState(null);
 
   // Auto-save draft effect
   useEffect(() => {
@@ -403,7 +405,7 @@ export default function JobCreate({
   const generateInternalOverviewAndRolesFromApi = async () => {
     const oneLiner = hmOneLiner.trim();
     if (!oneLiner) {
-      toast.error("Add a hiring manager 1-liner to generate roles.");
+      setScreenError("Add a hiring manager 1-liner to generate roles.");
       return;
     }
     setIsGenerating(true);
@@ -418,7 +420,7 @@ export default function JobCreate({
 
       toast.info("Answer the questions to generate the complete job details.");
     } catch (err) {
-      toast.error(err?.message || "Failed to generate questions.");
+      setScreenError(err?.message || "Failed to generate questions.");
     } finally {
       setIsGenerating(false);
     }
@@ -432,7 +434,7 @@ export default function JobCreate({
       .map(q => q.question);
 
     if (missingAnswers.length > 0) {
-      toast.error(`Please answer: ${missingAnswers.join(", ")}`);
+      setScreenError(`Please answer: ${missingAnswers.join(", ")}`);
       return;
     }
 
@@ -475,7 +477,7 @@ export default function JobCreate({
       setShowAskFlash(false);
       toast.success("Job details generated and auto-populated!");
     } catch (err) {
-      toast.error(err?.message || "Failed to generate complete job.");
+      setScreenError(err?.message || "Failed to generate complete job.");
     } finally {
       setIsAnswering(false);
     }
@@ -500,7 +502,7 @@ export default function JobCreate({
       .map(({ label }) => label);
     if (missing.length) {
       const err = `Please fill required fields: ${missing.join(", ")}.`;
-      toast.error(err);
+      setScreenError(err?.message || "Please fill required fields.");
       setIsSaving(false);
       return;
     }
@@ -511,7 +513,7 @@ export default function JobCreate({
     }
 
     if (!hmUserId?.trim()) {
-      toast.error("Please select a Hiring Manager.");
+      setScreenError("Please select a Hiring Manager.");
       setIsSaving(false);
       return;
     }
@@ -588,7 +590,7 @@ export default function JobCreate({
     } catch (err) {
       console.error("Job creation error:", err);
       const errorMsg = err?.message || err?.response?.data?.detail || "Failed to create job.";
-      toast.error(errorMsg);
+      setScreenError(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -599,13 +601,13 @@ export default function JobCreate({
     try {
       const oneLiner = hmOneLiner.trim();
       if (!oneLiner) {
-        toast.error("Describe the job purpose and requirements to generate details.");
+        setScreenError("Describe the job purpose and requirements to generate details.");
         setIsGenerating(false);
         return;
       }
 
       if (!payAmount) {
-        toast.error("Please enter a pay rate amount.");
+        setScreenError("Please enter a pay rate amount.");
         setIsGenerating(false);
         return;
       }
@@ -693,7 +695,7 @@ export default function JobCreate({
       setCurrent(1);
       toast.success("Job details generated! Review and submit.");
     } catch (err) {
-      toast.error(err?.message || "Failed to generate job details.");
+      setScreenError(err?.message || "Failed to generate job details.");
       console.error("Generation error:", err);
     } finally {
       setIsGenerating(false);
@@ -951,6 +953,10 @@ export default function JobCreate({
 
   return (
     <div className="grid gap-4">
+      <ScreenErrorDisplay
+        error={screenError}
+        onDismiss={() => setScreenError(null)}
+      />
       <Card
         title={isReadOnly ? "View Job" : "Create New Job"}
         icon={<Briefcase className="h-4 w-4" />}
