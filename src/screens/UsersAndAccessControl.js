@@ -1,9 +1,9 @@
 // Users & Access Control Management
-// Simplified to show users with integrated role assignment
+// Tabbed interface: Users, Business Unit, Organization, Locations
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Plus, Edit2, Trash2, Lock
+  Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe
 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { toast } from "react-toastify";
@@ -1645,7 +1645,1006 @@ export default function UsersAndAccessControl() {
     }
   };
 
-  const tabClasses = "px-4 py-2 font-medium border-b-2 transition";
+// ============================================================================
+// BUSINESS UNITS SECTION (from AdminSettings)
+// ============================================================================
+
+function BusinessUnitsSection() {
+  const [businessUnits, setBusinessUnits] = useState([]);
+  const [showAddBUModal, setShowAddBUModal] = useState(false);
+  const [newBUName, setNewBUName] = useState("");
+  const [newBUDescription, setNewBUDescription] = useState("");
+  const [newBURegion, setNewBURegion] = useState("");
+  const [newBUContinent, setNewBUContinent] = useState("");
+  const [editingBUId, setEditingBUId] = useState(null);
+  const [editBUName, setEditBUName] = useState("");
+  const [editBUDescription, setEditBUDescription] = useState("");
+  const [editBURegion, setEditBURegion] = useState("");
+  const [editBUContinent, setEditBUContinent] = useState("");
+  const [isSubmittingBU, setIsSubmittingBU] = useState(false);
+
+  useEffect(() => {
+    loadBusinessUnits();
+  }, []);
+
+  const loadBusinessUnits = async () => {
+    try {
+      const { data } = await apiRequest("/bu-context/available-buses", {
+        skipAuth: true,
+        method: "GET"
+      });
+      const busData = data?.business_units || [];
+      setBusinessUnits(busData);
+    } catch (err) {
+      console.error("Failed to load business units:", err);
+      setBusinessUnits([]);
+    }
+  };
+
+  const handleAddBusinessUnit = async (e) => {
+    e.preventDefault();
+    if (!newBUName.trim()) {
+      toast.error("Business Unit Name is required");
+      return;
+    }
+    setIsSubmittingBU(true);
+    try {
+      const payload = {
+        name: newBUName.trim(),
+        description: newBUDescription.trim() || null,
+        ...(newBURegion && { region: newBURegion.trim() }),
+        ...(newBUContinent && { continent: newBUContinent.trim() }),
+      };
+
+      await apiRequest("/rbac/business-units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      toast.success("Business Unit created successfully");
+      loadBusinessUnits();
+      setShowAddBUModal(false);
+      setNewBUName("");
+      setNewBUDescription("");
+      setNewBURegion("");
+      setNewBUContinent("");
+    } catch (err) {
+      toast.error(err?.message || "Failed to add business unit");
+    } finally {
+      setIsSubmittingBU(false);
+    }
+  };
+
+  const handleEditBusinessUnit = (bu) => {
+    setEditingBUId(bu.id);
+    setEditBUName(bu.name || "");
+    setEditBUDescription(bu.description || "");
+    setEditBURegion(bu.region || "");
+    setEditBUContinent(bu.continent || "");
+  };
+
+  const handleSaveEditedBusinessUnit = async () => {
+    if (!editBUName.trim()) {
+      toast.error("Business Unit Name is required");
+      return;
+    }
+    setIsSubmittingBU(true);
+    try {
+      await apiRequest(`/rbac/business-units/${editingBUId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editBUName.trim(),
+          description: editBUDescription.trim() || null,
+          ...(editBURegion && { region: editBURegion.trim() }),
+          ...(editBUContinent && { continent: editBUContinent.trim() }),
+        }),
+      });
+      loadBusinessUnits();
+      setEditingBUId(null);
+      setEditBUName("");
+      setEditBUDescription("");
+      setEditBURegion("");
+      setEditBUContinent("");
+      toast.success("Business Unit updated successfully");
+    } catch (err) {
+      toast.error(err?.message || "Failed to update business unit");
+    } finally {
+      setIsSubmittingBU(false);
+    }
+  };
+
+  const handleDeleteBusinessUnit = async (buId) => {
+    if (!window.confirm("Are you sure you want to delete this business unit?")) return;
+    try {
+      await apiRequest(`/rbac/business-units/${buId}`, { method: "DELETE" });
+      loadBusinessUnits();
+      toast.success("Business Unit deleted successfully");
+    } catch (err) {
+      toast.error("Failed to delete business unit");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <button
+        onClick={() => setShowAddBUModal(true)}
+        className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
+      >
+        <Plus className="h-4 w-4" /> Add Business Unit
+      </button>
+      <div className="space-y-3">
+        {businessUnits.map((bu) => (
+          <div key={bu.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900">{bu.name}</h4>
+              {bu.description && <p className="text-sm text-gray-600 mt-1">{bu.description}</p>}
+              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                <div><span className="font-medium">Region:</span> {bu.region || "-"}</div>
+                <div><span className="font-medium">Continent:</span> {bu.continent || "-"}</div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleEditBusinessUnit(bu)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleDeleteBusinessUnit(bu.id)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showAddBUModal && (
+        <SimpleModal isOpen={true} onClose={() => { setShowAddBUModal(false); setNewBUName(""); setNewBUDescription(""); setNewBURegion(""); setNewBUContinent(""); }} title="Add Business Unit">
+          <form onSubmit={handleAddBusinessUnit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit Name *</label>
+              <input
+                type="text"
+                value={newBUName}
+                onChange={(e) => setNewBUName(e.target.value)}
+                placeholder="e.g., Asia Pacific"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                disabled={isSubmittingBU}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={newBUDescription}
+                onChange={(e) => setNewBUDescription(e.target.value)}
+                placeholder="Add a description..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                rows="3"
+                disabled={isSubmittingBU}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+              <input
+                type="text"
+                value={newBURegion}
+                onChange={(e) => setNewBURegion(e.target.value)}
+                placeholder="e.g., Asia, Europe, North America"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Continent</label>
+              <input
+                type="text"
+                value={newBUContinent}
+                onChange={(e) => setNewBUContinent(e.target.value)}
+                placeholder="e.g., Asia, Europe, North America"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                type="button"
+                onClick={() => { setShowAddBUModal(false); setNewBUName(""); setNewBUDescription(""); setNewBURegion(""); setNewBUContinent(""); }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={isSubmittingBU}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                disabled={!newBUName.trim() || isSubmittingBU}
+              >
+                {isSubmittingBU ? "Adding..." : "Add Business Unit"}
+              </button>
+            </div>
+          </form>
+        </SimpleModal>
+      )}
+
+      {editingBUId && (
+        <SimpleModal isOpen={true} onClose={() => setEditingBUId(null)} title="Edit Business Unit">
+          <form onSubmit={(e) => { e.preventDefault(); handleSaveEditedBusinessUnit(); }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit Name *</label>
+              <input
+                type="text"
+                value={editBUName}
+                onChange={(e) => setEditBUName(e.target.value)}
+                placeholder="e.g., Asia Pacific"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={editBUDescription}
+                onChange={(e) => setEditBUDescription(e.target.value)}
+                placeholder="Add a description..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                rows="3"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+              <input
+                type="text"
+                value={editBURegion}
+                onChange={(e) => setEditBURegion(e.target.value)}
+                placeholder="e.g., Asia, Europe, North America"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Continent</label>
+              <input
+                type="text"
+                value={editBUContinent}
+                onChange={(e) => setEditBUContinent(e.target.value)}
+                placeholder="e.g., Asia, Europe, North America"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                type="button"
+                onClick={() => setEditingBUId(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                disabled={!editBUName.trim() || isSubmittingBU}
+              >
+                {isSubmittingBU ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </SimpleModal>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ORGANIZATIONAL HIERARCHY SECTION
+// ============================================================================
+
+function OrganizationalHierarchySection() {
+  const POSITIONS = [
+    { id: 1, name: "CEO" },
+    { id: 2, name: "Partner" },
+    { id: 3, name: "BU Head" },
+    { id: 4, name: "Senior Director" },
+    { id: 5, name: "Director" },
+    { id: 6, name: "Technical Manager" },
+    { id: 7, name: "Senior Manager" },
+    { id: 8, name: "Manager" },
+    { id: 9, name: "Team Lead" },
+    { id: 10, name: "Senior Consultant" }
+  ];
+
+  const [orgNodes, setOrgNodes] = useState([]);
+  const [positions, setPositions] = useState(POSITIONS);
+  const [businessUnits, setBusinessUnits] = useState([]);
+  const [showAddOrgNodeModal, setShowAddOrgNodeModal] = useState(false);
+  const [showPositionsManager, setShowPositionsManager] = useState(false);
+  const [showAddPositionModal, setShowAddPositionModal] = useState(false);
+  const [editingOrgNodeId, setEditingOrgNodeId] = useState(null);
+  const [newOrgNodeEmployeeName, setNewOrgNodeEmployeeName] = useState("");
+  const [newOrgNodePosition, setNewOrgNodePosition] = useState("");
+  const [newOrgNodeReportsTo, setNewOrgNodeReportsTo] = useState("");
+  const [newOrgNodeBusinessUnit, setNewOrgNodeBusinessUnit] = useState("");
+  const [newOrgNodeLocation, setNewOrgNodeLocation] = useState("");
+  const [editOrgNodeEmployeeName, setEditOrgNodeEmployeeName] = useState("");
+  const [editOrgNodePosition, setEditOrgNodePosition] = useState("");
+  const [editOrgNodeReportsTo, setEditOrgNodeReportsTo] = useState("");
+  const [editOrgNodeBusinessUnit, setEditOrgNodeBusinessUnit] = useState("");
+  const [editOrgNodeLocation, setEditOrgNodeLocation] = useState("");
+  const [newPositionName, setNewPositionName] = useState("");
+  const [isSubmittingOrgNode, setIsSubmittingOrgNode] = useState(false);
+
+  useEffect(() => {
+    loadOrgNodes();
+    loadBusinessUnits();
+  }, []);
+
+  const loadOrgNodes = async () => {
+    try {
+      const { data } = await apiRequest("/org/nodes");
+      setOrgNodes(Array.isArray(data) ? data : data?.org_nodes || []);
+    } catch (err) {
+      console.error("Failed to load org nodes:", err);
+    }
+  };
+
+  const loadBusinessUnits = async () => {
+    try {
+      const { data } = await apiRequest("/bu-context/available-buses", { skipAuth: true });
+      setBusinessUnits(data?.business_units || []);
+    } catch (err) {
+      console.error("Failed to load business units:", err);
+    }
+  };
+
+  const handleAddOrgNode = async (e) => {
+    e.preventDefault();
+    if (!newOrgNodeEmployeeName.trim() || !newOrgNodePosition.trim()) {
+      toast.error("Employee name and position are required");
+      return;
+    }
+    setIsSubmittingOrgNode(true);
+    try {
+      const payload = {
+        employee_name: newOrgNodeEmployeeName,
+        position_id: parseInt(newOrgNodePosition),
+        reports_to: newOrgNodeReportsTo || null,
+        business_unit: newOrgNodeBusinessUnit || null,
+        location: newOrgNodeLocation || null
+      };
+
+      await apiRequest("/org/nodes", { method: "POST", body: JSON.stringify(payload) });
+      toast.success("Org node created successfully");
+      loadOrgNodes();
+      setShowAddOrgNodeModal(false);
+      setNewOrgNodeEmployeeName("");
+      setNewOrgNodePosition("");
+      setNewOrgNodeReportsTo("");
+      setNewOrgNodeBusinessUnit("");
+      setNewOrgNodeLocation("");
+    } catch (err) {
+      toast.error(err?.message || "Failed to create org node");
+    } finally {
+      setIsSubmittingOrgNode(false);
+    }
+  };
+
+  const handleAddPosition = (e) => {
+    e.preventDefault();
+    if (newPositionName.trim()) {
+      setPositions([...positions, { id: Math.max(...positions.map(p => p.id), 0) + 1, name: newPositionName }]);
+      setNewPositionName("");
+      setShowAddPositionModal(false);
+      toast.success("Position added");
+    }
+  };
+
+  const handleDeletePosition = (posId) => {
+    if (positions.length <= 1) {
+      toast.error("You must have at least one position");
+      return;
+    }
+    setPositions(positions.filter(p => p.id !== posId));
+  };
+
+  const handleEditOrgNode = (node) => {
+    setEditingOrgNodeId(node.id);
+    setEditOrgNodeEmployeeName(node.employee_name);
+    setEditOrgNodePosition(node.position_id.toString());
+    setEditOrgNodeReportsTo(node.reports_to ? node.reports_to.toString() : "");
+    setEditOrgNodeBusinessUnit(node.business_unit || "");
+    setEditOrgNodeLocation(node.location || "");
+  };
+
+  const handleSaveEditedOrgNode = () => {
+    if (!editOrgNodeEmployeeName.trim() || !editOrgNodePosition.trim()) {
+      toast.error("Employee name and position are required");
+      return;
+    }
+    setOrgNodes(orgNodes.map(node =>
+      node.id === editingOrgNodeId
+        ? {
+            ...node,
+            employee_name: editOrgNodeEmployeeName,
+            position_id: parseInt(editOrgNodePosition),
+            reports_to: editOrgNodeReportsTo ? parseInt(editOrgNodeReportsTo) : null,
+            business_unit: editOrgNodeBusinessUnit,
+            location: editOrgNodeLocation
+          }
+        : node
+    ));
+    setEditingOrgNodeId(null);
+    setEditOrgNodeEmployeeName("");
+    setEditOrgNodePosition("");
+    setEditOrgNodeReportsTo("");
+    setEditOrgNodeBusinessUnit("");
+    setEditOrgNodeLocation("");
+    toast.success("Org node updated successfully");
+  };
+
+  const handleDeleteOrgNode = (nodeId) => {
+    if (window.confirm("Are you sure you want to remove this person from the organizational hierarchy?")) {
+      setOrgNodes(orgNodes.filter(n => n.id !== nodeId));
+      toast.success("Node removed");
+    }
+  };
+
+  const getPositionName = (positionId) => positions.find(p => p.id === positionId)?.name || "Unknown";
+  const getBusinessUnitName = (buId) => businessUnits.find(bu => bu.id === buId)?.name || "-";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowAddOrgNodeModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
+        >
+          <Plus className="h-4 w-4" /> Add Org Node
+        </button>
+        <button
+          onClick={() => setShowPositionsManager(!showPositionsManager)}
+          className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+        >
+          Manage Positions
+        </button>
+      </div>
+
+      {showPositionsManager && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <div className="flex justify-between items-center">
+            <h4 className="font-semibold text-gray-900">Position Reference List</h4>
+            <button
+              onClick={() => setShowAddPositionModal(!showAddPositionModal)}
+              className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
+            >
+              <Plus className="h-4 w-4" /> Add Position
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {positions.map((pos) => (
+              <div key={pos.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
+                <span className="text-sm text-gray-700">{pos.name}</span>
+                <button
+                  onClick={() => handleDeletePosition(pos.id)}
+                  className="text-red-600 hover:text-red-700 p-1"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {showAddPositionModal && (
+            <div className="bg-white p-3 rounded border border-blue-300 space-y-2">
+              <input
+                type="text"
+                value={newPositionName}
+                onChange={(e) => setNewPositionName(e.target.value)}
+                placeholder="Enter new position name"
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowAddPositionModal(false)}
+                  className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddPosition}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  disabled={!newPositionName.trim()}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {orgNodes.length > 0 ? (
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+          <div className="text-sm text-gray-600 mb-4">Organizational Structure</div>
+          {orgNodes
+            .filter(node => !node.reports_to)
+            .map((node) => (
+              <div key={node.id} className="border-l-4 border-bx-orange pl-4 py-2">
+                <div className="flex items-center justify-between bg-white p-3 rounded border border-gray-200 hover:bg-gray-50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-gray-900">{node.employee_name}</h4>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+                        {getPositionName(node.position_id)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditOrgNode(node)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteOrgNode(node.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>No organizational nodes created yet. Click "Add Org Node" to add people to the organizational hierarchy.</p>
+        </div>
+      )}
+
+      {showAddOrgNodeModal && (
+        <SimpleModal isOpen={true} onClose={() => { setShowAddOrgNodeModal(false); setNewOrgNodeEmployeeName(""); setNewOrgNodePosition(""); setNewOrgNodeReportsTo(""); setNewOrgNodeBusinessUnit(""); setNewOrgNodeLocation(""); }} title="Add Organizational Node">
+          <form onSubmit={handleAddOrgNode} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name *</label>
+              <input
+                type="text"
+                value={newOrgNodeEmployeeName}
+                onChange={(e) => setNewOrgNodeEmployeeName(e.target.value)}
+                placeholder="e.g., John Smith"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Position *</label>
+              <select
+                value={newOrgNodePosition}
+                onChange={(e) => setNewOrgNodePosition(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select a position</option>
+                {positions.map((pos) => (
+                  <option key={pos.id} value={pos.id}>{pos.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reports To</label>
+              <select
+                value={newOrgNodeReportsTo}
+                onChange={(e) => setNewOrgNodeReportsTo(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">CEO / Top Level</option>
+                {orgNodes.map((node) => (
+                  <option key={node.id} value={node.id}>{node.employee_name} ({getPositionName(node.position_id)})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit</label>
+              <select
+                value={newOrgNodeBusinessUnit}
+                onChange={(e) => setNewOrgNodeBusinessUnit(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select Business Unit</option>
+                {businessUnits.map((bu) => (
+                  <option key={bu.id} value={bu.id}>{bu.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <input
+                type="text"
+                value={newOrgNodeLocation}
+                onChange={(e) => setNewOrgNodeLocation(e.target.value)}
+                placeholder="e.g., Austin, TX"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                type="button"
+                onClick={() => { setShowAddOrgNodeModal(false); setNewOrgNodeEmployeeName(""); setNewOrgNodePosition(""); setNewOrgNodeReportsTo(""); setNewOrgNodeBusinessUnit(""); setNewOrgNodeLocation(""); }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                disabled={isSubmittingOrgNode || !newOrgNodeEmployeeName.trim() || !newOrgNodePosition.trim()}
+              >
+                {isSubmittingOrgNode ? "Adding..." : "Add Node"}
+              </button>
+            </div>
+          </form>
+        </SimpleModal>
+      )}
+
+      {editingOrgNodeId && (
+        <SimpleModal isOpen={true} onClose={() => { setEditingOrgNodeId(null); setEditOrgNodeEmployeeName(""); setEditOrgNodePosition(""); setEditOrgNodeReportsTo(""); setEditOrgNodeBusinessUnit(""); setEditOrgNodeLocation(""); }} title="Edit Organizational Node">
+          <form onSubmit={(e) => { e.preventDefault(); handleSaveEditedOrgNode(); }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name *</label>
+              <input
+                type="text"
+                value={editOrgNodeEmployeeName}
+                onChange={(e) => setEditOrgNodeEmployeeName(e.target.value)}
+                placeholder="e.g., John Smith"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Position *</label>
+              <select
+                value={editOrgNodePosition}
+                onChange={(e) => setEditOrgNodePosition(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select a position</option>
+                {positions.map((pos) => (
+                  <option key={pos.id} value={pos.id}>{pos.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reports To</label>
+              <select
+                value={editOrgNodeReportsTo}
+                onChange={(e) => setEditOrgNodeReportsTo(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">CEO / Top Level</option>
+                {orgNodes.filter(n => n.id !== editingOrgNodeId).map((node) => (
+                  <option key={node.id} value={node.id}>{node.employee_name} ({getPositionName(node.position_id)})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit</label>
+              <select
+                value={editOrgNodeBusinessUnit}
+                onChange={(e) => setEditOrgNodeBusinessUnit(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select Business Unit</option>
+                {businessUnits.map((bu) => (
+                  <option key={bu.id} value={bu.id}>{bu.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <input
+                type="text"
+                value={editOrgNodeLocation}
+                onChange={(e) => setEditOrgNodeLocation(e.target.value)}
+                placeholder="e.g., Austin, TX"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                type="button"
+                onClick={() => { setEditingOrgNodeId(null); setEditOrgNodeEmployeeName(""); setEditOrgNodePosition(""); setEditOrgNodeReportsTo(""); setEditOrgNodeBusinessUnit(""); setEditOrgNodeLocation(""); }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                disabled={!editOrgNodeEmployeeName.trim() || !editOrgNodePosition.trim()}
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </SimpleModal>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// LOCATIONS SECTION (DELIVERY CENTERS)
+// ============================================================================
+
+function LocationsSection() {
+  const [deliveryCenters, setDeliveryCenters] = useState([
+    { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150, city: "Austin", country: "USA" },
+    { id: 2, name: "Youngstown, OH", type: "Delivery", buServed: ["North America"], headcount: 300, city: "Youngstown", country: "USA" },
+  ]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingDCId, setEditingDCId] = useState(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    type: "Delivery",
+    city: "",
+    country: "",
+    headcount: 0
+  });
+
+  const resetForm = () => {
+    setFormData({ name: "", type: "Delivery", city: "", country: "", headcount: 0 });
+  };
+
+  const handleAdd = () => {
+    if (!formData.name.trim()) {
+      toast.error("Delivery Center name is required");
+      return;
+    }
+    const newDC = {
+      id: Math.max(...deliveryCenters.map(dc => dc.id), 0) + 1,
+      name: formData.name,
+      type: formData.type,
+      buServed: ["North America"],
+      headcount: formData.headcount,
+      city: formData.city,
+      country: formData.country
+    };
+    setDeliveryCenters([...deliveryCenters, newDC]);
+    resetForm();
+    setShowAddModal(false);
+    toast.success("Delivery Center added successfully");
+  };
+
+  const handleEdit = (dc) => {
+    setEditingDCId(dc.id);
+    setFormData({
+      name: dc.name,
+      type: dc.type,
+      city: dc.city || "",
+      country: dc.country || "",
+      headcount: dc.headcount
+    });
+  };
+
+  const handleSaveEdit = () => {
+    if (!formData.name.trim()) {
+      toast.error("Delivery Center name is required");
+      return;
+    }
+    setDeliveryCenters(deliveryCenters.map(dc =>
+      dc.id === editingDCId
+        ? { ...dc, name: formData.name, type: formData.type, city: formData.city, country: formData.country, headcount: formData.headcount }
+        : dc
+    ));
+    resetForm();
+    setEditingDCId(null);
+    toast.success("Delivery Center updated successfully");
+  };
+
+  const handleDelete = (dcId) => {
+    if (window.confirm("Are you sure you want to delete this delivery center?")) {
+      setDeliveryCenters(deliveryCenters.filter(dc => dc.id !== dcId));
+      toast.success("Delivery Center deleted");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <button
+        onClick={() => { resetForm(); setShowAddModal(true); }}
+        className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
+      >
+        <Plus className="h-4 w-4" /> Add Delivery Center
+      </button>
+      <div className="space-y-3">
+        {deliveryCenters.map((dc) => (
+          <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <h4 className="font-semibold text-gray-900">{dc.name}</h4>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  dc.type === "HQ"
+                    ? "bg-purple-100 text-purple-800"
+                    : "bg-blue-100 text-blue-800"
+                }`}>
+                  {dc.type}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                <div><span className="font-medium">Location:</span> {dc.city}, {dc.country}</div>
+                <div><span className="font-medium">Headcount:</span> {dc.headcount}</div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleEdit(dc)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleDelete(dc.id)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showAddModal && (
+        <SimpleModal isOpen={true} onClose={() => { setShowAddModal(false); resetForm(); }} title="Add Delivery Center">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Center Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Mumbai, India"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="Delivery">Delivery Center</option>
+                <option value="HQ">Headquarters</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="City"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  placeholder="Country"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Headcount</label>
+              <input
+                type="number"
+                value={formData.headcount}
+                onChange={(e) => setFormData({ ...formData, headcount: parseInt(e.target.value) || 0 })}
+                placeholder="Number of employees"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                type="button"
+                onClick={() => { setShowAddModal(false); resetForm(); }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                disabled={!formData.name.trim()}
+              >
+                Add Delivery Center
+              </button>
+            </div>
+          </div>
+        </SimpleModal>
+      )}
+
+      {editingDCId && (
+        <SimpleModal isOpen={true} onClose={() => { setEditingDCId(null); resetForm(); }} title="Edit Delivery Center">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Center Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Mumbai, India"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="Delivery">Delivery Center</option>
+                <option value="HQ">Headquarters</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="City"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  placeholder="Country"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Headcount</label>
+              <input
+                type="number"
+                value={formData.headcount}
+                onChange={(e) => setFormData({ ...formData, headcount: parseInt(e.target.value) || 0 })}
+                placeholder="Number of employees"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                type="button"
+                onClick={() => { setEditingDCId(null); resetForm(); }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+                disabled={!formData.name.trim()}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </SimpleModal>
+      )}
+    </div>
+  );
+}
+
+  const tabClasses = "px-4 py-2 font-medium border-b-2 transition whitespace-nowrap flex items-center gap-2";
   const activeTabClasses = "border-blue-600 text-blue-600";
   const inactiveTabClasses = "border-transparent text-gray-600 hover:text-gray-900";
 
@@ -1667,21 +2666,37 @@ export default function UsersAndAccessControl() {
     <div className="mx-auto max-w-7xl p-6">
       <Card title="Users & Access Control">
         {/* Tab Navigation */}
-        <div className="flex gap-6 mb-6 border-b">
+        <div className="flex gap-2 mb-6 border-b overflow-x-auto">
           <button
             onClick={() => setActiveTab("users")}
             className={`${tabClasses} ${activeTab === "users" ? activeTabClasses : inactiveTabClasses}`}
           >
-            👥 Users
+            <Users className="h-4 w-4" /> Users
           </button>
-          {canManageRoleTemplates && (
-            <button
-              onClick={() => setActiveTab("templates")}
-              className={`${tabClasses} ${activeTab === "templates" ? activeTabClasses : inactiveTabClasses}`}
-            >
-              📋 Role Templates
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab("business-units")}
+            className={`${tabClasses} ${activeTab === "business-units" ? activeTabClasses : inactiveTabClasses}`}
+          >
+            <Building2 className="h-4 w-4" /> Business Unit
+          </button>
+          <button
+            onClick={() => setActiveTab("locations")}
+            className={`${tabClasses} ${activeTab === "locations" ? activeTabClasses : inactiveTabClasses}`}
+          >
+            <MapPin className="h-4 w-4" /> Locations
+          </button>
+          <button
+            onClick={() => setActiveTab("hierarchy")}
+            className={`${tabClasses} ${activeTab === "hierarchy" ? activeTabClasses : inactiveTabClasses}`}
+          >
+            📊 Organizational Hierarchy
+          </button>
+          <button
+            onClick={() => setActiveTab("templates")}
+            className={`${tabClasses} ${activeTab === "templates" ? activeTabClasses : inactiveTabClasses}`}
+          >
+            📋 Role Template
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -1693,6 +2708,15 @@ export default function UsersAndAccessControl() {
             roles={roles}
             currentUserPermissions={currentUserPermissions}
           />
+        )}
+        {activeTab === "business-units" && (
+          <BusinessUnitsSection />
+        )}
+        {activeTab === "locations" && (
+          <LocationsSection />
+        )}
+        {activeTab === "hierarchy" && (
+          <OrganizationalHierarchySection />
         )}
         {activeTab === "templates" && (
           <RoleTemplatesSection
