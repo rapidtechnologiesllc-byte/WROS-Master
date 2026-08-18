@@ -103,10 +103,12 @@ from app.api.v1.endpoints.autonomous_job_management import router as autonomous_
 from app.api.v1.endpoints.permission_composition import router as permission_composition_router
 from app.api.v1.endpoints.role_templates import router as role_templates_router
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
+from app.api.v1.endpoints.navigation import router as navigation_router
 
 router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
+router.include_router(router=navigation_router)
 router.include_router(router=rbac_router)
 router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
