@@ -20,6 +20,7 @@ import {
 import { sendPlainEmail } from "../../services/api/email";
 import { getEmailBodyHTML } from "../../utils/preboardingEmailTemplate";
 import { toast } from "react-toastify";
+import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
 const { Title, Text, Link } = Typography;
 
@@ -57,6 +58,7 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
   const [templateList, setTemplateList] = useState([]);
   const [items, setItems] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [screenError, setScreenError] = useState(null);
 
   const mapItemsToTableData = (items = []) => {
     return items
@@ -131,7 +133,7 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
         toast.success("Task assigned Successfully");
       }
     } catch (err) {
-      toast.error(err?.message);
+      setScreenError(err?.message || "Failed to assign task");
       console.log(err);
       onClose();
     } finally {
@@ -140,21 +142,23 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
   };
 
   return (
-    <Drawer
-      title="Start preboarding"
-      placement="right"
-      width={720}
-      onClose={onClose}
-      open={open}
-      footer={
-        <div style={{ textAlign: "right" }}>
-          <Button style={{ marginRight: 8 }}>Cancel</Button>
-          <Button type="primary" onClick={handleInvite}>
-            Invite to portal
-          </Button>
-        </div>
-      }
-    >
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <Drawer
+        title="Start preboarding"
+        placement="right"
+        width={720}
+        onClose={onClose}
+        open={open}
+        footer={
+          <div style={{ textAlign: "right" }}>
+            <Button style={{ marginRight: 8 }}>Cancel</Button>
+            <Button type="primary" onClick={handleInvite}>
+              Invite to portal
+            </Button>
+          </div>
+        }
+      >
       {/* Header */}
       <Row gutter={16} align="middle" style={{ marginBottom: 24 }}>
         <Col>
@@ -227,7 +231,8 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
         rowSelection={rowSelection}
         bordered
       />
-    </Drawer>
+      </Drawer>
+    </>
   );
 };
 

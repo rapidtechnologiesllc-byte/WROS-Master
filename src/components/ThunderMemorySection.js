@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { toast } from "react-toastify";
 import { correctMemoryFact, getCandidateMemory } from "../services/api/aiAgent";
+import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
 const CATEGORY_LABELS = {
   SALARY: "Salary",
@@ -54,6 +55,7 @@ function FactRow({ fact, candidateId, onCorrected }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(fact.value);
   const [saving, setSaving] = useState(false);
+  const [screenError, setScreenError] = useState(null);
   const { dot, tooltip } = confidenceColor(fact.confidence);
 
   const handleSave = async () => {
@@ -68,7 +70,7 @@ function FactRow({ fact, candidateId, onCorrected }) {
       toast.success("Memory updated.");
       setEditing(false);
     } catch (err) {
-      toast.error(err.message || "Could not save. Please try again.");
+      setScreenError(err.message || "Could not save. Please try again.");
       setDraft(fact.value);
     } finally {
       setSaving(false);
@@ -76,7 +78,9 @@ function FactRow({ fact, candidateId, onCorrected }) {
   };
 
   return (
-    <div className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-50">
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <div className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-50">
       <div className="min-w-0 flex-1">
         <span className="text-xs text-gray-500">{formatKeyLabel(fact.key)}: </span>
         {editing ? (
@@ -111,7 +115,8 @@ function FactRow({ fact, candidateId, onCorrected }) {
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

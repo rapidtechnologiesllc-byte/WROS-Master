@@ -14,6 +14,7 @@ import { reportDefect } from "../services/api/defects";
 import { toast } from "react-toastify";
 import cx from "../utils/cx";
 import { NAV_ITEMS } from "../layout/navItems";
+import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
 // Real module names, not free text -- pulled from the same nav config
 // that drives the sidebar, so "Affected Screen" always maps to an
@@ -30,6 +31,7 @@ export default function FlashWidget() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportForm, setReportForm] = useState({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
   const [reporting, setReporting] = useState(false);
+  const [screenError, setScreenError] = useState(null);
   const scrollRef = useRef(null);
 
   // Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
@@ -83,7 +85,7 @@ export default function FlashWidget() {
   const handleReportDefect = async () => {
     const screen = reportForm.screen === "Other" ? reportForm.screenOther.trim() : reportForm.screen;
     if (!reportForm.description.trim() || !screen) {
-      toast.error("Please fill in description and affected screen.");
+      setScreenError("Please fill in description and affected screen.");
       return;
     }
     setReporting(true);
@@ -94,14 +96,16 @@ export default function FlashWidget() {
       setReportForm({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
       setShowReportModal(false);
     } catch (err) {
-      toast.error(err.message || "Failed to report issue.");
+      setScreenError(err.message || "Failed to report issue.");
     } finally {
       setReporting(false);
     }
   };
 
   return (
-    <div className="fixed bottom-6 left-6 z-[9998]">
+    <>
+      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      <div className="fixed bottom-6 left-6 z-[9998]">
       {showReportModal ? (
         <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/30 sm:items-center">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
@@ -262,6 +266,7 @@ export default function FlashWidget() {
       >
         <MessageCircleQuestion className="h-5 w-5" />
       </button>
-    </div>
+      </div>
+    </>
   );
 }

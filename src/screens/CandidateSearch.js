@@ -75,20 +75,15 @@ export default function CandidateSearch({
     hasPermission("candidates", "edit");
 
   useEffect(() => {
+    // Refresh all candidate lists on mount
     if (hasPermission("candidates", "view")) {
       fetchCandidates();
     }
-  }, []);
-
-  useEffect(() => {
-    if (hasPermission("offers", "view")) {
-      offerApprovalCandidates();
-    }
-  }, []);
-
-  useEffect(() => {
     if (hasPermission("candidates", "edit")) {
       fetchApprovalCandidates();
+    }
+    if (hasPermission("offers", "view")) {
+      offerApprovalCandidates();
     }
   }, []);
 
@@ -97,8 +92,36 @@ export default function CandidateSearch({
       setLoading(true);
       const canData = await managerReviewList();
       setManagerCandidatesList(canData?.candidates);
+      // Also refresh all candidates to show newly created ones
+      if (hasPermission("candidates", "view")) {
+        const allData = await getAllCandidates();
+        setCandidateList(allData?.candidates || []);
+      }
     } catch (err) {
       setScreenError(err?.message || "Failed to fetch candidates");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshAllCandidates = async () => {
+    try {
+      setLoading(true);
+      // Fetch all candidate lists to ensure UI is in sync
+      const allData = await getAllCandidates();
+      setCandidateList(allData?.candidates || []);
+      setPreOnboardingCandidates(allData?.candidates || []);
+
+      const approvalData = await managerReviewList();
+      setManagerCandidatesList(approvalData?.candidates || []);
+
+      const offerData = await getAllCandidates();
+      const filteredOffers = offerData?.candidates?.filter(
+        (c) => c.pipline_status?.toLowerCase() === "OfferApproval".toLowerCase()
+      ) || [];
+      setApprovalCandidates(filteredOffers);
+    } catch (err) {
+      setScreenError(err?.message || "Failed to refresh candidates");
     } finally {
       setLoading(false);
     }
