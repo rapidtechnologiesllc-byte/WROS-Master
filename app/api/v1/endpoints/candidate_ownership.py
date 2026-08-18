@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 from app.models.business_unit import BusinessUnit

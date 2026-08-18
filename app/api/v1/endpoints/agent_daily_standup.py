@@ -1,7 +1,7 @@
 """Daily standup (8:00 AM EST) and scrum of scrums (8:30 AM EST) endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_resource_permission)
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup

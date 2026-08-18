@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission)
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.models.ats import ATSScore
 from app.models.candidate import Candidate, CandidateEducationForm, CandidateExperienceForm
 from app.models.user import Jobs

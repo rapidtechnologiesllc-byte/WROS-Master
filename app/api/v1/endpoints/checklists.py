@@ -19,10 +19,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import (, require_resource_permission)
+from app.core.dependencies import (
     get_current_hr_or_admin,
     get_current_candidate,
-    require_permission,
+    require_resource_permission,
 )
 from app.models.checklist import (
     ChecklistTemplate,

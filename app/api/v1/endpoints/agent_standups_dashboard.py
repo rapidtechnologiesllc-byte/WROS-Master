@@ -1,7 +1,7 @@
 """Agent Standups Dashboard - Daily aggregated view for CEO."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_internal_user, require_resource_permission)
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup
