@@ -398,22 +398,37 @@ export default function CandidateSearch({
     {
       title: "Contact",
       dataIndex: "candidate_email",
-      width: 80,
+      width: 200,
+      render: (_, record) => (
+        <div className="space-y-1">
+          <div className="text-sm text-gray-900">
+            {record?.candidate_mobile ? `${record.candidate_mobile}` : "-"}
+          </div>
+          <div className="text-sm text-gray-600">{record?.candidate_email || "-"}</div>
+        </div>
+      ),
     },
     {
       title: "Job Title",
       dataIndex: "job_title",
-      width: 80,
+      width: 120,
     },
     {
-      title: "Pipeline",
-      dataIndex: "pipline_status",
-      width: 80,
+      title: "Location",
+      dataIndex: "candidate_country",
+      width: 120,
+      render: (_, record) => (
+        <div className="text-sm text-gray-700">
+          {record?.candidate_country && record?.candidate_state
+            ? `${record.candidate_state}, ${record.candidate_country}`
+            : record?.candidate_country || "-"}
+        </div>
+      ),
     },
     {
       title: "Status",
-      dataIndex: "status",
-      width: 80,
+      dataIndex: "pipline_status",
+      width: 100,
     },
     {
       title: "More Options",
