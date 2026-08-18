@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import {
   BadgeDollarSign,
   Briefcase,
@@ -101,11 +101,11 @@ function buildGroups(includedKeys) {
 // NOTE: Updated to match actual permission names from CEO role in database
 const NAV_PERMISSIONS = {
   // Recruitment Module (using actual permission names from database)
-  candidates: "candidates.view",
-  jobs: "jobs.view",
+  candidates: "candidates",
+  jobs: "jobs",
   candidateReview: "candidate_review.view",
-  offerLetters: "offers.view",
-  offerLettersListing: "offers.view",
+  offerLetters: "offer-letters",
+  offerLettersListing: "offer-letters",
   submissions: "submissions.view",
   interventionQueue: "intervention_queue.view",
   rehireApprovals: "rehire_approvals.view",
@@ -114,14 +114,14 @@ const NAV_PERMISSIONS = {
   bulkLaunch: "bulk_launch.view",
 
   // Sales/Client Module
-  clientManagement: "clients.view",
+  clientManagement: "clients",
   demandConfirmation: "demand.view",
-  opportunityPipeline: "opportunities.view",
+  opportunityPipeline: "opportunities",
   partnerRoi: "partner_roi.view",
 
   // Workforce/HR Module
-  employees: "employees.view",
-  employeeConversion: "employees.view",  // convert uses employee.view permission
+  employees: "employees",
+  employeeConversion: "employees",  // convert uses employee.view permission
   htdIntake: "htd_intake.view",
   buddyProgram: "buddy_program.view",
   buHeadDashboard: "business_unit.view",
@@ -145,7 +145,7 @@ const NAV_PERMISSIONS = {
   financeOperations: "finance_operations.view",
 
   // Admin Module
-  usersAccessControl: "users.view",
+  usersAccessControl: "users",
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",
