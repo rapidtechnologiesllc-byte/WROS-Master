@@ -465,12 +465,10 @@ export default function CandidateSearch({
 
   // Determine which candidate data to show based on permissions
   let tableData = [];
-  if (hasPermission("candidates", "edit")) {
-    // Users who can edit candidates see approval workflow candidates
-    tableData = (approvalCandidates?.length > 0 ? approvalCandidates : managerCandidatesList) || [];
-  } else if (hasPermission("candidates", "view")) {
-    // Users who can only view see pre-onboarding candidates
-    tableData = preOnboardingCandidates || [];
+  if (hasPermission("candidates", "view")) {
+    // Show all candidates from the unified list (includes all statuses)
+    // This ensures newly created candidates are visible immediately
+    tableData = candidateList || [];
   }
 
   return (
