@@ -56,6 +56,7 @@ apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler
 # Production Server & Monitoring
 # ----------------------------------------------------------------------------
 gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uvicorn workers)
+redis>=5.0.0,<6.0.0              # Redis client for multi-worker rate limiting and caching
 
 
 # ============================================================================
