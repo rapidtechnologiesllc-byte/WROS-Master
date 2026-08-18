@@ -198,7 +198,20 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 
         # Get user's role template permissions
         from app.services.role_template_permission_service import RoleTemplatePermissionService
-        permissions = RoleTemplatePermissionService.get_user_permissions(db, user.UserID, user.tenant_id)
+        permissions_dict = RoleTemplatePermissionService.get_user_permissions(db, user.UserID, user.tenant_id)
+
+        # Convert permissions dict to array format expected by frontend
+        # Format: ["candidates", "jobs", "interviews", "offers.create", etc.]
+        permissions_array = []
+        for resource_name, actions in permissions_dict.items():
+            if actions.get("can_view"):
+                permissions_array.append(resource_name)
+            if actions.get("can_create"):
+                permissions_array.append(f"{resource_name}.create")
+            if actions.get("can_edit"):
+                permissions_array.append(f"{resource_name}.edit")
+            if actions.get("can_delete"):
+                permissions_array.append(f"{resource_name}.delete")
 
         return UnifiedLoginResponse(
             entity_type="user",
@@ -207,7 +220,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
-            permissions=permissions,
+            permissions=permissions_array,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
