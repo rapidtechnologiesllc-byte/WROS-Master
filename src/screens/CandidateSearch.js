@@ -415,13 +415,11 @@ export default function CandidateSearch({
     },
     {
       title: "Location",
-      dataIndex: "candidate_country",
+      dataIndex: "candidateCurrentLocation",
       width: 120,
       render: (_, record) => (
         <div className="text-sm text-gray-700">
-          {record?.candidate_country && record?.candidate_state
-            ? `${record.candidate_state}, ${record.candidate_country}`
-            : record?.candidate_country || "-"}
+          {record?.candidateCurrentLocation || record?.candidate_current_location || "-"}
         </div>
       ),
     },
