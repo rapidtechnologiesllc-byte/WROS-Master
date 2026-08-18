@@ -197,6 +197,15 @@ def create_submission(
             f"Cannot submit to demand in status '{demand.status}' -- must be OPEN or IN_PROGRESS."
         )
 
+    # BU Scoping: Check if candidate is already locked to a different BU
+    if hasattr(candidate, 'submission_bu_id') and candidate.submission_bu_id:
+        demand_bu = demand.business_unit_id if hasattr(demand, 'business_unit_id') else None
+        if demand_bu and candidate.submission_bu_id != demand_bu:
+            raise SubmissionComplianceError([{
+                "error": "BU_LOCKED",
+                "message": f"Candidate is already locked to Business Unit {candidate.submission_bu_id}. Cannot submit to different BU."
+            }])
+
     existing = db.query(Submission).filter(
         Submission.tenant_id == tenant_id,
         Submission.demand_id == demand.id,
@@ -214,6 +223,12 @@ def create_submission(
         source=source, subvendor_id=subvendor_id,
     )
     db.add(submission)
+
+    # BU Scoping: Lock candidate to the job's business unit when submitted
+    # Once submitted, no other BU can pursue this candidate
+    if hasattr(demand, 'business_unit_id') and demand.business_unit_id:
+        candidate.submission_bu_id = demand.business_unit_id
+        db.merge(candidate)
 
     if demand.status == "OPEN":
         transition_demand_status(db, demand, "IN_PROGRESS", changed_by=submitted_by_user_id)
