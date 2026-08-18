@@ -50,6 +50,7 @@ import { AcceptButton } from "../styles/CandidateSearchStyles";
 import { managerReviewApprove } from "../services/api/preOnboarding";
 import { toast, ToastContainer } from "react-toastify";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
+import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { getAllOffers } from "../services/api/offerLetters";
 import PreviousOfferModal from "./PreviousOfferModal";
 
@@ -396,6 +397,7 @@ export default function CandidateDetailsScreen({
   const [offerId, setOfferId] = useState(null);
   const [previousOffer, setPreviousOffer] = useState([]);
   const [previousOfferModalState, setPreviousOfferModalState] = useState(false);
+  const [screenError, setScreenError] = useState(null);
   const isApproved = candidate?.pipelineStatus === "Pre-Onboarding";
   const panelMemberDropdownRef = useRef(null);
   const noticeTimerRef = useRef(null);
@@ -1272,7 +1274,7 @@ ${formattedJD}
       toast.success("Note added successfully");
     } catch (error) {
       console.error("Failed to save candidate note", error);
-      toast.error("Failed to save note");
+      setScreenError("Failed to save note");
     } finally {
       setSavingNote(false);
     }
@@ -1328,7 +1330,7 @@ ${formattedJD}
         }
       }
     } catch (err) {
-      toast.error(
+      setScreenError(
         action === "Approve"
           ? "Candidate already moved to Pre-Onboarding"
           : "Failed to reject candidate",
@@ -1343,6 +1345,10 @@ ${formattedJD}
   return (
     <>
       <div className="grid gap-5">
+        <ScreenErrorDisplay
+          error={screenError}
+          onDismiss={() => setScreenError(null)}
+        />
         {notice && (
           <div
             className={`rounded-xl border px-4 py-3 text-sm font-medium ${
