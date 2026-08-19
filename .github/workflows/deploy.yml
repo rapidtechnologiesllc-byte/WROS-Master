@@ -110,7 +110,7 @@ jobs:
       - name: Restart Python backend service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc 'pkill -f uvicorn; sleep 1; cd ${{ env.PROD_PATH }} && python3 app/init_wros_db.py 2>&1 | head -5 && nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 &'"
+            "bash -lc 'cd ${{ env.PROD_PATH }} && python3 app/init_wros_db.py 2>&1 | head -5 && pm2 restart ${{ env.PM2_SERVICE }} || pm2 start --name ${{ env.PM2_SERVICE }} \"python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080\" && pm2 save'"
         continue-on-error: true
 
       - name: Health check (20s retry)
