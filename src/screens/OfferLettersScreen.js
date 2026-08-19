@@ -11,6 +11,7 @@ import {
   Select,
   Drawer,
   Button,
+  Empty,
 } from "antd";
 import { getAllOffers } from "../services/api/offerLetters";
 import {
@@ -18,9 +19,31 @@ import {
   PageContainer,
   StatsContainer,
 } from "../styles/OfferLetterStyles";
+import { hasPermission } from "../utils/permissions";
 const { Search } = Input;
 
 function OfferLettersScreen() {
+  // Permission checks: view = read-only, create = can generate/edit
+  const canViewOffers = hasPermission("offer-letters.view") || hasPermission("offer-letters");
+  const canCreateOffers = hasPermission("offer-letters.create");
+
+  // Hide entire screen if no view permission
+  if (!canViewOffers) {
+    return (
+      <PageContainer>
+        <Card>
+          <Empty
+            description="Access Denied"
+            style={{ marginTop: 48, marginBottom: 48 }}
+          />
+          <p style={{ textAlign: "center", color: "#999" }}>
+            You don't have permission to view offer letters.
+          </p>
+        </Card>
+      </PageContainer>
+    );
+  }
+
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -187,12 +210,16 @@ function OfferLettersScreen() {
       render: (_, record) => (
         <Button
           type="link"
+          disabled={!canCreateOffers}
+          title={canCreateOffers ? "View and manage offers" : "Read-only access"}
           onClick={() => {
-            setSelectedCandidate(record);
-            setDrawerOpen(true);
+            if (canCreateOffers) {
+              setSelectedCandidate(record);
+              setDrawerOpen(true);
+            }
           }}
         >
-          View All Offers
+          {canCreateOffers ? "Manage Offers" : "View Only"}
         </Button>
       ),
     },
