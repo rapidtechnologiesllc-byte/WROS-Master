@@ -68,7 +68,7 @@ const ICON_MAP_BY_RESOURCE = {
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   try {
-    const { apiRequest } = await import("../services/api");
+    const { apiRequest } = await import("../services/api/client");
     const response = await apiRequest("/hr/me/navigation", { method: "GET" });
 
     if (!response || !response.groups) {
