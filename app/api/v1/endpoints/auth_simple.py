@@ -34,8 +34,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         user_role = getattr(user, 'UserRole', 'Employee')
         access_token = create_access_token(
             data={
-                "sub": user.UserEmail,
-                "type": user_role,
+                "sub": user.UserID,
+                "email": user.UserEmail,
+                "type": "user",
                 "name": user.UserName or "",
             }
         )

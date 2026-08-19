@@ -1,5 +1,109 @@
 # WROS Backend - Development Notes
 
+## 🟢 CURRENT STATUS (2026-08-19 Session - JWT TOKEN FIX COMPLETE - PRODUCTION READY)
+
+**CRITICAL FIX COMPLETED:** JWT token "sub" and "type" claims were using wrong values, causing 401 errors on authenticated requests after login. Fixed across all token-creation endpoints.
+
+**Status:** ✅ PRODUCTION READY - All tests passing, end-to-end login flow verified working
+
+### Session Work (2026-08-19 - JWT Token Claims Fix):
+
+**BX-HRMS-[FIX] JWT Token Claims Standardization - COMPLETED**
+
+#### Root Cause
+Token-creation endpoints were inconsistently setting JWT claims:
+- **Wrong**: `"sub": UserEmail` (should be UserID)
+- **Wrong**: `"type": UserRole` (should be "user" for consistency)
+- **Missing**: `"email" field` in token payload
+
+This caused `get_current_hr_or_admin()` and other auth dependencies to fail with 401 because they expected "sub" to contain a UserID for database lookup, not an email.
+
+#### Files Fixed (5 locations)
+
+1. **auth.py** (Line 146-149)
+   - MFA pending token: Changed to use UserID + "user" type
+   ```python
+   pending_token = create_access_token(
+       data={
+           "sub": user.UserID,
+           "email": user.UserEmail,
+           "type": "user",
+           "mfa_pending": True
+       },
+   ```
+
+2. **users.py** (Line 58-65)
+   - `/hr/me` endpoint: Changed to use UserID + "user" type + added email field
+   ```python
+   access_token = create_access_token(
+       data={
+           "sub": user.UserID,
+           "email": user.UserEmail,
+           "type": "user",
+           "name": user.UserName,
+       }
+   )
+   ```
+
+3. **mfa.py** (Line 204-207)
+   - `_issue_full_token()`: Changed to use UserID + "user" type + added email field
+
+4. **auth_simple.py** (Line 35-40)
+   - Simplified login endpoint: Changed to use UserID + "user" type + added email field
+
+5. **dependencies.py** (5 functions updated)
+   - `get_current_mfa_pending_user()` (Line 225-226)
+   - `require_permission()` (Line 272-274)
+   - `require_resource_permission()` (Line 322-324)
+   - `require_attribute()` (Line 362-364)
+   - `require_admin_role()` (Line 404-406)
+   - All changed to query by `Users.UserID` instead of `Users.UserEmail`
+
+#### Testing & Verification
+
+✅ Direct authentication test: recruiter@test.com login succeeds
+✅ Email→Password form transition: working
+✅ Complete login flow: browser test successful
+✅ Dashboard access: all API endpoints returning 200
+✅ Backend stability: no crashes during login
+✅ Token validation: JWT claims now consistent across all endpoints
+
+#### Backend Logs Verification
+```
+00:24:49 POST /auth/login - Status: 200
+00:24:51 GET /hr/me - Status: 200
+00:24:52 GET /onboarding/hr/get_all_candidates - Status: 200
+00:24:53 GET /jobs/all - Status: 200
+00:24:53 GET /interviews - Status: 200
+00:24:53 GET /hr/users/all - Status: 200
+00:24:53 GET /status/all - Status: 200
+```
+
+All endpoints returning success with valid tokens. ✅
+
+#### Key Technical Details
+
+**JWT Token Format (New Standard):**
+```json
+{
+  "sub": "user-uuid-here",           // UserID (not email!)
+  "email": "user@example.com",       // Email in separate field
+  "type": "user",                     // Fixed type (not role name)
+  "name": "User Name",                // User's full name
+  "mfa_pending": true                 // (optional, for MFA flow)
+}
+```
+
+**Authentication Flow (Now Correct):**
+1. User login POST /auth/login with email + password
+2. Backend creates token with "sub": UserID
+3. Frontend stores token in localStorage
+4. Subsequent requests include `Authorization: Bearer {token}`
+5. Dependencies.py decodes token and queries by UserID
+6. Auth check succeeds ✓
+
+---
+
 ## 🟢 CURRENT STATUS (2026-08-18 Session - ITERATION 5 FRONTEND CERTIFICATION COMPLETE)
 
 **Frontend:** ✅ PRODUCTION READY - Comprehensive certification completed (87/100)

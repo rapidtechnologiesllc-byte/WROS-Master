@@ -57,8 +57,9 @@ def get_me(
     # Mint a fresh token using the same claims as login
     access_token = create_access_token(
         data={
-            "sub": current_user.UserEmail,
-            "type": current_user.UserRole,
+            "sub": current_user.UserID,
+            "email": current_user.UserEmail,
+            "type": "user",
             "name": current_user.UserName,
         }
     )

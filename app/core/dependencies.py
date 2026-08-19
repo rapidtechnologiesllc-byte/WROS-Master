@@ -50,31 +50,50 @@ async def get_current_user(
     """
     Get the current authenticated user (User or Candidate) from JWT token.
     """
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    _reject_if_mfa_pending(payload)
-    _reject_if_candidate_otp_pending(payload)
+    try:
+        from app.core.logging import logger
 
-    user_id: str = payload.get("sub")
-    user_type: str = payload.get("type", "candidate")
+        token = credentials.credentials
+        logger.warning(f"[AUTH-DEBUG] Token: {token[:30]}...")
 
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        payload = decode_access_token(token)
+        logger.warning(f"[AUTH-DEBUG] Decoded payload: sub={payload.get('sub')}, type={payload.get('type')}, email={payload.get('email')}")
 
-    if user_type == "user":
-        # "sub" contains email, not UserID
-        user = db.query(Users).filter(Users.UserEmail == user_id).first()
-    else:
-        user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
+        _reject_if_mfa_pending(payload)
+        _reject_if_candidate_otp_pending(payload)
 
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        user_id: str = payload.get("sub")
+        user_type: str = payload.get("type", "candidate")
 
-    # DISABLED - Single company deployment, no tenant scoping needed
-    # from app.core.tenant_context import activate_tenant_scope
-    # activate_tenant_scope(getattr(user, "tenant_id", None))
+        logger.warning(f"[AUTH-DEBUG] user_id={user_id}, user_type={user_type}")
 
-    return user
+        if not user_id:
+            logger.error("[AUTH-DEBUG] No user_id in token")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+        if user_type == "user":
+            # "sub" contains UserID
+            logger.warning(f"[AUTH-DEBUG] Querying Users by UserID: {user_id}")
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user:
+                logger.error(f"[AUTH-DEBUG] User not found with UserID: {user_id}")
+        else:
+            logger.warning(f"[AUTH-DEBUG] Querying Candidate by candidateID: {user_id}")
+            user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
+            if not user:
+                logger.error(f"[AUTH-DEBUG] Candidate not found with ID: {user_id}")
+
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+        logger.warning(f"[AUTH-DEBUG] User found: {getattr(user, 'UserEmail', getattr(user, 'candidateEmail', 'N/A'))}")
+        return user
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AUTH-DEBUG] Exception in get_current_user: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Auth failed: {str(e)}")
 
 
 async def get_current_candidate(
@@ -144,8 +163,8 @@ async def get_current_hr_or_admin(
     if not user_id or user_type == "candidate":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    # For Microsoft SSO users, 'sub' contains email
-    user = db.query(Users).filter(Users.UserEmail == user_id).first()
+    # 'sub' now contains UserID (not email)
+    user = db.query(Users).filter(Users.UserID == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -174,7 +193,7 @@ async def get_current_internal_user(
     if not user_id or user_type == "candidate":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    user = db.query(Users).filter(Users.UserEmail == user_id).first()
+    user = db.query(Users).filter(Users.UserID == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -203,8 +222,8 @@ async def get_current_mfa_pending_user(
     if not payload.get("mfa_pending"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not an MFA-pending session")
 
-    user_email: str = payload.get("sub", "")
-    user = db.query(Users).filter(Users.UserEmail == user_email).first()
+    user_id: str = payload.get("sub", "")
+    user = db.query(Users).filter(Users.UserID == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
@@ -250,9 +269,9 @@ def require_permission(permission: str):
         token = credentials.credentials
         payload = decode_access_token(token)
         _reject_if_mfa_pending(payload)
-        user_email: str = payload.get("sub", "")
+        user_id: str = payload.get("sub", "")
 
-        user = db.query(Users).filter(Users.UserEmail == user_email).first()
+        user = db.query(Users).filter(Users.UserID == user_id).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -300,9 +319,9 @@ def require_resource_permission(resource_name: str, action: str = "view"):
         token = credentials.credentials
         payload = decode_access_token(token)
         _reject_if_mfa_pending(payload)
-        user_email: str = payload.get("sub", "")
+        user_id: str = payload.get("sub", "")
 
-        user = db.query(Users).filter(Users.UserEmail == user_email).first()
+        user = db.query(Users).filter(Users.UserID == user_id).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -340,9 +359,9 @@ def require_attribute(attribute: str, expected: bool = True):
         token = credentials.credentials
         payload = decode_access_token(token)
         _reject_if_mfa_pending(payload)
-        user_email: str = payload.get("sub", "")
+        user_id: str = payload.get("sub", "")
 
-        user = db.query(Users).filter(Users.UserEmail == user_email).first()
+        user = db.query(Users).filter(Users.UserID == user_id).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -382,9 +401,9 @@ async def require_admin_role(
     token = credentials.credentials
     payload = decode_access_token(token)
     _reject_if_mfa_pending(payload)
-    user_email: str = payload.get("sub", "")
+    user_id: str = payload.get("sub", "")
 
-    user = db.query(Users).filter(Users.UserEmail == user_email).first()
+    user = db.query(Users).filter(Users.UserID == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 

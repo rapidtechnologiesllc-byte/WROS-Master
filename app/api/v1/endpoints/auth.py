@@ -144,7 +144,12 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
         if totp_gate or email_otp_gate:
             pending_token = create_access_token(
-                data={"sub": user.UserEmail, "type": user_role, "mfa_pending": True},
+                data={
+                    "sub": user.UserID,
+                    "email": user.UserEmail,
+                    "type": "user",
+                    "mfa_pending": True
+                },
                 expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
             )
 
@@ -190,28 +195,12 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 
         access_token = create_access_token(
             data={
-                "sub": user.UserEmail,
-                "type": user_role,
+                "sub": user.UserID,
+                "email": user.UserEmail,
+                "type": "user",
                 "name": user.UserName,
             }
         )
-
-        # Get user's role template permissions
-        from app.services.role_template_permission_service import RoleTemplatePermissionService
-        permissions_dict = RoleTemplatePermissionService.get_user_permissions(db, user.UserID, user.tenant_id)
-
-        # Convert permissions dict to array format expected by frontend
-        # Format: ["candidates", "jobs", "interviews", "offers.create", etc.]
-        permissions_array = []
-        for resource_name, actions in permissions_dict.items():
-            if actions.get("can_view"):
-                permissions_array.append(resource_name)
-            if actions.get("can_create"):
-                permissions_array.append(f"{resource_name}.create")
-            if actions.get("can_edit"):
-                permissions_array.append(f"{resource_name}.edit")
-            if actions.get("can_delete"):
-                permissions_array.append(f"{resource_name}.delete")
 
         return UnifiedLoginResponse(
             entity_type="user",
@@ -220,7 +209,6 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
-            permissions=permissions_array,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────

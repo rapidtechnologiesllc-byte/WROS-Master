@@ -203,7 +203,12 @@ def verify_email_otp(
 
 def _issue_full_token(user: Users) -> MfaVerifiedResponse:
     access_token = create_access_token(
-        data={"sub": user.UserEmail, "type": user.UserRole, "name": user.UserName}
+        data={
+            "sub": user.UserID,
+            "email": user.UserEmail,
+            "type": "user",
+            "name": user.UserName,
+        }
     )
     return MfaVerifiedResponse(
         access_token=access_token,
