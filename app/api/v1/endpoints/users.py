@@ -35,7 +35,6 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 
 @router.get(
     "/me",
-    response_model=HrMeResponse,
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
 def get_me(
@@ -44,15 +43,59 @@ def get_me(
 ):
     """
     Return the profile of the currently authenticated HR / Admin user
-    together with a fresh access token.
+    together with a fresh access token, roles, and permissions.
 
     Useful for:
     - Restoring session state after page reload
     - Refreshing the token without a full re-login
     - Fetching up-to-date role / business-unit information
+    - Building dynamic navigation based on user permissions
     """
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
+
     # Resolve the RBAC role name (if any)
     role = db.query(Role).filter(Role.id == current_user.role_id).first() if current_user.role_id else None
+
+    # Get tenant ID (default to 1, handle None case)
+    tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
+
+    # Get user's roles from UserRole junction table
+    from app.models.user import UserRole
+    from app.models.role_template import RoleTemplate
+
+    user_roles = []
+    roles_list = []
+
+    # Query UserRole junction table for all roles assigned to this user
+    user_role_records = db.query(UserRole).filter(
+        UserRole.user_id == current_user.UserID,
+        UserRole.tenant_id == tenant_id
+    ).all()
+
+    for ur in user_role_records:
+        if ur.role_template:
+            roles_list.append(ur.role_template.name)
+            user_roles.append({
+                "id": ur.role_template.id,
+                "name": ur.role_template.name,
+            })
+
+    # Get all permissions for the user based on their role template permissions
+    # Returns dict: { "resource_name": { "can_view": True, ... }, ... }
+    permission_resources = []
+
+    if current_user.UserID:
+        permissions_dict = RoleTemplatePermissionService.get_user_permissions(
+            db, current_user.UserID, tenant_id
+        )
+
+        # Extract resource names where user has at least one permission
+        if permissions_dict and isinstance(permissions_dict, dict):
+            for resource_name, perms in permissions_dict.items():
+                # Include resource if user has any permission (view/create/edit/delete)
+                if perms and (perms.get('can_view') or perms.get('can_create') or
+                             perms.get('can_edit') or perms.get('can_delete')):
+                    permission_resources.append(resource_name)
 
     # Mint a fresh token using the same claims as login
     access_token = create_access_token(
@@ -64,7 +107,7 @@ def get_me(
         }
     )
 
-    return HrMeResponse(
+    response_data = HrMeResponse(
         user_id=current_user.UserID,
         user_name=current_user.UserName,
         user_email=current_user.UserEmail,
@@ -77,6 +120,13 @@ def get_me(
         access_token=access_token,
         digest_enabled=current_user.digest_enabled,
     )
+
+    # Add roles and permissions to response as extra fields
+    response_dict = response_data.dict()
+    response_dict["roles"] = roles_list
+    response_dict["permissions"] = permission_resources
+
+    return response_dict
 
 
 @router.patch(

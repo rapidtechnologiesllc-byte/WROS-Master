@@ -128,7 +128,7 @@ async def startup_event():
             for attempt in range(1, MAX_RETRIES + 1):
                 _db = SessionLocal()
                 try:
-                    RBACService.seed_roles_and_permissions(_db)
+                    # RBACService.seed_roles_and_permissions(_db)  # Replaced by seed_role_templates
                     seed_role_templates(_db, tenant_id=1)
                     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
                     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")

@@ -19,13 +19,13 @@ class RoleTemplatePermissionService:
 
     @staticmethod
     def get_user_roles(db: Session, user_id: str, tenant_id: int = 1) -> list[RoleTemplate]:
-        """Get all role templates assigned to a user."""
+        """Get all role templates assigned to a user via the UserRole junction table."""
         user_roles = db.query(UserRole).filter(
             UserRole.user_id == user_id,
             UserRole.tenant_id == tenant_id
         ).all()
 
-        return [ur.role_template for ur in user_roles]
+        return [ur.role_template for ur in user_roles if ur.role_template]
 
     @staticmethod
     def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource:
