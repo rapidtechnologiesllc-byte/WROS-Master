@@ -96,7 +96,7 @@ MODULE_INFO = {
 
 
 @router.get("/navigation")
-def get_user_navigation(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Get personalized navigation structure for the logged-in user.
 
@@ -119,18 +119,28 @@ def get_user_navigation(db: Session = Depends(get_db), current_user: dict = Depe
     }
     """
     try:
-        user_id = current_user.get("sub") or current_user.get("user_id")
+        # Get user ID - handle both Users object and dict formats
+        if hasattr(current_user, 'UserID'):
+            # It's a Users model object
+            user_id = current_user.UserID
+            tenant_id = getattr(current_user, 'tenant_id', 1)
+        else:
+            # It's a dict (fallback)
+            user_id = current_user.get("sub") or current_user.get("user_id")
+            tenant_id = current_user.get("tenant_id", 1)
+
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        # Get user's tenant ID (default to 1)
-        tenant_id = current_user.get("tenant_id", 1)
+        logger.warning(f"[NAV] user_id={user_id}, tenant_id={tenant_id}, current_user type={type(current_user).__name__}")
 
         # Get all resources
         resources = db.query(Resource).filter(
             Resource.tenant_id == tenant_id,
             Resource.enabled == True
         ).all()
+
+        logger.warning(f"[NAV] Found {len(resources)} resources")
 
         # Check permissions for each resource and group by module
         navigation_modules = {}
@@ -140,6 +150,9 @@ def get_user_navigation(db: Session = Depends(get_db), current_user: dict = Depe
             can_view = RoleTemplatePermissionService.can_view(
                 db, user_id, resource.name, tenant_id
             )
+
+            if resource.name in ["candidates", "jobs", "interviews", "offers"]:
+                logger.warning(f"[NAV] Resource {resource.name}: can_view={can_view}")
 
             if can_view:
                 # Get resource info from mapping

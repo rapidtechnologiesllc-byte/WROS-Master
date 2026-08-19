@@ -66,7 +66,8 @@ class CandidateConversation(Base):
     )
 
     # The candidate this conversation belongs to
-    candidate_id = Column(String(36),
+    # Candidate IDs are "CAN-" prefix + UUID (40 chars total, not 36)
+    candidate_id = Column(String(50),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

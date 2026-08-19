@@ -63,6 +63,28 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
             "message": "Thunder paused (kill switch active)"
         }
 
+    # Get system admin user for tenant_id (required by FK constraint)
+    from app.models.user import Users
+    system_admin = db.query(Users).filter(
+        Users.UserRole == "Super User"
+    ).first()
+
+    if not system_admin:
+        # Fallback to first admin user if no super user found
+        system_admin = db.query(Users).filter(
+            Users.UserRole.ilike("%admin%")
+        ).first()
+
+    if not system_admin:
+        return {
+            "status": "error",
+            "error": "No system admin user found for tenant_id",
+            "candidates_contacted": 0,
+            "sequences_advanced": 0,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    tenant_user_id = system_admin.UserID
     contacted = 0
     advanced = 0
     errors = []
@@ -82,7 +104,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                 # Create conversation record
                 conversation = CandidateConversation(
                     candidate_id=candidate.candidateID,
-                    tenant_id=candidate.tenant_id or "default",
+                    tenant_id=tenant_user_id,
                     owner_type="Thunder",
                     owner_id="Thunder_Autonomous",
                     status="ACTIVE",
