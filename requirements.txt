@@ -52,11 +52,12 @@ langgraph>=0.2.0,<1.0.0               # Build stateful, multi-actor applications
 # Background Tasks & Scheduling
 # ----------------------------------------------------------------------------
 apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler
+celery[redis]>=5.3.0,<6.0.0           # Distributed task queue for async jobs
+redis>=5.0.0,<6.0.0                   # Redis Python client (required for Celery broker)
 
 # Production Server & Monitoring
 # ----------------------------------------------------------------------------
 gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uvicorn workers)
-redis>=5.0.0,<6.0.0              # Redis client for multi-worker rate limiting and caching
 
 
 # ============================================================================
