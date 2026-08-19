@@ -36,10 +36,10 @@ class RBACTester:
 
     def log_test(self, name, passed, message=""):
         """Log test result."""
-        status = "✓ PASS" if passed else "✗ FAIL"
+        status = "[PASS]" if passed else "[FAIL]"
         print(f"{status}: {name}")
         if message:
-            print(f"  → {message}")
+            print(f"  > {message}")
 
         if passed:
             self.results["passed"] += 1
@@ -129,14 +129,14 @@ class RBACTester:
                 data = response.json()
                 if "UserID" in data or "user_id" in data:
                     self.log_test(
-                        f"Access control: {role_name} → /hr/me",
+                        f"Access control: {role_name} -> /hr/me",
                         True,
                         f"HTTP 200 (authorized)"
                     )
                     return True
                 else:
                     self.log_test(
-                        f"Access control: {role_name} → /hr/me",
+                        f"Access control: {role_name} -> /hr/me",
                         False,
                         f"Invalid response format"
                     )
