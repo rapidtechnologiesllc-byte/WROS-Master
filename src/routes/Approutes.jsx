@@ -17,6 +17,7 @@ import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
+import RoleTemplateManager from "../screens/RoleTemplateManager";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
 import { getAllInterviews, updateInterview } from "../services/api/interviews";
@@ -909,6 +910,7 @@ export default function AppRoutes() {
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
+            <Route path="admin/role-templates" element={<RoleTemplateManager />} />
           <Route
             path="candidates"
             element={
