@@ -43,106 +43,60 @@ import {
 
 // Dynamic navigation driven by role template permissions from backend
 // Navigation structure is fetched from /hr/me/navigation endpoint
-// which returns groups and items based on user's actual permissions
+// which returns groups and items filtered by user's actual permissions (175 resources)
 
-// Icon mapping for module names
-const ICON_MAP = {
-  "Recruitment": Users,
-  "Sales": TrendingUp,
-  "Workforce": Users2,
-  "Project Management": FolderKanban,
-  "Finance": BadgeDollarSign,
-  "Admin": Shield,
-  "Executive": BarChart3,
+// Icon mapping for resource names
+const ICON_MAP_BY_RESOURCE = {
+  "candidates": Users,
+  "jobs": Briefcase,
+  "interviews": Users,
+  "offers": FileTextIcon,
+  "employees": Users2,
+  "timesheets": Clock,
+  "invoices": Receipt,
+  "reports": BarChart3,
+  "users": Shield,
+  "roles": Shield,
+  "role_templates": Settings,
+  "dashboard": LayoutDashboard,
+  "my_tasks": UserCheck,
+  "my_timesheet": Clock,
+  "my_expenses": BadgeDollarSign,
+  "profile": UserPlus,
 };
 
-// Normalize resource names (handle hyphen/underscore inconsistencies)
-function normalizeResourceName(name) {
-  return name.toLowerCase().replace(/[-_]/g, "-");
-}
-
-// Build navigation groups from user's actual permissions (not hardcoded RESOURCE_NAV_MAP)
-// This ensures ALL resources the user has permission for appear in navigation
-async function buildGroupsByPermissions() {
+// Fetch pre-built navigation from backend (already filtered by permissions)
+async function fetchNavigationFromBackend() {
   try {
-    const { getHrMe } = await import("../services/api/users");
-    const user = await getHrMe();
+    const { apiRequest } = await import("../services/api");
+    const response = await apiRequest("/hr/me/navigation", { method: "GET" });
 
-    if (!user) {
-      console.warn("No user data found");
+    if (!response || !response.groups) {
+      console.warn("Invalid navigation response:", response);
       return [];
     }
 
-    // Handle permissions format: array of resource names like ["candidates", "jobs", "message-queue"]
-    const userResourcePermissions = new Set();
+    // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
+    // Transform items to use route instead of path for navigation
+    const groups = response.groups.map(group => ({
+      ...group,
+      items: group.items.map(item => ({
+        key: item.key,
+        label: item.label,
+        icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
+        path: item.route || `/${item.key.replace(/_/g, "-")}`, // Fallback path if route not provided
+      }))
+    }));
 
-    if (Array.isArray(user.permissions)) {
-      // Array format: ["candidates", "jobs", "message-queue"]
-      user.permissions.forEach(perm => {
-        const resourceName = normalizeResourceName(perm.split(".")[0]);
-        userResourcePermissions.add(resourceName);
-      });
-    } else if (typeof user.permissions === "object" && user.permissions !== null) {
-      // Object format: { "candidates": {can_view: true}, "jobs": {can_view: true} }
-      Object.keys(user.permissions).forEach(resourceName => {
-        const perm = user.permissions[resourceName];
-        // Check if user has at least one permission (view/create/edit/delete)
-        if (perm && (perm.can_view || perm.can_create || perm.can_edit || perm.can_delete)) {
-          userResourcePermissions.add(normalizeResourceName(resourceName));
-        }
-      });
-    }
-
-    if (userResourcePermissions.size === 0) {
-      console.warn("User has no permissions");
-      return [];
-    }
-
-    console.debug("User resource permissions:", Array.from(userResourcePermissions));
-
-    // Build reverse mapping: for each resource permission, find nav items that require it
-    const permissionsByModule = {};
-
-    Object.entries(NAV_PERMISSIONS).forEach(([navKey, requiredPerm]) => {
-      // Check if user has this permission
-      // requiredPerm can be "candidates", "message_queue.view", etc.
-      const requiredResource = normalizeResourceName(requiredPerm.split(".")[0]);
-
-      if (userResourcePermissions.has(requiredResource)) {
-        const navItem = NAV_ITEMS[navKey];
-        if (navItem && navItem.module) {
-          if (!permissionsByModule[navItem.module]) {
-            permissionsByModule[navItem.module] = [];
-          }
-          // Avoid duplicates
-          if (!permissionsByModule[navItem.module].find(n => n.key === navKey)) {
-            permissionsByModule[navItem.module].push({
-              key: navKey,
-              label: navItem.label,
-              icon: navItem.icon,
-              path: navItem.path,
-            });
-          }
-        }
-      }
-    });
-
-    // Convert to groups format matching Shell's expected structure
-    const groups = Object.entries(permissionsByModule).map(([module, items]) => ({
-      label: module,
-      icon: ICON_MAP[module] || Briefcase,
-      items: items.filter(i => i && i.label && i.path),
-    })).filter(g => g.items.length > 0);
-
-    console.debug("Built navigation groups:", {
+    console.debug("Navigation fetched from backend:", {
       groupCount: groups.length,
-      totalItems: Object.values(permissionsByModule).reduce((sum, items) => sum + items.length, 0),
-      groups: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
+      totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
+      modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
     });
 
     return groups;
   } catch (error) {
-    console.warn("Failed to build navigation from permissions:", error);
+    console.error("Failed to fetch navigation from backend:", error);
     return [];
   }
 }
@@ -296,17 +250,17 @@ export default function Shell({
   const isHiringManager = normalizedRole === "HIRING MANAGER";
   const isHrOperations = normalizedRole === "HR OPERATIONS";
 
-  // Fetch navigation structure from backend based on role template permissions
+  // Fetch navigation structure from backend based on role template permissions (all 175 resources)
   const [nav, setNav] = useState({
-    standalone: [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals],
+    standalone: [],
     groups: []
   });
 
   useEffect(() => {
     const loadNavigation = async () => {
-      const navGroups = await buildGroupsByPermissions();
-      const standalone = [NAV_ITEMS.dashboard, NAV_ITEMS.myTasks, NAV_ITEMS.myTimesheet, NAV_ITEMS.myReferrals];
-      setNav({ standalone, groups: navGroups });
+      // Fetch pre-built navigation from backend (already filtered by user permissions)
+      const navGroups = await fetchNavigationFromBackend();
+      setNav({ standalone: [], groups: navGroups });
     };
 
     loadNavigation();
