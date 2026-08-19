@@ -207,7 +207,7 @@ class RBACTester:
             print("FAILED TESTS:")
             for test in self.results["test_details"]:
                 if not test["passed"]:
-                    print(f"  ✗ {test['name']}: {test['message']}")
+                    print(f"  FAIL: {test['name']}: {test['message']}")
 
     def save_results(self):
         """Save test results to JSON file."""
