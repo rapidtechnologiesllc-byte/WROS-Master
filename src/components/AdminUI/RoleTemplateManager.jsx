@@ -6,6 +6,7 @@ import PermissionMatrix from './PermissionMatrix';
 import PermissionValidation from './PermissionValidation';
 import AuditTrail from './AuditTrail';
 import PermissionHierarchyViewer from './PermissionHierarchyViewer';
+import PermissionMatrixEditor from './PermissionMatrixEditor';
 import './RoleTemplateManager.css';
 
 const RoleTemplateManager = () => {
@@ -14,12 +15,14 @@ const RoleTemplateManager = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const [activeTab, setActiveTab] = useState('list'); // list, edit, preview, audit
+  const [activeTab, setActiveTab] = useState('list'); // list, edit, preview, matrix, audit
   const [expanded, setExpanded] = useState(null);
   const [auditTrail, setAuditTrail] = useState([]);
   const [validation, setValidation] = useState(null);
   const [resources, setResources] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
+  const [allResources, setAllResources] = useState([]);
+  const [resourcesByModule, setResourcesByModule] = useState({});
 
   // Load all templates on mount
   useEffect(() => {
