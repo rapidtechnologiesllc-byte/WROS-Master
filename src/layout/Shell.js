@@ -137,6 +137,7 @@ const NAV_PERMISSIONS = {
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",
+  messageQueueDashboard: "message_queue.view",
   messageTemplates: "message_templates.view",
   ticketRoutingAdmin: "ticket_routing.view",
   executiveSignal: "executive_signal.view",

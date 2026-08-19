@@ -118,6 +118,7 @@ import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
+import MessageQueueDashboard from "../screens/MessageQueueDashboard";
 
 // Wrapper component that renders the appropriate dashboard based on user job_title
 const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
@@ -658,6 +659,7 @@ export default function AppRoutes() {
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
+            <Route path="admin/messagequeue" element={<MessageQueueDashboard />} />
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
