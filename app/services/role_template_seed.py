@@ -115,7 +115,7 @@ def assign_users_to_role_templates(db: Session, tenant_id: int = 1) -> None:
         # Get all users who don't yet have a UserRole record (new system)
         users_without_template = db.query(Users).filter(
             Users.UserRole.isnot(None),
-            ~Users.id.in_(
+            ~Users.UserID.in_(
                 db.query(UserRole.user_id).filter(UserRole.tenant_id == tenant_id)
             )
         ).all()
@@ -206,7 +206,7 @@ def seed_role_templates(db: Session, tenant_id: int = 1) -> None:
                 db.flush()
                 resource_map[f"{res_data['module']}.{res.name}"] = res
             else:
-                resource_map[f"{res_data['module']}.{res.name}"] = existing
+                resource_map[f"{res_data['module']}.{res_data['name']}"] = existing
 
         # 3. Seed role templates
         for role_name, permissions in ROLE_TEMPLATE_PERMISSIONS.items():
