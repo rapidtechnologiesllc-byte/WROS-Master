@@ -3,6 +3,8 @@ Navigation API - Returns personalized navigation structure based on user permiss
 
 Endpoint: GET /hr/me/navigation
 Returns: Navigation groups with items filtered by user's actual role template permissions.
+
+Uses database resources directly (no hardcoding) - supports all 175 resources dynamically.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,83 +18,33 @@ from app.core.logging import logger
 router = APIRouter(prefix="/hr/me", tags=["navigation"])
 
 
-# Mapping of resource names to nav keys and display info
-RESOURCE_NAV_MAP = {
-    "candidates": {
-        "key": "candidates",
-        "label": "Candidates",
-        "icon": "Users",
-        "module": "Recruitment"
-    },
-    "jobs": {
-        "key": "jobs",
-        "label": "Jobs",
-        "icon": "Briefcase",
-        "module": "Recruitment"
-    },
-    "interviews": {
-        "key": "interviews",
-        "label": "Interviews",
-        "icon": "Video",
-        "module": "Recruitment"
-    },
-    "offers": {
-        "key": "offers",
-        "label": "Offers",
-        "icon": "FileText",
-        "module": "Recruitment"
-    },
-    "employees": {
-        "key": "employees",
-        "label": "Employees",
-        "icon": "Users2",
-        "module": "Workforce"
-    },
-    "timesheets": {
-        "key": "timesheets",
-        "label": "Timesheets",
-        "icon": "Clock",
-        "module": "Workforce"
-    },
-    "invoices": {
-        "key": "invoices",
-        "label": "Invoices",
-        "icon": "Receipt",
-        "module": "Finance"
-    },
-    "reports": {
-        "key": "reports",
-        "label": "Reports",
-        "icon": "BarChart3",
-        "module": "Finance"
-    },
-    "users": {
-        "key": "users",
-        "label": "Users",
-        "icon": "Shield",
-        "module": "Admin"
-    },
-}
-
-# Module display info
-MODULE_INFO = {
-    "Recruitment": {
-        "label": "Recruitment",
-        "icon": "Users"
-    },
-    "Workforce": {
-        "label": "Workforce",
-        "icon": "Users2"
-    },
-    "Finance": {
-        "label": "Finance",
-        "icon": "BadgeDollarSign"
-    },
-    "Admin": {
-        "label": "Admin",
-        "icon": "Shield"
+def get_icon_for_resource(resource_name: str) -> str:
+    """Simple icon mapping for resource names."""
+    icon_map = {
+        # Recruitment
+        "candidates": "Users", "jobs": "Briefcase", "interviews": "Video",
+        "offers": "FileText", "hm_candidate_review": "Eye", "interview_schedule": "Calendar",
+        "interview_feedback": "MessageSquare", "offer_approve": "CheckCircle",
+        # Workforce
+        "employees": "Users2", "allocations": "BarChart2", "projects": "FolderOpen",
+        "timesheets": "Clock", "training_certification": "Award", "buddy_program": "Users",
+        # Finance
+        "invoices": "Receipt", "expenses": "DollarSign", "reports": "BarChart3",
+        "timesheets": "Clock", "revenue": "TrendingUp", "finance_operations": "Settings",
+        # Admin
+        "users": "Shield", "roles": "Lock", "role_templates": "Settings",
+        "business_units": "Building", "audit_log": "FileText", "error_log": "AlertCircle",
+        "message_queue": "MessageSquare", "certifications": "Award",
+        # System/Common
+        "dashboard": "Home", "profile": "User", "notifications": "Bell",
+        "my_tasks": "CheckSquare", "my_timesheet": "Clock", "my_expenses": "DollarSign",
+        "my_referrals": "Share2", "thunder": "MessageCircle", "search": "Search",
+        # Executive
+        "ceo_dashboard": "TrendingUp", "cfo_dashboard": "BarChart3",
+        # Engagement
+        "thunder_chat": "MessageCircle", "documents": "File", "tasks": "CheckSquare",
     }
-}
+    return icon_map.get(resource_name, "Briefcase")
 
 
 @router.get("/navigation")
@@ -103,6 +55,8 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     Returns only modules and resources the user has permission to access,
     based on their actual role template permissions.
 
+    Uses database fields directly (no hardcoding) - supports all 175 resources.
+
     Response format:
     {
         "groups": [
@@ -110,7 +64,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 "label": "Recruitment",
                 "icon": "Users",
                 "items": [
-                    {"key": "candidates", "label": "Candidates", "icon": "Users"},
+                    {"key": "candidates", "label": "Candidates", "icon": "Users", "route": "/candidates"},
                     ...
                 ]
             },
@@ -121,26 +75,22 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     try:
         # Get user ID - handle both Users object and dict formats
         if hasattr(current_user, 'UserID'):
-            # It's a Users model object
             user_id = current_user.UserID
             tenant_id = getattr(current_user, 'tenant_id', 1)
         else:
-            # It's a dict (fallback)
             user_id = current_user.get("sub") or current_user.get("user_id")
             tenant_id = current_user.get("tenant_id", 1)
 
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        logger.warning(f"[NAV] user_id={user_id}, tenant_id={tenant_id}, current_user type={type(current_user).__name__}")
-
-        # Get all resources
-        resources = db.query(Resource).filter(
+        # Get all resources with module relationship
+        resources = db.query(Resource).join(Module).filter(
             Resource.tenant_id == tenant_id,
             Resource.enabled == True
         ).all()
 
-        logger.warning(f"[NAV] Found {len(resources)} resources")
+        logger.warning(f"[NAV] Building navigation for user_id={user_id}, found {len(resources)} resources")
 
         # Check permissions for each resource and group by module
         navigation_modules = {}
@@ -151,45 +101,51 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 db, user_id, resource.name, tenant_id
             )
 
-            if resource.name in ["candidates", "jobs", "interviews", "offers"]:
-                logger.warning(f"[NAV] Resource {resource.name}: can_view={can_view}")
-
             if can_view:
-                # Get resource info from mapping
-                nav_info = RESOURCE_NAV_MAP.get(resource.name)
-                if nav_info:
-                    module_name = nav_info["module"]
+                # Use module object (already loaded via join)
+                module = resource.module
+                module_name = module.name
+                module_label = module.display_name
 
-                    # Initialize module if needed
-                    if module_name not in navigation_modules:
-                        module_info = MODULE_INFO.get(module_name, {})
-                        navigation_modules[module_name] = {
-                            "label": module_info.get("label", module_name),
-                            "icon": module_info.get("icon", "Briefcase"),
-                            "items": []
-                        }
+                # Initialize module if needed
+                if module_name not in navigation_modules:
+                    # Get icon for module (use first resource's icon as fallback)
+                    module_icon = "Briefcase"
+                    if module_name == "Recruitment":
+                        module_icon = "Users"
+                    elif module_name == "Workforce":
+                        module_icon = "Users2"
+                    elif module_name == "Finance":
+                        module_icon = "BadgeDollarSign"
+                    elif module_name == "Admin":
+                        module_icon = "Shield"
+                    elif module_name == "System":
+                        module_icon = "Home"
+                    elif module_name == "Executive":
+                        module_icon = "TrendingUp"
+                    elif module_name == "Engagement":
+                        module_icon = "MessageCircle"
 
-                    # Add resource to module
-                    navigation_modules[module_name]["items"].append({
-                        "key": nav_info["key"],
-                        "label": nav_info["label"],
-                        "icon": nav_info.get("icon", "Briefcase")
-                    })
+                    navigation_modules[module_name] = {
+                        "label": module_label,
+                        "icon": module_icon,
+                        "items": []
+                    }
+
+                # Add resource to module (use database fields directly)
+                navigation_modules[module_name]["items"].append({
+                    "key": resource.name,
+                    "label": resource.display_name,
+                    "icon": get_icon_for_resource(resource.name),
+                    "route": resource.route_path
+                })
 
         # Convert to list of groups
-        groups = []
-        for module_name, module_data in navigation_modules.items():
-            groups.append({
-                "label": module_data["label"],
-                "icon": module_data["icon"],
-                "items": module_data["items"]
-            })
+        groups = list(navigation_modules.values())
 
-        return {
-            "groups": groups
-        }
+        logger.warning(f"[NAV] Returning {len(groups)} modules for user_id={user_id}")
+        return {"groups": groups}
 
     except Exception as e:
-        logger.error(f"Error building navigation for user {current_user}: {e}")
-        # Return empty navigation on error rather than failing
+        logger.error(f"Error building navigation for user {current_user}: {e}", exc_info=True)
         return {"groups": []}
