@@ -1,4 +1,4 @@
-import { apiRequest } from './apiRequest';
+import { apiRequest } from './client';
 
 export const roleTemplatesAPI = {
   // List all role templates
