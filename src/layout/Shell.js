@@ -186,6 +186,11 @@ const NAV_PERMISSIONS = {
 
   // Admin Module
   usersAccessControl: "users",
+  users: "users",
+  businessUnits: "users",
+  deliveryCenters: "users",
+  organizationalHierarchy: "users",
+  roleTemplates: "users",
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",
@@ -194,7 +199,6 @@ const NAV_PERMISSIONS = {
   ticketRoutingAdmin: "ticket_routing.view",
   executiveSignal: "executive_signal.view",
   errorLog: "error_log.view",
-  adminSettings: "admin_settings.view",
   adminWeeklyRecap: "admin_weekly_recap.view",
 
   // Dashboard/Agent Screens
