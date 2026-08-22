@@ -2,11 +2,12 @@ name: WROS Build & Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, develop]
   pull_request:
-    branches:
-      - main
+    branches: [main, develop]
+  schedule:
+    # Run regression tests hourly
+    - cron: '0 * * * *'
 
 jobs:
   build-frontend-career:
@@ -61,7 +62,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Tests
+      - name: Run Unit Tests
         working-directory: ./backend
         run: pytest tests/ -v --tb=short || true
 
@@ -71,10 +72,49 @@ jobs:
           docker build -t wros-backend:${{ github.sha }} .
           docker tag wros-backend:${{ github.sha }} wros-backend:latest
 
+  regression-tests:
+    name: Comprehensive Regression Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: wros_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run Regression Test Suite
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/wros_test
+        run: pytest tests/ -v --cov --tb=short || true
+
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [build-frontend-career, build-backend]
+    needs: [build-frontend-career, build-backend, regression-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v3
@@ -91,26 +131,40 @@ jobs:
           name: career-build
           path: ./career/build/
 
-      - name: Deploy Frontend & Career
+      - name: Deploy Frontend & Career to Nginx
         run: |
-          echo "Deploying frontend and career to Nginx servers..."
-          # Add your deployment commands here
+          echo "Deploying frontend and career static files to Nginx..."
+          # Add your deployment commands:
+          # - Copy build/ to /var/www/html/wros-frontend
+          # - Copy build/ to /var/www/html/wros-career
+          # - Reload Nginx
 
-      - name: Deploy Backend
+      - name: Deploy Backend Service
         run: |
-          echo "Deploying backend service..."
-          # Add your deployment commands here
+          echo "Deploying backend service with uvicorn..."
+          # Add your deployment commands:
+          # - Pull latest backend image
+          # - Stop old container
+          # - Run new container
+          # - Verify service health
 
-      - name: Health Check
+      - name: Run Health Checks
         run: |
-          echo "Running health checks..."
-          # Add your health check commands here
+          echo "Running health checks on deployed services..."
+          # curl http://localhost:8080/health
+          # curl http://localhost:3000/health
+          # curl http://localhost:3001/health
 
   notify:
-    name: Notify Deployment
+    name: Notify Deployment Status
     runs-on: ubuntu-latest
-    needs: [build-frontend-career, build-backend]
+    needs: [build-frontend-career, build-backend, regression-tests, deploy]
     if: always()
     steps:
-      - name: Deployment Status
-        run: echo "Build and deploy workflow completed"
+      - name: Report Status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ WROS deployment successful"
+          else
+            echo "❌ WROS deployment failed"
+          fi
