@@ -45,7 +45,7 @@ import {
 // Navigation structure is fetched from /hr/me/navigation endpoint
 // which returns groups and items filtered by user's actual permissions (175 resources)
 
-// Icon mapping for resource names
+// Icon mapping for resource names AND module/group icons (by name string)
 const ICON_MAP_BY_RESOURCE = {
   "candidates": Users,
   "jobs": Briefcase,
@@ -65,20 +65,54 @@ const ICON_MAP_BY_RESOURCE = {
   "profile": UserPlus,
 };
 
+// Map icon names (strings from backend) to icon components
+const ICON_COMPONENTS_BY_NAME = {
+  "Users": Users,
+  "Users2": Users2,
+  "Briefcase": Briefcase,
+  "Video": Users,
+  "FileText": FileTextIcon,
+  "Clock": Clock,
+  "Receipt": Receipt,
+  "BarChart3": BarChart3,
+  "BarChart2": BarChart3,
+  "BadgeDollarSign": BadgeDollarSign,
+  "Shield": Shield,
+  "Lock": Shield,
+  "Settings": Settings,
+  "Home": LayoutDashboard,
+  "TrendingUp": TrendingUp,
+  "MessageCircle": MessageSquareText,
+  "Bell": AlertOctagon,
+  "CheckSquare": UserCheck,
+  "DollarSign": BadgeDollarSign,
+  "Eye": UserCheck,
+  "Calendar": CalendarCheck2,
+  "MessageSquare": MessageSquareText,
+  "CheckCircle": UserCheck,
+  "Building": LayoutDashboard,
+  "AlertCircle": AlertOctagon,
+  "File": FileTextIcon,
+  "Award": UserPlus,
+};
+
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   try {
     const { apiRequest } = await import("../services/api/client");
     const response = await apiRequest("/hr/me/navigation", { method: "GET" });
 
-    if (!response || !response.groups) {
+    // apiRequest returns { data, response } structure - extract the actual data
+    const navData = response?.data || response;
+
+    if (!navData || !navData.groups) {
       console.warn("Invalid navigation response:", response);
       return [];
     }
 
     // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
     // Transform items to use route instead of path for navigation
-    const groups = response.groups.map(group => ({
+    const groups = navData.groups.map(group => ({
       ...group,
       items: group.items.map(item => ({
         key: item.key,
@@ -261,10 +295,11 @@ export default function Shell({
       // Fetch pre-built navigation from backend (already filtered by user permissions)
       const navGroups = await fetchNavigationFromBackend();
       setNav({ standalone: [], groups: navGroups });
+      console.debug("Navigation loaded:", { groupCount: navGroups.length });
     };
 
     loadNavigation();
-  }, [permissionsLoaded]);
+  }, []); // Load once on component mount - backend already filters permissions
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
 
@@ -291,7 +326,10 @@ export default function Shell({
   };
 
   const renderLink = (n) => {
-    const Icon = n.icon;
+    // Handle both component and string icon formats
+    const Icon = typeof n.icon === 'string'
+      ? (ICON_COMPONENTS_BY_NAME[n.icon] || Briefcase)
+      : (n.icon || Briefcase);
     const active = location.pathname === n.path;
     return (
       <button
@@ -326,7 +364,8 @@ export default function Shell({
               {nav.standalone.map((n) => renderLink(n))}
 
               {nav.groups.map((group) => {
-                const GroupIcon = group.icon;
+                // Backend returns icon as string name (e.g., "Users2"), convert to component
+                const GroupIcon = ICON_COMPONENTS_BY_NAME[group.icon] || LayoutDashboard;
                 const isOpen = openGroups.has(group.label);
                 const hasActiveItem = group.items.some(
                   (item) => item.path === location.pathname,
