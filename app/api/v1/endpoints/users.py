@@ -146,6 +146,49 @@ def update_digest_preference(
 
 
 @router.get(
+    "/me/permissions",
+    summary="Get current user's permissions for frontend access control",
+)
+def get_current_user_permissions(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """
+    Get current user's permissions in a format optimized for frontend use.
+
+    This endpoint is called by the frontend after login to cache permissions locally,
+    enabling offline permission checking without repeated API calls.
+
+    Returns:
+        {
+            "user_id": "...",
+            "permissions": ["administration.view", "administration.create", ...],
+            "modules": [{"id": 1, "name": "administration"}, ...],
+            "is_super_admin": false
+        }
+    """
+    from app.services.permission_helper import PermissionHelper
+
+    tenant_id = getattr(current_user, 'tenant_id', 1)
+
+    # Get all permissions for the user
+    permissions = PermissionHelper.get_user_permissions(current_user.UserID, db, tenant_id)
+
+    # Get accessible modules
+    modules = PermissionHelper.get_accessible_modules(current_user.UserID, db, tenant_id)
+
+    # Check if super admin
+    is_super_admin = PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)
+
+    return {
+        "user_id": current_user.UserID,
+        "permissions": sorted(list(permissions)),
+        "modules": [{"id": m.id, "name": m.name} for m in modules],
+        "is_super_admin": is_super_admin
+    }
+
+
+@router.get(
     "/users/all",
     response_model=AllUsersResponse,
 )
