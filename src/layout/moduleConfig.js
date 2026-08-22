@@ -30,10 +30,13 @@ export const MODULE_CONFIG = {
   ],
   'Administration': [
     'users',
-    'certifications',
-    'admin_settings',
-    'message_templates',
+    'business_units',
+    'delivery_centers',
+    'organizational_hierarchy',
+    'role_templates',
     'error_log',
+    'certifications',
+    'message_templates',
   ],
   'Sales': [
     'clients',

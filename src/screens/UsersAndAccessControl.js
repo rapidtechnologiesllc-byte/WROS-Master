@@ -1,7 +1,9 @@
 // Users & Access Control Management
-// Tabbed interface: Users, Business Unit, Organization, Locations
+// Nested route structure: /admin/users-access-control/:section
+// Sections: users, business-units, delivery-centers, organizational-hierarchy, role-templates
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe
 } from "lucide-react";
@@ -1569,7 +1571,29 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
 // ============================================================================
 
 export default function UsersAndAccessControl() {
-  const [activeTab, setActiveTab] = useState("users");
+  const { section } = useParams();
+  const navigate = useNavigate();
+
+  // Map URL section to internal tab names
+  const sectionMap = {
+    "users": "users",
+    "business-units": "business-units",
+    "delivery-centers": "locations",  // Maps to LocationsSection (Delivery Centers)
+    "organizational-hierarchy": "hierarchy",  // Maps to OrganizationalHierarchySection
+    "role-templates": "templates"
+  };
+
+  // Get the current active tab from URL section, default to "users" if no section specified
+  const activeTab = section ? sectionMap[section] : "users";
+
+  // Validate that the section is valid, if not redirect to /admin/users-access-control/users
+  useEffect(() => {
+    if (section && !sectionMap[section]) {
+      // Invalid section, redirect to default
+      navigate("/admin/users-access-control/users");
+    }
+  }, [section, navigate]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -2644,9 +2668,18 @@ function LocationsSection() {
   );
 }
 
-  const tabClasses = "px-4 py-2 font-medium border-b-2 transition whitespace-nowrap flex items-center gap-2";
-  const activeTabClasses = "border-blue-600 text-blue-600";
-  const inactiveTabClasses = "border-transparent text-gray-600 hover:text-gray-900";
+  const navItemClasses = "px-4 py-2 font-medium border-b-2 transition whitespace-nowrap flex items-center gap-2 cursor-pointer";
+  const activeNavClasses = "border-blue-600 text-blue-600";
+  const inactiveNavClasses = "border-transparent text-gray-600 hover:text-gray-900";
+
+  // Navigation items configuration
+  const navItems = [
+    { id: "users", label: "Users", icon: Users, href: "/admin/users-access-control/users" },
+    { id: "business-units", label: "Business Units", icon: Building2, href: "/admin/users-access-control/business-units" },
+    { id: "delivery-centers", label: "Delivery Centers", icon: MapPin, href: "/admin/users-access-control/delivery-centers" },
+    { id: "organizational-hierarchy", label: "Organizational Hierarchy", icon: Globe, href: "/admin/users-access-control/organizational-hierarchy" },
+    { id: "role-templates", label: "Role Templates", icon: null, label2: "📋", href: "/admin/users-access-control/role-templates" }
+  ];
 
   // Check if user has permission to manage role templates (Super User, Admin, CEO)
   const hrmsRole = localStorage.getItem("hrms_role") || "";
@@ -2662,45 +2695,45 @@ function LocationsSection() {
                                  hrmsPermissions.some(p => p.includes("rbac") && p.includes("manage")) ||
                                  currentUserPermissions?.["role.manage"];
 
+  // Determine the current nav section ID from activeTab
+  const currentNavId = Object.keys(sectionMap).find(key => sectionMap[key] === activeTab) || "users";
+
   return (
     <div className="mx-auto max-w-7xl p-6">
       <Card title="Users & Access Control">
-        {/* Tab Navigation */}
+        {/* Navigation Breadcrumbs/Links */}
         <div className="flex gap-2 mb-6 border-b overflow-x-auto">
-          <button
-            onClick={() => setActiveTab("users")}
-            className={`${tabClasses} ${activeTab === "users" ? activeTabClasses : inactiveTabClasses}`}
-          >
-            <Users className="h-4 w-4" /> Users
-          </button>
-          <button
-            onClick={() => setActiveTab("business-units")}
-            className={`${tabClasses} ${activeTab === "business-units" ? activeTabClasses : inactiveTabClasses}`}
-          >
-            <Building2 className="h-4 w-4" /> Business Unit
-          </button>
-          <button
-            onClick={() => setActiveTab("locations")}
-            className={`${tabClasses} ${activeTab === "locations" ? activeTabClasses : inactiveTabClasses}`}
-          >
-            <MapPin className="h-4 w-4" /> Locations
-          </button>
-          <button
-            onClick={() => setActiveTab("hierarchy")}
-            className={`${tabClasses} ${activeTab === "hierarchy" ? activeTabClasses : inactiveTabClasses}`}
-          >
-            📊 Organizational Hierarchy
-          </button>
-          <button
-            onClick={() => setActiveTab("templates")}
-            className={`${tabClasses} ${activeTab === "templates" ? activeTabClasses : inactiveTabClasses}`}
-          >
-            📋 Role Template
-          </button>
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = currentNavId === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => navigate(item.href)}
+                className={`${navItemClasses} ${isActive ? activeNavClasses : inactiveNavClasses}`}
+              >
+                {Icon && <Icon className="h-4 w-4" />}
+                {item.label2 && <span>{item.label2}</span>}
+                {item.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Tab Content */}
-        {activeTab === "users" && (
+        {/* Section Content - Rendered based on URL param */}
+        {!activeTab ? (
+          // Invalid section - show 404
+          <div className="p-6 text-center">
+            <h2 className="text-xl font-semibold text-red-600 mb-2">Section Not Found</h2>
+            <p className="text-gray-600 mb-4">The requested section does not exist.</p>
+            <button
+              onClick={() => navigate("/admin/users-access-control/users")}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go to Users
+            </button>
+          </div>
+        ) : activeTab === "users" ? (
           <UsersSection
             loading={loading}
             error={error}
@@ -2708,17 +2741,13 @@ function LocationsSection() {
             roles={roles}
             currentUserPermissions={currentUserPermissions}
           />
-        )}
-        {activeTab === "business-units" && (
+        ) : activeTab === "business-units" ? (
           <BusinessUnitsSection />
-        )}
-        {activeTab === "locations" && (
+        ) : activeTab === "locations" ? (
           <LocationsSection />
-        )}
-        {activeTab === "hierarchy" && (
+        ) : activeTab === "hierarchy" ? (
           <OrganizationalHierarchySection />
-        )}
-        {activeTab === "templates" && (
+        ) : activeTab === "templates" ? (
           <RoleTemplatesSection
             loading={loading}
             error={error}
@@ -2727,7 +2756,7 @@ function LocationsSection() {
             setRoles={setRoles}
             users={users}
           />
-        )}
+        ) : null}
       </Card>
     </div>
   );
