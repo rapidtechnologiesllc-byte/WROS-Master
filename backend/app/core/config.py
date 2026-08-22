@@ -1,0 +1,125 @@
+"""
+Configuration management for the Onboarding Application.
+Loads environment variables and provides centralized configuration.
+"""
+import os
+from typing import Optional
+from dotenv import load_dotenv
+
+# Bare load_dotenv() resolves .env via the process's current working
+# directory, not this file's location -- some launchers (e.g. this repo's
+# dev-server preview registration) start uvicorn with an unrelated CWD,
+# which silently leaves every setting below at its "" default instead of
+# a clear "file not found" error. Resolve relative to this file instead.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+load_dotenv(os.path.join(_REPO_ROOT, ".env"))
+
+# 2026-08-06, per Avinash's explicit instruction: local dev/click-through
+# sessions must never point at the real production database again (the
+# .env above has always held the real production DATABASE_URL -- that
+# was the root cause of the login-outage incident logged in CLAUDE.md).
+# .env.local (gitignored, same as .env) overrides DATABASE_URL and any
+# other setting for local-only work -- see scripts/setup_local_db.py for
+# how it's built. override=True so this genuinely wins over .env, not
+# just fills in what .env left blank.
+load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
+
+
+class Settings:
+    """Application settings and configuration."""
+    
+    # Application Settings
+    APP_NAME: str = "Onboarding Auth API"
+    APP_VERSION: str = "1.0.0"
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    
+    # Server Settings
+    HOST: str = os.getenv("HOST", "127.0.0.1")
+    PORT: int = int(os.getenv("PORT", "8080"))
+    
+    # Database Settings
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    
+    # JWT Settings (HS256 with symmetric key)
+    JWT_ALGORITHM: str = "HS256"
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+    JWT_PRIVATE_KEY: str = ""  # Deprecated: using HS256 with JWT_SECRET instead
+    JWT_PUBLIC_KEY: str = ""   # Deprecated: using HS256 with JWT_SECRET instead
+    
+    # Microsoft Graph API Settings
+    TENANT_ID: str = os.getenv("TENANT_ID", "")
+    CLIENT_ID: str = os.getenv("CLIENT_ID", "")
+    CLIENT_SECRET: str = os.getenv("CLIENT_SECRET", "")
+    AUTHORITY: str = os.getenv("AUTHORITY", "") or f"https://login.microsoftonline.com/{TENANT_ID}"
+    REDIRECT_URI: str = os.getenv("REDIRECT_URI", "")
+    SCOPES: list = os.getenv("SCOPES", "").split() if os.getenv("SCOPES") else []
+
+    # Webhook Settings (HRMS-0114) -- shared secret for endpoints that
+    # must accept calls from non-interactive external callers, e.g.
+    # POST /ai-agent/webhook/email-reply. See app.core.webhook_auth.
+    WEBHOOK_SHARED_SECRET: str = os.getenv("WEBHOOK_SHARED_SECRET", "")
+
+    # S-002/HRMS-0402 -- WhatsApp Cloud API webhook (Meta). Empty by
+    # default since no WhatsApp Business API app is registered with Meta
+    # yet in this environment (same posture as whatsapp_routing_service's
+    # outbound send stub) -- the receiver endpoint is real, structurally
+    # correct code either way; these two values are what Avinash provides
+    # once a real Meta app + webhook subscription exist.
+    WHATSAPP_VERIFY_TOKEN: str = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+    WHATSAPP_APP_SECRET: str = os.getenv("WHATSAPP_APP_SECRET", "")
+
+    # Field-level encryption (HRMS-0101 BR-01) -- AES-256 key (32 raw
+    # bytes, base64-encoded) for employee bank account/routing fields.
+    # See app.core.field_encryption.
+    FIELD_ENCRYPTION_KEY: str = os.getenv("FIELD_ENCRYPTION_KEY", "")
+
+    # S-017/HRMS-0417 -- base URL used to build the candidate portal
+    # link Thunder sends via WhatsApp/Email (/candidate/{token}).
+    # Defaults to the real production frontend origin already listed
+    # in CORS_ORIGINS below; override via env for other environments.
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://46.224.149.7:3005")
+
+    # CORS Settings
+    CORS_ORIGINS: list = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://46.224.149.7:3005",
+        "http://46.224.149.7:8080",
+        "http://localhost:8080",
+        # Add production frontend URLs here
+    ]
+    
+    # Security Settings
+    BCRYPT_ROUNDS: int = 12
+    
+    # File Upload Settings
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB default
+    
+    # Email Settings (if needed in future)
+    SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
+    SMTP_PORT: Optional[int] = int(os.getenv("SMTP_PORT", "587")) if os.getenv("SMTP_PORT") else None
+    SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
+    SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
+    
+    @classmethod
+    def validate_config(cls) -> bool:
+        """Validate that required configuration is present."""
+        required_vars = [
+            ("DATABASE_URL", cls.DATABASE_URL),
+            ("JWT_SECRET", cls.JWT_SECRET),
+        ]
+
+        missing = [var_name for var_name, var_value in required_vars if not var_value]
+
+        if missing:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+
+        return True
+
+
+# Create a global settings instance
+settings = Settings()

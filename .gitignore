@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.Python
+env/
+venv/
+
+# Build outputs
+/frontend/build/
+/frontend/dist/
+/career/build/
+/career/dist/
+*.egg
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Database
+*.sqlite3
+*.db
+local_dev.db
+
+# Temp
+.tmp/
+temp/
+*.temp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Node
+dist/
+.cache/
+
+# Python
+*.egg-info/
+dist/
+build/

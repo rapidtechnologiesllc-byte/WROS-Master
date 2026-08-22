@@ -1,0 +1,123 @@
+[Normal] S-023 — Candidate Memory Viewer (Recruiter UI)
+[Normal] EPIC-04 | Sprint 2 | P1 — High | Est: 2 days
+[Normal] ──────────────────────────────────────────
+[Normal] 1. STORY ID + TITLE
+[TABLE]
+Field | Value
+Story ID | S-023
+WROS ID | HRMS-0423
+Title | Candidate Memory Viewer (Recruiter UI)
+Epic | EPIC-04
+Sprint | Sprint 2
+Week | W5
+Priority | P1 — High
+Owner | Lead BA
+Assignee | Frontend
+Est. Days | 2
+Depends On | HRMS-0421 candidate_memory tables exist. HRMS-0422 facts being extracted. GET /api/candidates/{id}/memory endpoint exists.
+Blocks | Nothing blocked — standalone visibility feature for recruiters.
+Status | Planned
+[/TABLE]
+[Normal] 
+[Normal] 2. WHY THIS EXISTS
+[Normal] Recruiters need to see what Thunder knows about a candidate. If Thunder has extracted that a candidate expects 24 LPA and cannot relocate, the recruiter must be able to see and verify this before making a submission. Without the Memory Viewer, Thunder's knowledge is a black box and recruiters cannot trust it.
+[Normal] Recruiters must also be able to correct incorrect facts. If Thunder misunderstood '24 LPA' as '24k USD', the recruiter must be able to fix it manually.
+[Normal] 3. WHAT YOU ARE BUILDING
+[Normal] Build a Memory Viewer panel in the candidate profile MESSAGES tab sidebar. Shows: the Thunder-generated summary paragraph, then facts organized by category (Salary, Preferences, Constraints, Motivators, Objections, Availability, Skills, Employer). Each fact shows the key, value, confidence indicator, and a correction option.
+[Normal] 4. BEFORE YOU START
+[Normal] ▶  Do NOT write a single line of code until every item below is confirmed complete.
+[List Bullet] HRMS-0421 complete — candidate_memory and candidate_memory_facts tables exist with data
+[List Bullet] HRMS-0422 complete — facts are being populated by extraction engine
+[List Bullet] GET /api/candidates/{id}/memory endpoint returns { summary, facts } grouped by category
+[Normal] 5. STEP-BY-STEP EXECUTION
+[Normal] ▶  Follow these steps in exact order. If a step is unclear, ask the lead BA — never assume.
+[Normal] Step 1: Add Memory tab or section to MESSAGES tab sidebar
+[List Bullet] In the HRMS-0406 Messages Tab right sidebar: add a collapsible 'Thunder's Memory' section below the Missing Fields widget
+[List Bullet] Toggle open/close with a chevron button. Default: collapsed (to keep sidebar clean for new candidates without memory)
+[List Bullet] When expanded: fetch GET /api/candidates/{id}/memory and render content
+[Normal] Step 2: Build memory summary display
+[List Bullet] At top of Memory section: label 'Thunder's Summary' with last_updated timestamp
+[List Bullet] Show the summary paragraph in italics. If no summary yet: show 'Thunder is still learning about this candidate. Memory builds as conversations progress.'
+[Normal] Step 3: Build facts display by category
+[List Bullet] Below summary: facts grouped by category with category headers (Salary / Preferences / Constraints / Motivators / Objections / Availability / Skills / Employer / Other)
+[List Bullet] Each fact shows: fact_key (formatted as readable label, e.g. 'expected_ctc' → 'Expected Salary'), fact_value in bold, confidence indicator (colored dot: green=0.8+, amber=0.5-0.79, red=<0.5), source timestamp
+[List Bullet] Only show categories that have at least one active fact. Hide empty categories.
+[Normal] Step 4: Build fact correction functionality
+[List Bullet] Each fact has a small edit (pencil) icon on hover
+[List Bullet] Click edit: inline edit mode for that fact's value. Text input pre-filled with current value. Save and Cancel buttons.
+[List Bullet] On Save: PATCH /api/candidates/{id}/memory/facts/{fact_id} with { fact_value: new_value, confidence: 1.0 } (manual corrections get full confidence)
+[List Bullet] On save success: fact updates inline. Show toast 'Memory updated.'
+[List Bullet] Log event in conversation_events: event_type='MEMORY_FACT_CORRECTED', triggered_by=recruiter_user_id
+[Normal] Step 5: Build fact correction API endpoint
+[List Bullet] PATCH /api/candidates/{id}/memory/facts/{fact_id}
+[List Bullet] Auth: recruiter auth, tenant_id filter
+[List Bullet] Body: { fact_value: string }
+[List Bullet] UPDATE candidate_memory_facts SET fact_value=X, confidence=1.0, extracted_at=NOW() WHERE id=fact_id AND candidate_id=Y AND tenant_id=Z
+[List Bullet] If fact maps to a candidate profile field: also UPDATE candidates table and ensure markFieldReceived() called
+[List Bullet] Response: updated fact record
+[Normal] 6A. UI FIELDS
+[Normal] ▶  Every field below: implement exactly as specified. Type, length, error messages are requirements — not suggestions.
+[TABLE]
+Field Name | Type | Required | Max Length | Placeholder / Default | Validation / Error
+Memory Section Toggle | Collapsible section header | N/A | N/A | Thunder's Memory ▼ | Default collapsed. Click to expand/collapse. Shows fact count when collapsed: 'Thunder's Memory (12 facts)'
+Summary Paragraph | Read-only italic text | N/A | N/A | [2-3 sentence summary] | Label: 'Thunder's Summary — last updated X hours ago'. If no summary: placeholder text.
+Category Header | Section subheader | N/A | N/A | Salary / Preferences / Constraints / etc. | Bold. Only shown when category has active facts.
+Fact Row | Fact key + value + confidence dot | N/A | N/A | Expected Salary: 24 LPA ● | ● color: green=0.8+, amber=0.5-0.79, red=<0.5. Pencil icon on hover for editing.
+Inline Edit Input | Text input (inline) | Yes when editing | 500 chars | [current fact value] | Replaces value display when pencil icon clicked. Save and Cancel buttons appear.
+Confidence Dot Tooltip | Tooltip on hover | N/A | N/A | 'High confidence' / 'Medium confidence' / 'Low confidence — verify with candidate' | Hover over confidence dot shows this text
+[/TABLE]
+[Normal] 
+[Normal] 6B. BUSINESS RULES
+[Normal] ▶  Every rule is non-negotiable. If in doubt, escalate to lead BA — never silently skip a rule.
+[Normal] BR-01: Manual Corrections Get Full Confidence (1.0)
+[Normal] When a recruiter manually corrects a fact value: set confidence=1.0. Manual human corrections are the highest-confidence data in the system. Thunder treats confidence=1.0 facts as verified ground truth in its prompts.
+[Normal]   ↳ Triggered by field: confidence
+[Normal] BR-02: Low Confidence Facts Shown With Warning
+[Normal] Facts with confidence < 0.5 are shown with red dot and a small warning icon. Hovering shows 'Low confidence — verify with candidate before using.' This tells recruiters which facts Thunder is uncertain about.
+[Normal]   ↳ Triggered by field: confidence < 0.5
+[Normal] BR-03: Fact Corrections Cascade to Candidate Profile
+[Normal] If the corrected fact_key maps to a candidate profile field (e.g. expected_ctc → candidates.expected_ctc): the correction must also update the candidates table. This keeps profile data and memory in sync.
+[Normal]   ↳ Triggered by field: fact_key → profile field mapping
+[Normal] 6C. INTEGRATIONS
+[TABLE]
+System | Direction | Trigger | Data | Auth | On Failure
+GET /api/candidates/{id}/memory | Frontend call | Memory section expanded | Returns { summary, facts grouped by category, last_updated } | Recruiter auth | On error: show 'Memory unavailable. Please refresh.' — do not crash sidebar.
+PATCH /api/candidates/{id}/memory/facts/{fact_id} | Frontend call | Recruiter saves fact correction | { fact_value } | Recruiter auth | On error: show 'Could not save. Please try again.' Restore original value in UI.
+[/TABLE]
+[Normal] 
+[Normal] 6D. DATA MAPPING
+[TABLE]
+Source Field | Source Table | Target Field | Target Table | Transform / Rule
+fact_key (snake_case) | candidate_memory_facts | Readable label | UI display | Transform: 'expected_ctc' → 'Expected Salary', 'notice_period' → 'Notice Period'. Full mapping list in code constants.
+confidence value 0-1 | candidate_memory_facts | Confidence dot color | UI | >=0.8=green, 0.5-0.79=amber, <0.5=red
+fact_category | candidate_memory_facts | Category section header | UI | GROUP BY fact_category. Display in friendly label: 'SALARY'→'Salary', 'PREFERENCE'→'Preferences'
+[/TABLE]
+[Normal] 
+[Normal] 7. ACCEPTANCE CRITERIA
+[Normal] ▶  Story is NOT done until EVERY checkbox below is signed off by QA.
+[Normal] ☐  'Thunder's Memory' section appears in MESSAGES tab sidebar, collapsed by default
+[Normal] ☐  Expanding section fetches and displays summary and facts
+[Normal] ☐  Facts are grouped by category with category headers
+[Normal] ☐  Each fact shows: readable label, value in bold, colored confidence dot
+[Normal] ☐  Confidence dot tooltip shows confidence level description on hover
+[Normal] ☐  Pencil icon appears on hover over each fact
+[Normal] ☐  Clicking pencil: inline edit mode with current value pre-filled
+[Normal] ☐  Saving correction: fact updates in UI, toast shown, confidence set to 1.0
+[Normal] ☐  If corrected fact maps to profile field: candidates table also updated
+[Normal] ☐  Empty categories not shown
+[Normal] 8. TEST CASES
+[Normal] Each test case maps to an Acceptance Criterion. QA runs ALL before marking story Done.
+[TABLE]
+TC ID | AC Ref | Scenario | Steps | Expected Result | Pass/Fail
+TC-001 | AC-1,2 | Memory section toggle | Open MESSAGES tab. Click 'Thunder's Memory'. | Section expands showing summary and facts grouped by category | 
+TC-002 | AC-5,6,7 | Confidence dots | Ensure facts have varying confidence. Check dot colors. | Green for >=0.8, amber for 0.5-0.79, red for <0.5 | 
+TC-003 | AC-8,9 | Inline correction | Click pencil on 'Expected Salary: 24 LPA'. Change to '26 LPA'. Save. | Fact shows '26 LPA'. confidence=1.0. Toast shown. candidates.expected_ctc updated if mapped. | 
+TC-004 | AC-10 | Empty category hidden | Candidate with only SALARY facts. Check category headers. | Only 'Salary' category header shown — no empty categories | 
+[/TABLE]
+[Normal] 
+[Normal] 9. WHAT NOT TO BUILD
+[Normal] ▶  Building anything on this list = code review rejection.
+[List Bullet] Do NOT build memory deletion — facts can be corrected but not deleted via UI
+[List Bullet] Do NOT build fact history view — current active facts only
+[List Bullet] Do NOT show memory to candidate — recruiter/internal view only
+[Normal] S-023 — Candidate Memory Viewer (Recruiter UI) | WROS Batch 1 | BlitzenX Confidential

@@ -1,0 +1,275 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "tests/e2e/test-01-login-and-create-candidate.spec.js",
+      "--project=chromium"
+    ],
+    "configFile": "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\playwright.config.js",
+    "rootDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "C:/Users/AvinashMukund/Documents/Claude/OnboardingModule-Frontend-main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "test-results/junit.xml"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm start",
+      "url": "http://localhost:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "test-01-login-and-create-candidate.spec.js",
+      "file": "test-01-login-and-create-candidate.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Step 1: Login and Create Candidate",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 30231,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\tests\\e2e\\test-01-login-and-create-candidate.spec.js",
+                        "column": 19,
+                        "line": 87
+                      },
+                      "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Save\"), button:has-text(\"Create\"), button:has-text(\"Submit\")').first()\u001b[22m\n\n\n  85 |   const saveBtn = await page.locator('button:has-text(\"Save\"), button:has-text(\"Create\"), button:has-text(\"Submit\")').first();\n  86 |   if (saveBtn) {\n> 87 |     await saveBtn.click();\n     |                   ^\n  88 |     console.log('✅ Save button clicked');\n  89 |   } else {\n  90 |     console.log('❌ Save button not found');\n    at C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\tests\\e2e\\test-01-login-and-create-candidate.spec.js:87:19"
+                    }
+                  ],
+                  "stdout": [
+                    {
+                      "text": "\n=== STEP 1: LOGIN ===\n"
+                    },
+                    {
+                      "text": "✅ Email entered\n"
+                    },
+                    {
+                      "text": "✅ Password entered\n"
+                    },
+                    {
+                      "text": "✅ LOGIN SUCCESSFUL\n"
+                    },
+                    {
+                      "text": "📍 Dashboard URL: http://localhost:3000/\n"
+                    },
+                    {
+                      "text": "\n=== STEP 2: CREATE CANDIDATE ===\n"
+                    },
+                    {
+                      "text": "✅ Add Candidate modal opened\n"
+                    },
+                    {
+                      "text": "Found 13 total input fields\n"
+                    },
+                    {
+                      "text": "Input 0: type=text, placeholder=Search candidates or jobs...\n"
+                    },
+                    {
+                      "text": "Input 1: type=file, placeholder=null\n"
+                    },
+                    {
+                      "text": "Input 2: type=text, placeholder=null\n"
+                    },
+                    {
+                      "text": "Input 3: type=text, placeholder=null\n"
+                    },
+                    {
+                      "text": "Input 4: type=text, placeholder=null\n"
+                    },
+                    {
+                      "text": "✅ First Name: John\n"
+                    },
+                    {
+                      "text": "✅ Last Name: Smith\n"
+                    },
+                    {
+                      "text": "\nFound 15 buttons:\n"
+                    },
+                    {
+                      "text": "Button 0: \"Dashboard\"\n"
+                    },
+                    {
+                      "text": "Button 1: \"My Tasks\"\n"
+                    },
+                    {
+                      "text": "Button 2: \"My Timesheet\"\n"
+                    },
+                    {
+                      "text": "Button 3: \"My Expenses\"\n"
+                    },
+                    {
+                      "text": "Button 4: \"My Referrals\"\n"
+                    },
+                    {
+                      "text": "Button 5: \"\"\n"
+                    },
+                    {
+                      "text": "Button 6: \"\"\n"
+                    },
+                    {
+                      "text": "Button 7: \"\"\n"
+                    },
+                    {
+                      "text": "Button 8: \"RRecruiter NA 1\"\n"
+                    },
+                    {
+                      "text": "Button 9: \"Back\"\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-08-16T01:15:50.440Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\test-results\\test-01-login-and-create-c-f9213--Login-and-Create-Candidate-chromium\\test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\test-results\\test-01-login-and-create-c-f9213--Login-and-Create-Candidate-chromium\\video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Frontend-main\\test-results\\test-01-login-and-create-c-f9213--Login-and-Create-Candidate-chromium\\error-context.md"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "9d9090e92a5bb5185d32-c8dfdad75f72318bef30",
+          "file": "test-01-login-and-create-candidate.spec.js",
+          "line": 3,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-08-16T01:15:49.570Z",
+    "duration": 31327.060999999998,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

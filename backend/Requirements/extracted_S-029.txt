@@ -1,0 +1,110 @@
+[PARA:Normal] S-029 — Skill Extraction & Tagging from Resume
+[PARA:Normal] EPIC-04 | Sprint 2 | P0 — Critical | Est: 2 days
+[PARA:Normal] ──────────────────────────────────────────
+[PARA:Normal] 1. STORY ID + TITLE
+[TABLE START]
+  ROW0: Field || Value
+  ROW1: Story ID || S-029
+  ROW2: WROS ID || HRMS-0429
+  ROW3: Title || Skill Extraction & Tagging from Resume
+  ROW4: Epic || EPIC-04
+  ROW5: Sprint || Sprint 2
+  ROW6: Week || W6
+  ROW7: Priority || P0 — Critical
+  ROW8: Owner || Lead BA
+  ROW9: Assignee || Backend
+  ROW10: Est. Days || 2
+  ROW11: Depends On || HRMS-0428 candidate.resume_parsed event fires with skills array. Skill taxonomy/normalization constants defined by BA.
+  ROW12: Blocks || HRMS-0437 Technical Score needs normalized skills. HRMS-0509 Bench matching uses skill tags. HRMS-P901 Boolean search uses skill tags.
+  ROW13: Status || Planned
+[TABLE END]
+[PARA:Normal] 2. WHY THIS EXISTS
+[PARA:Normal] The resume parser (HRMS-0428) extracts a raw skills array: ['guidewire', 'GW PolicyCenter', 'GWPC', 'Java', 'j2ee']. These are four different ways to say two skills. Without normalization, matching and search break down: searching for 'Guidewire' won't find the candidate who listed 'GWPC'.
+[PARA:Normal] Skill normalization is the foundation for accurate candidate-to-job matching across the entire platform.
+[PARA:Normal] 3. WHAT YOU ARE BUILDING
+[PARA:Normal] Build skill normalization using the synonym library (HRMS-P902). Take the raw skills array from HRMS-0428, normalize each skill to its canonical name, deduplicate, store as candidate_skill_tags records. Update candidates.skills with normalized array.
+[PARA:Normal] 4. BEFORE YOU START
+[PARA:Normal] ▶  Do NOT write a single line of code until every item below is confirmed complete.
+[PARA:List Bullet] HRMS-0428 complete — candidate.resume_parsed event fires with skills array
+[PARA:List Bullet] Skill synonym library exists as code constants (lead BA must define canonical names and synonyms before this story starts)
+[PARA:Normal] 5. STEP-BY-STEP EXECUTION
+[PARA:Normal] ▶  Follow these steps in exact order. If a step is unclear, ask the lead BA — never assume.
+[PARA:Normal] Step 1: Define skill synonym library (with BA)
+[PARA:List Bullet] BEFORE CODING: Lead BA must provide and approve the skill synonym mapping. Example:
+[PARA:List Bullet] Canonical: 'Guidewire' → Synonyms: ['GW', 'GW PolicyCenter', 'GWPC', 'GW ClaimCenter', 'GWCC', 'GW BillingCenter', 'GWBC', 'Guidewire PolicyCenter', 'Guidewire ClaimCenter', 'Guidewire BillingCenter']
+[PARA:List Bullet] Canonical: 'Java' → Synonyms: ['J2EE', 'Core Java', 'Java 8', 'Java 11', 'Java 17', 'Java EE', 'Spring Boot', 'Spring Framework'] (NOTE: Spring Boot is a framework built on Java — discuss with BA whether to keep separate or merge)
+[PARA:List Bullet] Store as JSON constants file in codebase: src/constants/skill_synonyms.json. This file is the source of truth and requires BA approval to modify.
+[PARA:Normal] Step 2: Create candidate_skill_tags table
+[PARA:List Bullet] id UUID PK, tenant_id UUID, candidate_id UUID FK→candidates.id, skill_canonical VARCHAR(100) NOT NULL, skill_raw VARCHAR(200) (original as listed on resume), source ENUM('RESUME','CONVERSATION','MANUAL') default 'RESUME', confidence DECIMAL(3,2) default 1.0, added_at TIMESTAMP default NOW()
+[PARA:List Bullet] Index on (tenant_id, candidate_id, skill_canonical)
+[PARA:List Bullet] UNIQUE on (tenant_id, candidate_id, skill_canonical) — no duplicate canonical skills per candidate
+[PARA:Normal] Step 3: Build normalizeSkills() function
+[PARA:List Bullet] normalizeSkills(raw_skills_array) → array of { canonical, raw, confidence }
+[PARA:List Bullet] For each raw skill: search synonym library for match (case-insensitive). If found: use canonical name, confidence=1.0.
+[PARA:List Bullet] If not found in synonym library: keep raw skill as canonical (it may be a legitimate skill not yet in library), confidence=0.8. Log SKILL_NOT_IN_SYNONYM_LIBRARY for BA review.
+[PARA:List Bullet] Deduplicate: if two raw skills normalize to same canonical: keep one entry.
+[PARA:List Bullet] Return normalized array
+[PARA:Normal] Step 4: Build SkillExtractionService that listens to candidate.resume_parsed
+[PARA:List Bullet] On candidate.resume_parsed event: load the skills array from candidate_resume_parsed.skills for this candidate
+[PARA:List Bullet] Call normalizeSkills(raw_skills)
+[PARA:List Bullet] For each normalized skill: INSERT into candidate_skill_tags ON CONFLICT (tenant_id, candidate_id, skill_canonical) DO NOTHING (don't overwrite existing tags)
+[PARA:List Bullet] UPDATE candidates.skills = array of canonical skill names (for profile display and search)
+[PARA:List Bullet] Call markFieldReceived('skills', candidate_id, tenant_id) if at least one skill found
+[PARA:List Bullet] Publish event: candidate.skills_extracted { candidate_id, skills_count, canonical_skills }
+[PARA:Normal] Step 5: Build skill suggestion for unknown skills
+[PARA:List Bullet] Skills not found in synonym library: send to a weekly report for BA to review
+[PARA:List Bullet] GET /api/admin/skill-suggestions — returns all skills logged as SKILL_NOT_IN_SYNONYM_LIBRARY in last 7 days
+[PARA:List Bullet] BA can then update skill_synonyms.json and re-run normalization for affected candidates
+[PARA:Normal] 6A. UI FIELDS
+[PARA:Normal] ▶  Every field below: implement exactly as specified. Type, length, error messages are requirements — not suggestions.
+[TABLE START]
+  ROW0: Field Name || Type || Required || Max Length || Placeholder / Default || Validation / Error
+  ROW1: Skills Tags on Candidate Profile || Read-only tag list || N/A || N/A || [Guidewire] [Java] [SQL] || Canonical skill names shown as removable tags. Shown on candidate profile. Recruiter can add/remove manually.
+[TABLE END]
+[PARA:Normal] 6B. BUSINESS RULES
+[PARA:Normal] ▶  Every rule is non-negotiable. If in doubt, escalate to lead BA — never silently skip a rule.
+[PARA:Normal] BR-01: Canonical Names Are Source of Truth for Matching
+[PARA:Normal] All candidate-to-job matching, bench search, and Boolean search uses canonical skill names only. Raw skill strings are stored for reference but never used in search or matching logic.
+[PARA:Normal]   ↳ Triggered by field: skill_canonical
+[PARA:Normal] BR-02: Synonym Library Requires BA Approval to Modify
+[PARA:Normal] skill_synonyms.json is a product decision, not a technical one. Adding or removing synonyms changes matching behavior across the platform. Any change requires Lead BA written approval and a code review before deployment.
+[PARA:Normal]   ↳ Triggered by field: skill_synonyms.json
+[PARA:Normal] BR-03: Unknown Skills Are Preserved, Not Discarded
+[PARA:Normal] A skill not in the synonym library is kept as-is with confidence=0.8. It is not discarded. The BA reviews and either adds it to the library or confirms it is valid as-is.
+[PARA:Normal]   ↳ Triggered by field: confidence=0.8 for unknown skills
+[PARA:Normal] 6C. INTEGRATIONS
+[TABLE START]
+  ROW0: System || Direction || Trigger || Data || Auth || On Failure
+  ROW1: candidate.resume_parsed event || Consumer || HRMS-0428 publishes after successful parse || { candidate_id, tenant_id } || Internal event bus || Load skills from candidate_resume_parsed.skills for this candidate_id
+  ROW2: candidate.skills_extracted event || Publish || After tags stored || { candidate_id, skills_count, canonical_skills } || Internal event bus || Consumed by matching engine (HRMS-1001) and search index
+[TABLE END]
+[PARA:Normal] 6D. DATA MAPPING
+[TABLE START]
+  ROW0: Source Field || Source Table || Target Field || Target Table || Transform / Rule
+  ROW1: candidate_resume_parsed.skills (raw array) || candidate_resume_parsed || skill_canonical (after normalization) || candidate_skill_tags || Synonym lookup: raw → canonical. Unknown: raw used as canonical.
+  ROW2: skill_canonical array || candidate_skill_tags || candidates.skills (JSONB array) || candidates table || Updated to array of canonical skill names after extraction
+[TABLE END]
+[PARA:Normal] 7. ACCEPTANCE CRITERIA
+[PARA:Normal] ▶  Story is NOT done until EVERY checkbox below is signed off by QA.
+[PARA:Normal] ☐  normalizeSkills(['GWCC','Java 8']) returns [{ canonical:'Guidewire', raw:'GWCC' }, { canonical:'Java', raw:'Java 8' }]
+[PARA:Normal] ☐  candidate_skill_tags populated after candidate.resume_parsed event
+[PARA:Normal] ☐  candidates.skills updated with canonical skill names array
+[PARA:Normal] ☐  markFieldReceived('skills') called when at least 1 skill found
+[PARA:Normal] ☐  Unknown skills stored with confidence=0.8, logged for BA review
+[PARA:Normal] ☐  Duplicate canonical skills (from two different raw skills) stored only once
+[PARA:Normal] ☐  candidate.skills_extracted event published
+[PARA:Normal] 8. TEST CASES
+[PARA:Normal] Each test case maps to an Acceptance Criterion. QA runs ALL before marking story Done.
+[TABLE START]
+  ROW0: TC ID || AC Ref || Scenario || Steps || Expected Result || Pass/Fail
+  ROW1: TC-001 || AC-1 || Synonym normalization || normalizeSkills(['GWCC','GWPC','Java 8','j2ee']). || Returns [{ canonical:'Guidewire'... }, { canonical:'Guidewire'... deduplicated to 1 }, { canonical:'Java'... }, { canonical:'Java'... deduplicated }] || 
+  ROW2: TC-002 || AC-2,3 || Tags and profile update || Parse resume with 5 skills. Check candidate_skill_tags and candidates.skills. || 5 canonical tags in candidate_skill_tags. candidates.skills = canonical array. || 
+  ROW3: TC-003 || AC-5 || Unknown skill || Parse resume with skill 'Acme Framework 3.0' not in synonym library. || Stored as canonical 'Acme Framework 3.0' with confidence=0.8. Logged for BA review. || 
+  ROW4: TC-004 || AC-6 || Deduplication || Two raw skills both normalize to 'Guidewire'. Check candidate_skill_tags. || Only ONE Guidewire entry in candidate_skill_tags || 
+[TABLE END]
+[PARA:Normal] 9. WHAT NOT TO BUILD
+[PARA:Normal] ▶  Building anything on this list = code review rejection.
+[PARA:List Bullet] Do NOT build skill synonym library UI — JSON file edited by BA in code repo
+[PARA:List Bullet] Do NOT build skill proficiency levels (beginner/expert) — binary presence only
+[PARA:List Bullet] Do NOT build skill decay (old skills deprecated over time) — future story
+[PARA:Normal] S-029 — Skill Extraction & Tagging from Resume | WROS Batch 1 | BlitzenX Confidential

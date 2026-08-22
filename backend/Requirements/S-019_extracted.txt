@@ -1,0 +1,98 @@
+[Normal] S-019 — Conversation Summary Auto-Generation
+[Normal] EPIC-04 | Sprint 1 | P1 — High | Est: 2 days
+[Normal] ──────────────────────────────────────────
+[Normal] 1. STORY ID + TITLE
+--- TABLE START ---
+Field || Value
+Story ID || S-019
+WROS ID || HRMS-0419
+Title || Conversation Summary Auto-Generation
+Epic || EPIC-04
+Sprint || Sprint 1
+Week || W4
+Priority || P1 — High
+Owner || Lead BA
+Assignee || Backend
+Est. Days || 2
+Depends On || HRMS-0418 State Manager. HRMS-0421 Candidate Memory Store (summaries feed memory). HRMS-0422 Facts Extraction.
+Blocks || HRMS-0432 Candidate Context Builder uses summaries to compress long conversation history.
+Status || Planned
+--- TABLE END ---
+[Normal] 
+[Normal] 2. WHY THIS EXISTS
+[Normal] As a candidate has dozens of message exchanges with Thunder, the full conversation becomes too long to include in every Thunder prompt. A 2-3 sentence summary of what has been collected and what was discussed allows Thunder to stay contextually aware without reading every message from scratch. Summaries also help recruiters instantly understand where a conversation is without reading the full thread.
+[Normal] 3. WHAT YOU ARE BUILDING
+[Normal] After every set of Thunder exchanges (every 5 messages or after any state transition), generate a concise 2-3 sentence summary of the conversation state. Store in candidate_conversations.summary. Display in the recruiter MESSAGES tab Status Card.
+[Normal] 4. BEFORE YOU START
+[Normal] ▶  Do NOT write a single line of code until every item below is confirmed complete.
+[List Bullet] HRMS-0418 complete — conversation state transitions are tracked
+[List Bullet] HRMS-0422 complete — candidate facts are being extracted
+[List Bullet] candidate_conversations.summary column must exist (add if not present)
+[Normal] 5. STEP-BY-STEP EXECUTION
+[Normal] ▶  Follow these steps in exact order. If a step is unclear, ask the lead BA — never assume.
+[Normal] Step 1: Ensure summary column exists
+[List Bullet] ALTER TABLE candidate_conversations ADD COLUMN IF NOT EXISTS summary TEXT
+[List Bullet] ALTER TABLE candidate_conversations ADD COLUMN IF NOT EXISTS summary_updated_at TIMESTAMP
+[Normal] Step 2: Build generateConversationSummary() function
+[List Bullet] Trigger: called after every 5th inbound message OR after every state transition
+[List Bullet] Load last 20 messages from conversation_messages for this conversation
+[List Bullet] Load candidate_memory facts for this candidate (from HRMS-0421)
+[List Bullet] Build LLM prompt: 'Summarize this recruiting conversation in 2-3 sentences. Focus on: what information has been collected, what is still missing, and the candidate's current engagement level. Conversation: [last 20 messages]. Known facts: [candidate memory]. Be factual and concise. No filler phrases.'
+[List Bullet] Call LLM API with prompt. Parse response. Validate: summary must be between 50 and 400 characters.
+[List Bullet] UPDATE candidate_conversations SET summary=result, summary_updated_at=NOW()
+[List Bullet] Insert conversation_events record: event_type='SUMMARY_GENERATED'
+[Normal] Step 3: Expose summary in GET /api/candidates/{id}/conversation response
+[List Bullet] Add summary and summary_updated_at to the GET /api/candidates/{id}/conversation response
+[List Bullet] Display in HRMS-0406 Status Card below the owner label: italic text showing the summary
+[List Bullet] Label it: 'Thunder's summary: [summary text]'
+[Normal] 6A. UI FIELDS
+[Normal] ▶  Every field below: implement exactly as specified. Type, length, error messages are requirements — not suggestions.
+--- TABLE START ---
+Field Name || Type || Required || Max Length || Placeholder / Default || Validation / Error
+Summary Display in Status Card || Read-only italic text || N/A || N/A || Thunder's summary: [2-3 sentence summary] || Shown below owner label in HRMS-0406 Status Card. Not shown if no summary yet.
+--- TABLE END ---
+[Normal] 
+[Normal] 6B. BUSINESS RULES
+[Normal] ▶  Every rule is non-negotiable. If in doubt, escalate to lead BA — never silently skip a rule.
+[Normal] BR-01: Summary Is Generated After Every 5 Messages OR State Transition
+[Normal] Do not generate on every single message — LLM calls have cost and latency. Trigger: (message count for this conversation) % 5 == 0 OR a state transition just occurred.
+[Normal] BR-02: Summary Must Be 50–400 Characters
+[Normal] Validate LLM output length. Under 50 chars: too vague, regenerate once. Over 400 chars: truncate to 400. If regeneration also fails: keep previous summary and log SUMMARY_GENERATION_FAILED.
+[Normal]   ↳ Triggered by field: summary
+[Normal] 6C. INTEGRATIONS
+--- TABLE START ---
+System || Direction || Trigger || Data || Auth || On Failure
+LLM API (Anthropic claude-sonnet-4-6) || Outbound || After every 5 messages or state transition || Prompt with last 20 messages + candidate memory || API key from environment || On failure: keep previous summary. Log SUMMARY_GENERATION_FAILED. Do not crash conversation flow.
+--- TABLE END ---
+[Normal] 
+[Normal] 6D. DATA MAPPING
+--- TABLE START ---
+Source Field || Source Table || Target Field || Target Table || Transform / Rule
+Last 20 conversation_messages || conversation_messages || LLM prompt input || LLM API || Ordered by sent_at ASC
+candidate_memory facts || candidate_memory || LLM prompt input || LLM API || Known facts about candidate included in prompt
+LLM API response text || LLM output || summary || candidate_conversations || Validated 50-400 chars. Stored after validation.
+--- TABLE END ---
+[Normal] 
+[Normal] 7. ACCEPTANCE CRITERIA
+[Normal] ▶  Story is NOT done until EVERY checkbox below is signed off by QA.
+[Normal] ☐  After every 5th inbound message: summary is generated and stored in candidate_conversations.summary
+[Normal] ☐  After every state transition: summary is generated
+[Normal] ☐  Summary is 50–400 characters
+[Normal] ☐  Summary visible in HRMS-0406 Status Card as 'Thunder's summary: [text]'
+[Normal] ☐  If LLM fails: previous summary retained, conversation continues, SUMMARY_GENERATION_FAILED logged
+[Normal] ☐  SUMMARY_GENERATED event inserted in conversation_events
+[Normal] 8. TEST CASES
+[Normal] Each test case maps to an Acceptance Criterion. QA runs ALL before marking story Done.
+--- TABLE START ---
+TC ID || AC Ref || Scenario || Steps || Expected Result || Pass/Fail
+TC-001 || AC-1 || 5 message trigger || Send 5 inbound messages. Check candidate_conversations.summary. || summary populated with 50-400 char text. summary_updated_at set. || 
+TC-002 || AC-2 || State transition trigger || Trigger QUALIFYING→QUALIFIED. Check summary. || New summary generated reflecting QUALIFIED state. || 
+TC-003 || AC-5 || LLM failure || Mock LLM API to return error. Send 5 messages. || Previous summary retained. SUMMARY_GENERATION_FAILED in events. No crash. || 
+--- TABLE END ---
+[Normal] 
+[Normal] 9. WHAT NOT TO BUILD
+[Normal] ▶  Building anything on this list = code review rejection.
+[List Bullet] Do NOT build summary history — only most recent summary stored
+[List Bullet] Do NOT show summary to candidate — internal/recruiter view only
+[List Bullet] Do NOT build custom summary prompts via UI
+[Normal] S-019 — Conversation Summary Auto-Generation | WROS Batch 1 | BlitzenX Confidential

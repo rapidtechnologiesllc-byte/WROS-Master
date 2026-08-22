@@ -1,0 +1,222 @@
+================================================================================
+DEPENDENCY GRAPH: WHAT COMPLETING TIER 1 & 2 STORIES WILL UNBLOCK
+================================================================================
+
+KEY INSIGHT: After completing just 11 stories (Tiers 1-2), approximately 80-100
+additional stories become immediately buildable across Phases 2-5.
+
+================================================================================
+TIER 1: CRITICAL ENABLERS
+================================================================================
+
+S-155 (HRMS-P901) - Auto-Generate Boolean Search per Job [4 days]
+  Status: Planned, Phase 2
+  Currently Blocks: 5 stories
+  Unblocks:
+    1. S-156 - Skill Synonym Library
+    2. S-157 - Boolean Search (Internal DB Search)
+    3. S-158 - Boolean Search (LinkedIn Integration)
+    4. S-159 - Boolean Search (Job Board Integration)
+    5. S-160 - Recruiter Boolean Search Editor
+
+  Cascading unblocks (once those 5 are done):
+    - Search History & Saved Searches (5 more)
+    - Advanced Boolean Query Filters (3 more)
+    - AI-powered search tuning (2 more)
+
+S-316 (HRMS-1101) - System Orchestration Master Agent [5 days]
+  Status: Planned, Phase 5 (Agentic Operations)
+  Currently Blocks: 5 stories
+  Unblocks:
+    1. S-317 - Webhook Event Router
+    2. S-318 - Agent State Machine
+    3. S-335 - Integration Health Monitoring
+    4. S-314 - Agent Error Handling
+    5. S-315 - Agent Logging Framework
+
+  Cascading unblocks (once those 5 are done):
+    - All Thunder integration workflows (25+ stories)
+    - Candidate engagement automation (12+ stories)
+    - Interview orchestration (8+ stories)
+    - Notification engine chains (6+ stories)
+
+TIER 1 TOTAL: Unblocks 10 direct stories, 50+ cascading stories
+
+================================================================================
+TIER 2: MAJOR ENABLERS
+================================================================================
+
+S-389 (HRMS-1603) - Manual Invoice Mark-as-Paid [2 days]
+  Status: Planned, Phase Gap Epic
+  Currently Blocks: 3 stories
+  Unblocks:
+    1. HRMS-1604 - Invoice Status Dashboard
+    2. HRMS-1605 - Payment Reconciliation
+    3. HRMS-1606 - AR Follow-up Automation
+
+S-238 (HRMS-0209) - Opportunity Forecast Calculation [3 days]
+  Status: Planned, Phase 3
+  Currently Blocks: 3 stories
+  Unblocks:
+    1. S-240 - Forecast Dashboard
+    2. S-241 - Pipeline Forecast Report
+    3. S-243 - Margin Estimation Engine
+
+S-296 (HRMS-0708) - Convert Candidate to Employee [2 days]
+  Status: Planned, Phase 4
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-297 - Close Demand When Hired
+    2. S-300 - Employee Directory Integration
+
+S-121 (HRMS-P303) - Candidate Relationship Score (CRS) [3 days]
+  Status: Planned, Phase 2
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-122 - Engagement Scoring
+    2. S-123 - Nurture Campaign Triggers
+
+S-283 (HRMS-0603) - Search Internal Bench First [3 days]
+  Status: Planned, Phase 4
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-284 - Bench Matching Algorithm
+    2. S-285 - Bench Utilization Dashboard
+
+S-294 (HRMS-0706) - Interview Panel Assignment & Calendar Sync [3 days]
+  Status: Planned, Phase 4
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-295 - Interview Scheduling
+    2. S-297 - Interview Feedback Collection
+
+S-301 (HRMS-0803) - Assign Resource to Project [3 days]
+  Status: Planned, Phase 4
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-302 - Resource Allocation Tracking
+    2. S-303 - Utilization Reporting
+
+S-107 (HRMS-P601) - Experience Eligibility Engine [4 days]
+  Status: Planned, Phase 2
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-110 - Eligibility Rules Configuration
+    2. S-111 - Compliance Audit Logging
+
+S-120 (HRMS-P302) - Personalized Value Messaging [4 days]
+  Status: Planned, Phase 2
+  Currently Blocks: 2 stories
+  Unblocks:
+    1. S-122 - Goal-based Conversations
+    2. S-124 - Personalized Outreach Campaigns
+
+TIER 2 TOTAL: Unblocks 18 direct stories
+
+TIERS 1-2 COMBINED: ~28-30 direct unblocks, 50+ cascading (80-100 total)
+
+================================================================================
+ESTIMATED UNBLOCK TIMELINE
+================================================================================
+
+After Week 1 (Tier 1 starts):
+  - S-155 & S-316 complete: +10 direct unblocks
+
+After Week 2 (Tier 2 starts):
+  - S-389, S-238, S-296, S-121: +12 direct unblocks
+
+After Week 3 (Tier 2 majority complete):
+  - S-283, S-294, S-301, S-107, S-120: +18 direct unblocks
+
+After Week 4 (Tiers 1-2 done):
+  - Cascading unblocks trigger: +50-70 stories become buildable
+  - New buildable pool grows from 35 to 115-125 stories
+
+After Week 4-5 (Tier 3 completions start):
+  - Phase 4 staffing cascade triggers: +20-30 more stories
+  - Phase 3 revenue workflows cascade: +10-15 more stories
+
+================================================================================
+CRITICAL PATH VISUALIZATION
+================================================================================
+
+DAY 1-5:   S-155 (Boolean Search) IN PROGRESS
+           S-316 (System Orchestration) IN PROGRESS
+
+DAY 6-10:  S-155 completes -> S-156, S-157, S-158, S-159, S-160 NOW BUILDABLE
+           S-238 (Forecast) IN PROGRESS
+
+DAY 11-13: S-316 completes -> S-317, S-318, S-335, S-314, S-315 NOW BUILDABLE
+
+DAY 14-18: S-389 completes -> Finance AR workflow unblocks
+           S-121, S-283, S-294 IN PROGRESS
+
+DAY 19-22: S-238 completes -> Revenue forecast workflow unblocks
+           S-107, S-120 IN PROGRESS
+
+DAY 23:    TIERS 1-2 COMPLETE
+           ASSESSMENT POINT: Reanalyze backlog - 80-100+ new stories buildable
+           Begin Tier 3 assignments
+           Parallelize Tier 4 (analytics dashboards)
+
+================================================================================
+DEPENDENCIES TO WATCH (Cross-phase constraints)
+================================================================================
+
+1. S-283 (Bench matching) depends on S-296 (Convert to employee)
+   -> Must complete S-296 first before bench matching works
+
+2. S-294 (Interview scheduling) depends on S-291 (Search bench first)
+   -> Candidates must be ranked before scheduling interviews
+
+3. S-301 (Resource allocation) depends on S-299 (Project lifecycle)
+   -> Projects must exist before assigning resources
+
+4. S-121 (CRS score) enables S-122 (Engagement scoring)
+   -> Sequential: CRS first, then scoring
+
+5. S-107 (Experience eligibility) enables S-115 (Hiring decision UI)
+   -> Rules must exist before UI is built
+
+================================================================================
+PHASE-LEVEL UNBLOCKS
+================================================================================
+
+Phase 2 (17 buildable, currently building 8):
+  After Tier 3 complete: +6 more (S-079, S-091, S-145, S-115, S-304, S-118)
+  After Tier 4 complete: +12 more (admin portals, auth, configuration)
+  Result: Full Phase 2 portal layer operational
+
+Phase 3 (1 buildable):
+  S-238 enables: S-240, S-241, S-243
+  After those complete: +8 more revenue workflows
+
+Phase 4 (9 buildable, 49 total planned):
+  Tier 1-2 complete unblocks: +15 stories
+  Tier 3 complete unblocks: +12 more
+  Cascade effect unblocks remaining +13 stories
+
+Phase 5 (7 buildable, 47 total planned):
+  Tier 1-2 complete unblocks: +6 analytics stories
+  Tier 4 parallel execution: Complete all 7 Phase 5 stories in 3-4 weeks
+
+================================================================================
+RISK MITIGATION
+================================================================================
+
+IF S-155 OR S-316 DELAYS:
+  -> 10+ stories immediately blocked
+  -> Cascading impact to Phases 2-5
+  MITIGATION: Assign highest-capacity engineer, pre-stage all dependencies
+
+IF S-238 (Forecast) DELAYS:
+  -> Revenue visibility layer stalled
+  -> Executive dashboards delayed by 2-3 weeks
+  MITIGATION: Pair with S-326 (CXO Revenue Dashboard) for immediate executive value
+
+IF Tier 2 STORIES SEQUENCE INCORRECTLY:
+  -> Staffing workflows cascade incorrectly
+  -> Resource allocation breaks
+  MITIGATION: Strict sequencing: S-296 -> S-283 -> S-294 -> S-301
+
+================================================================================

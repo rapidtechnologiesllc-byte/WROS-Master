@@ -1,0 +1,99 @@
+COMPREHENSIVE DUAL-ARCHITECTURE COMPLIANCE AUDIT
+
+Audit Agent - Expand your scope to check BOTH master documents:
+
+PRIMARY DOCUMENT: WROS_MASTER_ARCHITECTURE.md
+- Zero-hardcoding principle
+- Permission model (hierarchy cascading)
+- 9-module architecture
+- Data isolation rules
+- Multi-tenancy
+- Service boundaries
+
+SECONDARY DOCUMENT: BLITZENX WROS - agentic.md (70+ Agent System)
+- Agent framework (agent_id, purpose, domain, owner, inputs, outputs)
+- Authority levels (Level 0-4 enforcement)
+- Orchestrator (centralized agent coordination)
+- Agent communication (structured events, not direct calls)
+- Accountability engine (Owner → Action → Deadline → Evidence → Outcome)
+- Memory management (Transaction, Entity, Historical, Policy, Institutional, Learning)
+- Escalation engine (structured escalation packages)
+- Observability/Control Tower
+- Agent versioning & testing
+- Public praise / Private correction doctrine
+
+VIOLATIONS TO FIND:
+
+CATEGORY 1: Zero-Hardcoding Violations
+├─ Hardcoded role names (CEO, CFO, Partner, Recruiter, etc.)
+├─ Hardcoded permission strings in code logic
+├─ Hardcoded module/feature lists
+├─ Direct role queries (Users.UserRole == X)
+└─ Missing query-time scope filters (tenant_id, bu_id, location)
+
+CATEGORY 2: Agent Framework Violations  
+├─ Hardcoded agent logic (should be agent definitions)
+├─ Missing authority level enforcement
+├─ Direct agent-to-agent calls (should use orchestrator)
+├─ Unstructured agent communication (should use events)
+└─ Unrestricted agent actions (should be bounded)
+
+CATEGORY 3: Orchestration & Coordination Violations
+├─ Agents calling each other directly
+├─ No centralized coordination layer
+├─ No policy-controlled agent interactions
+└─ Arbitrary execution flow
+
+CATEGORY 4: Accountability Violations
+├─ Tasks without clear owner
+├─ Tasks without deadline
+├─ Tasks without success metrics
+├─ No UNOWNED_WORK classification
+└─ No INVALID_WORKFLOW detection
+
+CATEGORY 5: Missing Infrastructure
+├─ No agent memory system
+├─ No structured escalation engine
+├─ No agent observability/monitoring
+├─ No agent versioning framework
+├─ No agent test framework
+└─ No public praise / private correction implementation
+
+OUTPUT FORMAT:
+
+Master Audit Report with:
+1. SUMMARY STATISTICS
+   - Total hardcoding violations
+   - Total agent framework violations
+   - Total missing components
+   - By severity (CRITICAL, HIGH, MEDIUM, LOW)
+
+2. COMPLETE VIOLATIONS LIST
+   VIOLATION #1: Hardcoded Role Check
+   FILE: app/core/dependencies.py
+   LINE: 265
+   SEVERITY: CRITICAL
+   TYPE: Zero-Hardcoding Violation
+   CODE: [snippet]
+   ARCHITECTURE: Should query role_templates database
+   FIX: Implement dynamic permission query
+   HOURS: 2
+   
+   [Continue for all violations...]
+
+3. AGENT FRAMEWORK GAPS
+   - List all agents that should exist but don't
+   - List authority level enforcement gaps
+   - List missing orchestration points
+   - List missing memory implementations
+
+4. COMBINED TODO LIST
+   - Priority order (Phase 2 vs Phase 3/6)
+   - Dependency mapping (which must be done first)
+   - Effort estimate (hours per violation)
+   - Total effort for complete rewrite
+
+5. FILE: ARCHITECTURE_COMPLIANCE_AUDIT.md
+   Comprehensive audit with all findings
+
+This audit will answer: What code violates EITHER architecture?
