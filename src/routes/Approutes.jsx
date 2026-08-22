@@ -103,6 +103,12 @@ import BuddyProgramScreen from "../screens/BuddyProgramScreen";
 import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ErrorLogScreen from "../screens/ErrorLogScreen";
 import AdminSettingsScreen from "../screens/AdminSettingsScreen";
+import AdminSettingsLayout from "../screens/admin/AdminSettingsLayout";
+import OrganizationSection from "../screens/admin/OrganizationSection";
+import AIThresholdsSection from "../screens/admin/AIThresholdsSection";
+import SLASection from "../screens/admin/SLASection";
+import ChannelsSection from "../screens/admin/ChannelsSection";
+import LocaleSection from "../screens/admin/LocaleSection";
 import PartnerROIAgentScreen from "../screens/PartnerROIAgentScreen";
 import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
@@ -120,6 +126,243 @@ import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import MessageQueueDashboard from "../screens/MessageQueueDashboard";
+
+// Admin Settings Components
+const AdminSettingsRedirect = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate(ROUTES.ADMIN_SETTINGS_ORGANIZATION);
+  }, [navigate]);
+  return <div className="p-6 text-sm text-gray-500">Redirecting...</div>;
+};
+
+const AdminSettingsOrganizationPage = () => {
+  const [panel, setPanel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    const loadPanel = async () => {
+      try {
+        const { getSettingsPanel } = await import("../services/api/systemConfig");
+        const panelData = await getSettingsPanel();
+        setPanel(panelData);
+      } catch (err) {
+        if (err.status === 403) setForbidden(true);
+        console.error("Failed to load settings panel:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPanel();
+  }, []);
+
+  return (
+    <AdminSettingsLayout
+      section="organization"
+      title="Organization"
+      subtitle="Manage Business Units, Delivery Centers, and organizational hierarchy."
+      forbidden={forbidden}
+      loading={loading}
+    >
+      <OrganizationSection orgTab="business-units" />
+    </AdminSettingsLayout>
+  );
+};
+
+const AdminSettingsOrganizationSubPage = ({ tab }) => {
+  const [panel, setPanel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    const loadPanel = async () => {
+      try {
+        const { getSettingsPanel } = await import("../services/api/systemConfig");
+        const panelData = await getSettingsPanel();
+        setPanel(panelData);
+      } catch (err) {
+        if (err.status === 403) setForbidden(true);
+        console.error("Failed to load settings panel:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPanel();
+  }, []);
+
+  return (
+    <AdminSettingsLayout
+      section="organization"
+      title="Organization"
+      subtitle="Manage Business Units, Delivery Centers, and organizational hierarchy."
+      forbidden={forbidden}
+      loading={loading}
+    >
+      <OrganizationSection orgTab={tab} />
+    </AdminSettingsLayout>
+  );
+};
+
+const AdminSettingsAIThresholdsPage = () => {
+  const [panel, setPanel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  const loadPanel = async () => {
+    try {
+      const { getSettingsPanel } = await import("../services/api/systemConfig");
+      const panelData = await getSettingsPanel();
+      setPanel(panelData);
+    } catch (err) {
+      if (err.status === 403) setForbidden(true);
+      else console.error("Failed to load settings panel:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    loadPanel();
+  }, []);
+
+  const handleSave = async (key, value) => {
+    const { updateSetting } = await import("../services/api/systemConfig");
+    await updateSetting(key, value);
+    await loadPanel();
+  };
+
+  return (
+    <AdminSettingsLayout
+      section="ai-thresholds"
+      title="AI Thresholds"
+      subtitle="Configure AI model behavior and decision thresholds."
+      forbidden={forbidden}
+      loading={loading}
+    >
+      <AIThresholdsSection panel={panel} onSave={handleSave} loading={loading} />
+    </AdminSettingsLayout>
+  );
+};
+
+const AdminSettingsSLAPage = () => {
+  const [panel, setPanel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  const loadPanel = async () => {
+    try {
+      const { getSettingsPanel } = await import("../services/api/systemConfig");
+      const panelData = await getSettingsPanel();
+      setPanel(panelData);
+    } catch (err) {
+      if (err.status === 403) setForbidden(true);
+      else console.error("Failed to load settings panel:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    loadPanel();
+  }, []);
+
+  const handleSave = async (key, value) => {
+    const { updateSetting } = await import("../services/api/systemConfig");
+    await updateSetting(key, value);
+    await loadPanel();
+  };
+
+  return (
+    <AdminSettingsLayout
+      section="sla"
+      title="SLA"
+      subtitle="Configure Service Level Agreement settings."
+      forbidden={forbidden}
+      loading={loading}
+    >
+      <SLASection panel={panel} onSave={handleSave} loading={loading} />
+    </AdminSettingsLayout>
+  );
+};
+
+const AdminSettingsChannelsPage = () => {
+  const [panel, setPanel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  const loadPanel = async () => {
+    try {
+      const { getSettingsPanel } = await import("../services/api/systemConfig");
+      const panelData = await getSettingsPanel();
+      setPanel(panelData);
+    } catch (err) {
+      if (err.status === 403) setForbidden(true);
+      else console.error("Failed to load settings panel:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    loadPanel();
+  }, []);
+
+  const handleSave = async (key, value) => {
+    const { updateSetting } = await import("../services/api/systemConfig");
+    await updateSetting(key, value);
+    await loadPanel();
+  };
+
+  return (
+    <AdminSettingsLayout
+      section="channels"
+      title="Channels"
+      subtitle="Configure communication channels and integrations."
+      forbidden={forbidden}
+      loading={loading}
+    >
+      <ChannelsSection panel={panel} onSave={handleSave} loading={loading} />
+    </AdminSettingsLayout>
+  );
+};
+
+const AdminSettingsLocalePage = () => {
+  const [panel, setPanel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    const loadPanel = async () => {
+      try {
+        const { getSettingsPanel } = await import("../services/api/systemConfig");
+        const panelData = await getSettingsPanel();
+        setPanel(panelData);
+      } catch (err) {
+        if (err.status === 403) setForbidden(true);
+        else console.error("Failed to load settings panel:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPanel();
+  }, []);
+
+  return (
+    <AdminSettingsLayout
+      section="locale"
+      title="Locale"
+      subtitle="Default timezone, date format, and currency for this tenant."
+      forbidden={forbidden}
+      loading={loading}
+    >
+      <LocaleSection panel={panel} loading={loading} />
+    </AdminSettingsLayout>
+  );
+};
 
 // Wrapper component that renders the appropriate dashboard based on user job_title
 const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
@@ -654,7 +897,16 @@ export default function AppRoutes() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            {/* Admin Settings - URL-based routing */}
+            <Route path="admin/settings" element={<AdminSettingsRedirect />} />
+            <Route path="admin/settings/organization" element={<AdminSettingsOrganizationPage />} />
+            <Route path="admin/settings/organization/business-units" element={<AdminSettingsOrganizationSubPage tab="business-units" />} />
+            <Route path="admin/settings/organization/delivery-centers" element={<AdminSettingsOrganizationSubPage tab="delivery-centers" />} />
+            <Route path="admin/settings/organization/hierarchy" element={<AdminSettingsOrganizationSubPage tab="hierarchy" />} />
+            <Route path="admin/settings/ai-thresholds" element={<AdminSettingsAIThresholdsPage />} />
+            <Route path="admin/settings/sla" element={<AdminSettingsSLAPage />} />
+            <Route path="admin/settings/channels" element={<AdminSettingsChannelsPage />} />
+            <Route path="admin/settings/locale" element={<AdminSettingsLocalePage />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
@@ -905,7 +1157,16 @@ export default function AppRoutes() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            {/* Admin Settings - URL-based routing */}
+            <Route path="admin/settings" element={<AdminSettingsRedirect />} />
+            <Route path="admin/settings/organization" element={<AdminSettingsOrganizationPage />} />
+            <Route path="admin/settings/organization/business-units" element={<AdminSettingsOrganizationSubPage tab="business-units" />} />
+            <Route path="admin/settings/organization/delivery-centers" element={<AdminSettingsOrganizationSubPage tab="delivery-centers" />} />
+            <Route path="admin/settings/organization/hierarchy" element={<AdminSettingsOrganizationSubPage tab="hierarchy" />} />
+            <Route path="admin/settings/ai-thresholds" element={<AdminSettingsAIThresholdsPage />} />
+            <Route path="admin/settings/sla" element={<AdminSettingsSLAPage />} />
+            <Route path="admin/settings/channels" element={<AdminSettingsChannelsPage />} />
+            <Route path="admin/settings/locale" element={<AdminSettingsLocalePage />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
