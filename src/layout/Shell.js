@@ -370,58 +370,23 @@ export default function Shell({
               {nav.groups.map((group) => {
                 // Backend returns icon as string name (e.g., "Users2"), convert to component
                 const GroupIcon = ICON_COMPONENTS_BY_NAME[group.icon] || LayoutDashboard;
-                const isOpen = openGroups.has(group.label);
-                const hasActiveItem = group.items.some(
-                  (item) => item.path === location.pathname,
-                );
+                // Use first item's route as the module's main page route
+                const moduleRoute = group.items?.[0]?.path || `/${group.label.toLowerCase().replace(/\s+/g, '-')}`;
+                const active = location.pathname.startsWith(moduleRoute.split('/')[1]);
                 return (
                   <div key={group.label}>
                     <button
-                      onClick={() => toggleGroup(group.label)}
+                      onClick={() => navigate(moduleRoute)}
                       className={cx(
                         "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
-                        hasActiveItem && !isOpen
-                          ? "text-white"
+                        active
+                          ? "bg-bx-orange text-white"
                           : "text-white/80 hover:bg-white/10 hover:text-white",
                       )}
                     >
                       <GroupIcon className="h-4 w-4" />
                       <span className="flex-1 text-left">{group.label}</span>
-                      <ChevronDown
-                        className={cx(
-                          "h-3.5 w-3.5 text-white/50 transition-transform",
-                          isOpen ? "rotate-180" : "",
-                        )}
-                      />
                     </button>
-                    {isOpen && (
-                      <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
-                        {group.items.map((item, idx) => {
-                          // Handle both string and component icons
-                          const ItemIcon = typeof item.icon === 'string'
-                            ? (ICON_COMPONENTS_BY_NAME[item.icon] || Briefcase)
-                            : (item.icon || Briefcase);
-                          const active = location.pathname === item.path;
-                          // Use unique key: group + item key to avoid duplicates
-                          const uniqueKey = `${group.label}-${item.key}-${idx}`;
-                          return (
-                            <button
-                              key={uniqueKey}
-                              onClick={() => navigate(item.path)}
-                              className={cx(
-                                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition",
-                                active
-                                  ? "bg-bx-orange text-white"
-                                  : "text-white/70 hover:bg-white/10 hover:text-white",
-                              )}
-                            >
-                              <ItemIcon className="h-3.5 w-3.5" />
-                              {item.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
