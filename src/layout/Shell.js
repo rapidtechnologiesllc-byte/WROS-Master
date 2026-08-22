@@ -361,7 +361,11 @@ export default function Shell({
             </div>
 
             <nav className="space-y-1">
-              {nav.standalone.map((n) => renderLink(n))}
+              {nav.standalone.map((n, idx) => (
+                <div key={`standalone-${n.key || n.label || idx}`}>
+                  {renderLink(n)}
+                </div>
+              ))}
 
               {nav.groups.map((group) => {
                 // Backend returns icon as string name (e.g., "Users2"), convert to component
@@ -392,12 +396,17 @@ export default function Shell({
                     </button>
                     {isOpen && (
                       <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
-                        {group.items.map((item) => {
-                          const ItemIcon = item.icon;
+                        {group.items.map((item, idx) => {
+                          // Handle both string and component icons
+                          const ItemIcon = typeof item.icon === 'string'
+                            ? (ICON_COMPONENTS_BY_NAME[item.icon] || Briefcase)
+                            : (item.icon || Briefcase);
                           const active = location.pathname === item.path;
+                          // Use unique key: group + item key to avoid duplicates
+                          const uniqueKey = `${group.label}-${item.key}-${idx}`;
                           return (
                             <button
-                              key={item.path}
+                              key={uniqueKey}
                               onClick={() => navigate(item.path)}
                               className={cx(
                                 "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition",
