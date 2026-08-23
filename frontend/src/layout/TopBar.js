@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Eye, EyeOff, Search, User, KeyRound, LogOut } from "lucide-react";
+import { Bell, Eye, EyeOff, Search, User, KeyRound, LogOut, Sun, Moon } from "lucide-react";
+import { useTheme } from "../context/ThemeContext";
 import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
@@ -35,6 +36,7 @@ export default function TopBar({
   const dropdownRef = useRef(null);
   const searchRef = useRef(null);
   const navigate = useNavigate();
+  const { isDark, toggleTheme } = useTheme();
 
   // S-105/HRMS-P210 -- Portal Notification Center.
   const [notifications, setNotifications] = useState([]);
@@ -234,12 +236,12 @@ export default function TopBar({
 
   return (
     <>
-      <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
+      <div className="rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-700 px-5 py-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div className="flex w-full items-center">
             {!hideTitle && (
               <div className="min-w-fit">
-                <div className="text-base font-bold">
+                <div className="text-base font-bold text-gray-900 dark:text-gray-100">
                   {crumbs[crumbs.length - 1]}
                 </div>
               </div>
@@ -261,20 +263,25 @@ export default function TopBar({
         rounded-xl
         border
         border-gray-200
+        dark:border-gray-600
         bg-gray-50
+        dark:bg-gray-700
         pl-10 pr-4
         py-2.5
         text-sm
+        text-gray-900
+        dark:text-gray-100
         outline-none
         transition-all
         duration-200
-       focus:border-black focus:ring-2 focus:ring-gray-200
+       focus:border-black dark:focus:border-gray-400 focus:ring-2 focus:ring-gray-200 dark:focus:ring-gray-500
         focus:bg-white
+        dark:focus:bg-gray-600
       "
               />
 
               {showSearchResults && searchTerm && (
-                <div className="absolute top-14 z-50 max-h-96 w-full overflow-y-auto rounded-2xl border bg-white shadow-xl">
+                <div className="absolute top-14 z-50 max-h-96 w-full overflow-y-auto rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-600 shadow-xl">
                   {filteredCandidates.length > 0 && (
                     <div className="border-b p-2">
                       <div className="px-3 py-2 text-xs font-semibold text-gray-500">
@@ -347,6 +354,17 @@ export default function TopBar({
             </div>
 
             <div className="ml-auto flex items-center gap-3">
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Toggle dark mode"
+              >
+                {isDark ? (
+                  <Sun className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                ) : (
+                  <Moon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                )}
+              </button>
               <BUSwitcher />
               <ThunderActivityFeedPanel />
 
@@ -365,7 +383,7 @@ export default function TopBar({
                 </button>
 
                 {showNotifications ? (
-                  <div className="absolute right-0 top-10 z-[9999] max-h-96 w-80 overflow-y-auto rounded-2xl border bg-white shadow-xl">
+                  <div className="absolute right-0 top-10 z-[9999] max-h-96 w-80 overflow-y-auto rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-600 shadow-xl">
                     <div className="border-b px-4 py-2 text-xs font-semibold text-gray-500">
                       NOTIFICATIONS {unreadCount > 0 ? `(${unreadCount} unread)` : ""}
                     </div>
@@ -417,7 +435,7 @@ export default function TopBar({
                 </button>
 
                 {isOpen && (
-                  <div className="absolute right-0 top-11 z-[9999] w-52 overflow-hidden rounded-2xl border bg-white py-1.5 shadow-xl">
+                  <div className="absolute right-0 top-11 z-[9999] w-52 overflow-hidden rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-600 py-1.5 shadow-xl">
                     <button
                       type="button"
                       onClick={() => {
@@ -467,34 +485,34 @@ export default function TopBar({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-96 rounded-2xl border bg-white p-6 shadow-2xl"
+            className="w-96 rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-600 p-6 shadow-2xl"
           >
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-bx-navy text-lg font-semibold text-white">
                 {profileData?.user_name?.[0]?.toUpperCase() || "U"}
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                   {profileData?.user_name || "User Profile"}
                 </h2>
-                <p className="text-xs text-gray-500">{profileData?.user_role}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{profileData?.user_role}</p>
               </div>
             </div>
 
-            <div className="space-y-2.5 rounded-xl border bg-gray-50 p-3.5 text-sm">
+            <div className="space-y-2.5 rounded-xl border bg-gray-50 dark:bg-gray-700 dark:border-gray-600 p-3.5 text-sm">
               <div className="flex justify-between gap-3">
-                <span className="text-gray-500">Name</span>
-                <span className="font-medium text-gray-900">{profileData?.user_name}</span>
+                <span className="text-gray-500 dark:text-gray-400">Name</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{profileData?.user_name}</span>
               </div>
 
               <div className="flex justify-between gap-3">
-                <span className="text-gray-500">Email</span>
-                <span className="font-medium text-gray-900">{profileData?.user_email}</span>
+                <span className="text-gray-500 dark:text-gray-400">Email</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{profileData?.user_email}</span>
               </div>
 
               <div className="flex justify-between gap-3">
-                <span className="text-gray-500">Role</span>
-                <span className="font-medium text-gray-900">{profileData?.user_role}</span>
+                <span className="text-gray-500 dark:text-gray-400">Role</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{profileData?.user_role}</span>
               </div>
             </div>
 
@@ -516,9 +534,9 @@ export default function TopBar({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-96 rounded-2xl border bg-white p-6 shadow-2xl"
+            className="w-96 rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-600 p-6 shadow-2xl"
           >
-            <h2 className="mb-5 text-base font-semibold text-gray-900">
+            <h2 className="mb-5 text-base font-semibold text-gray-900 dark:text-gray-100">
               Change Password
             </h2>
 

@@ -1,6 +1,7 @@
 import { BrowserRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import AppRoutes from "./routes/Approutes";
+import { ThemeProvider } from "./context/ThemeContext";
 
 // Root-cause fix for the "looks like a high school project" feedback:
 // 17 files use raw, unthemed antd components (Drawer/Select/Table/
@@ -26,10 +27,12 @@ const BLITZENX_ANTD_THEME = {
 
 export default function App() {
   return (
-    <ConfigProvider theme={BLITZENX_ANTD_THEME}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </ConfigProvider>
+    <ThemeProvider>
+      <ConfigProvider theme={BLITZENX_ANTD_THEME}>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ConfigProvider>
+    </ThemeProvider>
   );
 }
