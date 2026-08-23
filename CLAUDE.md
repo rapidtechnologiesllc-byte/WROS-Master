@@ -1,6 +1,60 @@
 # WROS Backend - Development Notes
 
-## 🟢 CURRENT STATUS (2026-08-19 Session - JWT TOKEN FIX COMPLETE - PRODUCTION READY)
+## 🟡 CURRENT STATUS (2026-08-22 Session - DEFECT FIXES & TESTING - 5 ISSUES IDENTIFIED)
+
+**Session Focus:** Debugging user creation endpoint, identified 5 critical defects blocking end-to-end SDLC testing
+
+**Status:** 🟡 IN PROGRESS - Backend fixes committed (commit cb8c0de), defects documented for BX-HRMS tracking
+
+### Session Work (2026-08-22 - User Creation Defect Investigation & Fixes):
+
+**BX-HRMS-[DEFECT-001] User name is required validation error on user creation - FIXED**
+
+Root Cause: `/hr/users/create-with-roles` endpoint treated parameters as query parameters (default values = None) instead of accepting JSON body. Frontend sent JSON but FastAPI ignored body, all params got None, validation failed.
+
+Fix: Created Pydantic schemas (CreateUserWithRolesRequest, UpdateUserWithRolesRequest) and updated both endpoints to accept request body instead of query params.
+
+Files Modified:
+- app/schemas/user.py: Added 2 request schemas
+- app/api/v1/endpoints/users.py: Updated endpoints + fixed imports
+- app/core/permission_enforcement.py: Fixed incorrect import
+
+Commit: cb8c0de
+
+**5 Defects Identified This Session** (for BX-HRMS.md tracking):
+
+1. **BX-HRMS-[DEFECT-001]** - User creation endpoint rejects valid JSON (FIXED - see above)
+   - Impact: Cannot create users via API
+   - Status: Fixed, pending deployment
+
+2. **BX-HRMS-[DEFECT-002]** - Role template auto-created on "New Role Template" button click
+   - User Feedback: "Role template should only be created when we click Save, not on New"
+   - Impact: Creates blank templates requiring deletion
+   - File: /src/screens/UsersAndAccessControl.js (handleNewRoleTemplate function)
+   - Status: Documented in NAVIGATION_RESTRUCTURE_TODO.md - PENDING FIX
+
+3. **BX-HRMS-[DEFECT-003]** - Administration navigation structure incorrect
+   - Issue: "Role Templates" shows as standalone sidebar item
+   - Expected: Should not be standalone nav item (only accessible via Users & Access Control tabs)
+   - Impact: Navigation confusion, wrong URL hierarchy
+   - Status: Documented in NAVIGATION_RESTRUCTURE_TODO.md - PENDING IMPLEMENTATION
+
+4. **BX-HRMS-[DEFECT-004]** - Create user form field ordering and UX issues
+   - Issue: Partner field should auto-generate from Business Unit selection
+   - Missing: Required field indicators (*) on mandatory fields
+   - Form Order Issue: Business Unit should come before Partner
+   - Status: Documented in CREATE_USER_UX_TODO.md - PENDING FIX
+
+5. **BX-HRMS-[DEFECT-005]** - Backend port configuration mismatch in local dev
+   - Issue: Frontend expects backend on port 8080, but restarts go to different ports
+   - Cause: Preview server auto-assigns ports when primary is in use
+   - Impact: CORS errors, API calls fail after backend restart
+   - Workaround: Ensure port 8080 is free before starting backend
+   - Status: Configuration issue - NEEDS DEPLOYMENT PROCESS CLARIFICATION
+
+---
+
+## 🟢 PREVIOUS STATUS (2026-08-19 Session - JWT TOKEN FIX COMPLETE - PRODUCTION READY)
 
 **CRITICAL FIX COMPLETED:** JWT token "sub" and "type" claims were using wrong values, causing 401 errors on authenticated requests after login. Fixed across all token-creation endpoints.
 
