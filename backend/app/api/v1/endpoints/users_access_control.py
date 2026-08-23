@@ -32,7 +32,7 @@ from app.core.permission_enforcement import (
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.models.location import Location
-from app.models.org_node import OrgNode
+from app.models.org_structure import OrgNode
 from app.models.role_template import RoleTemplate
 from app.schemas.user import AllUsersResponse, UserResponse
 from pydantic import BaseModel
