@@ -768,17 +768,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             {createFormErrors.user_password && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_password}</p>}
           </div>
 
-          {/* Business Unit (Auto-populated from employee, readonly) */}
-          <div className="border rounded-xl px-3 py-2 bg-gray-50 border-gray-300">
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Business Unit (Auto-populated)</label>
-            <input
-              type="text"
-              value={businessUnits.find(bu => bu.id === createForm.business_unit_id)?.bu_name || ""}
-              readOnly
-              className="w-full bg-transparent outline-none text-sm text-gray-600"
-            />
-          </div>
-
           {/* Business Unit (must come before Partner) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2"><span className="text-red-500">*</span> Business Unit</label>
@@ -786,10 +775,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               value={createForm.business_unit_id || ""}
               onChange={(e) => {
                 const buId = e.target.value;
+                // Auto-populate partner from BU (match by index)
+                const selectedBU = businessUnits.find(bu => bu.id === parseInt(buId));
+                const buIndex = businessUnits.findIndex(bu => bu.id === parseInt(buId));
+                const autoPartner = partners[buIndex] || {};
+
                 setCreateForm({
                   ...createForm,
                   business_unit_id: buId,
-                  partner_id: "" // Reset partner when BU changes
+                  partner_id: autoPartner.id ? String(autoPartner.id) : "" // Auto-populate from BU
                 });
                 setCreateFormErrors({...createFormErrors, business_unit_id: null});
               }}

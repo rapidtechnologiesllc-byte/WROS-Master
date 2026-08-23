@@ -33,7 +33,6 @@ export const MODULE_CONFIG = {
     'business_units',
     'delivery_centers',
     'organizational_hierarchy',
-    'role_templates',
     'error_log',
     'certifications',
     'message_templates',
