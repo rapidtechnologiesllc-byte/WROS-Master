@@ -1,0 +1,591 @@
+{
+  "collected_at": "2026-08-23T06:31:08.534525",
+  "total_examples": 10,
+  "examples": [
+    {
+      "filename": "PAVAN KRISHNA TIRUTULLAI.pdf",
+      "raw_text": "                                PAVAN KRISHNA TIRUTULLAI \nMobile No: 7993112480 \nE-Mail: pavankrishnatirutullai01@gmail.com \n \nCareer Objective \nTo work with an organization that offers challenging opportunities to develop my abilities while \ncontributing to the organization\u2019s growth and objectives. \n \nAcademic Qualification \n \nCourse of Study  \nName of the Institute \nDuration of \nthe Course \n \nPercentage/GPA \n         B.Tech- \n       Electronics  \n          and  \n   Communications \n \nVNR VIGNAN JYOTHI INSTITUTE OF \nENGINEERING AND TECHNOLOGY - \nHYDERABAD \n \n2018-2022 \n \n6.68 GPA \nINTERMEDIATE SRI CHAITANYA JUNIOR COLLEGE \n- HYDERABAD 2016-2018 94.7% \nCLASS X- SSC GOWTHAM MODEL SCHOOL - \nNIRMAL 2015-2016 8.7 GPA \n \nTechnical Skills \n \n\uf0ab Programming languages :  C, Data Structures,JAVA,Python,Hands on experience on Selenium. \n \n\uf09f Tools : MATLAB , Simulink,Selenium IDE,Selenium RC,Selenium Grid. \n \nCertifications / Courses Undertaken \n \n\uf09f Python course conducted by  VNRVJIET. \n\uf09f Programming fundamentals of \u201cJava\u201d from coursera. \n\uf09f IOT course conducted by VNRVJIET. \n\uf09f Selenium \n\uf09f Pega \n \n\n  Academic Project Work \n \nProject Title : prediction of diabetes using machinelearning. \nAlgorithms used : knn, Random Forest,Na\u00efve bayes,logistic regression. \nDescription : This helps in earlier prediction of diabetes \nCo-curricular Activities \n  \n\uf0ab Published ieee research paper on prediction of diabetes using machine learning. \n \n\uf0ab Organized ECFICIO the first Entrepreneurship fest of VNRVJIET in 2018 and 2019. \n \n \n \nExtra-curricular Activities \n \n\uf09f CHAIRMAN of dramatrics club(To perform and Encourage the theatre craft) \n \n\uf09f Member of Student Force, N army - VNRVJIET from 2018. \n\uf09f Part of many stage plays and street plays. \n\uf09f Head of sintillashunz(Annual Cultural festival  that is  organized with a budget of  RS \n35,00,000 and has footfall in excess of 15000 \n \n Hobbies and Interests \n \n\uf0ab Hobbies : Playing cricket,singing,watching news. \n \n\uf0ab Personal Interests : Organizing events,V",
+      "parsed": {
+        "full_name": "PAVAN KRISHNA TIRUTULLAI",
+        "email": "pavankrishnatirutullai01@gmail.com",
+        "phone": "799311248",
+        "current_title": "prediction of diabetes using machinelearning.",
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "on Selenium.",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": "on Selenium. \uf09f Tools : MATLAB , Simulink,Selenium IDE,Selenium RC,Selenium Grid."
+          }
+        ],
+        "education": [
+          {
+            "institution": "Name of the Institute",
+            "degree": "B.Tech",
+            "field": null,
+            "graduation_year": null
+          },
+          {
+            "institution": null,
+            "degree": "BA",
+            "field": null,
+            "graduation_year": 2018
+          }
+        ],
+        "skills": [
+          "Java",
+          "Python"
+        ],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:07.165847",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "Sunil+Chormare.pdf",
+      "raw_text": "SUNIL CHORMARE \n \n sunilbchormare@gmail.com    linkedin.com/in/sunilbchormare   github.com/sunilchormare   +91 8459671646 \nEDUCATION   \nGovernment College of Engineering, Aurangabad (GECA)                                                               July 2020 - May 2023 \n Bachelor\u2019s of Technology(B.Tech) in Computer Science and Engineering (Pursuing in 4th Year currently  CGPA 9 / 10 ) \nGovernment Polytechnic Nashik                                                                                                           June 2017 - July 2020 \n Diploma in Information Technology (In Major Per. 93.38 %) \n L.B.S.H. Paradgaon (92.60% 10th )                                                                                                      June 2016 - June 2017                                  \nEXPERIENCE  \nNullClass Pvt Ltd                                                                                                                                    March 2022-May 2022                                                                                                                                                                                                                                                                                                                       \nReact Developer Intern | JavaScript, HTML5,ReactJS,JSX \n\uf0b7 Developed UI Spectific React compoents for their internal website. \n\uf0b7 Introduced wider use of isomorphic React and Node.js for web applications, decreasing load times by roughly 35%. \nFreelance Technical Content Writer at GeeksforGeeks                                                                        June 2021 - Present \n\uf0b7 Working as a partime freelance technical writer for various technical contents of computer science. \nTechnical Content Writing Intern at GeeksforGeeks                                                                           Jan 2021- June 2021 \n\uf0b7 Worked as a technical content writing intern  | GeeksfoGeeks   \n\uf0b7 Wri",
+      "parsed": {
+        "full_name": "SUNIL CHORMARE",
+        "email": "sunilbchormare@gmail.com",
+        "phone": "+91 8459671646",
+        "current_title": "of Programming at Team Cybrotics GECA",
+        "current_employer": "CGPA 9 / 10 )",
+        "work_history": [
+          {
+            "employer": "NullClass Pvt Ltd                                                                                                                                    March 2022-May 2022",
+            "title": "React Developer Intern | JavaScript, HTML5,ReactJS,JSX",
+            "start_date": null,
+            "end_date": null,
+            "description": "NullClass Pvt Ltd                                                                                                                                    March 2022-May 2022 React Developer Intern | JavaScript, HTML5,ReactJS,JSX \uf0b7 Developed UI Spectific React compoents for their internal website. \uf0b7 Introduced wider use of isomorphic React and Node.js for web applications, decreasing load times by roughly 35%. Freelance Technical Content Writer at GeeksforGeeks                                         "
+          },
+          {
+            "employer": "Rizzle Pvt Ltd                                                                                                                  March 2020 - May 2020",
+            "title": "Software Engineer/Test Intern | Python3, Linux,Bash Scriptin,PHP",
+            "start_date": null,
+            "end_date": null,
+            "description": "Rizzle Pvt Ltd                                                                                                                  March 2020 - May 2020 Software Engineer/Test Intern | Python3, Linux,Bash Scriptin,PHP \uf0b7 Managed, optimized, and updated PHP databases as necessary. \uf0b7 Executed test scripts using Python for enhanced test automation. PROJECTS ABU/DD ROBOCON 2021 | Arduino, MatLab, Sensors. \uf0b7 Participated National Robotic contest organized at IIT Delhi. The theme for ROBOCON 2021 was Thro"
+          }
+        ],
+        "education": [
+          {
+            "institution": "Government College",
+            "degree": "ba",
+            "field": "Engineering",
+            "graduation_year": 2020
+          }
+        ],
+        "skills": [
+          "Aws",
+          "Bash",
+          "Django",
+          "Firestore",
+          "Git",
+          "Java",
+          "Javascript",
+          "Linux",
+          "Macos",
+          "Mysql",
+          "Numpy",
+          "Pandas",
+          "Php",
+          "Python",
+          "React",
+          "Sqlite",
+          "Windows"
+        ],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:07.299628",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "Aditya's+Resume+(2).pdf",
+      "raw_text": "Aditya Prasad Singaraju \nstudent \nTo do projects in time and improve my skills. \nadityaprasad1308@gmail.com \n9052780862 \nHouse no:42-109/A,Sainagar\ncolony,Wad:20,Wanaparthy, wanaparthy, India \nlinkedin.com/in/AdityaPrasad \nlive:.cid.fc5cc44b25015ee2 \ngithub.com/AdityaPrasad198 \nEDUCATION \nStudy Program \nVardhaman College of Engineering. \n08/2019 - Present\n, \n \nShamshabad,Hyderabad. \nElectronics and\nCommunications. \nInter \nNarayana Junior College. \n06/2017 - 08/2019\n, \n \nHyderabad \nMPC 94% \n10th \nChanakya High School. \nCgpa:8.8 \n05/2017\n, \n \nWanaparthy. \nSKILLS \npython \nMy SQL \nTeam Work \nTime management \nPROJECTS \nSmart Garbage Management System using IoT. \nSocial Distance Monitoring Robat using IoT. \nRain Detector usin arduino and rain drop sensor. \nCERTIFICATES \nWeb Development in Internshala. \nPython. \nLANGUAGES \nEnglish. \nProfessional Working Pro\ufb01ciency \nTelugu. \nFull Professional Pro\ufb01ciency \nHindi. \nLimited Working Pro\ufb01ciency \nINTERESTS \nWatching movies. \nPlaying Cricket. \nListening Music. \nCourses \nCourses ",
+      "parsed": {
+        "full_name": "Aditya Prasad Singaraju",
+        "email": "adityaprasad1308@gmail.com",
+        "phone": "90527808",
+        "current_title": "College.",
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "Aditya Prasad Singaraju",
+            "title": "Vardhaman College of Engineering.",
+            "start_date": null,
+            "end_date": null,
+            "description": "Aditya Prasad Singaraju student To do projects in time and improve my skills. adityaprasad1308@gmail.com 9052780862 House no:42-109/A,Sainagar colony,Wad:20,Wanaparthy, wanaparthy, India linkedin.com/in/AdityaPrasad live:.cid.fc5cc44b25015ee2 github.com/AdityaPrasad198 EDUCATION Study Program Vardhaman College of Engineering. 08/2019 - Present , Shamshabad,Hyderabad. Electronics and Communications. Inter Narayana Junior College. 06/2017 - 08/2019 , Hyderabad MPC 94% 10th Chanakya High School. Cg"
+          }
+        ],
+        "education": [
+          {
+            "institution": "Vardhaman College",
+            "degree": "ma",
+            "field": "Engineering.",
+            "graduation_year": 2019
+          },
+          {
+            "institution": "Narayana Junior College",
+            "degree": "ba",
+            "field": null,
+            "graduation_year": 2017
+          },
+          {
+            "institution": "Chanakya High School",
+            "degree": "High School",
+            "field": null,
+            "graduation_year": 2017
+          }
+        ],
+        "skills": [
+          "Python"
+        ],
+        "certifications": [],
+        "languages": [
+          "English",
+          "Hindi"
+        ]
+      },
+      "parsed_at": "2026-08-23T06:31:07.966783",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "NAGELLA TARUN KUMAR REDDY.pdf",
+      "raw_text": " \nPassionate student seeking a professional learning environment \nwhere I can effectively apply my knowledge , skills and \nconstantly learn new things ,improving myself everyday \n \n \n \nEducation   \n                        \n   B.Tech in CSE | 8.4 CGPA                                           (2019-23)  \n   Rajiv Gandhi University of Knowledge Technologies, Basar  \n \n   Pre-University Course | 9.4 CGPA                            (2017-19)  \n   Rajiv Gandhi University of Knowledge Technologies, Basar  \n \n   Class 10th | 9.7 CGPA                                                 (2016-17)  \n   Telangana Model School, Hyderabad  \n \nProjects \n \n   Project Hub  | Website \n\u2022 Tech Stack : React JS, Express JS, Node JS, Mongo DB, \nMongoose, Redux \n\u2022 A web application to organize and maintain your projects \nand create professional profiles corresponding to them. \n \n   Ed-Tech Platform  | Website \n\u2022 Tech Stack : HTML, CSS, Bootstrap, ReactJS \n\u2022 A frontend implementation of an education platform \nproviding courses and few services. \n \n   Netflix Clone \n\u2022 Tech Stack : ReactJS, HTML , CSS \n\u2022 Frontend Implementation of Netflix using ReactJS, HTML \nand CSS \nCertifications \n \n   BlockChain  \n\u2022 Blockchain introduction course by University at Buffalo \n   Java  \n\u2022 Certified by Hacker Rank in Java \n \nAchievements \n  \n\u2022 Runner Up of Line Follower Competition  \n       -An Arduino robot designed and coded to follow the desired path \n \nRoles and Responsibilities   \n\u2022 Web Casting in 2019 elections for Election Commission of \nIndia \n\u2022 Took the responsibility of an assistant in the programming \nlab and guided juniors. \n \nSkills    \n\u2022 Data Structures and \nAlgorithms \n\u2022 MySQL  \n\u2022 Node.JS \n\u2022 Express.JS \n\u2022 React.JS , Material UI \n\u2022 Redux \n\u2022 MongoDB \n\u2022 Mongoose \n\u2022 HTML, CSS \n\u2022 GIT/GITHUB \n\u2022 Operating Systems \n\u2022 Working with Linux and \nWindow OS \n \nProgramming Languages \n \n\u2022 JAVA \n\u2022 C++ \n\u2022 JavaScript \n\u2022 C \n \nStrengths \n \n\u2022 Curiosity \n\u2022 Problem Solving \n\u2022 Team Player \n\u2022 Collaborative \nHobbies \n \n\u2022 Play",
+      "parsed": {
+        "full_name": null,
+        "email": "nagellatarun@gmail.com",
+        "phone": "+91 7569383250",
+        "current_title": null,
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "Passionate student seeking a professional learning environment",
+            "title": null,
+            "start_date": "2019-23",
+            "end_date": "2016-17",
+            "description": "Passionate student seeking a professional learning environment where I can effectively apply my knowledge , skills and constantly learn new things ,improving myself everyday Education B.Tech in CSE | 8.4 CGPA                                           (2019-23) Rajiv Gandhi University of Knowledge Technologies, Basar Pre-University Course | 9.4 CGPA                            (2017-19) Rajiv Gandhi University of Knowledge Technologies, Basar Class 10th | 9.7 CGPA                                  "
+          }
+        ],
+        "education": [
+          {
+            "institution": "Rajiv Gandhi University",
+            "degree": "B.Tech",
+            "field": "CSE | 8.4 CGPA                                           (2019-23)",
+            "graduation_year": 2019
+          }
+        ],
+        "skills": [],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:08.051315",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "RESUME.pdf",
+      "raw_text": "Lakshmi Durga Yenikapalli \n \nADDRESS: Madhapur, Hyderabad. \nPh.no: +91 9676194610 \nEmail: yenikapallilakshmidurga98@gmail.com \n \n CAREER OBJECTIVE                                                                                                                                          \n \nLooking for an opportunity in an organization where I can acquire knowledge. \nSeeking a position that allows the utilization of my skills & exhibits my capabilities to \na great extent. \n \n EDUCATIONAL QUALIFICATIONS                                                                                                                    \n \n \n\u2022 Bachelor of Electronics and Communication and Engineering \n \n \n \n\u2022 Diploma in Electronics and Communication Engineering \n \nSt. Mary\u2019s Group of Institutions, Chebrolu (2013-2016) \n \n\u2022 Secondary Education \n \nSri Kondaveedu Public School, Guntur (2013) \nACADEMIC PROJECT DETAILS  \n \nTitle: Mushroom Structure microstrip patch antenna for Ku-band applications. \n \nDescription: The presented Microstrip antenna array is designed for Ku-band applications. The configuration \nof the array antenna is in the form of a set of rectangular patches with a model of the mushroom structure and fed \nco-axial. The antenna design is printed on a partial ground plane and belongs to the class of printed antennas, \nhaving a  wide range of beneficial properties and cheap manufacturing costs. T his antenna maintains the \nadvantages of wide bandwidth and flat and high gains. \n \nWORKSHOP  \n \nConducted by : Bits Pilani \nPlace : Hyderabad. \nTechnology : Android App Development (Java) \nDate : 03/01/2019 To 04/01/2019 \nBapatla Engineering College, Bapatla (2017-2021)\nINTERNSHIP  \n \nCompany : AtFingerTip IT Innovations Pvt Ltd \nRole : Web Developer \nPeriod \n \n \nTECHNICAL SKILLS  \n \nTechnical Skills :React, HTML, CSS,Javascript, \nBootstrap, VueBootstrap, \nDatabase : MY SQL \nTypewriting :(Higher) \nPERSONAL DETAILS  \n \nFather Name : Y. Ganapathi Rao \nMother Name : Y. Malleswari \nDOB : 1998 \n",
+      "parsed": {
+        "full_name": "Lakshmi Durga Yenikapalli",
+        "email": "yenikapallilakshmidurga98@gmail.com",
+        "phone": "+91 9676194610",
+        "current_title": "that allows the utilization of my skills & exhibits my capabilities to",
+        "current_employer": "AtFingerTip IT Innovations Pvt Ltd",
+        "work_history": [
+          {
+            "employer": "Lakshmi Durga Yenikapalli",
+            "title": "\u2022 Bachelor of Electronics and Communication and Engineering",
+            "start_date": "2013-20",
+            "end_date": "2017-20",
+            "description": "Lakshmi Durga Yenikapalli ADDRESS: Madhapur, Hyderabad. Ph.no: +91 9676194610 Email: yenikapallilakshmidurga98@gmail.com CAREER OBJECTIVE Looking for an opportunity in an organization where I can acquire knowledge. Seeking a position that allows the utilization of my skills & exhibits my capabilities to a great extent. EDUCATIONAL QUALIFICATIONS \u2022 Bachelor of Electronics and Communication and Engineering \u2022 Diploma in Electronics and Communication Engineering St. Mary\u2019s Group of Institutions, Che"
+          },
+          {
+            "employer": "Company : AtFingerTip IT Innovations Pvt Ltd",
+            "title": "Role : Web Developer",
+            "start_date": null,
+            "end_date": null,
+            "description": "Company : AtFingerTip IT Innovations Pvt Ltd Role : Web Developer Period TECHNICAL SKILLS Technical Skills :React, HTML, CSS,Javascript, Bootstrap, VueBootstrap, Database : MY SQL Typewriting :(Higher) PERSONAL DETAILS Father Name : Y. Ganapathi Rao Mother Name : Y. Malleswari DOB : 1998 Gender : Female Marital Status : Unmarried Hobbies : Cooking, Craft work. Languages known : English, Telugu, Hindi Permanent Address : I.P.D colony, Sangadigunta, Guntur (522003) Date: Place: Hyderabad (Y. Laksh"
+          }
+        ],
+        "education": [
+          {
+            "institution": null,
+            "degree": "Ba",
+            "field": "Electronics and Communication and Engineering",
+            "graduation_year": 2013
+          },
+          {
+            "institution": "Sri Kondaveedu Public School",
+            "degree": "ba",
+            "field": null,
+            "graduation_year": 2013
+          },
+          {
+            "institution": "Bapatla Engineering College",
+            "degree": "Ba",
+            "field": null,
+            "graduation_year": 2017
+          }
+        ],
+        "skills": [
+          "Bootstrap",
+          "Communication",
+          "Java",
+          "Javascript",
+          "React"
+        ],
+        "certifications": [],
+        "languages": [
+          "English",
+          "Hindi"
+        ]
+      },
+      "parsed_at": "2026-08-23T06:31:08.151379",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "VikasYadav-Data_Engg.pdf",
+      "raw_text": "Last Upda ted on 30th No vember 2022 \nVikas Yadav\n\uf095 6 3 78254924 \uf1fa vik asnita1822@gmail.c om \nEducation\nNATIONAL INSTITUTE OF\nTECHNOLOGY AGARTALA\nB Tech, Production Engineering \n\uf073 May2022 \uf041 Agartala,India\n\u2022 Graduatedwith7.88cgpa\nVEDANT VIDYAPEETH SR SEC\nSCHOOL\nSenior Secondar y, 12th \n\uf073 May2017 \uf041 Jaipur,Rajasthan\nPass\u2011outwith84.60percent\nVEDANT VIDYAPEETH SR SEC\nSCHOOL\nSecondary, 10th \n\uf073 June2015 \uf041 Jaipur,Rajasthan\nPass\u2011outwith90percent\nLinks\n\uf09b GitHub Vikas\u2011Github\n\uf0e1 Linkedin Vikas\u2011Linkedin\nCoursework\nGRADUATE\nEngineering\nProgramming\nDataEngineering\nKnowledgeRepresentationand\nReasoning\nStatisticalTheoryandMethods\nLearningSkillsthroughCaseStudies\nManagementInformationSystem\nOperationsResearch\nEnterpriseResourcePlanning\nSkills\nPROGRAMMING\nPython\u2022Java\u2022HTML/CSS\u2022\nJavaScript\u2022SQL\nTOOLS\nPyspark\u2022Hive\u2022Hadoop\u2022AWSS3\u2022\nAWSGlue\u2022AWSEMR\u2022AWSRDS\u2022AWS\nAthena\u2022Airflow\u2022Boto3\nMISCELLANEOUS\nMIS\u2022Node.js\u2022MySql\u2022Microsoft\nOffice\u2022VisualStudio\nExperience\nDATA ENGINEER\nTTN \n\uf073 Sep2022\u2013Present \uf041 Noida,Delhi\u2011NCR\n\u2022 IngesteddataintoRDSfromdatasourcesusingacombinationof\nSQL,Python,PySparkandAWSRDS\n\u2022 Collected,cleansed,andprovidedmodelingandanalysesof\nstructuredandunstructureddatausingPysparkandAWS\n\u2022 Installed,ConfiguredHadoop,Hive,SparkandAirflow\n\u2022 DesignedandDevelopedETL,EndtoEndDataPipelineand\nAutomatethecompleteETL/DataPipelineusingAirflow\n\u2022 ToolsusedareSpark,PySpark,Hadoop,Hive,Python,SQL,Mysql,\nAWS,Airflow,Boto3,linuxandVSCode.\nSOFTWARE ENGINEER INTERN\nIC T Health \n\uf073 Dec2021\u2013April2022 \uf041 Bengaluru,Karnataka\n\u2022 Designedthefront\u2011endforthecrossplatformappusing\nElectron\u2011js\n\u2022 UsingHTML/CSSandJavaScripttoolstodesignedthefront\u2011end\nfortheapp\n\u2022 OthertoolsusedareVSCode,Node.js,Electron\u2011jsandPostman\n\u2022 Troubleshootingtechnicalissues,Diagnosingandrepairingfaults.\nSYSTEM SUPPORT INTERN\nStripkart Internet Pvt. Ltd. \n\uf073 May2020\u2013Dec2020 \uf041 Jaipur,Rajasthan\n\u2022 Speakingtocustomerstoquicklygettotherootoftheirproblem.\n\u2022 Talkingcustomersthroughaseriesofactionstoresolvea\nproblem.\n\u2022 Providingsupportintheformofproceduraldocumenta",
+      "parsed": {
+        "full_name": "Vikas Yadav",
+        "email": null,
+        "phone": "6 3 78254",
+        "current_title": "Secondar y",
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "DATA ENGINEER",
+            "title": "SOFTWARE ENGINEER INTERN",
+            "start_date": null,
+            "end_date": null,
+            "description": "TTN \uf073 Sep2022\u2013Present \uf041 Noida,Delhi\u2011NCR \u2022 IngesteddataintoRDSfromdatasourcesusingacombinationof SQL,Python,PySparkandAWSRDS \u2022 Collected,cleansed,andprovidedmodelingandanalysesof structuredandunstructureddatausingPysparkandAWS \u2022 Installed,ConfiguredHadoop,Hive,SparkandAirflow \u2022 DesignedandDevelopedETL,EndtoEndDataPipelineand AutomatethecompleteETL/DataPipelineusingAirflow \u2022 ToolsusedareSpark,PySpark,Hadoop,Hive,Python,SQL,Mysql, AWS,Airflow,Boto3,linuxandVSCode. IC T Health \uf073 Dec2021\u2013April2022 \uf041 "
+          },
+          {
+            "employer": "Stripkart Internet Pvt. Ltd.",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": "Stripkart Internet Pvt. Ltd. \uf073 May2020\u2013Dec2020 \uf041 Jaipur,Rajasthan \u2022 Speakingtocustomerstoquicklygettotherootoftheirproblem. \u2022 Talkingcustomersthroughaseriesofactionstoresolvea problem. \u2022 Providingsupportintheformofproceduraldocumentation. \u2022 WorkcloselywithpeerstoprovideUI/UX RecentProjects MOVIE RECOMMENDATION Data pipeline \uf073 Oct2022\u2013Nov2022 \uf041 India \u2022 Getthedatafromkaggleusingpythonafterthatcleanand transformthedatausingpysparkafterthatstoreondatabase \u2022 UsingAthenatogettherecommendoutput \u2022 Tools"
+          }
+        ],
+        "education": [
+          {
+            "institution": null,
+            "degree": "Ma",
+            "field": "Vikas\u2011Linkedin",
+            "graduation_year": null
+          }
+        ],
+        "skills": [
+          "Airflow",
+          "Aws",
+          "Java",
+          "Javascript",
+          "Mysql",
+          "Numpy",
+          "Python",
+          "programming"
+        ],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:08.200888",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "AnilKumar_Padala_9+yYears_Exp_Java_Blaze_Hyderabad.docx",
+      "raw_text": "Anilkumar Padala\n                                               \t   Mobile:+91-810-650-0143\nE-mail:padalaani3@gmail.com\n\nExecutive Summary\n\nTotal 9+ years of experience in IT Professional.\nA technology driven professional with 6+ years of experience in Java Professional.\nA technology driven professional with 3+ years of experience in Fico Blaze Professional.\nStrong Knowledge on Java J2EE Technologies like Servlets, JSP, JDBC, Struts, Spring Boot, Spring Framework, Servlets, Java script Hibernate Frame work.\nStrong Knowledge on Fico Blaze 7.25 Technologies like decision tables ,decision flows and Rulesets creating in IDE as well RMA tool.\nCertified Java 8(1ZO-808- JAVA SE 8 Programmer)professional.\nExpertise at developing and maintaining applications plans, test cases, defect tracking and reporting, procedures documentation.\nExperience on working on medium to large scale projects. \nExperience in integration and modules, Cross Environments, Cross Browsers, and I18N.\n Experience in writing clear and concise Test Cases, Project Specific Scripts, Preparation of Project framework Design Structures. \nExpertise in Worked with RDBMS like Oracle 9i/10g.\nExperienced With servers like Apache Tomcat Server, Glassfish, Web logic and web sphere.\nExpertise Banking and Finance Service, Healthcare, Aero portal Domines.\nInvolved in full SDLC of Project Design , Sonar Project reports generating  and Task Management. \nExpertise Net Beans , Eclipse, RAD IDE tool for Java Development \n\nKnowledge Purview\n\nSoftware Engineering concepts, product development life cycle and Software Quality process. \nInteracting with client side professionals for requirements verification, bug review meeting and analysis.\n Involved in the preparation of FS/SRS documents. \nInvolved in applications developed on java platforms.\nExperience on working with large multiple projects simultaneously.\nBasic knowledge on Oracle SQL.\nUnderstanding of Client/Server and Web based applications on different domains. \nProven co",
+      "parsed": {
+        "full_name": "Anilkumar Padala",
+        "email": "padalaani3@gmail.com",
+        "phone": "+91-810-650-0143",
+        "current_title": "Norfolk Insurance Nd group USA",
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "in IT Professional.",
+            "title": "Software Engineering concepts, product development life cycle and Software Quality process.",
+            "start_date": null,
+            "end_date": null,
+            "description": "A technology driven professional with 6+ years of experience in Java Professional. A technology driven professional with 3+ years of experience in Fico Blaze Professional. Strong Knowledge on Java J2EE Technologies like Servlets, JSP, JDBC, Struts, Spring Boot, Spring Framework, Servlets, Java script Hibernate Frame work. Strong Knowledge on Fico Blaze 7.25 Technologies like decision tables ,decision flows and Rulesets creating in IDE as well RMA tool. Certified Java 8(1ZO-808- JAVA SE 8 Program"
+          },
+          {
+            "employer": "Working with Value Momentum Pvt Ltd as Technical Lead from May 2018 to Still date.",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": null
+          },
+          {
+            "employer": "Worked with Capgemini Pvt Ltd. as a Technical Lead from Sep 2016 to May 2018.",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": null
+          },
+          {
+            "employer": "Worked with L&T InfoTech Pvt Ltd. as a Senior Software Engineer from Nov 2013 to Aug 2016",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": null
+          },
+          {
+            "employer": "Worked with Magna InfoTech PVT Ltd as a Software Engineer from Oct 2012 to  April 2013.",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": null
+          },
+          {
+            "employer": "Worked with Napier Healthcare PVT Ltd as a Software Engineer from Oct 2011 to May 2012.",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": "Worked with Napier Healthcare PVT Ltd as a Software Engineer from Oct 2011 to May 2012. Highlights Proficiently maintained highest number of valuable bug count among the entire SQA throughout my testing experience. Involved in the selection of different quality assessment tools for banking domain as part of Test practice team. Excellent mentor and trainer in ramping up new recruits and interns. Always been recognised and rated exceptional. Key Deliverables Technologies   \t\t: J2SE, J2EE (Jdbc, Se"
+          }
+        ],
+        "education": [
+          {
+            "institution": "B.Tech in E.E.E from JNT University",
+            "degree": "B.Tech",
+            "field": "E.E.E from JNT University",
+            "graduation_year": 2008
+          },
+          {
+            "institution": null,
+            "degree": "Ma",
+            "field": "Deployments in Dev.",
+            "graduation_year": 2002
+          }
+        ],
+        "skills": [
+          "Apache",
+          "Java",
+          "Javascript",
+          "Jenkins",
+          "Mysql",
+          "Oracle",
+          "Scrum",
+          "Spring",
+          "Spring Boot"
+        ],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:08.434078",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "Kirthi+Koushika+updated+Resume+(1).docx",
+      "raw_text": "Resume\n\nCandidate name: Guda Kirthi Koushika\nMobile No. :6304209239\nEmail ID: koushikag2002@gmail.com\n           Secure a responsible career opportunity to fully utilize my training and skills, while making a significant contribution to the success of the company.\n",
+      "parsed": {
+        "full_name": null,
+        "email": "koushikag2002@gmail.com",
+        "phone": "6304209239",
+        "current_title": null,
+        "current_employer": ".",
+        "work_history": [
+          {
+            "employer": "Resume",
+            "title": null,
+            "start_date": null,
+            "end_date": null,
+            "description": "Candidate name: Guda Kirthi Koushika Mobile No. :6304209239 Email ID: koushikag2002@gmail.com Secure a responsible career opportunity to fully utilize my training and skills, while making a significant contribution to the success of the company."
+          }
+        ],
+        "education": [
+          {
+            "institution": null,
+            "degree": "ma",
+            "field": null,
+            "graduation_year": null
+          }
+        ],
+        "skills": [],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:08.451007",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "MVR+RESUME.docx",
+      "raw_text": "\nMARTHALA.VENKATESWAR REDDY\nEMAIL : mvrreddys556@gmail.com\nMobile number:- 7013643946\n Career Objective: \nTo work in a rapidly growing organization and utilize my skills to achieve the organizational goal with my best efforts for a bright and rewarding career.\n\nProjects:\nONLINE LIBRARY MANAGEMENT SYSTEM :A PHP based project with My SQL as the back end database. This project combines variety of essential operations such as login details  and payment details , adding new books data, apply for new books and order in online to buy the books, etc. \nEducational Qualification:\n\n\nTechnical Skills:\n\nMS-Office \nC and JAVA\nDBMS and HTML  and SQL\nSKILLS:\nPROBLEM SOLVING\nTIME MANAGEMENT\nGOOD COMMUNICATION SKILLS\nLEADERSHIP\nLANGUAGES:\nENGLISH ( FULL PROFESSIONAL PROFICIENCY ).\nTELUGU ( NATIVE (OR) BILINGUAL PROFICIENCY ).\nHINDI ( LIMITED WORKING PROFICIENCY ).\n\nStrengths:\nHARD WORKING NATURE.\nACCEPTING CHALLENGES.\n GOOD LEADERSHIP QUALITIES.\n\nPersonal Profile:\nNAME\t: MARTHALA VENKATESWAR REDDY.\nFATHER NAME\t: MARTHALA MAHESWARA REDDY.\nDATE OF BIRTH\t: 23 March 2000\nNATIONALITY\t: INDIA\nMARITAL STATUS\t: UN-MARRIED\nHOBBIES\t:  LISTENING MUSIC AND LEARNING ABOUT PRESENT TECHNOLOGY.\nRELIGION\t: HINDU\nGENDER\t: MALE\nLANGUAGES KNOWN\t: ENGLISH&TELUGU&HINDI\nPERMANENT ADDRESS\t: H.NO: 3-73, MOTHUKULAPALLI  VILLAGE, SIRIVELLA MANDAL\n\t  Kurnool (DST), AP, 518583\nDeclaration:\n     I here declare that all the details furnished above are true to the best of my knowledge\nand belief.\n\nDate: \nPLACE: NANDYAL                                                                                          (VENKATESWAR REDDY.M)",
+      "parsed": {
+        "full_name": "MARTHALA.VENKATESWAR REDDY",
+        "email": "mvrreddys556@gmail.com",
+        "phone": "701364394",
+        "current_title": null,
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "MARTHALA.VENKATESWAR REDDY",
+            "title": "LEADERSHIP",
+            "start_date": null,
+            "end_date": null,
+            "description": "EMAIL : mvrreddys556@gmail.com Mobile number:- 7013643946 Career Objective: To work in a rapidly growing organization and utilize my skills to achieve the organizational goal with my best efforts for a bright and rewarding career. Projects: ONLINE LIBRARY MANAGEMENT SYSTEM :A PHP based project with My SQL as the back end database. This project combines variety of essential operations such as login details  and payment details , adding new books data, apply for new books and order in online to bu"
+          }
+        ],
+        "education": [],
+        "skills": [],
+        "certifications": [],
+        "languages": [
+          "English",
+          "Hindi"
+        ]
+      },
+      "parsed_at": "2026-08-23T06:31:08.484814",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    },
+    {
+      "filename": "SANDEEP_SmartComm_Resume.docx",
+      "raw_text": "sandeep v.v.e\n\n\n\nE-mail:  elethi.sandeep1234@gmail.com                                                        Mobile: +91 9642056043\n\nSUMMARY:\nHaving Overall 8.3 years of IT experience and strong technical capabilities in CCM & Java Technologies.\nStrong technical capabilities with Customer Communication Management tools such as Thunderhead NOW/Smart Communications, Open text Exstream and Core Java/J2EE.\nCertified in Smartcomm Template authoring.\nThorough understanding of Document processing (Claims letters, quotes, declarations, ID cards, Cheques, endorsements, bills, statements, letters, forms, fulfillment kits) in Banking, P&C Insurance, Health and Life Insurance\nExperience in working with major insurance clients\nAbility to implement best practices in different projects for smooth delivery as per customer requirements.\nExperience in migration projects from other CCM tools like Exstream.\nMentor developers on document workflow\nThrough understanding of Smartcomms APIs (Application Program Interface)\nExperience in evaluating the scope of migration accelerators.\nHaving experience in appliances and managing jobs in smart communication\nRelease Management of Thunderhead/Smart Communication Resources\nHaving good knowledge on Thunderhead project lifecycle experience including Business Content Studio, Business Object Studio and Business Content Studio Cloud Connect.\nHands on Experience on Merging and Annotating Templates.\nDeveloped Demo Aplications highlighting all the Features provided by SmartComm.\nWe are presenting demo roect to the new clients to highlight the features and benefits o SmartComm over the CCMs (Customer Communication Management).\nHaving Knowledge on HTML, CSS, and JavaScript.\nExperience in developing the scripts in Web Driver with hybrid framework.\nSolid foundation in software development life cycle activities and Object-Oriented Analysis.\nStrong in Object Oriented Concepts, and Programming.\nKnowledge on the Migration Projects.\n\n Education\nB.TECH from JNTU ",
+      "parsed": {
+        "full_name": null,
+        "email": "elethi.sandeep1234@gmail.com",
+        "phone": "+91 9642056043",
+        "current_title": "NOW/Smart Communications",
+        "current_employer": null,
+        "work_history": [
+          {
+            "employer": "and strong technical capabilities in CCM & Java Technologies.",
+            "title": "Mentor developers on document workflow",
+            "start_date": null,
+            "end_date": null,
+            "description": "Strong technical capabilities with Customer Communication Management tools such as Thunderhead NOW/Smart Communications, Open text Exstream and Core Java/J2EE. Certified in Smartcomm Template authoring. Thorough understanding of Document processing (Claims letters, quotes, declarations, ID cards, Cheques, endorsements, bills, statements, letters, forms, fulfillment kits) in Banking, P&C Insurance, Health and Life Insurance Experience in working with major insurance clients Ability to implement b"
+          }
+        ],
+        "education": [
+          {
+            "institution": "B.TECH from JNTU University",
+            "degree": "B.TECH",
+            "field": "Intermediate Education during the year of 2006-08 with an aggregate of 79%.",
+            "graduation_year": 2008
+          }
+        ],
+        "skills": [
+          "Agile",
+          "Communication",
+          "Java",
+          "Javascript",
+          "Linux",
+          "Sql Server",
+          "Unix",
+          "Windows"
+        ],
+        "certifications": [],
+        "languages": []
+      },
+      "parsed_at": "2026-08-23T06:31:08.534525",
+      "confidence_scores": {
+        "full_name": 0.9,
+        "email": 0.9,
+        "phone": 0.9,
+        "current_title": 0.7,
+        "current_employer": 0.7,
+        "skills": 0.6,
+        "work_history": 0.5,
+        "education": 0.7
+      }
+    }
+  ],
+  "summary": {
+    "status": "completed",
+    "total_collected": 10,
+    "total_errors": 0,
+    "fields_covered": {
+      "full_name": 7,
+      "current_title": 7,
+      "current_employer": 3,
+      "work_history": 10,
+      "education": 9,
+      "skills": 7
+    },
+    "output_file": "training_data.json"
+  }
+}

@@ -49,13 +49,13 @@ class SyntheticDataGenerator:
 
     def load_real_examples(self):
         """Load collected training data"""
-        print(f"📖 Loading real examples from {self.input_file}...")
+        print(f" Loading real examples from {self.input_file}...")
 
         with open(self.input_file, 'r') as f:
             data = json.load(f)
 
         self.real_examples = data.get("examples", [])
-        print(f"✓ Loaded {len(self.real_examples)} real examples")
+        print(f" Loaded {len(self.real_examples)} real examples")
 
         return len(self.real_examples)
 
@@ -71,7 +71,7 @@ class SyntheticDataGenerator:
         if not self.real_examples:
             raise ValueError("No real examples loaded")
 
-        print(f"\n🤖 Generating {self.target_count} synthetic examples...")
+        print(f"\n Generating {self.target_count} synthetic examples...")
         print(f"   Strategy: Variations from {len(self.real_examples)} real examples")
 
         # Calculate variations per example
@@ -92,7 +92,7 @@ class SyntheticDataGenerator:
 
             # Stop if we've reached target
             if len(self.synthetic_examples) >= self.target_count:
-                print(f"\n✓ Reached target of {self.target_count} synthetic examples")
+                print(f"\n Reached target of {self.target_count} synthetic examples")
                 break
 
         return len(self.synthetic_examples)
@@ -142,7 +142,7 @@ Generate {count} variations now:
 
         try:
             # Call Claude with streaming for faster responses
-            print(f"      → Calling Claude API...", end="", flush=True)
+            print(f"       Calling Claude API...", end="", flush=True)
 
             response = client.messages.create(
                 model="claude-opus-5",
@@ -155,8 +155,8 @@ Generate {count} variations now:
             response_text = response.content[0].text
 
             # Parse the JSON response
-            print(f" ✓")
-            print(f"      → Parsing response...", end="", flush=True)
+            print(f" ")
+            print(f"       Parsing response...", end="", flush=True)
 
             # Extract JSON array from response
             json_start = response_text.find('[')
@@ -176,18 +176,18 @@ Generate {count} variations now:
                             "generated_at": datetime.utcnow().isoformat()
                         })
 
-                print(f" ✓ Parsed {len(variations)} valid entries")
+                print(f"  Parsed {len(variations)} valid entries")
             else:
-                print(f" ⚠️  Could not parse JSON response")
+                print(f"   Could not parse JSON response")
 
         except Exception as e:
-            print(f" ❌ Error: {e}")
+            print(f"  Error: {e}")
 
         return variations
 
     def validate_synthetic_data(self) -> Dict:
         """Validate quality of synthetic data"""
-        print(f"\n✅ Validating {len(self.synthetic_examples)} synthetic examples...")
+        print(f"\n Validating {len(self.synthetic_examples)} synthetic examples...")
 
         validation_issues = []
         field_coverage = {
@@ -248,7 +248,7 @@ Generate {count} variations now:
         with open(self.output_file, 'w') as f:
             json.dump(output_data, f, indent=2)
 
-        print(f"\n💾 Saved synthetic data: {self.output_file}")
+        print(f"\n Saved synthetic data: {self.output_file}")
         print(f"   Total examples: {len(self.synthetic_examples)}")
 
         # Print validation
@@ -268,25 +268,25 @@ Generate {count} variations now:
         real_count = self.load_real_examples()
 
         if real_count == 0:
-            print("❌ No real examples to generate from")
+            print(" No real examples to generate from")
             return False
 
         # Generate
         self.generate_synthetic_data()
 
         if not self.synthetic_examples:
-            print("❌ Failed to generate synthetic data")
+            print(" Failed to generate synthetic data")
             return False
 
         # Save
         self.save_synthetic_data()
 
-        print(f"\n✅ Generation complete!")
+        print(f"\n Generation complete!")
         print(f"   Real: {real_count}")
         print(f"   Synthetic: {len(self.synthetic_examples)}")
         print(f"   Combined: {real_count + len(self.synthetic_examples)}")
 
-        print(f"\n📋 Next step:")
+        print(f"\n Next step:")
         print(f"   python fine_tune_bert.py --training-data {self.input_file} --synthetic-data {self.output_file}")
 
         return True

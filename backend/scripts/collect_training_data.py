@@ -58,7 +58,7 @@ class TrainingDataCollector:
             print(f"No resume files found in {self.resume_dir}")
             return {"status": "error", "message": "No files found"}
 
-        print(f"\n📄 Found {len(resume_files)} resume files")
+        print(f"\n[+] Found {len(resume_files)} resume files")
         print("=" * 70)
 
         for i, resume_file in enumerate(resume_files, 1):
@@ -74,12 +74,12 @@ class TrainingDataCollector:
         """Process a single resume file"""
         try:
             # Extract text
-            print(f"  → Extracting text...", end="", flush=True)
+            print(f"  -> Extracting text...", end="", flush=True)
             raw_text = self._extract_text(resume_file)
-            print(f" ✓ ({len(raw_text)} chars)")
+            print(f" [OK] ({len(raw_text)} chars)")
 
             if not raw_text or len(raw_text) < 100:
-                print(f"  ⚠️  Text too short ({len(raw_text)} chars), skipping")
+                print(f"  [WARN] Text too short ({len(raw_text)} chars), skipping")
                 self.errors.append({
                     "file": resume_file.name,
                     "error": "text_too_short"
@@ -87,9 +87,9 @@ class TrainingDataCollector:
                 return
 
             # Parse with SLM
-            print(f"  → Parsing with SLM...", end="", flush=True)
+            print(f"  -> Parsing with SLM...", end="", flush=True)
             parsed = ResumeSLM.parse_resume(raw_text)
-            print(f" ✓")
+            print(f" [OK]")
 
             # Validate/correct
             if interactive:
@@ -107,10 +107,10 @@ class TrainingDataCollector:
             }
 
             self.examples.append(example)
-            print(f"  ✅ Added to training set ({len(self.examples)} total)")
+            print(f"  [OK] Added to training set ({len(self.examples)} total)")
 
         except Exception as e:
-            print(f" ❌ Error: {e}")
+            print(f" [ERROR] Error: {e}")
             self.errors.append({
                 "file": resume_file.name,
                 "error": str(e)
@@ -136,7 +136,7 @@ class TrainingDataCollector:
 
         User can review and fix extractions before adding to training set.
         """
-        print(f"\n  📋 Review extraction results:")
+        print(f"\n  [INFO] Review extraction results:")
         print(f"     Name: {parsed.get('full_name') or '(empty)'}")
         print(f"     Title: {parsed.get('current_title') or '(empty)'}")
         print(f"     Employer: {parsed.get('current_employer') or '(empty)'}")
@@ -237,12 +237,12 @@ class TrainingDataCollector:
         with open(self.output_file, 'w') as f:
             json.dump(output_data, f, indent=2)
 
-        print(f"\n✅ Training data saved: {self.output_file}")
+        print(f"\n[OK] Training data saved: {self.output_file}")
         print(f"   Total examples: {len(self.examples)}")
         print(f"   Errors: {len(self.errors)}")
 
         # Print next steps
-        print(f"\n📋 Next steps:")
+        print(f"\n[INFO] Next steps:")
         for step in summary.get("next_steps", []):
             print(f"   {step}")
 
