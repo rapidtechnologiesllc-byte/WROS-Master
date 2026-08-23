@@ -42,7 +42,7 @@ import {
   loadRoleTemplateModules,
   filterNavigationByModules,
 } from "../utils/permissionsRbac";
-import { MODULE_CONFIG } from "./moduleConfig";
+// MODULE_CONFIG removed: backend permission system filters navigation items
 
 // Dynamic navigation driven by role template permissions from backend
 // Navigation structure is fetched from /hr/me/navigation endpoint
@@ -434,10 +434,6 @@ export default function Shell({
                     {isOpen && group.items && group.items.length > 0 && (
                       <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
                         {group.items.map((item, idx) => {
-                          // Only show items that are configured for this module
-                          const moduleKeys = MODULE_CONFIG[group.label] || [];
-                          if (!moduleKeys.includes(item.key)) return null;
-
                           const ItemIcon = typeof item.icon === 'string'
                             ? (ICON_COMPONENTS_BY_NAME[item.icon] || Briefcase)
                             : (item.icon || Briefcase);
