@@ -1,0 +1,97 @@
+# ============================================================================
+# Onboarding Module Backend - Production Requirements
+# Python 3.10+
+# ============================================================================
+
+# Core Framework
+# ----------------------------------------------------------------------------
+fastapi>=0.115.0,<1.0.0          # Modern web framework for building APIs
+uvicorn[standard]>=0.32.0,<1.0.0 # ASGI server with WebSocket support
+pydantic>=2.10.0,<3.0.0          # Data validation using Python type hints
+pydantic-settings>=2.0.0,<3.0.0  # Settings management for Pydantic v2
+
+# Database
+# ----------------------------------------------------------------------------
+sqlalchemy>=2.0.36,<3.0.0        # SQL toolkit and ORM
+pyodbc>=5.2.0,<6.0.0             # ODBC database driver for SQL Server
+psycopg2-binary>=2.9.9,<3.0.0    # PostgreSQL adapter for Python
+alembic>=1.13.0,<2.0.0           # Database migration tool
+greenlet>=3.0.0,<4.0.0           # Required by SQLAlchemy for async support
+
+# Authentication & Security
+# ----------------------------------------------------------------------------
+PyJWT[crypto]>=2.10.0,<3.0.0     # JSON Web Token implementation with RSA support
+bcrypt>=4.0.0,<5.0.0             # Password hashing library
+cryptography>=42.0.0,<43.0.0     # Cryptographic recipes and primitives
+python-multipart>=0.0.6,<1.0.0   # Multipart form data parser (for file uploads)
+python-jose[cryptography]>=3.3.0,<4.0.0  # JOSE implementation for JWT
+pyotp>=2.8.0,<3.0.0              # TOTP/HOTP for MFA (multi-factor authentication)
+pypdf>=4.0.0,<6.0.0              # PDF text extraction (S-028 Resume Parsing Engine)
+
+# Microsoft Integration
+# ----------------------------------------------------------------------------
+msal>=1.24.0,<2.0.0              # Microsoft Authentication Library
+requests>=2.31.0,<3.0.0          # HTTP library for API calls
+python-docx>=1.1.0,<2.0.0        # Read/write .docx files (offer letter generation)
+
+# Data Validation & Serialization
+# ----------------------------------------------------------------------------
+email-validator>=2.0.0,<3.0.0    # Email validation
+python-dateutil>=2.8.0,<3.0.0    # Extensions to the standard datetime module
+openpyxl>=3.1.0,<4.0.0           # .xlsx read/write (bulk employee import)
+
+# Configuration & Environment
+# ----------------------------------------------------------------------------
+python-dotenv>=1.0.0,<2.0.0      # Read environment variables from .env file
+
+# AI & LLM Integration
+# ----------------------------------------------------------------------------
+langchain-google-genai>=2.0.0,<3.0.0  # LangChain integration with Google Generative AI
+langgraph>=0.2.0,<1.0.0               # Build stateful, multi-actor applications with LLMs
+
+# Background Tasks & Scheduling
+# ----------------------------------------------------------------------------
+apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler
+celery[redis]>=5.3.0,<6.0.0           # Distributed task queue for async jobs
+redis>=5.0.0,<6.0.0                   # Redis Python client (required for Celery broker)
+
+# Production Server & Monitoring
+# ----------------------------------------------------------------------------
+gunicorn>=21.2.0,<22.0.0         # Production WSGI server (optional, use with uvicorn workers)
+
+
+# ============================================================================
+# Development Dependencies (Optional)
+# ============================================================================
+# Install with: pip install -r requirements-dev.txt
+#
+# pytest>=7.4.0,<8.0.0           # Testing framework
+# pytest-asyncio>=0.21.0,<1.0.0  # Async support for pytest
+# httpx>=0.25.0,<1.0.0           # HTTP client for testing
+# pytest-cov>=4.1.0,<5.0.0       # Coverage plugin for pytest
+# black>=23.0.0,<24.0.0          # Code formatter
+# flake8>=6.1.0,<7.0.0           # Linting tool
+# mypy>=1.5.0,<2.0.0             # Static type checker
+
+
+# ============================================================================
+# Installation Instructions:
+# ============================================================================
+# 
+# For production:
+#   pip install -r requirements.txt
+#
+# For development (with testing tools):
+#   pip install -r requirements.txt
+#   pip install pytest pytest-asyncio httpx pytest-cov black flake8
+#
+# For Azure deployment:
+#   Ensure ODBC Driver 18 for SQL Server is available in the runtime
+#   Azure App Service (Linux) includes it by default
+#
+# System Requirements:
+#   - Python 3.10 or higher
+#   - ODBC Driver 18 for SQL Server
+#   - Microsoft SQL Server 2019+ or Azure SQL Database
+#
+# ============================================================================
