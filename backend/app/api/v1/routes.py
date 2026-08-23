@@ -110,6 +110,8 @@ from app.api.v1.endpoints.relation_building import router as relation_building_r
 from app.api.v1.endpoints.recruitment_funnel import router as recruitment_funnel_router
 from app.api.v1.endpoints.agent_accountability import router as agent_accountability_router
 from app.api.v1.endpoints.pipeline_orchestration import router as pipeline_orchestration_router
+from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring_router
+from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 
 router = fastapi.APIRouter()
 
@@ -222,4 +224,6 @@ router.include_router(router=admin_queue_router)
 router.include_router(router=users_access_control_router)
 router.include_router(router=recruitment_funnel_router)
 router.include_router(router=agent_accountability_router)
-router.include_router(router=pipeline_orchestration_router)
+router.include_router(router=pipeline_orchestration_router)
+router.include_router(router=finance_monitoring_router)
+router.include_router(router=agent_pyramid_router)
