@@ -31,7 +31,7 @@ from app.core.permission_enforcement import (
 )
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
-from app.models.location import Location
+# from app.models.location import Location  # TODO: Location model needs to be created
 from app.models.org_node import OrgNode
 from app.models.role_template import RoleTemplate
 from app.schemas.user import AllUsersResponse, UserResponse
@@ -382,140 +382,28 @@ def delete_business_unit(
     return {"status": "deleted"}
 
 # ============================================================================
-# DELIVERY CENTERS ENDPOINTS (Locations)
+# DELIVERY CENTERS ENDPOINTS (Locations) - DISABLED: Location model not implemented yet
 # ============================================================================
-
-class DeliveryCenterCreateRequest(BaseModel):
-    name: str
-    city: Optional[str] = None
-    country: Optional[str] = None
-    center_type: Optional[str] = "Delivery"  # HQ, Delivery, etc.
-    headcount: Optional[int] = 0
-
-@router.get("/delivery-centers")
-def list_delivery_centers(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
-):
-    """List all delivery centers (locations)."""
-    query = db.query(Location)
-
-    if hasattr(current_user, 'tenant_id'):
-        query = query.filter(Location.tenant_id == current_user.tenant_id)
-
-    total = query.count()
-    locations = query.offset(skip).limit(limit).all()
-
-    return {
-        "delivery_centers": [
-            {
-                "id": l.id,
-                "name": l.name,
-                "city": getattr(l, 'city', None),
-                "country": getattr(l, 'country', None),
-                "center_type": getattr(l, 'location_type', 'Delivery'),
-                "headcount": getattr(l, 'headcount', 0),
-                "created_at": getattr(l, 'created_at', None),
-            }
-            for l in locations
-        ],
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    }
-
-@router.post("/delivery-centers")
-def create_delivery_center(
-    req: DeliveryCenterCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Create a new delivery center (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
-    # Validate input
-    if not req.name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delivery Center name is required")
-
-    new_dc = Location(
-        name=req.name,
-        city=req.city,
-        country=req.country,
-        location_type=req.center_type,
-        headcount=req.headcount,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
-    )
-
-    db.add(new_dc)
-    db.commit()
-    db.refresh(new_dc)
-
-    return {
-        "id": new_dc.id,
-        "name": new_dc.name,
-        "status": "created"
-    }
-
-@router.put("/delivery-centers/{dc_id}")
-def update_delivery_center(
-    dc_id: int,
-    req: DeliveryCenterCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Update delivery center (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
-    dc = db.query(Location).filter(Location.id == dc_id).first()
-    if not dc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
-
-    # Update fields
-    if req.name:
-        dc.name = req.name
-    if req.city:
-        dc.city = req.city
-    if req.country:
-        dc.country = req.country
-    if req.center_type:
-        dc.location_type = req.center_type
-    if req.headcount is not None:
-        dc.headcount = req.headcount
-
-    db.commit()
-    db.refresh(dc)
-
-    return {
-        "id": dc.id,
-        "name": dc.name,
-        "status": "updated"
-    }
-
-@router.delete("/delivery-centers/{dc_id}")
-def delete_delivery_center(
-    dc_id: int,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Delete delivery center (Super User only)."""
-    # Check permissions - Super User only
-    if not (current_user.UserRole and current_user.UserRole.lower() == "super user"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
-
-    dc = db.query(Location).filter(Location.id == dc_id).first()
-    if not dc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
-
-    db.delete(dc)
-    db.commit()
-
-    return {"status": "deleted"}
+# TODO: Implement Location model and uncomment these endpoints
+#
+# class DeliveryCenterCreateRequest(BaseModel):
+#     name: str
+#     city: Optional[str] = None
+#     country: Optional[str] = None
+#     center_type: Optional[str] = "Delivery"  # HQ, Delivery, etc.
+#     headcount: Optional[int] = 0
+#
+# @router.get("/delivery-centers")
+# def list_delivery_centers(...): ...
+#
+# @router.post("/delivery-centers")
+# def create_delivery_center(...): ...
+#
+# @router.put("/delivery-centers/{dc_id}")
+# def update_delivery_center(...): ...
+#
+# @router.delete("/delivery-centers/{dc_id}")
+# def delete_delivery_center(...): ...
 
 # ============================================================================
 # ORGANIZATIONAL HIERARCHY ENDPOINTS
