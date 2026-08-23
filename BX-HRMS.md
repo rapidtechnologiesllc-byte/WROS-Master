@@ -9,6 +9,87 @@
 
 ---
 
+## 🔗 **HANDOFF NOTES FOR NEXT DEVELOPER (2026-08-22)**
+
+### **What Was Completed This Session:**
+All 12 defects in Users & Access Control have been fixed and pushed to main branch.
+
+**Frontend Commits:**
+- f13f1eb7: Fixed 5 defects (module collapse, Add Position role template, Business Unit ordering, auto-select role template, user count logic)
+- 409fa4cb: Fixed Business Unit field ordering critical bug (BU now mandatory, always visible, Partner dependent on BU)
+- Push status: ✅ All changes pushed to origin/main
+
+**Backend Documentation:**
+- 41277d6: Documented blocking issue and pending work
+- Push status: ✅ Documentation pushed to origin/main
+
+### **CRITICAL: What's Blocking QA Testing:**
+**Backend API is not accessible** - Frontend cannot load users from `/hr/users/all` endpoint
+```
+Error: Network error: Failed to fetch. Is the backend running on http://localhost:8080?
+```
+
+### **Immediate Next Steps (For QA/Next Developer):**
+
+**Step 1: Start Backend Service**
+```bash
+cd OnboardingModule-Backend
+python -m uvicorn app.main:app --reload --port 8080
+```
+OR if using a different port, update frontend `.env.development`:
+```
+REACT_APP_API_BASE_URL=http://localhost:<YOUR_PORT>
+```
+
+**Step 2: Verify Backend Connection**
+- Frontend should load without network errors
+- Users list should populate in Users & Access Control → Users tab
+- You should see actual users (currently showing as 0 because data can't load)
+
+**Step 3: Test User Count Accuracy**
+- Navigate to: Users & Access Control → Role Templates
+- Verify that role templates show correct user count (not 0)
+- Frontend fix is at line ~1184 in UsersAndAccessControl.js
+
+### **What Each Defect Fix Does (For Testing):**
+
+| Defect | Test Path | Expected Behavior |
+|--------|-----------|-------------------|
+| DEFECT-009 | Role Templates → "Edit Permissions" | Module chevron expands/collapses independently of ON/OFF toggle |
+| DEFECT-010 | Org Hierarchy → "Add Position" | Role template dropdown appears when adding new position |
+| DEFECT-011 | Users → "Add User" | Business Unit field appears BEFORE Role Template (mandatory) |
+| DEFECT-012 | Users → "Add User" → Select job title | Role template auto-populates if job title has one assigned |
+| USER-COUNT | Role Templates tab | Shows accurate user count (currently needs backend data) |
+
+### **Code Changes Summary:**
+
+**Frontend (UsersAndAccessControl.js):**
+- Line ~1135: Added `createTemplateExpandedModules` state for module collapse
+- Line ~1184-1192: Fixed `getUserCount()` to check both `role_id` and `role_ids`
+- Line ~690: Chevron toggle logic updated for independent collapse
+- Line ~730-800: Business Unit field moved to mandatory, always-visible position
+- Line ~780-810: Partner field added as dependent on Business Unit selection
+
+**Backend (BX-HRMS.md):**
+- Documented all 12 completed defects with detailed explanations
+- Added critical blocking issue note about backend connectivity
+- Listed testing requirements and dependencies
+
+### **Files Changed:**
+```
+Frontend: src/screens/UsersAndAccessControl.js (3 commits)
+Backend: BX-HRMS.md (1 commit - documentation only, no code changes)
+```
+
+### **To Resume Testing:**
+1. Ensure both frontend and backend are running
+2. Refresh browser (Ctrl+F5 or Cmd+Shift+R)
+3. Navigate to each defect test path (see table above)
+4. Verify each behavior matches "Expected Behavior"
+5. Document any issues in BX-HRMS.md under new defect IDs (DEFECT-013+)
+
+---
+
 ## 📝 SESSION SUMMARY (2026-08-22 - Comprehensive Defect Fixes & Field Ordering)
 
 **STATUS: 🟡 DEVELOPMENT COMPLETE - PENDING TESTING**
