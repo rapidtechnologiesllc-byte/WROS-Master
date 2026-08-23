@@ -89,6 +89,28 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     setSaving(true);
     try {
       if (mode === 'create') {
+        // Check if template name already exists (preventing duplicates)
+        try {
+          await apiRequest(`/admin/role-templates?search=${encodeURIComponent(formData.name)}`, {
+            method: 'GET'
+          });
+          // If we got here, check if name already exists
+          const checkResponse = await apiRequest(`/admin/role-templates`, {
+            method: 'GET'
+          });
+
+          if (Array.isArray(checkResponse.data)) {
+            const duplicate = checkResponse.data.find(t => t.name?.toLowerCase() === formData.name.toLowerCase());
+            if (duplicate) {
+              toast.error(`A role template named "${formData.name}" already exists. Please use a different name.`);
+              setSaving(false);
+              return;
+            }
+          }
+        } catch (err) {
+          // If search fails, continue with creation (endpoint may not support search)
+        }
+
         const response = await apiRequest('/admin/role-templates', {
           method: 'POST',
           body: JSON.stringify({
@@ -273,7 +295,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                             <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
                           </div>
                         </div>
-                        {/* Toggle Switch */}
+                        {/* Toggle Switch with Mixed State */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -283,14 +305,24 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                             enabledCount === totalPossible && totalPossible > 0
                               ? 'bg-green-500'
-                              : 'bg-gray-300'
+                              : enabledCount > 0
+                              ? 'bg-amber-400'
+                              : 'bg-red-500'
                           }`}
-                          title={enabledCount === totalPossible && totalPossible > 0 ? 'Click to disable all' : 'Click to enable all'}
+                          title={
+                            enabledCount === totalPossible && totalPossible > 0
+                              ? 'Click to disable all'
+                              : enabledCount > 0
+                              ? `${enabledCount} permissions enabled. Click to enable all`
+                              : 'Click to enable all'
+                          }
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                               enabledCount === totalPossible && totalPossible > 0
                                 ? 'translate-x-6'
+                                : enabledCount > 0
+                                ? 'translate-x-4'
                                 : 'translate-x-1'
                             }`}
                           />
