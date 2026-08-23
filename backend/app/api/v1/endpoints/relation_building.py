@@ -4,7 +4,7 @@ Relation Building Agent API Endpoints
 Exposes relation building persona extraction for downstream systems.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
