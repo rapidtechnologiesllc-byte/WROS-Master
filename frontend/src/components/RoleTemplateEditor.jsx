@@ -273,20 +273,27 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                             <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
                           </div>
                         </div>
+                        {/* Toggle Switch */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Toggle: if any are disabled, enable all; if all enabled, disable all
                             const shouldEnable = enabledCount < totalPossible;
                             handleToggleModule(moduleName, resources, shouldEnable);
                           }}
-                          className={`px-2 py-1 rounded text-xs font-medium text-white transition ${
-                            enabledCount < totalPossible
-                              ? 'bg-green-500 hover:bg-green-600'
-                              : 'bg-gray-400 hover:bg-gray-500'
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            enabledCount === totalPossible && totalPossible > 0
+                              ? 'bg-green-500'
+                              : 'bg-gray-300'
                           }`}
+                          title={enabledCount === totalPossible && totalPossible > 0 ? 'Click to disable all' : 'Click to enable all'}
                         >
-                          {enabledCount < totalPossible ? 'Enable All' : 'Disable All'}
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              enabledCount === totalPossible && totalPossible > 0
+                                ? 'translate-x-6'
+                                : 'translate-x-1'
+                            }`}
+                          />
                         </button>
                       </div>
 
