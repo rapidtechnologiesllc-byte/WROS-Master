@@ -9,10 +9,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.models.base import Base
-from app.models.user import Users, Jobs, Interview, InterviewFeedback
+from app.models.user import Users, Jobs, Interview
 from app.models.candidate import Candidate
-from app.models.offer import Offer
-from app.models.interview import InterviewFeedback as IFeedback, InterviewDecisionLog
+from app.models.interview import InterviewFeedback, InterviewDecisionLog
 from app.services.interview_decision_service import InterviewDecisionService
 
 

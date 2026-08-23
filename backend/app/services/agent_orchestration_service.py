@@ -43,7 +43,6 @@ import uuid
 
 from app.core.logging import logger
 from app.models.candidate import Candidate
-from app.models.interview import Interview
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.api.v1.endpoints.admin_queue import TaskStatus
