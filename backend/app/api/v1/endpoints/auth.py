@@ -108,7 +108,10 @@ def validate_email(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     if user:
         return {"exists": True}
 
-    return {"exists": False}
+    raise HTTPException(
+        status_code=401,
+        detail="User not found. Please check your email and try again."
+    )
 
 
 @router.post("/login", response_model=UnifiedLoginResponse)
