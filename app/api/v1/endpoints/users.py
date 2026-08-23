@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_hr_or_admin, require_resource_permission, get_current_internal_user
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
@@ -27,6 +27,8 @@ from app.schemas.user import (
     SingleUserResponse, HiringManagerAssignedCandidateResponse,
     DigestPreferenceRequest, DigestPreferenceResponse,
     AdminResetPasswordRequest,
+    CreateUserWithRolesRequest,
+    UpdateUserWithRolesRequest,
 )
 from app.utils.uniq_id_generator import user_id_generator
 
@@ -642,13 +644,7 @@ def create_user(
     dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def create_user_with_roles(
-    user_name: str = None,
-    user_email: str = None,
-    user_password: str = None,
-    job_title: str = None,
-    partner_id: int = None,
-    business_unit_id: int = None,
-    role_ids: list = None,
+    request: CreateUserWithRolesRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin)
 ):
@@ -656,6 +652,14 @@ def create_user_with_roles(
     Create a new user with roles and job title.
     Requires permission: user.manage
     """
+    user_name = request.user_name
+    user_email = request.user_email
+    user_password = request.user_password
+    job_title = request.job_title
+    partner_id = request.partner_id
+    business_unit_id = request.business_unit_id
+    role_ids = request.role_ids
+
     if not user_name or not user_name.strip():
         raise HTTPException(status_code=400, detail="User name is required")
     if not user_email or not user_email.strip():
@@ -711,12 +715,7 @@ def create_user_with_roles(
 )
 def update_user_with_roles(
     user_id: str,
-    user_name: Optional[str] = None,
-    job_title: Optional[str] = None,
-    partner_id: Optional[int] = None,
-    business_unit_id: Optional[int] = None,
-    role_ids: Optional[list] = None,
-    assigned_at: Optional[str] = None,
+    request: UpdateUserWithRolesRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_hr_or_admin)
 ):
@@ -728,14 +727,14 @@ def update_user_with_roles(
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
-    if user_name is not None:
-        target.UserName = user_name
-    if job_title is not None:
-        target.job_title = job_title
-    if partner_id is not None:
-        target.partner_id = partner_id
-    if business_unit_id is not None:
-        target.business_unit_id = business_unit_id
+    if request.user_name is not None:
+        target.UserName = request.user_name
+    if request.job_title is not None:
+        target.job_title = request.job_title
+    if request.partner_id is not None:
+        target.partner_id = request.partner_id
+    if request.business_unit_id is not None:
+        target.business_unit_id = request.business_unit_id
 
     db.commit()
     db.refresh(target)

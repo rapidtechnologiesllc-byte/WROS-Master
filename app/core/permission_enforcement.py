@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.core.database import get_db
-from app.core.security import get_current_internal_user
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.services.permission_helper import PermissionHelper
 from app.core.logging import logger
