@@ -652,51 +652,56 @@ def create_user_with_roles(
     Create a new user with roles and job title.
     Requires permission: user.manage
     """
-    user_name = request.user_name
-    user_email = request.user_email
-    user_password = request.user_password
-    job_title = request.job_title
-    partner_id = request.partner_id
-    business_unit_id = request.business_unit_id
-    role_ids = request.role_ids
-
-    if not user_name or not user_name.strip():
+    # Validate required fields
+    if not request.user_name or not request.user_name.strip():
         raise HTTPException(status_code=400, detail="User name is required")
-    if not user_email or not user_email.strip():
+    if not request.user_email or not request.user_email.strip():
         raise HTTPException(status_code=400, detail="User email is required")
-    if not user_password or not user_password.strip():
+    if not request.user_password or not request.user_password.strip():
         raise HTTPException(status_code=400, detail="Password is required")
-    if not role_ids or len(role_ids) == 0:
+    if not request.role_ids or len(request.role_ids) == 0:
         raise HTTPException(status_code=400, detail="At least one role is required")
 
     from app.core.database import check_user
-    existing = check_user(db, user_email)
+    existing = check_user(db, request.user_email)
     if existing:
-        raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
+        raise HTTPException(status_code=400, detail=f"User with email {request.user_email} already exists")
 
     new_user = Users(
         UserID=user_id_generator(),
-        UserName=user_name,
-        UserEmail=user_email,
-        UserPassword=get_password_hash(user_password),
+        UserName=request.user_name,
+        UserEmail=request.user_email,
+        UserPassword=get_password_hash(request.user_password),
         UserRole="Admin"  # Default role
     )
 
-    # Set job_title if provided
-    if job_title:
-        new_user.job_title = job_title
-
-    # Set partner_id if provided
-    if partner_id:
-        new_user.partner_id = partner_id
-
-    # Set business_unit_id if provided
-    if business_unit_id:
-        new_user.business_unit_id = business_unit_id
+    # Set optional fields if provided
+    if request.job_title:
+        new_user.job_title = request.job_title
+    if request.partner_id:
+        new_user.partner_id = request.partner_id
+    if request.business_unit_id:
+        new_user.business_unit_id = request.business_unit_id
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Assign roles to the new user
+    if request.role_ids:
+        from app.models.user import UserRole
+        tenant_id = current_user.tenant_id or 1
+
+        for role_id in request.role_ids:
+            user_role = UserRole(
+                user_id=new_user.UserID,
+                role_template_id=role_id,
+                business_unit_id=request.business_unit_id,
+                tenant_id=tenant_id
+            )
+            db.add(user_role)
+
+        db.commit()
 
     return UserResponse(
         user_id=new_user.UserID,
@@ -727,14 +732,33 @@ def update_user_with_roles(
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
+    # Validate user_name if provided (must not be empty)
     if request.user_name is not None:
+        if not request.user_name.strip():
+            raise HTTPException(status_code=400, detail="User name cannot be empty")
         target.UserName = request.user_name
+
+    # Update optional fields if provided
     if request.job_title is not None:
         target.job_title = request.job_title
     if request.partner_id is not None:
         target.partner_id = request.partner_id
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
+
+    # Handle role updates if provided
+    if request.role_ids is not None and len(request.role_ids) > 0:
+        # Clear existing roles and assign new ones
+        from app.models.user import UserRole
+        db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+
+        for role_id in request.role_ids:
+            user_role = UserRole(
+                user_id=user_id,
+                role_template_id=role_id,
+                tenant_id=target.tenant_id or 1
+            )
+            db.add(user_role)
 
     db.commit()
     db.refresh(target)
