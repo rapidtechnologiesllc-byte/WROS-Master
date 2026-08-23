@@ -89,11 +89,16 @@ class Users(Base):
     # User Lifecycle Management — termination tracking
     terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
     terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
+    # Organization assignments
+    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True, index=True)
+    delivery_center_id = Column(Integer, ForeignKey("delivery_centers.id"), nullable=True, index=True)
 
     role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
+    partner = relationship("Partner", foreign_keys=[partner_id], lazy="select")
+    delivery_center = relationship("DeliveryCenter", foreign_keys=[delivery_center_id], lazy="select")
 
     def is_active(self) -> bool:
         """Return True if user is not terminated."""

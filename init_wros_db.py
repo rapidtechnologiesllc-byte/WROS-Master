@@ -52,6 +52,89 @@ def init_database():
         init_rbac_template_system(db, tenant_id)
         print("    [OK] RBAC templates initialized")
 
+        # Create Business Units
+        print("\n[2c] Setting up Business Units...")
+        from app.models.business_unit import BusinessUnit
+
+        business_units_data = [
+            {"name": "NA", "display_name": "North America", "bu_code": "NA", "description": "North America operations"},
+            {"name": "EU", "display_name": "Europe", "bu_code": "EU", "description": "Europe operations"},
+            {"name": "APAC", "display_name": "Asia-Pacific", "bu_code": "APAC", "description": "Asia-Pacific operations"},
+        ]
+
+        existing_bus = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id).count()
+        if existing_bus == 0:
+            for bu_data in business_units_data:
+                bu = BusinessUnit(
+                    tenant_id=tenant_id,
+                    name=bu_data["name"],
+                    display_name=bu_data["display_name"],
+                    bu_code=bu_data["bu_code"],
+                    description=bu_data["description"],
+                    active=True
+                )
+                db.add(bu)
+            db.commit()
+            print(f"    [OK] Created {len(business_units_data)} business units")
+        else:
+            print(f"    [OK] {existing_bus} business units already exist")
+
+        # Create Partners
+        print("\n[2d] Setting up Partners...")
+        from app.models.partner import Partner
+
+        partners_data = [
+            {"name": "Accenture", "code": "ACN", "contact_email": "contact@accenture.com"},
+            {"name": "TCS", "code": "TCS", "contact_email": "contact@tcs.com"},
+            {"name": "Infosys", "code": "INFY", "contact_email": "contact@infosys.com"},
+            {"name": "Cognizant", "code": "COGNIZANT", "contact_email": "contact@cognizant.com"},
+            {"name": "Wipro", "code": "WIPRO", "contact_email": "contact@wipro.com"},
+        ]
+
+        existing_partners = db.query(Partner).filter(Partner.tenant_id == tenant_id).count()
+        if existing_partners == 0:
+            for partner_data in partners_data:
+                partner = Partner(
+                    tenant_id=tenant_id,
+                    name=partner_data["name"],
+                    code=partner_data["code"],
+                    contact_email=partner_data.get("contact_email"),
+                    active=True
+                )
+                db.add(partner)
+            db.commit()
+            print(f"    [OK] Created {len(partners_data)} partners")
+        else:
+            print(f"    [OK] {existing_partners} partners already exist")
+
+        # Create Delivery Centers
+        print("\n[2e] Setting up Delivery Centers...")
+        from app.models.delivery_center import DeliveryCenter
+
+        delivery_centers_data = [
+            {"name": "Bangalore", "code": "BNG", "location": "Bangalore, India"},
+            {"name": "Delhi", "code": "DEL", "location": "Delhi, India"},
+            {"name": "Chennai", "code": "CHN", "location": "Chennai, India"},
+            {"name": "Hyderabad", "code": "HYD", "location": "Hyderabad, India"},
+            {"name": "Remote", "code": "REMOTE", "location": "Remote / Virtual"},
+        ]
+
+        existing_delivery_centers = db.query(DeliveryCenter).filter(DeliveryCenter.tenant_id == tenant_id).count()
+        if existing_delivery_centers == 0:
+            for dc_data in delivery_centers_data:
+                dc = DeliveryCenter(
+                    tenant_id=tenant_id,
+                    name=dc_data["name"],
+                    code=dc_data["code"],
+                    location=dc_data.get("location"),
+                    active=True
+                )
+                db.add(dc)
+            db.commit()
+            print(f"    [OK] Created {len(delivery_centers_data)} delivery centers")
+        else:
+            print(f"    [OK] {existing_delivery_centers} delivery centers already exist")
+
         # Create users with job titles (role templates will be created via UI)
         print("\n[3] Setting up users...")
 

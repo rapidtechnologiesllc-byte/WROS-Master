@@ -195,23 +195,23 @@ def get_current_user_permissions(
     response_model=AllUsersResponse,
 )
 def get_all_users(
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin)
 ):
     """
     Get all users (HR, Admin, etc.) from the system.
     Does not include candidates.
-    
+
     Args:
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         AllUsersResponse with list of all users and total count
     """
     # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
     users = db.query(Users).all()
-    
+
     # Build response
     users_data = []
     for u in users:
@@ -223,6 +223,7 @@ def get_all_users(
             user_role=u.UserRole,
             role_id=u.role_id,
             job_title=u.job_title,
+            partner_id=u.partner_id,
             created_at=u.CreatedAt,
             permission_role=role.name if role else None,
             department_id=u.department_id,
@@ -230,7 +231,7 @@ def get_all_users(
             business_unit_id=u.business_unit_id,
             business_unit_name=u.business_unit.name if u.business_unit else None,
         ))
-    
+
     return AllUsersResponse(
         total_users=len(users_data),
         users=users_data
@@ -683,6 +684,8 @@ def create_user_with_roles(
         new_user.partner_id = request.partner_id
     if request.business_unit_id:
         new_user.business_unit_id = request.business_unit_id
+    if request.reporting_manager_id:
+        new_user.reporting_manager_id = request.reporting_manager_id
 
     db.add(new_user)
     db.commit()
@@ -720,6 +723,7 @@ def create_user_with_roles(
         user_email=new_user.UserEmail,
         user_role=new_user.UserRole,
         job_title=new_user.job_title,
+        partner_id=new_user.partner_id,
         business_unit_id=new_user.business_unit_id,
         business_unit_name=new_user.business_unit.name if new_user.business_unit else None,
         created_at=new_user.CreatedAt
@@ -759,6 +763,8 @@ def update_user_with_roles(
         target.partner_id = request.partner_id
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
+    if request.reporting_manager_id is not None:
+        target.reporting_manager_id = request.reporting_manager_id
 
     # Handle role updates if provided
     if request.role_ids is not None and len(request.role_ids) > 0:
