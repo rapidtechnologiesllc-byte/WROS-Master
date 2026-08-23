@@ -814,6 +814,11 @@ export default function AppRoutes() {
             />
 
             <Route
+              path="offers"
+              element={<OfferLettersScreen />}
+            />
+
+            <Route
               path="offers-listing"
               element={
                 <OfferListing

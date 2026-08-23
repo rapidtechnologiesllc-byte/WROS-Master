@@ -671,6 +671,11 @@ export default function CandidateCreate({ onBack, onSave }) {
           </Button>
         }
       >
+        {actionNotice && (
+          <div className="mb-4 rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
+            <p className="text-sm font-medium text-red-900">{actionNotice}</p>
+          </div>
+        )}
         {Object.keys(errors).length > 0 && (
           <ValidationSummary errors={errors} onFieldClick={handleFieldClick} />
         )}
@@ -885,10 +890,33 @@ export default function CandidateCreate({ onBack, onSave }) {
               Education records
             </div>
             <div className="mt-3 space-y-3">
-              {educationRows.map((row, idx) => (
+              {educationRows.map((row, idx) => {
+                const isRowIncomplete = [
+                  row.education_institute,
+                  row.degree,
+                  row.field_of_study,
+                  row.starting_year,
+                  row.year_of_passing,
+                  row.percentage,
+                ].some((v) => !String(v || "").trim());
+                const hasAnyField = [
+                  row.education_institute,
+                  row.degree,
+                  row.field_of_study,
+                  row.starting_year,
+                  row.year_of_passing,
+                  row.percentage,
+                ].some((v) => String(v || "").trim());
+                const shouldHighlight = actionNotice && hasAnyField && isRowIncomplete;
+
+                return (
                 <div
                   key={`edu-${idx}`}
-                  className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2"
+                  className={`grid gap-2 rounded-lg border p-3 md:grid-cols-2 ${
+                    shouldHighlight
+                      ? "border-red-400 bg-red-50"
+                      : "border-gray-200 bg-white"
+                  }`}
                 >
                   <Input
                     label="Institute"
@@ -969,7 +997,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     </Button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
               <Button
                 variant="secondary"
                 onClick={() =>
@@ -996,9 +1025,30 @@ export default function CandidateCreate({ onBack, onSave }) {
               Experience records
             </div>
             <div className="mt-3 space-y-3">
-              {experienceRows.map((row, idx) => (
+              {experienceRows.map((row, idx) => {
+                const isRowIncomplete = [
+                  row.company_name,
+                  row.job_title,
+                  row.start_date,
+                  row.end_date,
+                  row.year_of_experience,
+                ].some((v) => !String(v || "").trim());
+                const hasAnyField = [
+                  row.company_name,
+                  row.job_title,
+                  row.start_date,
+                  row.end_date,
+                  row.year_of_experience,
+                ].some((v) => String(v || "").trim());
+                const shouldHighlight = actionNotice && hasAnyField && isRowIncomplete;
+
+                return (
                 <div
-                  className="grid gap-2 rounded-lg border bg-white p-3 md:grid-cols-2"
+                  className={`grid gap-2 rounded-lg border p-3 md:grid-cols-2 ${
+                    shouldHighlight
+                      ? "border-red-400 bg-red-50"
+                      : "border-gray-200 bg-white"
+                  }`}
                   key={`exp-${idx}`}
                 >
                   <Input
@@ -1071,7 +1121,8 @@ export default function CandidateCreate({ onBack, onSave }) {
                     </Button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
               <Button
                 variant="secondary"
                 onClick={() =>
@@ -1101,10 +1152,6 @@ export default function CandidateCreate({ onBack, onSave }) {
             {isSaving ? "Adding..." : "Add Candidate"}
           </Button>
         </div>
-
-        {actionNotice ? (
-          <div className="mt-2 text-xs text-gray-500">{actionNotice}</div>
-        ) : null}
       </Card>
     </div>
   );

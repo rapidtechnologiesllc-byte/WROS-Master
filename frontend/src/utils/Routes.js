@@ -29,6 +29,8 @@ export const ROUTES = {
   REVENUE: "/revenue",
   TENANT_LOCALE: "/settings/locale",
   MESSAGE_TEMPLATES: "/settings/templates",
+  SLM_DASHBOARD: "/settings/slm-dashboard",
+  SLM_TRAINING: "/settings/slm-training",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",

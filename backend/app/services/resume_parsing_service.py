@@ -164,49 +164,42 @@ def calculate_total_experience_months(work_history: List[Dict]) -> int:
 
 
 # ---------------------------------------------------------------------------
-# LLM parsing (Step 3)
+# SLM parsing (Self-Learning Model - Internal, No External API Calls)
 # ---------------------------------------------------------------------------
 
-def _default_llm_call(prompt: str, api_key: str) -> str:
-    import requests
-    resp = requests.post(
-        f"{GEMINI_MODEL_URL}?key={api_key}",
-        json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048}},
-        timeout=60,
-    )
-    resp.raise_for_status()
-    result = resp.json()
-    text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-    return re.sub(r"```(?:json)?", "", text).strip()
+def _parse_with_slm(raw_text: str) -> Dict:
+    """
+    Parse resume using internal SLM (Self-Learning Model).
 
+    No external LLM calls - this is our proprietary parsing engine.
+    Uses pattern matching, regex, and heuristics.
 
-def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
-    if llm_call is not None:
-        return llm_call(prompt)
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set")
-    return _default_llm_call(prompt, api_key)
+    If accuracy is low, can be improved by:
+    1. Collecting labeled training data (resume → correct extraction)
+    2. Using an LLM to generate synthetic training examples (one-time)
+    3. Training an ML model on that data
+    4. Replacing this implementation with the ML version
+    """
+    from app.services.resume_parser_slm import ResumeSLM
 
+    try:
+        parsed = ResumeSLM.parse_resume(raw_text)
 
-def _build_parsing_prompt(raw_text: str) -> str:
-    return (
-        "You are a resume parser. Extract structured data from this resume text and "
-        "return ONLY valid JSON with these fields: full_name, email, phone, "
-        "current_title, current_employer, work_history (array: employer, title, "
-        'start_date as "YYYY-MM", end_date as "YYYY-MM" or null if current, '
-        "description), education (array: institution, degree, field, "
-        "graduation_year), skills (array of strings), certifications (array: "
-        "name, issuer, year), languages (array of strings).\n\n"
-        f"Resume text: {raw_text[:8000]}"
-    )
+        # Ensure required fields exist
+        if "work_history" not in parsed:
+            parsed["work_history"] = []
 
+        # Validate work_history is a list
+        if not isinstance(parsed.get("work_history"), list):
+            parsed["work_history"] = []
 
-def _parse_llm_json(raw: str) -> Dict:
-    parsed = json.loads(raw)
-    if not isinstance(parsed, dict) or "work_history" not in parsed:
-        raise ValueError("Parsed JSON missing required 'work_history' key")
-    return parsed
+        logger.info(f"[ResumeSLM] Parsed resume successfully: {len(parsed.get('skills', []))} skills, {len(parsed.get('work_history', []))} jobs")
+
+        return parsed
+
+    except Exception as exc:
+        logger.error(f"[ResumeSLM] Parse error: {exc}")
+        raise ValueError(f"SLM parsing failed: {exc}") from exc
 
 
 def _log_event(db: Session, conversation: Optional[CandidateConversation], event_type: str, event_data: Dict) -> None:
@@ -265,17 +258,14 @@ def parse_resume(
         db.commit()
         return {"outcome": "text_extraction_failed"}
 
-    prompt = _build_parsing_prompt(raw_text)
+    # Parse using internal SLM (no external LLM calls)
     parsed_json = None
     last_error: Optional[Exception] = None
-    for attempt in range(2):  # BR: retry once on parse failure
-        try:
-            raw_response = _call_llm(prompt, llm_call)
-            parsed_json = _parse_llm_json(raw_response)
-            break
-        except Exception as exc:
-            last_error = exc
-            logger.warning(f"[ResumeParsing] LLM parse attempt {attempt + 1} failed for candidate {candidate.candidateID}: {exc}")
+    try:
+        parsed_json = _parse_with_slm(raw_text)
+    except Exception as exc:
+        last_error = exc
+        logger.warning(f"[ResumeSLM] Parse failed for candidate {candidate.candidateID}: {exc}")
 
     if parsed_json is None:
         _log_event(db, conversation, "RESUME_PARSING_FAILED", {"reason": str(last_error)})
@@ -325,9 +315,15 @@ def parse_resume(
     from app.services.resume_completeness_service import update_resume_completeness_score
     completeness = update_resume_completeness_score(db, candidate, tenant_id)
 
+    # Index resume for Thunder's job-to-candidate matching
+    # This stores resume in searchable format so Thunder can find candidates for new jobs
+    from app.services.resume_search_service import ResumeSearchService
+    ResumeSearchService.index_resume_on_parse(db, candidate, existing)
+
     _log_event(db, conversation, "candidate.resume_parsed", {
         "total_experience_months": total_months, "skills_count": len(skills), "parsing_success": True,
         "resume_completeness_score": completeness["resume_completeness_score"],
+        "resume_indexed_for_search": True,
     })
     db.commit()
     return {
