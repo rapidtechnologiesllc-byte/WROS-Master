@@ -342,6 +342,67 @@ def update_candidate_status(
     db.commit()
     db.refresh(cs)
 
+    # ── Send candidate stage progression emails ────────────────────────────────
+    if request.pipeline_status and candidate.candidateEmail:
+        candidate_name = _candidate_display_name(candidate)
+        job_title = "Opportunity"
+
+        # Get job title if candidate has assigned job
+        if candidate.job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == candidate.job_id).first()
+            if job:
+                job_title = job.jobTitle or "Opportunity"
+
+        # Send appropriate email based on new pipeline status
+        try:
+            if request.pipeline_status == "Screening":
+                EmailService.send_stage_update(
+                    recipient_email=candidate.candidateEmail,
+                    candidate_name=candidate_name,
+                    old_stage=cs.piplineStatus,
+                    new_stage="SCREENING",
+                    job_title=job_title,
+                )
+
+            elif request.pipeline_status == "Interview":
+                EmailService.send_stage_update(
+                    recipient_email=candidate.candidateEmail,
+                    candidate_name=candidate_name,
+                    old_stage=cs.piplineStatus,
+                    new_stage="INTERVIEW",
+                    job_title=job_title,
+                )
+
+            elif request.pipeline_status in ["OfferApproval", "Pre-Onboarding"]:
+                # Send offer email when moving to offer/pre-onboarding stage
+                EmailService.send_stage_update(
+                    recipient_email=candidate.candidateEmail,
+                    candidate_name=candidate_name,
+                    old_stage=cs.piplineStatus,
+                    new_stage="OFFER",
+                    job_title=job_title,
+                )
+
+            elif request.pipeline_status == "Hired":
+                EmailService.send_stage_update(
+                    recipient_email=candidate.candidateEmail,
+                    candidate_name=candidate_name,
+                    old_stage=cs.piplineStatus,
+                    new_stage="HIRED",
+                    job_title=job_title,
+                )
+
+            elif request.pipeline_status == "Rejected":
+                EmailService.send_stage_update(
+                    recipient_email=candidate.candidateEmail,
+                    candidate_name=candidate_name,
+                    old_stage=cs.piplineStatus,
+                    new_stage="REJECTED",
+                    job_title=job_title,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send stage update email to {candidate.candidateEmail}: {str(e)}")
+
     # ── Pool ownership transition: Rejected → Org Pool ────────────────────────
     if request.pipeline_status == "Rejected":
         # pyrefly: ignore [missing-import]
