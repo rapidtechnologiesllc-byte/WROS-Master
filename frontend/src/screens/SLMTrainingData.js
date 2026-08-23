@@ -246,12 +246,20 @@ export default function SLMTrainingData() {
           <div className="p-4 bg-gray-50 rounded border border-gray-200">
             <h3 className="font-semibold text-gray-700 mb-2">Full Training Guide</h3>
             <p className="text-sm text-gray-600 mb-3">
-              See <code className="bg-white px-2 py-1 rounded border border-gray-300">BERT_TRAINING_GUIDE.md</code> for complete instructions,
-              expected results, troubleshooting, and deployment steps.
+              Complete step-by-step guide covering the three-stage pipeline, expected accuracy improvements (+22%),
+              cost analysis, troubleshooting, and production deployment.
             </p>
-            <button className="text-blue-600 hover:text-blue-700 text-sm font-semibold">
-              View Guide →
-            </button>
+            <a
+              href="https://github.com/BlitzenX/WROS/blob/main/BERT_TRAINING_GUIDE.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm font-semibold"
+            >
+              View Complete Guide →
+            </a>
+            <div className="mt-2 text-xs text-gray-500">
+              Also available locally: <code className="bg-white px-2 py-1 rounded">backend/BERT_TRAINING_GUIDE.md</code>
+            </div>
           </div>
 
           <div className="p-4 bg-gray-50 rounded border border-gray-200">

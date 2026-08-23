@@ -77,31 +77,50 @@ export default function SLMDashboard() {
 
       {/* Performance Overview */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-gray-500 text-sm font-semibold">TOTAL FEEDBACK</div>
-            <div className="text-3xl font-bold">{stats.total_feedback}</div>
-            <div className="text-xs text-gray-400 mt-1">Last 7 days</div>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-gray-500 text-sm font-semibold">CORRECTIONS</div>
-            <div className="text-3xl font-bold text-red-600">{stats.corrections}</div>
-            <div className="text-xs text-gray-400 mt-1">{stats.correction_rate}% error rate</div>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-gray-500 text-sm font-semibold">VALIDATIONS</div>
-            <div className="text-3xl font-bold text-green-600">{stats.validations}</div>
-            <div className="text-xs text-gray-400 mt-1">Correct extractions</div>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-gray-500 text-sm font-semibold">READY TO RETRAIN</div>
-            <div className={`text-3xl font-bold ${stats.ready_to_retrain ? 'text-green-600' : 'text-yellow-600'}`}>
-              {stats.ready_to_retrain ? '✓' : '○'}
+        <div className="space-y-4">
+          {/* Key Metrics */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg shadow border-l-4 border-blue-500">
+              <div className="text-gray-600 text-sm font-semibold">RESUMES PARSED</div>
+              <div className="text-4xl font-bold text-blue-600">{stats.total_feedback}</div>
+              <div className="text-xs text-gray-500 mt-2">Last 7 days</div>
             </div>
-            <div className="text-xs text-gray-400 mt-1">{stats.ready_to_retrain ? 'Yes' : 'Accumulating'}</div>
+
+            <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg shadow border-l-4 border-green-500">
+              <div className="text-gray-600 text-sm font-semibold">ACCURACY RATE</div>
+              <div className="text-4xl font-bold text-green-600">{(100 - stats.correction_rate).toFixed(1)}%</div>
+              <div className="text-xs text-gray-500 mt-2">Auto-validated</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg shadow border-l-4 border-orange-500">
+              <div className="text-gray-600 text-sm font-semibold">RECRUITER FIXES</div>
+              <div className="text-4xl font-bold text-orange-600">{stats.correction_rate}%</div>
+              <div className="text-xs text-gray-500 mt-2">{stats.corrections} corrections</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg shadow border-l-4 border-purple-500">
+              <div className="text-gray-600 text-sm font-semibold">READY TO RETRAIN</div>
+              <div className={`text-4xl font-bold ${stats.ready_to_retrain ? 'text-green-600' : 'text-purple-600'}`}>
+                {stats.ready_to_retrain ? '✓' : stats.validations}
+              </div>
+              <div className="text-xs text-gray-500 mt-2">{stats.ready_to_retrain ? 'Training ready' : 'more needed'}</div>
+            </div>
+          </div>
+
+          {/* Detailed Stats */}
+          <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+            <div>
+              <div className="text-sm text-gray-600 font-semibold mb-1">Total Feedback</div>
+              <div className="text-2xl font-bold">{stats.total_feedback}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600 font-semibold mb-1">Validated (Correct)</div>
+              <div className="text-2xl font-bold text-green-600">{stats.validations}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600 font-semibold mb-1">Corrections Needed</div>
+              <div className="text-2xl font-bold text-red-600">{stats.corrections}</div>
+            </div>
           </div>
         </div>
       )}
