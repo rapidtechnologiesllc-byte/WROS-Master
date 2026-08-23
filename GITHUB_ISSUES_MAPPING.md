@@ -1,6 +1,7 @@
 # GitHub Issues Mapping
 
-**Project:** https://github.com/users/rapidtechnologiesllc-byte/projects/1
+**Project:** https://github.com/rapidtechnologiesllc-byte/WROS-Master
+**Project Board:** https://github.com/users/rapidtechnologiesllc-byte/projects/1
 
 This document maps all open issues from CLAUDE.md to GitHub issues for centralized tracking.
 
@@ -20,7 +21,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### BX-HRMS-DEFECT-002: Role Template Auto-Creation
 - **Status:** ⏳ PENDING FIX
-- **GitHub Issue:** #100
+- **GitHub Issue:** #41
 - **Severity:** High
 - **Description:** Role template created immediately on "New Role Template" button, should only create on Save
 - **Impact:** Blank templates require manual deletion
@@ -30,7 +31,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### BX-HRMS-DEFECT-003: Administration Navigation Structure
 - **Status:** ⏳ PENDING IMPLEMENTATION
-- **GitHub Issue:** #101
+- **GitHub Issue:** #42
 - **Severity:** High
 - **Description:** Role Templates shows as standalone sidebar item, should only be accessible via Users & Access Control tabs
 - **Impact:** Navigation confusion, wrong URL hierarchy
@@ -40,7 +41,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### BX-HRMS-DEFECT-004: Create User Form UX Issues
 - **Status:** ⏳ PENDING FIX
-- **GitHub Issue:** #102
+- **GitHub Issue:** #43
 - **Severity:** Medium
 - **Description:** Multiple UX issues: Partner field should auto-generate from BU, missing required field indicators (*), wrong field order
 - **Impact:** User confusion, form validation unclear
@@ -50,7 +51,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### BX-HRMS-DEFECT-005: Backend Port Configuration
 - **Status:** ⏳ NEEDS CLARIFICATION
-- **GitHub Issue:** #103
+- **GitHub Issue:** #44
 - **Severity:** Medium
 - **Description:** Frontend expects port 8080, but preview server auto-assigns different ports causing CORS errors
 - **Cause:** Process management issue, not code bug
@@ -64,7 +65,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### EPIC-FLASH-001: Database Integration for Goals System
 - **Status:** ✅ COMPLETED (Agent a3e4009fed85c1a23)
-- **GitHub Issue:** #104
+- **GitHub Issue:** #45
 - **Severity:** Critical (was blocker)
 - **Description:** Wire database queries, implement YTD progress tracking, replace mock data
 - **Completed:** 
@@ -81,7 +82,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### EPIC-FLASH-002: Frontend API Integration
 - **Status:** ✅ COMPLETED (Agent a3e4009fed85c1a23)
-- **GitHub Issue:** #105
+- **GitHub Issue:** #46
 - **Severity:** Critical (was blocker)
 - **Description:** Wire CEOGoalsSettingScreen and GoalsManagementScreen to backend API endpoints
 - **Completed:**
@@ -97,7 +98,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### EPIC-FLASH-003: Flash Validation UI Component
 - **Status:** ✅ COMPLETED (Agent a3e4009fed85c1a23)
-- **GitHub Issue:** #106
+- **GitHub Issue:** #47
 - **Severity:** High
 - **Description:** Build FlashValidationForm component with status badges, progress bars, coaching feedback
 - **Completed:**
@@ -111,7 +112,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### EPIC-FLASH-004: Role Template Navigation Integration
 - **Status:** ✅ COMPLETED (Agent a3e4009fed85c1a23)
-- **GitHub Issue:** #107
+- **GitHub Issue:** #48
 - **Severity:** High
 - **Description:** Wire role template modules to Shell.js navigation for dynamic filtering
 - **Completed:**
@@ -127,7 +128,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### EPIC-FLASH-005: Dark Mode UI Theme
 - **Status:** ✅ COMPLETED (Agent a4aadb828b526f385)
-- **GitHub Issue:** #108
+- **GitHub Issue:** #49
 - **Severity:** Medium
 - **Description:** Add dark mode theme toggle, implement dark styling across all screens
 - **Expected Completion:** 30-45 minutes
@@ -145,7 +146,7 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ### EPIC-FLASH-006: End-to-End System Testing
 - **Status:** ✅ COMPLETED (Agent a4aadb828b526f385)
-- **GitHub Issue:** #109
+- **GitHub Issue:** #50
 - **Severity:** High
 - **Description:** Comprehensive E2E testing of entire Flash/Goal system
 - **Expected Completion:** 60-90 minutes
