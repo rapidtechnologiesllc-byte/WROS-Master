@@ -2,6 +2,141 @@
 
 **Critical Feature:** Each role can chat with Flash to set goals for their team/individuals.
 
+## 🔒 CONFIDENTIALITY REQUIREMENT (CRITICAL)
+
+**Flash Chat is STRICTLY CONFIDENTIAL.** Never share one person's conversation with another.
+
+### What's Private
+- ✅ My chat with Flash (only I see it)
+- ✅ My goals/targets (only I see them until cascaded)
+- ✅ My progress/challenges (only I and my manager see)
+- ✅ My conversations about blockers (never shared)
+
+### What's NOT Private (Cascaded Upward Only)
+- ✅ My cascaded goals (my manager sees when activated)
+- ✅ My progress vs goal (my manager sees results)
+- ✅ Aggregated team metrics (manager's manager sees consolidated)
+- ✅ CEO sees only company-level metrics, not personal conversations
+
+### Database Level Security
+```sql
+-- Chat messages are NEVER cross-visible
+SELECT * FROM flash_chat_messages WHERE user_id = 'person-A'
+-- Returns only person-A's messages, not person-B's, even if same manager
+
+-- Permissions table enforces scope
+chat_messages.user_id (who initiated chat)
+chat_messages.visibility_scope (private, manager_only, team_only, company_only)
+```
+
+### API Security
+```
+GET /flash/chat/{chat_id}
+  Requires: auth_user_id == chat.user_id
+  Rejects: If you're not the person who started the chat
+  
+GET /flash/chat/history
+  Returns: ONLY current user's chats
+  Never: Other people's chats
+```
+
+### Example: What Each Person Sees
+
+**Tech Lead A chats with Flash:**
+```
+A: "I'm struggling with performance. Need help hitting 500 commits."
+Flash: "What's blocking you? Design review? Tech debt? Unclear priorities?"
+A: "Waiting on design review. Also need better dev environment."
+```
+**Only A sees this conversation.** Manager sees RESULT (A's target) but not this chat.
+
+**Manager A (A's manager) chats with Flash:**
+```
+Manager: "My team is at 87/150 consultants. What's the blocker?"
+Flash: "Team members cite: Design review delays (affecting A, C), 
+unclear priorities (affecting B), tech debt (affecting A, D)"
+```
+**Aggregated insights, no individual names in Flash chat response.**
+
+**Manager A's Manager (Director) chats with Flash:**
+```
+Director: "How's my org tracking?"
+Flash: "3 teams: Team-A on pace, Team-B slight lag, Team-C critical lag"
+```
+**Director sees team-level, never individual names.**
+
+**CEO chats with Flash:**
+```
+CEO: "How are we tracking to 500 consultants goal?"
+Flash: "150/year cascaded to Workforce Ops. Current: 87 (58% pace, week 33).
+Should be at 95.5 by now. Slightly behind but within recovery range."
+```
+**CEO sees company-level only, never individual or manager conversations.**
+
+### Implementation Rules
+
+1. **Every chat message has a `visibility_scope`:**
+   - `private`: Only the user who started the chat
+   - `manager_only`: User + their direct manager
+   - `team_only`: User + their team members
+   - `company_only`: CEO + C-level (aggregated only)
+
+2. **Flash never mentions names in responses to manager/director/CEO:**
+   ```
+   WRONG: "Tech Lead A is 50 commits behind..."
+   RIGHT: "3 team members cite design review delays as primary blocker"
+   ```
+
+3. **Database rows include access control:**
+   ```sql
+   flash_chat_messages:
+     - user_id (who initiated)
+     - visibility_scope (private/manager_only/team_only/company_only)
+     - can_view_user_ids (explicit access list)
+   ```
+
+4. **API enforces strict access:**
+   ```python
+   def get_chat_message(chat_id, requesting_user_id):
+       msg = db.get(chat_id)
+       if requesting_user_id == msg.user_id:
+           return msg  # Own chat, full visibility
+       elif requesting_user_id == msg.user.manager_id and msg.visibility_scope >= manager_only:
+           return sanitized(msg)  # Manager sees aggregated, not personal details
+       else:
+           raise 403 Forbidden  # No access
+   ```
+
+5. **Audit log tracks all access:**
+   ```sql
+   chat_access_log:
+     - chat_id
+     - accessed_by_user_id
+     - timestamp
+     - reason (own_chat / manager_review / audit)
+   ```
+
+### What This Protects
+- ✅ Tech Lead A's struggles are not visible to Tech Lead B
+- ✅ Manager A's team challenges not visible to Manager B
+- ✅ CEO can't see individual conversations, only aggregates
+- ✅ Prevents competitive disclosure ("Manager B's team is struggling")
+- ✅ Protects vulnerable sharing (health issues, struggles, risks)
+
+### Violation Examples (All Prevented)
+
+❌ Manager A sees Tech Lead B's chat: `403 Forbidden`
+❌ Tech Lead A sees Tech Lead B's goals: `403 Forbidden`
+❌ CEO sees Manager A's coaching from Flash: `403 Forbidden`
+❌ Partner sees another Partner's chat: `403 Forbidden`
+
+### Reporting Exception (Data Protection)
+Only HR + CEO can access aggregated anonymized data for compliance:
+```
+"3 team members report design review as blocker"
+NOT: "Tech Lead A, B, C report design review as blocker"
+```
+
 ---
 
 ## User Flows by Role
