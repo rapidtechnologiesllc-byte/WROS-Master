@@ -381,10 +381,10 @@ export default function Shell({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <div className="flex w-full gap-6 px-4 py-6">
         <aside className="hidden w-64 shrink-0 md:block">
-          <div className="rounded-2xl bg-bx-navy p-4 shadow-sm">
+          <div className="rounded-2xl bg-bx-navy dark:bg-gray-800 p-4 shadow-sm">
             <div className="mb-3">
               <div className="text-xs font-semibold text-white/60">BlitzenX</div>
               <div className="text-lg font-extrabold tracking-tight text-white">
