@@ -15,7 +15,7 @@ from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplat
 
 # All modules and their resources (with optional route_path for custom routes)
 MODULES_AND_RESOURCES = {
-    "Admin": ["admin-settings", "users", "roles-permissions", "organization"],
+    "Admin": ["admin-settings", "users-access-control", "roles-permissions", "organization"],
     "Recruitment": [
         "candidates", "jobs", "submissions", "interviews",
         "offer-letters", "intervention-queue", "rehire-approval"
@@ -47,6 +47,7 @@ MODULES_AND_RESOURCES = {
 # Resource-specific route paths (custom routes for certain resources)
 # Note: Routes should NOT have leading slash (Approutes.jsx pattern matches this)
 RESOURCE_ROUTES = {
+    "users-access-control": "admin/users-access-control",
     "slm-dashboard": "admin/slm-dashboard",
     "slm-training-data": "admin/slm-training-data",
 }
