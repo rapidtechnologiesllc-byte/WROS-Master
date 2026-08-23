@@ -106,6 +106,7 @@ class UserResponse(BaseModel):
     user_name: str
     user_email: str
     user_role: str
+    role_id: Optional[int] = None
     job_title: Optional[str] = None
     permission_role: Optional[str] = None
     department_id: Optional[int] = None

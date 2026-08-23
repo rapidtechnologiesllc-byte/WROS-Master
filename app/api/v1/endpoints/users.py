@@ -221,6 +221,7 @@ def get_all_users(
             user_name=u.UserName or "",
             user_email=u.UserEmail,
             user_role=u.UserRole,
+            role_id=u.role_id,
             job_title=u.job_title,
             created_at=u.CreatedAt,
             permission_role=role.name if role else None,
