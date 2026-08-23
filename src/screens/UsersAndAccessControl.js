@@ -795,6 +795,44 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
             </div>
           )}
+
+          {/* Navigation Preview */}
+          {createForm.role_ids && createForm.role_ids.length > 0 && (
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-300">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Navigation Preview</h4>
+              <p className="text-xs text-gray-600 mb-2">This user will see these menu items:</p>
+              <div className="space-y-2">
+                {(() => {
+                  const selectedRole = roles.find(r => r.id === createForm.role_ids?.[0]);
+                  if (!selectedRole) return null;
+
+                  // Simple role-based nav mapping
+                  const roleNavMap = {
+                    "Admin": ["📊 Dashboard", "👥 Candidates", "💼 Jobs", "👔 Employees", "📋 Admin", "⚙️ Settings"],
+                    "Recruiter": ["📊 Dashboard", "👥 Candidates", "💼 Jobs", "📝 Interviews", "📋 Submissions"],
+                    "HR Manager": ["📊 Dashboard", "👥 Candidates", "👔 Employees", "📋 Interviews", "📝 Reports"],
+                    "Finance": ["💰 Invoices", "💵 Revenue", "📊 Reports", "💼 Finance Operations"],
+                    "Partner": ["👥 Candidates", "💼 Sales Pipeline", "👔 Employees", "📊 Dashboard"],
+                    "BU Head": ["📊 Dashboard", "👥 Candidates", "👔 Employees", "📋 Reports", "💼 Business Unit Management"],
+                    "CEO": ["📊 Dashboard", "👥 Candidates", "💰 Finance", "📊 Executive Reports", "⚙️ Admin", "🏢 Organization"]
+                  };
+
+                  const navItems = roleNavMap[selectedRole.name] || ["📊 Dashboard"];
+
+                  return (
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      {navItems.map((item, idx) => (
+                        <li key={idx} className="flex items-center gap-2 p-2 rounded bg-white">
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
+              </div>
+              <p className="text-xs text-gray-500 mt-3 italic">Navigation based on "{roles.find(r => r.id === createForm.role_ids?.[0])?.name || "Unknown"}" role template</p>
+            </div>
+          )}
           <div className="flex gap-3 justify-end pt-4">
             <Button
               variant="outline"
