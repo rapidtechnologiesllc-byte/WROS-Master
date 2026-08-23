@@ -1183,8 +1183,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   // Count users per template - match by template name
   const getUserCount = (templateId, templateName) => {
     return users.filter(u => {
-      // Match by UserRole field (e.g., "Admin" matches template.name "Admin")
-      if (u.UserRole === templateName) return true;
+      // Match by user_role field (e.g., "Admin" matches template.name "Admin")
+      if (u.user_role === templateName) return true;
       return false;
     }).length;
   };
