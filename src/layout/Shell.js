@@ -299,8 +299,15 @@ export default function Shell({
     const loadNavigation = async () => {
       // Fetch pre-built navigation from backend (already filtered by user permissions)
       const navGroups = await fetchNavigationFromBackend();
-      setNav({ standalone: [], groups: navGroups });
-      console.debug("Navigation loaded:", { groupCount: navGroups.length });
+
+      // Filter out "Role Templates" - should only be accessible via Users & Access Control tabs
+      const filteredGroups = navGroups.map(group => ({
+        ...group,
+        items: group.items?.filter(item => item.key !== 'roleTemplates') || []
+      })).filter(group => group.items.length > 0 || !group.label.includes('Admin')); // Remove empty Admin group
+
+      setNav({ standalone: [], groups: filteredGroups });
+      console.debug("Navigation loaded:", { groupCount: filteredGroups.length });
     };
 
     loadNavigation();
