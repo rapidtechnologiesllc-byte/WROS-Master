@@ -105,12 +105,7 @@ def validate_email(request: LoginRequest, db: Session = Depends(get_db)):
     """
     email = request.UserEmail.strip().lower()
     user = check_user(db, email)
-    if user:
-        return {"exists": True}
-    raise HTTPException(
-        status_code=401,
-        detail="User not found. Please check your email and try again."
-    )
+    return {"exists": bool(user)}
 
 
 @router.post("/login", response_model=UnifiedLoginResponse)
