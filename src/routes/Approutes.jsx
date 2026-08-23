@@ -16,6 +16,7 @@ import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
+import UserFormPage from "../screens/UserFormPage";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import RoleTemplateManager from "../screens/RoleTemplateManager";
 import Verification from "../screens/Verification";
@@ -656,6 +657,8 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
+            <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
@@ -907,6 +910,8 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
+            <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
