@@ -374,6 +374,148 @@ async def capture_offer_response(
         raise HTTPException(status_code=500, detail="Error capturing offer response")
 
 
+# ============== PERSONAL INTELLIGENCE ENDPOINTS ==============
+# These extract and use 200+ personal data points for authentic relationship building
+
+@router.post("/personal-intelligence/{candidate_id}")
+async def extract_personal_intelligence(
+    candidate_id: str,
+    linkedin_profile: Optional[Dict[str, Any]] = None,
+    github_profile: Optional[Dict[str, Any]] = None,
+    social_data: Optional[Dict[str, Any]] = None,
+    conversation_text: Optional[str] = None,
+    emails: Optional[List[str]] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Extract 200+ personal data points to understand the PERSON.
+
+    Creates deep personal profile covering:
+    - Gaming & Entertainment (10 points)
+    - Food & Dining (10 points)
+    - Travel & Location (15 points)
+    - Career Aspirations (20 points)
+    - Personal Life & Family (15 points)
+    - Values & Beliefs (15 points)
+    - Health & Wellness (10 points)
+    - Learning & Growth (12 points)
+    - Financial Goals (10 points)
+    - Social & Community (12 points)
+    - Work Preferences (10 points)
+    - Personal Quirks (10 points)
+    - Hidden Motivations & Fears (15 points)
+    - Side Interests & Hobbies (10 points)
+    - Communication Style (8 points)
+
+    Total: 200+ data points for authentic relationship building
+    """
+    try:
+        result = await RelationBuildingAgent.extract_personal_intelligence(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            linkedin_profile=linkedin_profile,
+            github_profile=github_profile,
+            social_data=social_data,
+            conversation_text=conversation_text,
+            emails=emails,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Personal intelligence extraction error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error extracting personal intelligence")
+
+
+@router.get("/personalization/{candidate_id}")
+async def get_personalization_strategy(
+    candidate_id: str,
+    stage: str = "initial",
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Get personalized engagement strategy based on 200+ personal data points.
+
+    Uses personal intelligence to customize:
+    - Email openings (reference their interests/values)
+    - Talking points (build on shared interests)
+    - Communication style (match their preference)
+    - Offer package (emphasize what matters to them)
+    - Contact timing (when they're most responsive)
+    - Personal connection points (create authentic rapport)
+    """
+    try:
+        from app.services.candidate_memory_service import get_memory
+
+        memory = get_memory(db, candidate_id, current_user.UserID)
+
+        if not memory.get("facts"):
+            return {
+                "status": "error",
+                "message": "Personal profile not yet extracted. Call /personal-intelligence first.",
+            }
+
+        personal_data = {}
+        for fact in memory["facts"]:
+            if fact.get("category") == "PERSONAL":
+                personal_data[fact["key"]] = fact["value"]
+
+        result = RelationBuildingAgent.get_personalized_engagement_strategy(
+            candidate_id=candidate_id,
+            candidate_data=personal_data,
+            engagement_stage=stage,
+        )
+
+        return {"status": "success", "strategy": result}
+
+    except Exception as e:
+        logger.error(f"Personalization strategy error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error generating personalization strategy")
+
+
+@router.post("/customize-offer/{candidate_id}")
+async def customize_offer(
+    candidate_id: str,
+    base_offer: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Customize offer package based on 200+ personal data points.
+
+    Personalizes based on:
+    - Remote flexibility: If they travel/value location independence
+    - Work schedule: If they have family/caregiving
+    - Learning budget: If they're growth-focused
+    - Leadership path: If they aspire to leadership
+    - Impact opportunities: If they're impact-driven
+    """
+    try:
+        from app.services.candidate_memory_service import get_memory
+
+        memory = get_memory(db, candidate_id, current_user.UserID)
+
+        if not memory.get("facts"):
+            return {
+                "status": "error",
+                "message": "Personal profile not yet extracted for customization.",
+            }
+
+        personal_data = {}
+        for fact in memory["facts"]:
+            if fact.get("category") == "PERSONAL":
+                personal_data[fact["key"]] = fact["value"]
+
+        customized = RelationBuildingAgent.customize_offer_package(personal_data, base_offer)
+
+        return {"status": "success", "customized_offer": customized}
+
+    except Exception as e:
+        logger.error(f"Offer customization error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error customizing offer")
+
+
 @router.post("/interactions/joining/{candidate_id}")
 async def capture_joining_signals(
     candidate_id: str,

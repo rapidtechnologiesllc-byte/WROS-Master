@@ -32,6 +32,10 @@ from app.services.resume_parser_slm import ResumeSLM
 from app.services.candidate_memory_service import upsert_fact, get_memory
 from app.services.performance_store_service import write_performance_event
 from app.services.relation_building_interaction_tracker import InteractionTracker
+from app.services.personal_intelligence_service import (
+    PersonalIntelligenceService,
+    PersonalizationEngine,
+)
 
 
 class RelationBuildingAgent:
@@ -564,6 +568,109 @@ class RelationBuildingAgent:
         """
         return await InteractionTracker.track_joining_signals(
             candidate_id, tenant_id, db, joining_data
+        )
+
+    @staticmethod
+    async def extract_personal_intelligence(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        linkedin_profile: Optional[Dict] = None,
+        github_profile: Optional[Dict] = None,
+        social_data: Optional[Dict] = None,
+        conversation_text: Optional[str] = None,
+        emails: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Extract 200+ personal data points to understand the PERSON, not just professional.
+
+        This enables:
+        - Personalized emails (reference their interests/values)
+        - Customized offers (emphasize what matters to them)
+        - Authentic rapport building (genuine connection)
+        - Smart engagement (contact when they're most responsive)
+        - Personalized communications (speak their language)
+
+        Data sources: LinkedIn, GitHub, social media, emails, conversation
+        Returns: 200+ dimensional personal profile
+        """
+        return await PersonalIntelligenceService.extract_personal_profile(
+            candidate_id=candidate_id,
+            tenant_id=tenant_id,
+            db=db,
+            data_sources={
+                "linkedin": linkedin_profile or {},
+                "github": github_profile or {},
+                "social": social_data or {},
+                "conversation": conversation_text or "",
+                "emails": emails or [],
+            },
+        )
+
+    @staticmethod
+    def get_personalized_engagement_strategy(
+        candidate_id: str,
+        candidate_data: Dict[str, Any],
+        engagement_stage: str,  # "initial", "interview", "offer", "joining"
+    ) -> Dict[str, Any]:
+        """
+        Get personalized engagement strategy based on 200+ personal data points.
+
+        Returns:
+        - Email opening personalization
+        - Talking points for calls/interviews
+        - Offer package customization
+        - Communication style preferences
+        - Best timing for contact
+        - Personal connection points
+        """
+        return {
+            "personalized_email_opening": PersonalizationEngine.generate_personalized_email_opening(
+                candidate_data, email_type=engagement_stage
+            ),
+            "talking_points": PersonalizationEngine.get_personalized_talking_points(
+                candidate_data
+            ),
+            "communication_preferences": {
+                "style": candidate_data.get("communication_style", "professional"),
+                "frequency": candidate_data.get("meeting_frequency_preference", "weekly"),
+                "channel": candidate_data.get("preferred_communication", "email"),
+            },
+            "personal_connections": {
+                "shared_interests": [
+                    k
+                    for k, v in candidate_data.items()
+                    if v and "_interest" in k or "_passion" in k
+                ],
+                "values_alignment": [
+                    k
+                    for k, v in candidate_data.items()
+                    if v and ("_values" in k or "_commitment" in k)
+                ],
+                "lifestyle_fit": [
+                    k
+                    for k, v in candidate_data.items()
+                    if v and ("_desire" in k or "_preference" in k)
+                ],
+            },
+        }
+
+    @staticmethod
+    def customize_offer_package(
+        candidate_data: Dict[str, Any], base_offer: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Customize offer package based on personal values and needs.
+
+        Personalizes:
+        - Remote flexibility (if they travel)
+        - Work schedule (if they have family)
+        - Learning budget (if they're growth-focused)
+        - Leadership path (if they aspire to leadership)
+        - Impact opportunities (if impact-motivated)
+        """
+        return PersonalizationEngine.generate_personalized_offer_package(
+            candidate_data, base_offer
         )
 
     @staticmethod
