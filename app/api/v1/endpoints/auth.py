@@ -33,7 +33,7 @@ from app.core.mfa import (
     role_requires_mfa,
 )
 from app.services.email_service import EmailService
-from app.services.roletemplateservice import roletemplatepermissionsservice
+from app.services.role_template_permission_service import roletemplatepermissionsservice
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
