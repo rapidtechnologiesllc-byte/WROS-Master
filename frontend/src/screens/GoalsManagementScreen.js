@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { toast } from "react-toastify"
-import { Target, Edit2, Save, X, AlertCircle } from "lucide-react"
+import { Target, Edit2, Save, X, AlertCircle, Loader } from "lucide-react"
 import { Card, Button, Input } from "../components/ui"
+import { apiRequest } from "../services/api"
 
 /**
  * Goals Management Screen
@@ -201,15 +202,50 @@ function GoalCard({ goal, onEdit }) {
 
 export default function GoalsManagementScreen() {
   const [goals, setGoals] = useState(GOAL_DEFINITIONS)
+  const [cascadedGoals, setCascadedGoals] = useState([])
   const [filter, setFilter] = useState("all")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(null)
 
   useEffect(() => {
-    // TODO: Fetch goals from backend on load
-    // const fetchGoals = async () => {
-    //   const data = await getAnnualGoals()
-    //   setGoals(data)
-    // }
-    // fetchGoals()
+    // Fetch cascaded goals from backend on load
+    const fetchGoals = async () => {
+      try {
+        setLoading(true)
+
+        // Fetch cascaded goals for current user's department
+        const response = await apiRequest("GET", "/goals/cascaded?year=2026")
+
+        if (response.cascaded_goals && response.cascaded_goals.length > 0) {
+          // Map cascaded goals to frontend format
+          const mappedGoals = response.cascaded_goals.map(cg => ({
+            id: cg.cascaded_goal_id,
+            department: cg.cascaded_to_department,
+            metric: cg.strategic_goal_name?.toLowerCase().replace(/ /g, "_"),
+            description: `Target: ${cg.annual.toLocaleString()} ${cg.unit}`,
+            defaultAnnual: cg.annual,
+            unit: cg.unit,
+            role: cg.cascaded_to_department.toUpperCase(),
+            cascadedGoalId: cg.cascaded_goal_id,
+            status: cg.status,
+            variance: cg.variance,
+            current: cg.current_progress
+          }))
+          setGoals(mappedGoals)
+          setCascadedGoals(response.cascaded_goals)
+        } else {
+          // No cascaded goals, use defaults
+          setCascadedGoals([])
+        }
+      } catch (err) {
+        console.error("Failed to fetch goals:", err)
+        toast.error("Failed to load goals from backend")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchGoals()
   }, [])
 
   const handleGoalUpdate = (id, value) => {
@@ -222,12 +258,28 @@ export default function GoalsManagementScreen() {
     ? goals
     : goals.filter(g => g.role?.toLowerCase().includes(filter))
 
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6 bg-white min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading annual goals...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto p-6 bg-white min-h-screen">
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
           <Target size={32} className="text-blue-600" />
           <h1 className="text-3xl font-bold text-gray-900">Annual Goals</h1>
+          {cascadedGoals.length > 0 && (
+            <span className="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+              {cascadedGoals.length} Cascaded
+            </span>
+          )}
         </div>
         <p className="text-gray-600">
           Set annual targets for each department. Flash validates all reports against these goals.

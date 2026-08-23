@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { toast } from "react-toastify"
-import { Target, TrendingUp, Users, DollarSign, Zap } from "lucide-react"
+import { Target, TrendingUp, Users, DollarSign, Zap, Loader } from "lucide-react"
 import { Card, Button, Input } from "../components/ui"
+import { apiRequest } from "../services/api"
 
 /**
  * CEO Goals Setting Screen
@@ -22,7 +23,7 @@ import { Card, Button, Input } from "../components/ui"
  *     - BU Heads: Revenue per BU
  */
 
-const CEO_STRATEGIC_GOALS = [
+const DEFAULT_GOALS = [
   {
     id: "consultants",
     title: "Total Consultants",
@@ -155,9 +156,47 @@ function CascadeVisualization({ goal }) {
 }
 
 export default function CEOGoalsSettingScreen() {
-  const [goals, setGoals] = useState(CEO_STRATEGIC_GOALS)
+  const [goals, setGoals] = useState(DEFAULT_GOALS)
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(null)
+
+  // Fetch strategic goals from backend on mount
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        setLoading(true)
+        const response = await apiRequest("GET", "/goals/strategic?year=2026")
+        if (response.goals && response.goals.length > 0) {
+          // Map backend goals to frontend format
+          const mappedGoals = response.goals.map(goal => ({
+            id: goal.id,
+            title: goal.name,
+            description: goal.type,
+            icon: goal.type === "headcount" ? Users : goal.type === "revenue" ? DollarSign : Zap,
+            current: goal.current,
+            target: goal.target,
+            unit: goal.unit,
+            cascadeTo: ["workforce_ops"],
+            formula: "Auto-cascaded"
+          }))
+          setGoals(mappedGoals)
+        } else {
+          // No goals in database, use defaults
+          setGoals(DEFAULT_GOALS)
+        }
+      } catch (err) {
+        console.error("Failed to fetch goals:", err)
+        toast.error("Failed to load goals. Using defaults.")
+        setGoals(DEFAULT_GOALS)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchGoals()
+  }, [])
 
   const handleEdit = (id, currentTarget) => {
     setEditingId(id)
@@ -166,21 +205,46 @@ export default function CEOGoalsSettingScreen() {
 
   const handleSave = async (id) => {
     try {
-      // TODO: Call backend to save CEO goal and cascade to all departments
-      // await updateCEOGoal(id, editValue)
-      // This would auto-update all department targets
+      setSaving(id)
+
+      // Call backend to save CEO goal and cascade to all departments
+      const response = await apiRequest("PUT", `/goals/strategic/${id}`, {
+        new_target: editValue,
+        cascade_rules: {
+          workforce_ops: { formula: "direct_assignment", target: editValue },
+          partner: { formula: "divide_equal", count: 3 },
+          bu_head: { formula: "divide_equal", count: 9 }
+        }
+      })
+
+      // Update local state
       setGoals(goals.map(g =>
         g.id === id ? { ...g, target: editValue } : g
       ))
-      toast.success("Goal updated. Cascading to all departments...")
+
+      toast.success(`Goal updated to ${editValue.toLocaleString()}. Cascading to ${response.cascading_to?.length || 0} departments...`)
       setEditingId(null)
     } catch (err) {
-      toast.error("Failed to save goal")
+      console.error("Failed to save goal:", err)
+      toast.error("Failed to save goal. Please try again.")
+    } finally {
+      setSaving(null)
     }
   }
 
   const handleCancel = () => {
     setEditingId(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6 bg-white min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading strategic goals...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -263,12 +327,21 @@ export default function CEOGoalsSettingScreen() {
                         onChange={(e) => setEditValue(parseFloat(e.target.value))}
                         className="flex-1"
                         min="0"
+                        disabled={saving === goal.id}
                       />
                       <Button
                         onClick={() => handleSave(goal.id)}
-                        className="bg-blue-600 text-white whitespace-nowrap"
+                        className="bg-blue-600 text-white whitespace-nowrap disabled:opacity-50"
+                        disabled={saving === goal.id}
                       >
-                        Save & Cascade
+                        {saving === goal.id ? (
+                          <>
+                            <Loader className="w-4 h-4 mr-2 animate-spin inline" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save & Cascade"
+                        )}
                       </Button>
                     </div>
                   </div>

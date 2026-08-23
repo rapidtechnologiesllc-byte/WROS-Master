@@ -486,30 +486,56 @@ def _get_week_of_year() -> int:
 
 def _get_cumulative_tech_lead_progress(db: Session, tech_lead_id: str, tenant_id: int) -> int:
     """Get all commits reported from start of year through last week"""
-    # Mock implementation - in production would sum all historical reports
-    # SELECT SUM(commits) FROM tech_lead_reports WHERE tech_lead_id = ? AND year(created_at) = 2026
-    return 0  # Will be populated from database
+    from app.models.strategic_goal import PyramidReport
+    from datetime import datetime
+
+    current_year = datetime.utcnow().year
+
+    # Query all pyramid reports for this tech lead in current year
+    result = db.query(PyramidReport).filter(
+        PyramidReport.tenant_id == tenant_id,
+        PyramidReport.user_id == tech_lead_id,
+        PyramidReport.reporting_year == current_year,
+        PyramidReport.reporting_level == "tech_leads",
+        PyramidReport.status != "draft"  # Only count submitted reports
+    ).all()
+
+    # Sum all commits from all reports (excluding this week)
+    total_commits = 0
+    for report in result:
+        if report.this_week_reported:
+            total_commits += int(report.this_week_reported)
+
+    return total_commits
 
 
 def _get_last_week_report(db: Session, tech_lead_id: str, tenant_id: int) -> Optional[Dict]:
     """Get tech lead's report from last week for comparison"""
-    # Mock implementation - in production would query from database
-    # This would fetch from a reports table or cache
-    return None  # First week of reports will have no prior data
+    from app.models.strategic_goal import PyramidReport
+    from datetime import datetime
 
+    current_week = datetime.utcnow().isocalendar()[1]
+    current_year = datetime.utcnow().year
+    last_week = current_week - 1
 
-def _calculate_percentage_change(last_value: float, this_value: float) -> float:
-    """Calculate percentage change from last week to this week"""
-    if last_value == 0:
-        return 0 if this_value == 0 else 100  # Can't calculate % from 0
-    return ((this_value - last_value) / last_value) * 100
+    # Query last week's report
+    last_report = db.query(PyramidReport).filter(
+        PyramidReport.tenant_id == tenant_id,
+        PyramidReport.user_id == tech_lead_id,
+        PyramidReport.reporting_year == current_year,
+        PyramidReport.reporting_week == last_week,
+        PyramidReport.reporting_level == "tech_leads"
+    ).first()
 
+    if not last_report:
+        return None
 
-def _get_last_week_report(db: Session, tech_lead_id: str, tenant_id: int) -> Optional[Dict]:
-    """Get tech lead's report from last week for comparison"""
-    # Mock implementation - in production would query from database
-    # This would fetch from a reports table or cache
-    return None  # First week of reports will have no prior data
+    return {
+        "week": last_week,
+        "commits": last_report.this_week_reported,
+        "status": last_report.status,
+        "reported_at": last_report.submitted_at.isoformat() if last_report.submitted_at else None
+    }
 
 
 def _calculate_percentage_change(last_value: float, this_value: float) -> float:
