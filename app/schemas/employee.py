@@ -15,6 +15,14 @@ class EmployeeCreateRequest(BaseModel):
     last_name: str = Field(..., min_length=1)
     email: str = Field(..., min_length=1)
     joining_date: date
+
+    # Organizational hierarchy (required for Employee Onboarding)
+    org_node_id: Optional[str] = None  # Position level (CEO, Partner, SVP, BU Head, etc.)
+    reporting_manager_id: Optional[str] = None  # FK to Employee (their manager)
+    delivery_center_id: Optional[str] = None  # Which office (Bangalore, Delhi, Remote, etc.)
+    business_unit_id: Optional[str] = None  # Which business unit
+
+    # Optional fields
     current_title: Optional[str] = None
     current_skills: Optional[List[str]] = None
     employment_type: Optional[str] = None  # PERMANENT | CONTRACT | FIXED_TERM
