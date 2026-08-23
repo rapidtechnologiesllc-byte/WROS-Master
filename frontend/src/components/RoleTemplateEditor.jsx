@@ -66,7 +66,22 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     }));
   };
 
-  const handleToggleModule = (moduleName, resources, shouldEnable) => {
+  const handleToggleModule = (moduleName, resources, enable) => {
+    if (!enable) {
+      // Turning OFF - disable all permissions for this module
+      const newPerms = { ...permissions };
+      resources.forEach(resource => {
+        const resName = resource.name || resource.resource_name;
+        ['view', 'create', 'edit', 'delete'].forEach(action => {
+          newPerms[resName][action] = false;
+        });
+      });
+      setPermissions(newPerms);
+    }
+    // If enable=true, just expand module - don't auto-enable permissions
+  };
+
+  const handleEnableAllForModule = (moduleName, resources) => {
     const newPerms = { ...permissions };
     resources.forEach(resource => {
       const resName = resource.name || resource.resource_name;
@@ -74,7 +89,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         newPerms[resName] = {};
       }
       ['view', 'create', 'edit', 'delete'].forEach(action => {
-        newPerms[resName][action] = shouldEnable;
+        newPerms[resName][action] = true;
       });
     });
     setPermissions(newPerms);
@@ -283,50 +298,68 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                   return (
                     <div key={`module_${idx}`}>
                       {/* Module Header */}
-                      <div className="bg-blue-50 px-4 py-3 flex items-center justify-between hover:bg-blue-100 cursor-pointer transition-colors"
-                        onClick={() => setExpandedModules(prev => ({
-                          ...prev,
-                          [moduleName]: !prev[moduleName]
-                        }))}>
-                        <div className="flex items-center gap-3 flex-1">
-                          <span className="text-gray-600 text-lg">{isExpanded ? '▼' : '▶'}</span>
-                          <div>
-                            <h4 className="font-semibold text-gray-900 capitalize">{moduleName.replace(/_/g, ' ')}</h4>
-                            <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
+                      <div className="bg-blue-50 px-4 py-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3 flex-1 cursor-pointer hover:opacity-70"
+                            onClick={() => setExpandedModules(prev => ({
+                              ...prev,
+                              [moduleName]: !prev[moduleName]
+                            }))}>
+                            <span className="text-gray-600 text-lg">{isExpanded ? '▼' : '▶'}</span>
+                            <div>
+                              <h4 className="font-semibold text-gray-900 capitalize">{moduleName.replace(/_/g, ' ')}</h4>
+                              <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
+                            </div>
                           </div>
-                        </div>
-                        {/* Toggle Switch with Mixed State */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const shouldEnable = enabledCount < totalPossible;
-                            handleToggleModule(moduleName, resources, shouldEnable);
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            enabledCount === totalPossible && totalPossible > 0
-                              ? 'bg-green-500'
-                              : enabledCount > 0
-                              ? 'bg-amber-400'
-                              : 'bg-red-500'
-                          }`}
-                          title={
-                            enabledCount === totalPossible && totalPossible > 0
-                              ? 'Click to disable all'
-                              : enabledCount > 0
-                              ? `${enabledCount} permissions enabled. Click to enable all`
-                              : 'Click to enable all'
-                          }
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          {/* Toggle ON/OFF - doesn't auto-enable, just expands module */}
+                          <button
+                            onClick={() => {
+                              setExpandedModules(prev => ({
+                                ...prev,
+                                [moduleName]: enabledCount > 0 ? !prev[moduleName] : true
+                              }));
+                              handleToggleModule(moduleName, resources, enabledCount > 0 ? false : true);
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                               enabledCount === totalPossible && totalPossible > 0
-                                ? 'translate-x-6'
+                                ? 'bg-green-500'
                                 : enabledCount > 0
-                                ? 'translate-x-4'
-                                : 'translate-x-1'
+                                ? 'bg-amber-400'
+                                : 'bg-red-500'
                             }`}
-                          />
-                        </button>
+                            title={enabledCount > 0 ? 'Disable module' : 'Enable module'}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                enabledCount === totalPossible && totalPossible > 0
+                                  ? 'translate-x-6'
+                                  : enabledCount > 0
+                                  ? 'translate-x-4'
+                                  : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Quick Actions - Show when module has any permissions OR when expanded */}
+                        {(enabledCount > 0 || isExpanded) && (
+                          <div className="flex gap-2 pl-7">
+                            <button
+                              onClick={() => handleEnableAllForModule(moduleName, resources)}
+                              className="text-xs px-3 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded font-medium transition"
+                            >
+                              Enable All
+                            </button>
+                            {enabledCount > 0 && enabledCount < totalPossible && (
+                              <button
+                                onClick={() => handleToggleModule(moduleName, resources, false)}
+                                className="text-xs px-3 py-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded font-medium transition"
+                              >
+                                Disable All
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Module Resources */}
