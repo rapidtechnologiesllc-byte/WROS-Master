@@ -22,7 +22,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
             method: 'GET'
           });
 
-          // Populate form data
           setFormData({
             name: data.name || '',
             description: data.description || ''
@@ -41,16 +40,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                 permsHierarchy[resourceName].create = perm.can_create || false;
                 permsHierarchy[resourceName].edit = perm.can_edit || false;
                 permsHierarchy[resourceName].delete = perm.can_delete || false;
-              } else if (perm.name) {
-                const parts = perm.name.split('_');
-                if (parts.length >= 2) {
-                  const verb = parts[parts.length - 1];
-                  const module = parts.slice(0, -1).join('_');
-                  if (!permsHierarchy[module]) {
-                    permsHierarchy[module] = {};
-                  }
-                  permsHierarchy[module][verb] = true;
-                }
               }
             });
           }
@@ -67,6 +56,30 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     }
   }, [mode, templateId]);
 
+  const handleTogglePermission = (resourceName, action) => {
+    setPermissions(prev => ({
+      ...prev,
+      [resourceName]: {
+        ...prev[resourceName],
+        [action]: !prev[resourceName]?.[action]
+      }
+    }));
+  };
+
+  const handleToggleModule = (moduleName, resources, shouldEnable) => {
+    const newPerms = { ...permissions };
+    resources.forEach(resource => {
+      const resName = resource.name || resource.resource_name;
+      if (!newPerms[resName]) {
+        newPerms[resName] = {};
+      }
+      ['view', 'create', 'edit', 'delete'].forEach(action => {
+        newPerms[resName][action] = shouldEnable;
+      });
+    });
+    setPermissions(newPerms);
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim()) {
       toast.error('Template name is required');
@@ -76,7 +89,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     setSaving(true);
     try {
       if (mode === 'create') {
-        // Create new template
         const response = await apiRequest('/admin/role-templates', {
           method: 'POST',
           body: JSON.stringify({
@@ -87,11 +99,14 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           })
         });
 
+        // Store permissions after creating template
+        const newTemplateId = response.data.id;
+        await savePermissions(newTemplateId);
+
         toast.success('Role template created successfully');
         if (onSuccess) onSuccess(response.data);
         onClose();
       } else {
-        // Update existing template
         await apiRequest(`/admin/role-templates/${templateId}`, {
           method: 'PUT',
           body: JSON.stringify({
@@ -99,6 +114,9 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
             description: formData.description
           })
         });
+
+        // Update permissions for existing template
+        await savePermissions(templateId);
 
         toast.success('Role template updated successfully');
         if (onSuccess) onSuccess();
@@ -108,6 +126,47 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       toast.error(err.message || `Failed to ${mode === 'create' ? 'create' : 'update'} template`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const savePermissions = async (tId) => {
+    // Get all resources from modules
+    const allResources = {};
+    if (Array.isArray(modules)) {
+      modules.forEach(module => {
+        const resources = module.resources || [];
+        resources.forEach(resource => {
+          const resName = resource.name || resource.resource_name;
+          allResources[resName] = resource;
+        });
+      });
+    }
+
+    // Grant or revoke permissions
+    for (const [resourceName, perms] of Object.entries(permissions)) {
+      for (const [action, enabled] of Object.entries(perms)) {
+        try {
+          if (enabled) {
+            await apiRequest(`/admin/role-templates/${tId}/grant-permission`, {
+              method: 'POST',
+              body: JSON.stringify({
+                resource_name: resourceName,
+                action: action
+              })
+            });
+          } else {
+            await apiRequest(`/admin/role-templates/${tId}/revoke-permission`, {
+              method: 'POST',
+              body: JSON.stringify({
+                resource_name: resourceName,
+                action: action
+              })
+            });
+          }
+        } catch (err) {
+          console.error(`Failed to ${enabled ? 'grant' : 'revoke'} ${resourceName} ${action}:`, err);
+        }
+      }
     }
   };
 
@@ -121,9 +180,12 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     );
   }
 
+  // Get module list
+  const moduleList = Array.isArray(modules) ? modules : [];
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
           <div>
@@ -131,9 +193,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
               {mode === 'create' ? 'Create New Role Template' : 'Edit Role Template'}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              {mode === 'create'
-                ? 'Create a new role template and configure permissions'
-                : 'Update template details and manage permissions'}
+              Configure permissions for this role template
             </p>
           </div>
           <button
@@ -162,9 +222,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                 disabled={mode === 'edit'}
                 className={mode === 'edit' ? 'bg-gray-100' : ''}
               />
-              {mode === 'edit' && (
-                <p className="text-xs text-gray-500 mt-1">Template name cannot be changed</p>
-              )}
             </div>
 
             <div>
@@ -181,22 +238,109 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
             </div>
           </div>
 
-          {/* Note about permissions */}
-          {mode === 'create' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> After creating this template, you can configure its permissions by clicking "Edit Permissions" on the template card.
-              </p>
-            </div>
-          )}
+          {/* Permissions Grid */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-gray-900">Permissions</h3>
+            <p className="text-sm text-gray-600">Select which resources this role can access and what actions they can perform</p>
 
-          {mode === 'edit' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <p className="text-sm text-blue-800">
-                <strong>Manage Permissions:</strong> To configure resource permissions for this template, use the "Edit Permissions" interface. This form is for updating basic template information.
-              </p>
+            <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
+              {moduleList.length > 0 ? (
+                moduleList.map((module, idx) => {
+                  const moduleName = typeof module === 'string' ? module : module.name;
+                  const resources = module.resources || [];
+                  const isExpanded = expandedModules[moduleName];
+
+                  // Count enabled permissions for this module
+                  const enabledCount = resources.reduce((count, res) => {
+                    const resName = res.name || res.resource_name;
+                    const perms = permissions[resName] || {};
+                    return count + Object.values(perms).filter(Boolean).length;
+                  }, 0);
+                  const totalPossible = resources.length * 4;
+
+                  return (
+                    <div key={`module_${idx}`}>
+                      {/* Module Header */}
+                      <div className="bg-blue-50 px-4 py-3 flex items-center justify-between hover:bg-blue-100 cursor-pointer transition-colors"
+                        onClick={() => setExpandedModules(prev => ({
+                          ...prev,
+                          [moduleName]: !prev[moduleName]
+                        }))}>
+                        <div className="flex items-center gap-3 flex-1">
+                          <span className="text-gray-600 text-lg">{isExpanded ? '▼' : '▶'}</span>
+                          <div>
+                            <h4 className="font-semibold text-gray-900 capitalize">{moduleName.replace(/_/g, ' ')}</h4>
+                            <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleModule(moduleName, resources, true);
+                            }}
+                            className="px-2 py-1 rounded text-xs bg-green-500 text-white hover:bg-green-600"
+                          >
+                            Enable All
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleModule(moduleName, resources, false);
+                            }}
+                            className="px-2 py-1 rounded text-xs bg-gray-400 text-white hover:bg-gray-500"
+                          >
+                            Disable All
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Module Resources */}
+                      {isExpanded && (
+                        <div className="divide-y">
+                          {resources.length > 0 ? (
+                            resources.map(resource => {
+                              const resName = resource.name || resource.resource_name;
+                              const resDisplay = resource.display || resource.display_name || resName;
+                              const perms = permissions[resName] || { view: false, create: false, edit: false, delete: false };
+
+                              return (
+                                <div key={`res_${resName}`} className="px-4 py-3 hover:bg-gray-50">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium text-gray-900">{resDisplay}</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-2">
+                                    {['view', 'create', 'edit', 'delete'].map(action => (
+                                      <button
+                                        key={action}
+                                        onClick={() => handleTogglePermission(resName, action)}
+                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
+                                          perms[action]
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                        }`}
+                                        title={action.charAt(0).toUpperCase() + action.slice(1)}
+                                      >
+                                        {perms[action] ? '✓' : '○'} {action.charAt(0).toUpperCase()}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500">No resources in this module</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">No modules available</div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}

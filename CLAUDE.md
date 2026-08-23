@@ -1,5 +1,42 @@
 # WROS Frontend & Backend - Development Notes
 
+---
+
+## 🔗 MANDATORY: End-to-End GitHub Issue Traceability
+
+**EVERY feature, bug fix, and enhancement MUST follow this process:**
+
+### Required Steps (NO EXCEPTIONS)
+1. **Create GitHub Issue FIRST** with clear description and acceptance criteria
+2. **Link in commits**: Include `Closes #123` or `Relates to #456` in every commit message
+3. **Add issue comments** with links to commits as work progresses
+4. **PR description** links back to issue and key commits
+5. **Verification**: All changes traceable back to GitHub issue
+
+### Commit Message Format (MANDATORY)
+```bash
+git commit -m "feat/fix: Brief description
+
+- Specific change 1
+- Specific change 2  
+
+Closes #[ISSUE_NUMBER]
+Related Commits:
+- abc1234: Previous related work
+
+Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
+```
+
+### Why This Matters
+- **Accountability**: Every line of code has a reason (issue number)
+- **Traceability**: Bug in production? → Issue → Commits → Root cause
+- **History**: Future developers understand WHY code exists
+- **Testing**: Issues define acceptance criteria + test cases
+
+**ENFORCE THIS: If commit lacks GitHub issue reference, request it be rewritten.**
+
+---
+
 ## 🚀 CURRENT STATUS (2026-08-23 Session - Flash Lifecycle Validation Complete)
 
 **STATUS:** ✅ PRODUCTION READY - Flash orchestrator validation system fully implemented
