@@ -102,16 +102,21 @@ def validate_email(request: LoginRequest, db: Session = Depends(get_db)):
     Validate if an email exists as an employee user.
     Returns {exists: true/false} so frontend can show appropriate error.
     """
-    email = request.UserEmail.strip().lower()
-
-    user = check_user(db, email)
-    if user:
-        return {"exists": True}
-
-    raise HTTPException(
-        status_code=401,
-        detail="User not found. Please check your email and try again."
-    )
+    try:
+        email = request.UserEmail.strip().lower()
+        user = check_user(db, email)
+        if user:
+            return {"exists": True}
+        raise HTTPException(
+            status_code=401,
+            detail="User not found. Please check your email and try again."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"validate_email error: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error: {type(e).__name__}: {str(e)[:100]}")
 
 
 @router.post("/login", response_model=UnifiedLoginResponse)
