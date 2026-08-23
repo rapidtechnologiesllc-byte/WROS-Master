@@ -32,7 +32,7 @@ from app.core.permission_enforcement import (
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 # from app.models.location import Location  # TODO: Location model needs to be created
-from app.models.org_node import OrgNode
+# from app.models.org_node import OrgNode  # TODO: OrgNode model needs to be created
 from app.models.role_template import RoleTemplate
 from app.schemas.user import AllUsersResponse, UserResponse
 from pydantic import BaseModel
@@ -406,24 +406,25 @@ def delete_business_unit(
 # def delete_delivery_center(...): ...
 
 # ============================================================================
-# ORGANIZATIONAL HIERARCHY ENDPOINTS
+# ORGANIZATIONAL HIERARCHY ENDPOINTS - DISABLED: OrgNode model not implemented yet
 # ============================================================================
-
-class OrgNodeCreateRequest(BaseModel):
-    employee_name: str
-    position_id: int
-    reports_to: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    location: Optional[str] = None
-
-class OrgNodeUpdateRequest(BaseModel):
-    employee_name: Optional[str] = None
-    position_id: Optional[int] = None
-    reports_to: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    location: Optional[str] = None
-
-@router.get("/organizational-hierarchy")
+# TODO: Implement OrgNode model and uncomment these endpoints
+#
+# class OrgNodeCreateRequest(BaseModel):
+#     employee_name: str
+#     position_id: int
+#     reports_to: Optional[int] = None
+#     business_unit_id: Optional[int] = None
+#     location: Optional[str] = None
+#
+# class OrgNodeUpdateRequest(BaseModel):
+#     employee_name: Optional[str] = None
+#     position_id: Optional[int] = None
+#     reports_to: Optional[int] = None
+#     business_unit_id: Optional[int] = None
+#     location: Optional[str] = None
+#
+# @router.get("/organizational-hierarchy")
 def get_organizational_hierarchy(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
