@@ -101,7 +101,7 @@ MODULES_AND_RESOURCES = {
         "ticket-routing",
         "ai-config",
         "locale-currency"
-    ],
+    ],  # error-logs already included
     "Executive": [
         "ceo-dashboard",
         "cfo-dashboard",
@@ -114,12 +114,8 @@ MODULES_AND_RESOURCES = {
     ],
     "Admin": [
         "users-access-control",
-        "roles-permissions",
         "admin-settings",
-        "organization",
-        "business-units",
-        "certifications",
-        "message-templates"
+        "certifications"
     ],
     "AI & Automation": [
         "ask-thunder",

@@ -157,24 +157,19 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 10: Admin (7 resources)
+## Module 10: Admin (3 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
 | Users & Access Control | `/admin/users-access-control` | User management & permissions |
-| Roles & Permissions | `/admin/roles-permissions` | Role template management |
 | Admin Settings | `/admin/admin-settings` | System-wide settings |
-| Organization | `/organization` | Org structure & hierarchy |
-| Business Units | `/admin/business-units` | Business unit management |
 | Certifications | `/admin/certifications` | Certification management |
-| Message Templates | `/settings/templates` | Message template management |
 
-**Sub-pages (within Users & Access Control):**
+**Sub-pages/Tabs (within Users & Access Control):**
 - Users Tab → `/admin/users-access-control/users`
-- Business Units Tab → `/admin/users-access-control/business-units`
-- Delivery Centers Tab → `/admin/users-access-control/delivery-centers`
-- Organizational Hierarchy Tab → `/admin/users-access-control/organizational-hierarchy`
-- Role Templates Tab → `/admin/users-access-control/role-templates`
+- Business Units Tab → `/admin/business-units` (accessible within Users & Access Control)
+- Organizational Hierarchy Tab → `/organization` (accessible within Users & Access Control)
+- Role Templates Tab → `/admin/roles-permissions` (accessible within Users & Access Control)
 
 ---
 
