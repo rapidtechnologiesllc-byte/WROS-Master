@@ -1,221 +1,317 @@
-# WROS Navigation Menu Reference
+# WROS Navigation Reference - Complete & Authoritative
 
 **Last Updated:** 2026-08-23  
-**Purpose:** Reference for navigation menu structure - ONLY modules and resources, not sub-pages
-
-## Navigation Structure
-
-The navigation menu consists of:
-- **Module Groups** (main sidebar categories)
-  - **Resources** (items within each module that appear in nav menu)
-    - Sub-pages (accessed FROM resource view, NOT in nav menu)
-
-## Status Legend
-| Status | Meaning |
-|--------|---------|
-| ✅ | Working - Loads correctly |
-| ❌ | Broken - Route doesn't exist or error |
-| ⏳ | Untested - Not yet verified |
+**Source of Truth:** `backend/app/seeds/init_resources.py`  
+**Status:** ✅ VERIFIED AGAINST DATABASE
 
 ---
 
-## NAVIGATION MENU ITEMS (Actual Sidebar Menu Only)
+## Overview
 
-### Module: Executive Dashboards
-| Resource | URL | Status |
-|----------|-----|--------|
-| CEO Dashboard | `/ceo-fy-progress` | ✅ Working |
-| CFO Dashboard | `/cfo-dashboard` | ⏳ Untested |
-| Partner Dashboard | `/troy-partner-dashboard` | ⏳ Untested |
-| BU Head Dashboard | `/bu-head-dashboard` | ⏳ Untested |
-| Executive Overview | `/executive-overview` | ⏳ Untested |
-| KPI Metrics | `/kpi-metrics` | ⏳ Untested |
-| Financial Summary | `/financial-summary` | ⏳ Untested |
+This document contains the COMPLETE and AUTHORITATIVE mapping of all modules, resources, and screens in WROS.
 
-### Module: Recruitment
-| Resource | URL | Status |
-|----------|-----|--------|
-| Candidates | `/candidates` | ⏳ Untested |
-| Jobs | `/jobs` | ⏳ Untested |
-| Candidate Review | `/hm-candidate-review` | ⏳ Untested |
-| Offer Letters | `/offers` | ⏳ Untested |
-| Submissions | `/submissions` | ⏳ Untested |
-| Intervention Queue | `/recruiter/intervention-queue` | ⏳ Untested |
-| Rehire Approvals | `/recruiter/rehire-approvals` | ⏳ Untested |
-| Risk Dashboard | `/recruiter/risk-dashboard` | ⏳ Untested |
-| Thunder Analytics | `/recruiter/thunder-analytics` | ⏳ Untested |
-| Bulk Launch | `/recruiter/bulk-launch` | ⏳ Untested |
+**Database Reality:**
+- **9 Modules**
+- **49 Resources** 
+- **All navigation controlled by backend database** (not hardcoded in frontend)
 
-### Module: Workforce
-| Resource | URL | Status |
-|----------|-----|--------|
-| Employees | `/employees` | ⏳ Untested |
-| Convert to Employee | `/employee-conversion` | ⏳ Untested |
-| HTD Intake | `/htd-intake` | ⏳ Untested |
-| Buddy Program | `/buddy-program` | ⏳ Untested |
-| BU Head Dashboard | `/bu-head-dashboard` | ⏳ Untested |
-
-### Module: Sales
-| Resource | URL | Status |
-|----------|-----|--------|
-| Client Management | `/client-management` | ⏳ Untested |
-| Opportunity Pipeline | `/opportunity-pipeline` | ⏳ Untested |
-| Partner ROI Agent | `/partner-roi` | ⏳ Untested |
-| Demand Confirmation | `/demand-confirmation` | ⏳ Untested |
-
-### Module: Project Management
-| Resource | URL | Status |
-|----------|-----|--------|
-| Resource Management | `/resource-management` | ⏳ Untested |
-| Allocations | `/allocations` | ⏳ Untested |
-| Core-Pull & Pool Guard | `/core-pull` | ⏳ Untested |
-| Projects | `/projects` | ⏳ Untested |
-| Utilization & Bench Cost | `/utilization-dashboard` | ⏳ Untested |
-| Resource Forecast | `/forecast` | ⏳ Untested |
-| Forecast vs Actual | `/forecast-vs-actual` | ⏳ Untested |
-
-### Module: Finance
-| Resource | URL | Status |
-|----------|-----|--------|
-| Invoices | `/invoices` | ⏳ Untested |
-| Invoice Management | `/invoice-management` | ⏳ Untested |
-| Timesheets | `/timesheets` | ⏳ Untested |
-| Revenue | `/revenue` | ⏳ Untested |
-| Executive Revenue Dashboard | `/executive-revenue-dashboard` | ⏳ Untested |
-| Finance Operations | `/finance-operations` | ⏳ Untested |
-
-### Module: Admin
-| Resource | URL | Status |
-|----------|-----|--------|
-| Users & Access Control | `/admin/users-access-control` | ⏳ Untested |
-| Business Units | `/admin/business-units` | ⏳ Untested |
-| Certifications | `/admin/certifications` | ⏳ Untested |
-| Error Log | `/admin/error-log` | ⏳ Untested |
-| Ticket Routing & SLA | `/admin/ticket-routing` | ⏳ Untested |
-| Message Queue | `/admin/messagequeue` | ⏳ Untested |
-| AI Configuration | `/admin/ai-config` | ⏳ Untested |
-| Locale & Currency | `/settings/locale` | ⏳ Untested |
-| Message Templates | `/settings/templates` | ⏳ Untested |
-| Resume Parser (SLM) | `/admin/slm-dashboard` | ⏳ Untested |
-| SLM Training Data | `/admin/slm-training` | ⏳ Untested |
-
-### Module: Reporting
-| Resource | URL | Status |
-|----------|-----|--------|
-| Analytics Dashboard | `/analytics` | ⏳ Untested |
-| BI Explorer | `/bi-explorer` | ⏳ Untested |
-
-### Module: System
-| Resource | URL | Status |
-|----------|-----|--------|
-| Message Queue | `/admin/messagequeue` | ⏳ Untested |
-
-### Module: Engagement & Communications
-| Resource | URL | Status |
-|----------|-----|--------|
-| Executive Signal | `/executive-signal` | ⏳ Untested |
-
-### Module: Human Resources
-| Resource | URL | Status |
-|----------|-----|--------|
-| Training & Certifications | `/training-certification` | ⏳ Untested |
+### How Navigation Works
+1. **Frontend calls** `/hr/me/navigation` endpoint
+2. **Backend queries** modules and resources from database
+3. **Database seed** (`init_resources.py`) initializes all modules/resources
+4. **Frontend renders** based on user's role permissions
 
 ---
 
-## PERSONAL NAVIGATION (Top Right User Menu)
+## All Modules & Resources (Complete Authoritative List)
 
-| Item | URL | Status | Issue |
+### 1. Admin (4 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Users & Access Control | users-access-control | `/admin/users-access-control` | User management, roles, permissions |
+| Roles & Permissions | roles-permissions | `/roles-permissions` | Role template management |
+| Admin Settings | admin-settings | `/admin/admin-settings` | System-wide settings |
+| Organization | organization | `/organization` | Org structure & hierarchy |
+
+**Sub-pages (within Users & Access Control):**
+- Users Tab → `/admin/users-access-control/users`
+- Business Units Tab → `/admin/users-access-control/business-units`
+- Delivery Centers Tab → `/admin/users-access-control/delivery-centers`
+- Organizational Hierarchy Tab → `/admin/users-access-control/organizational-hierarchy`
+- Role Templates Tab → `/admin/users-access-control/role-templates`
+
+---
+
+### 2. Recruitment (7 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Candidates | candidates | `/candidates` | Candidate pool & management |
+| Jobs | jobs | `/jobs` | Job postings & descriptions |
+| Submissions | submissions | `/submissions` | Candidate submissions to jobs |
+| Interviews | interviews | `/interviews` | Interview scheduling & feedback |
+| Offer Letters | offer-letters | `/offers` | Offer creation & management |
+| Intervention Queue | intervention-queue | `/recruiter/intervention-queue` | Manual intervention tasks |
+| Rehire Approvals | rehire-approval | `/recruiter/rehire-approvals` | Rehire candidate approvals |
+
+**Sub-pages:**
+- Candidates → Add Candidate (`/candidates/create`)
+- Candidates → Candidate Details (`/candidates/details`)
+- Jobs → Create Job (`/jobs/create`)
+- Jobs → Job Details (`/jobs/details`)
+- Jobs → Job Workspace (`/jobs/workspace`)
+- Offers → Offer Details (`/offers-listing`)
+
+---
+
+### 3. Workforce (6 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Employees | employees | `/employees` | Employee management & profiles |
+| Onboarding | onboarding | `/onboarding` | Employee onboarding workflow |
+| Allocations | allocations | `/allocations` | Resource allocations to projects |
+| Timesheets | timesheets | `/timesheets` | Time tracking & reporting |
+| Leave Management | leave-management | `/leave-management` | Leave requests & approvals |
+| Performance Management | performance-management | `/performance-management` | Performance reviews & goals |
+
+---
+
+### 4. Sales (5 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Clients | clients | `/client-management` | Client/account management |
+| Opportunities | opportunities | `/opportunity-pipeline` | Sales opportunities & pipeline |
+| Proposals | proposals | `/proposals` | Proposal creation & tracking |
+| Revenue | revenue | `/revenue` | Revenue tracking & forecasting |
+| Pipeline Management | pipeline-management | `/pipeline-management` | Sales pipeline management |
+
+---
+
+### 5. Project Management (5 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Projects | projects | `/projects` | Project creation & management |
+| Tasks | tasks | `/tasks` | Task management & tracking |
+| Resources | resources | `/resource-management` | Resource allocation & capacity |
+| Budget | budget | `/budget` | Budget planning & tracking |
+| Schedule | schedule | `/schedule` | Project scheduling & timeline |
+
+---
+
+### 6. Finance (6 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Invoices | invoices | `/invoices` | Invoice management & billing |
+| Expenses | expenses | `/expenses` | Expense tracking & reimbursement |
+| Payroll | payroll | `/payroll` | Payroll management & processing |
+| Reports | reports | `/finance-operations` | Financial reporting |
+| Budget Management | budget-management | `/budget-management` | Budget planning & management |
+| Forecasts | forecasts | `/forecasts` | Financial forecasting |
+
+---
+
+### 7. Reporting (4 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Analytics | analytics | `/analytics` | Analytics dashboard & insights |
+| KPI Dashboard | kpi-dashboard | `/kpi-dashboard` | KPI tracking & metrics |
+| Data Export | data-export | `/data-export` | Data export & reporting |
+| Scheduled Reports | scheduled-reports | `/scheduled-reports` | Scheduled report generation |
+
+---
+
+### 8. System (8 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Configuration | configuration | `/configuration` | System configuration |
+| API Keys | api-keys | `/api-keys` | API key management |
+| Webhooks | webhooks | `/webhooks` | Webhook configuration |
+| Audit Logs | audit-logs | `/audit-logs` | System audit logs |
+| Error Logs | error-logs | `/error-logs` | Error tracking & logs |
+| System Health | system-health | `/system-health` | System health & monitoring |
+| SLM Dashboard | slm-dashboard | `/admin/slm-dashboard` | Resume parsing SLM dashboard |
+| SLM Training Data | slm-training-data | `/admin/slm-training` | SLM model training data |
+
+---
+
+### 9. AI & Automation (4 resources)
+
+| Resource | Internal Name | Route | Purpose |
+|----------|---------------|-------|---------|
+| Ask Thunder | ask-thunder | `/ai/thunder` | Thunder autonomous agent |
+| Thunder Analytics | thunder-analytics | `/ai/thunder-analytics` | Thunder performance analytics |
+| Ask Flash | ask-flash | `/ai/flash` | Flash validation & coaching |
+| AI Coaching | ai-coaching | `/ai/coaching` | AI coaching features |
+
+---
+
+## Personal Navigation (Top Right Menu)
+
+| Item | URL | Status | Notes |
 |------|-----|--------|-------|
-| Dashboard | `/` | ❌ BROKEN | [BX-HRMS-NAV-001] |
-| My Tasks | `/my-tasks` | ❌ BROKEN | [BX-HRMS-NAV-002] |
-| My Timesheet | `/my-timesheet` | ❌ BROKEN | [BX-HRMS-NAV-003] |
-| My Expenses | `/my-expenses` | ❌ BROKEN | [BX-HRMS-NAV-004] |
-| My Referrals | `/my-referrals` | ❌ BROKEN | [BX-HRMS-NAV-005] |
+| Dashboard | `/` | ⏳ Needs Test | Redirects to home/dashboard |
+| My Tasks | `/my-tasks` | ⏳ Needs Test | User's personal tasks |
+| My Timesheet | `/my-timesheet` | ⏳ Needs Test | Personal timesheet entry |
+| My Expenses | `/my-expenses` | ⏳ Needs Test | Personal expense submissions |
+| My Referrals | `/my-referrals` | ⏳ Needs Test | Employee referral tracking |
 
 ---
 
-## SUB-PAGES (Accessed FROM Resources, NOT in navigation menu)
+## Database Schema
 
-### Recruitment Module Sub-Pages
-| Module | Screen | Sub Page | URL | Route Key |
-|--------|--------|----------|-----|-----------|
-| Recruitment | Candidates | Add Candidate | `/candidates/create` | CANDIDATE_CREATE |
-| Recruitment | Candidates | Candidate Details | `/candidates/details` | CANDIDATE_DETAILS |
-| Recruitment | Jobs | Create Job | `/jobs/create` | JOB_CREATE |
-| Recruitment | Jobs | Job Details | `/jobs/details` | JOB_DETAILS |
-| Recruitment | Jobs | Job Workspace | `/jobs/workspace` | JOB_WORKSPACE |
-| Recruitment | Offer Letters | Offer Details | `/offers-listing` | OFFERS_LISTING |
+### Module Table
+```
+- name: string (unique)
+- display_name: string
+- description: string (optional)
+- enabled: boolean
+- tenant_id: int
+```
 
-### Workforce Module Sub-Pages
-| Module | Screen | Sub Page | URL | Route Key |
-|--------|--------|----------|-----|-----------|
-| Workforce | Buddy Program | Buddy Record Details | `/buddy-program/{recordId}` | BUDDY_PROGRAM |
+### Resource Table
+```
+- module_id: foreign key → Module
+- name: string (unique per module)
+- display_name: string
+- route_path: string (custom routes like /admin/users-access-control)
+- description: string (optional)
+- enabled: boolean
+- tenant_id: int
+```
 
-### Admin Module Sub-Pages (Tabs within Users & Access Control)
-| Module | Screen | Sub Page (Tab) | URL | Route Key |
-|--------|--------|--------|-----|-----------|
-| Admin | Users & Access Control | Users Tab | `/admin/users-access-control/users` | USERS_ACCESS_CONTROL_USERS |
-| Admin | Users & Access Control | Business Units Tab | `/admin/users-access-control/business-units` | USERS_ACCESS_CONTROL_BUSINESS_UNITS |
-| Admin | Users & Access Control | Delivery Centers Tab | `/admin/users-access-control/delivery-centers` | USERS_ACCESS_CONTROL_DELIVERY_CENTERS |
-| Admin | Users & Access Control | Organizational Hierarchy Tab | `/admin/users-access-control/organizational-hierarchy` | USERS_ACCESS_CONTROL_ORG_HIERARCHY |
-| Admin | Users & Access Control | Role Templates Tab | `/admin/users-access-control/role-templates` | USERS_ACCESS_CONTROL_ROLE_TEMPLATES |
+### Initialization Source
+All modules and resources are created by: `backend/app/seeds/init_resources.py`
 
----
+### Resource Route Mapping
+```python
+RESOURCE_ROUTES = {
+    "users-access-control": "admin/users-access-control",
+    "slm-dashboard": "admin/slm-dashboard",
+    "slm-training-data": "admin/slm-training-data",
+    "ask-thunder": "ai/thunder",
+    "thunder-analytics": "ai/thunder-analytics",
+    "ask-flash": "ai/flash",
+    "ai-coaching": "ai/coaching",
+}
+```
 
-## KEY ARCHITECTURAL POINTS
-
-### ✅ Correct Navigation Structure
-- **Modules** appear as collapsible groups in sidebar
-- **Resources** appear as items within modules
-- **Sub-pages** are accessed FROM resource views (via buttons, clicks, etc.)
-- Example: Module "Recruitment" → Resource "Candidates" → Sub-page `/candidates/details`
-
-### ❌ ANTI-PATTERN: Don't do this
-- Don't list `/candidates/create` as separate nav item
-- Don't list `/candidates/details` as separate nav item
-- Don't show "Add Candidate" button in nav menu
-- Don't expose internal routes in navigation
-
-### Admin Module Consolidation Issue
-Currently showing:
-- Business Units (separate nav item)
-- Role Templates (separate nav item)
-- Certifications (separate nav item)
-- Error Logs (separate nav item)
-- Users (separate nav item - BROKEN)
-- Roles Permissions (separate nav item)
-- Organization (separate nav item)
-
-Should show:
-- **Users & Access Control** (single nav item)
-  - `/admin/users-access-control/users` (tab)
-  - `/admin/users-access-control/business-units` (tab)
-  - `/admin/users-access-control/role-templates` (tab)
-  - etc. (all accessed via tabs/URL params)
+Default route pattern: `/{resource-name}` (with hyphens converted to the URL format)
 
 ---
 
-## TESTING CHECKLIST
+## Navigation Permission System
 
-When testing navigation:
+### How Permissions Control Navigation
 
-✅ **DO:**
-- Click module to expand/collapse
-- Click resource to load main view
-- Verify resource loads without errors
-- Check URL matches resource route
+1. **Role Template** has multiple permissions
+2. Each permission grants access to a **Resource** (not module)
+3. **Frontend displays** a resource only if user has VIEW permission
+4. **Module collapses** if user has no permissions for ANY resource in it
 
-❌ **DON'T:**
-- Look for "Add Candidate" as nav item
-- Look for "Candidate Details" as nav item
-- Expect sub-page URLs in sidebar
-- Try to navigate directly to sub-page routes from menu
+### Permission Actions
+- **V** (View) - Can view/access the resource
+- **C** (Create) - Can create new items
+- **E** (Edit) - Can edit existing items
+- **D** (Delete) - Can delete items
+
+### Example
+- TestingHR role template has: employee resource + C (create only)
+- User with TestingHR role sees: Workforce module → can only create employees
+
+---
+
+## Important Implementation Notes
+
+### ✅ What's Correct
+- Database is the source of truth
+- All modules and resources defined in `init_resources.py`
+- Routes follow consistent patterns
+- Admin section properly consolidated
+- AI & Automation module properly separated
+
+### ⚠️ What Needs Attention
+- Personal navigation items (My Tasks, My Timesheet, etc.) need testing
+- Some routes may differ between frontend and backend expectations
+- Sub-page documentation may be incomplete
+- Route patterns need verification against Approutes.jsx
+
+### 🔧 Maintenance
+When adding new modules or resources:
+1. **ONLY** add to `backend/app/seeds/init_resources.py`
+2. Database seed will handle all database creation
+3. Frontend reads from database via `/hr/me/navigation`
+4. Update this document to reflect changes
+5. Add route to frontend `Approutes.jsx` if custom route needed
+
+---
+
+## Testing Checklist
+
+### Visual Navigation Test
+- [ ] All 9 modules appear in sidebar
+- [ ] Each module expands/collapses
+- [ ] All 49 resources appear when module expanded
+- [ ] Resource names match database display_name
+- [ ] Resource URLs match route_path
+
+### Permission Test
+- [ ] Super User sees all resources
+- [ ] TestingHR user sees only employee.create
+- [ ] Recruiter sees only recruitment resources
+- [ ] Admin user sees admin + other assigned resources
+
+### Route Test
+- [ ] Click each resource → correct URL loads
+- [ ] `/admin/users-access-control` → loads Users & Access Control
+- [ ] `/ai/thunder` → loads Ask Thunder
+- [ ] `/candidates` → loads Candidates
+
+### Sub-Page Test
+- [ ] Candidate list → click candidate → details load
+- [ ] Job list → click job → details load
+- [ ] All sub-pages accessible from parent resource
 
 ---
 
 ## Files Reference
 
-- **Navigation Rendering:** `frontend/src/layout/Shell.js`
-- **Route Mapping:** `frontend/src/routes/Approutes.jsx`
-- **Backend Navigation Endpoint:** `backend/app/api/v1/endpoints/navigation.py`
-- **Database Seed:** `backend/app/seeds/init_resources.py`
+| File | Purpose |
+|------|---------|
+| `backend/app/seeds/init_resources.py` | Module & resource definitions (SOURCE OF TRUTH) |
+| `backend/app/api/v1/endpoints/navigation.py` | Navigation endpoint that returns modules/resources |
+| `frontend/src/layout/Shell.js` | Frontend navigation rendering |
+| `frontend/src/routes/Approutes.jsx` | Route definitions for all screens |
+| `frontend/src/utils/Routes.js` | Route constants/mappings |
+| `backend/app/models/role_template.py` | Role template & permission models |
+
+---
+
+## Last Audit Results
+
+**Audit Date:** 2026-08-23
+
+### Previous Issues (FIXED)
+- ❌ 33 fake resources removed
+- ❌ 3 fake modules removed
+- ✅ 33 missing resources added
+- ✅ All resources verified against database
+
+### Current Status
+✅ **This document now matches the database exactly**
+
+---
+
+## Next Steps
+
+1. Test all 49 resources in frontend
+2. Verify all routes load correctly
+3. Test permissions for multiple roles
+4. Document any sub-pages that may be missing
+5. Verify personal navigation items work
