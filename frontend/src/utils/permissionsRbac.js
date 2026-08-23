@@ -315,3 +315,75 @@ export const clearCachedPermissions = () => {
     console.error('Failed to clear cached permissions:', error);
   }
 };
+
+// ============================================================================
+// ROLE TEMPLATE MODULE LOADING
+// ============================================================================
+
+/**
+ * Load role template modules for the current user
+ * This function queries the backend to get the user's assigned roles,
+ * then loads the modules associated with each role template.
+ * @returns {Promise<Array>} Array of module names user can access
+ */
+export const loadRoleTemplateModules = async () => {
+  try {
+    // Get current user's roles from localStorage
+    const rolesStr = localStorage.getItem('hrms_roles');
+    const roles = rolesStr ? JSON.parse(rolesStr) : [];
+
+    if (!roles || roles.length === 0) {
+      console.warn('No roles found for user');
+      return [];
+    }
+
+    // Fetch role templates API to get modules for each role
+    const { apiRequest } = await import('../services/api/client');
+
+    // Try to get role template modules from backend
+    try {
+      const response = await apiRequest('/admin/role-templates/modules', { method: 'GET' });
+      if (response?.data?.modules) {
+        return response.data.modules;
+      }
+    } catch (err) {
+      console.debug('Role template modules endpoint not available, falling back to permissions', err);
+    }
+
+    // Fallback: Extract module names from permissions
+    const permissionsStr = localStorage.getItem('hrms_permissions');
+    const permissions = permissionsStr ? JSON.parse(permissionsStr) : [];
+
+    const modules = new Set();
+    permissions.forEach(perm => {
+      // Extract module name from permission (e.g., 'candidates.view' -> 'candidates')
+      const [moduleName] = perm.split('.');
+      if (moduleName) {
+        modules.add(moduleName);
+      }
+    });
+
+    return Array.from(modules);
+  } catch (error) {
+    console.error('Failed to load role template modules:', error);
+    return [];
+  }
+};
+
+/**
+ * Filter navigation items based on role template modules
+ * @param {Array} navigationItems - All available navigation items
+ * @param {Array} allowedModules - Modules user has access to
+ * @returns {Array} Filtered navigation items
+ */
+export const filterNavigationByModules = (navigationItems, allowedModules) => {
+  if (!navigationItems || navigationItems.length === 0) {
+    return [];
+  }
+
+  return navigationItems.filter(item => {
+    // Check if item's key/module is in allowed modules
+    const itemModule = item.key || item.id || item.path?.split('/')[1];
+    return allowedModules.includes(itemModule) || !itemModule;
+  });
+};

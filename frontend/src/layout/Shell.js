@@ -39,7 +39,9 @@ import {
   isSuperUser,
   isAdmin,
   canViewModule,
-} from "../utils/permissions";
+  loadRoleTemplateModules,
+  filterNavigationByModules,
+} from "../utils/permissionsRbac";
 import { MODULE_CONFIG } from "./moduleConfig";
 
 // Dynamic navigation driven by role template permissions from backend
@@ -294,13 +296,38 @@ export default function Shell({
     standalone: [],
     groups: []
   });
+  const [allowedModules, setAllowedModules] = useState([]);
 
   useEffect(() => {
     const loadNavigation = async () => {
-      // Fetch pre-built navigation from backend (already filtered by user permissions)
-      const navGroups = await fetchNavigationFromBackend();
-      setNav({ standalone: [], groups: navGroups });
-      console.debug("Navigation loaded:", { groupCount: navGroups.length });
+      try {
+        // Load role template modules to filter navigation
+        const modules = await loadRoleTemplateModules();
+        setAllowedModules(modules);
+        console.debug("Role template modules loaded:", { moduleCount: modules.length, modules });
+
+        // Fetch pre-built navigation from backend (already filtered by user permissions)
+        const navGroups = await fetchNavigationFromBackend();
+
+        // Filter navigation groups based on allowed modules
+        const filteredGroups = navGroups
+          .map(group => ({
+            ...group,
+            items: filterNavigationByModules(group.items, modules)
+          }))
+          .filter(group => group.items && group.items.length > 0); // Remove empty groups
+
+        setNav({ standalone: [], groups: filteredGroups });
+        console.debug("Navigation loaded and filtered:", {
+          groupCount: filteredGroups.length,
+          totalItems: filteredGroups.reduce((sum, g) => sum + g.items.length, 0)
+        });
+      } catch (error) {
+        console.error("Failed to load navigation:", error);
+        // Fallback: load navigation without module filtering
+        const navGroups = await fetchNavigationFromBackend();
+        setNav({ standalone: [], groups: navGroups });
+      }
     };
 
     loadNavigation();
