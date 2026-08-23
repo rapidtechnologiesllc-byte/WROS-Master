@@ -108,6 +108,8 @@ class UserResponse(BaseModel):
     user_role: str
     role_id: Optional[int] = None
     job_title: Optional[str] = None
+    partner_id: Optional[int] = None
+    delivery_center_id: Optional[int] = None
     permission_role: Optional[str] = None
     department_id: Optional[int] = None
     department_name: Optional[str] = None
@@ -488,14 +490,18 @@ class CreateUserWithRolesRequest(BaseModel):
     user_password: str
     job_title: Optional[str] = None
     partner_id: Optional[int] = None
+    delivery_center_id: Optional[int] = None
     business_unit_id: Optional[int] = None
+    reporting_manager_id: Optional[str] = None
     role_ids: List[int]
 
 class UpdateUserWithRolesRequest(BaseModel):
     user_name: Optional[str] = None
     job_title: Optional[str] = None
     partner_id: Optional[int] = None
+    delivery_center_id: Optional[int] = None
     business_unit_id: Optional[int] = None
+    reporting_manager_id: Optional[str] = None
     role_ids: Optional[List[int]] = None
     assigned_at: Optional[str] = None
 
