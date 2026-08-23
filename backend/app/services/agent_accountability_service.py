@@ -31,7 +31,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.models.candidate import Candidate
-from app.models.interview import Interview
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.core.logging import logger

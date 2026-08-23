@@ -7,10 +7,9 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.user import Interview, InterviewFeedback
-from app.models.interview import InterviewFeedback as IFeedback, InterviewDecisionLog, InterviewPanelDecision
+from app.models.user import Interview, Jobs, Users
+from app.models.interview import InterviewFeedback, InterviewDecisionLog, InterviewPanelDecision
 from app.models.offer import Offer, OfferStatus
-from app.models.user import Jobs, Users
 from app.models.candidate import Candidate
 
 
