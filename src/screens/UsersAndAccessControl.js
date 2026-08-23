@@ -1131,6 +1131,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [expandedModules, setExpandedModules] = useState({});
   const [moduleStates, setModuleStates] = useState({});
+  const [createTemplatePermissions, setCreateTemplatePermissions] = useState({});
+  const [createTemplateModuleStates, setCreateTemplateModuleStates] = useState({});
 
   // Fetch template details when editingTemplateId changes
   useEffect(() => {
