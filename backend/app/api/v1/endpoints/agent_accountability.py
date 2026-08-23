@@ -9,7 +9,7 @@ GET /agents/accountability/scorecards - Individual agent performance cards
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_recruiter
+from app.core.dependencies import get_db, get_current_user
 from app.services.agent_accountability_service import AgentAccountabilityService
 from app.core.logging import logger
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/agents", tags=["agent-accountability"])
 @router.get("/accountability")
 async def get_agent_accountability(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get full accountability view showing:
@@ -56,7 +56,7 @@ async def get_agent_accountability(
 @router.get("/accountability/hand-offs")
 async def get_broken_hand_offs(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get ONLY the broken hand-offs (where one agent isn't passing work to the next).
@@ -95,7 +95,7 @@ async def get_broken_hand_offs(
 @router.get("/accountability/scorecards")
 async def get_agent_scorecards(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get individual agent scorecards showing:
