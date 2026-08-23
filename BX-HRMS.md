@@ -20,22 +20,43 @@
 | **BX-HRMS-[DEFECT-002]** | Role template auto-created on "New" button click | ✅ FIXED | 6944467d |
 | **BX-HRMS-[DEFECT-003]** | Role Templates showing as standalone nav item | ✅ FIXED | 41e08e6f |
 | **BX-HRMS-[DEFECT-004]** | Create user form missing required field indicators | ✅ FIXED | efc09866, bf5861dd |
-| **BX-HRMS-[DEFECT-005]** | Backend port configuration hardcoded | ⏳ REVERTED | da9bdff5→6f463462 |
+| **BX-HRMS-[DEFECT-005]** | Backend port configuration hardcoded | ⏳ ENVIRONMENT SETUP | .env.development |
 | **BX-HRMS-[DEFECT-006]** | Create user form inputs showing [object Object] | ✅ FIXED | b5ebfe7c |
+| **BX-HRMS-[DEFECT-007]** | Create Role Template modal incomplete | ✅ FIXED | 0c95393c |
+| **BX-HRMS-[DEFECT-008]** | Module permission logic - resources not disabled | ✅ FIXED | 2e40f4f3 |
 
-### Enhancements Added:
-- ✅ Navigation preview in create user modal (shows menu items for assigned roles)
-- ✅ Create user modal scroll support (max-height + overflow)
-- ✅ Required field error states (red borders + inline error messages)
-- ✅ Create role template modal with name/description inputs
+### Enhancements Completed:
+- ✅ Navigation preview in create user modal
+- ✅ Create user modal scroll support
+- ✅ Required field error states with red borders
+- ✅ Full Create role template modal with permissions editor
+- ✅ Module ON/OFF toggle with resource controls
+- ✅ Resources disabled when module is OFF
+- ✅ Create button only enabled when name + module + permissions all set
 - ✅ Form validation shows all errors at once
 
-### Pending Work (For Next Session):
-- ⏳ Create Role Template modal needs Module & Resource Permissions editor
-- ⏳ Module permission logic: Disable resources if module is OFF
-- ⏳ Backend port configuration: Make environment-configurable
-- ⏳ Role template display in success modal
-- ⏳ Complete the 5 defects for full test coverage
+### Setup Instructions (For Testing):
+1. **Frontend API Configuration:**
+   - Edit `.env.development` and set: `REACT_APP_API_BASE_URL=http://localhost:8080`
+   - Or set to your backend port: `REACT_APP_API_BASE_URL=http://localhost:62943`
+   - Frontend will use this for all API calls
+
+2. **Backend Port:**
+   - Ensure backend is running on port 8080 (default)
+   - Or update frontend .env.development to match your backend port
+
+3. **Testing Checklist:**
+   - ✅ Create user with required fields validates on empty
+   - ✅ Create role template with permissions editor
+   - ✅ Modules can be toggled ON/OFF
+   - ✅ Resources disabled when module is OFF
+   - ✅ Create button only enabled with proper setup
+   - ⏳ Verify role template displays in user success modal
+
+### Remaining Work (For QA/Next Session):
+- End-to-end testing of all 8 defects
+- Role template name display in user creation success modal
+- API integration testing between frontend and backend ports
 
 ---
 
