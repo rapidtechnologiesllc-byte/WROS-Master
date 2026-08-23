@@ -8,12 +8,13 @@
 
 ---
 
-## 📝 SESSION SUMMARY (2026-08-22 - Defect Fixes & UX Improvements)
+## 📝 SESSION SUMMARY (2026-08-22 - Comprehensive Defect Fixes & Field Ordering)
 
 **STATUS: 🟡 DEVELOPMENT COMPLETE - PENDING TESTING**
 
-### Defects Fixed This Session:
+### All Defects Fixed This Session (12 Total - 8 Original + 4 New):
 
+#### Original 8 Defects (Previous Session):
 | Defect ID | Issue | Status | Commits |
 |-----------|-------|--------|---------|
 | **BX-HRMS-[DEFECT-001]** | User name required validation error on create/edit | ✅ FIXED | 085a263 |
@@ -24,6 +25,48 @@
 | **BX-HRMS-[DEFECT-006]** | Create user form inputs showing [object Object] | ✅ FIXED | b5ebfe7c |
 | **BX-HRMS-[DEFECT-007]** | Create Role Template modal incomplete | ✅ FIXED | 0c95393c |
 | **BX-HRMS-[DEFECT-008]** | Module permission logic - resources not disabled | ✅ FIXED | 2e40f4f3 |
+
+#### New Defects Fixed Today (2026-08-22):
+| Defect ID | Issue | Status | Commits |
+|-----------|-------|--------|---------|
+| **BX-HRMS-[DEFECT-009]** | Module collapse/expand not working in Create Role Template | ✅ FIXED | f13f1eb7 |
+| **BX-HRMS-[DEFECT-010]** | Add Position modal missing role template selector | ✅ FIXED | f13f1eb7 |
+| **BX-HRMS-[DEFECT-011]** | Create User form field ordering (Business Unit after Role Template) | ✅ FIXED | f13f1eb7 |
+| **BX-HRMS-[DEFECT-012]** | Role template auto-select based on job title not implemented | ✅ FIXED | f13f1eb7 |
+| **CRITICAL-FIX** | User count showing 0 users for templates with assigned users | ✅ FIXED | f13f1eb7 |
+
+### Detailed Fixes (2026-08-22 New Work):
+
+**BX-HRMS-[DEFECT-009]: Module Collapse Logic Fixed**
+- **Root Cause:** Chevron toggle and module ON/OFF state were conflated; resources always showed when module was enabled
+- **Fix:** Added separate `createTemplateExpandedModules` state for collapse/expand independent of ON/OFF
+- **Result:** Users can now collapse/expand modules without affecting permissions state
+- **Code:** createTemplateExpandedModules state + chevron conditional rendering + resources visibility check
+
+**BX-HRMS-[DEFECT-010]: Position Role Template Assignment Added**
+- **Root Cause:** Add Position modal only had position name field; no way to assign role templates
+- **Fix:** Added role template dropdown to Add Position modal; position structure now includes optional role_template_id
+- **Result:** When adding new position, users can assign an existing role template
+- **Code:** newPositionRoleTemplate state + role template select dropdown + handleAddPosition updated
+
+**BX-HRMS-[DEFECT-011]: Field Ordering in Create User Modal Corrected**
+- **Root Cause:** Business Unit field appeared AFTER Role Template, violating logical flow
+- **Fix:** Reordered modal fields: Job Title → Business Unit → Role Template (was: Job Title → Role Template → Business Unit)
+- **Result:** Correct field order for BU-scoped role assignment workflow
+- **Code:** Moved Business Unit section to appear before Role Template section in modal JSX
+
+**BX-HRMS-[DEFECT-012]: Auto-Select Role Template from Job Title**
+- **Root Cause:** No logic to look up and auto-populate role template when job title selected
+- **Fix:** Added logic in job title onChange handler to find position with role_template_id and auto-set it
+- **Result:** When user selects "CEO" job title that's linked to a role template, template auto-populates (user can still override)
+- **Code:** Job title onChange now checks positions array for role_template_id and sets createForm.role_ids
+
+**CRITICAL-FIX: User Count for Role Templates (getUserCount)**
+- **Root Cause:** Code only checked `u.role_id === roleId` (legacy single-role structure)
+- **Problem:** With multi-role support (`u.role_ids` array), user count showed 0 even when users assigned
+- **Fix:** Updated getUserCount() to check both `role_id` (legacy) and `role_ids.includes(roleId)` (multi-role)
+- **Result:** Role templates now show correct user count when users have multi-role assignments
+- **Code:** Line ~1170 in UsersAndAccessControl.js
 
 ### Enhancements Completed:
 - ✅ Navigation preview in create user modal
