@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* BlitzenX Brand Kit v3.0 */
+:root {
+  --bx-orange: #F58220;
+  --bx-orange-hover: #D96E14;
+  --bx-navy: #0B1F3A;
+  --bx-slate: #2E3A4D;
+  --bx-white: #FFFFFF;
+  --bx-light: #F4F6F8;
+  --bx-border: #D9E2EC;
+
+  --radius: 12px;
+  --radius-lg: 20px;
+
+  --font-primary: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+  font-family: var(--font-primary);
+}
