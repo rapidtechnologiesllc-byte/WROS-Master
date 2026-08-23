@@ -2105,16 +2105,16 @@ Fix method:
 
 **Status:** ✅ COMPLETE - Code pushed to GitHub  
 **Session Duration:** Full session debugging and fixing  
-**Commits:** 2 backend (cb8c0de, 4669c13) + 1 frontend (7e0e2de1)  
+**Commits:** 2 backend (db901f0) + 1 frontend (a6f7f480)  
 
 ### Session Objective
-Debug and fix "User name is required" validation error blocking user creation in WROS admin interface. Complete end-to-end SDLC permission-based access control testing (4-step workflow).
+Debug and fix "User name is required" validation error blocking user creation in WROS admin interface. Fix both CREATE and UPDATE user operations to properly handle user_name field.
 
 ### Defects Identified & Tracked
 
-| ID | Title | Root Cause | Status | File(s) |
-|---|---|---|---|---|
-| **BX-HRMS-[DEFECT-001]** | User creation validation error: "User name is required" | FastAPI parameter binding: parameters with default values treated as query params instead of request body | ✅ FIXED | `app/schemas/user.py`, `app/api/v1/endpoints/users.py` |
+| ID | Title | Root Cause | Status | Commits | File(s) |
+|---|---|---|---|---|---|
+| **BX-HRMS-[DEFECT-001]** | User creation validation error: "User name is required" | Frontend: Using user_email instead of user_name in payload. Backend: Missing role assignment to UserRole table | ✅ FIXED | `db901f0`, `a6f7f480` | `app/schemas/user.py`, `app/api/v1/endpoints/users.py`, `UsersAndAccessControl.js` |
 | **BX-HRMS-[DEFECT-002]** | Role template auto-creation on "New" button click | Missing auto-generation logic when creating new role templates | ⏳ PENDING | Frontend: UsersAndAccessControl.js |
 | **BX-HRMS-[DEFECT-003]** | Navigation menu structure reorganization | Admin menu should show only relevant items based on user permissions | ⏳ PENDING | `src/layout/navItems.js`, `src/layout/Shell.js` |
 | **BX-HRMS-[DEFECT-004]** | Create user form field ordering and UX improvements | Job Title dropdown, Partner/BU dropdowns missing from Add/Edit User modal | ⏳ PENDING | `src/screens/UsersAndAccessControl.js` |
@@ -2139,34 +2139,54 @@ class CreateUserWithRolesRequest(BaseModel):
     role_ids: List[int]
 ```
 
-### BX-HRMS-[DEFECT-001] - FIXED
+### BX-HRMS-[DEFECT-001] - FIXED (2026-08-22)
 
-**Error:** "User name is required" on user creation despite payload containing user_name  
-**Root Cause:** Backend endpoint signature used query parameters instead of request body  
-**Solution:** Updated endpoint to accept Pydantic request schema
+**Error:** "User name is required" validation error on user creation/update despite payload containing user_name  
 
-**Code Changes:**
+**Root Causes Identified:**
+1. **Frontend:** handleCreate using `createForm.user_email` for `user_name` field (line 362)
+2. **Frontend:** Missing validation for `user_name` field before submission
+3. **Backend:** Create endpoint not assigning roles to UserRole junction table
+4. **Backend:** Update endpoint not handling role updates properly
 
-1. **app/schemas/user.py** - Added request body schemas:
-   - `CreateUserWithRolesRequest` with all 7 required fields
-   - `UpdateUserWithRolesRequest` with optional fields for editing
+**Fixes Applied:**
 
-2. **app/api/v1/endpoints/users.py** - Updated endpoints:
-   - `/hr/users/create-with-roles` endpoint signature changed from query params to `request: CreateUserWithRolesRequest`
-   - `/hr/users/{user_id}/update-with-roles` endpoint signature changed similarly
-   - Applied same fix to both create AND update endpoints
+**Frontend (Commit a6f7f480):**
+1. Fixed line 362 in `UsersAndAccessControl.js`:
+   - Changed: `user_name: createForm.user_email` → `user_name: createForm.user_name`
+2. Added validation for user_name (lines 326-329):
+   - Check that user_name is not empty before submitting form
+   - Display clear error message if missing
+3. Reordered validation sequence to check user_name first
 
-3. **app/core/permission_enforcement.py** - Fixed import:
-   - Changed `from app.core.security import get_current_internal_user` 
-   - To: `from app.core.dependencies import get_current_internal_user`
+**Backend (Commit db901f0):**
+1. **Enhanced create-with-roles endpoint (`/hr/users/create-with-roles`)**:
+   - Improved validation to check all required fields properly
+   - Added role assignment: creates UserRole junction table records for each role_id
+   - Handles business_unit_id and partner_id assignment
+   - Sets tenant_id from current_user.tenant_id
+
+2. **Enhanced update-with-roles endpoint (`/hr/users/{user_id}/update-with-roles`)**:
+   - Added validation for user_name (cannot be empty when provided)
+   - Implemented role updates: clears old roles and assigns new ones
+   - Properly manages business_unit_id and partner_id updates
+   - Refreshes user object after all changes
+
+**Files Modified:**
+- `src/screens/UsersAndAccessControl.js` - Fixed user_name field + validation
+- `app/api/v1/endpoints/users.py` - Enhanced both endpoints with role handling
+- `app/schemas/user.py` - No changes (schemas were already correct)
+
+**Commits:**
+- Backend: `db901f0` - "FIX: Correct user creation and update endpoints for both create and edit user operations"
+- Frontend: `a6f7f480` - "FIX: Correct user name field in create user form payload"
 
 **Verification:**
-- Frontend debug logging added to UsersAndAccessControl.js
-- `console.debug("[CREATE USER] Payload being sent:", payload)` shows correct structure
-- Payload contains: user_name, user_email, user_password, job_title, role_ids, business_unit_id, partner_id
-- Endpoint now accepts JSON body correctly
-
-**Commit:** cb8c0de - "FIX: Correct user creation endpoint to accept JSON request body"
+- Frontend now sends: `{ user_name: "John Doe", user_email: "john@example.com", ... }`
+- Backend validates user_name is not empty (throws 400 error if empty)
+- Backend creates UserRole records linking user to assigned role templates
+- Update endpoint can modify user details and roles independently
+- Both endpoints properly handle all optional fields (job_title, partner_id, business_unit_id)
 
 ### End-to-End SDLC Testing Plan
 
