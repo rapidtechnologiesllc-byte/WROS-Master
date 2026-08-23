@@ -7,6 +7,7 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.audit_log import AuditLog
 from app.models.consent import ConsentRecord
+from app.models.location import Location
 from app.models.user import (
     Users,
     Jobs,
