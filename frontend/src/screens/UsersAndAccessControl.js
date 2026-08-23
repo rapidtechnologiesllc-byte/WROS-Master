@@ -1076,11 +1076,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
   const [editorMode, setEditorMode] = useState(null); // 'create', 'edit', or null
   const [editorTemplateId, setEditorTemplateId] = useState(null);
-  const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
   const [togglingTemplate, setTogglingTemplate] = useState({});
-  const [expandedModules, setExpandedModules] = useState({});
 
   const filteredRoles = useMemo(() => {
     if (!searchTerm) return roles;
@@ -1297,140 +1295,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         </button>
       </div>
 
-      {editingTemplateId ? (
-        <div className="border rounded-lg p-6 bg-white">
-          <div className="bg-gray-50 p-4 border-b">
-            <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions</p>
-            <p className="text-xs text-gray-600">✓ = Enabled | ○ = Disabled</p>
-          </div>
-
-          <div className="divide-y max-h-[600px] overflow-y-auto">
-              {Array.isArray(modules) && modules.length > 0 ? (
-                modules.map((module, moduleIdx) => {
-                  const moduleName = typeof module === 'string' ? module : module.name;
-                  const moduleObj = typeof module === 'object' ? module : null;
-                  const resources = moduleObj?.resources || [];
-
-                  // For Recruitment module, show all 11 resources
-                  const displayResources = moduleName === 'Recruitment'
-                    ? [
-                        { id: 7, name: 'candidates', display: 'Candidates' },
-                        { id: 8, name: 'jobs', display: 'Jobs' },
-                        { id: 9, name: 'submissions', display: 'Submissions' },
-                        { id: 10, name: 'interviews', display: 'Interviews' },
-                        { id: 11, name: 'offers', display: 'Offer Letters' },
-                        { id: 12, name: 'intervention_queue', display: 'Intervention Queue' },
-                        { id: 13, name: 'rehire_approvals', display: 'Rehire Approval' },
-                        { id: 14, name: 'risk_dashboard', display: 'Risk Dashboard' },
-                        { id: 15, name: 'thunder_analytics', display: 'Thunder Analytics' },
-                        { id: 16, name: 'bulk_launch', display: 'Bulk Launch' },
-                        { id: 17, name: 'thunder_chat', display: 'Thunder Chat' }
-                      ]
-                    : resources;
-
-                  return (
-                    <div key={`module_${moduleIdx}`}>
-                      <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
-                        <button
-                          onClick={() => setExpandedModules(prev => ({
-                            ...prev,
-                            [moduleName]: !prev[moduleName]
-                          }))}
-                          className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded transition-colors"
-                        >
-                          <span className="text-gray-600">
-                            {expandedModules[moduleName] ? '▼' : '▶'}
-                          </span>
-                          <h4 className="font-semibold text-gray-900 capitalize">{moduleName.replace(/_/g, ' ')}</h4>
-                        </button>
-
-                        <div className="flex gap-2 items-center ml-auto">
-                          <button
-                            onClick={() => handleToggleModule(moduleName, displayResources, true)}
-                            disabled={toggling[moduleName]}
-                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
-                              moduleStates[moduleName]?.enabled
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                            }`}
-                          >
-                            ON
-                          </button>
-                          <button
-                            onClick={() => handleToggleModule(moduleName, displayResources, false)}
-                            disabled={toggling[moduleName]}
-                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
-                              !moduleStates[moduleName]?.enabled
-                                ? 'bg-red-500 text-white'
-                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                            }`}
-                          >
-                            OFF
-                          </button>
-                        </div>
-                      </div>
-
-                      {expandedModules[moduleName] && (
-                      <div className="divide-y">
-                        {displayResources.length > 0 ? (
-                          displayResources.map(resource => {
-                            const resId = resource.id || resource.resource_id;
-                            const resName = resource.name || resource.resource_name;
-                            const resDisplay = resource.display || resource.display_name || resName;
-
-                            // Look up permissions for this resource in editingPermissions
-                            const perms = editingPermissions[resName] || {
-                              view: false,
-                              create: false,
-                              edit: false,
-                              delete: false
-                            };
-
-                            return (
-                              <div key={`res_${resId}`} className="px-4 py-3 hover:bg-gray-50">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium text-gray-900">{resDisplay}</span>
-                                </div>
-
-                                <div className="grid grid-cols-4 gap-2">
-                                  {['view', 'create', 'edit', 'delete'].map(action => {
-                                    const hasPermission = perms[action] || false;
-                                    return (
-                                      <button
-                                        key={action}
-                                        onClick={() => handleTogglePermission(resName, action, hasPermission)}
-                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
-                                          hasPermission
-                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
-                                        }`}
-                                        title={action.charAt(0).toUpperCase() + action.slice(1)}
-                                      >
-                                        {hasPermission ? '✓' : '○'} {action.charAt(0).toUpperCase()}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="px-4 py-3 text-sm text-gray-500">No resources in this module</div>
-                        )}
-                      </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="px-4 py-6 text-center text-gray-500 text-sm">No modules available</div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
             const userCount = getUserCount(role.id);
             const isActive = role.is_active !== false; // Default to true if not specified
@@ -1488,9 +1353,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
               </div>
             );
           })}
-          </div>
-        </>
-      )}
+      </div>
 
       {/* RoleTemplateEditor Modal */}
       {editorMode && (
