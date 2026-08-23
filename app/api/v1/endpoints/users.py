@@ -703,11 +703,21 @@ def create_user_with_roles(
 
         db.commit()
 
+    # Get the first assigned role template for display
+    from app.models.user import UserRole
+    first_role = db.query(UserRole).filter(UserRole.user_id == new_user.UserID).first()
+    role_template_name = None
+    if first_role and first_role.role_template:
+        role_template_name = first_role.role_template.name
+
     return UserResponse(
         user_id=new_user.UserID,
         user_name=new_user.UserName or "",
         user_email=new_user.UserEmail,
-        user_role=new_user.UserRole,
+        user_role=role_template_name or new_user.UserRole,
+        job_title=new_user.job_title,
+        business_unit_id=new_user.business_unit_id,
+        business_unit_name=new_user.business_unit.name if new_user.business_unit else None,
         created_at=new_user.CreatedAt
     )
 
