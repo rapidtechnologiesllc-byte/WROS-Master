@@ -1364,6 +1364,44 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     // Show modal to get template name/description from user
     setShowCreateModal(true);
     setCreateRoleForm({ name: "", description: "" });
+    setCreateTemplatePermissions({});
+    setCreateTemplateModuleStates({});
+  };
+
+  const handleCreateRoleToggleModule = (moduleName, resources, shouldEnable) => {
+    setCreateTemplateModuleStates(prev => ({
+      ...prev,
+      [moduleName]: shouldEnable
+    }));
+
+    if (!shouldEnable) {
+      // Clear permissions for this module when turning it off
+      const newPerms = { ...createTemplatePermissions };
+      resources.forEach(resource => {
+        const resName = resource.name || resource.resource_name;
+        delete newPerms[resName];
+      });
+      setCreateTemplatePermissions(newPerms);
+    }
+  };
+
+  const handleCreateRoleTogglePermission = (resourceName, action, hasPermission) => {
+    const newPerms = { ...createTemplatePermissions };
+    if (!newPerms[resourceName]) {
+      newPerms[resourceName] = { view: false, create: false, edit: false, delete: false };
+    }
+    newPerms[resourceName][action] = !hasPermission;
+    setCreateTemplatePermissions(newPerms);
+  };
+
+  const canCreateTemplate = () => {
+    // Check if at least one module is enabled
+    const hasEnabledModule = Object.values(createTemplateModuleStates).some(enabled => enabled);
+    // Check if at least one permission is selected
+    const hasPermissions = Object.values(createTemplatePermissions).some(perms =>
+      Object.values(perms).some(p => p)
+    );
+    return createRoleForm.name.trim() && hasEnabledModule && hasPermissions;
   };
 
   return (
@@ -1595,42 +1633,135 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         </>
       )}
 
-      {/* Create Role Template Modal */}
-      <SimpleModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        title="Create New Role Template"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Template Name *"
-            placeholder="e.g., Senior Recruiter, Finance Manager"
-            value={createRoleForm.name}
-            onChange={(val) => setCreateRoleForm({ ...createRoleForm, name: val })}
-          />
-          <Input
-            label="Description (Optional)"
-            placeholder="Brief description of this role..."
-            value={createRoleForm.description}
-            onChange={(val) => setCreateRoleForm({ ...createRoleForm, description: val })}
-          />
-          <div className="flex gap-3 justify-end pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateModal(false)}
-              disabled={creatingTemplate}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateRole}
-              disabled={creatingTemplate}
-            >
-              {creatingTemplate ? "Creating..." : "Create Role Template"}
-            </Button>
+      {/* Create Role Template Modal - with Module & Resource Permissions */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg m-4 my-8">
+            <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Create New Role Template</h2>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Basic Info */}
+              <div className="space-y-4">
+                <Input
+                  label="Template Name *"
+                  placeholder="e.g., Senior Recruiter, Finance Manager"
+                  value={createRoleForm.name}
+                  onChange={(val) => setCreateRoleForm({ ...createRoleForm, name: val })}
+                />
+                <Input
+                  label="Description (Optional)"
+                  placeholder="Brief description of this role..."
+                  value={createRoleForm.description}
+                  onChange={(val) => setCreateRoleForm({ ...createRoleForm, description: val })}
+                />
+              </div>
+
+              {/* Module & Resource Permissions */}
+              <div className="border rounded-lg bg-white">
+                <div className="bg-gray-50 p-4 border-b">
+                  <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions *</p>
+                  <p className="text-xs text-gray-600">Enable at least one module and select resources</p>
+                </div>
+
+                <div className="divide-y max-h-96 overflow-y-auto">
+                  {Array.isArray(modules) && modules.map((module, idx) => {
+                    const moduleName = typeof module === 'string' ? module : module.name;
+                    const isEnabled = createTemplateModuleStates[moduleName];
+                    const resources = (typeof module === 'object' ? module.resources : []) || [];
+
+                    return (
+                      <div key={`module_${idx}`}>
+                        <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
+                          <button
+                            onClick={() => setCreateTemplateModuleStates(prev => ({
+                              ...prev,
+                              [moduleName]: !prev[moduleName]
+                            }))}
+                            className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded"
+                          >
+                            <span className="text-gray-600">{isEnabled ? '▼' : '▶'}</span>
+                            <h4 className="font-semibold text-gray-900 capitalize">{moduleName}</h4>
+                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCreateRoleToggleModule(moduleName, resources, true)}
+                              className={`px-3 py-1 rounded text-sm font-semibold ${
+                                isEnabled ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'
+                              }`}
+                            >
+                              ON
+                            </button>
+                            <button
+                              onClick={() => handleCreateRoleToggleModule(moduleName, resources, false)}
+                              className={`px-3 py-1 rounded text-sm font-semibold ${
+                                !isEnabled ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'
+                              }`}
+                            >
+                              OFF
+                            </button>
+                          </div>
+                        </div>
+
+                        {isEnabled && resources.length > 0 && (
+                          <div className="divide-y">
+                            {resources.map(resource => {
+                              const resName = resource.name || resource.resource_name;
+                              const perms = createTemplatePermissions[resName] || { view: false, create: false, edit: false, delete: false };
+
+                              return (
+                                <div key={resName} className="px-4 py-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium text-gray-900">{resource.display || resName}</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-2">
+                                    {['view', 'create', 'edit', 'delete'].map(action => (
+                                      <button
+                                        key={action}
+                                        onClick={() => handleCreateRoleTogglePermission(resName, action, perms[action])}
+                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
+                                          perms[action]
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-gray-200 text-gray-500'
+                                        }`}
+                                      >
+                                        {action.charAt(0).toUpperCase()}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="border-t p-6 flex gap-3 justify-end sticky bottom-0 bg-white">
+              <Button
+                variant="outline"
+                onClick={() => setShowCreateModal(false)}
+                disabled={creatingTemplate}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateRole}
+                disabled={creatingTemplate || !canCreateTemplate()}
+              >
+                {creatingTemplate ? "Creating..." : "Create Role Template"}
+              </Button>
+            </div>
           </div>
         </div>
-      </SimpleModal>
+      )}
     </div>
   );
 }
