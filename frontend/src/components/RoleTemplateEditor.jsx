@@ -79,6 +79,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       setPermissions(newPerms);
     }
     // If enable=true, just expand module - don't auto-enable permissions
+    // User must select at least one permission or toggle will remain RED
   };
 
   const handleEnableAllForModule = (moduleName, resources) => {
@@ -98,6 +99,36 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
   const handleSave = async () => {
     if (!formData.name.trim()) {
       toast.error('Template name is required');
+      return;
+    }
+
+    // Rule: A module either has at least 1 permission (enabled) or 0 permissions (disabled)
+    // No "empty enabled" states allowed - prevents ambiguous configurations
+    const invalidModules = [];
+    if (Array.isArray(modules)) {
+      for (const module of modules) {
+        const moduleName = typeof module === 'string' ? module : module.name;
+        const resources = module.resources || [];
+
+        // Check if user has started enabling this module but didn't complete it
+        const hasAnyPermission = resources.some(res => {
+          const resName = res.name || res.resource_name;
+          const perms = permissions[resName] || {};
+          return Object.values(perms).some(Boolean);
+        });
+
+        // If module was expanded but user didn't add any permissions, it's incomplete
+        if (!hasAnyPermission && expandedModules[moduleName]) {
+          invalidModules.push(moduleName);
+        }
+      }
+    }
+
+    if (invalidModules.length > 0) {
+      toast.error(
+        `${invalidModules.join(', ')} ${invalidModules.length === 1 ? 'module' : 'modules'} ` +
+        `opened but not configured. Enable at least one permission or close it.`
+      );
       return;
     }
 
