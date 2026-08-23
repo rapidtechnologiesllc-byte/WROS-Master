@@ -12,7 +12,7 @@
 **COMPLETE authoritative mapping of all modules, resources, and screens in WROS.**
 
 - **11 Modules**
-- **77 Resources** (every screen built in the frontend)
+- **72 Resources** (every screen built in the frontend)
 - **All navigation controlled by backend database**
 - **Personal resources mandatory for all users**
 
@@ -50,7 +50,7 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 3: Workforce (9 resources)
+## Module 3: Workforce (12 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
@@ -63,6 +63,9 @@ All users automatically get VIEW access to these resources in every role.
 | HTD Intake | `/htd-intake` | Head count to delivery intake |
 | Buddy Program | `/buddy-program` | Employee buddy program |
 | Convert to Employee | `/employee-conversion` | Candidate to employee conversion |
+| Utilization Dashboard | `/utilization-dashboard` | Org-wide employee utilization metrics |
+| Resource Forecast | `/forecast` | Resource planning & forecasting |
+| Employee in Bench | `/employee-bench` | Bench employee management |
 
 ---
 
@@ -80,19 +83,15 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 5: Project Management (9 resources)
+## Module 5: Project Management (5 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
 | Projects | `/projects` | Project creation & management |
-| Tasks | `/tasks` | Task management & tracking |
 | Resources | `/resource-management` | Resource allocation & capacity |
 | Budget | `/budget` | Budget planning & tracking |
 | Schedule | `/schedule` | Project scheduling & timeline |
 | Core-Pull & Pool Guard | `/core-pull` | Core resource management |
-| Utilization Dashboard | `/utilization-dashboard` | Resource utilization metrics |
-| Resource Forecast | `/forecast` | Resource forecasting |
-| Forecast vs Actual | `/forecast-vs-actual` | Forecast accuracy tracking |
 
 ---
 
@@ -124,7 +123,7 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 8: System (12 resources)
+## Module 8: System (11 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
@@ -134,7 +133,6 @@ All users automatically get VIEW access to these resources in every role.
 | Audit Logs | `/audit-logs` | System audit logs |
 | Error Logs | `/admin/error-log` | Error tracking & logs |
 | System Health | `/system-health` | System health & monitoring |
-| SLM Dashboard | `/admin/slm-dashboard` | Resume parsing SLM dashboard |
 | SLM Training Data | `/admin/slm-training` | SLM model training data |
 | Message Queue | `/admin/messagequeue` | Message queue management |
 | Ticket Routing | `/admin/ticket-routing` | Support ticket routing |
@@ -173,7 +171,7 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 11: AI & Automation (4 resources)
+## Module 11: AI & Automation (5 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
@@ -181,6 +179,7 @@ All users automatically get VIEW access to these resources in every role.
 | Thunder Analytics | `/ai/thunder-analytics` | Thunder performance analytics |
 | Ask Flash | `/ai/flash` | Flash validation & coaching |
 | AI Coaching | `/ai/coaching` | AI coaching features |
+| SLM Dashboard | `/admin/slm-dashboard` | Resume parsing SLM model dashboard |
 
 ---
 
@@ -267,8 +266,10 @@ These are added to EVERY role template on initialization.
 
 ## Summary
 
-✅ **77 resources across 11 modules**  
+✅ **72 resources across 11 modules**  
 ✅ **Every built screen mapped**  
+✅ **Unbuilt screens removed (Tasks, Forecast vs Actual)**  
+✅ **Resources reorganized to correct modules**  
 ✅ **Personal resources mandatory**  
 ✅ **Database matches frontend**  
 ✅ **Single source of truth established**
