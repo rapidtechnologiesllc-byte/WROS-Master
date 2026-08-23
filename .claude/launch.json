@@ -7,6 +7,7 @@
       "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8080"],
       "port": 8080,
       "autoPort": false,
+      "cwd": "backend",
       "note": "Frontend expects backend on port 8080 (REACT_APP_API_BASE_URL in frontend/.env). If port 8080 is in use, kill stray processes with: netstat -ano | findstr :8080 (Windows) or lsof -i :8080 (Mac/Linux)"
     },
     {
@@ -15,14 +16,16 @@
       "runtimeArgs": ["start"],
       "port": 3000,
       "autoPort": true,
-      "url": "http://localhost:3000"
+      "url": "http://localhost:3000",
+      "cwd": "frontend"
     },
     {
       "name": "Career Site",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3001,
-      "autoPort": false
+      "autoPort": false,
+      "cwd": "career-site"
     }
   ]
 }
