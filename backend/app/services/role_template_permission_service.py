@@ -174,19 +174,6 @@ class RoleTemplatePermissionService:
                 Resource.enabled == True
             ).all()
 
-            # SUPER USER BYPASS: Super Users have all permissions
-            if RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id):
-                logger.info(f"Super User {user_id} granted all permissions")
-                for resource in resources:
-                    permissions[resource.name] = {
-                        "can_view": True,
-                        "can_create": True,
-                        "can_edit": True,
-                        "can_delete": True,
-                        "display_name": resource.display_name
-                    }
-                return permissions
-
             # Get user's roles
             user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
             role_ids = [role.id for role in user_roles]
