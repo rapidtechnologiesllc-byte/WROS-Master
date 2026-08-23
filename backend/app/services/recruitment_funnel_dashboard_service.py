@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
 from app.models.candidate import Candidate
-from app.models.interview import Interview
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
