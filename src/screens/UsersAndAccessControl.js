@@ -220,6 +220,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     user_role: roles[0]?.name || "",
     business_unit_id: "",
     partner_id: "",
+    reporting_manager_id: "",
     role_ids: [] // Multi-role support
   });
 
@@ -229,6 +230,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     user_role: "",
     business_unit_id: "",
     partner_id: "",
+    reporting_manager_id: "",
     role_ids: [], // Multi-role support for edit
     expandAllPermissions: false,
     expanded_candidates: false,
@@ -374,6 +376,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         payload.partner_id = parseInt(createForm.partner_id, 10);
       }
 
+      // Include reporting manager if selected
+      if (createForm.reporting_manager_id) {
+        payload.reporting_manager_id = createForm.reporting_manager_id;
+      }
+
       // Use new multi-role endpoint when roles are selected
       if (roleIds.length > 0) {
         console.debug("[CREATE USER] Payload being sent:", payload);
@@ -387,7 +394,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       toast.success("User created successfully.");
       setShowCreateModal(false);
-      setCreateForm({ user_name: "", job_title: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", partner_id: "", role_ids: [] });
+      setCreateForm({ user_name: "", job_title: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", partner_id: "", reporting_manager_id: "", role_ids: [] });
       window.location.reload();
     } catch (err) {
       toast.error(err.message || "Failed to create user.");
@@ -440,6 +447,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       // Include partner if selected
       if (editForm.partner_id) {
         payload.partner_id = parseInt(editForm.partner_id, 10);
+      }
+
+      // Include reporting manager if selected
+      if (editForm.reporting_manager_id) {
+        payload.reporting_manager_id = editForm.reporting_manager_id;
       }
 
       // Use new multi-role endpoint
@@ -544,7 +556,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         columns={[
           { header: "Name", accessor: "user_name", key: "name" },
           { header: "Email", accessor: "user_email", key: "email" },
-          { header: "Role", accessor: "user_role", key: "role" },
+          { header: "Role", accessor: "permission_role", key: "role" },
           {
             header: "Actions",
             key: "actions",
@@ -594,6 +606,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                         setEditForm({
                           user_name: safeText(row.user_name),
                           job_title: row.job_title || "",
+                          partner_id: row.partner_id || "",
+                          reporting_manager_id: row.reporting_manager_id || "",
                           user_role: safeText(row.user_role),
                           business_unit_id: row.business_unit_id || "",
                           role_ids: roleIds,
@@ -606,6 +620,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                         setEditForm({
                           user_name: safeText(row.user_name),
                           job_title: row.job_title || "",
+                          partner_id: row.partner_id || "",
+                          reporting_manager_id: row.reporting_manager_id || "",
                           user_role: safeText(row.user_role),
                           business_unit_id: row.business_unit_id || "",
                           role_ids: [],
@@ -786,6 +802,28 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             </div>
           )}
 
+          {/* Reporting Manager Selection - Dependent on Business Unit */}
+          {createForm.business_unit_id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+              <select
+                value={createForm.reporting_manager_id || ""}
+                onChange={(e) => setCreateForm({ ...createForm, reporting_manager_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">No reporting manager</option>
+                {users
+                  .filter(u => u.business_unit_id == createForm.business_unit_id && u.user_id !== createForm.user_id)
+                  .map(u => (
+                    <option key={u.user_id} value={u.user_id}>
+                      {u.user_name} ({u.permission_role || u.user_role})
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Optional - select reporting manager from this BU</p>
+            </div>
+          )}
+
           {/* Role Template Selection (required) - Dropdown - MOVED AFTER Business Unit */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
@@ -928,7 +966,33 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               value={editForm.role_ids?.[0] || ""}
               onChange={(e) => {
                 const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
-                setEditForm({ ...editForm, role_ids: roleId ? [roleId] : [] });
+                const selectedRole = roles.find(r => r.id === roleId);
+
+                // Default permissions based on role
+                const defaultPermissions = {
+                  perm_candidates_view: true,
+                  perm_candidates_create: selectedRole?.name === "Admin" || selectedRole?.name === "Recruiter",
+                  perm_candidates_edit: selectedRole?.name === "Admin" || selectedRole?.name === "Recruiter",
+                  perm_candidates_delete: selectedRole?.name === "Admin",
+                  perm_jobs_view: true,
+                  perm_jobs_create: selectedRole?.name === "Admin",
+                  perm_jobs_edit: selectedRole?.name === "Admin",
+                  perm_jobs_delete: selectedRole?.name === "Admin",
+                  perm_interviews_view: true,
+                  perm_interviews_create: selectedRole?.name === "Admin" || selectedRole?.name === "Recruiter",
+                  perm_interviews_edit: selectedRole?.name === "Admin" || selectedRole?.name === "Recruiter",
+                  perm_interviews_delete: selectedRole?.name === "Admin",
+                  perm_admin_view: selectedRole?.name === "Admin",
+                  perm_admin_create: selectedRole?.name === "Admin",
+                  perm_admin_edit: selectedRole?.name === "Admin",
+                  perm_admin_delete: selectedRole?.name === "Admin"
+                };
+
+                setEditForm({
+                  ...editForm,
+                  role_ids: roleId ? [roleId] : [],
+                  ...defaultPermissions
+                });
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
@@ -968,6 +1032,28 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
+            </div>
+          )}
+
+          {/* Reporting Manager Selection - Dependent on Business Unit */}
+          {editForm.business_unit_id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+              <select
+                value={editForm.reporting_manager_id || ""}
+                onChange={(e) => setEditForm({ ...editForm, reporting_manager_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">No reporting manager</option>
+                {users
+                  .filter(u => u.business_unit_id == editForm.business_unit_id && u.user_id !== editForm.user_id)
+                  .map(u => (
+                    <option key={u.user_id} value={u.user_id}>
+                      {u.user_name} ({u.permission_role || u.user_role})
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Optional - select reporting manager from this BU</p>
             </div>
           )}
 
@@ -2236,8 +2322,19 @@ function OrganizationalHierarchySection() {
 
   const loadOrgNodes = async () => {
     try {
-      const { data } = await apiRequest("/org/nodes");
-      setOrgNodes(Array.isArray(data) ? data : data?.org_nodes || []);
+      // Fetch users instead of org nodes (org nodes endpoint doesn't exist yet)
+      const { data } = await apiRequest("/hr/users/all");
+      const usersList = data?.users || [];
+      // Convert users to org nodes format
+      const nodes = usersList.map(u => ({
+        id: u.user_id,
+        employee_name: u.user_name,
+        position: u.permission_role || u.user_role,
+        business_unit: u.business_unit_name,
+        reports_to: null,
+        location: null
+      }));
+      setOrgNodes(Array.isArray(nodes) ? nodes : []);
     } catch (err) {
       console.error("Failed to load org nodes:", err);
     }
