@@ -69,16 +69,15 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 4: Sales (7 resources)
+## Module 4: Sales (6 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
 | Clients | `/client-management` | Client/account management |
 | Opportunities | `/opportunity-pipeline` | Sales opportunities & pipeline |
 | Proposals | `/proposals` | Proposal creation & tracking |
-| Revenue | `/revenue` | Revenue tracking & forecasting |
+| Sales Ops | `/revenue` | Revenue tracking, leakage detection, billing operations |
 | Pipeline Management | `/pipeline-management` | Sales pipeline management |
-| Partner ROI | `/partner-roi` | Partner ROI analytics & tracking |
 | Demand Confirmation | `/demand-confirmation` | Sales demand confirmation |
 
 ---

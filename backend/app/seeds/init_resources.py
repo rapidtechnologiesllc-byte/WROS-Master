@@ -57,7 +57,7 @@ MODULES_AND_RESOURCES = {
         "clients",
         "opportunities",
         "proposals",
-        "revenue",
+        "sales-ops",
         "pipeline-management",
         "partner-roi",
         "demand-confirmation"
@@ -167,6 +167,7 @@ RESOURCE_ROUTES = {
     # Sales
     "clients": "client-management",
     "opportunities": "opportunity-pipeline",
+    "sales-ops": "revenue",
     "partner-roi": "partner-roi",
     "demand-confirmation": "demand-confirmation",
 
