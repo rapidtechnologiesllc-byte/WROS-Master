@@ -10,7 +10,7 @@ GET /recruiting/funnel/happiness-only - Just employee happiness
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_recruiter
+from app.core.dependencies import get_db, get_current_user
 from app.services.recruitment_funnel_dashboard_service import RecruitmentFunnelDashboard
 from app.core.logging import logger
 
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/recruiting", tags=["recruitment-funnel"])
 @router.get("/funnel")
 async def get_full_recruitment_funnel(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get complete recruitment funnel showing all 5 pillars:
@@ -68,7 +68,7 @@ async def get_full_recruitment_funnel(
 @router.get("/funnel/recruitment")
 async def get_recruitment_only(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """Get just the recruitment funnel (Phase 1 agents)."""
     try:
@@ -87,7 +87,7 @@ async def get_recruitment_only(
 @router.get("/funnel/resources")
 async def get_resources_only(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """Get resource management metrics (utilization, CORE certification, HTD)."""
     try:
@@ -105,7 +105,7 @@ async def get_resources_only(
 @router.get("/funnel/happiness")
 async def get_happiness_only(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """Get employee happiness metrics (retention, onboarding)."""
     try:
@@ -123,7 +123,7 @@ async def get_happiness_only(
 @router.get("/funnel/2030-trajectory")
 async def get_2030_trajectory(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Calculate if we're on pace to reach 2,000 employees by 2030.
