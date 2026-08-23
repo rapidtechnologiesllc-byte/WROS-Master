@@ -682,58 +682,55 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         title="Create User"
       >
         <div className="space-y-4">
-          <Input
-            label="Name"
-            placeholder="John Doe"
-            value={createForm.user_name}
-            onChange={(val) => setCreateForm({ ...createForm, user_name: val })}
-          />
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-            <select
-              value={createForm.job_title || ""}
-              onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a job title...</option>
-              {jobTitles.length > 0 ? (
-                jobTitles.map(title => (
-                  <option key={title.id} value={title.name}>{title.name}</option>
-                ))
-              ) : (
-                <option disabled>Loading job titles...</option>
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
-            <select
-              value={createForm.partner_id || ""}
-              onChange={(e) => setCreateForm({ ...createForm, partner_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a partner...</option>
-              {partners.map(partner => (
-                <option key={partner.id} value={partner.id}>{partner.name}</option>
-              ))}
-            </select>
+          {/* Required fields section */}
+          <div className="pb-2 border-b">
+            <Input
+              label="Name *"
+              placeholder="John Doe"
+              value={createForm.user_name}
+              onChange={(val) => setCreateForm({ ...createForm, user_name: val })}
+              required
+            />
           </div>
 
           <Input
-            label="Email"
+            label="Email *"
             type="email"
             placeholder="john@example.com"
             value={createForm.user_email}
             onChange={(val) => setCreateForm({ ...createForm, user_email: val })}
+            required
           />
+
           <Input
-            label="Password"
+            label="Password *"
             type="password"
             placeholder="••••••••"
             value={createForm.user_password}
             onChange={(val) => setCreateForm({ ...createForm, user_password: val })}
+            required
           />
+
+          {/* Optional fields section */}
+          <div className="pt-2 border-t">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+              <select
+                value={createForm.job_title || ""}
+                onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select a job title...</option>
+                {jobTitles.length > 0 ? (
+                  jobTitles.map(title => (
+                    <option key={title.id} value={title.name}>{title.name}</option>
+                  ))
+                ) : (
+                  <option disabled>Loading job titles...</option>
+                )}
+              </select>
+            </div>
+          </div>
 
           {/* Role Template Selection (required) - Dropdown */}
           <div>
