@@ -97,12 +97,12 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     return SignupResponse(response="User created successfully")
     
 @router.post("/validate-email")
-def validate_email(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
+def validate_email(request: LoginRequest, db: Session = Depends(get_db)):
     """
     Validate if an email exists as an employee user.
     Returns {exists: true/false} so frontend can show appropriate error.
     """
-    email = request.email.strip().lower()
+    email = request.UserEmail.strip().lower()
 
     user = check_user(db, email)
     if user:
