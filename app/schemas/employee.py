@@ -22,6 +22,9 @@ class EmployeeCreateRequest(BaseModel):
     delivery_center_id: Optional[str] = None  # Which office (Bangalore, Delhi, Remote, etc.)
     business_unit_id: Optional[str] = None  # Which business unit
 
+    # User account auto-creation
+    role_template_id: Optional[int] = None  # Role for auto-created user account
+
     # Optional fields
     current_title: Optional[str] = None
     current_skills: Optional[List[str]] = None
