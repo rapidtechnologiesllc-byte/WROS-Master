@@ -3,6 +3,7 @@ import { Gift, Briefcase, Clock, CheckCircle2, AlertCircle, TrendingUp, Plus } f
 import { Card, Button } from "../components/ui";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { getApiBaseUrl } from "../services/api/client";
 
 const STATUS_COLORS = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -39,7 +40,7 @@ export default function MyReferralsScreen() {
   const loadMyReferrals = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:8080/referrals/my-referrals", {
+      const response = await fetch(`${getApiBaseUrl()}/referrals/my-referrals`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
 
