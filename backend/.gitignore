@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
+*.sqlite3.locked
+*.sqlite3.backup
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Alembic
+# Keep alembic/ folder but ignore generated files if needed
+
+# Keys (IMPORTANT: Never commit private keys!)
+keys/private_key.pem
+keys/public_key.pem
+*.pem
+*.key
+
+# Azure
+.azure/
+
+# Temporary files
+*.tmp
+*.bak
+temp/
+tmp/
+
+# OS
+Thumbs.db
+.DS_Store
+
+test.py
+#static/msgraph_test.html
+.env.example
+.vercel
+.env*.local
+.env.prodrbac_test_results_*.json
