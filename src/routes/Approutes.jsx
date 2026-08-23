@@ -113,6 +113,7 @@ import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
+import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
@@ -319,6 +320,11 @@ export default function AppRoutes() {
   const token = localStorage.getItem("hrms_token");
   if (!token || window.location.pathname.startsWith("/auth")) {
     return <AuthPage />;
+  }
+
+  // ✅ NEW: Force password reset on first login for auto-created users
+  if (window.location.pathname === "/force-password-reset") {
+    return <ForcePasswordReset />;
   }
 
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));

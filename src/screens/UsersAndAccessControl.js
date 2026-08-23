@@ -1329,6 +1329,11 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       return;
     }
 
+    if (!canCreateTemplate()) {
+      toast.error("Please enable at least one module and select permissions.");
+      return;
+    }
+
     setCreatingTemplate(true);
     try {
       await apiRequest("/admin/role-templates", {
@@ -1337,12 +1342,14 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           name: createRoleForm.name,
           display_name: createRoleForm.name,
           description: createRoleForm.description,
-          permissions: []
+          permissions: createTemplatePermissions  // ✅ Use actual permissions
         })
       });
       toast.success("Role created successfully.");
       setShowCreateModal(false);
       setCreateRoleForm({ name: "", description: "" });
+      setCreateTemplatePermissions({});
+      setCreateTemplateModuleStates({});
       window.location.reload();
     } catch (err) {
       toast.error(err.message || "Failed to create role.");
