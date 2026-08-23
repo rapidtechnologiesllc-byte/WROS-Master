@@ -45,9 +45,10 @@ MODULES_AND_RESOURCES = {
 }
 
 # Resource-specific route paths (custom routes for certain resources)
+# Note: Routes should NOT have leading slash (Approutes.jsx pattern matches this)
 RESOURCE_ROUTES = {
-    "slm-dashboard": "/admin/slm-dashboard",
-    "slm-training-data": "/admin/slm-training-data",
+    "slm-dashboard": "admin/slm-dashboard",
+    "slm-training-data": "admin/slm-training-data",
 }
 
 
