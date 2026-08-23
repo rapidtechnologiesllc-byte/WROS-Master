@@ -17,6 +17,7 @@ import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import UserFormPage from "../screens/UserFormPage";
+import DeliveryCentersAdmin from "../screens/DeliveryCentersAdmin";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import RoleTemplateManager from "../screens/RoleTemplateManager";
 import Verification from "../screens/Verification";
