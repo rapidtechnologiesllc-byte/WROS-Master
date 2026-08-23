@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 import enum
 
-from app.core.database import Base
+from app.models.base import Base
 
 
 class EmailTemplateStage(str, enum.Enum):
