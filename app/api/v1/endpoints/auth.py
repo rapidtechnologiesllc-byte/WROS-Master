@@ -33,7 +33,7 @@ from app.core.mfa import (
     role_requires_mfa,
 )
 from app.services.email_service import EmailService
-from app.services.role_template_permission_service import roletemplatepermissionsservice
+from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
@@ -145,7 +145,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
         if totp_gate or email_otp_gate:
             # Fetch permissions even for MFA pending token (needed after MFA completes)
-            permissions = roletemplatepermissionsservice.get_user_permissions(db, user.UserID)
+            permissions = RoleTemplatePermissionService.get_user_permissions(db, user.UserID)
             pending_token = create_access_token(
                 data={
                     "sub": user.UserID,
@@ -198,7 +198,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             )
 
         # ✅ NEW: Fetch user permissions for navigation menu
-        permissions = roletemplatepermissionsservice.get_user_permissions(db, user.UserID)
+        permissions = RoleTemplatePermissionService.get_user_permissions(db, user.UserID)
 
         access_token = create_access_token(
             data={
