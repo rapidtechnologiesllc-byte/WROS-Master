@@ -685,28 +685,31 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         data={filteredUsers}
       />
 
-      {/* Create User Modal */}
+      {/* Create User Modal - LOGIN & RBAC ONLY */}
       <SimpleModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         title="Create User"
       >
         <div className="space-y-4 max-h-[65vh] overflow-y-auto">
-          {/* Required fields section */}
-          <div className="pb-2 border-b">
-            <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_name ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Name *</label>
-              <input
-                type="text"
-                placeholder="John Doe"
-                value={createForm.user_name || ""}
-                onChange={(e) => { setCreateForm({ ...createForm, user_name: e.target.value }); if (createFormErrors.user_name) setCreateFormErrors({...createFormErrors, user_name: null}); }}
-                className="w-full bg-transparent outline-none text-sm"
-              />
-              {createFormErrors.user_name && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_name}</p>}
-            </div>
+          <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+            Note: This form creates login credentials and assigns roles only. Employee details (position, reporting manager, delivery center) are added separately.
+          </p>
+
+          {/* Name */}
+          <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_name ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Name *</label>
+            <input
+              type="text"
+              placeholder="John Doe"
+              value={createForm.user_name || ""}
+              onChange={(e) => { setCreateForm({ ...createForm, user_name: e.target.value }); if (createFormErrors.user_name) setCreateFormErrors({...createFormErrors, user_name: null}); }}
+              className="w-full bg-transparent outline-none text-sm"
+            />
+            {createFormErrors.user_name && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_name}</p>}
           </div>
 
+          {/* Email */}
           <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Email *</label>
             <input
@@ -719,6 +722,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             {createFormErrors.user_email && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_email}</p>}
           </div>
 
+          {/* Password */}
           <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_password ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Password *</label>
             <input
@@ -731,39 +735,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             {createFormErrors.user_password && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_password}</p>}
           </div>
 
-          {/* Optional fields section */}
-          <div className="pt-2 border-t">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-              <select
-                value={createForm.job_title || ""}
-                onChange={(e) => {
-                  const jobTitle = e.target.value;
-                  setCreateForm({ ...createForm, job_title: jobTitle });
-                  // Auto-select role template if job title has one mapped
-                  const positionWithTemplate = positions.find(p => p.name === jobTitle);
-                  if (positionWithTemplate?.role_template_id) {
-                    setCreateForm(prev => ({
-                      ...prev,
-                      role_ids: [positionWithTemplate.role_template_id]
-                    }));
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select a job title...</option>
-                {jobTitles.length > 0 ? (
-                  jobTitles.map(title => (
-                    <option key={title.id} value={title.name}>{title.name}</option>
-                  ))
-                ) : (
-                  <option disabled>Loading job titles...</option>
-                )}
-              </select>
-            </div>
-          </div>
-
-          {/* Business Unit Selection - MANDATORY, always visible */}
+          {/* Business Unit */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
             <select
@@ -779,52 +751,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Required - every user must be assigned to a business unit</p>
           </div>
 
-          {/* Partner Selection - Dependent on Business Unit */}
-          {createForm.business_unit_id && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
-              <select
-                value={createForm.partner_id || ""}
-                onChange={(e) => setCreateForm({ ...createForm, partner_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">No partner assigned</option>
-                {partners.map(partner => (
-                  <option key={partner.id} value={partner.id}>
-                    {partner.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Optional - select partner associated with this BU</p>
-            </div>
-          )}
-
-          {/* Reporting Manager Selection - Dependent on Business Unit */}
-          {createForm.business_unit_id && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
-              <select
-                value={createForm.reporting_manager_id || ""}
-                onChange={(e) => setCreateForm({ ...createForm, reporting_manager_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">No reporting manager</option>
-                {users
-                  .filter(u => u.business_unit_id == createForm.business_unit_id && u.user_id !== createForm.user_id)
-                  .map(u => (
-                    <option key={u.user_id} value={u.user_id}>
-                      {u.user_name} ({u.permission_role || u.user_role})
-                    </option>
-                  ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Optional - select reporting manager from this BU</p>
-            </div>
-          )}
-
-          {/* Role Template Selection (required) - Dropdown - MOVED AFTER Business Unit */}
+          {/* Role Template */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
             <select
@@ -846,7 +775,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 );
               })}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
           </div>
 
           {/* Org-level access indicator */}
@@ -915,51 +843,31 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         </div>
       </SimpleModal>
 
-      {/* Edit User Modal - WITH PERMISSIONS */}
+      {/* Edit User Modal - LOGIN & RBAC ONLY */}
       <SimpleModal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         title="Edit User"
       >
         <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+          <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+            Note: This form manages login credentials and role-based access only. Employee details (job title, reporting manager, delivery center) are managed separately.
+          </p>
+
           <Input
             label="Name"
             value={editForm.user_name}
             onChange={(val) => setEditForm({ ...editForm, user_name: val })}
           />
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-            <select
-              value={editForm.job_title || ""}
-              onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a job title...</option>
-              {jobTitles.length > 0 ? (
-                jobTitles.map(title => (
-                  <option key={title.id} value={title.name}>{title.name}</option>
-                ))
-              ) : (
-                <option disabled>Loading job titles...</option>
-              )}
-            </select>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
-            <select
-              value={editForm.partner_id || ""}
-              onChange={(e) => setEditForm({ ...editForm, partner_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a partner...</option>
-              {partners.map(partner => (
-                <option key={partner.id} value={partner.id}>{partner.name}</option>
-              ))}
-            </select>
-          </div>
+          <Input
+            label="Email"
+            type="email"
+            value={editForm.user_email}
+            disabled
+          />
 
-          {/* Role Template Selection (required) - Dropdown */}
+          {/* Role Template Selection (required) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
             <select
@@ -968,7 +876,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
                 const selectedRole = roles.find(r => r.id === roleId);
 
-                // Default permissions based on role
                 const defaultPermissions = {
                   perm_candidates_view: true,
                   perm_candidates_create: selectedRole?.name === "Admin" || selectedRole?.name === "Recruiter",
@@ -1007,7 +914,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 );
               })}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
           </div>
 
           {/* Business Unit Selection (conditional) */}
@@ -1031,29 +937,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
-            </div>
-          )}
-
-          {/* Reporting Manager Selection - Dependent on Business Unit */}
-          {editForm.business_unit_id && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
-              <select
-                value={editForm.reporting_manager_id || ""}
-                onChange={(e) => setEditForm({ ...editForm, reporting_manager_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">No reporting manager</option>
-                {users
-                  .filter(u => u.business_unit_id == editForm.business_unit_id && u.user_id !== editForm.user_id)
-                  .map(u => (
-                    <option key={u.user_id} value={u.user_id}>
-                      {u.user_name} ({u.permission_role || u.user_role})
-                    </option>
-                  ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Optional - select reporting manager from this BU</p>
             </div>
           )}
 
