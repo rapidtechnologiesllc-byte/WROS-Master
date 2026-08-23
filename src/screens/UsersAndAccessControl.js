@@ -695,7 +695,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
           {/* Select Existing Employee (without user) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2"><span className="text-red-500">*</span> Select Employee</label>
             <select
               value={createForm.employee_id || ""}
               onChange={(e) => {
@@ -757,7 +757,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
           {/* Password */}
           <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_password ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Password *</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1"><span className="text-red-500">*</span> Password</label>
             <input
               type="password"
               placeholder="••••••••"
@@ -779,9 +779,58 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             />
           </div>
 
+          {/* Business Unit (must come before Partner) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2"><span className="text-red-500">*</span> Business Unit</label>
+            <select
+              value={createForm.business_unit_id || ""}
+              onChange={(e) => {
+                const buId = e.target.value;
+                setCreateForm({
+                  ...createForm,
+                  business_unit_id: buId,
+                  partner_id: "" // Reset partner when BU changes
+                });
+                setCreateFormErrors({...createFormErrors, business_unit_id: null});
+              }}
+              className={`w-full px-3 py-2 border rounded-md text-sm ${
+                createFormErrors.business_unit_id ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
+              required
+            >
+              <option value="">Select a business unit...</option>
+              {businessUnits.map(bu => (
+                <option key={bu.id} value={bu.id}>
+                  {bu.bu_name || bu.name}
+                </option>
+              ))}
+            </select>
+            {createFormErrors.business_unit_id && <p className="text-xs text-red-600 mt-1">{createFormErrors.business_unit_id}</p>}
+          </div>
+
+          {/* Partner (auto-populated from Business Unit) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Partner (Auto-populated from BU)</label>
+            <select
+              value={createForm.partner_id || ""}
+              disabled={!createForm.business_unit_id}
+              className={`w-full px-3 py-2 border rounded-md text-sm ${
+                !createForm.business_unit_id ? 'bg-gray-100 text-gray-500 border-gray-300' : 'border-gray-300'
+              }`}
+            >
+              <option value="">No partner for this BU</option>
+              {partners.map(partner => (
+                <option key={partner.id} value={partner.id}>
+                  {partner.name}
+                </option>
+              ))}
+            </select>
+            {!createForm.business_unit_id && <p className="text-xs text-gray-500 mt-1">Select a Business Unit first to assign a partner</p>}
+          </div>
+
           {/* Role Template */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2"><span className="text-red-500">*</span> Role Template</label>
             <select
               value={createForm.role_ids?.[0] || ""}
               onChange={(e) => {
