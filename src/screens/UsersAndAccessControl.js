@@ -1582,6 +1582,43 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           </div>
         </>
       )}
+
+      {/* Create Role Template Modal */}
+      <SimpleModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create New Role Template"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Template Name *"
+            placeholder="e.g., Senior Recruiter, Finance Manager"
+            value={createRoleForm.name}
+            onChange={(val) => setCreateRoleForm({ ...createRoleForm, name: val })}
+          />
+          <Input
+            label="Description (Optional)"
+            placeholder="Brief description of this role..."
+            value={createRoleForm.description}
+            onChange={(val) => setCreateRoleForm({ ...createRoleForm, description: val })}
+          />
+          <div className="flex gap-3 justify-end pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateModal(false)}
+              disabled={creatingTemplate}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateRole}
+              disabled={creatingTemplate}
+            >
+              {creatingTemplate ? "Creating..." : "Create Role Template"}
+            </Button>
+          </div>
+        </div>
+      </SimpleModal>
     </div>
   );
 }
