@@ -362,6 +362,8 @@ def update_candidate_status(
                     old_stage=cs.piplineStatus,
                     new_stage="SCREENING",
                     job_title=job_title,
+                    candidate_id=candidate_id,
+                    db_session=db,
                 )
 
             elif request.pipeline_status == "Interview":
@@ -371,6 +373,8 @@ def update_candidate_status(
                     old_stage=cs.piplineStatus,
                     new_stage="INTERVIEW",
                     job_title=job_title,
+                    candidate_id=candidate_id,
+                    db_session=db,
                 )
 
             elif request.pipeline_status in ["OfferApproval", "Pre-Onboarding"]:
@@ -381,6 +385,8 @@ def update_candidate_status(
                     old_stage=cs.piplineStatus,
                     new_stage="OFFER",
                     job_title=job_title,
+                    candidate_id=candidate_id,
+                    db_session=db,
                 )
 
             elif request.pipeline_status == "Hired":
@@ -390,6 +396,8 @@ def update_candidate_status(
                     old_stage=cs.piplineStatus,
                     new_stage="HIRED",
                     job_title=job_title,
+                    candidate_id=candidate_id,
+                    db_session=db,
                 )
 
             elif request.pipeline_status == "Rejected":
@@ -399,6 +407,8 @@ def update_candidate_status(
                     old_stage=cs.piplineStatus,
                     new_stage="REJECTED",
                     job_title=job_title,
+                    candidate_id=candidate_id,
+                    db_session=db,
                 )
         except Exception as e:
             logger.warning(f"Failed to send stage update email to {candidate.candidateEmail}: {str(e)}")
