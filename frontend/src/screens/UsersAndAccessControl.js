@@ -29,6 +29,9 @@ import {
 import { apiRequest } from "../services/api/client";
 import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
+import UserModal from "../components/UserModal";
+import BusinessUnitModal from "../components/BusinessUnitModal";
+import DeliveryCenterModal from "../components/DeliveryCenterModal";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -189,6 +192,13 @@ function safeText(v) {
 
 function UsersSection({ loading, error, users, roles, currentUserPermissions = {} }) {
   const [busy, setBusy] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showBUModal, setShowBUModal] = useState(false);
+  const [showDCModal, setShowDCModal] = useState(false);
+  const [selectedBU, setSelectedBU] = useState(null);
+  const [selectedDC, setSelectedDC] = useState(null);
+
+  // Legacy modal states (keep for compatibility during transition)
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -334,10 +344,6 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     }
     if (!createForm.user_password.trim()) {
       toast.error("Password is required.");
-      return;
-    }
-    if (!createForm.job_title.trim()) {
-      toast.error("Job Title is required.");
       return;
     }
 
@@ -536,10 +542,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           className="max-w-xs"
         />
         <Button
-          onClick={async () => {
-            await loadBusinessUnits();
-            setShowCreateModal(true);
-          }}
+          onClick={() => setShowUserModal(true)}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -676,143 +679,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         data={filteredUsers}
       />
 
-      {/* Create User Modal */}
-      <SimpleModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        title="Create User"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Name"
-            placeholder="John Doe"
-            value={createForm.user_name}
-            onChange={(val) => setCreateForm({ ...createForm, user_name: val })}
-          />
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-            <select
-              value={createForm.job_title || ""}
-              onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a job title...</option>
-              {jobTitles.length > 0 ? (
-                jobTitles.map(title => (
-                  <option key={title.id} value={title.name}>{title.name}</option>
-                ))
-              ) : (
-                <option disabled>Loading job titles...</option>
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
-            <select
-              value={createForm.partner_id || ""}
-              onChange={(e) => setCreateForm({ ...createForm, partner_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a partner...</option>
-              {partners.map(partner => (
-                <option key={partner.id} value={partner.id}>{partner.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <Input
-            label="Email"
-            type="email"
-            placeholder="john@example.com"
-            value={createForm.user_email}
-            onChange={(val) => setCreateForm({ ...createForm, user_email: val })}
-          />
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            value={createForm.user_password}
-            onChange={(val) => setCreateForm({ ...createForm, user_password: val })}
-          />
-
-          {/* Role Template Selection (required) - Dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
-            <select
-              value={createForm.role_ids?.[0] || ""}
-              onChange={(e) => {
-                const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
-                setCreateForm({ ...createForm, role_ids: roleId ? [roleId] : [] });
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select a role template...</option>
-              {roles.filter(role => (role.name !== "Super User" || role.id) && (role.is_active !== false)).map(role => {
-                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
-                return (
-                  <option key={role.id} value={role.id}>
-                    {role.name} {isOrgLevel ? "(Org-level)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
-          </div>
-
-          {/* Business Unit Selection (conditional) */}
-          {createForm.role_ids && createForm.role_ids.length > 0 &&
-           !createForm.role_ids.some(id => {
-             const role = roles.find(r => r.id === id);
-             return ORG_LEVEL_ROLES.includes(role?.name);
-           }) && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
-              <select
-                value={createForm.business_unit_id}
-                onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select a business unit...</option>
-                {businessUnits.map(bu => (
-                  <option key={bu.id} value={bu.id}>
-                    {bu.bu_name || bu.name || `BU ${bu.id}`}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
-            </div>
-          )}
-
-          {/* Org-level access indicator */}
-          {createForm.role_ids && createForm.role_ids.length > 0 &&
-           createForm.role_ids.some(id => {
-             const role = roles.find(r => r.id === id);
-             return ORG_LEVEL_ROLES.includes(role?.name);
-           }) && (
-            <div className="p-3 bg-blue-50 text-sm text-blue-700 rounded border border-blue-200">
-              ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
-            </div>
-          )}
-          <div className="flex gap-3 justify-end pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateModal(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={busy}
-            >
-              {busy ? "Creating..." : "Create User"}
-            </Button>
-          </div>
-        </div>
-      </SimpleModal>
+      {/* User Modal - Create/Edit */}
+      <UserModal
+        isOpen={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        onSuccess={() => loadData()}
+        mode="create"
+      />
 
       {/* Edit User Modal - WITH PERMISSIONS */}
       <SimpleModal
