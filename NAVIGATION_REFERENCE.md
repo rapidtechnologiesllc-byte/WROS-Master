@@ -3,16 +3,24 @@
 **Last Updated:** 2026-08-23  
 **Purpose:** Central reference for all navigation items and their corresponding URLs for frontend testing and BX-HRMS issue tracking
 
+## Status Legend
+| Status | Meaning |
+|--------|---------|
+| ✅ | Working - Loads correctly and displays content |
+| ❌ | Broken - Route doesn't exist or returns error/blank page |
+| ⏳ | Untested - Not yet verified |
+| 🔄 | Partial - Loads but has display/functionality issues |
+
 ## Navigation Items by Module
 
 ### Dashboard & Personal
-| Module | Screen | URL | Route Key |
-|--------|--------|-----|-----------|
-| Dashboard | Dashboard | `/` | DASHBOARD |
-| My Tasks | My Tasks | `/my-tasks` | MY_TASKS |
-| My Timesheet | My Timesheet | `/my-timesheet` | MY_TIMESHEET |
-| My Expenses | My Expenses | `/my-expenses` | MY_EXPENSES |
-| My Referrals | My Referrals | `/my-referrals` | MY_REFERRALS |
+| Module | Screen | URL | Status | Issue |
+|--------|--------|-----|--------|-------|
+| Dashboard | Dashboard | `/` | ❌ BROKEN | [BX-HRMS-NAV-001] Dashboard not loading |
+| My Tasks | My Tasks | `/my-tasks` | ❌ BROKEN | [BX-HRMS-NAV-002] My Tasks not loading |
+| My Timesheet | My Timesheet | `/my-timesheet` | ❌ BROKEN | [BX-HRMS-NAV-003] My Timesheet not loading |
+| My Expenses | My Expenses | `/my-expenses` | ❌ BROKEN | [BX-HRMS-NAV-004] My Expenses not loading |
+| My Referrals | My Referrals | `/my-referrals` | ❌ BROKEN | [BX-HRMS-NAV-005] My Referrals not loading |
 
 ### Recruitment
 | Module | Screen | URL | Route Key |
