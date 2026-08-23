@@ -476,11 +476,57 @@ def list_business_units(
     for bu in bus:
         result.append({
             "id": bu.id,
-            "name": bu.name if hasattr(bu, "name") else bu.bu_name,
-            "bu_name": bu.bu_name if hasattr(bu, "bu_name") else bu.name,
+            "name": bu.name,
+            "display_name": bu.display_name,
         })
 
     return {"business_units": result}
+
+
+class BusinessUnitCreateRequest(BaseModel):
+    name: str
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    region: Optional[str] = None
+    continent: Optional[str] = None
+
+
+@rbac_router.post("/business-units")
+def create_business_unit_rbac(
+    req: BusinessUnitCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Create a new business unit.
+    Accessible from RBAC endpoints.
+    """
+    # Validate input
+    if not req.name:
+        raise HTTPException(status_code=400, detail="Business Unit name is required")
+
+    # Determine tenant_id (default to 1 if None)
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
+
+    new_bu = BusinessUnit(
+        name=req.name,
+        display_name=req.display_name or req.name,
+        description=req.description,
+        bu_code=req.name.upper().replace(" ", ""),
+        tenant_id=tenant_id,
+        active=True
+    )
+
+    db.add(new_bu)
+    db.commit()
+    db.refresh(new_bu)
+
+    return {
+        "id": new_bu.id,
+        "name": new_bu.name,
+        "display_name": new_bu.display_name,
+        "status": "created"
+    }
 
 
 @router.get("/{template_id}/audit-trail")
