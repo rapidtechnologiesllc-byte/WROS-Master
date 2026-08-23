@@ -115,6 +115,12 @@ MODULES_AND_RESOURCES = {
         "admin-settings",
         "certifications"
     ],
+    "Executive Dashboards": [
+        "ceo-dashboard-view",
+        "cfo-dashboard-view",
+        "partner-dashboard-view",
+        "bu-head-dashboard-view"
+    ],
     "AI & Automation": [
         "ask-thunder",
         "thunder-analytics",
@@ -196,6 +202,12 @@ RESOURCE_ROUTES = {
     "admin-agent-state": "admin/agent-state-dashboard",
     "admin-weekly-recap": "admin/weekly-recap",
     "training-certification": "training-certification",
+
+    # Executive Dashboards
+    "ceo-dashboard-view": "ceo-fy-progress",
+    "cfo-dashboard-view": "cfo-dashboard",
+    "partner-dashboard-view": "troy-partner-dashboard",
+    "bu-head-dashboard-view": "bu-head-dashboard",
 
     # AI & Automation
     "ask-thunder": "ai/thunder",
