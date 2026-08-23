@@ -273,26 +273,21 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                             <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleModule(moduleName, resources, true);
-                            }}
-                            className="px-2 py-1 rounded text-xs bg-green-500 text-white hover:bg-green-600"
-                          >
-                            Enable All
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleModule(moduleName, resources, false);
-                            }}
-                            className="px-2 py-1 rounded text-xs bg-gray-400 text-white hover:bg-gray-500"
-                          >
-                            Disable All
-                          </button>
-                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Toggle: if any are disabled, enable all; if all enabled, disable all
+                            const shouldEnable = enabledCount < totalPossible;
+                            handleToggleModule(moduleName, resources, shouldEnable);
+                          }}
+                          className={`px-2 py-1 rounded text-xs font-medium text-white transition ${
+                            enabledCount < totalPossible
+                              ? 'bg-green-500 hover:bg-green-600'
+                              : 'bg-gray-400 hover:bg-gray-500'
+                          }`}
+                        >
+                          {enabledCount < totalPossible ? 'Enable All' : 'Disable All'}
+                        </button>
                       </div>
 
                       {/* Module Resources */}
