@@ -672,7 +672,7 @@ def create_user_with_roles(
         UserName=request.user_name,
         UserEmail=request.user_email,
         UserPassword=get_password_hash(request.user_password),
-        UserRole="Admin"  # Default role
+        UserRole=None  # Will be set from assigned role templates
     )
 
     # Set optional fields if provided
@@ -703,18 +703,21 @@ def create_user_with_roles(
 
         db.commit()
 
-    # Get the first assigned role template for display
-    from app.models.user import UserRole
-    first_role = db.query(UserRole).filter(UserRole.user_id == new_user.UserID).first()
-    role_template_name = None
-    if first_role and first_role.role_template:
-        role_template_name = first_role.role_template.name
+        # Set UserRole from first assigned role template
+        from app.models.user import UserRole as UserRoleModel
+        from app.models.rbac import RoleTemplate
+        first_role = db.query(UserRoleModel).filter(UserRoleModel.user_id == new_user.UserID).first()
+        if first_role:
+            role_template = db.query(RoleTemplate).filter(RoleTemplate.id == first_role.role_template_id).first()
+            if role_template:
+                new_user.UserRole = role_template.name
+                db.commit()
 
     return UserResponse(
         user_id=new_user.UserID,
         user_name=new_user.UserName or "",
         user_email=new_user.UserEmail,
-        user_role=role_template_name or new_user.UserRole,
+        user_role=new_user.UserRole,
         job_title=new_user.job_title,
         business_unit_id=new_user.business_unit_id,
         business_unit_name=new_user.business_unit.name if new_user.business_unit else None,
