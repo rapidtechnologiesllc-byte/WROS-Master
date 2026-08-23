@@ -52,12 +52,12 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
       const token = localStorage.getItem('access_token');
 
       // Load business units
-      const buRes = await fetch('http://localhost:8080/rbac/business-units', {
+      const buRes = await fetch('http://localhost:8080/api/admin/users-access-control/business-units', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (buRes.ok) {
         const data = await buRes.json();
-        setBusinessUnits(data.business_units || []);
+        setBusinessUnits(data.business_units || data || []);
       }
 
       // Load roles
