@@ -106,6 +106,7 @@ from app.api.v1.endpoints.role_template_modules import router as role_template_m
 from app.api.v1.endpoints.navigation import router as navigation_router
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
+from app.api.v1.endpoints.relation_building import router as relation_building_router
 
 router = fastapi.APIRouter()
 
@@ -204,6 +205,7 @@ router.include_router(router=defect_reporting_router)
 router.include_router(router=agent_maturity_router)
 router.include_router(router=htd_pipeline_accountability_router)
 router.include_router(router=flash_orchestration_router)
+router.include_router(router=relation_building_router)
 router.include_router(router=business_metrics_router)
 router.include_router(router=agent_state_dashboard_router)
 router.include_router(router=role_based_dashboard_router)
