@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { bulkEngage, bulkImportCsv, getBulkJobStatus, getActiveBulkJobs, getImportHistory, cancelBulkImportJob } from "../services/api/bulkEngagement";
-import { getApiBaseUrl } from "../services/api/client";
 
 export default function BulkLaunchScreen() {
   const [uploadType, setUploadType] = useState("candidate");  // Type selector
@@ -128,7 +127,7 @@ export default function BulkLaunchScreen() {
 
     importPollRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`${getApiBaseUrl()}/candidates/bulk-import/${jobId}/progress`);
+        const response = await fetch(`http://localhost:8080/candidates/bulk-import/${jobId}/progress`);
         if (response.ok) {
           const progress = await response.json();
           setImportProgress(progress);
