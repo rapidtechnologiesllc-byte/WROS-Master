@@ -60,8 +60,8 @@ const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = n
 
       const token = localStorage.getItem('access_token');
       const endpoint = mode === 'create'
-        ? 'http://localhost:8080/hr/business-units'
-        : `http://localhost:8080/hr/business-units/${bu.id}`;
+        ? 'http://localhost:8080/api/admin/users-access-control/business-units'
+        : `http://localhost:8080/api/admin/users-access-control/business-units/${bu.id}`;
       const method = mode === 'create' ? 'POST' : 'PUT';
 
       const payload = {
