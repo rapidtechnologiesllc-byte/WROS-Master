@@ -1180,17 +1180,11 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     );
   }, [roles, searchTerm]);
 
-  // Count users per template - match by template name to find corresponding role
+  // Count users per template - match by template name
   const getUserCount = (templateId, templateName) => {
-    // Find the role with matching name (roles are created from template names)
-    const matchingRole = roles?.find(r => r.name === templateName);
-    if (!matchingRole) return 0;
-
     return users.filter(u => {
-      // Check new multi-role structure
-      if (Array.isArray(u.role_ids) && u.role_ids.includes(matchingRole.id)) return true;
-      // Check legacy single-role structure
-      if (u.role_id === matchingRole.id) return true;
+      // Match by UserRole field (e.g., "Admin" matches template.name "Admin")
+      if (u.UserRole === templateName) return true;
       return false;
     }).length;
   };
