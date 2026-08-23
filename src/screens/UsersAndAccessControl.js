@@ -322,16 +322,17 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const selectedUser = users.find(u => u.user_id === selectedUserId);
 
   const handleCreate = async () => {
-    if (!createForm.user_name.trim()) {
-      toast.error("User name is required.");
-      return;
-    }
+    // Use email as username (email-based login)
     if (!createForm.user_email.trim()) {
-      toast.error("User email is required.");
+      toast.error("Email is required.");
       return;
     }
     if (!createForm.user_password.trim()) {
       toast.error("Password is required.");
+      return;
+    }
+    if (!createForm.job_title.trim()) {
+      toast.error("Job Title is required.");
       return;
     }
 
@@ -358,7 +359,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     setBusy(true);
     try {
       const payload = {
-        user_name: createForm.user_name,
+        user_name: createForm.user_email,
         user_email: createForm.user_email,
         user_password: createForm.user_password,
         job_title: createForm.job_title || "",
@@ -377,10 +378,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       // Use new multi-role endpoint when roles are selected
       if (roleIds.length > 0) {
-        await apiRequest("/hr/users/create-with-roles", {
+        console.debug("[CREATE USER] Payload being sent:", payload);
+        console.debug("[CREATE USER] Stringified payload:", JSON.stringify(payload));
+        const response = await apiRequest("/hr/users/create-with-roles", {
           method: "POST",
           body: JSON.stringify(payload)
         });
+        console.debug("[CREATE USER] Response:", response);
       }
 
       toast.success("User created successfully.");
@@ -1302,36 +1306,10 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
-  const handleNewRoleTemplate = async () => {
-    setCreatingTemplate(true);
-    try {
-      const { data: createData } = await apiRequest("/admin/role-templates", {
-        method: "POST",
-        body: JSON.stringify({
-          name: `template_${Date.now()}`,
-          display_name: "New role template",
-          description: "",
-          permissions: [],
-          is_active: true
-        })
-      });
-
-      const newTemplateId = createData?.id;
-      if (!newTemplateId) {
-        toast.error("Failed to create role template.");
-        setCreatingTemplate(false);
-        return;
-      }
-
-      setCreatingTemplate(false);
-      setEditingTemplateId(newTemplateId);
-      toast.success("New role template created successfully!");
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) {
-      setCreatingTemplate(false);
-      console.error("handleNewRoleTemplate error:", err);
-      toast.error(err.message || "Failed to create role template.");
-    }
+  const handleNewRoleTemplate = () => {
+    // Show modal to get template name/description from user
+    setShowCreateModal(true);
+    setCreateRoleForm({ name: "", description: "" });
   };
 
   return (
