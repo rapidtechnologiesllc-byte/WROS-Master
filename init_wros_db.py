@@ -79,33 +79,11 @@ def init_database():
         else:
             print(f"    [OK] {existing_bus} business units already exist")
 
-        # Create Delivery Centers
-        print("\n[2d] Setting up Delivery Centers...")
-        from app.models.delivery_center import DeliveryCenter
-
-        delivery_centers_data = [
-            {"name": "Bangalore", "code": "BNG", "location": "Bangalore, India"},
-            {"name": "Delhi", "code": "DEL", "location": "Delhi, India"},
-            {"name": "Chennai", "code": "CHN", "location": "Chennai, India"},
-            {"name": "Hyderabad", "code": "HYD", "location": "Hyderabad, India"},
-            {"name": "Remote", "code": "REMOTE", "location": "Remote / Virtual"},
-        ]
-
-        existing_delivery_centers = db.query(DeliveryCenter).filter(DeliveryCenter.tenant_id == tenant_id).count()
-        if existing_delivery_centers == 0:
-            for dc_data in delivery_centers_data:
-                dc = DeliveryCenter(
-                    tenant_id=tenant_id,
-                    name=dc_data["name"],
-                    code=dc_data["code"],
-                    location=dc_data.get("location"),
-                    active=True
-                )
-                db.add(dc)
-            db.commit()
-            print(f"    [OK] Created {len(delivery_centers_data)} delivery centers")
-        else:
-            print(f"    [OK] {existing_delivery_centers} delivery centers already exist")
+        # NOTE: Delivery Centers are NOT hardcoded
+        # They must be created through Admin UI: Users & Access → Delivery Centers
+        print("\n[2d] Delivery Centers")
+        print("    [INFO] Create delivery centers through Admin UI (User & Access → Delivery Centers)")
+        print("    [INFO] Do NOT hardcode - managed by HR team through UI")
 
         # Create users with job titles (role templates will be created via UI)
         print("\n[3] Setting up users...")
