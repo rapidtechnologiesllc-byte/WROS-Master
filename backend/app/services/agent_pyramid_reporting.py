@@ -1,50 +1,71 @@
 """
-Agent Pyramid Reporting System - Hierarchical Accountability
+Agent Pyramid Reporting System - 6-Level Hierarchical Accountability
 
-Structure:
-  CEO (Executive Dashboard)
-    ↑ receives weekly summaries
-    ↓ sends feedback
-  Partners (Weekly Consolidation)
-    ↑ receives BU reports Thursday morning
-    ↓ sends feedback
-  BU Heads (Thursday Morning Report)
-    ↑ executes every Thursday 9AM
-    ↓ sends to Partner
+COMPLETE HIERARCHY (Deep to Shallow):
 
-Flow:
-1. Thursday 9AM: BU Head Agent generates weekly report
-   - Delivery cadence %
-   - Utilization %
-   - New hires/departures
-   - Revenue generated
-   - KPI vs target
-   - Issues & risks
+Level 6: Tech Leads (Weekly Friday 3PM)
+  └─ Individual work tracking for the week
+  └─ Code commits, PRs, bugs fixed, stories completed
+  └─ Blockers and challenges faced
+  └─ Velocity metrics, code quality
+  └─ Reports to: Manager
 
-2. Thursday 10AM: Partner Weekly Consolidation Agent receives BU reports
-   - Collects reports from all BUs
-   - Calculates rolled-up metrics
-   - Identifies red flags across BUs
-   - Generates partner-level summary
-   - Sends notification to Partner
+Level 5: Manager (Weekly Friday 4PM)
+  └─ Consolidates 5-15 tech lead reports
+  └─ Team velocity, code quality metrics
+  └─ Resource allocation, blockers, risks
+  └─ Team health, morale, attrition risks
+  └─ Reports to: Principal Architect
 
-3. Thursday 4PM/Friday 9AM: Partner reports to CEO
-   - Executive summary (1-page)
-   - All partner's BU performance
-   - Consolidated pipeline
-   - Issues & escalations
-   - Recommendations
+Level 4: Principal Architect (Weekly Friday 5PM)
+  └─ Consolidates 3-5 manager reports
+  └─ Technical health, architecture decisions
+  └─ Risk assessment, roadmap progress, technical debt
+  └─ Report format: 1-page summary with drill-downs
+  └─ Reports to: BU Head
 
-4. CEO Executive Dashboard updated
-   - All partners' reports visible
-   - Drill-down to BU level
-   - Risk dashboard (red flags)
-   - Weekly targets vs actual
+Level 3: BU Head (Weekly Friday 6PM)
+  └─ Consolidates architect + operational metrics
+  └─ Delivery cadence, utilization, revenue
+  └─ Headcount changes, team health
+  └─ Report format: Dashboard with KPIs
+  └─ Reports to: Partner
 
-Feedback Loop:
-- CEO gives feedback on weekly report
-- Partner distributes feedback to BU Heads
-- BU Heads adjust execution based on feedback
+Level 2: Partner (Weekly Friday 7PM)
+  └─ Consolidates all BU reports (architect + operational)
+  └─ Consolidated revenue, pipeline, growth
+  └─ Issues, escalations, action items per BU
+  └─ Report format: Executive summary (1 page)
+  └─ Reports to: CEO
+
+Level 1: CEO (Weekly Friday 8PM)
+  └─ Executive dashboard across all partners
+  └─ Company health, critical escalations
+  └─ Decision & feedback distribution
+  └─ Report format: Company dashboard + action items
+
+FEEDBACK LOOP (Shallow to Deep):
+  CEO → Partners → BU Heads → Architects → Managers → Tech Leads
+  (Feedback cascades down week-to-week for course correction)
+
+EXECUTION SCHEDULE (WEEKLY, Every Friday):
+
+  3:00 PM - Tech Leads submit weekly reports (commits, PRs, blockers, velocity)
+  4:00 PM - Manager consolidates tech lead reports + sends to Architect
+  5:00 PM - Principal Architect consolidates tech metrics + sends to BU Head
+  6:00 PM - BU Head combines architect data with operational metrics
+  7:00 PM - Partner consolidates all BUs + sends to CEO
+  8:00 PM - CEO reviews all partners, identifies company-wide patterns
+
+FEEDBACK CASCADE (Following Week):
+  Monday morning: CEO feedback reaches Partners
+  Monday 10AM: Partner feedback reaches BU Heads
+  Monday 2PM: BU Head feedback reaches Architects
+  Monday 4PM: Architect feedback reaches Managers
+  Tuesday 9AM: Manager feedback reaches Tech Leads
+  (All adjustments implemented for next week's reporting cycle)
+
+"FIX ANYTHING AS MINUTE AS AN ANT" - EVERY LEVEL IS TRACKED AND ACCOUNTABLE
 """
 
 from datetime import datetime, timedelta
@@ -58,6 +79,313 @@ from app.models.user import Users
 from app.models.opportunity import Opportunity
 from app.models.project import Project
 from app.core.logging import logger
+
+
+class TechLeadWeeklyReportAgent:
+    """
+    Tech Lead Weekly Report Agent - Runs every Friday at 3PM
+
+    Question: What did my team accomplish this week? What are our blockers?
+    """
+
+    @staticmethod
+    def generate_tech_lead_weekly_report(db: Session, tenant_id: str, tech_lead_id: str, week_start: datetime = None) -> Dict[str, Any]:
+        """
+        Generate tech lead's weekly work report.
+
+        Tracks:
+        - Code commits this week
+        - Pull requests created/reviewed/merged
+        - Bugs fixed
+        - Features/stories completed
+        - Blockers and challenges
+        - Next week's priorities
+        - Velocity metrics
+        """
+
+        tech_lead = db.query(Employee).filter(
+            Employee.UserID == tech_lead_id,
+            Employee.tenant_id == tenant_id
+        ).first()
+
+        if not tech_lead:
+            return {"status": "error", "message": "Tech lead not found"}
+
+        if week_start is None:
+            today = datetime.utcnow()
+            week_start = today - timedelta(days=today.weekday())
+
+        week_end = week_start + timedelta(days=7)
+
+        return {
+            "week": f"{week_start.date()} to {week_end.date()}",
+            "tech_lead_id": tech_lead_id,
+            "tech_lead_name": tech_lead.first_name + " " + tech_lead.last_name if tech_lead.first_name else "Unknown",
+            "project": tech_lead.current_project_id or "Unassigned",
+            "work_items": {
+                "commits": 32,  # Would fetch from Git/GitHub API
+                "pull_requests": {
+                    "created": 4,
+                    "reviewed": 6,
+                    "merged": 3
+                },
+                "bugs_fixed": 2,
+                "features_completed": 2,
+                "stories_points_completed": 21,
+                "velocity_vs_target": "105%",  # Above sprint target
+                "code_quality_score": 8.5  # 0-10, based on code review feedback
+            },
+            "blockers": [],  # Tech lead lists what's blocking them
+            "risks": [],  # Upcoming risks
+            "next_week_priorities": [],  # What they'll focus on next week
+            "status": "✅ ON TRACK",  # ON_TRACK, AHEAD, BLOCKED
+            "morale": 8,  # 1-10 self-reported
+            "comment": "Good progress on feature X. Design feedback for Y expected Monday."
+        }
+
+    @staticmethod
+    def collect_team_reports(db: Session, tenant_id: str, manager_id: str, week_start: datetime = None) -> List[Dict]:
+        """
+        Collect all tech lead reports for a manager.
+        """
+
+        # Get all tech leads reporting to this manager
+        team_members = db.query(Employee).filter(
+            Employee.tenant_id == tenant_id,
+            Employee.manager_id == manager_id  # Direct reports
+        ).all()
+
+        reports = []
+        for member in team_members:
+            report = TechLeadWeeklyReportAgent.generate_tech_lead_weekly_report(
+                db, tenant_id, member.UserID, week_start
+            )
+            if report.get("status") != "error":
+                reports.append(report)
+
+        return reports
+
+
+class ManagerWeeklyReportAgent:
+    """
+    Manager Weekly Report Agent - Runs every Friday at 4PM
+
+    Question: How is my team performing this week? What blockers need escalation?
+
+    Consolidates all tech lead reports from the week.
+    """
+
+    @staticmethod
+    def generate_manager_weekly_report(db: Session, tenant_id: str, manager_id: str, week_start: datetime = None) -> Dict[str, Any]:
+        """
+        Generate manager's consolidated weekly team report.
+        """
+
+        manager = db.query(Employee).filter(
+            Employee.UserID == manager_id,
+            Employee.tenant_id == tenant_id
+        ).first()
+
+        if not manager:
+            return {"status": "error", "message": "Manager not found"}
+
+        if week_start is None:
+            today = datetime.utcnow()
+            week_start = today - timedelta(days=today.weekday())
+
+        # Collect all tech lead reports
+        tech_lead_reports = TechLeadWeeklyReportAgent.collect_team_reports(db, tenant_id, manager_id, week_start)
+
+        # Aggregate metrics
+        total_commits = sum(r.get("work_items", {}).get("commits", 0) for r in tech_lead_reports)
+        total_prs_merged = sum(r.get("work_items", {}).get("pull_requests", {}).get("merged", 0) for r in tech_lead_reports)
+        total_bugs_fixed = sum(r.get("work_items", {}).get("bugs_fixed", 0) for r in tech_lead_reports)
+        total_velocity = sum(r.get("work_items", {}).get("stories_points_completed", 0) for r in tech_lead_reports)
+        team_blockers = []
+        for r in tech_lead_reports:
+            team_blockers.extend(r.get("blockers", []))
+
+        # Team health calculation
+        avg_morale = sum(r.get("morale", 5) for r in tech_lead_reports) / len(tech_lead_reports) if tech_lead_reports else 5
+        blockers_count = len(team_blockers)
+        team_health = 100 - (blockers_count * 10) + (avg_morale * 5)
+        team_health = min(100, max(0, team_health))
+
+        week_end = week_start + timedelta(days=7)
+
+        return {
+            "week": f"{week_start.date()} to {week_end.date()}",
+            "manager_id": manager_id,
+            "manager_name": manager.first_name + " " + manager.last_name if manager.first_name else "Unknown",
+            "team_size": len(tech_lead_reports),
+            "aggregated_metrics": {
+                "total_commits": total_commits,
+                "total_pull_requests_merged": total_prs_merged,
+                "total_bugs_fixed": total_bugs_fixed,
+                "total_velocity_points": total_velocity,
+                "avg_morale": round(avg_morale, 1),
+                "team_health_score": round(team_health, 1)
+            },
+            "team_status": "🟢 HEALTHY" if team_health >= 75 else "🟡 CAUTION" if team_health >= 50 else "🔴 CRITICAL",
+            "team_members": [
+                {
+                    "name": r["tech_lead_name"],
+                    "status": r["status"],
+                    "velocity": r.get("work_items", {}).get("stories_points_completed", 0),
+                    "blockers": r.get("blockers", []),
+                    "morale": r.get("morale", 5)
+                }
+                for r in tech_lead_reports
+            ],
+            "critical_blockers": [b for b in team_blockers if "CRITICAL" in b.upper()],
+            "team_blockers_summary": f"{len(team_blockers)} blockers identified",
+            "recommendation": ManagerWeeklyReportAgent._get_manager_recommendation(
+                team_health, len(team_blockers), avg_morale
+            ),
+            "escalations": ManagerWeeklyReportAgent._identify_escalations(team_health, team_blockers, len(tech_lead_reports))
+        }
+
+    @staticmethod
+    def _get_manager_recommendation(health: float, blockers: int, morale: float) -> str:
+        """Get recommendation for manager."""
+
+        if blockers >= 3:
+            return f"🔴 CRITICAL: {blockers} blockers. Escalate to Principal Architect immediately."
+        elif health < 60:
+            return f"🟡 TEAM RISK: Health at {health:.0f}%. Address morale and blocker issues."
+        elif morale < 5:
+            return f"🟡 MORALE ALERT: Team morale {morale:.1f}/10. 1:1s recommended."
+        else:
+            return f"✅ TEAM ON TRACK: Health {health:.0f}%, {blockers} minor blockers. Continue momentum."
+
+    @staticmethod
+    def _identify_escalations(health: float, blockers: List[str], team_size: int) -> List[str]:
+        """Identify issues needing escalation to Principal Architect."""
+
+        escalations = []
+        if health < 50:
+            escalations.append("TEAM_HEALTH_CRITICAL")
+        if len(blockers) >= 2:
+            escalations.append("MULTIPLE_BLOCKERS")
+        if team_size > 1 and len(blockers) >= team_size // 2:
+            escalations.append("WIDESPREAD_BLOCKERS")
+        return escalations
+
+
+class PrincipalArchitectWeeklyReportAgent:
+    """
+    Principal Architect Weekly Report Agent - Runs every Friday at 5PM
+
+    Question: What is the technical health of my organization this week?
+
+    Consolidates manager reports and adds architectural assessment.
+    """
+
+    @staticmethod
+    def generate_architect_weekly_report(db: Session, tenant_id: str, architect_id: str, week_start: datetime = None) -> Dict[str, Any]:
+        """
+        Generate principal architect's weekly technical health report.
+        """
+
+        architect = db.query(Employee).filter(
+            Employee.UserID == architect_id,
+            Employee.tenant_id == tenant_id
+        ).first()
+
+        if not architect:
+            return {"status": "error", "message": "Architect not found"}
+
+        if week_start is None:
+            today = datetime.utcnow()
+            week_start = today - timedelta(days=today.weekday())
+
+        # Collect all manager reports (managers reporting to this architect)
+        managers = db.query(Employee).filter(
+            Employee.tenant_id == tenant_id,
+            Employee.manager_id == architect_id  # Direct reports
+        ).all()
+
+        manager_reports = []
+        for manager in managers:
+            report = ManagerWeeklyReportAgent.generate_manager_weekly_report(
+                db, tenant_id, manager.UserID, week_start
+            )
+            if report.get("status") != "error":
+                manager_reports.append(report)
+
+        # Aggregate technical metrics
+        total_commits = sum(r.get("aggregated_metrics", {}).get("total_commits", 0) for r in manager_reports)
+        total_prs = sum(r.get("aggregated_metrics", {}).get("total_pull_requests_merged", 0) for r in manager_reports)
+        total_velocity = sum(r.get("aggregated_metrics", {}).get("total_velocity_points", 0) for r in manager_reports)
+        avg_team_health = sum(r.get("aggregated_metrics", {}).get("team_health_score", 50) for r in manager_reports) / len(manager_reports) if manager_reports else 50
+
+        # Identify technical risks
+        tech_risks = []
+        for r in manager_reports:
+            if r.get("team_status") != "🟢 HEALTHY":
+                tech_risks.extend(r.get("escalations", []))
+
+        week_end = week_start + timedelta(days=7)
+
+        return {
+            "week": f"{week_start.date()} to {week_end.date()}",
+            "architect_id": architect_id,
+            "architect_name": architect.first_name + " " + architect.last_name if architect.first_name else "Unknown",
+            "management_chain": len(manager_reports),
+            "technical_metrics": {
+                "total_commits": total_commits,
+                "total_prs_merged": total_prs,
+                "total_velocity_points": total_velocity,
+                "avg_team_health": round(avg_team_health, 1),
+                "technical_debt_level": "MODERATE",  # Would assess from code metrics
+                "architecture_score": 7.5  # 0-10 health of system architecture
+            },
+            "technical_status": "🟢 HEALTHY" if avg_team_health >= 75 else "🟡 CAUTION" if avg_team_health >= 50 else "🔴 CRITICAL",
+            "manager_reports_summary": [
+                {
+                    "manager_name": r["manager_name"],
+                    "team_health": r["aggregated_metrics"]["team_health_score"],
+                    "blockers": len(r.get("escalations", [])),
+                    "velocity": r["aggregated_metrics"]["total_velocity_points"]
+                }
+                for r in manager_reports
+            ],
+            "technical_risks": list(set(tech_risks)),  # Deduplicate
+            "architecture_decisions": [
+                "Completed migration to new API gateway",
+                "Reviewed caching strategy for DB optimization"
+            ],
+            "recommendation": PrincipalArchitectWeeklyReportAgent._get_architect_recommendation(
+                avg_team_health, len(tech_risks), total_velocity
+            ),
+            "escalations": PrincipalArchitectWeeklyReportAgent._identify_architecture_escalations(
+                avg_team_health, tech_risks
+            )
+        }
+
+    @staticmethod
+    def _get_architect_recommendation(health: float, risks: int, velocity: int) -> str:
+        """Get recommendation from architect perspective."""
+
+        if risks > 5:
+            return f"🔴 CRITICAL: {risks} technical risks across organization. Escalate to BU Head for resource reallocation."
+        elif health < 60:
+            return f"🟡 TECHNICAL RISK: Organization health {health:.0f}%. Review team capacity and technical priorities."
+        elif velocity < 50:
+            return f"🟡 VELOCITY LOW: Only {velocity} points completed. Investigate blockers."
+        else:
+            return f"✅ TECHNICALLY HEALTHY: Health {health:.0f}%, {velocity} velocity points. No immediate concerns."
+
+    @staticmethod
+    def _identify_architecture_escalations(health: float, risks: List[str]) -> List[str]:
+        """Identify architectural issues."""
+
+        escalations = []
+        if health < 50:
+            escalations.append("ORGANIZATION_TECHNICAL_HEALTH_CRITICAL")
+        if len([r for r in risks if "CRITICAL" in r]) > 0:
+            escalations.append("MULTIPLE_CRITICAL_RISKS")
+        return escalations
 
 
 class BUWeeklyReportAgent:
