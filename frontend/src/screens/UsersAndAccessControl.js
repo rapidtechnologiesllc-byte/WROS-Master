@@ -28,6 +28,7 @@ import {
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
 import { getHrMe } from "../services/api/users";
+import RoleTemplateEditor from "../components/RoleTemplateEditor";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -1073,33 +1074,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 // ============================================================================
 
 function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
+  const [editorMode, setEditorMode] = useState(null); // 'create', 'edit', or null
+  const [editorTemplateId, setEditorTemplateId] = useState(null);
   const [editingTemplateId, setEditingTemplateId] = useState(null);
-  const [editingTemplate, setEditingTemplate] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
   const [togglingTemplate, setTogglingTemplate] = useState({});
   const [expandedModules, setExpandedModules] = useState({});
-  const [moduleStates, setModuleStates] = useState({});
-
-  // Fetch template details when editingTemplateId changes
-  useEffect(() => {
-    if (editingTemplateId) {
-      const fetchTemplate = async () => {
-        try {
-          const { data } = await apiRequest(`/admin/role-templates/${editingTemplateId}`, {
-            method: "GET"
-          });
-          setEditingTemplate(data || { name: "New Template", description: "", permissions: [] });
-        } catch (err) {
-          console.error("Failed to fetch template:", err);
-          setEditingTemplate({ name: "New Template", description: "", permissions: [] });
-        }
-      };
-      fetchTemplate();
-    } else {
-      setEditingTemplate(null);
-    }
-  }, [editingTemplateId]);
 
   const filteredRoles = useMemo(() => {
     if (!searchTerm) return roles;
@@ -1153,8 +1134,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     });
     return hierarchy;
   };
-
-  const editingPermissions = convertPermissionsToHierarchy(editingTemplate?.permissions || []);
 
   const handleTogglePermission = async (resourceName, verb, currentState) => {
     if (!editingTemplateId) return;
@@ -1251,34 +1230,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   if (loading) return <div className="p-6 text-gray-500">Loading templates...</div>;
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 
-  const handleCreateRole = async () => {
-    if (!createRoleForm.name.trim()) {
-      toast.error("Role name is required.");
-      return;
-    }
-
-    setCreatingTemplate(true);
-    try {
-      await apiRequest("/admin/role-templates", {
-        method: "POST",
-        body: JSON.stringify({
-          name: createRoleForm.name,
-          display_name: createRoleForm.name,
-          description: createRoleForm.description,
-          permissions: []
-        })
-      });
-      toast.success("Role created successfully.");
-      setShowCreateModal(false);
-      setCreateRoleForm({ name: "", description: "" });
-      window.location.reload();
-    } catch (err) {
-      toast.error(err.message || "Failed to create role.");
-    } finally {
-      setCreatingTemplate(false);
-    }
-  };
-
   const handleToggleTemplateStatus = async (templateId, currentStatus) => {
     setTogglingTemplate({ ...togglingTemplate, [templateId]: true });
 
@@ -1307,6 +1258,28 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
+  const handleOpenCreateEditor = () => {
+    setEditorMode('create');
+    setEditorTemplateId(null);
+  };
+
+  const handleOpenEditEditor = (templateId) => {
+    setEditorMode('edit');
+    setEditorTemplateId(templateId);
+  };
+
+  const handleCloseEditor = () => {
+    setEditorMode(null);
+    setEditorTemplateId(null);
+  };
+
+  const handleEditorSuccess = () => {
+    // Refresh roles list after create/edit
+    if (editorMode === 'create') {
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -1316,31 +1289,22 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
+        <button
+          onClick={handleOpenCreateEditor}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+        >
+          + New Role Template
+        </button>
       </div>
 
       {editingTemplateId ? (
         <div className="border rounded-lg p-6 bg-white">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">{editingTemplate?.name}</h3>
-              <p className="text-sm text-gray-600">{editingTemplate?.description}</p>
-              <p className="text-xs text-gray-500 mt-1">{getUserCount(editingTemplateId)} users using this template</p>
-            </div>
-            <button
-              onClick={() => setEditingTemplateId(null)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
+          <div className="bg-gray-50 p-4 border-b">
+            <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions</p>
+            <p className="text-xs text-gray-600">✓ = Enabled | ○ = Disabled</p>
           </div>
 
-          <div className="border rounded-lg bg-white">
-            <div className="bg-gray-50 p-4 border-b">
-              <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions</p>
-              <p className="text-xs text-gray-600">✓ = Enabled | ○ = Disabled</p>
-            </div>
-
-            <div className="divide-y max-h-[600px] overflow-y-auto">
+          <div className="divide-y max-h-[600px] overflow-y-auto">
               {Array.isArray(modules) && modules.length > 0 ? (
                 modules.map((module, moduleIdx) => {
                   const moduleName = typeof module === 'string' ? module : module.name;
@@ -1509,7 +1473,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">{userCount} user{userCount !== 1 ? 's' : ''}</span>
                   <button
-                    onClick={() => setEditingTemplateId(role.id)}
+                    onClick={() => handleOpenEditEditor(role.id)}
                     disabled={!isActive}
                     className={`text-sm font-medium transition ${
                       isActive
@@ -1526,6 +1490,17 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           })}
           </div>
         </>
+      )}
+
+      {/* RoleTemplateEditor Modal */}
+      {editorMode && (
+        <RoleTemplateEditor
+          mode={editorMode}
+          templateId={editorTemplateId}
+          onClose={handleCloseEditor}
+          onSuccess={handleEditorSuccess}
+          modules={modules}
+        />
       )}
     </div>
   );
