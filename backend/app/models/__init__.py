@@ -134,6 +134,7 @@ from app.models.interview_rehire_review import InterviewRehireReview
 from app.models.candidate_desire_signal import CandidateDesireSignal
 from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationContentLibrary, MotivationOutcome
+from app.models.strategic_goal import StrategicGoal, CascadedGoal, PyramidReport
 
 __all__ = [
     # Base
@@ -333,5 +334,9 @@ __all__ = [
     # Proactive Motivation Engine (S-349, 2026-08-05)
     "MotivationContentLibrary",
     "MotivationOutcome",
+    # Strategic Goals & Pyramid Reporting (Flash Validation)
+    "StrategicGoal",
+    "CascadedGoal",
+    "PyramidReport",
 ]
 

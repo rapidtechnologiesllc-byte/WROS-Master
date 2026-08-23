@@ -133,31 +133,104 @@ async def create_strategic_goal(
     if current_user.UserRole != "CEO":
         raise HTTPException(status_code=403, detail="Only CEO can set strategic goals")
 
-    # Create strategic goal
-    goal = StrategicGoal(
-        id=f"goal-{datetime.utcnow().timestamp()}",
+    from app.models.strategic_goal import StrategicGoal as StrategicGoalModel, CascadedGoal
+    import json
+    import uuid
+
+    # Create strategic goal in database
+    goal_id = str(uuid.uuid4())
+    strategic_goal = StrategicGoalModel(
+        id=goal_id,
+        tenant_id=current_user.tenant_id,
         goal_name=goal_create.goal_name,
         goal_type=goal_create.goal_type,
         target_value=goal_create.target_value,
         unit=goal_create.unit,
-        year=goal_create.year
+        year=goal_create.year,
+        created_by_user_id=current_user.UserID,
+        cascade_rules=json.dumps(cascade_rules)
     )
+    db.add(strategic_goal)
+    db.flush()
 
-    # Auto-cascade to departments
-    cascaded = cascade_to_departments(goal, cascade_rules)
+    # Auto-cascade to departments and create cascaded goal records
+    cascaded_records = []
+    cascaded_result = cascade_to_departments(strategic_goal, cascade_rules)
+
+    # Save cascaded goals to database
+    if cascaded_result.get("workforce_ops"):
+        for cascaded_data in (cascaded_result.get("workforce_ops") if isinstance(cascaded_result.get("workforce_ops"), list) else [cascaded_result.get("workforce_ops")]):
+            cascaded_goal = CascadedGoal(
+                id=str(uuid.uuid4()),
+                tenant_id=current_user.tenant_id,
+                strategic_goal_id=goal_id,
+                cascaded_to_department="workforce_ops",
+                annual=cascade_rules.get("workforce_ops", {}).get("target", goal_create.target_value),
+                quarterly=cascade_rules.get("workforce_ops", {}).get("target", goal_create.target_value) / 4,
+                monthly=cascade_rules.get("workforce_ops", {}).get("target", goal_create.target_value) / 12,
+                weekly=cascade_rules.get("workforce_ops", {}).get("target", goal_create.target_value) / 52,
+                daily=cascade_rules.get("workforce_ops", {}).get("target", goal_create.target_value) / 365,
+                cascade_formula="direct_assignment",
+                cascade_detail=json.dumps(cascaded_data)
+            )
+            db.add(cascaded_goal)
+            cascaded_records.append(cascaded_goal)
+
+    # Save partners cascades
+    if cascaded_result.get("partners"):
+        for i, partner_cascade in enumerate(cascaded_result.get("partners", [])):
+            cascaded_goal = CascadedGoal(
+                id=str(uuid.uuid4()),
+                tenant_id=current_user.tenant_id,
+                strategic_goal_id=goal_id,
+                cascaded_to_department="partner",
+                cascaded_to_user_id=partner_cascade.get("partner_id"),
+                annual=partner_cascade.get("annual", 0),
+                quarterly=partner_cascade.get("quarterly", 0),
+                monthly=partner_cascade.get("monthly", 0),
+                weekly=partner_cascade.get("weekly", 0),
+                daily=partner_cascade.get("daily", 0),
+                cascade_formula="divide_equal",
+                cascade_detail=json.dumps(partner_cascade)
+            )
+            db.add(cascaded_goal)
+            cascaded_records.append(cascaded_goal)
+
+    # Save BU head cascades
+    if cascaded_result.get("bu_heads"):
+        for i, bu_cascade in enumerate(cascaded_result.get("bu_heads", [])):
+            cascaded_goal = CascadedGoal(
+                id=str(uuid.uuid4()),
+                tenant_id=current_user.tenant_id,
+                strategic_goal_id=goal_id,
+                cascaded_to_department="bu_head",
+                cascaded_to_business_unit_id=bu_cascade.get("bu_id"),
+                annual=bu_cascade.get("annual", 0),
+                quarterly=bu_cascade.get("quarterly", 0),
+                monthly=bu_cascade.get("monthly", 0),
+                weekly=bu_cascade.get("weekly", 0),
+                daily=bu_cascade.get("daily", 0),
+                cascade_formula="divide_equal",
+                cascade_detail=json.dumps(bu_cascade)
+            )
+            db.add(cascaded_goal)
+            cascaded_records.append(cascaded_goal)
+
+    db.commit()
 
     return {
         "strategic_goal": {
-            "id": goal.id,
-            "name": goal.goal_name,
-            "type": goal.goal_type,
-            "target": goal.target_value,
-            "unit": goal.unit,
-            "year": goal.year,
-            **calculate_timeframe_targets(goal.target_value)
+            "id": goal_id,
+            "name": goal_create.goal_name,
+            "type": goal_create.goal_type,
+            "target": goal_create.target_value,
+            "unit": goal_create.unit,
+            "year": goal_create.year,
+            **calculate_timeframe_targets(goal_create.target_value)
         },
-        "cascaded_to": cascaded,
-        "message": f"Goal '{goal.goal_name}' created and cascaded to all departments"
+        "cascaded_to": cascaded_result,
+        "cascaded_count": len(cascaded_records),
+        "message": f"Goal '{goal_create.goal_name}' created and cascaded to {len(cascaded_records)} departments"
     }
 
 
@@ -168,47 +241,38 @@ async def list_strategic_goals(
     db: Session = Depends(get_db)
 ) -> Dict[str, List[Dict]]:
     """
-    Get all CEO strategic goals for a year.
+    Get all CEO strategic goals for a year from database.
     """
 
-    # Mock data - in production would query database
-    goals = [
-        {
-            "id": "goal-consultants",
-            "name": "Total Consultants",
-            "type": "headcount",
-            "current": 87,
-            "target": 150,
-            "unit": "people",
-            "progress_pct": 58,
-            **calculate_timeframe_targets(150)
-        },
-        {
-            "id": "goal-revenue",
-            "name": "Annual Revenue",
-            "type": "revenue",
-            "current": 3200000,
-            "target": 15000000,
-            "unit": "$",
-            "progress_pct": 21,
-            **calculate_timeframe_targets(15000000)
-        },
-        {
-            "id": "goal-logos",
-            "name": "Managed Services Logos",
-            "type": "logos",
-            "current": 2,
-            "target": 5,
-            "unit": "logos",
-            "progress_pct": 40,
-            **calculate_timeframe_targets(5)
-        }
-    ]
+    from app.models.strategic_goal import StrategicGoal as StrategicGoalModel
+
+    # Query database for strategic goals
+    goals_query = db.query(StrategicGoalModel).filter(
+        StrategicGoalModel.tenant_id == current_user.tenant_id,
+        StrategicGoalModel.year == year
+    ).all()
+
+    goals = []
+    for goal in goals_query:
+        progress_pct = (goal.current_value / goal.target_value * 100) if goal.target_value > 0 else 0
+        goals.append({
+            "id": goal.id,
+            "name": goal.goal_name,
+            "type": goal.goal_type,
+            "current": goal.current_value,
+            "target": goal.target_value,
+            "unit": goal.unit,
+            "progress_pct": round(progress_pct, 1),
+            "created_by": goal.created_by_user_id,
+            "created_at": goal.created_at.isoformat() if goal.created_at else None,
+            **calculate_timeframe_targets(goal.target_value)
+        })
 
     return {
         "year": year,
         "goals": goals,
-        "total_goals": len(goals)
+        "total_goals": len(goals),
+        "source": "database"
     }
 
 
@@ -222,56 +286,70 @@ async def get_cascaded_goals(
     """
     Get cascaded goals for a department.
     Used by Workforce Ops, Sales, Partners, BU Heads to see their targets.
+    Queries database for actual cascaded goals created when CEO set strategic goals.
     """
 
-    # Mock data - cascaded from CEO's "150 consultants" goal
-    if department == "workforce_ops":
-        return {
-            "department": "workforce_ops",
-            "cascaded_from": "Total Consultants",
-            "cascaded_goals": [
-                {
-                    "cascaded_goal_id": "cascade-workforce-001",
-                    "strategic_goal_name": "Total Consultants",
-                    "annual": 150,
-                    "quarterly": 37.5,
-                    "monthly": 12.5,
-                    "weekly": 2.4,
-                    "daily": 0.34,
-                    "current_progress": 87,
-                    "week_num": 33,
-                    "expected_at_week": 95.5,  # (150/52) * 33
-                    "variance": -8.5,  # 87 - 95.5
-                    "status": "SLIGHT_LAG"
-                }
-            ]
-        }
+    from app.models.strategic_goal import CascadedGoal, StrategicGoal as StrategicGoalModel
 
-    # Cascaded from CEO's "$15M revenue" goal
-    if department == "partner":
-        return {
-            "department": "partner",
-            "cascaded_from": "Annual Revenue",
-            "cascaded_goals": [
-                {
-                    "cascaded_goal_id": f"cascade-partner-{i}",
-                    "partner_id": f"partner-{chr(65+i)}",
-                    "strategic_goal_name": "Annual Revenue",
-                    "annual": 5000000,
-                    "quarterly": 1250000,
-                    "monthly": 416667,
-                    "weekly": 96154,
-                    "daily": 13699,
-                    "current_progress": 3200000,
-                    "status": "SLIGHT_LAG"
-                }
-                for i in range(3)
-            ]
-        }
+    # Build query for cascaded goals
+    query = db.query(CascadedGoal).join(
+        StrategicGoalModel, CascadedGoal.strategic_goal_id == StrategicGoalModel.id
+    ).filter(
+        CascadedGoal.tenant_id == current_user.tenant_id,
+        StrategicGoalModel.year == year
+    )
+
+    # Filter by department if specified
+    if department:
+        query = query.filter(CascadedGoal.cascaded_to_department == department)
+
+    cascaded_records = query.all()
+
+    cascaded_goals = []
+    for cascaded in cascaded_records:
+        strategic = cascaded.strategic_goal
+
+        # Calculate week number and expected pace
+        from datetime import datetime
+        week_num = datetime.utcnow().isocalendar()[1]
+        expected_by_week = (cascaded.annual / 52) * week_num
+        variance = cascaded.current_progress - expected_by_week
+
+        # Determine status
+        if variance >= 0:
+            status = "ON_TRACK" if abs(variance) < cascaded.annual * 0.05 else "AHEAD"
+        elif variance > cascaded.annual * -0.10:
+            status = "SLIGHT_LAG"
+        else:
+            status = "CRITICAL_LAG"
+
+        cascaded_goals.append({
+            "cascaded_goal_id": cascaded.id,
+            "strategic_goal_id": cascaded.strategic_goal_id,
+            "strategic_goal_name": strategic.goal_name,
+            "cascaded_to_department": cascaded.cascaded_to_department,
+            "cascaded_to_user_id": cascaded.cascaded_to_user_id,
+            "cascaded_to_business_unit_id": cascaded.cascaded_to_business_unit_id,
+            "annual": cascaded.annual,
+            "quarterly": cascaded.quarterly,
+            "monthly": cascaded.monthly,
+            "weekly": cascaded.weekly,
+            "daily": cascaded.daily,
+            "current_progress": cascaded.current_progress,
+            "progress_pct": round((cascaded.current_progress / cascaded.annual * 100) if cascaded.annual > 0 else 0, 1),
+            "week_num": week_num,
+            "expected_at_week": round(expected_by_week, 2),
+            "variance": round(variance, 2),
+            "status": status,
+            "cascade_formula": cascaded.cascade_formula
+        })
 
     return {
         "department": department or "all",
-        "cascaded_goals": []
+        "year": year,
+        "cascaded_goals": cascaded_goals,
+        "total_cascaded": len(cascaded_goals),
+        "source": "database"
     }
 
 
