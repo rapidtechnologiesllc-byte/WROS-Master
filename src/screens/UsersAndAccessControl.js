@@ -344,14 +344,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       errors.role_ids = "At least one role is required.";
     }
 
-    // Check if any selected roles are BU-scoped (not org-level)
-    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
-    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
-    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
-
-    // Validate BU requirement based on role type
-    if (hasBUScopedRole && !createForm.business_unit_id) {
-      errors.business_unit_id = "Business Unit is required for BU-scoped roles.";
+    // Business Unit is now mandatory for all users
+    if (!createForm.business_unit_id) {
+      errors.business_unit_id = "Business Unit is required.";
     }
 
     // If there are errors, show them and don't proceed
@@ -370,13 +365,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         user_email: createForm.user_email,
         user_password: createForm.user_password,
         job_title: createForm.job_title || "",
+        business_unit_id: parseInt(createForm.business_unit_id, 10),  // Always required now
         role_ids: roleIds.map(id => parseInt(id, 10))
       };
-
-      // Only include BU if it's not an org-level-only user
-      if (!hasOrgLevelRole && createForm.business_unit_id) {
-        payload.business_unit_id = parseInt(createForm.business_unit_id, 10);
-      }
 
       // Include partner if selected
       if (createForm.partner_id) {
@@ -756,28 +747,42 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             </div>
           </div>
 
-          {/* Business Unit Selection (conditional) - MOVED BEFORE Role Template */}
-          {createForm.role_ids && createForm.role_ids.length > 0 &&
-           !createForm.role_ids.some(id => {
-             const role = roles.find(r => r.id === id);
-             return ORG_LEVEL_ROLES.includes(role?.name);
-           }) && (
+          {/* Business Unit Selection - MANDATORY, always visible */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
+            <select
+              value={createForm.business_unit_id}
+              onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select a business unit...</option>
+              {businessUnits.map(bu => (
+                <option key={bu.id} value={bu.id}>
+                  {bu.bu_name || bu.name || `BU ${bu.id}`}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Required - every user must be assigned to a business unit</p>
+          </div>
+
+          {/* Partner Selection - Dependent on Business Unit */}
+          {createForm.business_unit_id && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
               <select
-                value={createForm.business_unit_id}
-                onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
+                value={createForm.partner_id || ""}
+                onChange={(e) => setCreateForm({ ...createForm, partner_id: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
               >
-                <option value="">Select a business unit...</option>
-                {businessUnits.map(bu => (
-                  <option key={bu.id} value={bu.id}>
-                    {bu.bu_name || bu.name || `BU ${bu.id}`}
+                <option value="">No partner assigned</option>
+                {partners.map(partner => (
+                  <option key={partner.id} value={partner.id}>
+                    {partner.name}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
+              <p className="text-xs text-gray-500 mt-1">Optional - select partner associated with this BU</p>
             </div>
           )}
 
