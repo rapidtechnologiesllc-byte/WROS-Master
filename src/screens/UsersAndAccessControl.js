@@ -1180,13 +1180,17 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     );
   }, [roles, searchTerm]);
 
-  // Count users per template - check both role_id (legacy) and role_ids (multi-role)
-  const getUserCount = (roleId) => {
+  // Count users per template - match by template name to find corresponding role
+  const getUserCount = (templateId, templateName) => {
+    // Find the role with matching name (roles are created from template names)
+    const matchingRole = roles?.find(r => r.name === templateName);
+    if (!matchingRole) return 0;
+
     return users.filter(u => {
       // Check new multi-role structure
-      if (Array.isArray(u.role_ids) && u.role_ids.includes(roleId)) return true;
+      if (Array.isArray(u.role_ids) && u.role_ids.includes(matchingRole.id)) return true;
       // Check legacy single-role structure
-      if (u.role_id === roleId) return true;
+      if (u.role_id === matchingRole.id) return true;
       return false;
     }).length;
   };
@@ -1452,7 +1456,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
             <div>
               <h3 className="text-lg font-semibold text-gray-900">{editingTemplate?.name}</h3>
               <p className="text-sm text-gray-600">{editingTemplate?.description}</p>
-              <p className="text-xs text-gray-500 mt-1">{getUserCount(editingTemplateId)} users using this template</p>
+              <p className="text-xs text-gray-500 mt-1">{getUserCount(editingTemplateId, editingTemplate?.name)} users using this template</p>
             </div>
             <button
               onClick={() => setEditingTemplateId(null)}
@@ -1601,7 +1605,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
-            const userCount = getUserCount(role.id);
+            const userCount = getUserCount(role.id, role.name);
             const isActive = role.is_active !== false; // Default to true if not specified
             return (
               <div
