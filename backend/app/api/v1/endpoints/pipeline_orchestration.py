@@ -11,7 +11,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_recruiter
+from app.core.dependencies import get_db, get_current_user
 from app.services.agent_orchestration_service import (
     FlashOrchestrator,
     ThunderAgent,
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline-orchestration"])
 async def start_candidate_pipeline(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Start the 8-agent pipeline for a candidate.
@@ -65,7 +65,7 @@ async def start_candidate_pipeline(
 @router.get("/status")
 async def get_pipeline_status(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Get complete pipeline status - which queues have items, which are clogged.
@@ -97,7 +97,7 @@ async def get_pipeline_status(
 @router.post("/execute-agents")
 async def execute_all_agents(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Execute all 8 agents for 1 cycle.
@@ -175,7 +175,7 @@ async def execute_all_agents(
 async def peek_queue(
     queue_name: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Peek at a specific queue - see what's stuck waiting.
@@ -214,7 +214,7 @@ async def peek_queue(
 @router.get("/run-demo")
 async def run_demo_pipeline(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     DEMO: Show the complete pipeline working end-to-end.
