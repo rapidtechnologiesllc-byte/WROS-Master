@@ -328,13 +328,10 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     // Validate all required fields - collect all errors first
     const errors = {};
 
-    if (!createForm.user_name.trim()) {
-      errors.user_name = "User name is required.";
+    if (!createForm.employee_id) {
+      errors.employee_id = "Must select an employee to create login account.";
     }
-    if (!createForm.user_email.trim()) {
-      errors.user_email = "Email is required.";
-    }
-    if (!createForm.user_password.trim()) {
+    if (!createForm.user_password?.trim()) {
       errors.user_password = "Password is required.";
     }
 
@@ -685,41 +682,77 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         data={filteredUsers}
       />
 
-      {/* Create User Modal - LOGIN & RBAC ONLY */}
+      {/* Create User Modal - LINK TO EXISTING EMPLOYEE */}
       <SimpleModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Create User"
+        title="Create User Login"
       >
         <div className="space-y-4 max-h-[65vh] overflow-y-auto">
           <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-            Note: This form creates login credentials and assigns roles only. Employee details (position, reporting manager, delivery center) are added separately.
+            Rule: All users must link to existing employees. Select an employee without a login to create their user account.
           </p>
 
-          {/* Name */}
-          <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_name ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Name *</label>
-            <input
-              type="text"
-              placeholder="John Doe"
-              value={createForm.user_name || ""}
-              onChange={(e) => { setCreateForm({ ...createForm, user_name: e.target.value }); if (createFormErrors.user_name) setCreateFormErrors({...createFormErrors, user_name: null}); }}
-              className="w-full bg-transparent outline-none text-sm"
-            />
-            {createFormErrors.user_name && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_name}</p>}
+          {/* Select Existing Employee (without user) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
+            <select
+              value={createForm.employee_id || ""}
+              onChange={(e) => {
+                const empId = e.target.value;
+                // Auto-populate name and email from selected employee
+                const selectedEmp = employees.find(emp => emp.id === empId);
+                if (selectedEmp) {
+                  setCreateForm({
+                    ...createForm,
+                    employee_id: empId,
+                    user_name: `${selectedEmp.first_name} ${selectedEmp.last_name}`,
+                    user_email: selectedEmp.email,
+                    business_unit_id: selectedEmp.business_unit_id || ""
+                  });
+                  setCreateFormErrors({});
+                }
+              }}
+              className={`w-full px-3 py-2 border rounded-md text-sm ${
+                createFormErrors.employee_id ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
+              required
+            >
+              <option value="">Select an employee...</option>
+              {employees
+                .filter(emp => !emp.user_id && emp.id) // Only show employees without users
+                .map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.first_name} {emp.last_name} ({emp.email})
+                  </option>
+                ))}
+            </select>
+            {createFormErrors.employee_id && <p className="text-xs text-red-600 mt-1">{createFormErrors.employee_id}</p>}
+            {employees.filter(emp => !emp.user_id).length === 0 && (
+              <p className="text-xs text-orange-600 mt-1">No employees without users. Create employees first via Employee Onboarding.</p>
+            )}
           </div>
 
-          {/* Email */}
-          <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Email *</label>
+          {/* Name (Auto-populated, readonly) */}
+          <div className="border rounded-xl px-3 py-2 bg-gray-50 border-gray-300">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Employee Name (Auto-populated)</label>
+            <input
+              type="text"
+              value={createForm.user_name || ""}
+              readOnly
+              className="w-full bg-transparent outline-none text-sm text-gray-600"
+            />
+          </div>
+
+          {/* Email (Auto-populated, readonly) */}
+          <div className="border rounded-xl px-3 py-2 bg-gray-50 border-gray-300">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Email (Auto-populated)</label>
             <input
               type="email"
-              placeholder="john@example.com"
               value={createForm.user_email || ""}
-              onChange={(e) => { setCreateForm({ ...createForm, user_email: e.target.value }); if (createFormErrors.user_email) setCreateFormErrors({...createFormErrors, user_email: null}); }}
-              className="w-full bg-transparent outline-none text-sm"
+              readOnly
+              className="w-full bg-transparent outline-none text-sm text-gray-600"
             />
-            {createFormErrors.user_email && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_email}</p>}
           </div>
 
           {/* Password */}
@@ -735,22 +768,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             {createFormErrors.user_password && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_password}</p>}
           </div>
 
-          {/* Business Unit */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
-            <select
-              value={createForm.business_unit_id}
-              onChange={(e) => setCreateForm({ ...createForm, business_unit_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select a business unit...</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>
-                  {bu.bu_name || bu.name || `BU ${bu.id}`}
-                </option>
-              ))}
-            </select>
+          {/* Business Unit (Auto-populated from employee, readonly) */}
+          <div className="border rounded-xl px-3 py-2 bg-gray-50 border-gray-300">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Business Unit (Auto-populated)</label>
+            <input
+              type="text"
+              value={businessUnits.find(bu => bu.id === createForm.business_unit_id)?.bu_name || ""}
+              readOnly
+              className="w-full bg-transparent outline-none text-sm text-gray-600"
+            />
           </div>
 
           {/* Role Template */}
@@ -762,7 +788,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
                 setCreateForm({ ...createForm, role_ids: roleId ? [roleId] : [] });
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md text-sm ${
+                createFormErrors.role_ids ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
               required
             >
               <option value="">Select a role template...</option>
@@ -775,6 +803,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 );
               })}
             </select>
+            {createFormErrors.role_ids && <p className="text-xs text-red-600 mt-1">{createFormErrors.role_ids}</p>}
           </div>
 
           {/* Org-level access indicator */}
