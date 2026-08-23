@@ -119,6 +119,7 @@ class Employee(Base):
 
     bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     manager_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    delivery_center_id = Column(Integer, ForeignKey("delivery_centers.id"), nullable=True, index=True)
 
     # Organizational hierarchy position (links to org_nodes for approval chains, role-based access)
     org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
@@ -168,6 +169,7 @@ class Employee(Base):
     manager = relationship("Employee", remote_side=[id], foreign_keys=[manager_id])
     # OrgNode relationship for approval chains and role-based access
     org_node = relationship("OrgNode", foreign_keys=[org_node_id])
+    delivery_center = relationship("DeliveryCenter", back_populates="employees", foreign_keys=[delivery_center_id])
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "employee_number", name="uq_employee_number_per_tenant"),

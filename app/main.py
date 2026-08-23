@@ -199,6 +199,10 @@ assert_all_routes_have_permission_declarations(
         "POST /msgraph/calendar/schedule",
         "POST /msgraph/mail/send",
         "GET /rbac/modules-and-verbs",
+        "GET /delivery-centers",
+        "GET /delivery-centers/{delivery_center_id}",
+        "GET /partners",
+        "GET /partners/{partner_id}",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")

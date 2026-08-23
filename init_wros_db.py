@@ -79,36 +79,8 @@ def init_database():
         else:
             print(f"    [OK] {existing_bus} business units already exist")
 
-        # Create Partners
-        print("\n[2d] Setting up Partners...")
-        from app.models.partner import Partner
-
-        partners_data = [
-            {"name": "Accenture", "code": "ACN", "contact_email": "contact@accenture.com"},
-            {"name": "TCS", "code": "TCS", "contact_email": "contact@tcs.com"},
-            {"name": "Infosys", "code": "INFY", "contact_email": "contact@infosys.com"},
-            {"name": "Cognizant", "code": "COGNIZANT", "contact_email": "contact@cognizant.com"},
-            {"name": "Wipro", "code": "WIPRO", "contact_email": "contact@wipro.com"},
-        ]
-
-        existing_partners = db.query(Partner).filter(Partner.tenant_id == tenant_id).count()
-        if existing_partners == 0:
-            for partner_data in partners_data:
-                partner = Partner(
-                    tenant_id=tenant_id,
-                    name=partner_data["name"],
-                    code=partner_data["code"],
-                    contact_email=partner_data.get("contact_email"),
-                    active=True
-                )
-                db.add(partner)
-            db.commit()
-            print(f"    [OK] Created {len(partners_data)} partners")
-        else:
-            print(f"    [OK] {existing_partners} partners already exist")
-
         # Create Delivery Centers
-        print("\n[2e] Setting up Delivery Centers...")
+        print("\n[2d] Setting up Delivery Centers...")
         from app.models.delivery_center import DeliveryCenter
 
         delivery_centers_data = [
@@ -139,14 +111,14 @@ def init_database():
         print("\n[3] Setting up users...")
 
         test_users = [
-            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "job_title": "CEO"},
-            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "job_title": "Admin"},
-            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "job_title": "HR Manager"},
+            {"email": "am@blitzenx.com", "password": "Am!123", "name": "Avinash Mukund", "job_title": "CEO"},
+            {"email": "admin@blitzenx.com", "password": "Admin!123", "name": "Admin User", "job_title": "Admin"},
+            {"email": "test@blitzenx.com", "password": "Test!123", "name": "Test User", "job_title": "HR Manager"},
             {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "job_title": "Super User"},
-            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "job_title": "Recruiter"},
-            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "job_title": "Recruiter"},
-            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "job_title": "HR Manager"},
-            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "job_title": "HR Manager"},
+            {"email": "recruiter1@blitzenx.com", "password": "Recruiter!123", "name": "John Recruiter", "job_title": "Recruiter"},
+            {"email": "recruiter2@blitzenx.com", "password": "Recruiter!123", "name": "Jane Recruiter", "job_title": "Recruiter"},
+            {"email": "hr1@blitzenx.com", "password": "HR!123", "name": "HR Manager 1", "job_title": "HR Manager"},
+            {"email": "hr2@blitzenx.com", "password": "HR!123", "name": "HR Manager 2", "job_title": "HR Manager"},
         ]
 
         created_count = 0
