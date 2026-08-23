@@ -298,13 +298,20 @@ def create_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create a new business unit (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    # Check permissions (RBAC-aware)
+    # Check for old role-based system or new RBAC
+    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
+                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
+
+    if not is_super_user:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
 
     # Validate input
     if not req.name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business Unit name is required")
+
+    # Determine tenant_id (default to 1 if None)
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
 
     new_bu = BusinessUnit(
         bu_name=req.name,
@@ -312,7 +319,7 @@ def create_business_unit(
         description=req.description,
         region=req.region,
         continent=req.continent,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+        tenant_id=tenant_id
     )
 
     db.add(new_bu)
@@ -333,9 +340,12 @@ def update_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update business unit (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    # Check permissions (RBAC-aware)
+    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
+                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
+
+    if not is_super_user:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
     if not bu:
@@ -368,8 +378,11 @@ def delete_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete business unit (Super User only)."""
-    # Check permissions - Super User only
-    if not (current_user.UserRole and current_user.UserRole.lower() == "super user"):
+    # Check permissions - Super User only (RBAC-aware)
+    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
+                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
+
+    if not is_super_user:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
