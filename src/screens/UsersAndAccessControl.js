@@ -730,7 +730,18 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
               <select
                 value={createForm.job_title || ""}
-                onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
+                onChange={(e) => {
+                  const jobTitle = e.target.value;
+                  setCreateForm({ ...createForm, job_title: jobTitle });
+                  // Auto-select role template if job title has one mapped
+                  const positionWithTemplate = positions.find(p => p.name === jobTitle);
+                  if (positionWithTemplate?.role_template_id) {
+                    setCreateForm(prev => ({
+                      ...prev,
+                      role_ids: [positionWithTemplate.role_template_id]
+                    }));
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select a job title...</option>
@@ -745,32 +756,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             </div>
           </div>
 
-          {/* Role Template Selection (required) - Dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
-            <select
-              value={createForm.role_ids?.[0] || ""}
-              onChange={(e) => {
-                const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
-                setCreateForm({ ...createForm, role_ids: roleId ? [roleId] : [] });
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select a role template...</option>
-              {roles.filter(role => (role.name !== "Super User" || role.id) && (role.is_active !== false)).map(role => {
-                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
-                return (
-                  <option key={role.id} value={role.id}>
-                    {role.name} {isOrgLevel ? "(Org-level)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
-          </div>
-
-          {/* Business Unit Selection (conditional) */}
+          {/* Business Unit Selection (conditional) - MOVED BEFORE Role Template */}
           {createForm.role_ids && createForm.role_ids.length > 0 &&
            !createForm.role_ids.some(id => {
              const role = roles.find(r => r.id === id);
@@ -794,6 +780,31 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
             </div>
           )}
+
+          {/* Role Template Selection (required) - Dropdown - MOVED AFTER Business Unit */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
+            <select
+              value={createForm.role_ids?.[0] || ""}
+              onChange={(e) => {
+                const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
+                setCreateForm({ ...createForm, role_ids: roleId ? [roleId] : [] });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select a role template...</option>
+              {roles.filter(role => (role.name !== "Super User" || role.id) && (role.is_active !== false)).map(role => {
+                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
+                return (
+                  <option key={role.id} value={role.id}>
+                    {role.name} {isOrgLevel ? "(Org-level)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
+          </div>
 
           {/* Org-level access indicator */}
           {createForm.role_ids && createForm.role_ids.length > 0 &&
@@ -1133,6 +1144,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [moduleStates, setModuleStates] = useState({});
   const [createTemplatePermissions, setCreateTemplatePermissions] = useState({});
   const [createTemplateModuleStates, setCreateTemplateModuleStates] = useState({});
+  const [createTemplateExpandedModules, setCreateTemplateExpandedModules] = useState({});
 
   // Fetch template details when editingTemplateId changes
   useEffect(() => {
@@ -1163,9 +1175,15 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     );
   }, [roles, searchTerm]);
 
-  // Count users per template
+  // Count users per template - check both role_id (legacy) and role_ids (multi-role)
   const getUserCount = (roleId) => {
-    return users.filter(u => u.role_id === roleId).length;
+    return users.filter(u => {
+      // Check new multi-role structure
+      if (Array.isArray(u.role_ids) && u.role_ids.includes(roleId)) return true;
+      // Check legacy single-role structure
+      if (u.role_id === roleId) return true;
+      return false;
+    }).length;
   };
 
   // Convert flat permission list to hierarchical structure { module: { verb: true } }
@@ -1681,13 +1699,13 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                       <div key={`module_${idx}`}>
                         <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
                           <button
-                            onClick={() => setCreateTemplateModuleStates(prev => ({
+                            onClick={() => setCreateTemplateExpandedModules(prev => ({
                               ...prev,
                               [moduleName]: !prev[moduleName]
                             }))}
                             className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded"
                           >
-                            <span className="text-gray-600">{isEnabled ? '▼' : '▶'}</span>
+                            <span className="text-gray-600">{createTemplateExpandedModules[moduleName] ? '▼' : '▶'}</span>
                             <h4 className="font-semibold text-gray-900 capitalize">{moduleName}</h4>
                           </button>
                           <div className="flex gap-2">
@@ -1710,7 +1728,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                           </div>
                         </div>
 
-                        {resources.length > 0 && (
+                        {resources.length > 0 && createTemplateExpandedModules[moduleName] && (
                           <div className="divide-y">
                             {resources.map(resource => {
                               const resName = resource.name || resource.resource_name;
@@ -2205,6 +2223,7 @@ function OrganizationalHierarchySection() {
   const [editOrgNodeBusinessUnit, setEditOrgNodeBusinessUnit] = useState("");
   const [editOrgNodeLocation, setEditOrgNodeLocation] = useState("");
   const [newPositionName, setNewPositionName] = useState("");
+  const [newPositionRoleTemplate, setNewPositionRoleTemplate] = useState("");
   const [isSubmittingOrgNode, setIsSubmittingOrgNode] = useState(false);
 
   useEffect(() => {
@@ -2265,8 +2284,13 @@ function OrganizationalHierarchySection() {
   const handleAddPosition = (e) => {
     e.preventDefault();
     if (newPositionName.trim()) {
-      setPositions([...positions, { id: Math.max(...positions.map(p => p.id), 0) + 1, name: newPositionName }]);
+      setPositions([...positions, {
+        id: Math.max(...positions.map(p => p.id), 0) + 1,
+        name: newPositionName,
+        role_template_id: newPositionRoleTemplate ? parseInt(newPositionRoleTemplate) : null
+      }]);
       setNewPositionName("");
+      setNewPositionRoleTemplate("");
       setShowAddPositionModal(false);
       toast.success("Position added");
     }
@@ -2375,9 +2399,20 @@ function OrganizationalHierarchySection() {
                 placeholder="Enter new position name"
                 className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
               />
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Role Template (Optional)</label>
+                <select
+                  value={newPositionRoleTemplate}
+                  onChange={(e) => setNewPositionRoleTemplate(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">No role template</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Optionally assign a role template to this position</p>
+              </div>
               <div className="flex gap-2 justify-end">
                 <button
-                  onClick={() => setShowAddPositionModal(false)}
+                  onClick={() => { setShowAddPositionModal(false); setNewPositionRoleTemplate(""); }}
                   className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
                 >
                   Cancel
