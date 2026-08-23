@@ -11,9 +11,10 @@
     {
       "name": "Frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start", "--", "--port", "3000"],
+      "runtimeArgs": ["start"],
       "port": 3000,
-      "autoPort": false
+      "autoPort": true,
+      "url": "http://localhost:3000"
     },
     {
       "name": "Career Site",

@@ -1,0 +1,148 @@
+.permission-validation {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.validation-status {
+  padding: 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.validation-status.valid {
+  background: #efe;
+  border: 1px solid #3a3;
+  color: #3a3;
+}
+
+.validation-status.invalid {
+  background: #faa;
+  border: 1px solid #c33;
+  color: #c33;
+}
+
+.status-icon {
+  font-size: 18px;
+}
+
+.validation-section {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.validation-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.validation-section.conflicts {
+  border-left: 4px solid #c33;
+}
+
+.validation-section.redundant {
+  border-left: 4px solid #ffa500;
+}
+
+.validation-section.warnings {
+  border-left: 4px solid #ffa500;
+}
+
+.conflicts-list,
+.redundant-list,
+.warnings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conflict-item,
+.redundant-item,
+.warning-item {
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #1a1a1a;
+}
+
+.redundant-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-remove {
+  background: none;
+  border: 1px solid #e0e0e0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-remove:hover {
+  background: #fee;
+  border-color: #c33;
+  color: #c33;
+}
+
+code {
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #c33;
+}
+
+.section-help {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: #999;
+}
+
+.validation-success {
+  background: #efe;
+  border: 1px solid #3a3;
+  border-radius: 6px;
+  padding: 24px;
+  text-align: center;
+}
+
+.success-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.validation-success h4 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #3a3;
+}
+
+.validation-success p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.validation-empty {
+  padding: 16px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
