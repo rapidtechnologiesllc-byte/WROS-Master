@@ -692,8 +692,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               <input
                 type="text"
                 placeholder="John Doe"
-                value={createForm.user_name}
-                onChange={(val) => { setCreateForm({ ...createForm, user_name: val }); if (createFormErrors.user_name) setCreateFormErrors({...createFormErrors, user_name: null}); }}
+                value={createForm.user_name || ""}
+                onChange={(e) => { setCreateForm({ ...createForm, user_name: e.target.value }); if (createFormErrors.user_name) setCreateFormErrors({...createFormErrors, user_name: null}); }}
                 className="w-full bg-transparent outline-none text-sm"
               />
               {createFormErrors.user_name && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_name}</p>}
@@ -705,8 +705,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             <input
               type="email"
               placeholder="john@example.com"
-              value={createForm.user_email}
-              onChange={(val) => { setCreateForm({ ...createForm, user_email: val }); if (createFormErrors.user_email) setCreateFormErrors({...createFormErrors, user_email: null}); }}
+              value={createForm.user_email || ""}
+              onChange={(e) => { setCreateForm({ ...createForm, user_email: e.target.value }); if (createFormErrors.user_email) setCreateFormErrors({...createFormErrors, user_email: null}); }}
               className="w-full bg-transparent outline-none text-sm"
             />
             {createFormErrors.user_email && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_email}</p>}
@@ -717,8 +717,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             <input
               type="password"
               placeholder="••••••••"
-              value={createForm.user_password}
-              onChange={(val) => { setCreateForm({ ...createForm, user_password: val }); if (createFormErrors.user_password) setCreateFormErrors({...createFormErrors, user_password: null}); }}
+              value={createForm.user_password || ""}
+              onChange={(e) => { setCreateForm({ ...createForm, user_password: e.target.value }); if (createFormErrors.user_password) setCreateFormErrors({...createFormErrors, user_password: null}); }}
               className="w-full bg-transparent outline-none text-sm"
             />
             {createFormErrors.user_password && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_password}</p>}
