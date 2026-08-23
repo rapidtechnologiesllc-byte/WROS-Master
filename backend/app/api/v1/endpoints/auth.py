@@ -33,6 +33,7 @@ from app.core.mfa import (
     role_requires_mfa,
 )
 from app.services.email_service import EmailService
+from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
@@ -193,6 +194,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     # via /auth/mfa/email/resend instead of blocking login.
                     pass
 
+            # Get user permissions for frontend navigation
+            user_permissions = RoleTemplatePermissionService.get_user_permissions(
+                db, user.UserID, user.tenant_id
+            )
+
             return UnifiedLoginResponse(
                 entity_type="user",
                 access_token=pending_token,
@@ -200,6 +206,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 user_role=user_role,
                 user_name=user.UserName or "",
                 user_email=user.UserEmail,
+                permissions=user_permissions,
                 mfa_required=bool(user.mfa_enabled) if totp_gate else False,
                 mfa_setup_required=(not bool(user.mfa_enabled)) if totp_gate else False,
                 email_otp_required=email_otp_gate,
@@ -214,6 +221,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             }
         )
 
+        # Get user permissions for frontend navigation
+        user_permissions = RoleTemplatePermissionService.get_user_permissions(
+            db, user.UserID, user.tenant_id
+        )
+
         return UnifiedLoginResponse(
             entity_type="user",
             access_token=access_token,
@@ -221,6 +233,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
+            permissions=user_permissions,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
