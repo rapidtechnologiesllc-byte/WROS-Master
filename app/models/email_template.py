@@ -1,6 +1,6 @@
 """Email Template Models for dynamic candidate stage progression emails."""
 
-from sqlalchemy import Column, String, Text, DateTime, UUID, Enum
+from sqlalchemy import Column, String, Text, DateTime, UUID, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -49,7 +49,7 @@ class EmailDelivery(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     candidate_id = Column(UUID(as_uuid=True), nullable=False)
-    template_id = Column(UUID(as_uuid=True), nullable=False)
+    template_id = Column(UUID(as_uuid=True), ForeignKey("email_templates.id"), nullable=False)
     
     stage = Column(String(50), nullable=False)
     recipient_email = Column(String(255), nullable=False)
