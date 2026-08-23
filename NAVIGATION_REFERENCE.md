@@ -11,8 +11,8 @@
 
 **COMPLETE authoritative mapping of all modules, resources, and screens in WROS.**
 
-- **11 Modules**
-- **72 Resources** (every screen built in the frontend)
+- **12 Modules**
+- **76 Resources** (every screen built in the frontend)
 - **All navigation controlled by backend database**
 - **Personal resources mandatory for all users**
 
@@ -154,7 +154,20 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 10: Admin (3 resources)
+## Module 10: Executive Dashboards (4 resources)
+
+| Resource | Route | Purpose |
+|----------|-------|---------|
+| CEO Dashboard View | `/ceo-fy-progress` | CEO view of progress tracking |
+| CFO Dashboard View | `/cfo-dashboard` | CFO view of financial metrics |
+| Partner Dashboard View | `/troy-partner-dashboard` | Partner view of performance |
+| BU Head Dashboard View | `/bu-head-dashboard` | BU head view of operations |
+
+**Purpose**: Allows CEOs and administrators to preview and understand what each executive dashboard looks like, aiding in dashboard understanding and training.
+
+---
+
+## Module 11: Admin (3 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
@@ -170,7 +183,7 @@ All users automatically get VIEW access to these resources in every role.
 
 ---
 
-## Module 11: AI & Automation (5 resources)
+## Module 12: AI & Automation (5 resources)
 
 | Resource | Route | Purpose |
 |----------|-------|---------|
@@ -265,10 +278,12 @@ These are added to EVERY role template on initialization.
 
 ## Summary
 
-✅ **72 resources across 11 modules**  
+✅ **76 resources across 12 modules**  
 ✅ **Every built screen mapped**  
 ✅ **Unbuilt screens removed (Tasks, Forecast vs Actual)**  
 ✅ **Resources reorganized to correct modules**  
+✅ **Executive Dashboards restored (CEO preview feature)**  
+✅ **Fake/duplicate modules deleted**  
 ✅ **Personal resources mandatory**  
 ✅ **Database matches frontend**  
 ✅ **Single source of truth established**
