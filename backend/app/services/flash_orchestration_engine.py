@@ -27,8 +27,10 @@ from app.models.opportunity import Opportunity
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
+from app.models.candidate import Candidate
 from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
+from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.performance_store_service import write_performance_event
 
 
@@ -97,6 +99,22 @@ class FlashOrchestrationEngine:
                 tenant_id=tenant_id,
                 db=db
             )
+
+            # 1b. RELATION BUILDING AGENT - Extract personas for recent candidates
+            recent_candidates = db.query(Candidate).filter(
+                Candidate.tenant_id == tenant_id,
+                Candidate.created_at >= datetime.now() - timedelta(days=1)
+            ).all()
+
+            candidate_relationships = []
+            for candidate in recent_candidates[:50]:  # Max 50 per day to avoid overload
+                persona_result = await RelationBuildingAgent.extract_candidate_persona(
+                    candidate_id=candidate.candidateID,
+                    tenant_id=tenant_id,
+                    db=db
+                )
+                if persona_result["status"] == "success":
+                    candidate_relationships.append(persona_result)
 
             # Get all business units (partners)
             business_units = db.query(BusinessUnit).filter(
@@ -223,6 +241,11 @@ class FlashOrchestrationEngine:
                     "recommendation": "CEO review and guidance needed on which partners to support with HTD hiring or resource redistribution.",
                 }
 
+            # Analyze candidate relationship quality
+            candidate_relationship_summary = FlashOrchestrationEngine._summarize_candidate_relationships(
+                candidate_relationships
+            )
+
             # Log this coordination round to performance store
             write_performance_event(
                 db,
@@ -233,7 +256,9 @@ class FlashOrchestrationEngine:
                     "partners_with_directives": len(partner_directives),
                     "critical_alerts": critical_count,
                     "high_alerts": high_count,
+                    "candidates_processed": len(candidate_relationships),
                     "ceo_escalation_required": ceo_escalation is not None,
+                    "candidate_relationship_quality": candidate_relationship_summary.get("avg_engagement"),
                 },
             )
 
@@ -246,14 +271,80 @@ class FlashOrchestrationEngine:
                     "partners_requiring_action": len(partner_directives),
                     "critical_alerts": critical_count,
                     "high_alerts": high_count,
+                    "candidates_processed": len(candidate_relationships),
                 },
                 "partner_directives": partner_directives,
+                "candidate_relationship_intelligence": candidate_relationship_summary,
                 "ceo_escalation": ceo_escalation,
                 "flash_message": generate_flash_summary(partner_directives, critical_count, high_count),
             }
 
         except Exception as e:
             raise
+
+    @staticmethod
+    def _summarize_candidate_relationships(candidate_results: List[Dict]) -> Dict[str, Any]:
+        """
+        Summarize candidate relationship intelligence for Flash coordination.
+
+        Analyzes:
+        - Overall engagement readiness of candidate pool
+        - Risk factor distribution
+        - Skill depth across pool
+        - Recommended engagement strategies
+        """
+        if not candidate_results:
+            return {
+                "candidates_processed": 0,
+                "avg_engagement": "N/A",
+                "risk_distribution": {},
+                "summary": "No recent candidates to analyze",
+            }
+
+        engagements = [r["persona"]["engagement_readiness"] for r in candidate_results if "persona" in r]
+        career_levels = [r["persona"]["career_level"] for r in candidate_results if "persona" in r]
+
+        # Engagement distribution
+        engagement_dist = {
+            "high": len([e for e in engagements if e == "high"]),
+            "medium": len([e for e in engagements if e == "medium"]),
+            "low": len([e for e in engagements if e == "low"]),
+        }
+
+        # Career level distribution
+        career_dist = {}
+        for level in ["entry", "mid", "senior", "lead", "principal"]:
+            career_dist[level] = len([c for c in career_levels if c == level])
+
+        # Average engagement
+        total = sum(engagement_dist.values())
+        if total > 0:
+            high_pct = (engagement_dist["high"] / total) * 100
+            avg_engagement = "high" if high_pct >= 60 else "medium" if high_pct >= 30 else "low"
+        else:
+            avg_engagement = "unknown"
+
+        # Risk distribution
+        all_risks = []
+        for result in candidate_results:
+            if "persona" in result:
+                all_risks.extend(result["persona"].get("risk_factors", []))
+
+        risk_dist = {}
+        for risk in all_risks:
+            risk_dist[risk] = risk_dist.get(risk, 0) + 1
+
+        return {
+            "candidates_processed": len(candidate_results),
+            "avg_engagement": avg_engagement,
+            "engagement_distribution": engagement_dist,
+            "career_level_distribution": career_dist,
+            "risk_factor_distribution": risk_dist,
+            "high_engagement_candidates": engagement_dist.get("high", 0),
+            "candidates_needing_nurture": engagement_dist.get("low", 0),
+            "summary": f"Pool: {len(candidate_results)} candidates. Engagement: {high_pct:.0f}% high. "
+                      f"Career mix: {career_dist}. Top risks: {list(risk_dist.keys())[:3]}",
+        }
 
 
 def generate_flash_summary(directives: List[Dict], critical: int, high: int) -> str:
