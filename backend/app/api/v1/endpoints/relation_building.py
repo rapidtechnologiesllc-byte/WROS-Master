@@ -229,3 +229,172 @@ async def get_agent_metrics(
             "accuracy_improvement_trend": "N/A",
         },
     }
+
+
+# ============== INTERACTION TRACKING ENDPOINTS ==============
+# These are called by other systems to update persona continuously
+
+@router.post("/interactions/email/{candidate_id}")
+async def capture_email_interaction(
+    candidate_id: str,
+    email_text: str,
+    direction: str,  # "sent" or "received"
+    subject: str = "",
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Capture email interaction and update candidate persona.
+
+    Called by: Email service after sending/receiving candidate emails
+    Updates: Email sentiment, engagement level, objections, interest level
+    """
+    try:
+        result = await RelationBuildingAgent.capture_email_interaction(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            email_text=email_text,
+            direction=direction,
+            subject=subject,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Email interaction capture error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error capturing email interaction")
+
+
+@router.post("/interactions/whatsapp/{candidate_id}")
+async def capture_whatsapp_interaction(
+    candidate_id: str,
+    message_text: str,
+    direction: str,  # "sent" or "received"
+    response_time_seconds: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Capture WhatsApp/SMS interaction and update candidate persona.
+
+    Called by: WhatsApp/SMS service after sending/receiving messages
+    Updates: Message sentiment, response speed, enthusiasm level
+    """
+    try:
+        result = await RelationBuildingAgent.capture_whatsapp_interaction(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            message_text=message_text,
+            direction=direction,
+            response_time_seconds=response_time_seconds,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"WhatsApp interaction capture error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error capturing WhatsApp interaction")
+
+
+@router.post("/interactions/ai-recruiter/{candidate_id}")
+async def capture_ai_recruiter_conversation(
+    candidate_id: str,
+    conversation_text: str,
+    conversation_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Capture AI Recruiter (Thunder) conversation and update persona.
+
+    Called by: Thunder/AI Recruiter after conversation completion
+    Updates: Stated preferences, constraints, interest level, engagement quality
+    """
+    try:
+        result = await RelationBuildingAgent.capture_ai_recruiter_conversation(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            conversation_text=conversation_text,
+            conversation_data=conversation_data,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"AI Recruiter conversation capture error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error capturing AI Recruiter conversation")
+
+
+@router.post("/interactions/interview/{candidate_id}")
+async def capture_interview_feedback(
+    candidate_id: str,
+    interview_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Capture interview feedback and update candidate persona.
+
+    Called by: Interview service after feedback is submitted
+    Updates: Panel recommendation, enthusiasm, cultural fit, engagement readiness
+    """
+    try:
+        result = await RelationBuildingAgent.capture_interview_feedback(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            interview_data=interview_data,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Interview feedback capture error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error capturing interview feedback")
+
+
+@router.post("/interactions/offer/{candidate_id}")
+async def capture_offer_response(
+    candidate_id: str,
+    offer_response_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Capture offer response and update candidate persona.
+
+    Called by: Offer service when candidate responds to offer
+    Updates: Acceptance/rejection, negotiation, enthusiasm, engagement readiness
+    """
+    try:
+        result = await RelationBuildingAgent.capture_offer_response(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            offer_response_data=offer_response_data,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Offer response capture error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error capturing offer response")
+
+
+@router.post("/interactions/joining/{candidate_id}")
+async def capture_joining_signals(
+    candidate_id: str,
+    joining_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """
+    Capture joining signals and update candidate persona.
+
+    Called by: Onboarding/Joining service during joining process
+    Updates: Document submission speed, engagement level, early performance signals
+    """
+    try:
+        result = await RelationBuildingAgent.capture_joining_signals(
+            candidate_id=candidate_id,
+            tenant_id=current_user.UserID,
+            db=db,
+            joining_data=joining_data,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Joining signals capture error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error capturing joining signals")

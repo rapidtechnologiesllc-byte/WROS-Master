@@ -31,6 +31,7 @@ from app.models.candidate import Candidate
 from app.services.resume_parser_slm import ResumeSLM
 from app.services.candidate_memory_service import upsert_fact, get_memory
 from app.services.performance_store_service import write_performance_event
+from app.services.relation_building_interaction_tracker import InteractionTracker
 
 
 class RelationBuildingAgent:
@@ -469,6 +470,101 @@ class RelationBuildingAgent:
             db.rollback()
 
         return facts_count
+
+    @staticmethod
+    async def capture_email_interaction(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        email_text: str,
+        direction: str,  # "sent" or "received"
+        subject: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Capture email interaction and update persona continuously.
+        Called by: Email service whenever candidate sends/receives email
+        """
+        return await InteractionTracker.track_email_interaction(
+            candidate_id, tenant_id, db, email_text, direction, subject
+        )
+
+    @staticmethod
+    async def capture_whatsapp_interaction(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        message_text: str,
+        direction: str,  # "sent" or "received"
+        response_time_seconds: int = None,
+    ) -> Dict[str, Any]:
+        """
+        Capture WhatsApp/SMS interaction and update persona continuously.
+        Called by: WhatsApp/SMS service whenever candidate sends/receives message
+        """
+        return await InteractionTracker.track_whatsapp_interaction(
+            candidate_id, tenant_id, db, message_text, direction, response_time_seconds
+        )
+
+    @staticmethod
+    async def capture_ai_recruiter_conversation(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        conversation_text: str,
+        conversation_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Capture AI Recruiter (Thunder) conversation and update persona.
+        Called by: Thunder/AI Recruiter after conversation completion
+        """
+        return await InteractionTracker.track_ai_recruiter_conversation(
+            candidate_id, tenant_id, db, conversation_text, conversation_data
+        )
+
+    @staticmethod
+    async def capture_interview_feedback(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        interview_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Capture interview feedback and update persona.
+        Called by: Interview service after feedback is submitted
+        """
+        return await InteractionTracker.track_interview_feedback(
+            candidate_id, tenant_id, db, interview_data
+        )
+
+    @staticmethod
+    async def capture_offer_response(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        offer_response_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Capture offer response and update persona.
+        Called by: Offer service when candidate responds to offer
+        """
+        return await InteractionTracker.track_offer_response(
+            candidate_id, tenant_id, db, offer_response_data
+        )
+
+    @staticmethod
+    async def capture_joining_signals(
+        candidate_id: str,
+        tenant_id: str,
+        db: Session,
+        joining_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Capture joining signals and update persona.
+        Called by: Onboarding/Joining service during joining process
+        """
+        return await InteractionTracker.track_joining_signals(
+            candidate_id, tenant_id, db, joining_data
+        )
 
     @staticmethod
     async def report_to_flash(
