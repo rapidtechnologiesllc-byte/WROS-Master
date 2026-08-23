@@ -141,6 +141,18 @@ def create_employee(
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
     fields = {}
+
+    # Organizational hierarchy
+    if body.org_node_id is not None:
+        fields["org_node_id"] = body.org_node_id
+    if body.reporting_manager_id is not None:
+        fields["manager_id"] = body.reporting_manager_id  # FK to Employee
+    if body.delivery_center_id is not None:
+        fields["delivery_center_id"] = body.delivery_center_id
+    if body.business_unit_id is not None:
+        fields["business_unit_id"] = body.business_unit_id
+
+    # Optional fields
     if body.current_title is not None:
         fields["current_title"] = body.current_title
     if body.current_skills is not None:
