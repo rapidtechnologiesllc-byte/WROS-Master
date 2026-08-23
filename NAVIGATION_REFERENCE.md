@@ -134,28 +134,31 @@ The navigation menu consists of:
 
 ---
 
-## SUB-PAGES (NOT in navigation menu)
+## SUB-PAGES (Accessed FROM Resources, NOT in navigation menu)
 
-These pages are accessed FROM resource views, not shown in sidebar:
+### Recruitment Module Sub-Pages
+| Module | Screen | Sub Page | URL | Route Key |
+|--------|--------|----------|-----|-----------|
+| Recruitment | Candidates | Add Candidate | `/candidates/create` | CANDIDATE_CREATE |
+| Recruitment | Candidates | Candidate Details | `/candidates/details` | CANDIDATE_DETAILS |
+| Recruitment | Jobs | Create Job | `/jobs/create` | JOB_CREATE |
+| Recruitment | Jobs | Job Details | `/jobs/details` | JOB_DETAILS |
+| Recruitment | Jobs | Job Workspace | `/jobs/workspace` | JOB_WORKSPACE |
+| Recruitment | Offer Letters | Offer Details | `/offers-listing` | OFFERS_LISTING |
 
-### From Candidates Resource
-- `/candidates/create` - Add new candidate (button within Candidates view)
-- `/candidates/details` - View candidate details (click on candidate row)
+### Workforce Module Sub-Pages
+| Module | Screen | Sub Page | URL | Route Key |
+|--------|--------|----------|-----|-----------|
+| Workforce | Buddy Program | Buddy Record Details | `/buddy-program/{recordId}` | BUDDY_PROGRAM |
 
-### From Jobs Resource
-- `/jobs/create` - Create new job (button within Jobs view)
-- `/jobs/details` - View job details (click on job row)
-- `/jobs/workspace` - Job workspace (accessed from job details)
-
-### From Buddy Program Resource
-- `/buddy-program/{recordId}` - Individual buddy record
-
-### From Users & Access Control Resource
-- `/admin/users-access-control/users` - Users tab (URL param, not separate nav item)
-- `/admin/users-access-control/business-units` - Business Units tab
-- `/admin/users-access-control/delivery-centers` - Delivery Centers tab
-- `/admin/users-access-control/organizational-hierarchy` - Org Hierarchy tab
-- `/admin/users-access-control/role-templates` - Role Templates tab
+### Admin Module Sub-Pages (Tabs within Users & Access Control)
+| Module | Screen | Sub Page (Tab) | URL | Route Key |
+|--------|--------|--------|-----|-----------|
+| Admin | Users & Access Control | Users Tab | `/admin/users-access-control/users` | USERS_ACCESS_CONTROL_USERS |
+| Admin | Users & Access Control | Business Units Tab | `/admin/users-access-control/business-units` | USERS_ACCESS_CONTROL_BUSINESS_UNITS |
+| Admin | Users & Access Control | Delivery Centers Tab | `/admin/users-access-control/delivery-centers` | USERS_ACCESS_CONTROL_DELIVERY_CENTERS |
+| Admin | Users & Access Control | Organizational Hierarchy Tab | `/admin/users-access-control/organizational-hierarchy` | USERS_ACCESS_CONTROL_ORG_HIERARCHY |
+| Admin | Users & Access Control | Role Templates Tab | `/admin/users-access-control/role-templates` | USERS_ACCESS_CONTROL_ROLE_TEMPLATES |
 
 ---
 
