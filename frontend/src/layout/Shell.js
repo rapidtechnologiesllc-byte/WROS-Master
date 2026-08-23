@@ -201,6 +201,12 @@ const NAV_PERMISSIONS = {
   // Dashboard/Agent Screens
   ceoFyProgress: "reports.view",
   cfoDashboard: "reports.view",
+
+  // AI & Automation Module
+  askThunder: "ask-thunder",
+  thunderAnalyticsAI: "thunder-analytics",
+  askFlash: "ask-flash",
+  aiCoaching: "ai-coaching",
 };
 
 export default function Shell({

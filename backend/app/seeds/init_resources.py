@@ -42,6 +42,9 @@ MODULES_AND_RESOURCES = {
         "configuration", "api-keys", "webhooks", "audit-logs",
         "error-logs", "system-health", "slm-dashboard", "slm-training-data"
     ],
+    "AI & Automation": [
+        "ask-thunder", "thunder-analytics", "ask-flash", "ai-coaching"
+    ],
 }
 
 # Resource-specific route paths (custom routes for certain resources)
@@ -50,6 +53,10 @@ RESOURCE_ROUTES = {
     "users-access-control": "admin/users-access-control",
     "slm-dashboard": "admin/slm-dashboard",
     "slm-training-data": "admin/slm-training-data",
+    "ask-thunder": "ai/thunder",
+    "thunder-analytics": "ai/thunder-analytics",
+    "ask-flash": "ai/flash",
+    "ai-coaching": "ai/coaching",
 }
 
 
