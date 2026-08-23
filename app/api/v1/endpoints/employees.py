@@ -72,6 +72,7 @@ from app.services.employee_service import (
     create_employee_profile,
     generate_employee_number,
 )
+from app.services.email_service import EmailService
 from app.utils.uniq_id_generator import user_id_generator, generate_password
 from app.services.performance_store_service import (
     get_performance_events,
@@ -200,6 +201,20 @@ def create_employee(
             db.add(new_user)
             db.flush()
             employee.user_id = new_user.UserID  # Link employee to user
+
+            # Send email with auto-generated password
+            try:
+                EmailService.send_login_credentials(
+                    candidate_email=body.email,
+                    candidate_name=f"{body.first_name} {body.last_name}".strip(),
+                    login_email=body.email,
+                    password=auto_password,
+                    portal_link="https://hrms.blitzenx.com/"
+                )
+            except Exception as e:
+                # Log error but don't fail the user creation
+                from app.core.logging import logger
+                logger.error(f"Failed to send password email to {body.email}: {str(e)}")
         else:
             employee.user_id = existing_user.UserID
 
