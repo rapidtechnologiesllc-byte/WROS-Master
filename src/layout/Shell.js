@@ -298,7 +298,26 @@ export default function Shell({
   useEffect(() => {
     const loadNavigation = async () => {
       // Fetch pre-built navigation from backend (already filtered by user permissions)
-      const navGroups = await fetchNavigationFromBackend();
+      let navGroups = await fetchNavigationFromBackend();
+
+      // Deduplicate groups with the same label - merge items from duplicate groups
+      // (backend may return multiple groups with same label; frontend consolidates them)
+      const groupsByLabel = {};
+      navGroups.forEach(group => {
+        if (!groupsByLabel[group.label]) {
+          groupsByLabel[group.label] = { ...group, items: [...(group.items || [])] };
+        } else {
+          // Merge items from duplicate groups, avoiding duplicates by key
+          const existingKeys = new Set(groupsByLabel[group.label].items.map(i => i.key));
+          group.items?.forEach(item => {
+            if (!existingKeys.has(item.key)) {
+              groupsByLabel[group.label].items.push(item);
+              existingKeys.add(item.key);
+            }
+          });
+        }
+      });
+      navGroups = Object.values(groupsByLabel);
 
       // Filter out "Role Templates" - should only be accessible via Users & Access Control tabs
       const filteredGroups = navGroups.map(group => ({
@@ -307,7 +326,10 @@ export default function Shell({
       })).filter(group => group.items.length > 0 || !group.label.includes('Admin')); // Remove empty Admin group
 
       setNav({ standalone: [], groups: filteredGroups });
-      console.debug("Navigation loaded:", { groupCount: filteredGroups.length });
+      console.debug("Navigation loaded:", {
+        groupCount: filteredGroups.length,
+        deduplicationNote: `Merged ${navGroups.length} backend groups into ${filteredGroups.length} frontend groups`
+      });
     };
 
     loadNavigation();
