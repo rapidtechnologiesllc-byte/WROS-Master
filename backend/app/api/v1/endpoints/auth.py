@@ -96,8 +96,23 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
 
     return SignupResponse(response="User created successfully")
     
+@router.post("/validate-email")
+def validate_email(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Validate if an email exists in the system (User or Candidate).
+    Returns {exists: true/false} so frontend can show appropriate error.
+    """
+    email = request.email.strip().lower()
 
+    user = check_user(db, email)
+    if user:
+        return {"exists": True, "type": "user"}
 
+    candidate = check_candidate(db, email)
+    if candidate:
+        return {"exists": True, "type": "candidate"}
+
+    return {"exists": False}
 
 
 @router.post("/login", response_model=UnifiedLoginResponse)

@@ -1,6 +1,15 @@
 // Auth API wrappers for HR/admin and candidate login flows.
 import { apiRequest, getApiBaseUrl } from "./client";
 
+export const validateEmail = async (email) => {
+  const { data } = await apiRequest("/auth/validate-email", {
+    method: "POST",
+    skipAuth: true,
+    body: JSON.stringify({ email })
+  });
+  return data;
+};
+
 export const login = async (payload) => {
   const { data } = await apiRequest("/auth/login", {
     method: "POST",

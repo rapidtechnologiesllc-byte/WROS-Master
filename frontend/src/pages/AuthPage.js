@@ -9,6 +9,7 @@ import {
   resendStaffEmailOtp,
   setCandidateEmail2faOptIn,
   setupMfa,
+  validateEmail,
   verifyCandidateEmailOtp,
   verifyMfa,
   verifyStaffEmailOtp,
@@ -47,14 +48,28 @@ export default function AuthPage() {
   const [staffOtpCode, setStaffOtpCode] = useState("");
   const [staffOtpNotice, setStaffOtpNotice] = useState("");
 
-  const handleNext = (event) => {
+  const handleNext = async (event) => {
     event.preventDefault();
     setError("");
-    if (!String(loginForm.UserEmail || "").trim()) {
+    const email = String(loginForm.UserEmail || "").trim();
+    if (!email) {
       setError("Email is required.");
       return;
     }
-    setStep("password");
+
+    setLoading(true);
+    try {
+      const result = await validateEmail(email);
+      if (result?.exists) {
+        setStep("password");
+      } else {
+        setError("User not found. Please check your email and try again.");
+      }
+    } catch (err) {
+      setError(err.message || "Unable to validate email. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getCurrentUser = async () => {
