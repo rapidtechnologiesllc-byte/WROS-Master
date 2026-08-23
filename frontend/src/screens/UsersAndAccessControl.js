@@ -1078,9 +1078,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
   const [togglingTemplate, setTogglingTemplate] = useState({});
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createRoleForm, setCreateRoleForm] = useState({ name: "", description: "" });
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [expandedModules, setExpandedModules] = useState({});
   const [moduleStates, setModuleStates] = useState({});
 
@@ -1310,12 +1307,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
-  const handleNewRoleTemplate = () => {
-    // Show modal to get template name/description from user
-    setShowCreateModal(true);
-    setCreateRoleForm({ name: "", description: "" });
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -1325,14 +1316,6 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        <Button
-          onClick={handleNewRoleTemplate}
-          disabled={creatingTemplate}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          {creatingTemplate ? "Creating..." : "New role template"}
-        </Button>
       </div>
 
       {editingTemplateId ? (
