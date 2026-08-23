@@ -9,7 +9,7 @@ Example: DATABASE_URL=postgresql://postgres:password@localhost:5432/wros_dev
 
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 
 # Load environment configuration
@@ -46,6 +46,13 @@ _engine_kwargs = {
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
+
+# Configure app_schema for PostgreSQL
+@event.listens_for(engine, "connect")
+def receive_connect(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("SET search_path TO app_schema")
+    cursor.close()
 
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
