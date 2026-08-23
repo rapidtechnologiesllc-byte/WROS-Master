@@ -586,9 +586,19 @@ class PartnerWeeklyConsolidationAgent:
     """
 
     @staticmethod
-    def generate_partner_weekly_consolidation(db: Session, tenant_id: str, partner_id: str) -> Dict[str, Any]:
+    def generate_partner_weekly_consolidation(db: Session, tenant_id: str, partner_id: str, annual_goal_usd: int = 5000000) -> Dict[str, Any]:
         """
         Generate consolidated weekly report for Partner (all BUs).
+
+        Tracks weekly progress against annual goal.
+        Example: Partner annual goal = $5M = $96.2K/week needed to stay on pace
+
+        Shows:
+        - This week's revenue
+        - YTD revenue (all weeks so far this year)
+        - Annual target
+        - Weekly pace needed vs actual
+        - Status: ON_PACE, AHEAD, BEHIND
         """
 
         partner = db.query(Users).filter(
@@ -626,6 +636,32 @@ class PartnerWeeklyConsolidationAgent:
         avg_util = sum(b["metrics"]["utilization"]["value"] for b in bu_reports) / len(bu_reports) if bu_reports else 0
         consolidated_health = (avg_delivery * 0.4 + avg_util * 0.3 + (total_revenue / 50000) * 0.3)
 
+        # Annual Goal Tracking
+        today = datetime.utcnow()
+        days_into_year = today.timetuple().tm_yday
+        weeks_into_year = days_into_year // 7
+        weeks_remaining = (365 - days_into_year) // 7
+
+        # YTD Revenue (all weeks so far)
+        # For now, assume current week is representative
+        ytd_revenue = total_revenue * weeks_into_year
+        expected_revenue_by_today = (annual_goal_usd / 365) * days_into_year
+        weekly_pace_needed = annual_goal_usd / 52
+
+        # Pace calculation
+        pace_pct = (ytd_revenue / expected_revenue_by_today * 100) if expected_revenue_by_today > 0 else 0
+        progress_pct = (ytd_revenue / annual_goal_usd * 100) if annual_goal_usd > 0 else 0
+
+        # Status
+        if pace_pct >= 100:
+            pace_status = "🟢 ON PACE"
+        elif pace_pct >= 80:
+            pace_status = "🟡 SLIGHT LAG"
+        elif pace_pct >= 60:
+            pace_status = "🟡 FALLING BEHIND"
+        else:
+            pace_status = "🔴 CRITICAL MISS"
+
         return {
             "week": bu_reports[0]["week"] if bu_reports else "N/A",
             "partner_id": partner_id,
@@ -635,40 +671,65 @@ class PartnerWeeklyConsolidationAgent:
             "consolidated_metrics": {
                 "avg_delivery_cadence": round(avg_delivery, 1),
                 "avg_utilization": round(avg_util, 1),
-                "total_revenue": f"${total_revenue:,.0f}",
+                "total_revenue_this_week": f"${total_revenue:,.0f}",
                 "total_opportunities": total_opps,
                 "health_status": "🟢 HEALTHY" if consolidated_health >= 75 else "🟡 CAUTION" if consolidated_health >= 50 else "🔴 CRITICAL"
+            },
+            "annual_goal_tracking": {
+                "annual_target": f"${annual_goal_usd:,.0f}",
+                "weekly_pace_needed": f"${weekly_pace_needed:,.0f}",
+                "ytd_revenue": f"${ytd_revenue:,.0f}",
+                "progress_pct": round(progress_pct, 1),
+                "pace_pct": round(pace_pct, 1),
+                "pace_status": pace_status,
+                "weeks_completed": weeks_into_year,
+                "weeks_remaining": weeks_remaining,
+                "on_track": "YES" if pace_pct >= 100 else "NO"
             },
             "bu_reports": bu_reports,
             "escalations": list(set(escalations)),  # Deduplicate
             "recommendation": PartnerWeeklyConsolidationAgent._get_partner_recommendation(
-                consolidated_health, total_revenue, total_opps, len(escalations)
+                consolidated_health, total_revenue, total_opps, len(escalations), pace_pct
             ),
             "action_items": PartnerWeeklyConsolidationAgent._generate_action_items(
-                bu_reports, escalations
+                bu_reports, escalations, pace_pct
             )
         }
 
     @staticmethod
-    def _get_partner_recommendation(health: float, revenue: float, opps: int, escalation_count: int) -> str:
+    def _get_partner_recommendation(health: float, revenue: float, opps: int, escalation_count: int, pace_pct: float = 100) -> str:
         """Get recommendation for Partner on what to do."""
 
-        if escalation_count >= 3:
+        if pace_pct < 60:
+            return f"🔴 CRITICAL PACE: On-pace for ${revenue * 52:,.0f} annual (target ${revenue * 52 * (100/pace_pct):,.0f}). URGENT: Increase revenue activity."
+        elif escalation_count >= 3:
             return f"🔴 CRITICAL: {escalation_count} major escalations this week. Emergency coordination call required."
         elif health < 60:
             return f"🟡 OVERALL CAUTION: Consolidated health score {health:.0f}. Review BU strategies and resource allocation."
+        elif pace_pct < 80:
+            return f"🟡 PACE BEHIND: {pace_pct:.0f}% of target pace. Increase deal flow and close rates."
         elif opps < 3:
             return f"🟡 SALES PIPELINE WEAK: Only {opps} opportunities added across all BUs. Need sales activity boost."
         elif revenue > 50000:
-            return f"✅ STRONG WEEK: ${revenue:,.0f} revenue + {opps} new opportunities. Maintain momentum."
+            return f"✅ STRONG WEEK: ${revenue:,.0f} revenue + {opps} new opportunities. Maintaining pace."
         else:
             return f"✅ ON TRACK: All BUs performing within targets. Continue current execution."
 
     @staticmethod
-    def _generate_action_items(bu_reports: List[Dict], escalations: List[str]) -> List[Dict]:
+    def _generate_action_items(bu_reports: List[Dict], escalations: List[str], pace_pct: float = 100) -> List[Dict]:
         """Generate specific action items for Partner."""
 
         actions = []
+
+        # If behind on annual pace, this is TOP priority
+        if pace_pct < 100:
+            actions.append({
+                "priority": "CRITICAL",
+                "item": f"Annual goal pace at {pace_pct:.0f}%",
+                "action": f"Increase revenue velocity. Current pace misses annual target. Review pipeline and deal stages.",
+                "owner": "Partner",
+                "due_date": "This week"
+            })
 
         # If any BU delivery < 85%, create action
         for bu_report in bu_reports:
@@ -679,7 +740,7 @@ class PartnerWeeklyConsolidationAgent:
                     "bu": bu_report["bu_name"],
                     "action": f"Address delivery miss ({delivery:.0f}%). Review project schedule & resource plan.",
                     "owner": f"BU Head - {bu_report['bu_name']}",
-                    "due_date": "2026-08-30"  # Next Friday
+                    "due_date": "Next Friday"
                 })
 
         # If escalations exist, prioritize
