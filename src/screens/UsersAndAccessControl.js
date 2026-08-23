@@ -322,7 +322,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const selectedUser = users.find(u => u.user_id === selectedUserId);
 
   const handleCreate = async () => {
-    // Use email as username (email-based login)
+    // Validate all required fields
+    if (!createForm.user_name.trim()) {
+      toast.error("User name is required.");
+      return;
+    }
     if (!createForm.user_email.trim()) {
       toast.error("Email is required.");
       return;
@@ -359,7 +363,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     setBusy(true);
     try {
       const payload = {
-        user_name: createForm.user_email,
+        user_name: createForm.user_name,
         user_email: createForm.user_email,
         user_password: createForm.user_password,
         job_title: createForm.job_title || "",
