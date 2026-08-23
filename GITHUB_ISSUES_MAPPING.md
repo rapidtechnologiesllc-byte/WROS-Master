@@ -173,13 +173,58 @@ This document maps all open issues from CLAUDE.md to GitHub issues for centraliz
 
 ---
 
-## NEXT STEPS
+## BACKLOG EPICS (Recently Created)
 
-- [ ] Install GitHub CLI (gh) for programmatic issue creation
-- [ ] Create all GitHub issues from this mapping
-- [ ] Add GitHub issue numbers back to this file
-- [ ] Update CLAUDE.md and backend/CLAUDE.md with GitHub issue links
-- [ ] Set up automation to sync changes between documentation and GitHub
+### EPIC-06-HM-SCREENING: Hiring Manager Validation Questions
+- **GitHub Issue:** #51
+- **Status:** DESIGN PHASE - Ready for implementation
+- **Severity:** High
+- **Effort:** 4-6 weeks
+
+### EPIC-07-CAREERS-PORTAL-FRONTEND: Production Grade Career Portal
+- **GitHub Issue:** #58
+- **Status:** MVP DEPLOYED - Needs production hardening
+- **Severity:** High
+- **Effort:** 5 weeks
+
+### THUNDER-SYSTEM: Autonomous Candidate Journey (Phase 3B)
+- **GitHub Issue:** #53
+- **Status:** PARTIALLY COMPLETE - Phase 3B Pending
+- **Severity:** Critical
+- **Effort:** 2-3 weeks
+
+### INTERVIEW-REGROUPING: Group by Job/Round with Rehire Guards
+- **GitHub Issue:** #54
+- **Status:** DESIGN PHASE
+- **Severity:** Medium
+- **Effort:** 2-3 weeks
+
+### RESUME-UPLOAD: Resume Upload & Attachment Functionality
+- **GitHub Issue:** #55
+- **Status:** DESIGN PHASE
+- **Severity:** Medium
+- **Effort:** 2-3 weeks
+
+### CANDIDATE-PORTAL-STRATEGY: JobDiva Integration & Portal Mapping
+- **GitHub Issue:** #56
+- **Status:** DESIGN PHASE - Strategy undefined
+- **Severity:** Medium
+- **Effort:** 3-4 weeks
+
+### HISTORICAL-TRACKING: Year-over-Year Goal Analytics
+- **GitHub Issue:** #57
+- **Status:** DESIGN PHASE
+- **Severity:** Low
+- **Effort:** 2-3 weeks
+
+---
+
+## AUTOMATION STATUS
+
+✅ **FULLY AUTONOMOUS** - All issues created and added to project board via GitHub API
+- No manual GitHub UI steps
+- All backlog items now trackable
+- CLAUDE.md references GitHub issues
 
 ---
 
