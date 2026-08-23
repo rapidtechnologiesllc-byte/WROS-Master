@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 
-# All modules and their resources
+# All modules and their resources (with optional route_path for custom routes)
 MODULES_AND_RESOURCES = {
     "Admin": ["admin-settings", "users", "roles-permissions", "organization"],
     "Recruitment": [
@@ -40,8 +40,14 @@ MODULES_AND_RESOURCES = {
     ],
     "System": [
         "configuration", "api-keys", "webhooks", "audit-logs",
-        "error-logs", "system-health"
+        "error-logs", "system-health", "slm-dashboard", "slm-training-data"
     ],
+}
+
+# Resource-specific route paths (custom routes for certain resources)
+RESOURCE_ROUTES = {
+    "slm-dashboard": "/settings/slm-dashboard",
+    "slm-training-data": "/settings/slm-training-data",
 }
 
 
@@ -86,17 +92,21 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
                 print(f"    ✓ Resource: {resource_name}")
                 continue
 
+            # Use custom route if defined, otherwise use default /{resource_name}
+            route_path = RESOURCE_ROUTES.get(resource_name, f"/{resource_name.replace('_', '-')}")
+
             resource = Resource(
                 module_id=module.id,
-                name=resource_name,
+                name=resource_name.replace("-", "_"),  # Store with underscores for consistency
                 display_name=resource_name.replace("-", " ").title(),
+                route_path=route_path,
                 description=f"{resource_name} resource",
                 enabled=True,
                 tenant_id=tenant_id
             )
             db.add(resource)
             resource_count += 1
-            print(f"    + Resource: {resource_name}")
+            print(f"    + Resource: {resource_name} → {route_path}")
 
     db.commit()
     print(f"\nCreated {resource_count} resources\n")

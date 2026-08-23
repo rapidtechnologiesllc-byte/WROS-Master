@@ -43,6 +43,8 @@ def get_icon_for_resource(resource_name: str) -> str:
         "ceo_dashboard": "TrendingUp", "cfo_dashboard": "BarChart3",
         # Engagement
         "thunder_chat": "MessageCircle", "documents": "File", "tasks": "CheckSquare",
+        # SLM (Self-Learning Model)
+        "slm_dashboard": "Zap", "slm_training_data": "Database",
     }
     return icon_map.get(resource_name, "Briefcase")
 
