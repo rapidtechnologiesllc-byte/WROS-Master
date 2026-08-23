@@ -226,51 +226,83 @@ class EmailService:
         old_stage: str,
         new_stage: str,
         job_title: str = "Opportunity",
+        candidate_id: str = None,
+        db_session=None,
         **kwargs
     ) -> bool:
         """
         Send candidate stage progression email.
 
         Stages: APPLIED, SCREENING, INTERVIEW, OFFER, HIRED, REJECTED
+        Loads template from database if available, falls back to hardcoded templates.
+        Tracks email delivery in database.
         """
         try:
+            import uuid
+            from datetime import datetime
+
             token = EmailService._get_token()
 
-            # Build subject and HTML based on stage transition
+            # Stage mapping to database stage names
+            stage_map = {
+                "SCREENING": "screening",
+                "INTERVIEW": "interview",
+                "OFFER": "offer",
+                "HIRED": "hired",
+                "REJECTED": "rejected",
+            }
+
+            db_stage = stage_map.get(new_stage)
+            if not db_stage:
+                logger.warning(f"Unknown stage: {new_stage}")
+                return False
+
+            # Try to load template from database
             subject = ""
             html_body = ""
 
-            if new_stage == "SCREENING":
-                subject = f"Your Application for {job_title} - BlitzenX"
-                html_body = EmailService._candidate_stage_screening_html(candidate_name, job_title)
+            if db_session:
+                try:
+                    from app.models.email_template import EmailTemplate
+                    template = db_session.query(EmailTemplate).filter(
+                        EmailTemplate.stage == db_stage
+                    ).first()
 
-            elif new_stage == "INTERVIEW":
-                subject = f"Interview Invitation for {job_title} - BlitzenX"
-                html_body = EmailService._candidate_stage_interview_html(
-                    candidate_name,
-                    job_title,
-                    kwargs.get("interview_round")
-                )
+                    if template:
+                        subject = template.subject.replace("[Candidate Name]", candidate_name).replace("[Job Title]", job_title)
+                        html_body = template.body_html.replace("[Candidate Name]", candidate_name).replace("[Job Title]", job_title)
+                except Exception as e:
+                    logger.warning(f"Failed to load template from database: {str(e)}")
 
-            elif new_stage == "OFFER":
-                subject = f"Job Offer for {job_title} - BlitzenX"
-                html_body = EmailService._candidate_stage_offer_html(candidate_name, job_title)
+            # Fall back to hardcoded templates if not found
+            if not subject or not html_body:
+                if new_stage == "SCREENING":
+                    subject = f"Your Application for {job_title} - BlitzenX"
+                    html_body = EmailService._candidate_stage_screening_html(candidate_name, job_title)
 
-            elif new_stage == "HIRED":
-                subject = f"Welcome to BlitzenX!"
-                html_body = EmailService._candidate_stage_hired_html(
-                    candidate_name,
-                    job_title,
-                    start_date=kwargs.get("start_date")
-                )
+                elif new_stage == "INTERVIEW":
+                    subject = f"Interview Invitation for {job_title} - BlitzenX"
+                    html_body = EmailService._candidate_stage_interview_html(
+                        candidate_name,
+                        job_title,
+                        kwargs.get("interview_round")
+                    )
 
-            elif new_stage == "REJECTED":
-                subject = f"Update on Your Application for {job_title} - BlitzenX"
-                html_body = EmailService._candidate_stage_rejected_html(candidate_name, job_title)
+                elif new_stage == "OFFER":
+                    subject = f"Job Offer for {job_title} - BlitzenX"
+                    html_body = EmailService._candidate_stage_offer_html(candidate_name, job_title)
 
-            else:
-                # Unknown stage, don't send
-                return False
+                elif new_stage == "HIRED":
+                    subject = f"Welcome to BlitzenX!"
+                    html_body = EmailService._candidate_stage_hired_html(
+                        candidate_name,
+                        job_title,
+                        start_date=kwargs.get("start_date")
+                    )
+
+                elif new_stage == "REJECTED":
+                    subject = f"Update on Your Application for {job_title} - BlitzenX"
+                    html_body = EmailService._candidate_stage_rejected_html(candidate_name, job_title)
 
             # Send email via Microsoft Graph
             payload = {
@@ -301,10 +333,52 @@ class EmailService:
             endpoint = "https://graph.microsoft.com/v1.0/me/sendMail"
             EmailService._graph_post(endpoint, payload, token)
 
+            # Track email delivery in database
+            if db_session and candidate_id:
+                try:
+                    from app.models.email_template import EmailDelivery
+                    delivery = EmailDelivery(
+                        id=uuid.uuid4(),
+                        candidate_id=uuid.UUID(candidate_id) if isinstance(candidate_id, str) else candidate_id,
+                        template_id=None,
+                        stage=db_stage,
+                        recipient_email=recipient_email,
+                        subject=subject,
+                        status="sent",
+                        error_message=None,
+                        sent_at=datetime.utcnow(),
+                    )
+                    db_session.add(delivery)
+                    db_session.commit()
+                    logger.info(f"Tracked email delivery for candidate {candidate_id}, stage {db_stage}")
+                except Exception as e:
+                    logger.warning(f"Failed to track email delivery: {str(e)}")
+
             return True
 
         except Exception as e:
             logger.error(f"Failed to send stage update email to {recipient_email}: {str(e)}")
+            # Still track as failed
+            if db_session and candidate_id:
+                try:
+                    from app.models.email_template import EmailDelivery
+                    import uuid
+                    from datetime import datetime
+                    delivery = EmailDelivery(
+                        id=uuid.uuid4(),
+                        candidate_id=uuid.UUID(candidate_id) if isinstance(candidate_id, str) else candidate_id,
+                        template_id=None,
+                        stage=stage_map.get(new_stage, "unknown"),
+                        recipient_email=recipient_email,
+                        subject="[Failed]",
+                        status="failed",
+                        error_message=str(e),
+                        sent_at=datetime.utcnow(),
+                    )
+                    db_session.add(delivery)
+                    db_session.commit()
+                except Exception:
+                    pass
             return False
 
     @staticmethod
