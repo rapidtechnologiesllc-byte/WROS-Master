@@ -1527,10 +1527,12 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                               delete: false
                             };
 
+                            const isModuleEnabled = moduleStates[moduleName]?.enabled !== false;
+
                             return (
-                              <div key={`res_${resId}`} className="px-4 py-3 hover:bg-gray-50">
+                              <div key={`res_${resId}`} className={`px-4 py-3 ${!isModuleEnabled ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'}`}>
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium text-gray-900">{resDisplay}</span>
+                                  <span className={`text-sm font-medium ${!isModuleEnabled ? 'text-gray-500' : 'text-gray-900'}`}>{resDisplay}</span>
                                 </div>
 
                                 <div className="grid grid-cols-4 gap-2">
@@ -1539,9 +1541,12 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                                     return (
                                       <button
                                         key={action}
-                                        onClick={() => handleTogglePermission(resName, action, hasPermission)}
+                                        onClick={() => isModuleEnabled && handleTogglePermission(resName, action, hasPermission)}
+                                        disabled={!isModuleEnabled}
                                         className={`py-1 px-2 rounded text-xs font-semibold transition ${
-                                          hasPermission
+                                          !isModuleEnabled
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : hasPermission
                                             ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                             : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
                                         }`}
@@ -1705,26 +1710,31 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                           </div>
                         </div>
 
-                        {isEnabled && resources.length > 0 && (
+                        {resources.length > 0 && (
                           <div className="divide-y">
                             {resources.map(resource => {
                               const resName = resource.name || resource.resource_name;
                               const perms = createTemplatePermissions[resName] || { view: false, create: false, edit: false, delete: false };
 
                               return (
-                                <div key={resName} className="px-4 py-3">
+                                <div key={resName} className={`px-4 py-3 ${!isEnabled ? 'bg-gray-50 opacity-60' : ''}`}>
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-medium text-gray-900">{resource.display || resName}</span>
+                                    <span className={`text-sm font-medium ${!isEnabled ? 'text-gray-500' : 'text-gray-900'}`}>
+                                      {resource.display || resName}
+                                    </span>
                                   </div>
                                   <div className="grid grid-cols-4 gap-2">
                                     {['view', 'create', 'edit', 'delete'].map(action => (
                                       <button
                                         key={action}
-                                        onClick={() => handleCreateRoleTogglePermission(resName, action, perms[action])}
+                                        onClick={() => isEnabled && handleCreateRoleTogglePermission(resName, action, perms[action])}
+                                        disabled={!isEnabled}
                                         className={`py-1 px-2 rounded text-xs font-semibold transition ${
-                                          perms[action]
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-gray-200 text-gray-500'
+                                          !isEnabled
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : perms[action]
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
                                         }`}
                                       >
                                         {action.charAt(0).toUpperCase()}
