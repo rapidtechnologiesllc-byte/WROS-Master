@@ -29,18 +29,73 @@ chat_messages.user_id (who initiated chat)
 chat_messages.visibility_scope (private, manager_only, team_only, company_only)
 ```
 
-### API Security
+### API Security (HIERARCHICAL ACCESS ONLY)
+
 ```
 GET /flash/chat/{chat_id}
-  Requires: auth_user_id == chat.user_id
-  Rejects: If you're not the person who started the chat
+  Requires: 
+    - auth_user_id == chat.user_id (own chat), OR
+    - auth_user_id is in chat.user's direct reporting chain
+  Rejects: 
+    - If you're not the person who started the chat AND
+    - If you're not in their direct reporting chain (manager/director/etc.)
+  
+Example:
+  Tech Lead A's chat: Only A can see it
+  Manager A (A's manager): Cannot see A's personal chat
+  Manager B (different team): Cannot see A's chat
+  CEO A (if A reports up to CEO A): Cannot see A's personal chat
   
 GET /flash/chat/history
   Returns: ONLY current user's chats
-  Never: Other people's chats
+  Filters: Only chats from their direct team (if manager)
+  Never: Sibling chains (Manager B cannot see Manager A's team chats)
+  
+GET /flash/dashboards/{user_id}
+  Requires: 
+    - auth_user_id == user_id (own dashboard), OR
+    - user_id is in auth_user's reporting chain (your direct report)
+  Rejects:
+    - Manager A cannot see Manager B's dashboard (different branch)
+    - CEO B cannot see CEO A's division
+    - Sibling managers cannot see each other's teams
+
+Database Enforcement:
+  SELECT * FROM flash_reports WHERE visible_to_user_id = 'ceo_a'
+    Returns: Only cascaded reports from CEO A's division
+    Never: Reports from CEO B's division
+    
+  SELECT * FROM flash_chat WHERE visible_to_user_id = 'manager_a'
+    Returns: ONLY Manager A's own chats
+    Never: Manager B's chats (even if same CEO)
+    Never: Tech Lead A's personal chats (only their goals)
 ```
 
-### Example: What Each Person Sees
+### Chain of Command Verification
+```python
+def can_see_user_data(requesting_user_id, target_user_id):
+    """Check if requesting_user can see target_user's data"""
+    
+    # Can always see your own
+    if requesting_user_id == target_user_id:
+        return True
+    
+    # Check if target_user is in requesting_user's reporting chain
+    def is_in_chain(target, requester):
+        current = target.manager_id
+        while current:
+            if current == requester:
+                return True  # Found requester in chain
+            current = db.get_user(current).manager_id
+        return False
+    
+    if is_in_chain(target_user_id, requesting_user_id):
+        return True  # Requester is in target's hierarchy
+    
+    return False  # Sibling, different division, no access
+```
+
+### Example: What Each Person Sees (HIERARCHICAL ONLY)
 
 **Tech Lead A chats with Flash:**
 ```
@@ -48,30 +103,72 @@ A: "I'm struggling with performance. Need help hitting 500 commits."
 Flash: "What's blocking you? Design review? Tech debt? Unclear priorities?"
 A: "Waiting on design review. Also need better dev environment."
 ```
-**Only A sees this conversation.** Manager sees RESULT (A's target) but not this chat.
+**ONLY A sees this conversation.**
+- Manager A CANNOT see this chat (it's A's private conversation)
+- Tech Lead B CANNOT see this chat (it's not their chain of command)
+- CEO CANNOT see this chat (only cascaded results)
 
 **Manager A (A's manager) chats with Flash:**
 ```
-Manager: "My team is at 87/150 consultants. What's the blocker?"
-Flash: "Team members cite: Design review delays (affecting A, C), 
-unclear priorities (affecting B), tech debt (affecting A, D)"
+Manager A: "My team is at 87/150 consultants. What's the blocker?"
+Flash: "Team members cite: Design review delays, unclear priorities, tech debt"
 ```
-**Aggregated insights, no individual names in Flash chat response.**
+**Manager A sees this.** Their manager sees RESULT but not this chat.
+- Manager B CANNOT see this (different chain of command)
+- Tech Lead B CANNOT see this (not in reporting line)
+- CEO only sees aggregated metrics from their direct reports
 
-**Manager A's Manager (Director) chats with Flash:**
+**Manager A's Manager (Director A - reporting to CEO A) chats with Flash:**
 ```
-Director: "How's my org tracking?"
+Director A: "How's my org tracking?"
 Flash: "3 teams: Team-A on pace, Team-B slight lag, Team-C critical lag"
 ```
-**Director sees team-level, never individual names.**
+**Director A sees this. CEO A sees results only.**
+- Director B (different division) CANNOT see this
+- CEO B (different org) CANNOT see this
 
-**CEO chats with Flash:**
+**CEO A (only sees their direct reports) chats with Flash:**
 ```
-CEO: "How are we tracking to 500 consultants goal?"
-Flash: "150/year cascaded to Workforce Ops. Current: 87 (58% pace, week 33).
-Should be at 95.5 by now. Slightly behind but within recovery range."
+CEO A: "How's my division tracking?"
+Flash: "Workforce: 87/150 (on pace). Sales: 2/5 logos (slight lag). Partners: consolidated views"
 ```
-**CEO sees company-level only, never individual or manager conversations.**
+**CEO A sees ONLY their division's cascaded metrics.**
+- CEO B (different company/division) sees NOTHING from CEO A's organization
+- Manager A (direct report to CEO A) is visible to CEO A
+- Manager B (reports to different CEO) is completely hidden from CEO A
+
+### Access Control by Hierarchy
+
+```
+CEO A
+├─ Sees: Their direct reports + cascaded data from direct reports only
+├─ Cannot see: CEO B's organization, CEO B's division, CEO B's metrics
+├─ Cannot see: Manager A's personal chat with Flash
+└─ Can see: Aggregated results from Manager A's team
+
+CEO B (Different Division)
+├─ Sees: Their direct reports + cascaded data from their division only
+├─ Cannot see: CEO A's organization, any of CEO A's data
+├─ Completely siloed from CEO A
+
+Manager A (Reports to CEO A)
+├─ Sees: Their team members' cascaded goals + results
+├─ Cannot see: Manager B's team (even if same CEO A)
+├─ Cannot see: Their team members' personal chats with Flash
+└─ Sees: Aggregated team-level metrics
+
+Manager B (Reports to CEO A)
+├─ Cannot see: Manager A's team or data
+├─ Cannot see: CEO A's view or other managers' teams
+├─ Sees: Only their own team
+└─ Cannot see: Other managers' conversations
+
+Tech Lead A (Reports to Manager A)
+├─ Sees: Their own chat with Flash (private)
+├─ Cannot see: Tech Lead B's chat (even if same manager/team)
+├─ Cannot see: Manager A's chat or aggregated view
+└─ Their manager sees: Cascaded goals only
+```
 
 ### Implementation Rules
 
