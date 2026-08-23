@@ -46,8 +46,8 @@ MODULES_AND_RESOURCES = {
 
 # Resource-specific route paths (custom routes for certain resources)
 RESOURCE_ROUTES = {
-    "slm-dashboard": "/settings/slm-dashboard",
-    "slm-training-data": "/settings/slm-training-data",
+    "slm-dashboard": "/admin/slm-dashboard",
+    "slm-training-data": "/admin/slm-training-data",
 }
 
 

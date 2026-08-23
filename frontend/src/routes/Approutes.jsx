@@ -640,8 +640,8 @@ export default function AppRoutes() {
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
-            <Route path="settings/slm-dashboard" element={<SLMDashboard />} />
-            <Route path="settings/slm-training" element={<SLMTrainingData />} />
+            <Route path="admin/slm-dashboard" element={<SLMDashboard />} />
+            <Route path="admin/slm-training" element={<SLMTrainingData />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
