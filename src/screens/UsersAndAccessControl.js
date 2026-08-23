@@ -192,6 +192,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [createFormErrors, setCreateFormErrors] = useState({});
   const [selectedUserId, setSelectedUserId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -322,22 +323,17 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const selectedUser = users.find(u => u.user_id === selectedUserId);
 
   const handleCreate = async () => {
-    // Validate all required fields
+    // Validate all required fields - collect all errors first
+    const errors = {};
+
     if (!createForm.user_name.trim()) {
-      toast.error("User name is required.");
-      return;
+      errors.user_name = "User name is required.";
     }
     if (!createForm.user_email.trim()) {
-      toast.error("Email is required.");
-      return;
+      errors.user_email = "Email is required.";
     }
     if (!createForm.user_password.trim()) {
-      toast.error("Password is required.");
-      return;
-    }
-    if (!createForm.job_title.trim()) {
-      toast.error("Job Title is required.");
-      return;
+      errors.user_password = "Password is required.";
     }
 
     // Support both multi-role (new) and single role (legacy) modes
@@ -345,8 +341,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                     (createForm.user_role ? [roles.find(r => r.name === createForm.user_role)?.id].filter(Boolean) : []);
 
     if (roleIds.length === 0) {
-      toast.error("At least one role is required.");
-      return;
+      errors.role_ids = "At least one role is required.";
     }
 
     // Check if any selected roles are BU-scoped (not org-level)
@@ -356,9 +351,17 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
     // Validate BU requirement based on role type
     if (hasBUScopedRole && !createForm.business_unit_id) {
-      toast.error("Business Unit is required for BU-scoped roles.");
+      errors.business_unit_id = "Business Unit is required for BU-scoped roles.";
+    }
+
+    // If there are errors, show them and don't proceed
+    if (Object.keys(errors).length > 0) {
+      setCreateFormErrors(errors);
+      toast.error("Please fix all required fields.");
       return;
     }
+
+    setCreateFormErrors({});
 
     setBusy(true);
     try {
@@ -681,35 +684,45 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         onClose={() => setShowCreateModal(false)}
         title="Create User"
       >
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[65vh] overflow-y-auto">
           {/* Required fields section */}
           <div className="pb-2 border-b">
-            <Input
-              label="Name *"
-              placeholder="John Doe"
-              value={createForm.user_name}
-              onChange={(val) => setCreateForm({ ...createForm, user_name: val })}
-              required
-            />
+            <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_name ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Name *</label>
+              <input
+                type="text"
+                placeholder="John Doe"
+                value={createForm.user_name}
+                onChange={(val) => { setCreateForm({ ...createForm, user_name: val }); if (createFormErrors.user_name) setCreateFormErrors({...createFormErrors, user_name: null}); }}
+                className="w-full bg-transparent outline-none text-sm"
+              />
+              {createFormErrors.user_name && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_name}</p>}
+            </div>
           </div>
 
-          <Input
-            label="Email *"
-            type="email"
-            placeholder="john@example.com"
-            value={createForm.user_email}
-            onChange={(val) => setCreateForm({ ...createForm, user_email: val })}
-            required
-          />
+          <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Email *</label>
+            <input
+              type="email"
+              placeholder="john@example.com"
+              value={createForm.user_email}
+              onChange={(val) => { setCreateForm({ ...createForm, user_email: val }); if (createFormErrors.user_email) setCreateFormErrors({...createFormErrors, user_email: null}); }}
+              className="w-full bg-transparent outline-none text-sm"
+            />
+            {createFormErrors.user_email && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_email}</p>}
+          </div>
 
-          <Input
-            label="Password *"
-            type="password"
-            placeholder="••••••••"
-            value={createForm.user_password}
-            onChange={(val) => setCreateForm({ ...createForm, user_password: val })}
-            required
-          />
+          <div className={`border rounded-xl px-3 py-2 ${createFormErrors.user_password ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Password *</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={createForm.user_password}
+              onChange={(val) => { setCreateForm({ ...createForm, user_password: val }); if (createFormErrors.user_password) setCreateFormErrors({...createFormErrors, user_password: null}); }}
+              className="w-full bg-transparent outline-none text-sm"
+            />
+            {createFormErrors.user_password && <p className="text-xs text-red-600 mt-1">{createFormErrors.user_password}</p>}
+          </div>
 
           {/* Optional fields section */}
           <div className="pt-2 border-t">
