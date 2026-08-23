@@ -97,6 +97,18 @@ const ICON_COMPONENTS_BY_NAME = {
   "Award": UserPlus,
 };
 
+// Map resource keys to their correct admin paths
+const RESOURCE_KEY_TO_PATH = {
+  "users": "/admin/users-access-control/users",
+  "business_units": "/admin/users-access-control/business-units",
+  "delivery_centers": "/admin/users-access-control/delivery-centers",
+  "organizational_hierarchy": "/admin/users-access-control/organizational-hierarchy",
+  "role_templates": "/admin/users-access-control/role-templates",
+  "certifications": "/admin/users-access-control/certifications",
+  "error_log": "/admin/users-access-control/error-log",
+  "message_templates": "/admin/users-access-control/message-templates",
+};
+
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   try {
@@ -119,7 +131,7 @@ async function fetchNavigationFromBackend() {
         key: item.key,
         label: item.label,
         icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
-        path: item.route || `/${item.key.replace(/_/g, "-")}`, // Fallback path if route not provided
+        path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
       }))
     }));
 
