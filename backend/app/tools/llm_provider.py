@@ -1,9 +1,11 @@
 """
-LLM Provider abstraction with round-robin fallback strategy.
+LLM Provider abstraction with priority-based fallback strategy.
 
-Primary: Google Generative AI (Gemini)
-Backup 2: Claude API (Anthropic)
-Backup 3: Grok (XAI)
+Priority order:
+1. Claude API (Anthropic)
+2. Google Generative AI (Gemini)
+3. Grok (XAI)
+4. OpenAI (ChatGPT)
 """
 
 import os
@@ -18,14 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 class LLMProvider(Enum):
-    GEMINI = "gemini"
     CLAUDE = "claude"
+    GEMINI = "gemini"
     GROK = "grok"
+    OPENAI = "openai"
 
 
 class RoundRobinLLMProvider:
     def __init__(self):
-        self.providers = [LLMProvider.GEMINI, LLMProvider.CLAUDE, LLMProvider.GROK]
+        self.providers = [LLMProvider.CLAUDE, LLMProvider.GEMINI, LLMProvider.GROK, LLMProvider.OPENAI]
         self.current_index = 0
         self.llm_instances = {}
         self._initialize_providers()
@@ -88,6 +91,25 @@ class RoundRobinLLMProvider:
                 self.llm_instances["grok"] = None
         return self.llm_instances["grok"]
 
+    def _get_openai(self):
+        """Lazy-load OpenAI (ChatGPT)"""
+        if "openai" not in self.llm_instances:
+            try:
+                from langchain_openai import ChatOpenAI
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    logger.warning("OPENAI_API_KEY not set")
+                    return None
+                self.llm_instances["openai"] = ChatOpenAI(
+                    api_key=api_key,
+                    model="gpt-4-turbo",
+                    max_tokens=2048
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAI: {e}")
+                self.llm_instances["openai"] = None
+        return self.llm_instances["openai"]
+
     def get_next_provider(self):
         """Get next provider in round-robin order"""
         provider = self.providers[self.current_index]
@@ -100,12 +122,14 @@ class RoundRobinLLMProvider:
         while attempts < len(self.providers):
             provider = self.get_next_provider()
 
-            if provider == LLMProvider.GEMINI:
-                llm = self._get_gemini()
-            elif provider == LLMProvider.CLAUDE:
+            if provider == LLMProvider.CLAUDE:
                 llm = self._get_claude()
+            elif provider == LLMProvider.GEMINI:
+                llm = self._get_gemini()
             elif provider == LLMProvider.GROK:
                 llm = self._get_grok()
+            elif provider == LLMProvider.OPENAI:
+                llm = self._get_openai()
             else:
                 llm = None
 
