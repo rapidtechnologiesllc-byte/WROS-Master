@@ -75,3 +75,74 @@ export const hasPermission = (resourceName, action) => {
 
   return checker(resourceName);
 };
+
+/**
+ * Module-level permission checkers
+ * These check if user has a specific permission in a module
+ */
+
+export const canViewModule = (moduleName) => {
+  const permissions = getStoredPermissions();
+  if (!permissions) return false;
+
+  // Check if any resource in this module has view permission
+  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
+    return Object.values(permissions).some(p =>
+      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_view
+    );
+  }
+
+  return false;
+};
+
+export const canCreateInModule = (moduleName) => {
+  const permissions = getStoredPermissions();
+  if (!permissions) return false;
+
+  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
+    return Object.values(permissions).some(p =>
+      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_create
+    );
+  }
+
+  return false;
+};
+
+export const canEditInModule = (moduleName) => {
+  const permissions = getStoredPermissions();
+  if (!permissions) return false;
+
+  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
+    return Object.values(permissions).some(p =>
+      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_edit
+    );
+  }
+
+  return false;
+};
+
+export const canDeleteInModule = (moduleName) => {
+  const permissions = getStoredPermissions();
+  if (!permissions) return false;
+
+  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
+    return Object.values(permissions).some(p =>
+      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_delete
+    );
+  }
+
+  return false;
+};
+
+/**
+ * Combined module permission check
+ * Returns object with all permission flags for a module
+ */
+export const getModulePermissions = (moduleName) => {
+  return {
+    canView: canViewModule(moduleName),
+    canCreate: canCreateInModule(moduleName),
+    canEdit: canEditInModule(moduleName),
+    canDelete: canDeleteInModule(moduleName),
+  };
+};

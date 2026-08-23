@@ -6,9 +6,11 @@ proves S-220 (Create Weekly Timesheet) + S-221 (Validation & Submission
 Lock) + S-222 (Manager Approval) end-to-end on real routes. Also closes
 the "time tracking" link in Avinash's stated MVP chain.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -30,14 +32,17 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 def _monday_of(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
 
 # A Monday safely in the past (not "this week") so all 5 weekdays are
 # always <= today regardless of which day of the week tests actually
 # run on -- avoids a flaky "future date" rejection from the real
 # service-layer guard.
 THIS_MONDAY = _monday_of(date.today() - timedelta(weeks=2))
+
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -54,8 +59,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
+@pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -131,11 +142,14 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
 
+
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
+
 
 def _create_draft(client):
     ids = client.wros_ids
@@ -147,22 +161,27 @@ def _create_draft(client):
     assert resp.status_code == 200, resp.text
     return resp.json()["id"]
 
+
 def _log_valid_hours(client, timesheet_id):
     entries = [
         {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
         for i in range(5)
+    ]
     resp = client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
     assert resp.status_code == 200, resp.text
     return resp.json()
+
 
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/timesheets")
     assert resp.status_code in (401, 403)
 
+
 def test_create_weekly_draft_is_idempotent(client):
     id1 = _create_draft(client)
     id2 = _create_draft(client)
     assert id1 == id2
+
 
 def test_create_draft_blocked_for_non_active_allocation(client):
     ids = client.wros_ids
@@ -176,6 +195,7 @@ def test_create_draft_blocked_for_non_active_allocation(client):
     )
     assert resp.status_code == 422
 
+
 def test_upsert_entries_computes_totals(client):
     timesheet_id = _create_draft(client)
     body = _log_valid_hours(client, timesheet_id)
@@ -184,18 +204,22 @@ def test_upsert_entries_computes_totals(client):
     assert body["non_billable_hours"] == 0.0
     assert len(body["entries"]) == 5
 
+
 def test_upsert_entries_rejects_over_60_hour_week(client):
     timesheet_id = _create_draft(client)
     entries = [
         {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 13, "entry_type": "BILLABLE"}
         for i in range(5)
+    ]
     resp = client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
     assert resp.status_code == 422
+
 
 def test_submit_requires_logged_hours(client):
     timesheet_id = _create_draft(client)
     resp = client.post(f"/timesheets/{timesheet_id}/submit", headers=_auth())
     assert resp.status_code == 422
+
 
 def test_full_submit_approve_flow(client):
     timesheet_id = _create_draft(client)
@@ -210,6 +234,7 @@ def test_full_submit_approve_flow(client):
     assert approve_resp.json()["status"] == "APPROVED"
     assert approve_resp.json()["approved_by"] == "U-ADMIN"
 
+
 def test_approved_timesheet_entries_are_immutable(client):
     timesheet_id = _create_draft(client)
     _log_valid_hours(client, timesheet_id)
@@ -222,6 +247,7 @@ def test_approved_timesheet_entries_are_immutable(client):
         headers=_auth(),
     )
     assert resp.status_code == 409
+
 
 def test_reject_requires_20_char_reason(client):
     timesheet_id = _create_draft(client)
@@ -239,6 +265,7 @@ def test_reject_requires_20_char_reason(client):
     assert resp.status_code == 200
     assert resp.json()["status"] == "REJECTED"
 
+
 def test_reopen_returns_rejected_to_draft(client):
     timesheet_id = _create_draft(client)
     _log_valid_hours(client, timesheet_id)
@@ -253,6 +280,7 @@ def test_reopen_returns_rejected_to_draft(client):
     assert resp.status_code == 200
     assert resp.json()["status"] == "DRAFT"
 
+
 def test_bulk_approve(client):
     timesheet_id = _create_draft(client)
     _log_valid_hours(client, timesheet_id)
@@ -264,6 +292,7 @@ def test_bulk_approve(client):
     assert body["approved"] == 1
     assert body["failed"] == []
 
+
 def test_list_timesheets_filtered_by_status(client):
     timesheet_id = _create_draft(client)
     resp = client.get("/timesheets?status=DRAFT", headers=_auth())
@@ -271,9 +300,11 @@ def test_list_timesheets_filtered_by_status(client):
     assert len(resp.json()["timesheets"]) == 1
     assert resp.json()["timesheets"][0]["id"] == timesheet_id
 
+
 def test_get_timesheet_404_for_unknown_id(client):
     resp = client.get("/timesheets/does-not-exist", headers=_auth())
     assert resp.status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # S-229/HRMS-0910 -- Anomaly Detection
@@ -291,6 +322,7 @@ def _approved_timesheet(client, entries=None):
     assert approve_resp.status_code == 200, approve_resp.text
     return timesheet_id
 
+
 def test_scan_anomalies_flags_weekend_entry(client):
     timesheet_id = _create_draft(client)
     entries = [
@@ -305,11 +337,13 @@ def test_scan_anomalies_flags_weekend_entry(client):
     types = {f["anomaly_type"] for f in scan_resp.json()["flags"]}
     assert "WEEKEND" in types
 
+
 def test_scan_anomalies_flags_over_12_hour_day(client):
     timesheet_id = _create_draft(client)
     entries = [{"entry_date": THIS_MONDAY.isoformat(), "hours": 13, "entry_type": "BILLABLE"}] + [
         {"entry_date": (THIS_MONDAY + timedelta(days=i)).isoformat(), "hours": 8, "entry_type": "BILLABLE"}
         for i in range(1, 5)
+    ]
     resp = client.put(f"/timesheets/{timesheet_id}/entries", json={"entries": entries}, headers=_auth())
     assert resp.status_code == 200, resp.text
 
@@ -317,6 +351,7 @@ def test_scan_anomalies_flags_over_12_hour_day(client):
     assert scan_resp.status_code == 200, scan_resp.text
     types = {f["anomaly_type"] for f in scan_resp.json()["flags"]}
     assert "OVER_12H" in types
+
 
 def test_scan_anomalies_flags_completed_project(client):
     ids = client.wros_ids
@@ -350,6 +385,7 @@ def test_scan_anomalies_flags_completed_project(client):
     types = {f["anomaly_type"] for f in scan_resp.json()["flags"]}
     assert "COMPLETED_PROJECT" in types
 
+
 def test_scan_anomalies_is_idempotent(client):
     timesheet_id = _create_draft(client)
     entries = [
@@ -362,6 +398,7 @@ def test_scan_anomalies_is_idempotent(client):
     second = client.post(f"/timesheets/{timesheet_id}/scan-anomalies", headers=_auth())
     assert len(first.json()["flags"]) == len(second.json()["flags"])
 
+
 def test_get_anomalies_before_scan_is_empty(client):
     timesheet_id = _create_draft(client)
     entries = [
@@ -373,6 +410,7 @@ def test_get_anomalies_before_scan_is_empty(client):
     resp = client.get(f"/timesheets/{timesheet_id}/anomalies", headers=_auth())
     assert resp.status_code == 200
     assert resp.json()["flags"] == []
+
 
 def test_get_anomalies_after_scan_returns_flags(client):
     timesheet_id = _create_draft(client)
@@ -387,11 +425,13 @@ def test_get_anomalies_after_scan_returns_flags(client):
     assert resp.status_code == 200
     assert len(resp.json()["flags"]) >= 1
 
+
 # ---------------------------------------------------------------------------
 # Timesheet Dispute Resolution
 # ---------------------------------------------------------------------------
 
 _LONG_REASON = "The client's approver disputes hours logged on Thursday as incorrect for this week."
+
 
 def test_raise_dispute_requires_approved_timesheet(client):
     timesheet_id = _create_draft(client)
@@ -404,6 +444,7 @@ def test_raise_dispute_requires_approved_timesheet(client):
     )
     assert resp.status_code == 422
 
+
 def test_raise_dispute_requires_50_char_reason(client):
     timesheet_id = _approved_timesheet(client)
 
@@ -413,6 +454,7 @@ def test_raise_dispute_requires_50_char_reason(client):
         headers=_auth(),
     )
     assert resp.status_code == 422
+
 
 def test_raise_and_list_dispute(client):
     timesheet_id = _approved_timesheet(client)
@@ -432,6 +474,7 @@ def test_raise_and_list_dispute(client):
     assert list_resp.status_code == 200
     assert len(list_resp.json()["disputes"]) == 1
 
+
 def test_resolve_dispute_adjusted_requires_adjusted_hours(client):
     timesheet_id = _approved_timesheet(client)
     dispute_id = client.post(
@@ -446,6 +489,7 @@ def test_resolve_dispute_adjusted_requires_adjusted_hours(client):
         headers=_auth(),
     )
     assert resp.status_code == 422
+
 
 def test_resolve_dispute_adjusted_does_not_mutate_original_timesheet(client):
     timesheet_id = _approved_timesheet(client)
@@ -470,6 +514,7 @@ def test_resolve_dispute_adjusted_does_not_mutate_original_timesheet(client):
     timesheet_resp = client.get(f"/timesheets/{timesheet_id}", headers=_auth())
     assert timesheet_resp.json()["total_hours"] == 40.0
 
+
 def test_resolve_dispute_confirmed(client):
     timesheet_id = _approved_timesheet(client)
     dispute_id = client.post(
@@ -485,6 +530,7 @@ def test_resolve_dispute_confirmed(client):
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "RESOLVED_CONFIRMED"
+
 
 def test_resolve_already_resolved_dispute_is_409(client):
     timesheet_id = _approved_timesheet(client)
@@ -505,6 +551,7 @@ def test_resolve_already_resolved_dispute_is_409(client):
         headers=_auth(),
     )
     assert resp.status_code == 409
+
 
 def test_resolve_dispute_404_for_unknown_id(client):
     resp = client.post(

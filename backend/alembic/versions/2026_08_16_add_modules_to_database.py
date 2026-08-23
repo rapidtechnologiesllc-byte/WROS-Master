@@ -1,7 +1,7 @@
 """Add modules and module_permissions tables - Phase 2B database-driven configuration.
 
 Revision ID: 2026_08_16_add_modules
-Revises: 2026_08_15_001
+Revises:
 Create Date: 2026-08-16 00:00:00.000000
 
 Migration creates:
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 # Revision identifiers, used by Alembic.
 revision = '2026_08_16_add_modules'
-down_revision = '2026_08_15_001'
+down_revision = None
 branch_labels = None
 depends_on = None
 

@@ -6,8 +6,10 @@ p&l)." Refined: "a partner has it's own clients and the work is done
 in their BU only" -- BU ownership is Client.business_unit_id.
 
 Real RBAC seed (RBACService.seed_roles_and_permissions), throwaway
+SQLite -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -27,9 +29,16 @@ from app.core.revenue_visibility_scope import (
 )
 from app.services.rbac_service_template import RBACService
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, Client.__table__, BusinessUnit.__table__,
+        Role.__table__, RoleAttribute.__table__, Permission.__table__, RolePermission.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         RBACService.seed_roles_and_permissions(session)
@@ -38,6 +47,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _make_user(db, user_id, role_name, business_unit_id=None):
     role = db.query(Role).filter(Role.name == role_name).first()
@@ -49,11 +59,13 @@ def _make_user(db, user_id, role_name, business_unit_id=None):
     db.commit()
     return user
 
+
 def _make_client(db, client_id, company_name, business_unit_id=None):
     client = Client(id=client_id, company_name=company_name, business_unit_id=business_unit_id)
     db.add(client)
     db.commit()
     return client
+
 
 def test_is_revenue_bu_scoped_matches_the_exact_spec(db_session):
     partner = _make_user(db_session, "U-P", "Partner")
@@ -68,6 +80,7 @@ def test_is_revenue_bu_scoped_matches_the_exact_spec(db_session):
     assert is_revenue_bu_scoped(db_session, finance) is False
     assert is_revenue_bu_scoped(db_session, hr_manager) is False
 
+
 def test_can_view_pnl_matches_the_exact_spec(db_session):
     """Finance and HR Manager both get revenue.view -- only Finance
     (not HR Manager) also gets revenue.view_pnl."""
@@ -80,6 +93,7 @@ def test_can_view_pnl_matches_the_exact_spec(db_session):
     assert can_view_pnl(db_session, hr_manager) is False
     assert can_view_pnl(db_session, partner) is True
     assert can_view_pnl(db_session, super_user) is True
+
 
 def test_partner_sees_only_their_own_bu_plus_unassigned_clients(db_session):
     bu_axion = BusinessUnit(name="AXION")
@@ -98,6 +112,7 @@ def test_partner_sees_only_their_own_bu_plus_unassigned_clients(db_session):
     assert visible == {"C-AXION-CLIENT", "C-UNASSIGNED"}
     assert "C-OTHER-CLIENT" not in visible
 
+
 def test_bu_head_same_rule_as_partner(db_session):
     bu_a = BusinessUnit(name="BU-A")
     db_session.add(bu_a)
@@ -108,6 +123,7 @@ def test_bu_head_same_rule_as_partner(db_session):
 
     query = apply_revenue_bu_scope_to_client_query(db_session, db_session.query(Client), bu_head)
     assert {c.id for c in query.all()} == {"C-1", "C-2"}
+
 
 def test_ceo_finance_and_hr_manager_see_org_wide(db_session):
     bu_a = BusinessUnit(name="BU-A")
@@ -122,6 +138,7 @@ def test_ceo_finance_and_hr_manager_see_org_wide(db_session):
         query = apply_revenue_bu_scope_to_client_query(db_session, db_session.query(Client), user)
         assert {c.id for c in query.all()} == {"C-1", "C-2"}, f"{role} should see everything"
 
+
 def test_partner_with_no_bu_assigned_sees_only_unassigned_clients(db_session):
     bu_a = BusinessUnit(name="BU-A")
     db_session.add(bu_a)
@@ -133,9 +150,11 @@ def test_partner_with_no_bu_assigned_sees_only_unassigned_clients(db_session):
     query = apply_revenue_bu_scope_to_client_query(db_session, db_session.query(Client), partner)
     assert {c.id for c in query.all()} == {"C-2"}
 
+
 def test_get_revenue_scoped_client_ids_returns_none_for_org_wide_roles(db_session):
     finance = _make_user(db_session, "U-F", "Finance")
     assert get_revenue_scoped_client_ids(db_session, finance) is None
+
 
 def test_get_revenue_scoped_client_ids_returns_the_real_visible_set(db_session):
     bu_a = BusinessUnit(name="BU-A")

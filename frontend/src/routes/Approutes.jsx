@@ -102,7 +102,6 @@ import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
 import BuddyProgramScreen from "../screens/BuddyProgramScreen";
 import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ErrorLogScreen from "../screens/ErrorLogScreen";
-import AdminSettingsScreen from "../screens/AdminSettingsScreen";
 import PartnerROIAgentScreen from "../screens/PartnerROIAgentScreen";
 import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
@@ -120,6 +119,7 @@ import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import MessageQueueDashboard from "../screens/MessageQueueDashboard";
+
 
 // Wrapper component that renders the appropriate dashboard based on user job_title
 const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
@@ -654,8 +654,8 @@ export default function AppRoutes() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/settings" element={<AdminSettingsScreen />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
@@ -905,7 +905,8 @@ export default function AppRoutes() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/settings" element={<AdminSettingsScreen />} />
+            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />

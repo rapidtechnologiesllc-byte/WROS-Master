@@ -4,8 +4,10 @@ vendor), HRMS-P805/P812 (scorecard + portfolio analytics, all computed),
 and HRMS-P814 (clarification Q&A, shared visibility across vendors on
 the same request).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -29,9 +31,19 @@ from app.services.sub_vendor_tracking_service import (
 )
 from app.services.sub_vendor_qa_service import ask_question, answer_question, get_qa_for_request, ClarificationValidationError
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Candidate.__table__, Users.__table__,
+        SubVendorAccount.__table__, SubVendorUser.__table__, SubVendorRequest.__table__,
+        SubVendorSubmission.__table__, SubVendorViolation.__table__, SubVendorDedupRejection.__table__,
+        ClarificationQA.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -39,6 +51,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -69,6 +82,7 @@ def fixtures(db_session):
 
     return tenant, client, demand, vendor_a, vendor_b, request_a, request_b
 
+
 # ---------------------------------------------------------------------------
 # HRMS-P803/P810: vendor isolation + rejection always shows feedback
 # ---------------------------------------------------------------------------
@@ -84,6 +98,7 @@ def test_vendor_sees_only_own_submissions(db_session, fixtures):
     assert results_a[0]["candidate_name"] == "A1"
     assert results_a[0]["demand_job_title"] == "Sr. Guidewire Developer"
 
+
 def test_rejected_submission_shows_feedback_note(db_session, fixtures):
     tenant, client, demand, vendor_a, vendor_b, request_a, request_b = fixtures
     submission = submit_candidate(db_session, request=request_a, sub_vendor=vendor_a, candidate_name="X", candidate_email="x@example.com", employment_type="W2_FULLTIME")
@@ -94,6 +109,7 @@ def test_rejected_submission_shows_feedback_note(db_session, fixtures):
     results = get_submissions_for_vendor(db_session, vendor_a)
     assert results[0]["status"] == "REJECTED"
     assert results[0]["feedback_note"] is not None
+
 
 # ---------------------------------------------------------------------------
 # HRMS-P805/P812: scorecard + portfolio
@@ -112,6 +128,7 @@ def test_scorecard_computed_from_submissions(db_session, fixtures):
     assert scorecard["accepted_count"] == 1
     assert scorecard["submission_to_acceptance_rate_pct"] == 50.0
 
+
 def test_scorecard_counts_ft_violations(db_session, fixtures):
     tenant, client, demand, vendor_a, vendor_b, request_a, request_b = fixtures
     submit_candidate(db_session, request=request_a, sub_vendor=vendor_a, candidate_name="C2C", candidate_email="c2c@example.com", employment_type="C2C")
@@ -119,6 +136,7 @@ def test_scorecard_counts_ft_violations(db_session, fixtures):
 
     scorecard = get_sub_vendor_scorecard(db_session, vendor_a)
     assert scorecard["ft_compliance_violations_90d"] == 1
+
 
 def test_portfolio_analytics_reflects_source_channel_tagging(db_session, fixtures):
     tenant, client, demand, vendor_a, vendor_b, request_a, request_b = fixtures
@@ -137,6 +155,7 @@ def test_portfolio_analytics_reflects_source_channel_tagging(db_session, fixture
     # 1 of 2 total candidates (direct + vendor-sourced) is vendor-sourced.
     assert analytics["sub_vendor_contribution_pct"] == 50.0
 
+
 # ---------------------------------------------------------------------------
 # HRMS-P814: clarification Q&A -- shared visibility
 # ---------------------------------------------------------------------------
@@ -146,6 +165,7 @@ def test_ask_question_requires_min_length(db_session, fixtures):
     with pytest.raises(ClarificationValidationError):
         ask_question(db_session, request_a, vendor_a, question="short")
 
+
 def test_answer_requires_min_length(db_session, fixtures):
     tenant, client, demand, vendor_a, vendor_b, request_a, request_b = fixtures
     qa = ask_question(db_session, request_a, vendor_a, question="Is remote work allowed for this role?")
@@ -153,6 +173,7 @@ def test_answer_requires_min_length(db_session, fixtures):
 
     with pytest.raises(ClarificationValidationError):
         answer_question(db_session, qa, answered_by="U-RM", answer="no")
+
 
 def test_answered_question_visible_to_other_vendor_on_same_request(db_session, fixtures):
     """BR-0814-01: shared visibility, not scoped to the asker."""
@@ -168,6 +189,7 @@ def test_answered_question_visible_to_other_vendor_on_same_request(db_session, f
     all_qa = get_qa_for_request(db_session, request_a)
     assert len(all_qa) == 1
     assert all_qa[0].answer is not None
+
 
 def test_qa_scoped_per_request_not_leaked_across_requests(db_session, fixtures):
     tenant, client, demand, vendor_a, vendor_b, request_a, request_b = fixtures

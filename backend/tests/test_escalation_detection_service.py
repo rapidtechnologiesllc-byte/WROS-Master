@@ -10,9 +10,11 @@ status enum -- escalation_state (conversation_state_service.escalate/
 resolve_escalation) and ownership (pause_for_recruiter_queue/
 resume_to_thunder) are the real, separate axes used instead.
 
+Throwaway SQLite -- never the real database.
 """
 import json
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -33,8 +35,19 @@ from app.models.user import Jobs, Users
 
 import app.services.escalation_detection_service as svc
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateInfoForm.__table__, Jobs.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
+        CandidateMemory.__table__, CandidateMemoryFact.__table__, CandidateSLABreach.__table__,
+        CandidateAIAssignment.__table__, Notification.__table__, PromptExecutionLog.__table__,
+        ConsentRecord.__table__, CandidateSentimentLog.__table__, RecruiterInterventionQueue.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -44,6 +57,7 @@ def db_session():
         os.remove(db_path)
         import app.services.candidate_context_service as ctx_svc
         ctx_svc._CONTEXT_CACHE.clear()
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -62,13 +76,16 @@ def seeded(db_session):
 
     return candidate, conv
 
+
 def _llm_returning(payload_dict):
     return lambda sp, up, mt, t: json.dumps(payload_dict)
+
 
 def _llm_raising(exc):
     def _raise(sp, up, mt, t):
         raise exc
     return _raise
+
 
 # ── TC-001: keyword-based rule escalation ─────────────────────────────
 
@@ -78,11 +95,13 @@ def test_human_request_keyword_escalates_via_rule(db_session, seeded):
     assert result["needs_escalation"] is True
     assert result["trigger_type"] == "RULE"
 
+
 def test_call_me_keyword_escalates_via_rule(db_session, seeded):
     candidate, conv = seeded
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "Please call me instead.")
     assert result["needs_escalation"] is True
     assert result["trigger_type"] == "RULE"
+
 
 # ── BR-02 / TC: legal keyword -> immediate escalation, no LLM call ─────
 
@@ -96,11 +115,13 @@ def test_legal_keyword_escalates_without_calling_llm(db_session, seeded):
     assert "Legal/compliance" in result["reason"]
     assert calls == []  # BR-02: no LLM call at all
 
+
 def test_discrimination_keyword_escalates(db_session, seeded):
     candidate, conv = seeded
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "This feels like discrimination.")
     assert result["needs_escalation"] is True
     assert result["trigger_type"] == "RULE"
+
 
 # ── Rule #2: repeated question ─────────────────────────────────────────
 
@@ -118,15 +139,18 @@ def test_repeated_question_escalates_via_rule(db_session, seeded):
     assert result["trigger_type"] == "RULE"
     assert "same question" in result["reason"]
 
+
 def test_different_questions_do_not_trigger_repeated_rule(db_session, seeded):
     candidate, conv = seeded
     db_session.add_all([
         ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={"channel": "web_chat", "body": "What is the salary?"}, triggered_by="candidate"),
         ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={"channel": "web_chat", "body": "Is this remote?"}, triggered_by="candidate"),
+    ])
     db_session.commit()
 
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "When does it start?", llm_call=_llm_returning({"needs_escalation": False}))
     assert result["needs_escalation"] is False
+
 
 # ── Rule #3 (S-036 wiring): negative sentiment trend ───────────────────
 
@@ -144,6 +168,7 @@ def test_negative_sentiment_trend_escalates_via_rule(db_session, seeded):
     assert "sentiment" in result["reason"]
     assert calls == []  # rule fired before any LLM call
 
+
 def test_two_negative_sentiments_do_not_trigger_rule3(db_session, seeded):
     candidate, conv = seeded
     for _ in range(2):
@@ -152,6 +177,7 @@ def test_two_negative_sentiments_do_not_trigger_rule3(db_session, seeded):
 
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "Ok.", llm_call=_llm_returning({"needs_escalation": False}))
     assert result["needs_escalation"] is False
+
 
 # ── TC-002: LLM-based escalation (no rule fired) ───────────────────────
 
@@ -165,6 +191,7 @@ def test_llm_escalates_on_complex_objection(db_session, seeded):
     assert result["trigger_type"] == "LLM"
     assert result["reason"] == "Candidate expressing distress"
 
+
 def test_llm_no_escalation_needed(db_session, seeded):
     candidate, conv = seeded
     result = svc.check_escalation(
@@ -174,6 +201,7 @@ def test_llm_no_escalation_needed(db_session, seeded):
     assert result["needs_escalation"] is False
     assert result["trigger_type"] is None
 
+
 # ── TC-004 / BR-03: LLM failure -> false, never raises ─────────────────
 
 def test_llm_failure_returns_false_never_raises(db_session, seeded):
@@ -181,10 +209,12 @@ def test_llm_failure_returns_false_never_raises(db_session, seeded):
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "Some ordinary message.", llm_call=_llm_raising(RuntimeError("Gemini down")))
     assert result == {"needs_escalation": False, "reason": None, "trigger_type": None}
 
+
 def test_invalid_json_returns_false_never_raises(db_session, seeded):
     candidate, conv = seeded
     result = svc.check_escalation(db_session, "U-ORG", "C-1", "Some ordinary message.", llm_call=lambda sp, up, mt, t: "not json")
     assert result["needs_escalation"] is False
+
 
 # ── TC-003: full escalation execution flow ─────────────────────────────
 
@@ -211,6 +241,7 @@ def test_execute_escalation_full_flow(db_session, seeded):
     ownership_event = next(e for e in events if e.event_type == "ownership_changed")
     assert exit_event.id < ownership_event.id
 
+
 def test_execute_escalation_notifies_recruiter(db_session, seeded):
     candidate, conv = seeded
     svc.execute_escalation(db_session, conv, candidate, reason="Candidate asked for a human", trigger_type="RULE")
@@ -219,6 +250,7 @@ def test_execute_escalation_notifies_recruiter(db_session, seeded):
     assert len(notifications) == 1
     assert notifications[0].priority_tier == "P0"
     assert "Priya Sharma" in notifications[0].message
+
 
 def test_execute_escalation_legal_trigger_notifies_manager_too(db_session, seeded):
     candidate, conv = seeded
@@ -230,6 +262,7 @@ def test_execute_escalation_legal_trigger_notifies_manager_too(db_session, seede
     # collapses to one recipient when they're the same real user. Assert
     # at least one P0 legal-flagged notification exists.
     assert any("LEGAL/COMPLIANCE" in n.message for n in notifications)
+
 
 def test_execute_escalation_assigned_recruiter_and_manager_both_notified_when_different(db_session, seeded):
     candidate, conv = seeded
@@ -244,6 +277,7 @@ def test_execute_escalation_assigned_recruiter_and_manager_both_notified_when_di
     notifications = db_session.query(Notification).all()
     recipients = {n.recipient_id for n in notifications}
     assert recipients == {"U-RECRUITER", "U-ORG"}  # recruiter + manager-analog, both notified
+
 
 # ── Step 4 / TC-005: de-escalation resumes Thunder ─────────────────────
 
@@ -266,6 +300,7 @@ def test_resolve_and_resume_clears_escalation_and_restores_ownership(db_session,
 
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "escalation_resolved").all()
     assert len(events) == 1
+
 
 # ── Hand-back-from-escalation gap (real bug fixed alongside this story) ─
 

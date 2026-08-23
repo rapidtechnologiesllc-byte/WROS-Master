@@ -40,12 +40,13 @@ import {
   isAdmin,
   canViewModule,
 } from "../utils/permissions";
+import { MODULE_CONFIG } from "./moduleConfig";
 
 // Dynamic navigation driven by role template permissions from backend
 // Navigation structure is fetched from /hr/me/navigation endpoint
 // which returns groups and items filtered by user's actual permissions (175 resources)
 
-// Icon mapping for resource names
+// Icon mapping for resource names AND module/group icons (by name string)
 const ICON_MAP_BY_RESOURCE = {
   "candidates": Users,
   "jobs": Briefcase,
@@ -65,20 +66,54 @@ const ICON_MAP_BY_RESOURCE = {
   "profile": UserPlus,
 };
 
+// Map icon names (strings from backend) to icon components
+const ICON_COMPONENTS_BY_NAME = {
+  "Users": Users,
+  "Users2": Users2,
+  "Briefcase": Briefcase,
+  "Video": Users,
+  "FileText": FileTextIcon,
+  "Clock": Clock,
+  "Receipt": Receipt,
+  "BarChart3": BarChart3,
+  "BarChart2": BarChart3,
+  "BadgeDollarSign": BadgeDollarSign,
+  "Shield": Shield,
+  "Lock": Shield,
+  "Settings": Settings,
+  "Home": LayoutDashboard,
+  "TrendingUp": TrendingUp,
+  "MessageCircle": MessageSquareText,
+  "Bell": AlertOctagon,
+  "CheckSquare": UserCheck,
+  "DollarSign": BadgeDollarSign,
+  "Eye": UserCheck,
+  "Calendar": CalendarCheck2,
+  "MessageSquare": MessageSquareText,
+  "CheckCircle": UserCheck,
+  "Building": LayoutDashboard,
+  "AlertCircle": AlertOctagon,
+  "File": FileTextIcon,
+  "Award": UserPlus,
+};
+
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   try {
     const { apiRequest } = await import("../services/api/client");
     const response = await apiRequest("/hr/me/navigation", { method: "GET" });
 
-    if (!response || !response.groups) {
+    // apiRequest returns { data, response } structure - extract the actual data
+    const navData = response?.data || response;
+
+    if (!navData || !navData.groups) {
       console.warn("Invalid navigation response:", response);
       return [];
     }
 
     // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
     // Transform items to use route instead of path for navigation
-    const groups = response.groups.map(group => ({
+    const groups = navData.groups.map(group => ({
       ...group,
       items: group.items.map(item => ({
         key: item.key,
@@ -151,6 +186,11 @@ const NAV_PERMISSIONS = {
 
   // Admin Module
   usersAccessControl: "users",
+  users: "users",
+  businessUnits: "users",
+  deliveryCenters: "users",
+  organizationalHierarchy: "users",
+  roleTemplates: "users",
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",
@@ -159,7 +199,6 @@ const NAV_PERMISSIONS = {
   ticketRoutingAdmin: "ticket_routing.view",
   executiveSignal: "executive_signal.view",
   errorLog: "error_log.view",
-  adminSettings: "admin_settings.view",
   adminWeeklyRecap: "admin_weekly_recap.view",
 
   // Dashboard/Agent Screens
@@ -261,10 +300,11 @@ export default function Shell({
       // Fetch pre-built navigation from backend (already filtered by user permissions)
       const navGroups = await fetchNavigationFromBackend();
       setNav({ standalone: [], groups: navGroups });
+      console.debug("Navigation loaded:", { groupCount: navGroups.length });
     };
 
     loadNavigation();
-  }, [permissionsLoaded]);
+  }, []); // Load once on component mount - backend already filters permissions
 
   const [openGroups, setOpenGroups] = useState(() => new Set());
 
@@ -291,7 +331,10 @@ export default function Shell({
   };
 
   const renderLink = (n) => {
-    const Icon = n.icon;
+    // Handle both component and string icon formats
+    const Icon = typeof n.icon === 'string'
+      ? (ICON_COMPONENTS_BY_NAME[n.icon] || Briefcase)
+      : (n.icon || Briefcase);
     const active = location.pathname === n.path;
     return (
       <button
@@ -323,46 +366,64 @@ export default function Shell({
             </div>
 
             <nav className="space-y-1">
-              {nav.standalone.map((n) => renderLink(n))}
+              {nav.standalone.map((n, idx) => (
+                <div key={`standalone-${n.key || n.label || idx}`}>
+                  {renderLink(n)}
+                </div>
+              ))}
 
               {nav.groups.map((group) => {
-                const GroupIcon = group.icon;
+                // Backend returns icon as string name (e.g., "Users2"), convert to component
+                const GroupIcon = ICON_COMPONENTS_BY_NAME[group.icon] || LayoutDashboard;
                 const isOpen = openGroups.has(group.label);
-                const hasActiveItem = group.items.some(
-                  (item) => item.path === location.pathname,
+                // Check if any item in this group matches current path
+                const hasActiveItem = group.items?.some(
+                  (item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/')
                 );
+
                 return (
                   <div key={group.label}>
                     <button
                       onClick={() => toggleGroup(group.label)}
                       className={cx(
                         "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
-                        hasActiveItem && !isOpen
-                          ? "text-white"
+                        hasActiveItem || isOpen
+                          ? "text-white bg-bx-orange/20"
                           : "text-white/80 hover:bg-white/10 hover:text-white",
                       )}
                     >
                       <GroupIcon className="h-4 w-4" />
                       <span className="flex-1 text-left">{group.label}</span>
-                      <ChevronDown
-                        className={cx(
-                          "h-3.5 w-3.5 text-white/50 transition-transform",
-                          isOpen ? "rotate-180" : "",
-                        )}
-                      />
+                      {group.items && group.items.length > 0 && (
+                        <ChevronDown
+                          className={cx(
+                            "h-3.5 w-3.5 text-white/50 transition-transform",
+                            isOpen ? "rotate-180" : "",
+                          )}
+                        />
+                      )}
                     </button>
-                    {isOpen && (
+
+                    {isOpen && group.items && group.items.length > 0 && (
                       <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
-                        {group.items.map((item) => {
-                          const ItemIcon = item.icon;
-                          const active = location.pathname === item.path;
+                        {group.items.map((item, idx) => {
+                          // Only show items that are configured for this module
+                          const moduleKeys = MODULE_CONFIG[group.label] || [];
+                          if (!moduleKeys.includes(item.key)) return null;
+
+                          const ItemIcon = typeof item.icon === 'string'
+                            ? (ICON_COMPONENTS_BY_NAME[item.icon] || Briefcase)
+                            : (item.icon || Briefcase);
+                          const itemActive = location.pathname === item.path;
+                          const uniqueKey = `${group.label}-${item.key}-${idx}`;
+
                           return (
                             <button
-                              key={item.path}
+                              key={uniqueKey}
                               onClick={() => navigate(item.path)}
                               className={cx(
                                 "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition",
-                                active
+                                itemActive
                                   ? "bg-bx-orange text-white"
                                   : "text-white/70 hover:bg-white/10 hover:text-white",
                               )}

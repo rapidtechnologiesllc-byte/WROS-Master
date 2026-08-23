@@ -6,8 +6,10 @@ own note) added specifically so Recruiter gets a real 403 here, without
 touching the two broader offer permissions other already-shipped routes
 depend on (which currently, inconsistently, still include Recruiter).
 
+Throwaway SQLite app, throwaway JWT keys, real RBAC seed.
 """
 import os
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -24,6 +26,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -32,8 +35,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
+@pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -65,6 +74,7 @@ def client(throwaway_jwt_keys):
         Users(UserID="U-CEO", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword=get_password_hash("x"), tenant_id=tenant.id, role_id=super_role.id if super_role else None),
         Users(UserID="U-HR", UserRole="HR Manager", UserEmail="hr@blitzenx.com", UserPassword=get_password_hash("x"), tenant_id=tenant.id, role_id=hr_role.id if hr_role else None),
         Users(UserID="U-REC", UserRole="Recruiter", UserEmail="rec@blitzenx.com", UserPassword=get_password_hash("x"), tenant_id=tenant.id, role_id=rec_role.id if rec_role else None),
+    ])
     db.commit()
     db.close()
 
@@ -75,8 +85,10 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def test_recruiter_gets_403(client):
     resp = client.get(
@@ -84,6 +96,7 @@ def test_recruiter_gets_403(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 403
+
 
 def test_hr_manager_gets_200(client):
     resp = client.get(
@@ -94,12 +107,14 @@ def test_hr_manager_gets_200(client):
     body = resp.json()
     assert "is_ready" in body and "blockers" in body and "warnings" in body and "checked_at" in body
 
+
 def test_super_user_gets_200(client):
     resp = client.get(
         "/candidates/C-1/jobs/JOB-1/offer-readiness",
         headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com', 'Super User')}"},
     )
     assert resp.status_code == 200
+
 
 def test_no_auth_gets_401_or_403(client):
     resp = client.get("/candidates/C-1/jobs/JOB-1/offer-readiness")

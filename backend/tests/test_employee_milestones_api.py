@@ -6,9 +6,11 @@ Personal, Project & Org) end-to-end on real routes. Also proves the
 auto-write into employee_performance_events (HRMS-0515) on completion
 (AC-3, scored 100 on-time / 70 late) and on overdue detection (AC-4).
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -26,6 +28,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -41,9 +44,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -91,15 +99,19 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
+
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get(f"/employee-milestones/employee/{client.wros_ids['employee_id']}")
     assert resp.status_code in (401, 403)
+
 
 def test_create_personal_milestone(client):
     ids = client.wros_ids
@@ -114,6 +126,7 @@ def test_create_personal_milestone(client):
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "PENDING"
 
+
 def test_create_personal_milestone_requires_employee_id(client):
     resp = client.post(
         "/employee-milestones",
@@ -121,6 +134,7 @@ def test_create_personal_milestone_requires_employee_id(client):
         headers=_auth(),
     )
     assert resp.status_code == 422
+
 
 def test_list_employee_milestones(client):
     ids = client.wros_ids
@@ -135,6 +149,7 @@ def test_list_employee_milestones(client):
     resp = client.get(f"/employee-milestones/employee/{ids['employee_id']}", headers=_auth())
     assert resp.status_code == 200
     assert len(resp.json()["milestones"]) == 1
+
 
 def test_complete_milestone_on_time_writes_score_100(client):
     ids = client.wros_ids
@@ -167,6 +182,7 @@ def test_complete_milestone_on_time_writes_score_100(client):
     assert data["score"] == 100
     assert data["on_time"] is True
 
+
 def test_complete_milestone_late_writes_score_70(client):
     ids = client.wros_ids
     milestone = client.post(
@@ -192,6 +208,7 @@ def test_complete_milestone_late_writes_score_70(client):
     import json
     assert json.loads(events[0].event_data)["score"] == 70
 
+
 def test_complete_already_complete_milestone_is_409(client):
     ids = client.wros_ids
     milestone = client.post(
@@ -206,9 +223,11 @@ def test_complete_already_complete_milestone_is_409(client):
     resp = client.post(f"/employee-milestones/{milestone['id']}/complete", json={}, headers=_auth())
     assert resp.status_code == 409
 
+
 def test_complete_milestone_404_for_unknown_id(client):
     resp = client.post("/employee-milestones/does-not-exist/complete", json={}, headers=_auth())
     assert resp.status_code == 404
+
 
 def test_scan_overdue_flips_status_and_writes_negative_event(client):
     ids = client.wros_ids
@@ -238,6 +257,7 @@ def test_scan_overdue_flips_status_and_writes_negative_event(client):
     engine.dispose()
     assert len(events) == 1
 
+
 def test_scan_overdue_is_idempotent(client):
     ids = client.wros_ids
     client.post(
@@ -252,6 +272,7 @@ def test_scan_overdue_is_idempotent(client):
     second = client.post("/employee-milestones/scan-overdue", headers=_auth())
     assert len(first.json()["overdue"]) == 1
     assert len(second.json()["overdue"]) == 0
+
 
 def test_scan_overdue_skips_future_milestones(client):
     ids = client.wros_ids

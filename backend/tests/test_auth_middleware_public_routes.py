@@ -13,18 +13,22 @@ regardless of when it gets wired in.
 """
 from app.middleware.auth_middleware import AuthenticationMiddleware
 
+
 def _mw():
     return AuthenticationMiddleware(app=lambda scope, receive, send: None)
+
 
 def test_exact_public_routes_are_public():
     mw = _mw()
     for path in ["/", "/health", "/docs", "/redoc", "/openapi.json", "/auth/v1/signup", "/auth/login"]:
         assert mw._is_public_route(path) is True
 
+
 def test_static_subtree_is_public_via_explicit_prefix():
     mw = _mw()
     assert mw._is_public_route("/static/logo.png") is True
     assert mw._is_public_route("/docs/oauth2-redirect") is True
+
 
 def test_negative_case_protected_routes_are_not_public():
     """
@@ -34,6 +38,7 @@ def test_negative_case_protected_routes_are_not_public():
     mw = _mw()
     for path in ["/candidates", "/api/v1/candidates/123", "/reports", "/admin/users"]:
         assert mw._is_public_route(path) is False
+
 
 def test_stale_paths_that_never_matched_any_real_route_are_gone():
     """
@@ -46,6 +51,7 @@ def test_stale_paths_that_never_matched_any_real_route_are_gone():
     mw = _mw()
     assert "/auth/v1/login" not in mw.PUBLIC_ROUTES
     assert "/auth/candidate/login" not in mw.PUBLIC_ROUTES
+
 
 def test_public_routes_matches_the_real_apps_actual_auth_paths():
     """
@@ -61,6 +67,7 @@ def test_public_routes_matches_the_real_apps_actual_auth_paths():
     assert "/auth/login" in AuthenticationMiddleware.PUBLIC_ROUTES
     assert "/auth/v1/signup" in AuthenticationMiddleware.PUBLIC_ROUTES
 
+
 def test_templated_public_route_matches_a_real_resolved_path():
     """
     request.url.path is the RESOLVED path (e.g. "/jobs/abc123/apply"),
@@ -71,6 +78,7 @@ def test_templated_public_route_matches_a_real_resolved_path():
     mw = _mw()
     assert mw._is_public_route("/jobs/abc123/apply") is True
     assert mw._is_public_route("/jobs/JOB-2026-0042/apply") is True
+
 
 def test_templated_public_route_does_not_over_match():
     """

@@ -7,8 +7,10 @@ live in ConversationEvent.event_data JSON). Real tenant-scoped DB
 query + Python-side case-insensitive substring match -- see the
 module's own docstring for the honest performance tradeoff.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -21,9 +23,13 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -31,6 +37,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -58,19 +65,23 @@ def seeded(db_session):
 
     return conv1, conv2, conv3
 
+
 def test_search_term_too_short_raises(db_session, seeded):
     with pytest.raises(svc.SearchTermTooShort):
         svc.search_conversations(db_session, "U-ORG", "a")
+
 
 def test_keyword_search_finds_matching_message(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire")
     assert result["total_count"] == 1
     assert result["results"][0]["candidate_name"] == "Priya"
 
+
 def test_search_by_candidate_name(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Raj")
     assert result["total_count"] == 1
     assert result["results"][0]["candidate_id"] == "C-2"
+
 
 def test_tenant_isolation_excludes_other_tenant(db_session, seeded):
     """AC-4: same keyword exists in another tenant's message -- must not appear."""
@@ -78,11 +89,13 @@ def test_tenant_isolation_excludes_other_tenant(db_session, seeded):
     candidate_ids = [r["candidate_id"] for r in result["results"]]
     assert "C-3" not in candidate_ids
 
+
 def test_channel_filter(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "relocation", channel="EMAIL")
     assert result["total_count"] == 1
     no_match = svc.search_conversations(db_session, "U-ORG", "relocation", channel="WHATSAPP")
     assert no_match["total_count"] == 0
+
 
 def test_date_range_filter_excludes_old_messages(db_session, seeded):
     conv1, conv2, conv3 = seeded
@@ -93,15 +106,18 @@ def test_date_range_filter_excludes_old_messages(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire", date_from=datetime.utcnow() - timedelta(days=1))
     assert result["total_count"] == 0
 
+
 def test_no_results_returns_empty_list_not_error(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "nonexistentkeyword")
     assert result["results"] == []
     assert result["total_count"] == 0
 
+
 def test_pagination_has_more(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "we", per_page=0)
     # per_page=0 -> nothing returned this page, but has_more reflects real total
     assert result["per_page"] == 0
+
 
 def test_snippet_max_150_chars(db_session, seeded):
     long_body = "x" * 300 + " findme " + "y" * 300

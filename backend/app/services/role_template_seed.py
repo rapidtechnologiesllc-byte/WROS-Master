@@ -13,81 +13,293 @@ from app.core.logging import logger
 
 
 MODULES_SEED = [
-    {"name": "Recruitment", "display_name": "Recruitment Management"},
-    {"name": "Workforce", "display_name": "Workforce & Employees"},
-    {"name": "Finance", "display_name": "Finance & Revenue"},
-    {"name": "Admin", "display_name": "System Administration"},
+    {"name": "recruitment_management", "display_name": "Recruitment Management"},
+    {"name": "finance_revenue", "display_name": "Finance & Revenue"},
+    {"name": "workforce_employees", "display_name": "Workforce & Employees"},
+    {"name": "administration", "display_name": "Administration"},
+    {"name": "sales", "display_name": "Sales"},
+    {"name": "project_management", "display_name": "Project Management"},
+    {"name": "reporting", "display_name": "Reporting"},
+    {"name": "system", "display_name": "System"},
+    {"name": "executive_dashboards", "display_name": "Executive Dashboards"},
+    {"name": "engagement_communications", "display_name": "Engagement & Communications"},
 ]
 
 RESOURCES_SEED = [
-    # Recruitment module
-    {"module": "Recruitment", "name": "candidates", "display_name": "Candidates"},
-    {"module": "Recruitment", "name": "jobs", "display_name": "Job Postings"},
-    {"module": "Recruitment", "name": "interviews", "display_name": "Interviews"},
-    {"module": "Recruitment", "name": "offers", "display_name": "Offers"},
+    # Recruitment Management module
+    {"module": "recruitment_management", "name": "candidates", "display_name": "Candidates"},
+    {"module": "recruitment_management", "name": "jobs", "display_name": "Job Postings"},
+    {"module": "recruitment_management", "name": "interviews", "display_name": "Interviews"},
+    {"module": "recruitment_management", "name": "offers", "display_name": "Offers"},
 
-    # Workforce module
-    {"module": "Workforce", "name": "employees", "display_name": "Employees"},
-    {"module": "Workforce", "name": "timesheets", "display_name": "Timesheets"},
+    # Finance & Revenue module
+    {"module": "finance_revenue", "name": "invoices", "display_name": "Invoices"},
+    {"module": "finance_revenue", "name": "financial_reports", "display_name": "Financial Reports"},
+    {"module": "finance_revenue", "name": "billing", "display_name": "Billing"},
 
-    # Finance module
-    {"module": "Finance", "name": "invoices", "display_name": "Invoices"},
-    {"module": "Finance", "name": "reports", "display_name": "Financial Reports"},
+    # Workforce & Employees module
+    {"module": "workforce_employees", "name": "employees", "display_name": "Employees"},
+    {"module": "workforce_employees", "name": "timesheets", "display_name": "Timesheets"},
+    {"module": "workforce_employees", "name": "allocations", "display_name": "Allocations"},
 
-    # Admin module
-    {"module": "Admin", "name": "users", "display_name": "Users"},
-    {"module": "Admin", "name": "roles", "display_name": "Roles & Permissions"},
+    # Administration module
+    {"module": "administration", "name": "users", "display_name": "Users"},
+    {"module": "administration", "name": "roles", "display_name": "Roles & Permissions"},
+    {"module": "administration", "name": "business_units", "display_name": "Business Units"},
+    {"module": "administration", "name": "settings", "display_name": "System Settings"},
+
+    # Sales module
+    {"module": "sales", "name": "opportunities", "display_name": "Sales Opportunities"},
+    {"module": "sales", "name": "clients", "display_name": "Clients"},
+    {"module": "sales", "name": "partners", "display_name": "Partners"},
+
+    # Project Management module
+    {"module": "project_management", "name": "projects", "display_name": "Projects"},
+    {"module": "project_management", "name": "tasks", "display_name": "Tasks"},
+    {"module": "project_management", "name": "deliverables", "display_name": "Deliverables"},
+
+    # Reporting module
+    {"module": "reporting", "name": "analytics", "display_name": "Analytics"},
+    {"module": "reporting", "name": "dashboards", "display_name": "Dashboards"},
+    {"module": "reporting", "name": "custom_reports", "display_name": "Custom Reports"},
+
+    # System module
+    {"module": "system", "name": "audit_logs", "display_name": "Audit Logs"},
+    {"module": "system", "name": "system_config", "display_name": "System Configuration"},
+    {"module": "system", "name": "maintenance", "display_name": "Maintenance"},
+
+    # Executive Dashboards module
+    {"module": "executive_dashboards", "name": "executive_overview", "display_name": "Executive Overview"},
+    {"module": "executive_dashboards", "name": "kpi_metrics", "display_name": "KPI Metrics"},
+    {"module": "executive_dashboards", "name": "financial_summary", "display_name": "Financial Summary"},
+
+    # Engagement & Communications module
+    {"module": "engagement_communications", "name": "campaigns", "display_name": "Engagement Campaigns"},
+    {"module": "engagement_communications", "name": "messages", "display_name": "Messages"},
+    {"module": "engagement_communications", "name": "notifications", "display_name": "Notifications"},
 ]
 
 # role_name → resource.action → True/False
 ROLE_TEMPLATE_PERMISSIONS = {
     "Super User": {
+        # Recruitment Management - Full access
         "candidates": {"view": True, "create": True, "edit": True, "delete": True},
         "jobs": {"view": True, "create": True, "edit": True, "delete": True},
         "interviews": {"view": True, "create": True, "edit": True, "delete": True},
         "offers": {"view": True, "create": True, "edit": True, "delete": True},
+        # Finance & Revenue - Full access
+        "invoices": {"view": True, "create": True, "edit": True, "delete": True},
+        "financial_reports": {"view": True, "create": True, "edit": True, "delete": True},
+        "billing": {"view": True, "create": True, "edit": True, "delete": True},
+        # Workforce & Employees - Full access
         "employees": {"view": True, "create": True, "edit": True, "delete": True},
         "timesheets": {"view": True, "create": True, "edit": True, "delete": True},
-        "invoices": {"view": True, "create": True, "edit": True, "delete": True},
-        "reports": {"view": True, "create": True, "edit": True, "delete": True},
+        "allocations": {"view": True, "create": True, "edit": True, "delete": True},
+        # Administration - Full access
         "users": {"view": True, "create": True, "edit": True, "delete": True},
         "roles": {"view": True, "create": True, "edit": True, "delete": True},
+        "business_units": {"view": True, "create": True, "edit": True, "delete": True},
+        "settings": {"view": True, "create": True, "edit": True, "delete": True},
+        # Sales - Full access
+        "opportunities": {"view": True, "create": True, "edit": True, "delete": True},
+        "clients": {"view": True, "create": True, "edit": True, "delete": True},
+        "partners": {"view": True, "create": True, "edit": True, "delete": True},
+        # Project Management - Full access
+        "projects": {"view": True, "create": True, "edit": True, "delete": True},
+        "tasks": {"view": True, "create": True, "edit": True, "delete": True},
+        "deliverables": {"view": True, "create": True, "edit": True, "delete": True},
+        # Reporting - Full access
+        "analytics": {"view": True, "create": True, "edit": True, "delete": True},
+        "dashboards": {"view": True, "create": True, "edit": True, "delete": True},
+        "custom_reports": {"view": True, "create": True, "edit": True, "delete": True},
+        # System - Full access
+        "audit_logs": {"view": True, "create": True, "edit": True, "delete": True},
+        "system_config": {"view": True, "create": True, "edit": True, "delete": True},
+        "maintenance": {"view": True, "create": True, "edit": True, "delete": True},
+        # Executive Dashboards - Full access
+        "executive_overview": {"view": True, "create": True, "edit": True, "delete": True},
+        "kpi_metrics": {"view": True, "create": True, "edit": True, "delete": True},
+        "financial_summary": {"view": True, "create": True, "edit": True, "delete": True},
+        # Engagement & Communications - Full access
+        "campaigns": {"view": True, "create": True, "edit": True, "delete": True},
+        "messages": {"view": True, "create": True, "edit": True, "delete": True},
+        "notifications": {"view": True, "create": True, "edit": True, "delete": True},
     },
     "Recruiter": {
+        # Recruitment Management - Full access
         "candidates": {"view": True, "create": True, "edit": True, "delete": False},
         "jobs": {"view": True, "create": False, "edit": False, "delete": False},
         "interviews": {"view": True, "create": True, "edit": True, "delete": False},
         "offers": {"view": True, "create": True, "edit": True, "delete": False},
+        # Finance & Revenue - View only
+        "invoices": {"view": True, "create": False, "edit": False, "delete": False},
+        "financial_reports": {"view": True, "create": False, "edit": False, "delete": False},
+        "billing": {"view": True, "create": False, "edit": False, "delete": False},
+        # Workforce & Employees - No access
         "employees": {"view": False, "create": False, "edit": False, "delete": False},
         "timesheets": {"view": False, "create": False, "edit": False, "delete": False},
-        "invoices": {"view": False, "create": False, "edit": False, "delete": False},
-        "reports": {"view": False, "create": False, "edit": False, "delete": False},
-        "users": {"view": False, "create": False, "edit": False, "delete": False},
+        "allocations": {"view": False, "create": False, "edit": False, "delete": False},
+        # Administration - View only
+        "users": {"view": True, "create": False, "edit": False, "delete": False},
         "roles": {"view": False, "create": False, "edit": False, "delete": False},
+        "business_units": {"view": True, "create": False, "edit": False, "delete": False},
+        "settings": {"view": False, "create": False, "edit": False, "delete": False},
+        # Sales - View only
+        "opportunities": {"view": True, "create": False, "edit": False, "delete": False},
+        "clients": {"view": True, "create": False, "edit": False, "delete": False},
+        "partners": {"view": True, "create": False, "edit": False, "delete": False},
+        # Project Management - No access
+        "projects": {"view": False, "create": False, "edit": False, "delete": False},
+        "tasks": {"view": False, "create": False, "edit": False, "delete": False},
+        "deliverables": {"view": False, "create": False, "edit": False, "delete": False},
+        # Reporting - View only
+        "analytics": {"view": True, "create": False, "edit": False, "delete": False},
+        "dashboards": {"view": True, "create": False, "edit": False, "delete": False},
+        "custom_reports": {"view": False, "create": False, "edit": False, "delete": False},
+        # System - No access
+        "audit_logs": {"view": False, "create": False, "edit": False, "delete": False},
+        "system_config": {"view": False, "create": False, "edit": False, "delete": False},
+        "maintenance": {"view": False, "create": False, "edit": False, "delete": False},
+        # Executive Dashboards - No access
+        "executive_overview": {"view": False, "create": False, "edit": False, "delete": False},
+        "kpi_metrics": {"view": False, "create": False, "edit": False, "delete": False},
+        "financial_summary": {"view": False, "create": False, "edit": False, "delete": False},
+        # Engagement & Communications - View only
+        "campaigns": {"view": True, "create": False, "edit": False, "delete": False},
+        "messages": {"view": True, "create": False, "edit": False, "delete": False},
+        "notifications": {"view": True, "create": False, "edit": False, "delete": False},
     },
     "HR Manager": {
+        # Recruitment Management - Most access
         "candidates": {"view": True, "create": True, "edit": True, "delete": False},
         "jobs": {"view": True, "create": True, "edit": True, "delete": False},
         "interviews": {"view": True, "create": True, "edit": True, "delete": False},
         "offers": {"view": True, "create": True, "edit": True, "delete": False},
+        # Finance & Revenue - View only
+        "invoices": {"view": True, "create": False, "edit": False, "delete": False},
+        "financial_reports": {"view": True, "create": False, "edit": False, "delete": False},
+        "billing": {"view": True, "create": False, "edit": False, "delete": False},
+        # Workforce & Employees - Full access
         "employees": {"view": True, "create": True, "edit": True, "delete": False},
         "timesheets": {"view": True, "create": False, "edit": False, "delete": False},
-        "invoices": {"view": False, "create": False, "edit": False, "delete": False},
-        "reports": {"view": False, "create": False, "edit": False, "delete": False},
+        "allocations": {"view": True, "create": True, "edit": True, "delete": False},
+        # Administration - Limited
         "users": {"view": True, "create": True, "edit": True, "delete": False},
-        "roles": {"view": False, "create": False, "edit": False, "delete": False},
+        "roles": {"view": True, "create": False, "edit": False, "delete": False},
+        "business_units": {"view": True, "create": False, "edit": False, "delete": False},
+        "settings": {"view": False, "create": False, "edit": False, "delete": False},
+        # Sales - View only
+        "opportunities": {"view": True, "create": False, "edit": False, "delete": False},
+        "clients": {"view": True, "create": False, "edit": False, "delete": False},
+        "partners": {"view": True, "create": False, "edit": False, "delete": False},
+        # Project Management - View only
+        "projects": {"view": True, "create": False, "edit": False, "delete": False},
+        "tasks": {"view": True, "create": False, "edit": False, "delete": False},
+        "deliverables": {"view": True, "create": False, "edit": False, "delete": False},
+        # Reporting - Full access
+        "analytics": {"view": True, "create": True, "edit": True, "delete": False},
+        "dashboards": {"view": True, "create": True, "edit": True, "delete": False},
+        "custom_reports": {"view": True, "create": True, "edit": True, "delete": False},
+        # System - No access
+        "audit_logs": {"view": False, "create": False, "edit": False, "delete": False},
+        "system_config": {"view": False, "create": False, "edit": False, "delete": False},
+        "maintenance": {"view": False, "create": False, "edit": False, "delete": False},
+        # Executive Dashboards - No access
+        "executive_overview": {"view": False, "create": False, "edit": False, "delete": False},
+        "kpi_metrics": {"view": False, "create": False, "edit": False, "delete": False},
+        "financial_summary": {"view": False, "create": False, "edit": False, "delete": False},
+        # Engagement & Communications - Full access
+        "campaigns": {"view": True, "create": True, "edit": True, "delete": False},
+        "messages": {"view": True, "create": True, "edit": True, "delete": False},
+        "notifications": {"view": True, "create": True, "edit": True, "delete": False},
     },
-    "Hiring Manager": {
+    "Finance Manager": {
+        # Recruitment Management - View only
         "candidates": {"view": True, "create": False, "edit": False, "delete": False},
         "jobs": {"view": True, "create": False, "edit": False, "delete": False},
-        "interviews": {"view": True, "create": True, "edit": True, "delete": False},
+        "interviews": {"view": False, "create": False, "edit": False, "delete": False},
         "offers": {"view": True, "create": False, "edit": False, "delete": False},
-        "employees": {"view": False, "create": False, "edit": False, "delete": False},
-        "timesheets": {"view": False, "create": False, "edit": False, "delete": False},
-        "invoices": {"view": False, "create": False, "edit": False, "delete": False},
-        "reports": {"view": False, "create": False, "edit": False, "delete": False},
-        "users": {"view": False, "create": False, "edit": False, "delete": False},
+        # Finance & Revenue - Full access
+        "invoices": {"view": True, "create": True, "edit": True, "delete": False},
+        "financial_reports": {"view": True, "create": True, "edit": True, "delete": False},
+        "billing": {"view": True, "create": True, "edit": True, "delete": False},
+        # Workforce & Employees - View only
+        "employees": {"view": True, "create": False, "edit": False, "delete": False},
+        "timesheets": {"view": True, "create": False, "edit": False, "delete": False},
+        "allocations": {"view": True, "create": False, "edit": False, "delete": False},
+        # Administration - View only
+        "users": {"view": True, "create": False, "edit": False, "delete": False},
         "roles": {"view": False, "create": False, "edit": False, "delete": False},
+        "business_units": {"view": True, "create": False, "edit": False, "delete": False},
+        "settings": {"view": False, "create": False, "edit": False, "delete": False},
+        # Sales - View only
+        "opportunities": {"view": True, "create": False, "edit": False, "delete": False},
+        "clients": {"view": True, "create": False, "edit": False, "delete": False},
+        "partners": {"view": True, "create": False, "edit": False, "delete": False},
+        # Project Management - No access
+        "projects": {"view": False, "create": False, "edit": False, "delete": False},
+        "tasks": {"view": False, "create": False, "edit": False, "delete": False},
+        "deliverables": {"view": False, "create": False, "edit": False, "delete": False},
+        # Reporting - Full access
+        "analytics": {"view": True, "create": True, "edit": True, "delete": False},
+        "dashboards": {"view": True, "create": True, "edit": True, "delete": False},
+        "custom_reports": {"view": True, "create": True, "edit": True, "delete": False},
+        # System - No access
+        "audit_logs": {"view": False, "create": False, "edit": False, "delete": False},
+        "system_config": {"view": False, "create": False, "edit": False, "delete": False},
+        "maintenance": {"view": False, "create": False, "edit": False, "delete": False},
+        # Executive Dashboards - View only
+        "executive_overview": {"view": True, "create": False, "edit": False, "delete": False},
+        "kpi_metrics": {"view": True, "create": False, "edit": False, "delete": False},
+        "financial_summary": {"view": True, "create": False, "edit": False, "delete": False},
+        # Engagement & Communications - No access
+        "campaigns": {"view": False, "create": False, "edit": False, "delete": False},
+        "messages": {"view": False, "create": False, "edit": False, "delete": False},
+        "notifications": {"view": False, "create": False, "edit": False, "delete": False},
+    },
+    "Admin": {
+        # Recruitment Management - View only
+        "candidates": {"view": True, "create": False, "edit": False, "delete": False},
+        "jobs": {"view": True, "create": False, "edit": False, "delete": False},
+        "interviews": {"view": True, "create": False, "edit": False, "delete": False},
+        "offers": {"view": True, "create": False, "edit": False, "delete": False},
+        # Finance & Revenue - View only
+        "invoices": {"view": True, "create": False, "edit": False, "delete": False},
+        "financial_reports": {"view": True, "create": False, "edit": False, "delete": False},
+        "billing": {"view": True, "create": False, "edit": False, "delete": False},
+        # Workforce & Employees - View only
+        "employees": {"view": True, "create": False, "edit": False, "delete": False},
+        "timesheets": {"view": True, "create": False, "edit": False, "delete": False},
+        "allocations": {"view": True, "create": False, "edit": False, "delete": False},
+        # Administration - Full access
+        "users": {"view": True, "create": True, "edit": True, "delete": True},
+        "roles": {"view": True, "create": True, "edit": True, "delete": True},
+        "business_units": {"view": True, "create": True, "edit": True, "delete": True},
+        "settings": {"view": True, "create": True, "edit": True, "delete": True},
+        # Sales - View only
+        "opportunities": {"view": True, "create": False, "edit": False, "delete": False},
+        "clients": {"view": True, "create": False, "edit": False, "delete": False},
+        "partners": {"view": True, "create": False, "edit": False, "delete": False},
+        # Project Management - View only
+        "projects": {"view": True, "create": False, "edit": False, "delete": False},
+        "tasks": {"view": True, "create": False, "edit": False, "delete": False},
+        "deliverables": {"view": True, "create": False, "edit": False, "delete": False},
+        # Reporting - Full access
+        "analytics": {"view": True, "create": True, "edit": True, "delete": False},
+        "dashboards": {"view": True, "create": True, "edit": True, "delete": False},
+        "custom_reports": {"view": True, "create": True, "edit": True, "delete": False},
+        # System - Full access
+        "audit_logs": {"view": True, "create": True, "edit": True, "delete": False},
+        "system_config": {"view": True, "create": True, "edit": True, "delete": True},
+        "maintenance": {"view": True, "create": True, "edit": True, "delete": True},
+        # Executive Dashboards - View only
+        "executive_overview": {"view": True, "create": False, "edit": False, "delete": False},
+        "kpi_metrics": {"view": True, "create": False, "edit": False, "delete": False},
+        "financial_summary": {"view": True, "create": False, "edit": False, "delete": False},
+        # Engagement & Communications - View only
+        "campaigns": {"view": True, "create": False, "edit": False, "delete": False},
+        "messages": {"view": True, "create": False, "edit": False, "delete": False},
+        "notifications": {"view": True, "create": False, "edit": False, "delete": False},
     },
 }
 

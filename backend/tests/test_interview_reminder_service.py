@@ -9,8 +9,10 @@ exists since HRMS-0451 doesn't exist yet); BR-02 escalates to
 REMINDER_SEND_FAILED + recruiter notification only when BOTH channels
 fail, per the spec's own integrations table.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from unittest.mock import patch
 
@@ -36,14 +38,26 @@ import app.services.interview_reminder_service as svc
 from app.services.interview_service import assign_panel_member, create_interview
 from app.services.submission_service import create_submission
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Candidate.__table__, Employee.__table__, Users.__table__,
+        Submission.__table__, SubmissionViolation.__table__,
+        DemandInterviewPanel.__table__, SubmissionInterview.__table__, InterviewReminder.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__,
+        Notification.__table__, ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -51,6 +65,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -98,6 +113,7 @@ def seeded(db_session):
 
     return tenant, candidate, submission, conv, panel
 
+
 def _make_interview(db, tenant, submission, panel, scheduled_at, confirmed=True):
     interview = create_interview(db, tenant_id=tenant.id, submission=submission, level="L1", panel=panel, scheduled_at=scheduled_at)
     db.commit()
@@ -106,6 +122,7 @@ def _make_interview(db, tenant, submission, panel, scheduled_at, confirmed=True)
         db.add(interview)
         db.commit()
     return interview
+
 
 # ── AC-1/TC-001: reminders created for a far-future interview ─────────
 
@@ -126,6 +143,7 @@ def test_schedules_both_reminders_for_interview_days_away(db_session, seeded):
     assert abs((by_type["1H_BEFORE"].scheduled_at.replace(tzinfo=dt_timezone.utc) - (scheduled_at - timedelta(hours=1))).total_seconds()) < 2
     assert all(r.status == "PENDING" for r in reminders)
 
+
 # ── AC-6/TC-004: short-notice interview skips the 24H reminder ────────
 
 def test_short_notice_interview_skips_24h_reminder(db_session, seeded):
@@ -141,6 +159,7 @@ def test_short_notice_interview_skips_24h_reminder(db_session, seeded):
     assert len(reminders) == 1
     assert reminders[0].reminder_type == "1H_BEFORE"
 
+
 def test_very_short_notice_skips_both_reminders(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     now = datetime.now(dt_timezone.utc)
@@ -151,9 +170,11 @@ def test_very_short_notice_skips_both_reminders(db_session, seeded):
     assert result["reminders_created"] == []
     assert db_session.query(InterviewReminder).filter(InterviewReminder.interview_id == interview.id).count() == 0
 
+
 def test_interview_not_found_returns_honest_outcome(db_session, seeded):
     result = svc.schedule_reminders_for_interview(db_session, "nonexistent")
     assert result["outcome"] == "interview_not_found"
+
 
 # ── AC-2/TC-002: execution job sends due reminders via both channels ──
 
@@ -179,6 +200,7 @@ def test_execution_job_sends_due_reminder_via_both_channels(db_session, seeded):
     email_event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "ai_message_sent").first()
     assert email_event is not None
 
+
 def test_execution_job_ignores_not_yet_due_reminders(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     scheduled_at = datetime.now(dt_timezone.utc) + timedelta(days=1)
@@ -190,6 +212,7 @@ def test_execution_job_ignores_not_yet_due_reminders(db_session, seeded):
 
     result = svc.run_reminder_execution_job(db_session)
     assert result["processed"] == 0
+
 
 # ── BR-03/AC-4/TC-003: cancelled when interview isn't confirmed ──────
 
@@ -208,6 +231,7 @@ def test_execution_job_cancels_reminder_when_interview_not_confirmed(db_session,
     db_session.refresh(reminder)
     assert reminder.status == "CANCELLED"
 
+
 def test_cancel_pending_reminders_for_interview(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     scheduled_at = datetime.now(dt_timezone.utc) + timedelta(days=3)
@@ -219,6 +243,7 @@ def test_cancel_pending_reminders_for_interview(db_session, seeded):
 
     reminders = db_session.query(InterviewReminder).filter(InterviewReminder.interview_id == interview.id).all()
     assert all(r.status == "CANCELLED" for r in reminders)
+
 
 # ── BR-02: both channels fail -> REMINDER_SEND_FAILED + recruiter notified ─
 
@@ -248,6 +273,7 @@ def test_both_channels_failing_escalates_and_notifies_recruiter(db_session, seed
 
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
+
 
 def test_execution_job_never_raises_on_bad_row(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded

@@ -6,8 +6,10 @@ with blockers if not ready) and AC-8 (Recruiter gets 403 -- the new,
 narrower offer.readiness_check permission, not the broader offer.manage
 which a real pre-existing RBAC inconsistency still grants Recruiter).
 
+Throwaway SQLite app, throwaway JWT keys, real RBAC seed.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
@@ -26,10 +28,12 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
+
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -39,8 +43,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
+@pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -72,6 +82,7 @@ def client(throwaway_jwt_keys):
         Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword=get_password_hash("x"), tenant_id=tenant.id, role_id=super_role.id if super_role else None),
         Users(UserID="U-HR", UserRole="HR Manager", UserEmail="hr@blitzenx.com", UserPassword=get_password_hash("x"), tenant_id=tenant.id, role_id=hr_role.id if hr_role else None),
         Users(UserID="U-REC", UserRole="Recruiter", UserEmail="rec@blitzenx.com", UserPassword=get_password_hash("x"), tenant_id=tenant.id, role_id=rec_role.id if rec_role else None),
+    ])
     db.commit()
 
     from app.models.candidate import Candidate
@@ -100,8 +111,10 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def test_recruiter_gets_403(client):
     resp = client.post(
@@ -109,6 +122,7 @@ def test_recruiter_gets_403(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 403
+
 
 def test_not_ready_candidate_gets_409_with_blockers(client):
     """C-1 has no L1/L2 interviews at all -- BR-01's re-check must
@@ -121,6 +135,7 @@ def test_not_ready_candidate_gets_409_with_blockers(client):
     body = resp.json()["detail"]
     assert body["blockers"]  # non-empty
     assert any("L1" in b for b in body["blockers"])
+
 
 def test_ready_candidate_release_succeeds_and_notifies(client):
     from app.core.database import get_db

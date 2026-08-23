@@ -10,10 +10,12 @@ from unittest.mock import Mock, MagicMock, patch
 
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 
+
 @pytest.fixture
 def service():
     """Create service instance"""
     return HiringManagerValidationService()
+
 
 class TestDetermineDecision:
     """Test decision determination logic (most important business logic)"""
@@ -185,6 +187,7 @@ class TestDetermineDecision:
         )
         assert result["status"].value == "MAYBE"
 
+
 class TestCreateValidationQuestions:
     """Test create_validation_questions service method"""
 
@@ -197,6 +200,7 @@ class TestCreateValidationQuestions:
 
         questions = [
             {"question_id": "q_001", "question_text": "Experience match?"}
+        ]
 
         result = service.create_validation_questions(
             db=mock_db,
@@ -225,6 +229,7 @@ class TestCreateValidationQuestions:
         questions = [
             {"question_id": f"q_{i:03d}", "question_text": f"Question {i}"}
             for i in range(1, 11)
+        ]
 
         result = service.create_validation_questions(
             db=mock_db,
@@ -273,6 +278,7 @@ class TestCreateValidationQuestions:
         questions = [
             {"question_id": f"q_{i:03d}", "question_text": f"Question {i}"}
             for i in range(1, 12)  # 11 questions
+        ]
 
         with pytest.raises(ValueError, match="Maximum 10 questions allowed"):
             service.create_validation_questions(
@@ -290,6 +296,7 @@ class TestCreateValidationQuestions:
 
         questions = [
             {"question_text": "No ID provided"}  # Missing question_id
+        ]
 
         with pytest.raises(ValueError, match="Each question must have"):
             service.create_validation_questions(
@@ -307,6 +314,7 @@ class TestCreateValidationQuestions:
 
         questions = [
             {"question_id": "q_001"}  # Missing question_text
+        ]
 
         with pytest.raises(ValueError, match="Each question must have"):
             service.create_validation_questions(
@@ -349,6 +357,7 @@ class TestCreateValidationQuestions:
         )
 
         assert result["auto_schedule_after_approval"] is False
+
 
 class TestRecordHMResponse:
     """Test record_hm_response service method"""

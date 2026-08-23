@@ -12,9 +12,11 @@ fact -> Candidate.timezone); BR-02 rejects past dates, Step 4 rejects
 weekends and outside-08:00-20:00 slots; BR-03 gates on >=2 cumulative
 valid slots, not just the current message's contribution.
 
+Throwaway SQLite -- never the real database.
 """
 import json
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -30,8 +32,16 @@ from app.models.user import Users
 
 import app.services.interview_availability_service as svc
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        CandidateAvailabilitySlot.__table__, CandidateMemory.__table__, CandidateMemoryFact.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -39,6 +49,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -52,13 +63,16 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
+
 def _next_weekday(base, target_weekday):
     """Returns the next date >= base with the given weekday (0=Mon)."""
     days_ahead = (target_weekday - base.weekday()) % 7
     return base + timedelta(days=days_ahead)
 
+
 def _fake_llm(slots):
     return lambda prompt: json.dumps(slots)
+
 
 # ── Step 3: initial ask ────────────────────────────────────────────
 
@@ -70,6 +84,7 @@ def test_send_availability_request_logs_event(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "availability_requested").first()
     assert event is not None
 
+
 # ── AC-2/AC-3/TC-001: correctly parses structured slots ──────────────
 
 def test_parses_two_valid_slots_and_flags_sufficient(db_session, seeded):
@@ -79,6 +94,7 @@ def test_parses_two_valid_slots_and_flags_sufficient(db_session, seeded):
     llm_call = _fake_llm([
         {"date": d1.isoformat(), "start_time": "14:00", "end_time": "16:00", "timezone": "America/Chicago"},
         {"date": d2.isoformat(), "start_time": "09:00", "end_time": "10:00", "timezone": "America/Chicago"},
+    ])
 
     result = svc.parse_availability_response(db_session, conv, candidate, "U-ORG", "free Tuesday 2-4 PM and Thursday morning", llm_call=llm_call)
     assert result["outcome"] == "slots_sufficient"
@@ -92,6 +108,7 @@ def test_parses_two_valid_slots_and_flags_sufficient(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "AVAILABILITY_PROVIDED").first()
     assert event is not None
     assert event.event_data["total_valid_slots"] == 2
+
 
 # ── AC-4/TC-002: past date rejected ───────────────────────────────────
 
@@ -108,6 +125,7 @@ def test_past_date_rejected_and_not_stored(db_session, seeded):
 
     assert db_session.query(CandidateAvailabilitySlot).count() == 0
 
+
 # ── AC-5/TC-003: weekend rejected ─────────────────────────────────────
 
 def test_weekend_slot_rejected_and_not_stored(db_session, seeded):
@@ -123,6 +141,7 @@ def test_weekend_slot_rejected_and_not_stored(db_session, seeded):
 
     assert db_session.query(CandidateAvailabilitySlot).count() == 0
 
+
 def test_outside_business_hours_rejected(db_session, seeded):
     candidate, conv = seeded
     weekday = _next_weekday(date.today() + timedelta(days=1), 2)
@@ -132,6 +151,7 @@ def test_outside_business_hours_rejected(db_session, seeded):
     assert result["outcome"] == "slots_need_more"
     assert "outside_business_hours" in result["rejections"]
     assert db_session.query(CandidateAvailabilitySlot).count() == 0
+
 
 # ── AC-6/TC-004: only 1 valid slot -> asks for more, event NOT published ─
 
@@ -149,6 +169,7 @@ def test_one_valid_slot_asks_for_more_no_event_published(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "AVAILABILITY_PROVIDED").first()
     assert event is None
 
+
 def test_second_message_pushes_cumulative_total_over_threshold(db_session, seeded):
     candidate, conv = seeded
     d1 = _next_weekday(date.today() + timedelta(days=1), 1)
@@ -160,6 +181,7 @@ def test_second_message_pushes_cumulative_total_over_threshold(db_session, seede
     assert result["outcome"] == "slots_sufficient"
     assert result["total_valid"] == 2
 
+
 # ── No slots found ──────────────────────────────────────────────────
 
 def test_no_slots_found_asks_to_clarify(db_session, seeded):
@@ -167,6 +189,7 @@ def test_no_slots_found_asks_to_clarify(db_session, seeded):
     result = svc.parse_availability_response(db_session, conv, candidate, "U-ORG", "sounds good", llm_call=_fake_llm([]))
     assert result["outcome"] == "no_slots_found"
     assert result["message"] == svc.NO_SLOTS_FOUND_MESSAGE
+
 
 def test_llm_failure_never_raises(db_session, seeded):
     candidate, conv = seeded
@@ -176,6 +199,7 @@ def test_llm_failure_never_raises(db_session, seeded):
 
     result = svc.parse_availability_response(db_session, conv, candidate, "U-ORG", "free Tuesday", llm_call=_boom)  # should not raise
     assert result["outcome"] == "parse_failed"
+
 
 # ── BR-01: timezone inference fallback chain ──────────────────────────
 
@@ -188,6 +212,7 @@ def test_uses_llm_extracted_timezone_when_present(db_session, seeded):
     slot = db_session.query(CandidateAvailabilitySlot).first()
     assert slot.timezone == "Asia/Kolkata"
 
+
 def test_falls_back_to_candidate_timezone_when_no_timezone_extracted(db_session, seeded):
     candidate, conv = seeded
     weekday = _next_weekday(date.today() + timedelta(days=1), 2)
@@ -196,6 +221,7 @@ def test_falls_back_to_candidate_timezone_when_no_timezone_extracted(db_session,
     svc.parse_availability_response(db_session, conv, candidate, "U-ORG", "free Wednesday", llm_call=llm_call)
     slot = db_session.query(CandidateAvailabilitySlot).first()
     assert slot.timezone == "America/Chicago"  # candidate.timezone from the fixture
+
 
 def test_falls_back_to_memory_location_fact_when_it_is_a_valid_timezone(db_session, seeded):
     candidate, conv = seeded
@@ -210,6 +236,7 @@ def test_falls_back_to_memory_location_fact_when_it_is_a_valid_timezone(db_sessi
     slot = db_session.query(CandidateAvailabilitySlot).first()
     assert slot.timezone == "Europe/London"
 
+
 def test_invalid_extracted_timezone_falls_through_chain(db_session, seeded):
     candidate, conv = seeded
     weekday = _next_weekday(date.today() + timedelta(days=1), 2)
@@ -218,6 +245,7 @@ def test_invalid_extracted_timezone_falls_through_chain(db_session, seeded):
     svc.parse_availability_response(db_session, conv, candidate, "U-ORG", "free Wednesday", llm_call=llm_call)
     slot = db_session.query(CandidateAvailabilitySlot).first()
     assert slot.timezone == "America/Chicago"
+
 
 # ── mixed valid + rejected slots in one message ───────────────────────
 
@@ -228,6 +256,7 @@ def test_mixed_valid_and_rejected_slots_only_stores_valid(db_session, seeded):
     llm_call = _fake_llm([
         {"date": valid_day.isoformat(), "start_time": "14:00", "end_time": "16:00", "timezone": "America/Chicago"},
         {"date": weekend_day.isoformat(), "start_time": "14:00", "end_time": "16:00", "timezone": "America/Chicago"},
+    ])
 
     result = svc.parse_availability_response(db_session, conv, candidate, "U-ORG", "free Wednesday or Saturday", llm_call=llm_call)
     assert result["slots_stored"] == 1

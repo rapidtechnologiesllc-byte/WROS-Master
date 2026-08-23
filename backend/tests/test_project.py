@@ -5,8 +5,10 @@ WON), HRMS-0804 (Milestones, delay always computed), HRMS-0803
 HRMS-0805 (unfilled-role gap detection), and HRMS-0806 (revenue/margin
 estimate, incl. insufficient-data handling).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -42,9 +44,18 @@ from app.services.employee_allocation_service import (
     AllocationOverCapacity,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Employee.__table__, EmployeeEmploymentHistory.__table__,
+        EmployeeAllocation.__table__, Opportunity.__table__, Project.__table__, ProjectMilestone.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -52,6 +63,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def tenant_and_client(db_session):
@@ -62,6 +74,7 @@ def tenant_and_client(db_session):
     db_session.add(client)
     db_session.commit()
     return tenant, client
+
 
 def _make_demand(db, tenant, client, **overrides):
     defaults = dict(
@@ -75,6 +88,7 @@ def _make_demand(db, tenant, client, **overrides):
     db.commit()
     return demand
 
+
 def _make_employee(db, tenant, **overrides):
     defaults = dict(
         tenant_id=tenant.id, first_name="Sam", last_name="Lee", email="sam@blitzenx.com",
@@ -85,6 +99,7 @@ def _make_employee(db, tenant, **overrides):
     db.add(emp)
     db.commit()
     return emp
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0801: lifecycle + auto-creation on WON
@@ -97,6 +112,7 @@ def test_manual_project_creation(db_session, tenant_and_client):
     assert project.status == "ACTIVE"
     assert project.opportunity_id is None
 
+
 def test_cannot_create_from_opportunity_not_won(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     opp = create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=100_00, probability_pct=50)
@@ -104,6 +120,7 @@ def test_cannot_create_from_opportunity_not_won(db_session, tenant_and_client):
 
     with pytest.raises(ValueError):
         create_project_from_won_opportunity(db_session, opp, name="x")
+
 
 def test_transition_to_won_auto_creates_project_inheriting_client_and_currency(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -122,6 +139,7 @@ def test_transition_to_won_auto_creates_project_inheriting_client_and_currency(d
     assert project.opportunity_id == opp.id
     assert project.name == "Acme Guidewire Rollout"
 
+
 def test_project_status_transitions(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = create_project(db_session, tenant_id=tenant.id, client_id=client.id, name="P1")
@@ -131,6 +149,7 @@ def test_project_status_transitions(db_session, tenant_and_client):
     db_session.commit()
     assert project.status == "ON_HOLD"
 
+
 def test_project_status_rejects_invalid_transition(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = create_project(db_session, tenant_id=tenant.id, client_id=client.id, name="P1")
@@ -139,6 +158,7 @@ def test_project_status_rejects_invalid_transition(db_session, tenant_and_client
 
     with pytest.raises(InvalidProjectTransition):
         transition_project_status(db_session, project, "ACTIVE")
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0804: milestones -- delay always computed
@@ -155,6 +175,7 @@ def test_milestone_completed_on_time_has_zero_delay(db_session, tenant_and_clien
     db_session.commit()
     assert milestone.delay_days == 0
 
+
 def test_milestone_completed_late_computes_delay(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = create_project(db_session, tenant_id=tenant.id, client_id=client.id, name="P1")
@@ -167,6 +188,7 @@ def test_milestone_completed_late_computes_delay(db_session, tenant_and_client):
     assert milestone.delay_days == 3
     assert milestone.is_complete == "COMPLETE"
 
+
 def test_cannot_complete_already_complete_milestone(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = create_project(db_session, tenant_id=tenant.id, client_id=client.id, name="P1")
@@ -178,6 +200,7 @@ def test_cannot_complete_already_complete_milestone(db_session, tenant_and_clien
 
     with pytest.raises(MilestoneValidationError):
         complete_milestone(db_session, milestone, completion_date=date(2026, 2, 2))
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0803: overlapping-allocation capacity block
@@ -194,6 +217,7 @@ def test_default_behavior_unchanged_single_allocation_blocks_second(db_session, 
 
     with pytest.raises(EmployeeAlreadyAllocated):
         allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand2)
+
 
 def test_concurrent_allocations_allowed_within_100_percent(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -214,6 +238,7 @@ def test_concurrent_allocations_allowed_within_100_percent(db_session, tenant_an
     db_session.commit()
     assert second.utilization_pct == 40
 
+
 def test_concurrent_allocation_blocked_over_100_percent(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     demand1 = _make_demand(db_session, tenant, client)
@@ -231,6 +256,7 @@ def test_concurrent_allocation_blocked_over_100_percent(db_session, tenant_and_c
             db_session, tenant_id=tenant.id, employee=employee, demand=demand2,
             utilization_pct=40, allow_concurrent=True,
         )
+
 
 def test_ended_allocation_does_not_count_toward_capacity(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -253,6 +279,7 @@ def test_ended_allocation_does_not_count_toward_capacity(db_session, tenant_and_
     db_session.commit()
     assert second.utilization_pct == 100
 
+
 # ---------------------------------------------------------------------------
 # HRMS-0805: unfilled project roles
 # ---------------------------------------------------------------------------
@@ -268,6 +295,7 @@ def test_unfilled_role_detected_when_no_allocation(db_session, tenant_and_client
     assert gaps[0]["open_positions"] == 2
     assert gaps[0]["gap_status"] == "OPEN"
 
+
 def test_gap_status_urgent_within_7_days(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = create_project(db_session, tenant_id=tenant.id, client_id=client.id, name="P1")
@@ -279,6 +307,7 @@ def test_gap_status_urgent_within_7_days(db_session, tenant_and_client):
 
     gaps = get_unfilled_project_roles(db_session, project)
     assert gaps[0]["gap_status"] == "URGENT"
+
 
 def test_gap_status_overdue_when_start_date_passed(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -292,6 +321,7 @@ def test_gap_status_overdue_when_start_date_passed(db_session, tenant_and_client
     gaps = get_unfilled_project_roles(db_session, project)
     assert gaps[0]["gap_status"] == "OVERDUE"
 
+
 def test_no_gap_when_headcount_fully_allocated(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = create_project(db_session, tenant_id=tenant.id, client_id=client.id, name="P1")
@@ -303,6 +333,7 @@ def test_no_gap_when_headcount_fully_allocated(db_session, tenant_and_client):
 
     gaps = get_unfilled_project_roles(db_session, project)
     assert gaps == []
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0806: revenue/margin estimate
@@ -316,6 +347,7 @@ def test_revenue_estimate_insufficient_data_with_no_allocations(db_session, tena
     result = calculate_project_expected_revenue(db_session, project)
     assert result["margin_indicator"] == "INSUFFICIENT_DATA"
     assert "Estimate only" in result["note"]
+
 
 def test_revenue_estimate_computed_with_full_data(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -334,6 +366,7 @@ def test_revenue_estimate_computed_with_full_data(db_session, tenant_and_client)
     assert result["expected_revenue_usd_cents"] is not None
     assert result["margin_indicator"] in ("HEALTHY", "TIGHT", "AT_RISK")
     assert "Estimate only" in result["note"]
+
 
 def test_revenue_estimate_missing_end_date_is_insufficient(db_session, tenant_and_client):
     tenant, client = tenant_and_client

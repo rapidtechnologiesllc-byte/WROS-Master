@@ -8,8 +8,10 @@ Built against `Requirements/S-353_HRMS-0514.docx` and
 module docstring on why this is NOT built against "HRMS-0312" (that ID is
 an unrelated story in the real requirements corpus).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -48,9 +50,21 @@ from app.services.core_pull_service import (
 )
 from app.services.orchestration_router_service import ActionBlocked, seed_default_conflict_rules
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, Client.__table__,
+        Demand.__table__, DemandHistory.__table__,
+        Employee.__table__, EmployeeEmploymentHistory.__table__, EmployeeEngineHistory.__table__,
+        EmployeeAllocation.__table__, Notification.__table__,
+        ConflictRule.__table__, OrchestrationEvent.__table__,
+        CorePullEvent.__table__, SpecialtyPoolReplacementPlan.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -58,6 +72,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _make_employee(db, tenant, *, core_certified=True, delivery_engine="SPECIALITY", suffix="1"):
     employee = Employee(
@@ -69,6 +84,7 @@ def _make_employee(db, tenant, *, core_certified=True, delivery_engine="SPECIALI
     db.commit()
     return employee
 
+
 def _make_demand(db, tenant, client, *, delivery_engine="SPECIALITY", suffix="1"):
     demand = Demand(
         tenant_id=tenant.id, client_id=client.id, job_title=f"Role {suffix}",
@@ -78,6 +94,7 @@ def _make_demand(db, tenant, client, *, delivery_engine="SPECIALITY", suffix="1"
     db.add(demand)
     db.commit()
     return demand
+
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -106,11 +123,13 @@ def fixtures(db_session):
 
     return tenant, client, employee, speciality_demand, core_demand, speciality_allocation
 
+
 def _fill_specialty_pool(db, tenant, count):
     """Creates `count` additional Core-Certified Specialty employees so the
     pool guard has real headroom in tests that need it above the minimum."""
     for i in range(count):
         _make_employee(db, tenant, core_certified=True, delivery_engine="SPECIALITY", suffix=f"pool{i}")
+
 
 # ---------------------------------------------------------------------------
 # detect_core_pull_conflict
@@ -121,6 +140,7 @@ def test_detect_no_conflict_when_demand_is_speciality(db_session, fixtures):
     event = detect_core_pull_conflict(db_session, employee, speciality_demand)
     assert event is None
 
+
 def test_detect_no_conflict_when_employee_not_core_certified(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     employee.core_certified = False
@@ -130,6 +150,7 @@ def test_detect_no_conflict_when_employee_not_core_certified(db_session, fixture
     event = detect_core_pull_conflict(db_session, employee, core_demand)
     assert event is None
 
+
 def test_detect_no_conflict_without_active_speciality_allocation(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     alloc.status = "ENDED"
@@ -138,6 +159,7 @@ def test_detect_no_conflict_without_active_speciality_allocation(db_session, fix
 
     event = detect_core_pull_conflict(db_session, employee, core_demand)
     assert event is None
+
 
 def test_detect_creates_pending_event_on_real_conflict(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
@@ -149,6 +171,7 @@ def test_detect_creates_pending_event_on_real_conflict(db_session, fixtures):
     assert event.core_demand_id == core_demand.id
     assert event.speciality_allocation_id == alloc.id
 
+
 def test_detect_is_idempotent_for_same_pending_conflict(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     first = detect_core_pull_conflict(db_session, employee, core_demand)
@@ -157,6 +180,7 @@ def test_detect_is_idempotent_for_same_pending_conflict(db_session, fixtures):
 
     assert first.id == second.id
     assert db_session.query(CorePullEvent).count() == 1
+
 
 # ---------------------------------------------------------------------------
 # check_specialty_pool_guard
@@ -170,6 +194,7 @@ def test_guard_below_minimum_when_pool_too_small(db_session, fixtures):
     assert result["below_minimum"] is True
     assert result["gap"] == SPECIALTY_POOL_MINIMUM
 
+
 def test_guard_not_below_minimum_with_enough_headroom(db_session, fixtures):
     tenant, client, employee, *_ = fixtures
     _fill_specialty_pool(db_session, tenant, SPECIALTY_POOL_MINIMUM)  # +40, employee makes 41
@@ -178,6 +203,7 @@ def test_guard_not_below_minimum_with_enough_headroom(db_session, fixtures):
     assert result["pool_size_after_move"] == SPECIALTY_POOL_MINIMUM
     assert result["below_minimum"] is False
     assert result["at_edge"] is True
+
 
 def test_guard_excludes_exited_employees(db_session, fixtures):
     tenant, client, employee, *_ = fixtures
@@ -189,6 +215,7 @@ def test_guard_excludes_exited_employees(db_session, fixtures):
 
     result = check_specialty_pool_guard(db_session, employee)
     assert result["pool_size_after_move"] == SPECIALTY_POOL_MINIMUM  # exited employee not counted
+
 
 # ---------------------------------------------------------------------------
 # log_replacement_plan
@@ -202,6 +229,7 @@ def test_replacement_plan_requires_100_char_strategy(db_session, fixtures):
             replacement_strategy="too short", expected_replacement_date=date(2026, 9, 1),
         )
 
+
 def test_replacement_plan_requires_expected_date(db_session, fixtures):
     tenant, client, employee, *_ = fixtures
     with pytest.raises(InvalidReplacementPlan):
@@ -209,6 +237,7 @@ def test_replacement_plan_requires_expected_date(db_session, fixtures):
             db_session, employee_being_moved=employee,
             replacement_strategy="x" * 100, expected_replacement_date=None,
         )
+
 
 def test_replacement_plan_logged_successfully(db_session, fixtures):
     tenant, client, employee, *_ = fixtures
@@ -219,6 +248,7 @@ def test_replacement_plan_logged_successfully(db_session, fixtures):
     )
     assert plan.id is not None
     assert plan.employee_id_moving == employee.id
+
 
 # ---------------------------------------------------------------------------
 # execute_core_pull -- full end-to-end transfer
@@ -235,6 +265,7 @@ def test_execute_core_pull_blocked_below_minimum_without_replacement_plan(db_ses
     assert event.status == "PENDING"
     assert alloc.status == "ACTIVE"
 
+
 def test_execute_core_pull_proceeds_once_replacement_plan_logged(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     event = detect_core_pull_conflict(db_session, employee, core_demand)
@@ -249,6 +280,7 @@ def test_execute_core_pull_proceeds_once_replacement_plan_logged(db_session, fix
 
     result = execute_core_pull(db_session, event, tenant_id=tenant.id)
     assert result.status == "EXECUTED"
+
 
 def test_execute_core_pull_full_transfer_with_enough_pool(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
@@ -291,6 +323,7 @@ def test_execute_core_pull_full_transfer_with_enough_pool(db_session, fixtures):
     assert event.status == "EXECUTED"
     assert event.executed_at is not None
 
+
 def test_execute_core_pull_notifies_rm_and_bu_head(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     _fill_specialty_pool(db_session, tenant, SPECIALTY_POOL_MINIMUM)
@@ -311,6 +344,7 @@ def test_execute_core_pull_notifies_rm_and_bu_head(db_session, fixtures):
     assert "U-RM" in recipients
     assert "U-BUHEAD" in recipients
 
+
 def test_execute_core_pull_rejects_non_pending_event(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     _fill_specialty_pool(db_session, tenant, SPECIALTY_POOL_MINIMUM)
@@ -321,6 +355,7 @@ def test_execute_core_pull_rejects_non_pending_event(db_session, fixtures):
 
     with pytest.raises(ValueError):
         execute_core_pull(db_session, event, tenant_id=tenant.id)
+
 
 # ---------------------------------------------------------------------------
 # override_core_pull
@@ -337,6 +372,7 @@ def test_override_requires_bu_head_role(db_session, fixtures):
             justification="x" * 100, tenant_id=tenant.id,
         )
 
+
 def test_override_requires_100_char_justification(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     event = detect_core_pull_conflict(db_session, employee, core_demand)
@@ -347,6 +383,7 @@ def test_override_requires_100_char_justification(db_session, fixtures):
             db_session, event, actor_role="BU Head", actor_user_id="U-BUHEAD",
             justification="too short", tenant_id=tenant.id,
         )
+
 
 def test_override_leaves_speciality_allocation_untouched(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
@@ -363,6 +400,7 @@ def test_override_leaves_speciality_allocation_untouched(db_session, fixtures):
     assert result.overridden_by == "U-BUHEAD"
     assert alloc.status == "ACTIVE"  # never touched
 
+
 def test_override_cannot_repeat_on_already_overridden_event(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
     event = detect_core_pull_conflict(db_session, employee, core_demand)
@@ -378,6 +416,7 @@ def test_override_cannot_repeat_on_already_overridden_event(db_session, fixtures
             db_session, event, actor_role="BU Head", actor_user_id="U-BUHEAD",
             justification="y" * 100, tenant_id=tenant.id,
         )
+
 
 def test_override_pattern_alerts_director_past_threshold(db_session, fixtures):
     tenant, client, employee, speciality_demand, core_demand, alloc = fixtures
@@ -408,6 +447,7 @@ def test_override_pattern_alerts_director_past_threshold(db_session, fixtures):
         Notification.recipient_id == "U-DIR"
     ).all()
     assert len(notifications) >= 1
+
 
 # ---------------------------------------------------------------------------
 # Orchestration Router integration -- Core-Pull still goes through it

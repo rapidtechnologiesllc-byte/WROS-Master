@@ -1,14 +1,14 @@
 """add event_log table (S-078/HRMS-0478)
 
 Revision ID: e7a1c3f9b2d6
-Revises: f8a9b0c1d2e3
+Revises: d4f8a2c6b9e1
 Create Date: 2026-08-04 00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "e7a1c3f9b2d6"
-down_revision = "f8a9b0c1d2e3"
+down_revision = "d4f8a2c6b9e1"
 branch_labels = None
 depends_on = None
 

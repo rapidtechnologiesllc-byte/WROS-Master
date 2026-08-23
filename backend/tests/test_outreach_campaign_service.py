@@ -14,8 +14,10 @@ sequence; BR-03 idempotent, one ACTIVE campaign per candidate; every
 send additionally gated on is_ai_owner()/is_candidate_ghosted() for
 consistency with every other outbound path this round.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -32,6 +34,7 @@ from app.models.user import Users
 
 import app.services.outreach_campaign_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     """See test_follow_up_scheduler_service.py's identical fixture for
@@ -40,9 +43,16 @@ def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        OutreachCampaign.__table__, CampaignTouchpoint.__table__, CandidateGhostingStatus.__table__, ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -50,6 +60,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -64,6 +75,7 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
+
 # ── TC-001 / AC-1: campaign creation ────────────────────────────────
 
 def test_start_campaign_creates_active_campaign(db_session, seeded):
@@ -71,6 +83,7 @@ def test_start_campaign_creates_active_campaign(db_session, seeded):
     campaign = svc.start_campaign(db_session, "C-1", "U-ORG", conv.id)
     assert campaign.status == "ACTIVE"
     assert campaign.started_at is not None
+
 
 def test_start_campaign_creates_three_pending_touchpoints_at_correct_offsets(db_session, seeded):
     candidate, conv = seeded
@@ -88,6 +101,7 @@ def test_start_campaign_creates_three_pending_touchpoints_at_correct_offsets(db_
         delta = touchpoint.scheduled_at - before
         assert timedelta(days=day, hours=-1) <= delta <= timedelta(days=day, hours=1)
 
+
 # ── TC-003 / BR-03: idempotent ───────────────────────────────────────
 
 def test_start_campaign_is_idempotent(db_session, seeded):
@@ -101,6 +115,7 @@ def test_start_campaign_is_idempotent(db_session, seeded):
     touchpoints = db_session.query(CampaignTouchpoint).filter(CampaignTouchpoint.campaign_id == first.id).all()
     assert len(touchpoints) == 3  # not duplicated
 
+
 def test_new_campaign_allowed_after_previous_completed(db_session, seeded):
     candidate, conv = seeded
     first = svc.start_campaign(db_session, "C-1", "U-ORG", conv.id)
@@ -109,6 +124,7 @@ def test_new_campaign_allowed_after_previous_completed(db_session, seeded):
 
     second = svc.start_campaign(db_session, "C-1", "U-ORG", conv.id)
     assert second.id != first.id
+
 
 # ── TC-002 / BR-01: cancel on reply ──────────────────────────────────
 
@@ -126,10 +142,12 @@ def test_cancel_campaign_on_reply_cancels_all_pending(db_session, seeded):
     touchpoints = db_session.query(CampaignTouchpoint).filter(CampaignTouchpoint.campaign_id == campaign.id).all()
     assert all(t.status == "CANCELLED" for t in touchpoints)
 
+
 def test_cancel_campaign_on_reply_no_op_when_no_active_campaign(db_session, seeded):
     candidate, conv = seeded
     result = svc.cancel_campaign_on_reply(db_session, "C-1", "U-ORG")
     assert result is False
+
 
 def test_execution_job_cancels_when_candidate_already_replied(db_session, seeded):
     candidate, conv = seeded
@@ -149,6 +167,7 @@ def test_execution_job_cancels_when_candidate_already_replied(db_session, seeded
     assert campaign.status == "COMPLETED"
     assert campaign.stop_reason == "CANDIDATE_REPLIED"
 
+
 # ── TC-002 (send) / AC: due touchpoint sent ──────────────────────────
 
 def test_execution_job_sends_due_touchpoint(db_session, seeded, monkeypatch):
@@ -166,6 +185,7 @@ def test_execution_job_sends_due_touchpoint(db_session, seeded, monkeypatch):
     db_session.refresh(touchpoint)
     assert touchpoint.status == "SENT"
     assert touchpoint.sent_at is not None
+
 
 def test_execution_job_marks_campaign_completed_after_last_touchpoint(db_session, seeded, monkeypatch):
     candidate, conv = seeded
@@ -189,11 +209,13 @@ def test_execution_job_marks_campaign_completed_after_last_touchpoint(db_session
     assert campaign.status == "COMPLETED"
     assert campaign.stop_reason == "CAMPAIGN_COMPLETED_NO_RESPONSE"
 
+
 def test_execution_job_ignores_not_yet_due_touchpoints(db_session, seeded):
     candidate, conv = seeded
     svc.start_campaign(db_session, "C-1", "U-ORG", conv.id)
     result = svc.run_campaign_execution_job(db_session)
     assert result["processed"] == 0
+
 
 # ── consistency guards (not explicit in spec, added for parity) ─────
 
@@ -211,6 +233,7 @@ def test_execution_job_skips_when_recruiter_owns(db_session, seeded, monkeypatch
     db_session.refresh(touchpoint)
     assert touchpoint.status == "SKIPPED"
 
+
 def test_execution_job_skips_when_candidate_ghosted(db_session, seeded, monkeypatch):
     candidate, conv = seeded
     campaign = svc.start_campaign(db_session, "C-1", "U-ORG", conv.id)
@@ -221,6 +244,7 @@ def test_execution_job_skips_when_candidate_ghosted(db_session, seeded, monkeypa
 
     result = svc.run_campaign_execution_job(db_session)
     assert result["skipped"] == 1
+
 
 def test_execution_job_logs_touchpoint_send_failed_on_fallback(db_session, seeded, monkeypatch):
     candidate, conv = seeded
@@ -235,6 +259,7 @@ def test_execution_job_logs_touchpoint_send_failed_on_fallback(db_session, seede
 
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "TOUCHPOINT_SEND_FAILED").all()
     assert len(events) == 1
+
 
 def test_execution_job_never_raises_on_bad_touchpoint(db_session, seeded, monkeypatch):
     candidate, conv = seeded

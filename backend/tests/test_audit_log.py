@@ -9,8 +9,10 @@ migration file's docstring for the manual step required there. This
 suite is the defense-in-depth layer underneath that, plus the
 positive-case and same-transaction behavior of write_audit_log().
 
+Runs entirely against a throwaway SQLite file -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -21,9 +23,13 @@ from app.models.tenant import Tenant
 from app.models.audit_log import AuditLog, AppendOnlyViolation
 from app.core.audit import write_audit_log
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[Tenant.__table__, AuditLog.__table__])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -31,6 +37,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def test_positive_case_write_audit_log_persists_a_row(db_session):
     write_audit_log(
@@ -45,6 +52,7 @@ def test_positive_case_write_audit_log_persists_a_row(db_session):
     assert rows[0].entity_id == "C-AISHA"
     assert rows[0].action == "hard_rule_override"
 
+
 def test_write_audit_log_does_not_commit_itself(db_session):
     """
     write_audit_log() must only stage the row (db.add), never commit --
@@ -58,6 +66,7 @@ def test_write_audit_log_does_not_commit_itself(db_session):
     db_session.rollback()
 
     assert db_session.query(AuditLog).count() == 0
+
 
 def test_negative_case_update_is_rejected_even_for_admin_role(db_session):
     """
@@ -74,6 +83,7 @@ def test_negative_case_update_is_rejected_even_for_admin_role(db_session):
     row.new_value = "tampered by admin"
     with pytest.raises(AppendOnlyViolation):
         db_session.commit()
+
 
 def test_negative_case_delete_is_rejected_even_for_admin_role(db_session):
     row = write_audit_log(

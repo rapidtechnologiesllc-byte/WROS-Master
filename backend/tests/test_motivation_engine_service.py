@@ -1,7 +1,9 @@
 """
 S-349/HRMS-P119 -- Proactive Motivation Engine.
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -20,9 +22,17 @@ from app.models.user import Users
 
 import app.services.motivation_engine_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        CandidateDesireProfile.__table__, EventLog.__table__, OfferLetter.__table__,
+        MotivationContentLibrary.__table__, MotivationOutcome.__table__, ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -31,6 +41,7 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+
 @pytest.fixture()
 def tenant_and_candidate(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -38,6 +49,7 @@ def tenant_and_candidate(db_session):
     db_session.add_all([owner, candidate])
     db_session.commit()
     return owner, candidate
+
 
 @pytest.fixture()
 def conversation(db_session, tenant_and_candidate):
@@ -49,6 +61,7 @@ def conversation(db_session, tenant_and_candidate):
     db_session.add(conv)
     db_session.commit()
     return conv
+
 
 def _profile(db, owner, candidate, **overrides):
     defaults = dict(
@@ -65,6 +78,7 @@ def _profile(db, owner, candidate, **overrides):
     db.refresh(row)
     return row
 
+
 def _offer(db, candidate, **overrides):
     defaults = dict(
         candidate_id=candidate.candidateID, position="Guidewire Dev", salary="20 LPA",
@@ -77,6 +91,7 @@ def _offer(db, candidate, **overrides):
     db.commit()
     return row
 
+
 # ---------------------------------------------------------------------------
 # Trigger detection
 # ---------------------------------------------------------------------------
@@ -85,6 +100,7 @@ def test_no_trigger_when_nothing_fires(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     _profile(db_session, owner, candidate, engagement_level="HOT")
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) is None
+
 
 def test_competing_offer_trigger_bypasses_48h_cap(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -98,6 +114,7 @@ def test_competing_offer_trigger_bypasses_48h_cap(db_session, tenant_and_candida
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) == "COMPETING_OFFER"
 
+
 def test_offer_pending_trigger_fires_after_2_days(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     _offer(db_session, candidate, released_at=datetime.utcnow() - timedelta(days=3))
@@ -105,12 +122,14 @@ def test_offer_pending_trigger_fires_after_2_days(db_session, tenant_and_candida
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) == "OFFER_PENDING_RESPONSE"
 
+
 def test_offer_pending_trigger_not_yet_at_1_day(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     _offer(db_session, candidate, released_at=datetime.utcnow() - timedelta(days=1))
     _profile(db_session, owner, candidate)
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) is None
+
 
 def test_cooling_engagement_trigger_fires_on_real_event(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -120,6 +139,7 @@ def test_cooling_engagement_trigger_fires_on_real_event(db_session, tenant_and_c
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) == "COOLING_ENGAGEMENT"
 
+
 def test_desire_shift_trigger_fires_on_real_event(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     _profile(db_session, owner, candidate)
@@ -127,6 +147,7 @@ def test_desire_shift_trigger_fires_on_real_event(db_session, tenant_and_candida
     db_session.commit()
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) == "DESIRE_SHIFT"
+
 
 def test_cooling_beats_desire_shift_in_priority(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -136,6 +157,7 @@ def test_cooling_beats_desire_shift_in_priority(db_session, tenant_and_candidate
     db_session.commit()
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) == "COOLING_ENGAGEMENT"
+
 
 def test_48h_cap_blocks_lower_priority_triggers(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -149,6 +171,7 @@ def test_48h_cap_blocks_lower_priority_triggers(db_session, tenant_and_candidate
 
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) is None
 
+
 def test_scheduled_nurture_requires_warm_and_correct_stage(db_session, tenant_and_candidate, monkeypatch):
     owner, candidate = tenant_and_candidate
     _profile(db_session, owner, candidate, engagement_level="WARM")
@@ -159,6 +182,7 @@ def test_scheduled_nurture_requires_warm_and_correct_stage(db_session, tenant_an
     )
     assert svc.detect_trigger(db_session, owner.UserID, candidate.candidateID) == "SCHEDULED_NURTURE"
 
+
 # ---------------------------------------------------------------------------
 # Message generation
 # ---------------------------------------------------------------------------
@@ -168,6 +192,7 @@ def test_generate_message_without_profile_is_generic_nurture(db_session, tenant_
     message, category = svc.generate_motivation_message(db_session, owner.UserID, candidate, None, "SCHEDULED_NURTURE")
     assert message == svc.GENERIC_NURTURE_MESSAGE
     assert category is None
+
 
 def test_generate_message_validated_against_library(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -180,6 +205,7 @@ def test_generate_message_validated_against_library(db_session, tenant_and_candi
     assert fact in message
     assert category == "CAREER_GROWTH"
 
+
 def test_generate_message_falls_back_when_llm_invents_facts(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     profile = _profile(db_session, owner, candidate)
@@ -189,6 +215,7 @@ def test_generate_message_falls_back_when_llm_invents_facts(db_session, tenant_a
 
     assert svc.DEFAULT_CONTENT_LIBRARY["CAREER_GROWTH"][0] in message
     assert category == "CAREER_GROWTH"
+
 
 def test_generate_message_uses_tenant_content_library_over_default(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -200,6 +227,7 @@ def test_generate_message_uses_tenant_content_library_over_default(db_session, t
     message, category = svc.generate_motivation_message(db_session, owner.UserID, candidate, profile, "SCHEDULED_NURTURE", llm_call=llm_call)
 
     assert "Custom tenant fact about growth" in message
+
 
 # ---------------------------------------------------------------------------
 # Send + outcome
@@ -222,10 +250,12 @@ def test_send_motivation_message_records_outcome_via_email(db_session, tenant_an
     assert sent_event is not None
     assert sent_event.event_data["channel"] == "email"
 
+
 def test_send_motivation_message_no_conversation_returns_none(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     _profile(db_session, owner, candidate)
     assert svc.send_motivation_message(db_session, candidate, "SCHEDULED_NURTURE") is None
+
 
 # ---------------------------------------------------------------------------
 # run_motivation_job
@@ -242,6 +272,7 @@ def test_run_motivation_job_sends_for_due_candidate(db_session, tenant_and_candi
 
     assert result["sent"] == 1
     assert db_session.query(MotivationOutcome).count() == 1
+
 
 def test_run_motivation_job_skips_when_no_trigger(db_session, tenant_and_candidate, conversation):
     owner, candidate = tenant_and_candidate

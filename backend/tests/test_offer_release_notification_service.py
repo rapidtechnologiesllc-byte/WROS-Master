@@ -8,9 +8,11 @@ portal link reuses S-017's generate_portal_link_url(); no OFFER_SENT
 state -- logged as a real OFFER_RELEASED ConversationEvent;
 offer_faq_active flag set for real.
 
+Throwaway SQLite -- never the real database. Throwaway JWT keys for
 generate_portal_link_url()'s real create_access_token() call.
 """
 import os
+import tempfile
 from datetime import date
 from unittest.mock import patch
 
@@ -30,6 +32,7 @@ from app.models.user import Users
 
 import app.services.offer_release_notification_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -38,14 +41,22 @@ def _throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        OfferLetter.__table__, ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -53,6 +64,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -77,6 +89,7 @@ def seeded(db_session):
 
     return candidate, conv, offer
 
+
 def test_sends_both_whatsapp_and_email_with_offer_details(db_session, seeded):
     candidate, conv, offer = seeded
 
@@ -95,6 +108,7 @@ def test_sends_both_whatsapp_and_email_with_offer_details(db_session, seeded):
     assert "/candidate/" in body
     assert "https://sharepoint.example.com/offer.pdf" in body
 
+
 def test_whatsapp_message_includes_salary_and_portal_link(db_session, seeded):
     candidate, conv, offer = seeded
 
@@ -104,6 +118,7 @@ def test_whatsapp_message_includes_salary_and_portal_link(db_session, seeded):
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id).all()
     whatsapp_bodies = [e.event_data.get("body", "") for e in events if e.event_data and e.event_data.get("channel") != "email" and "body" in e.event_data]
     assert any("24 LPA" in b and "/candidate/" in b for b in whatsapp_bodies)
+
 
 def test_logs_offer_released_event_and_sets_faq_flag(db_session, seeded):
     candidate, conv, offer = seeded
@@ -117,6 +132,7 @@ def test_logs_offer_released_event_and_sets_faq_flag(db_session, seeded):
 
     db_session.refresh(conv)
     assert conv.offer_faq_active is True
+
 
 def test_both_channels_failing_logs_offer_email_failed(db_session, seeded):
     candidate, conv, offer = seeded
@@ -133,6 +149,7 @@ def test_both_channels_failing_logs_offer_email_failed(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "OFFER_EMAIL_FAILED").first()
     assert event is not None
 
+
 def test_email_only_failure_does_not_log_offer_email_failed(db_session, seeded):
     """BR-02's own integrations note: only a BOTH-channel failure is
     the real escalation case -- a WhatsApp success + email failure is
@@ -147,6 +164,7 @@ def test_email_only_failure_does_not_log_offer_email_failed(db_session, seeded):
 
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "OFFER_EMAIL_FAILED").first()
     assert event is None
+
 
 def test_no_candidate_found_never_raises(db_session, seeded):
     candidate, conv, offer = seeded

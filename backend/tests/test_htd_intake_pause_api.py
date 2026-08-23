@@ -3,9 +3,11 @@ POST /htd-intake/calculate-monthly-metric|check-breach|resume, GET
 /htd-intake/status|pause-log -- proves S-359/HRMS-P511 (HTD Intake
 Pause Engine: Conversion Rate Breach) end-to-end on real routes.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -23,6 +25,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 def _month(offset_months, day=1):
     today = date.today()
     year = today.year
@@ -31,6 +34,7 @@ def _month(offset_months, day=1):
         month += 12
         year -= 1
     return date(year, month, day)
+
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -47,9 +51,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -90,11 +99,14 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
 
+
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
+
 
 def _seed_htd_employee(client, *, htd_start_date, core_certified=False, core_certified_date=None):
     engine = create_engine(client.db_url)
@@ -110,14 +122,17 @@ def _seed_htd_employee(client, *, htd_start_date, core_certified=False, core_cer
     session.close()
     engine.dispose()
 
+
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/htd-intake/status")
     assert resp.status_code in (401, 403)
+
 
 def test_status_defaults_to_not_paused(client):
     resp = client.get("/htd-intake/status", headers=_auth())
     assert resp.status_code == 200
     assert resp.json()["is_paused"] is False
+
 
 def test_calculate_monthly_metric_insufficient_data_with_no_cohort(client):
     resp = client.post("/htd-intake/calculate-monthly-metric", json={"month": _month(1).isoformat()}, headers=_auth())
@@ -125,6 +140,7 @@ def test_calculate_monthly_metric_insufficient_data_with_no_cohort(client):
     body = resp.json()
     assert body["cohort_size"] == 0
     assert body["conversion_rate"] is None
+
 
 def test_calculate_monthly_metric_computes_rate(client):
     month_start = _month(1)
@@ -140,6 +156,7 @@ def test_calculate_monthly_metric_computes_rate(client):
     assert body["converted"] == 2
     assert round(body["conversion_rate"], 2) == 0.67
 
+
 def test_calculate_monthly_metric_excludes_late_conversion(client):
     month_start = _month(1)
     _seed_htd_employee(client, htd_start_date=month_start, core_certified=True, core_certified_date=month_start + timedelta(days=500))
@@ -148,6 +165,7 @@ def test_calculate_monthly_metric_excludes_late_conversion(client):
     body = resp.json()
     assert body["converted"] == 0
 
+
 def test_calculate_monthly_metric_is_idempotent(client):
     month_start = _month(1)
     _seed_htd_employee(client, htd_start_date=month_start, core_certified=True, core_certified_date=month_start + timedelta(days=50))
@@ -155,6 +173,7 @@ def test_calculate_monthly_metric_is_idempotent(client):
     resp = client.post("/htd-intake/calculate-monthly-metric", json={"month": month_start.isoformat()}, headers=_auth())
     assert resp.status_code == 200
     assert resp.json()["cohort_size"] == 1
+
 
 def test_check_breach_pauses_after_two_consecutive_low_months(client):
     month1 = _month(2)
@@ -179,6 +198,7 @@ def test_check_breach_pauses_after_two_consecutive_low_months(client):
     status_resp = client.get("/htd-intake/status", headers=_auth())
     assert status_resp.json()["is_paused"] is True
 
+
 def test_check_breach_does_not_pause_with_only_one_low_month(client):
     month1 = _month(2)
     month2 = _month(1)
@@ -195,6 +215,7 @@ def test_check_breach_does_not_pause_with_only_one_low_month(client):
     resp = client.post("/htd-intake/check-breach", headers=_auth())
     assert resp.json()["is_paused"] is False
 
+
 def test_check_breach_is_idempotent_no_duplicate_pause_log(client):
     month1 = _month(2)
     month2 = _month(1)
@@ -210,6 +231,7 @@ def test_check_breach_is_idempotent_no_duplicate_pause_log(client):
     paused_entries = [e for e in log_resp.json()["entries"] if e["action"] == "PAUSED"]
     assert len(paused_entries) == 1
 
+
 def test_resume_requires_200_char_fields(client):
     resp = client.post(
         "/htd-intake/resume",
@@ -218,7 +240,9 @@ def test_resume_requires_200_char_fields(client):
     )
     assert resp.status_code == 422
 
+
 LONG_TEXT = "A" * 200
+
 
 def test_resume_succeeds_with_valid_audit(client):
     month1 = _month(2)

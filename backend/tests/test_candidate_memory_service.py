@@ -8,8 +8,10 @@ ConversationEvent, BR-02's versioning enforced at the application
 layer (not a DB unique constraint), 200-500 WORD summary validation
 (not chars), LLM is injectable Gemini.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -24,9 +26,16 @@ from app.models.user import Users
 
 import app.services.candidate_memory_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        CandidateMemory.__table__, CandidateMemoryFact.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -34,6 +43,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -47,6 +57,7 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
+
 def test_upsert_fact_creates_memory_row_on_first_insertion(db_session, seeded):
     candidate, conv = seeded
     assert db_session.query(CandidateMemory).filter(CandidateMemory.candidate_id == "C-1").first() is None
@@ -56,6 +67,7 @@ def test_upsert_fact_creates_memory_row_on_first_insertion(db_session, seeded):
 
     memory = db_session.query(CandidateMemory).filter(CandidateMemory.candidate_id == "C-1").first()
     assert memory is not None
+
 
 def test_upsert_fact_inserts_new_fact_with_all_fields(db_session, seeded):
     candidate, conv = seeded
@@ -68,10 +80,12 @@ def test_upsert_fact_inserts_new_fact_with_all_fields(db_session, seeded):
     assert fact.confidence == 0.9
     assert fact.is_active is True
 
+
 def test_upsert_fact_rejects_invalid_category(db_session, seeded):
     candidate, conv = seeded
     with pytest.raises(svc.InvalidFactCategory):
         svc.upsert_fact(db_session, "C-1", "U-ORG", "NOT_A_REAL_CATEGORY", "key", "value")
+
 
 def test_upsert_fact_versions_on_changed_value(db_session, seeded):
     candidate, conv = seeded
@@ -88,6 +102,7 @@ def test_upsert_fact_versions_on_changed_value(db_session, seeded):
     all_rows = db_session.query(CandidateMemoryFact).filter(CandidateMemoryFact.candidate_id == "C-1").all()
     assert len(all_rows) == 2  # history preserved, not overwritten
 
+
 def test_upsert_fact_same_value_refreshes_in_place_no_history_churn(db_session, seeded):
     candidate, conv = seeded
     svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA", confidence=0.7)
@@ -98,6 +113,7 @@ def test_upsert_fact_same_value_refreshes_in_place_no_history_churn(db_session, 
     all_rows = db_session.query(CandidateMemoryFact).filter(CandidateMemoryFact.candidate_id == "C-1").all()
     assert len(all_rows) == 1
     assert all_rows[0].confidence == 0.95
+
 
 def test_get_memory_returns_all_active_facts(db_session, seeded):
     candidate, conv = seeded
@@ -111,6 +127,7 @@ def test_get_memory_returns_all_active_facts(db_session, seeded):
     keys = {f["key"] for f in memory["facts"]}
     assert keys == {"expected_ctc", "domain", "relocation"}
 
+
 def test_get_memory_returns_null_summary_when_none_generated(db_session, seeded):
     candidate, conv = seeded
     svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA")
@@ -119,10 +136,12 @@ def test_get_memory_returns_null_summary_when_none_generated(db_session, seeded)
     memory = svc.get_memory(db_session, "C-1", "U-ORG")
     assert memory["summary"] is None
 
+
 def test_get_memory_no_facts_returns_empty(db_session, seeded):
     candidate, conv = seeded
     memory = svc.get_memory(db_session, "C-1", "U-ORG")
     assert memory == {"summary": None, "last_updated": None, "facts": []}
+
 
 def test_get_memory_flags_low_confidence_facts(db_session, seeded):
     candidate, conv = seeded
@@ -132,8 +151,10 @@ def test_get_memory_flags_low_confidence_facts(db_session, seeded):
     memory = svc.get_memory(db_session, "C-1", "U-ORG")
     assert memory["facts"][0]["is_low_confidence"] is True  # BR-03
 
+
 def _valid_summary_text(word_count=250):
     return " ".join(["word"] * word_count)
+
 
 def test_update_memory_summary_success_stores_summary(db_session, seeded):
     candidate, conv = seeded
@@ -148,6 +169,7 @@ def test_update_memory_summary_success_stores_summary(db_session, seeded):
     assert memory.summary == summary_text
     assert memory.last_updated is not None
     assert memory.version == 2
+
 
 def test_update_memory_summary_out_of_range_keeps_previous_and_logs_failure(db_session, seeded):
     candidate, conv = seeded
@@ -167,6 +189,7 @@ def test_update_memory_summary_out_of_range_keeps_previous_and_logs_failure(db_s
     failures = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "MEMORY_SUMMARY_FAILED").all()
     assert len(failures) == 1
 
+
 def test_update_memory_summary_llm_error_keeps_previous_no_crash(db_session, seeded):
     candidate, conv = seeded
     svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA")
@@ -181,9 +204,11 @@ def test_update_memory_summary_llm_error_keeps_previous_no_crash(db_session, see
     failures = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "MEMORY_SUMMARY_FAILED").all()
     assert len(failures) == 1
 
+
 def test_should_update_summary_true_when_no_memory_yet(db_session, seeded):
     candidate, conv = seeded
     assert svc.should_update_summary(db_session, "C-1", "U-ORG") is True
+
 
 def test_should_update_summary_true_after_5_new_facts(db_session, seeded):
     candidate, conv = seeded
@@ -201,6 +226,7 @@ def test_should_update_summary_true_after_5_new_facts(db_session, seeded):
     db_session.commit()
     assert svc.should_update_summary(db_session, "C-1", "U-ORG") is True
 
+
 def test_correct_fact_sets_full_confidence_and_new_value(db_session, seeded):
     candidate, conv = seeded
     fact = svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA", confidence=0.6)
@@ -211,6 +237,7 @@ def test_correct_fact_sets_full_confidence_and_new_value(db_session, seeded):
     assert corrected.fact_value == "26 LPA"
     assert corrected.confidence == 1.0  # BR-01
 
+
 def test_correct_fact_cascades_to_profile_field(db_session, seeded):
     candidate, conv = seeded
     fact = svc.upsert_fact(db_session, "C-1", "U-ORG", "SALARY", "expected_ctc", "24 LPA", confidence=0.6)
@@ -220,6 +247,7 @@ def test_correct_fact_cascades_to_profile_field(db_session, seeded):
     db_session.refresh(candidate)
 
     assert candidate.candidateExpectedSalary == "26 LPA"  # BR-03
+
 
 def test_correct_fact_logs_memory_fact_corrected_event(db_session, seeded):
     candidate, conv = seeded
@@ -232,10 +260,12 @@ def test_correct_fact_logs_memory_fact_corrected_event(db_session, seeded):
     assert len(events) == 1
     assert events[0].event_data["corrected_by"] == "U-REC"
 
+
 def test_correct_fact_unknown_fact_raises(db_session, seeded):
     candidate, conv = seeded
     with pytest.raises(svc.FactNotFound):
         svc.correct_fact(db_session, "C-1", "U-ORG", 99999, "value", corrected_by="U-REC")
+
 
 def test_correct_fact_wrong_candidate_raises(db_session, seeded):
     candidate, conv = seeded
@@ -247,6 +277,7 @@ def test_correct_fact_wrong_candidate_raises(db_session, seeded):
 
     with pytest.raises(svc.FactNotFound):
         svc.correct_fact(db_session, "C-2", "U-ORG", fact.id, "99 LPA", corrected_by="U-REC")
+
 
 def test_should_update_summary_true_after_a_day(db_session, seeded):
     candidate, conv = seeded

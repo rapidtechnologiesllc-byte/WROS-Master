@@ -78,8 +78,6 @@ DEBOUNCE_SECONDS = 60
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 THUNDER_REPLY_MODEL = "gemini-3-flash-preview"
 
-# Safe fallback message when Thunder can't generate appropriate response
-SAFE_FALLBACK_MESSAGE = "I understand your concern. Let me have one of our team members follow up with you on this."
 
 class ConsentNotGiven(Exception):
     """A1: no active whatsapp_outreach ConsentRecord for this candidate."""

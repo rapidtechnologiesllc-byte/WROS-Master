@@ -1,7 +1,9 @@
 """
 EPIC-16 Fully Loaded Cost + Blended Delivery Rate API-level proof.
+Throwaway SQLite, throwaway JWT keys -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime
 
 import pytest
@@ -27,6 +29,7 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -42,9 +45,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -134,14 +142,17 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _avinash_auth():
     token = security.create_access_token(data={"sub": "avinash@blitzenx.com", "type": "internal", "name": "avinash@blitzenx.com"})
     return {"Authorization": f"Bearer {token}"}
+
 
 def test_fully_loaded_cost_requires_a_config_first(client):
     ids = client.wros_ids
     resp = client.get(f"/employees/{ids['employee_id']}/fully-loaded-cost", headers=_avinash_auth())
     assert resp.status_code == 400
+
 
 def test_fully_loaded_cost_computes_from_config(client):
     ids = client.wros_ids
@@ -154,6 +165,7 @@ def test_fully_loaded_cost_computes_from_config(client):
     body = resp.json()
     # base 1,000,000 + 12% (120,000) + 8% (80,000) = 1,200,000
     assert body["fully_loaded_cost_usd_cents"] == 1_200_000
+
 
 def test_bu_specific_config_wins_over_org_wide(client):
     ids = client.wros_ids
@@ -170,6 +182,7 @@ def test_bu_specific_config_wins_over_org_wide(client):
     # base 1,000,000 + 15% (150,000) + 5% (50,000) = 1,200,000 (same total, different split -- proves BU row wins)
     assert resp.json()["fully_loaded_cost_usd_cents"] == 1_200_000
 
+
 def test_blended_delivery_rate_computes_from_real_invoice_and_timesheet_data(client):
     ids = client.wros_ids
     resp = client.get(
@@ -180,12 +193,14 @@ def test_blended_delivery_rate_computes_from_real_invoice_and_timesheet_data(cli
     # $100,000 revenue / 100 billable hours = $1,000/hour = 100,000 cents/hour
     assert resp.json()["blended_delivery_rate_usd_cents_per_hour"] == 100_000.0
 
+
 def test_blended_delivery_rate_none_when_no_billable_hours(client):
     resp = client.get(
         "/blended-delivery-rate/bu/999999", headers=_avinash_auth(), params={"year": 2020, "month": 1},
     )
     assert resp.status_code == 200
     assert resp.json()["blended_delivery_rate_usd_cents_per_hour"] is None
+
 
 def test_bu_pnl_computes_revenue_minus_fully_loaded_cost(client):
     ids = client.wros_ids
@@ -201,6 +216,7 @@ def test_bu_pnl_computes_revenue_minus_fully_loaded_cost(client):
     assert body["gross_margin_usd_cents"] == 100_000_00 - 1_200_000
     assert body["cost_data_complete"] is True
 
+
 def test_org_pnl_summary_sums_across_business_units(client):
     client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
     ids = client.wros_ids
@@ -213,6 +229,7 @@ def test_org_pnl_summary_sums_across_business_units(client):
     assert len(body["by_business_unit"]) == 1
     assert body["by_business_unit"][0]["business_unit_name"] == "Axion"
 
+
 def test_org_pnl_summary_incomplete_when_no_config_set(client):
     ids = client.wros_ids
     resp = client.get("/pnl/org-summary", headers=_avinash_auth(), params={"year": ids["year"], "month": ids["month"]})
@@ -221,6 +238,7 @@ def test_org_pnl_summary_incomplete_when_no_config_set(client):
     assert body["org_cost_data_complete"] is False
     assert body["total_cost_usd_cents"] is None
     assert body["total_gross_margin_usd_cents"] is None
+
 
 def test_bu_pnl_flags_incomplete_cost_data_when_no_config(client):
     ids = client.wros_ids
@@ -233,6 +251,7 @@ def test_bu_pnl_flags_incomplete_cost_data_when_no_config(client):
     assert body["cost_data_complete"] is False
     assert body["cost_usd_cents"] is None
     assert body["gross_margin_usd_cents"] is None
+
 
 def test_reserve_fund_contribution_and_status(client):
     ids = client.wros_ids
@@ -258,6 +277,7 @@ def test_reserve_fund_contribution_and_status(client):
     assert body["target_usd_cents"] == 1_200_000 * 12
     assert body["pct_funded"] == round(500_000 / (1_200_000 * 12) * 100, 1)
 
+
 def test_reserve_fund_withdrawal_reduces_balance(client):
     ids = client.wros_ids
     client.post(
@@ -280,6 +300,7 @@ def test_reserve_fund_withdrawal_reduces_balance(client):
     )
     assert status_resp.json()["balance_usd_cents"] == 300_000
 
+
 def test_hiring_affordability_affordable_hire(client):
     ids = client.wros_ids
     client.post("/cost-rate-configs", headers=_avinash_auth(), json={"statutory_pct": 12.0, "overhead_pct": 8.0})
@@ -292,6 +313,7 @@ def test_hiring_affordability_affordable_hire(client):
     body = resp.json()
     assert body["affordable"] is True
     assert body["projected_margin_pct"] > 0
+
 
 def test_hiring_affordability_unaffordable_hire(client):
     ids = client.wros_ids
@@ -307,6 +329,7 @@ def test_hiring_affordability_unaffordable_hire(client):
     assert body["projected_margin_pct"] < 0
     assert "floor" in body["reason"]
 
+
 def test_hiring_affordability_none_when_cost_data_incomplete(client):
     ids = client.wros_ids
     resp = client.get(
@@ -317,6 +340,7 @@ def test_hiring_affordability_none_when_cost_data_incomplete(client):
     body = resp.json()
     assert body["affordable"] is None
     assert body["reason"] is not None
+
 
 def test_intercompany_settlement_records_and_updates_net_position(client):
     resp = client.post(
@@ -337,6 +361,7 @@ def test_intercompany_settlement_records_and_updates_net_position(client):
     list_resp = client.get("/intercompany-settlements", headers=_avinash_auth())
     assert len(list_resp.json()) == 1
 
+
 def test_intercompany_settlement_rejects_same_entity(client):
     resp = client.post(
         "/intercompany-settlements", headers=_avinash_auth(),
@@ -346,6 +371,7 @@ def test_intercompany_settlement_rejects_same_entity(client):
         },
     )
     assert resp.status_code == 400
+
 
 def test_bank_transaction_match_requires_exact_amount(client):
     ids = client.wros_ids
@@ -363,6 +389,7 @@ def test_bank_transaction_match_requires_exact_amount(client):
     # Invoice lookup itself 404s before the amount check even runs,
     # since we didn't seed a real invoice with that id here.
     assert match_resp.status_code == 404
+
 
 def test_bank_transaction_matches_real_invoice_exact_amount(client):
     ids = client.wros_ids
@@ -387,6 +414,7 @@ def test_bank_transaction_matches_real_invoice_exact_amount(client):
 
     still_unmatched = client.get("/invoices/unmatched-paid", headers=_avinash_auth()).json()
     assert still_unmatched == []
+
 
 def test_bank_transaction_rejects_amount_mismatch(client):
     create_resp = client.post(

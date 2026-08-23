@@ -16,6 +16,7 @@ from app.services.candidate_scoring_service import CandidateScoringService
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.services.core_pull_service import CorePullService
 
+
 class TestCompleteWorkflow:
     """Test complete candidate-to-invoice workflow."""
 

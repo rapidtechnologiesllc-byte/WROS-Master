@@ -5,9 +5,11 @@ their own recruiter and candidates; a recruiter's list-candidates call
 must return only their own tenant's data, on the actual
 GET /hr/get_all_candidates endpoint.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -24,6 +26,7 @@ from app.models.user import Users
 from app.models.candidate import Candidate
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -39,9 +42,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -90,8 +98,10 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def test_recruiter_sees_only_their_own_tenants_candidates(client):
     token = _token_for("recruiter@blitzenx.com", "Super User")
@@ -99,6 +109,7 @@ def test_recruiter_sees_only_their_own_tenants_candidates(client):
     assert resp.status_code == 200
     ids = [c["candidate_id"] for c in resp.json()["candidates"]]
     assert ids == ["C-BX-1"]
+
 
 def test_negative_case_other_tenants_candidate_never_appears(client):
     token = _token_for("recruiter@blitzenx.com", "Super User")

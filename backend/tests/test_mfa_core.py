@@ -23,11 +23,13 @@ from app.core.mfa import (
     email_otp_enforcement_enabled,
 )
 
+
 def test_generated_secret_is_usable_by_pyotp():
     secret = generate_totp_secret()
     totp = pyotp.TOTP(secret)
     code = totp.now()
     assert verify_totp_code(secret, code) is True
+
 
 def test_wrong_code_is_rejected():
     secret = generate_totp_secret()
@@ -35,10 +37,12 @@ def test_wrong_code_is_rejected():
     wrong_code = pyotp.TOTP(other_secret).now()
     assert verify_totp_code(secret, wrong_code) is False
 
+
 def test_empty_or_missing_code_is_rejected():
     secret = generate_totp_secret()
     assert verify_totp_code(secret, "") is False
     assert verify_totp_code(secret, None) is False
+
 
 def test_provisioning_uri_is_a_standard_otpauth_uri():
     secret = generate_totp_secret()
@@ -47,11 +51,13 @@ def test_provisioning_uri_is_a_standard_otpauth_uri():
     assert "priya%40blitzenx.com" in uri or "priya@blitzenx.com" in uri
     assert "BlitzenX" in uri
 
+
 def test_backup_codes_are_unique_and_high_entropy():
     codes = generate_backup_codes(10)
     assert len(codes) == 10
     assert len(set(codes)) == 10  # no duplicates
     assert all(len(c) == 8 for c in codes)  # 4 bytes hex-encoded
+
 
 def test_backup_code_round_trip_and_single_use():
     codes = generate_backup_codes(3)
@@ -67,12 +73,14 @@ def test_backup_code_round_trip_and_single_use():
     assert matched_again is False
     assert len(remaining_again) == 2
 
+
 def test_wrong_backup_code_is_rejected():
     codes = generate_backup_codes(3)
     hashed = [hash_backup_code(c) for c in codes]
     matched, remaining = verify_and_consume_backup_code("not-a-real-code", hashed)
     assert matched is False
     assert remaining == hashed
+
 
 def test_role_requires_mfa_matches_documented_default_mapping():
     assert role_requires_mfa("Super User") is True
@@ -83,13 +91,16 @@ def test_role_requires_mfa_matches_documented_default_mapping():
     assert role_requires_mfa(None) is False
     assert MFA_REQUIRED_ROLES == {"Super User", "BU Head"}
 
+
 def test_enforcement_is_off_by_default(monkeypatch):
     monkeypatch.delenv("MFA_ENFORCEMENT_ENABLED", raising=False)
     assert mfa_enforcement_enabled() is False
 
+
 def test_enforcement_can_be_turned_on_via_env(monkeypatch):
     monkeypatch.setenv("MFA_ENFORCEMENT_ENABLED", "true")
     assert mfa_enforcement_enabled() is True
+
 
 # ---------------------------------------------------------------------------
 # Email OTP -- backlog item, 2026-08-05 (wros_email_2fa_backlog).
@@ -102,20 +113,24 @@ def test_email_otp_code_is_six_digits():
     assert len(code) == 6
     assert code.isdigit()
 
+
 def test_email_otp_round_trip():
     code = generate_email_otp_code()
     hashed = hash_email_otp_code(code)
     assert verify_email_otp_code(code, hashed) is True
 
+
 def test_email_otp_wrong_code_rejected():
     hashed = hash_email_otp_code(generate_email_otp_code())
     assert verify_email_otp_code("000000", hashed) is False
+
 
 def test_email_otp_empty_or_missing_rejected():
     hashed = hash_email_otp_code(generate_email_otp_code())
     assert verify_email_otp_code("", hashed) is False
     assert verify_email_otp_code(None, hashed) is False
     assert verify_email_otp_code("123456", None) is False
+
 
 def test_email_otp_required_roles_is_broader_than_totp_and_excludes_candidate():
     assert role_requires_email_otp("Recruiter") is True
@@ -127,9 +142,11 @@ def test_email_otp_required_roles_is_broader_than_totp_and_excludes_candidate():
     assert "Candidate" not in EMAIL_OTP_REQUIRED_ROLES
     assert EMAIL_OTP_REQUIRED_ROLES > MFA_REQUIRED_ROLES  # a real superset, not a copy
 
+
 def test_email_otp_enforcement_is_off_by_default(monkeypatch):
     monkeypatch.delenv("EMAIL_OTP_ENFORCEMENT_ENABLED", raising=False)
     assert email_otp_enforcement_enabled() is False
+
 
 def test_email_otp_enforcement_can_be_turned_on_via_env(monkeypatch):
     monkeypatch.setenv("EMAIL_OTP_ENFORCEMENT_ENABLED", "true")

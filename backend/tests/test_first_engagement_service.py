@@ -12,8 +12,10 @@ No real WhatsApp call -- whatsapp_client is injected, same convention
 as every other WhatsApp test in this codebase. _sleep is injected too,
 so the BR-04 retry test doesn't actually wait 5 real seconds.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -29,13 +31,22 @@ from app.models.consent import ConsentRecord
 from app.models.message_template import MessageTemplate
 from app.models.user import Users
 
+
 @pytest.fixture(autouse=True)
 def _default_whatsapp_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__,
+        ConversationEvent.__table__, CandidateAIAssignment.__table__, ConsentRecord.__table__,
+        MessageTemplate.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -43,6 +54,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _make_candidate_and_conversation(db, *, mobile="+19995551234", created_at=None, consent=True):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -70,14 +82,17 @@ def _make_candidate_and_conversation(db, *, mobile="+19995551234", created_at=No
 
     return candidate, conversation
 
+
 def _no_sleep(seconds):
     pass
+
 
 def test_no_phone_skips_gracefully(db_session):
     candidate, conversation = _make_candidate_and_conversation(db_session, mobile=None, consent=False)
     result = svc.send_first_whatsapp_engagement(db_session, "C-100", "U-ORG", _sleep=_no_sleep)
     assert result["status"] == "skipped"
     assert result["reason"] == "NO_PHONE"
+
 
 def test_successful_send_within_sla(db_session):
     _make_candidate_and_conversation(db_session)
@@ -98,6 +113,7 @@ def test_successful_send_within_sla(db_session):
     assert "BlitzenX" in msg_event.event_data["body"]
     assert "{" not in msg_event.event_data["body"]
 
+
 def test_sla_breach_logged_when_over_60_seconds(db_session):
     old_created_at = datetime.utcnow() - timedelta(seconds=120)
     _make_candidate_and_conversation(db_session, created_at=old_created_at)
@@ -110,6 +126,7 @@ def test_sla_breach_logged_when_over_60_seconds(db_session):
     assert breach_event is not None
     assert breach_event.event_data["elapsed_seconds"] > 60
 
+
 def test_idempotent_second_trigger_is_prevented(db_session):
     _make_candidate_and_conversation(db_session)
     svc.send_first_whatsapp_engagement(db_session, "C-100", "U-ORG", whatsapp_client=lambda *a: True, _sleep=_no_sleep)
@@ -119,6 +136,7 @@ def test_idempotent_second_trigger_is_prevented(db_session):
 
     sent_events = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "FIRST_WHATSAPP_SENT").all()
     assert len(sent_events) == 1
+
 
 def test_retry_once_then_succeed(db_session):
     _make_candidate_and_conversation(db_session)
@@ -131,6 +149,7 @@ def test_retry_once_then_succeed(db_session):
     result = svc.send_first_whatsapp_engagement(db_session, "C-100", "U-ORG", whatsapp_client=flaky_client, _sleep=_no_sleep)
     assert result["status"] == "sent"
     assert attempts["count"] == 2
+
 
 def test_both_attempts_fail_emits_failure_event_no_crash(db_session):
     _make_candidate_and_conversation(db_session)
@@ -145,6 +164,7 @@ def test_both_attempts_fail_emits_failure_event_no_crash(db_session):
     sent_attempts = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "ai_message_sent").count()
     assert sent_attempts == 2
 
+
 def test_no_consent_raises_and_logs_send_blocked(db_session):
     _make_candidate_and_conversation(db_session, consent=False)
     with pytest.raises(svc.FirstEngagementFailed):
@@ -152,6 +172,7 @@ def test_no_consent_raises_and_logs_send_blocked(db_session):
 
     failure_event = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "FIRST_ENGAGEMENT_FAILED").first()
     assert failure_event is not None
+
 
 def test_render_greeting_never_leaves_unreplaced_placeholder(db_session):
     candidate, _ = _make_candidate_and_conversation(db_session)

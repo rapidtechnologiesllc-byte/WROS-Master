@@ -3,8 +3,10 @@ POST/GET /templates -- proves the HTTP-level auth gating: activation is
 template.manage-only (Super User by default), create/list/preview are
 any internal user. Business rules covered at the service layer.
 
+Throwaway SQLite app, throwaway JWT keys, real RBAC seed.
 """
 import os
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -20,6 +22,7 @@ from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -28,8 +31,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
+@pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -55,6 +64,7 @@ def client(throwaway_jwt_keys):
     db.add_all([
         Users(UserID="U-CEO", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword=get_password_hash("x"), role_id=super_role.id if super_role else None),
         Users(UserID="U-REC", UserRole="Recruiter", UserEmail="rec@blitzenx.com", UserPassword=get_password_hash("x"), role_id=rec_role.id if rec_role else None),
+    ])
     db.commit()
     db.close()
 
@@ -65,8 +75,10 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def test_recruiter_can_create_template(client):
     resp = client.post(
@@ -75,6 +87,7 @@ def test_recruiter_can_create_template(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 201
+
 
 def test_recruiter_created_template_is_findable_by_render_template(client):
     """Regression: a recruiter's own UserID must NOT become the
@@ -113,6 +126,7 @@ def test_recruiter_created_template_is_findable_by_render_template(client):
         db.close()
     assert resp.json()["is_active"] is False
 
+
 def test_recruiter_cannot_activate(client):
     create_resp = client.post(
         "/templates",
@@ -126,6 +140,7 @@ def test_recruiter_cannot_activate(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 403
+
 
 def test_super_user_can_activate(client):
     create_resp = client.post(
@@ -141,6 +156,7 @@ def test_super_user_can_activate(client):
     )
     assert resp.status_code == 200
     assert resp.json()["is_active"] is True
+
 
 def test_list_templates_returns_created(client):
     client.post(

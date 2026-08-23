@@ -1,7 +1,7 @@
 """Add candidate_documents table
 
 Revision ID: add_candidate_documents
-Revises: 2026_08_16_add_modules 
+Revises: 
 Create Date: 2026-02-03 10:12:00.000000
 
 """
@@ -12,7 +12,7 @@ from datetime import datetime
 
 # revision identifiers, used by Alembic.
 revision = 'add_candidate_documents'
-down_revision = '2026_08_16_add_modules'
+down_revision = None  # Update this to your latest migration
 branch_labels = None
 depends_on = None
 

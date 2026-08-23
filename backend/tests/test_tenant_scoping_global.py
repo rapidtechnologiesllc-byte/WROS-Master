@@ -14,9 +14,11 @@ ask ("thorough concurrent-request testing" before trusting this):
    other's data -- the actual risk the doc warned a global mechanism
    could introduce if done wrong.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 import threading
 
 import pytest
@@ -36,6 +38,7 @@ from app.models.candidate_ownership import CandidateOwnership, POOL_BU
 from app.models.rbac_template import BusinessUnit
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -51,10 +54,16 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
+@pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(
         f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
     )
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -125,8 +134,10 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def test_single_record_lookup_never_leaks_across_tenant(client):
     """
@@ -150,6 +161,7 @@ def test_single_record_lookup_never_leaks_across_tenant(client):
     assert own_resp.status_code == 200
     assert own_resp.json()["user_id"] == "U-BX-EMPLOYEE"
 
+
 def test_bu_pool_route_closed_as_side_effect_of_global_scoping(client):
     """
     docs/build-package/HRMS-0109-tenant-scoping-gap.md flagged
@@ -170,6 +182,7 @@ def test_bu_pool_route_closed_as_side_effect_of_global_scoping(client):
     ids = [c["candidate_id"] for c in resp.json()["candidates"]]
     assert ids == ["C-BX-1"]
     assert "C-OTHER-1" not in ids
+
 
 def test_concurrent_requests_for_different_tenants_never_bleed(client):
     """
@@ -209,6 +222,7 @@ def test_concurrent_requests_for_different_tenants_never_bleed(client):
 
     threads = [threading.Thread(target=hit_bx) for _ in range(4)] + [
         threading.Thread(target=hit_other) for _ in range(4)
+    ]
     for t in threads:
         t.start()
     for t in threads:

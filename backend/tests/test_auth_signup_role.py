@@ -4,8 +4,10 @@ is public (no auth possible, see auth_middleware.PUBLIC_ROUTES), so it
 must never trust a caller-supplied user_role. Every self-signup gets
 SELF_SIGNUP_DEFAULT_ROLE regardless of what's in the request body.
 
+Throwaway SQLite app -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from fastapi import FastAPI
@@ -17,9 +19,14 @@ from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def client():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -42,6 +49,7 @@ def client():
         engine.dispose()
         os.remove(db_path)
 
+
 def test_signup_ignores_caller_supplied_super_user_role(client):
     test_client, SessionLocal = client
     response = test_client.post("/auth/v1/signup", json={
@@ -61,6 +69,7 @@ def test_signup_ignores_caller_supplied_super_user_role(client):
     assert user is not None
     assert user.UserRole == "Employee"
     assert user.UserRole != "Super User"
+
 
 def test_signup_ignores_caller_supplied_admin_role(client):
     test_client, SessionLocal = client

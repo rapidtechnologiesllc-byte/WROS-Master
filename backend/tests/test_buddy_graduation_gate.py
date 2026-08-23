@@ -6,8 +6,10 @@ Proves: GRADUATE sets SPECIALITY_READY (AC-3), EXTEND requires a real
 PERFORMANCE_MANAGED (AC-5), and decisions accumulate in
 bu_head_decision_notes rather than overwriting each other.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -27,9 +29,16 @@ from app.services.buddy_program_graduation_service import (
     record_graduation_decision,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, Employee.__table__,
+        EmployeeEmploymentHistory.__table__, BuddyProgramRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -37,6 +46,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def setup(db_session):
@@ -60,7 +70,9 @@ def setup(db_session):
 
     return employee, record, tenant
 
+
 IMPROVEMENT_NOTE = "Needs more practice with unscripted adhoc problem-solving scenarios in live client sessions."
+
 
 def test_graduate_sets_speciality_ready(db_session, setup):
     employee, record, tenant = setup
@@ -72,6 +84,7 @@ def test_graduate_sets_speciality_ready(db_session, setup):
     assert employee.buddy_program_status == "GRADUATED"
     assert employee.buddy_program_graduation_date == date.today()
     assert employee.status == "SPECIALITY_READY"
+
 
 def test_exit_sets_performance_managed(db_session, setup):
     employee, record, tenant = setup
@@ -85,12 +98,14 @@ def test_exit_sets_performance_managed(db_session, setup):
     assert employee.buddy_program_status == "EXITED"
     assert employee.status == "PERFORMANCE_MANAGED"
 
+
 def test_extend_requires_minimum_note_length(db_session, setup):
     employee, record, tenant = setup
     with pytest.raises(InvalidGraduationDecision):
         record_graduation_decision(
             db_session, record, employee, decision="EXTEND", changed_by="U-BUH", notes="too short",
         )
+
 
 def test_extend_increments_count_and_pushes_end_date(db_session, setup):
     employee, record, tenant = setup
@@ -106,6 +121,7 @@ def test_extend_increments_count_and_pushes_end_date(db_session, setup):
     assert record.status == "EXTENDED"
     assert employee.buddy_program_status == "EXTENDED"
 
+
 def test_extend_blocked_after_max_extensions(db_session, setup):
     employee, record, tenant = setup
     record_graduation_decision(db_session, record, employee, decision="EXTEND", changed_by="U-BUH", notes=IMPROVEMENT_NOTE)
@@ -119,6 +135,7 @@ def test_extend_blocked_after_max_extensions(db_session, setup):
     with pytest.raises(ExtensionLimitReached):
         record_graduation_decision(db_session, record, employee, decision="EXTEND", changed_by="U-BUH", notes=IMPROVEMENT_NOTE)
 
+
 def test_third_review_can_still_graduate_or_exit(db_session, setup):
     employee, record, tenant = setup
     record_graduation_decision(db_session, record, employee, decision="EXTEND", changed_by="U-BUH", notes=IMPROVEMENT_NOTE)
@@ -130,10 +147,12 @@ def test_third_review_can_still_graduate_or_exit(db_session, setup):
     db_session.commit()
     assert record.status == "GRADUATED"
 
+
 def test_invalid_decision_string_rejected(db_session, setup):
     employee, record, tenant = setup
     with pytest.raises(InvalidGraduationDecision):
         record_graduation_decision(db_session, record, employee, decision="MAYBE_LATER", changed_by="U-BUH")
+
 
 def test_decision_notes_accumulate_not_overwrite(db_session, setup):
     employee, record, tenant = setup

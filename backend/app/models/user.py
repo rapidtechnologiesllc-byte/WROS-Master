@@ -163,7 +163,7 @@ class CandidateAssignment(Base):
     __tablename__ = "candidate_assignments"
 
     id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False)
 
     hiring_manager_id = Column(String(50), ForeignKey("users.UserID"))
     reporting_manager_id = Column(String(50), ForeignKey("users.UserID"))
@@ -177,7 +177,7 @@ class InterviewPanel(Base):
     __tablename__ = "interview_panels"
 
     id = Column(Integer, primary_key=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"))
+    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"))
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)  # job the candidate is interviewed for
     round_name = Column(String(50))  # HR, Tech, Manager
 

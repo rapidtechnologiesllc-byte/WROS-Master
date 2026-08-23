@@ -8,8 +8,10 @@ entirely), AC-3/BR-1103-01 (this agent never creates a real candidate
 directly -- only promote_staged_candidate(), the explicit human path,
 does), and the Router hand-off call.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime
 
 import pytest
@@ -32,8 +34,17 @@ from app.services.linkedin_sourcing_service import (
     promote_staged_candidate,
 )
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, Client.__table__, Demand.__table__,
+        SourcingAlert.__table__, SourcingSearchRun.__table__, StagedCandidate.__table__,
+        Candidate.__table__, ConsentRecord.__table__, Notification.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -41,6 +52,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def alert(db_session):
@@ -69,6 +81,7 @@ def alert(db_session):
 
     return a, demand, tenant
 
+
 # ---------------------------------------------------------------------------
 # BR-1103-03 -- atomic claim
 # ---------------------------------------------------------------------------
@@ -80,6 +93,7 @@ def test_claim_alert_succeeds_once(db_session, alert):
     assert claimed is not None
     assert claimed.status == "PROCESSING"
 
+
 def test_second_claim_on_already_processing_alert_fails(db_session, alert):
     a, demand, tenant = alert
     claim_alert(db_session, a.id)
@@ -89,6 +103,7 @@ def test_second_claim_on_already_processing_alert_fails(db_session, alert):
     db_session.commit()
     assert second is None
 
+
 def test_claim_fails_for_nonexistent_or_already_sourced_alert(db_session, alert):
     a, demand, tenant = alert
     a.status = "SOURCED"
@@ -96,6 +111,7 @@ def test_claim_fails_for_nonexistent_or_already_sourced_alert(db_session, alert)
     db_session.commit()
 
     assert claim_alert(db_session, a.id) is None
+
 
 # ---------------------------------------------------------------------------
 # LLM query generation failure -> re-queue
@@ -112,6 +128,7 @@ def test_llm_generation_failure_marks_run_failed_and_requeues_alert(db_session, 
     assert run.status == "FAILED"
     assert a.status == "OPEN"
 
+
 def test_llm_generation_exception_also_requeues(db_session, alert):
     a, demand, tenant = alert
     claim_alert(db_session, a.id)
@@ -125,6 +142,7 @@ def test_llm_generation_exception_also_requeues(db_session, alert):
 
     assert run.status == "FAILED"
     assert a.status == "OPEN"
+
 
 def test_manual_override_skips_llm_generation_entirely(db_session, alert):
     a, demand, tenant = alert
@@ -143,12 +161,14 @@ def test_manual_override_skips_llm_generation_entirely(db_session, alert):
     assert run.boolean_query == '"Custom Query"'
     assert run.status == "COMPLETE"
 
+
 # ---------------------------------------------------------------------------
 # Search execution failure -> counter + AC-6 RM escalation
 # ---------------------------------------------------------------------------
 
 def _llm_ok(payload):
     return {"boolean_query": '"Guidewire" AND "5+ years"', "alt_queries": ["GW PolicyCenter"], "search_rationale": "x", "estimated_result_volume": 10}
+
 
 def test_search_execution_failure_increments_counter_no_executor(db_session, alert):
     a, demand, tenant = alert
@@ -161,6 +181,7 @@ def test_search_execution_failure_increments_counter_no_executor(db_session, ale
     assert run.status == "FAILED"
     assert a.consecutive_search_failures == 1
 
+
 def test_search_execution_exception_increments_counter(db_session, alert):
     a, demand, tenant = alert
     claim_alert(db_session, a.id)
@@ -172,6 +193,7 @@ def test_search_execution_exception_increments_counter(db_session, alert):
     process_sourcing_alert(db_session, a, demand, llm_query_generator=_llm_ok, search_executor=broken_executor)
     db_session.commit()
     assert a.consecutive_search_failures == 1
+
 
 def test_two_consecutive_failures_page_rm(db_session, alert):
     a, demand, tenant = alert
@@ -196,6 +218,7 @@ def test_two_consecutive_failures_page_rm(db_session, alert):
     assert len(notifications) == 1
     assert notifications[0].priority_tier == "P1"
 
+
 # ---------------------------------------------------------------------------
 # Successful run -- staging, dedup exclusion, router hand-off
 # ---------------------------------------------------------------------------
@@ -208,6 +231,7 @@ def test_successful_run_stages_new_results_and_marks_sourced(db_session, alert):
     results = [
         {"email": "new1@example.com", "linkedin_profile_url": "https://linkedin.com/in/new1", "full_name": "New One"},
         {"email": "new2@example.com", "linkedin_profile_url": "https://linkedin.com/in/new2", "full_name": "New Two"},
+    ]
     run = process_sourcing_alert(
         db_session, a, demand, llm_query_generator=_llm_ok, search_executor=lambda q: results,
     )
@@ -220,6 +244,7 @@ def test_successful_run_stages_new_results_and_marks_sourced(db_session, alert):
     staged = db_session.query(StagedCandidate).filter(StagedCandidate.search_run_id == run.id).all()
     assert {s.dedup_status for s in staged} == {"NEW"}
 
+
 def test_confirmed_duplicate_excluded_from_staged_candidates(db_session, alert):
     a, demand, tenant = alert
     db_session.add(Candidate(candidateID="C-EXIST", candidateEmail="existing@example.com", candidatePassword="h"))
@@ -231,6 +256,7 @@ def test_confirmed_duplicate_excluded_from_staged_candidates(db_session, alert):
     results = [
         {"email": "existing@example.com", "full_name": "Existing Person"},  # confirmed duplicate
         {"email": "brandnew@example.com", "full_name": "Brand New"},
+    ]
     run = process_sourcing_alert(
         db_session, a, demand, llm_query_generator=_llm_ok, search_executor=lambda q: results,
     )
@@ -240,6 +266,7 @@ def test_confirmed_duplicate_excluded_from_staged_candidates(db_session, alert):
     staged = db_session.query(StagedCandidate).filter(StagedCandidate.search_run_id == run.id).all()
     assert len(staged) == 1
     assert staged[0].email == "brandnew@example.com"
+
 
 def test_no_direct_candidate_row_created_by_the_agent(db_session, alert):
     """AC-3: zero INSERTs into candidates outside the promotion path."""
@@ -254,6 +281,7 @@ def test_no_direct_candidate_row_created_by_the_agent(db_session, alert):
     db_session.commit()
 
     assert db_session.query(Candidate).count() == 0
+
 
 def test_router_evaluate_called_before_marking_sourced(db_session, alert):
     a, demand, tenant = alert
@@ -277,6 +305,7 @@ def test_router_evaluate_called_before_marking_sourced(db_session, alert):
     assert calls[0]["entity_type"] == "staged_candidate_batch"
     assert calls[0]["risk_tier"] == "LOW"
 
+
 # ---------------------------------------------------------------------------
 # BR-1103-02 -- promotion is the only path to a real candidate
 # ---------------------------------------------------------------------------
@@ -294,6 +323,7 @@ def _make_staged(db, tenant_id, alert_id, *, email="promote@example.com"):
     db.commit()
     return staged
 
+
 def test_promote_creates_real_candidate_and_consent_record(db_session, alert):
     a, demand, tenant = alert
     staged = _make_staged(db_session, tenant.id, a.id)
@@ -309,6 +339,7 @@ def test_promote_creates_real_candidate_and_consent_record(db_session, alert):
     consent = db_session.query(ConsentRecord).filter(ConsentRecord.subject_id == candidate.candidateID).first()
     assert consent is not None
     assert consent.consent_given is True
+
 
 def test_cannot_promote_the_same_staged_candidate_twice(db_session, alert):
     a, demand, tenant = alert

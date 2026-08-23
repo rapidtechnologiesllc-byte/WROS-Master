@@ -1,1 +1,0 @@
-// JobListings component

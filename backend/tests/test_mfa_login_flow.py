@@ -7,10 +7,12 @@ two MFA endpoints, and a normal full token is rejected BY the MFA
 endpoints.
 
 Builds a small standalone FastAPI app (auth + mfa routers only) against
+a throwaway SQLite database -- never the real one, never real .env
 JWT keys (a fresh throwaway RSA key pair is generated and monkeypatched
 in, same pattern as test_session_token_expiry.py).
 """
 import os
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -29,6 +31,7 @@ from app.models.base import Base
 from app.models.user import Users
 from app.models.tenant import Tenant
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -44,9 +47,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[Tenant.__table__, Users.__table__])
+    TestSessionLocal = sessionmaker(bind=engine)
 
     # Point get_db (used by every route via Depends) at the throwaway
     # SQLite session instead of the real configured database.
@@ -89,6 +97,7 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
+
 def test_non_mfa_role_logs_in_unaffected(client):
     """Recruiter isn't in MFA_REQUIRED_ROLES -- login must behave exactly
     as before, full token immediately, no MFA fields set."""
@@ -99,6 +108,7 @@ def test_non_mfa_role_logs_in_unaffected(client):
     assert body["mfa_setup_required"] is False
     assert body["access_token"]
 
+
 def test_mfa_required_role_gets_pending_token_not_full_access(client):
     resp = client.post("/auth/login", json={"email": "priya@blitzenx.com", "password": "correct-horse"})
     assert resp.status_code == 200
@@ -106,6 +116,7 @@ def test_mfa_required_role_gets_pending_token_not_full_access(client):
     assert body["mfa_setup_required"] is True  # never enrolled yet
     assert body["mfa_required"] is False
     assert body["access_token"]  # this is a pending token, not a full one
+
 
 def test_pending_token_cannot_reach_a_normal_protected_endpoint(client):
     login = client.post("/auth/login", json={"email": "priya@blitzenx.com", "password": "correct-horse"})
@@ -123,6 +134,7 @@ def test_pending_token_cannot_reach_a_normal_protected_endpoint(client):
 
     resp = client.get("/some-protected-thing", headers={"Authorization": f"Bearer {pending_token}"})
     assert resp.status_code == 403
+
 
 def test_full_enrollment_flow_setup_then_confirm_then_full_token(client):
     login = client.post("/auth/login", json={"email": "priya@blitzenx.com", "password": "correct-horse"})
@@ -156,6 +168,7 @@ def test_full_enrollment_flow_setup_then_confirm_then_full_token(client):
     assert real_resp.status_code == 200
     assert real_resp.json()["email"] == "priya@blitzenx.com"
 
+
 def test_wrong_code_at_confirm_is_rejected(client):
     login = client.post("/auth/login", json={"email": "priya@blitzenx.com", "password": "correct-horse"})
     pending_token = login.json()["access_token"]
@@ -164,6 +177,7 @@ def test_wrong_code_at_confirm_is_rejected(client):
     client.post("/auth/mfa/setup", headers=headers)
     resp = client.post("/auth/mfa/setup/confirm", json={"code": "000000"}, headers=headers)
     assert resp.status_code == 401
+
 
 def test_already_enrolled_account_uses_verify_not_setup(client):
     # First, fully enroll.
@@ -188,6 +202,7 @@ def test_already_enrolled_account_uses_verify_not_setup(client):
     )
     assert verify_resp.status_code == 200
     assert verify_resp.json()["access_token"]
+
 
 def test_backup_code_works_once_then_is_rejected(client):
     login = client.post("/auth/login", json={"email": "priya@blitzenx.com", "password": "correct-horse"})
@@ -215,6 +230,7 @@ def test_backup_code_works_once_then_is_rejected(client):
         headers={"Authorization": f"Bearer {pending_token3}"},
     )
     assert resp2.status_code == 401
+
 
 def test_a_full_normal_token_is_rejected_by_mfa_endpoints(client):
     """A real, already-authenticated user must not be able to call the

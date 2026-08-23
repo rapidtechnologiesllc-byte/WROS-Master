@@ -11,8 +11,10 @@ mark_document_received()/classify_document_type() are real, tested,
 standalone functions; BR-03's "no 4th reminder" is enforced by a real
 event-presence check so HR is notified exactly once per document.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -36,14 +38,24 @@ from app.models.user import Users
 
 import app.services.document_collection_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        OfferLetter.__table__, PreboardingDocument.__table__, ConsentRecord.__table__, Notification.__table__,
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Submission.__table__, SubmissionViolation.__table__, CandidateJoiningScore.__table__, RecruiterInterventionQueue.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -52,11 +64,13 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+
 def _make_candidate(db, candidate_id="C-1", mobile="+919876543210"):
     candidate = Candidate(candidateID=candidate_id, candidateEmail=f"{candidate_id.lower()}@example.com", candidatePassword="h", candidateFirstName="Priya", candidateMobile=mobile)
     db.add(candidate)
     db.commit()
     return candidate
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -90,6 +104,7 @@ def seeded(db_session):
 
     return candidate, conv, offer, submission
 
+
 # ── BR-02: country-specific documents ──────────────────────────────────
 
 def test_india_candidate_gets_pan_card_requirement(db_session, seeded):
@@ -100,6 +115,7 @@ def test_india_candidate_gets_pan_card_requirement(db_session, seeded):
 
     doc_types = {d.document_type for d in db_session.query(PreboardingDocument).all()}
     assert "PAN_CARD" in doc_types
+
 
 def test_non_india_candidate_excludes_pan_card(db_session, seeded):
     candidate, conv, offer, submission = seeded
@@ -113,6 +129,7 @@ def test_non_india_candidate_excludes_pan_card(db_session, seeded):
     doc_types = {d.document_type for d in db_session.query(PreboardingDocument).all()}
     assert "PAN_CARD" not in doc_types
 
+
 # ── TC-001/AC-1,2: initial request ────────────────────────────────────
 
 def test_start_collection_sends_initial_message_listing_all_documents(db_session, seeded):
@@ -124,12 +141,14 @@ def test_start_collection_sends_initial_message_listing_all_documents(db_session
     assert "Government issued ID" in event.event_data["body"]
     assert "PAN Card" in event.event_data["body"]
 
+
 def test_start_collection_is_idempotent(db_session, seeded):
     candidate, conv, offer, submission = seeded
     svc.start_document_collection(db_session, candidate, conv, offer, "U-ORG")
     result2 = svc.start_document_collection(db_session, candidate, conv, offer, "U-ORG")
     assert result2["outcome"] == "already_started"
     assert db_session.query(PreboardingDocument).count() == 7
+
 
 # ── TC-002/AC-3,4: document received ───────────────────────────────────
 
@@ -156,6 +175,7 @@ def test_mark_document_received_acknowledges_and_asks_for_next(db_session, seede
     assert readiness is not None
     assert readiness.score_breakdown["documents"] > 0
 
+
 def test_all_documents_received_notifies_hr(db_session, seeded):
     candidate, conv, offer, submission = seeded
     svc.start_document_collection(db_session, candidate, conv, offer, "U-ORG")
@@ -178,6 +198,7 @@ def test_all_documents_received_notifies_hr(db_session, seeded):
     assert any("has submitted all required preboarding documents" in n.message for n in notifications)
     assert any("joining readiness score has dropped" in n.message for n in notifications)
 
+
 def test_no_matching_pending_document(db_session, seeded):
     candidate, conv, offer, submission = seeded
     svc.start_document_collection(db_session, candidate, conv, offer, "U-ORG")
@@ -186,21 +207,25 @@ def test_no_matching_pending_document(db_session, seeded):
     result = svc.mark_document_received(db_session, candidate, conv, "U-ORG", "ID_PROOF", "https://example.com/y.pdf")  # already RECEIVED
     assert result["outcome"] == "no_matching_document"
 
+
 # ── classify_document_type ──────────────────────────────────────────────
 
 def test_classify_document_type_returns_valid_classification(db_session, seeded):
     result = svc.classify_document_type("this is my aadhar card scan", llm_call=lambda p: "ID_PROOF")
     assert result == "ID_PROOF"
 
+
 def test_classify_document_type_falls_back_to_other_on_invalid_response(db_session, seeded):
     result = svc.classify_document_type("random text", llm_call=lambda p: "NONSENSE_VALUE")
     assert result == "OTHER"
+
 
 def test_classify_document_type_never_raises_on_llm_failure(db_session, seeded):
     def _boom(p):
         raise RuntimeError("simulated failure")
     result = svc.classify_document_type("some text", llm_call=_boom)  # should not raise
     assert result == "OTHER"
+
 
 # ── TC-003/AC-7/BR-03: reminder escalation ─────────────────────────────
 
@@ -217,6 +242,7 @@ def test_reminder_sent_after_48h_with_no_upload(db_session, seeded):
     db_session.refresh(doc)
     assert doc.reminder_count == 1
     assert doc.last_reminded_at is not None
+
 
 def test_three_reminders_then_hr_takeover_no_fourth_message(db_session, seeded):
     candidate, conv, offer, submission = seeded
@@ -243,6 +269,7 @@ def test_three_reminders_then_hr_takeover_no_fourth_message(db_session, seeded):
     assert result2["escalated"] == 0
     assert db_session.query(Notification).count() == 1
 
+
 def test_reminder_job_ignores_not_yet_due_documents(db_session, seeded):
     candidate, conv, offer, submission = seeded
     svc.start_document_collection(db_session, candidate, conv, offer, "U-ORG")
@@ -250,6 +277,7 @@ def test_reminder_job_ignores_not_yet_due_documents(db_session, seeded):
     result = svc.run_document_reminder_job(db_session)
     assert result["reminded"] == 0
     assert result["escalated"] == 0
+
 
 # ── BR-01: cancel pending documents ─────────────────────────────────────
 

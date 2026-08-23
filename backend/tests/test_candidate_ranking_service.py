@@ -7,6 +7,7 @@ Test coverage:
 - Edge cases and error handling
 """
 import os
+import tempfile
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -21,9 +22,14 @@ from app.models.demand import Demand
 from app.models.tenant import Tenant
 from app.services.candidate_scoring_service import CandidateScoringService
 
+
+@pytest.fixture()
 def db_session():
     """Create temporary SQLite database for testing."""
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -31,6 +37,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded_data(db_session):
@@ -108,6 +115,7 @@ def seeded_data(db_session):
             "resume_completeness_score": None,
             "tenant_id": 1,
         }
+    ]
 
     candidates = [Candidate(**data) for data in candidates_data]
     db_session.add_all(candidates)
@@ -169,6 +177,7 @@ def seeded_data(db_session):
             "urgency": "IMMEDIATE",
             "status": "OPEN",
         }
+    ]
 
     demands = [Demand(**data) for data in demands_data]
     db_session.add_all(demands)
@@ -179,6 +188,7 @@ def seeded_data(db_session):
         "demands": {d.id: d for d in demands},
         "tenant_id": 1,
     }
+
 
 class TestCalculateFitScore:
     """Tests for calculate_fit_score method."""
@@ -290,6 +300,7 @@ class TestCalculateFitScore:
         # Verify fit_score is between 0-100
         assert 0 <= result["fit_score"] <= 100
 
+
 class TestRankCandidates:
     """Tests for rank_candidates method."""
 
@@ -366,6 +377,7 @@ class TestRankCandidates:
             assert "recommendation" in candidate
             assert "components" in candidate
 
+
 class TestIdentifyBestMatch:
     """Tests for identify_best_match method."""
 
@@ -441,6 +453,7 @@ class TestIdentifyBestMatch:
         assert 0 <= result["fit_score"] <= 100
         assert result["recommendation"] in ["STRONG_MATCH", "GOOD_MATCH", "FAIR_MATCH", "WEAK_MATCH"]
 
+
 class TestComponentScoring:
     """Tests for individual scoring components."""
 
@@ -514,6 +527,7 @@ class TestComponentScoring:
         assert result["status"] == "success"
         # Should give 0 for skills match
         assert result["components"]["skills_match"] == 0
+
 
 class TestEdgeCases:
     """Tests for edge cases and boundary conditions."""
@@ -611,6 +625,7 @@ class TestEdgeCases:
 
         # Should error because demand doesn't exist in tenant 1
         assert result["status"] == "error"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

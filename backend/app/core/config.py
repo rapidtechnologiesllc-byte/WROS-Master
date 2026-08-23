@@ -1,6 +1,11 @@
 """
 Configuration management for the Onboarding Application.
 Loads environment variables and provides centralized configuration.
+
+SECRETS MANAGEMENT (2026-08-18):
+- Production: Use SECRETS_BACKEND env var to specify vault (azure, aws, env)
+- Development: Falls back to environment variables and .env files
+- See app.core.secrets_manager for implementation details
 """
 import os
 from typing import Optional
@@ -24,6 +29,14 @@ load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 # just fills in what .env left blank.
 load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 
+# Import secrets manager for production secret retrieval
+try:
+    from app.core.secrets_manager import get_secret
+except ImportError:
+    # Fallback if module not available
+    def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
+        return os.getenv(name.replace("-", "_").upper(), default)
+
 
 class Settings:
     """Application settings and configuration."""
@@ -38,19 +51,23 @@ class Settings:
     PORT: int = int(os.getenv("PORT", "8080"))
     
     # Database Settings
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
-    
+    # Tries to load from secrets vault first, falls back to environment variables
+    DATABASE_URL: str = get_secret("database-url", default=os.getenv("DATABASE_URL", ""))
+
     # JWT Settings (HS256 with symmetric key)
     JWT_ALGORITHM: str = "HS256"
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
+    # Tries secrets vault first, falls back to environment variable
+    JWT_SECRET: str = get_secret("jwt-secret", default=os.getenv("JWT_SECRET", "dev-secret-key-change-in-production"))
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     JWT_PRIVATE_KEY: str = ""  # Deprecated: using HS256 with JWT_SECRET instead
     JWT_PUBLIC_KEY: str = ""   # Deprecated: using HS256 with JWT_SECRET instead
     
     # Microsoft Graph API Settings
-    TENANT_ID: str = os.getenv("TENANT_ID", "")
-    CLIENT_ID: str = os.getenv("CLIENT_ID", "")
-    CLIENT_SECRET: str = os.getenv("CLIENT_SECRET", "")
+    # These can be stored in secrets vault for production security
+    TENANT_ID: str = os.getenv("TENANT_ID", "")  # Usually public, but still configurable
+    CLIENT_ID: str = os.getenv("CLIENT_ID", "")  # Usually public, but still configurable
+    # CLIENT_SECRET is sensitive - load from vault with fallback
+    CLIENT_SECRET: str = get_secret("client-secret", default=os.getenv("CLIENT_SECRET", ""))
     AUTHORITY: str = os.getenv("AUTHORITY", "") or f"https://login.microsoftonline.com/{TENANT_ID}"
     REDIRECT_URI: str = os.getenv("REDIRECT_URI", "")
     SCOPES: list = os.getenv("SCOPES", "").split() if os.getenv("SCOPES") else []
@@ -58,7 +75,8 @@ class Settings:
     # Webhook Settings (HRMS-0114) -- shared secret for endpoints that
     # must accept calls from non-interactive external callers, e.g.
     # POST /ai-agent/webhook/email-reply. See app.core.webhook_auth.
-    WEBHOOK_SHARED_SECRET: str = os.getenv("WEBHOOK_SHARED_SECRET", "")
+    # Load from secrets vault for production security
+    WEBHOOK_SHARED_SECRET: str = get_secret("webhook-shared-secret", default=os.getenv("WEBHOOK_SHARED_SECRET", ""))
 
     # S-002/HRMS-0402 -- WhatsApp Cloud API webhook (Meta). Empty by
     # default since no WhatsApp Business API app is registered with Meta
@@ -66,31 +84,35 @@ class Settings:
     # outbound send stub) -- the receiver endpoint is real, structurally
     # correct code either way; these two values are what Avinash provides
     # once a real Meta app + webhook subscription exist.
-    WHATSAPP_VERIFY_TOKEN: str = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
-    WHATSAPP_APP_SECRET: str = os.getenv("WHATSAPP_APP_SECRET", "")
+    # Load from secrets vault for production security
+    WHATSAPP_VERIFY_TOKEN: str = get_secret("whatsapp-verify-token", default=os.getenv("WHATSAPP_VERIFY_TOKEN", ""))
+    WHATSAPP_APP_SECRET: str = get_secret("whatsapp-app-secret", default=os.getenv("WHATSAPP_APP_SECRET", ""))
 
     # Field-level encryption (HRMS-0101 BR-01) -- AES-256 key (32 raw
     # bytes, base64-encoded) for employee bank account/routing fields.
     # See app.core.field_encryption.
-    FIELD_ENCRYPTION_KEY: str = os.getenv("FIELD_ENCRYPTION_KEY", "")
+    # CRITICAL: Load from secrets vault for production
+    FIELD_ENCRYPTION_KEY: str = get_secret("field-encryption-key", default=os.getenv("FIELD_ENCRYPTION_KEY", ""))
 
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).
-    # Defaults to the real production frontend origin already listed
-    # in CORS_ORIGINS below; override via env for other environments.
-    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://46.224.149.7:3005")
+    # Defaults to localhost for development; must be set via FRONTEND_BASE_URL
+    # environment variable for production/staging deployments.
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
-    # CORS Settings
+    # CORS Settings - Environment-based configuration
+    # Default: localhost for development
+    # Production: Use CORS_ORIGINS env var as comma-separated list
     CORS_ORIGINS: list = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://46.224.149.7:3005",
-        "http://46.224.149.7:8080",
         "http://localhost:8080",
-        # Add production frontend URLs here
     ]
+
+    # Allow additional origins from environment variable (production/staging)
+    _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()
+    if _CORS_ENV:
+        CORS_ORIGINS.extend([origin.strip() for origin in _CORS_ENV.split(",") if origin.strip()])
     
     # Security Settings
     BCRYPT_ROUNDS: int = 12

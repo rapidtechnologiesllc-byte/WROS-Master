@@ -5,9 +5,11 @@ GET /core-pull/specialty-pool-status, GET /core-pull/events, POST
 end-to-end on real routes, not just the service layer (see the
 Definition of Done correction in CLAUDE.md).
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys. No LLM involved in this story.
 """
 import os
+import tempfile
 from datetime import date
 
 import pytest
@@ -30,6 +32,7 @@ from app.services.core_pull_service import SPECIALTY_POOL_MINIMUM
 from app.services.orchestration_router_service import seed_default_conflict_rules
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -45,6 +48,7 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 def _make_employee(db, tenant, *, core_certified=True, delivery_engine="SPECIALITY", suffix="1"):
     employee = Employee(
         tenant_id=tenant.id, first_name=f"Sam{suffix}", last_name="Lee",
@@ -54,6 +58,7 @@ def _make_employee(db, tenant, *, core_certified=True, delivery_engine="SPECIALI
     db.add(employee)
     db.commit()
     return employee
+
 
 def _make_demand(db, tenant, client, *, delivery_engine="SPECIALITY", suffix="1"):
     demand = Demand(
@@ -65,13 +70,19 @@ def _make_demand(db, tenant, client, *, delivery_engine="SPECIALITY", suffix="1"
     db.commit()
     return demand
 
+
 def _fill_specialty_pool(db, tenant, count):
     for i in range(count):
         _make_employee(db, tenant, core_certified=True, delivery_engine="SPECIALITY", suffix=f"pool{i}")
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -140,14 +151,18 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def _admin_auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
+
 def _buhead_auth():
     return {"Authorization": f"Bearer {_token_for('buhead@blitzenx.com', role='BU Head')}"}
+
 
 def _make_session_for(client):
     """Short-lived engine+session against the same SQLite file the API
@@ -157,6 +172,7 @@ def _make_session_for(client):
     session = sessionmaker(bind=engine)()
     return session, engine
 
+
 def _run_against_db(client, fn):
     session, engine = _make_session_for(client)
     try:
@@ -164,6 +180,7 @@ def _run_against_db(client, fn):
     finally:
         session.close()
         engine.dispose()
+
 
 def _detect_event(client):
     """Helper: creates a PENDING CorePullEvent directly via the service
@@ -184,9 +201,11 @@ def _detect_event(client):
 
     return _run_against_db(client, _do)
 
+
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/core-pull/specialty-pool-status")
     assert resp.status_code in (401, 403)
+
 
 def test_pool_status_below_minimum_by_default(client):
     resp = client.get("/core-pull/specialty-pool-status", headers=_admin_auth())
@@ -195,6 +214,7 @@ def test_pool_status_below_minimum_by_default(client):
     assert body["pool_size"] == 1  # just the one fixture employee
     assert body["below_minimum"] is True
     assert body["gap"] == SPECIALTY_POOL_MINIMUM - 1
+
 
 def test_pool_status_at_edge_when_exactly_at_minimum_plus_one(client):
     def _do(db):
@@ -210,6 +230,7 @@ def test_pool_status_at_edge_when_exactly_at_minimum_plus_one(client):
     assert body["at_edge"] is True
     assert body["below_minimum"] is False
 
+
 def test_get_pending_events_enriched(client):
     event_id = _detect_event(client)
 
@@ -222,12 +243,14 @@ def test_get_pending_events_enriched(client):
     assert events[0]["core_demand_job_title"] == "Role core"
     assert events[0]["status"] == "PENDING"
 
+
 def test_execute_blocked_below_minimum_without_replacement_plan(client):
     event_id = _detect_event(client)
 
     resp = client.post(f"/core-pull/events/{event_id}/execute", headers=_admin_auth())
     assert resp.status_code == 409
     assert "minimum" in resp.json()["detail"].lower()
+
 
 def test_execute_succeeds_once_replacement_plan_logged(client):
     event_id = _detect_event(client)
@@ -249,6 +272,7 @@ def test_execute_succeeds_once_replacement_plan_logged(client):
     body = exec_resp.json()
     assert body["event"]["status"] == "EXECUTED"
 
+
 def test_execute_with_full_pool_succeeds_without_plan(client):
     def _do(db):
         tenant = db.query(Tenant).first()
@@ -261,6 +285,7 @@ def test_execute_with_full_pool_succeeds_without_plan(client):
     resp = client.post(f"/core-pull/events/{event_id}/execute", headers=_admin_auth())
     assert resp.status_code == 200
     assert resp.json()["event"]["status"] == "EXECUTED"
+
 
 def test_replacement_plan_rejects_short_strategy(client):
     ids = client.wros_ids
@@ -275,6 +300,7 @@ def test_replacement_plan_rejects_short_strategy(client):
     )
     assert resp.status_code == 422
 
+
 def test_override_forbidden_for_non_bu_head(client):
     event_id = _detect_event(client)
     resp = client.post(
@@ -283,6 +309,7 @@ def test_override_forbidden_for_non_bu_head(client):
         headers=_admin_auth(),
     )
     assert resp.status_code == 403
+
 
 def test_override_succeeds_for_bu_head(client):
     event_id = _detect_event(client)
@@ -295,6 +322,7 @@ def test_override_succeeds_for_bu_head(client):
     body = resp.json()
     assert body["event"]["status"] == "OVERRIDDEN"
 
+
 def test_override_rejects_short_justification(client):
     event_id = _detect_event(client)
     resp = client.post(
@@ -303,6 +331,7 @@ def test_override_rejects_short_justification(client):
         headers=_buhead_auth(),
     )
     assert resp.status_code == 422
+
 
 def test_execute_nonexistent_event_is_404(client):
     resp = client.post("/core-pull/events/does-not-exist/execute", headers=_admin_auth())

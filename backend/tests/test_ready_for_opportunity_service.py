@@ -10,8 +10,10 @@ logic, and the scan never fires on a schedule -- it's a plain function
 call, exercised here exactly the way create_job's background task
 calls it.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -26,9 +28,15 @@ from app.models.user import Jobs
 
 import app.services.ready_for_opportunity_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Candidate.__table__, CandidateConversation.__table__, Jobs.__table__, CandidateOpportunityWatch.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -37,17 +45,20 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+
 def _make_candidate(db, cid, *, skills, title):
     c = Candidate(candidateID=cid, candidateEmail=f"{cid}@example.com", candidatePassword="h", candidateSkills=skills, candidateJobTitle=title, candidateFirstName="Test")
     db.add(c)
     db.commit()
     return c
 
+
 def _make_job(db, jid, *, skills, title):
     j = Jobs(jobID=jid, jobTitle=title, jobDescription="desc", jobSkills=skills, jobExperience="3-5 years", jobLocation="Remote", jobStatus="active")
     db.add(j)
     db.commit()
     return j
+
 
 def test_start_watching_is_idempotent(db_session):
     candidate = _make_candidate(db_session, "C1", skills="Java, Spring", title="Java Developer")
@@ -56,6 +67,7 @@ def test_start_watching_is_idempotent(db_session):
     db_session.commit()
     assert w1.id == w2.id
     assert db_session.query(CandidateOpportunityWatch).count() == 1
+
 
 def test_scan_ignores_non_matching_candidates(db_session):
     candidate = _make_candidate(db_session, "C1", skills="Java, Spring", title="Java Developer")
@@ -70,6 +82,7 @@ def test_scan_ignores_non_matching_candidates(db_session):
 
     watch = db_session.query(CandidateOpportunityWatch).filter(CandidateOpportunityWatch.candidate_id == "C1").first()
     assert watch.is_active is True  # unmatched -- still watching
+
 
 def test_scan_matches_and_deactivates_watch(db_session):
     candidate = _make_candidate(db_session, "C1", skills="Java, Spring, Microservices", title="Java Developer")
@@ -91,6 +104,7 @@ def test_scan_matches_and_deactivates_watch(db_session):
     assert watch.matched_job_id == "J1"
     assert watch.nudged_at is not None
 
+
 def test_scan_no_conversation_leaves_watch_active_for_next_job(db_session):
     """No conversation to nudge through yet -- match isn't lost, the
     candidate stays watched so a later job (once they have a real
@@ -107,6 +121,7 @@ def test_scan_no_conversation_leaves_watch_active_for_next_job(db_session):
     assert matched == []
     watch = db_session.query(CandidateOpportunityWatch).filter(CandidateOpportunityWatch.candidate_id == "C1").first()
     assert watch.is_active is True
+
 
 def test_scan_only_considers_active_watches(db_session):
     candidate = _make_candidate(db_session, "C1", skills="Java, Spring", title="Java Developer")

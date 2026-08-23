@@ -6,13 +6,6 @@ POSTGRESQL ONLY - No SQLite fallback
 
 import pytest
 import os
-import sys
-from pathlib import Path
-
-# Add project root to Python path so 'app' module can be imported
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
 from sqlalchemy import create_engine, text, event, inspect
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
@@ -36,7 +29,7 @@ def create_test_database():
     """Create fresh PostgreSQL test database"""
     try:
         # Connect to postgres default database with autocommit
-        admin_url = "postgresql://postgres:postgres@localhost:5432/postgres"
+        admin_url = "postgresql://postgres:123@localhost:5432/postgres"
         admin_engine = create_engine(admin_url)
 
         @event.listens_for(admin_engine, 'connect')

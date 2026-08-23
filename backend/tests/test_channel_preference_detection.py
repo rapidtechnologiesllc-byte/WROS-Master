@@ -7,8 +7,10 @@ events -- the same field send_whatsapp_message()/ai_conversation_service
 already write -- per the S-002/S-003 architecture decision to extend
 ConversationEvent rather than fork a new conversation_messages table.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -21,9 +23,16 @@ from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.channel_preference_service import detect_channel_preference
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -31,6 +40,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -55,6 +65,7 @@ def fixtures(db_session):
 
     return org_owner, candidate, conversation
 
+
 def _add_inbound(db, conversation, channel):
     event = ConversationEvent(
         conversation_id=conversation.id, event_type="candidate_reply",
@@ -62,6 +73,7 @@ def _add_inbound(db, conversation, channel):
     )
     db.add(event)
     db.commit()
+
 
 def test_fewer_than_3_inbound_leaves_preference_unchanged(db_session, fixtures):
     org_owner, candidate, conversation = fixtures
@@ -75,6 +87,7 @@ def test_fewer_than_3_inbound_leaves_preference_unchanged(db_session, fixtures):
     assert result["channel"] == "email"  # unchanged
     assert conversation.channel_preference == "email"
 
+
 def test_whatsapp_dominant_updates_preference_with_full_confidence(db_session, fixtures):
     org_owner, candidate, conversation = fixtures
     for _ in range(5):
@@ -86,6 +99,7 @@ def test_whatsapp_dominant_updates_preference_with_full_confidence(db_session, f
     assert result["confidence"] == 1.0
     assert result["updated"] is True
     assert conversation.channel_preference == "whatsapp"
+
 
 def test_mixed_channels_picks_majority(db_session, fixtures):
     org_owner, candidate, conversation = fixtures
@@ -100,6 +114,7 @@ def test_mixed_channels_picks_majority(db_session, fixtures):
     assert result["confidence"] == 0.8
     assert result["updated"] is True
 
+
 def test_no_change_when_detected_channel_matches_current(db_session, fixtures):
     org_owner, candidate, conversation = fixtures
     conversation.channel_preference = "whatsapp"
@@ -111,6 +126,7 @@ def test_no_change_when_detected_channel_matches_current(db_session, fixtures):
 
     assert result["updated"] is False
     assert result["channel"] == "whatsapp"
+
 
 def test_only_last_20_inbound_events_considered(db_session, fixtures):
     org_owner, candidate, conversation = fixtures

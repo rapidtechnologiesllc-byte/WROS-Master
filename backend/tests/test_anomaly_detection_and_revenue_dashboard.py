@@ -6,8 +6,10 @@ Project.allow_weekend_billing) and HRMS-0909 (Client Revenue
 Realization Dashboard -- earned-vs-planned, billable ratio, burn rate,
 all pure aggregation, no new schema).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -35,8 +37,20 @@ from app.services.invoice_service import generate_invoice, approve_invoice, send
 from app.services.timesheet_anomaly_service import scan_timesheet_anomalies, get_anomaly_flags_for_timesheet
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Employee.__table__, EmployeeEmploymentHistory.__table__,
+        EmployeeAllocation.__table__, Opportunity.__table__, Project.__table__, ProjectMilestone.__table__,
+        Timesheet.__table__, TimesheetEntry.__table__, TimesheetAnomalyFlag.__table__,
+        TimesheetDispute.__table__, Invoice.__table__, InvoiceLineItem.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -44,6 +58,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def tenant_and_client(db_session):
@@ -55,10 +70,12 @@ def tenant_and_client(db_session):
     db_session.commit()
     return tenant, client
 
+
 def _make_project(db, tenant, client, **overrides):
     project = create_project(db, tenant_id=tenant.id, client_id=client.id, name="P1", **overrides)
     db.commit()
     return project
+
 
 def _make_employee(db, tenant, **overrides):
     defaults = dict(
@@ -70,6 +87,7 @@ def _make_employee(db, tenant, **overrides):
     db.add(emp)
     db.commit()
     return emp
+
 
 def _make_demand(db, tenant, client, project=None, **overrides):
     defaults = dict(
@@ -85,9 +103,11 @@ def _make_demand(db, tenant, client, project=None, **overrides):
     db.commit()
     return demand
 
+
 def _saturday_on_or_after(d: date) -> date:
     days_ahead = (5 - d.weekday()) % 7
     return d + timedelta(days=days_ahead)
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0910: anomaly detection
@@ -112,6 +132,7 @@ def test_weekend_entry_flagged_when_project_does_not_allow_it(db_session, tenant
     db_session.commit()
     assert any(f.anomaly_type == "WEEKEND" for f in flags)
 
+
 def test_weekend_entry_not_flagged_when_project_allows_it(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = _make_project(db_session, tenant, client)
@@ -132,6 +153,7 @@ def test_weekend_entry_not_flagged_when_project_allows_it(db_session, tenant_and
     flags = scan_timesheet_anomalies(db_session, ts)
     assert not any(f.anomaly_type == "WEEKEND" for f in flags)
 
+
 def test_over_12h_day_flagged(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = _make_project(db_session, tenant, client)
@@ -148,6 +170,7 @@ def test_over_12h_day_flagged(db_session, tenant_and_client):
 
     flags = scan_timesheet_anomalies(db_session, ts)
     assert any(f.anomaly_type == "OVER_12H" for f in flags)
+
 
 def test_completed_project_entry_flagged(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -168,6 +191,7 @@ def test_completed_project_entry_flagged(db_session, tenant_and_client):
 
     flags = scan_timesheet_anomalies(db_session, ts)
     assert any(f.anomaly_type == "COMPLETED_PROJECT" for f in flags)
+
 
 def test_duplicate_entry_flagged_across_two_timesheets(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -201,6 +225,7 @@ def test_duplicate_entry_flagged_across_two_timesheets(db_session, tenant_and_cl
     flags = scan_timesheet_anomalies(db_session, ts2)
     assert any(f.anomaly_type == "DUPLICATE" for f in flags)
 
+
 def test_scan_does_not_block_submission_and_is_idempotent(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = _make_project(db_session, tenant, client)
@@ -229,6 +254,7 @@ def test_scan_does_not_block_submission_and_is_idempotent(db_session, tenant_and
     assert {f.id for f in first_pass} == {f.id for f in second_pass}
     assert len(get_anomaly_flags_for_timesheet(db_session, ts)) == len(first_pass)
 
+
 # ---------------------------------------------------------------------------
 # HRMS-0909: client revenue dashboard
 # ---------------------------------------------------------------------------
@@ -239,12 +265,14 @@ def test_dashboard_insufficient_data_with_no_projects(db_session, tenant_and_cli
     assert result["earned_usd_cents"] is None
     assert "INSUFFICIENT_DATA" in result["note"]
 
+
 def test_dashboard_billable_ratio_none_without_approved_timesheets(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     project = _make_project(db_session, tenant, client)
     result = get_client_revenue_dashboard(db_session, client, tenant_id=tenant.id)
     assert result["billable_ratio_pct"] is None
     assert result["earned_usd_cents"] == 0
+
 
 def test_dashboard_earned_and_billable_ratio_computed(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -275,6 +303,7 @@ def test_dashboard_earned_and_billable_ratio_computed(db_session, tenant_and_cli
     # 32 billable / 40 total = 80%
     assert result["billable_ratio_pct"] == 80.0
 
+
 def test_dashboard_planned_revenue_from_won_opportunity(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     opp = Opportunity(
@@ -289,6 +318,7 @@ def test_dashboard_planned_revenue_from_won_opportunity(db_session, tenant_and_c
 
     result = get_client_revenue_dashboard(db_session, client, tenant_id=tenant.id)
     assert result["planned_usd_cents"] == 1_000_000_00
+
 
 def test_dashboard_burn_rate_none_for_non_fixed_bid(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -309,6 +339,7 @@ def test_dashboard_burn_rate_none_for_non_fixed_bid(db_session, tenant_and_clien
 
     result = get_client_revenue_dashboard(db_session, client, tenant_id=tenant.id)
     assert result["burn_rate_pct"] is None
+
 
 def test_dashboard_burn_rate_computed_for_fixed_bid_with_dates(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -336,6 +367,7 @@ def test_dashboard_burn_rate_computed_for_fixed_bid_with_dates(db_session, tenan
     db_session.commit()
     upsert_entries(db_session, ts, [
         {"entry_date": monday + timedelta(days=i), "hours": 8, "entry_type": "BILLABLE"} for i in range(5)
+    ])
     submit_timesheet(db_session, ts)
     approve_timesheet(db_session, ts, approved_by="U-RM")
     db_session.commit()

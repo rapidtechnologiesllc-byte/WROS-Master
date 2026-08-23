@@ -3,8 +3,10 @@ EPIC-14/S-435 (HRMS-1408) -- Candidate & Employee Lifecycle
 Communication Linking. Proves BR-1408-01 (metadata-only), BR-1408-02
 (verified-email matching only, no false positives), and the
 Employee-before-Candidate priority the module docstring describes.
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime
 
 import pytest
@@ -19,9 +21,15 @@ from app.models.tenant import Tenant
 
 from app.services.lifecycle_communication_linking_service import link_email_to_lifecycle_record
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Candidate.__table__, Employee.__table__, ActivityTimeline.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -29,6 +37,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _make_candidate(db, candidate_id="C-1", email="priya@example.com"):
     candidate = Candidate(
@@ -39,6 +48,7 @@ def _make_candidate(db, candidate_id="C-1", email="priya@example.com"):
     db.commit()
     return candidate
 
+
 def _make_employee(db, tenant_id, employee_id=None, email="sam@blitzenx.com"):
     employee = Employee(
         id=employee_id or "E-1", tenant_id=tenant_id, first_name="Sam", last_name="Lee",
@@ -47,6 +57,7 @@ def _make_employee(db, tenant_id, employee_id=None, email="sam@blitzenx.com"):
     db.add(employee)
     db.commit()
     return employee
+
 
 def test_links_to_candidate_when_email_matches(db_session):
     _make_candidate(db_session, "C-1", "priya@example.com")
@@ -61,6 +72,7 @@ def test_links_to_candidate_when_email_matches(db_session):
     assert entry.entity_id == "C-1"
     assert entry.action == "EMAIL_SENT"
     assert "Interview Confirmation" in entry.description
+
 
 def test_links_to_employee_when_email_matches(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -77,6 +89,7 @@ def test_links_to_employee_when_email_matches(db_session):
     assert result["entity_id"] == "E-1"
     entry = db_session.query(ActivityTimeline).filter(ActivityTimeline.entity_type == "employee").first()
     assert entry.action == "EMAIL_RECEIVED"
+
 
 def test_employee_checked_before_candidate_for_the_same_address(db_session):
     """Once someone converts, new mail belongs on their employee
@@ -96,6 +109,7 @@ def test_employee_checked_before_candidate_for_the_same_address(db_session):
     assert result["entity_type"] == "employee"
     assert result["entity_id"] == "E-2"
 
+
 def test_unverified_address_produces_no_link(db_session):
     """BR-1408-02: no fuzzy matching, no false-positive link."""
     result = link_email_to_lifecycle_record(
@@ -104,6 +118,7 @@ def test_unverified_address_produces_no_link(db_session):
     )
     assert result is None
     assert db_session.query(ActivityTimeline).count() == 0
+
 
 def test_no_message_body_ever_stored(db_session):
     """BR-1408-01: metadata-only. The function signature itself has no
@@ -122,12 +137,14 @@ def test_no_message_body_ever_stored(db_session):
     assert not hasattr(entry, "body")
     assert not hasattr(entry, "content")
 
+
 def test_invalid_direction_raises(db_session):
     with pytest.raises(ValueError):
         link_email_to_lifecycle_record(
             db_session, other_party_email="priya@example.com", direction="SIDEWAYS",
             subject="x", timestamp=datetime.utcnow(),
         )
+
 
 def test_empty_email_produces_no_link(db_session):
     result = link_email_to_lifecycle_record(

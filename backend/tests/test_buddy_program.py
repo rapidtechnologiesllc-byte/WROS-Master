@@ -7,8 +7,10 @@ week low-score alert rule, and the Day-30 composite scorecard (category
 averages, HR 34%/Buddy 43%/RM 23% weighting, trajectory, lowest-scoring
 flags) -- only counting complete weeks.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date
 
 import pytest
@@ -32,9 +34,16 @@ from app.services.buddy_program_service import (
     submit_weekly_scores,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, Employee.__table__,
+        BuddyProgramRecord.__table__, BuddyKPIScore.__table__, EmployeePerformanceEvent.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -42,6 +51,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def setup(db_session):
@@ -63,10 +73,12 @@ def setup(db_session):
 
     return employee, tenant
 
+
 def _submit_full_week(db, record, *, week_number, score_by_kpi=None, default_score=4):
     scores = {n: (score_by_kpi or {}).get(n, default_score) for n in ALL_KPI_NUMBERS}
     submit_weekly_scores(db, record, scores=scores, scored_by="U-BUDDY", week_number=week_number)
     db.commit()
+
 
 # ---------------------------------------------------------------------------
 # create_buddy_program_record -- self-buddy prevention
@@ -81,6 +93,7 @@ def test_create_record_succeeds_normally(db_session, setup):
     db_session.commit()
     assert record.status == "IN_PROGRESS"
 
+
 def test_self_buddy_rejected(db_session, setup):
     employee, tenant = setup
     with pytest.raises(SelfBuddyNotAllowed):
@@ -88,6 +101,7 @@ def test_self_buddy_rejected(db_session, setup):
             db_session, employee, buddy_engineer_user_id="U-MENTEE",  # employee's own linked account
             program_start_date=date(2026, 1, 1), expected_end_date=date(2026, 1, 30),
         )
+
 
 # ---------------------------------------------------------------------------
 # submit_weekly_scores -- validation and upsert
@@ -103,6 +117,7 @@ def test_submit_rejects_unknown_kpi_number(db_session, setup):
     with pytest.raises(InvalidKPISubmission):
         submit_weekly_scores(db_session, record, scores={99: 4}, scored_by="U-BUDDY", week_number=1)
 
+
 def test_submit_rejects_out_of_range_score(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -112,6 +127,7 @@ def test_submit_rejects_out_of_range_score(db_session, setup):
     db_session.commit()
     with pytest.raises(InvalidKPISubmission):
         submit_weekly_scores(db_session, record, scores={1: 6}, scored_by="U-BUDDY", week_number=1)
+
 
 def test_resubmitting_same_kpi_and_week_updates_not_duplicates(db_session, setup):
     employee, tenant = setup
@@ -132,6 +148,7 @@ def test_resubmitting_same_kpi_and_week_updates_not_duplicates(db_session, setup
     assert len(rows) == 1
     assert rows[0].score == 5
 
+
 # ---------------------------------------------------------------------------
 # is_week_complete -- BR: all 35 required, partial = draft
 # ---------------------------------------------------------------------------
@@ -147,6 +164,7 @@ def test_week_incomplete_with_partial_submission(db_session, setup):
     db_session.commit()
     assert is_week_complete(db_session, record, 1) is False
 
+
 def test_week_complete_with_all_35_submitted(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -156,6 +174,7 @@ def test_week_complete_with_all_35_submitted(db_session, setup):
     db_session.commit()
     _submit_full_week(db_session, record, week_number=1)
     assert is_week_complete(db_session, record, 1) is True
+
 
 # ---------------------------------------------------------------------------
 # check_low_kpi_alert -- 2 consecutive weeks < 2.0
@@ -172,6 +191,7 @@ def test_no_alert_before_two_weeks_scored(db_session, setup):
     db_session.commit()
     assert check_low_kpi_alert(db_session, record, 5, through_week=1) is False
 
+
 def test_alert_fires_after_two_consecutive_low_weeks(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -184,6 +204,7 @@ def test_alert_fires_after_two_consecutive_low_weeks(db_session, setup):
     db_session.commit()
     assert check_low_kpi_alert(db_session, record, 5, through_week=2) is True
 
+
 def test_no_alert_when_one_of_two_weeks_recovers(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -195,6 +216,7 @@ def test_no_alert_when_one_of_two_weeks_recovers(db_session, setup):
     submit_weekly_scores(db_session, record, scores={5: 4}, scored_by="U-BUDDY", week_number=2)
     db_session.commit()
     assert check_low_kpi_alert(db_session, record, 5, through_week=2) is False
+
 
 # ---------------------------------------------------------------------------
 # compute_day30_scorecard
@@ -220,6 +242,7 @@ def test_scorecard_reports_incomplete_weeks_and_excludes_them(db_session, setup)
     # Trajectory specifically needs week 1 AND week 4 complete.
     assert scorecard["trajectory"] is None
 
+
 def test_scorecard_computes_weighted_overall_when_all_weeks_complete(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -238,6 +261,7 @@ def test_scorecard_computes_weighted_overall_when_all_weeks_complete(db_session,
     assert scorecard["weighted_overall_score"] == 4.0
     assert scorecard["trajectory"] == "STABLE"
 
+
 def test_scorecard_trajectory_improving(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -253,6 +277,7 @@ def test_scorecard_trajectory_improving(db_session, setup):
     scorecard = compute_day30_scorecard(db_session, record)
     assert scorecard["trajectory"] == "IMPROVING"
 
+
 def test_scorecard_flags_lowest_scoring_kpis(db_session, setup):
     employee, tenant = setup
     record = create_buddy_program_record(
@@ -267,6 +292,7 @@ def test_scorecard_flags_lowest_scoring_kpis(db_session, setup):
     scorecard = compute_day30_scorecard(db_session, record)
     lowest_numbers = {item["kpi_number"] for item in scorecard["lowest_scoring_kpis"]}
     assert {1, 2}.issubset(lowest_numbers)
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0515 performance store wiring

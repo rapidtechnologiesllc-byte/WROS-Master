@@ -7,8 +7,10 @@ the spec's single fictional QUALIFYING/QUALIFIED/ESCALATED/PAUSED/
 COMPLETED enum. has_missing_fields is computed live via the real
 get_missing_fields(), no candidate_missing_fields table exists.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -21,9 +23,16 @@ from app.models.candidate import Candidate, CandidateInfoForm
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateInfoForm.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -31,6 +40,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -65,26 +75,31 @@ def seeded(db_session):
 
     return conv1, conv2
 
+
 def test_status_filter_or_within_type(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire", status=["awaiting_candidate"])
     assert result["total_count"] == 1
     assert result["results"][0]["candidate_id"] == "C-2"
+
 
 def test_escalated_true_filter(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire", escalated=True)
     assert result["total_count"] == 1
     assert result["results"][0]["candidate_id"] == "C-1"
 
+
 def test_escalated_false_filter(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire", escalated=False)
     assert result["total_count"] == 1
     assert result["results"][0]["candidate_id"] == "C-2"
+
 
 def test_has_missing_fields_true_filter(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire", has_missing_fields=True)
     candidate_ids = [r["candidate_id"] for r in result["results"]]
     assert "C-2" in candidate_ids  # only has first name, everything else missing
     assert "C-1" not in candidate_ids  # complete profile in fixture
+
 
 def test_updated_after_filter_excludes_stale_conversations(db_session, seeded):
     conv1, conv2 = seeded
@@ -94,6 +109,7 @@ def test_updated_after_filter_excludes_stale_conversations(db_session, seeded):
     result = svc.search_conversations(db_session, "U-ORG", "Guidewire", updated_after=datetime.utcnow() - timedelta(days=1))
     candidate_ids = [r["candidate_id"] for r in result["results"]]
     assert "C-1" not in candidate_ids
+
 
 def test_combined_filters_and_logic(db_session, seeded):
     """BR-01: Status filter AND channel filter AND profile status all

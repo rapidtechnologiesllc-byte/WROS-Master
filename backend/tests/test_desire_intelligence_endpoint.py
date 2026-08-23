@@ -5,9 +5,12 @@ RBAC per Avinash's explicit 2026-08-05 direction: view is candidate.view
 (everyone), edit (refresh) is the new candidate.desire_intelligence.edit
 permission -- Partner/BU Head/HR Manager/Super User only, NOT Recruiter.
 
+Throwaway SQLite app, throwaway JWT keys, real RBACService seed data
 (so the actual role->permission mapping is exercised, not hand-faked)
+-- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime
 
 import pytest
@@ -28,6 +31,7 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -41,9 +45,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -79,8 +88,10 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email):
     return security.create_access_token(data={"sub": email})
+
 
 def test_get_returns_no_profile_shape_when_none_exists(client):
     test_client, _ = client
@@ -89,6 +100,7 @@ def test_get_returns_no_profile_shape_when_none_exists(client):
     body = resp.json()
     assert body["has_profile"] is False
     assert body["desire_ranking"] == []
+
 
 def test_get_visible_to_recruiter(client):
     """Per Avinash's explicit direction: view is available to everyone
@@ -107,6 +119,7 @@ def test_get_visible_to_recruiter(client):
     assert resp.status_code == 200
     assert resp.json()["top_desire_category"] == "CAREER_GROWTH"
 
+
 def test_get_includes_motivation_history(client):
     test_client, SessionLocal = client
     db = SessionLocal()
@@ -123,16 +136,19 @@ def test_get_includes_motivation_history(client):
     assert history[0]["trigger_type"] == "SCHEDULED_NURTURE"
     assert history[0]["message_preview"].startswith("Hi there")
 
+
 def test_refresh_denied_for_recruiter(client):
     test_client, _ = client
     resp = test_client.post("/candidates/C-1/desire-intelligence/refresh", headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com')}"})
     assert resp.status_code == 403
+
 
 def test_refresh_allowed_for_hr_manager(client, monkeypatch):
     test_client, _ = client
     monkeypatch.setattr("app.api.v1.endpoints.desire_intelligence.build_and_narrate", lambda *a, **k: None)
     resp = test_client.post("/candidates/C-1/desire-intelligence/refresh", headers={"Authorization": f"Bearer {_token_for('hrm@blitzenx.com')}"})
     assert resp.status_code == 200
+
 
 def test_get_nonexistent_candidate_returns_404(client):
     test_client, _ = client

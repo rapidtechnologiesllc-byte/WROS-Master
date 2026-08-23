@@ -7,8 +7,10 @@ only ever touches THEIR OWN allocations/timesheets -- another
 employee's allocation_id/timesheet_id is rejected, not silently
 served. No linked Employee record is a real, honest 404, not a crash.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -30,8 +32,18 @@ from app.models.user import Users
 import app.services.employee_self_service as svc
 from app.services.employee_allocation_service import allocate_employee_to_project
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Employee.__table__, EmployeeEmploymentHistory.__table__, Users.__table__,
+        EmployeeAllocation.__table__, Timesheet.__table__, TimesheetEntry.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -39,6 +51,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -79,9 +92,11 @@ def seeded(db_session):
 
     return {"tenant": tenant, "user": user, "other_user": other_user, "employee": employee, "other_employee": other_employee, "allocation": allocation}
 
+
 def test_resolve_current_employee_finds_own_record(db_session, seeded):
     employee = svc.resolve_current_employee(db_session, seeded["user"])
     assert employee.id == seeded["employee"].id
+
 
 def test_resolve_current_employee_raises_when_unlinked(db_session, seeded):
     unlinked = Users(UserID="U-NOBODY", UserRole="Employee", UserName="Nobody", UserEmail="nobody@blitzenx.com", UserPassword="h")
@@ -91,6 +106,7 @@ def test_resolve_current_employee_raises_when_unlinked(db_session, seeded):
     with pytest.raises(svc.NoLinkedEmployeeRecord):
         svc.resolve_current_employee(db_session, unlinked)
 
+
 def test_get_my_active_allocations_returns_only_own(db_session, seeded):
     allocations = svc.get_my_active_allocations(db_session, seeded["employee"])
     assert len(allocations) == 1
@@ -99,6 +115,7 @@ def test_get_my_active_allocations_returns_only_own(db_session, seeded):
     other_allocations = svc.get_my_active_allocations(db_session, seeded["other_employee"])
     assert other_allocations == []
 
+
 def test_start_current_week_timesheet_is_idempotent(db_session, seeded):
     fixed_today = date(2026, 8, 4)  # a Tuesday
     t1 = svc.get_or_start_my_current_week_timesheet(db_session, seeded["employee"], seeded["allocation"].id, today=fixed_today)
@@ -106,9 +123,11 @@ def test_start_current_week_timesheet_is_idempotent(db_session, seeded):
     assert t1.id == t2.id
     assert t1.week_starting_date == date(2026, 8, 3)  # the Monday of that week
 
+
 def test_cannot_start_timesheet_for_someone_elses_allocation(db_session, seeded):
     with pytest.raises(svc.NotYourAllocation):
         svc.get_or_start_my_current_week_timesheet(db_session, seeded["other_employee"], seeded["allocation"].id)
+
 
 def test_submit_my_entries_logs_real_hours(db_session, seeded):
     fixed_today = date(2026, 8, 4)
@@ -117,7 +136,9 @@ def test_submit_my_entries_logs_real_hours(db_session, seeded):
     updated = svc.submit_my_entries(db_session, seeded["employee"], timesheet.id, [
         {"entry_date": date(2026, 8, 3), "hours": 8, "entry_type": "BILLABLE"},
         {"entry_date": date(2026, 8, 4), "hours": 7.5, "entry_type": "BILLABLE"},
+    ])
     assert float(updated.total_hours) == 15.5
+
 
 def test_cannot_log_hours_against_someone_elses_timesheet(db_session, seeded):
     fixed_today = date(2026, 8, 4)
@@ -126,6 +147,8 @@ def test_cannot_log_hours_against_someone_elses_timesheet(db_session, seeded):
     with pytest.raises(svc.NotYourTimesheet):
         svc.submit_my_entries(db_session, seeded["other_employee"], timesheet.id, [
             {"entry_date": date(2026, 8, 3), "hours": 8},
+        ])
+
 
 def test_submit_my_timesheet_transitions_to_submitted(db_session, seeded):
     fixed_today = date(2026, 8, 4)
@@ -134,6 +157,7 @@ def test_submit_my_timesheet_transitions_to_submitted(db_session, seeded):
 
     submitted = svc.submit_my_timesheet(db_session, seeded["employee"], timesheet.id)
     assert submitted.status == "SUBMITTED"
+
 
 def test_my_timesheet_history_returns_only_own(db_session, seeded):
     fixed_today = date(2026, 8, 4)

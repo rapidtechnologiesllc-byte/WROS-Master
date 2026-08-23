@@ -15,7 +15,7 @@
 // a 375px-wide screen since this is primarily opened via a WhatsApp
 // link tap on a phone.
 import { useEffect, useRef, useState } from "react";
-import { Calendar, MessageSquare, User as UserIcon, Zap, Home as HomeIcon, FileText, Upload } from "lucide-react";
+import { Calendar, MessageSquare, User as UserIcon, Zap, Home as HomeIcon } from "lucide-react";
 import cx from "../utils/cx";
 import {
   downloadPortalInterviewIcs,
@@ -23,9 +23,6 @@ import {
   getPortalInterviews,
   getPortalMessages,
   getPortalProfileFields,
-  getPortalOffers,
-  getPortalDocuments,
-  uploadPortalDocument,
   pollPortalMessages,
   requestPortalReschedule,
   sendPortalReply,
@@ -43,8 +40,6 @@ const TABS = [
   { key: "messages", label: "Messages", icon: MessageSquare },
   { key: "profile", label: "Profile", icon: UserIcon },
   { key: "interviews", label: "Interviews", icon: Calendar },
-  { key: "offers", label: "Offers", icon: FileText },
-  { key: "documents", label: "Documents", icon: Upload },
 ];
 
 export default function CandidatePortalScreen({ token }) {
@@ -108,8 +103,6 @@ export default function CandidatePortalScreen({ token }) {
         {tab === "messages" ? <MessagesTab token={token} conversationId={home?.conversation_id} /> : null}
         {tab === "profile" ? <ProfileTab token={token} onProgress={() => {}} /> : null}
         {tab === "interviews" ? <InterviewsTab token={token} /> : null}
-        {tab === "offers" ? <OffersTab token={token} /> : null}
-        {tab === "documents" ? <DocumentsTab token={token} /> : null}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 flex border-t border-gray-200 bg-white">
@@ -269,47 +262,18 @@ function MessagesTab({ token, conversationId }) {
     setSending(true);
     setError("");
     try {
-      // Add candidate message to chat immediately
-      const candidateId = `local-${Date.now()}`;
+      const res = await sendPortalReply(token, conversationId, body);
+      // Real id from the send response, not a fake local one -- 2026-08-06:
+      // now that polling exists (see the effect above), a fake string id
+      // would never match the real numeric id the next poll tick returns,
+      // producing a visible duplicate bubble once that tick lands.
+      const sentId = Number(res?.message_id) || 0;
+      if (sentId) lastMessageIdRef.current = Math.max(lastMessageIdRef.current, sentId);
       setMessages((prev) => [
         ...(prev || []),
-        { id: candidateId, sender_type: "CANDIDATE", message_body: body, channel: "PORTAL" },
+        { id: sentId || `local-${Date.now()}`, sender_type: "CANDIDATE", message_body: body, channel: "PORTAL" },
       ]);
       setDraft("");
-
-      // Send to Thunder API for AI-powered response
-      try {
-        const thunderRes = await fetch('/api/v1/thunder/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: body }),
-        });
-
-        if (thunderRes.ok) {
-          const data = await thunderRes.json();
-          // Add Thunder's response
-          setMessages((prev) => [
-            ...(prev || []),
-            {
-              id: `thunder-${Date.now()}`,
-              sender_type: "THUNDER",
-              message_body: data.answer,
-              channel: "PORTAL",
-            },
-          ]);
-        } else {
-          // Fall back to regular portal reply if Thunder fails
-          const res = await sendPortalReply(token, conversationId, body);
-          const sentId = Number(res?.message_id) || 0;
-          if (sentId) lastMessageIdRef.current = Math.max(lastMessageIdRef.current, sentId);
-        }
-      } catch (thunderErr) {
-        // Silent fallback to portal if Thunder API unavailable
-        console.log('Thunder API unavailable, using portal:', thunderErr);
-        const res = await sendPortalReply(token, conversationId, body);
-        const sentId = Number(res?.message_id) || 0;
-        if (sentId) lastMessageIdRef.current = Math.max(lastMessageIdRef.current, sentId);
-      }
     } catch (err) {
       setError(err.message || "Couldn't send your message. Please try again.");
     } finally {
@@ -328,17 +292,12 @@ function MessagesTab({ token, conversationId }) {
           <div className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto">
             {messages.map((m) => {
               const isMe = m.sender_type === "CANDIDATE";
-              const isThunder = m.sender_type === "THUNDER";
               return (
                 <div key={m.id} className={cx("flex flex-col", isMe ? "items-end" : "items-start")}>
                   <div
                     className={cx(
                       "max-w-[85%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap",
-                      isMe
-                        ? "rounded-br-sm bg-bx-orange text-white"
-                        : isThunder
-                          ? "rounded-bl-sm bg-blue-100 text-blue-900 border border-blue-200"
-                          : "rounded-bl-sm bg-gray-100 text-gray-900",
+                      isMe ? "rounded-br-sm bg-bx-orange text-white" : "rounded-bl-sm bg-gray-100 text-gray-900",
                     )}
                   >
                     {m.message_body}
@@ -540,197 +499,6 @@ function InterviewsTab({ token }) {
           ) : null}
         </div>
       ))}
-    </div>
-  );
-}
-
-// S-089 (HRMS-P109): Candidate Portal — Offer Viewer
-function OffersTab({ token }) {
-  const [offers, setOffers] = useState(null);
-  const [selectedOffer, setSelectedOffer] = useState(null);
-
-  useEffect(() => {
-    getPortalOffers(token)
-      .then((res) => setOffers(res.offers || []))
-      .catch(() => setOffers([]));
-  }, [token]);
-
-  if (!offers) {
-    return <div className="py-6 text-center text-sm text-gray-500">Loading…</div>;
-  }
-
-  if (!offers.length) {
-    return <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">No offers yet.</div>;
-  }
-
-  if (selectedOffer) {
-    const offer = offers.find((o) => o.id === selectedOffer);
-    if (!offer) return null;
-
-    return (
-      <div className="flex flex-col gap-4">
-        <button
-          type="button"
-          onClick={() => setSelectedOffer(null)}
-          className="text-sm font-semibold text-bx-orange">
-          {"<"} Back to offers
-        </button>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-bold text-bx-navy">{offer.position_title}</h2>
-          <div className="mt-4 space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Salary</span>
-              <span className="font-semibold text-bx-navy">${offer.salary_amount?.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Start Date</span>
-              <span className="font-semibold text-bx-navy">{new Date(offer.start_date).toLocaleDateString()}</span>
-            </div>
-            {offer.description && (
-              <div className="border-t pt-3">
-                <p className="text-sm text-gray-700">{offer.description}</p>
-              </div>
-            )}
-          </div>
-          <div className="mt-4 flex gap-2">
-            {offer.status === "pending" && (
-              <>
-                <button className="min-h-[44px] flex-1 rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-700">
-                  Decline
-                </button>
-                <button className="min-h-[44px] flex-1 rounded-lg bg-bx-orange px-3 text-sm font-semibold text-white">
-                  Accept Offer
-                </button>
-              </>
-            )}
-            {offer.status === "accepted" && (
-              <div className="rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
-                Accepted on {new Date(offer.accepted_date).toLocaleDateString()}
-              </div>
-            )}
-            {offer.status === "declined" && (
-              <div className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-600">
-                You declined this offer on {new Date(offer.declined_date).toLocaleDateString()}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {offers.map((offer) => (
-        <button
-          key={offer.id}
-          type="button"
-          onClick={() => setSelectedOffer(offer.id)}
-          className="rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm hover:border-bx-orange hover:shadow-md transition-all">
-          <div className="font-semibold text-bx-navy">{offer.position_title}</div>
-          <div className="mt-1 text-sm text-gray-600">${offer.salary_amount?.toLocaleString()} • {offer.status}</div>
-          <div className="mt-2 text-xs text-gray-500">
-            Valid until {new Date(offer.expiry_date).toLocaleDateString()}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// S-090 (HRMS-P110): Candidate Portal — Document Upload
-function DocumentsTab({ token }) {
-  const [documents, setDocuments] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
-  const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    getPortalDocuments(token)
-      .then((res) => setDocuments(res.documents || []))
-      .catch(() => setDocuments([]));
-  }, [token]);
-
-  const handleFileSelect = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 50 * 1024 * 1024) {
-      setError("File size must be under 50MB");
-      return;
-    }
-
-    const validTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!validTypes.includes(file.type)) {
-      setError("Only PDF and Word documents are allowed");
-      return;
-    }
-
-    setUploading(true);
-    setError("");
-
-    try {
-      await uploadPortalDocument(token, file);
-      const updated = await getPortalDocuments(token);
-      setDocuments(updated.documents || []);
-    } catch (err) {
-      setError(err.message || "Upload failed. Please try again.");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  if (!documents) {
-    return <div className="py-6 text-center text-sm text-gray-500">Loading…</div>;
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.doc,.docx"
-          onChange={handleFileSelect}
-          disabled={uploading}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-full min-h-[44px] rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-bx-navy disabled:opacity-50">
-          {uploading ? "Uploading..." : "Upload Document"}
-        </button>
-        <p className="mt-2 text-xs text-gray-500">PDF or Word documents, up to 50MB</p>
-      </div>
-
-      {error && <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>}
-
-      {documents.length > 0 ? (
-        <div className="space-y-2">
-          {documents.map((doc) => (
-            <div key={doc.id} className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="truncate text-sm font-medium text-bx-navy">{doc.filename}</div>
-                <div className="text-xs text-gray-500">
-                  {(doc.file_size / 1024 / 1024).toFixed(1)}MB • Uploaded {new Date(doc.uploaded_at).toLocaleDateString()}
-                </div>
-              </div>
-              <a
-                href={doc.download_url}
-                className="ml-2 text-xs font-semibold text-bx-orange hover:text-bx-navy">
-                Download
-              </a>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">
-          No documents uploaded yet.
-        </div>
-      )}
     </div>
   );
 }

@@ -5,9 +5,11 @@ on real routes, wired on top of the already-tested
 app.services.whatsapp_routing_service layer (see test_whatsapp_routing.py
 for the underlying service-level proof).
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -25,6 +27,7 @@ from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -40,9 +43,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -99,11 +107,14 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email):
     return security.create_access_token(data={"sub": email, "type": "Super User", "name": email})
 
+
 def _auth(email="admin@blitzenx.com"):
     return {"Authorization": f"Bearer {_token_for(email)}"}
+
 
 # ---------------------------------------------------------------------------
 # S-009 -- manual send
@@ -115,6 +126,7 @@ def test_unauthenticated_send_is_rejected(client):
         json={"message": "hi"},
     )
     assert resp.status_code in (401, 403)
+
 
 def test_manual_send_transfers_ownership_to_sender(client):
     ids = client.wros_ids
@@ -128,6 +140,7 @@ def test_manual_send_transfers_ownership_to_sender(client):
     assert body["owner_type"] == "hr_user"
     assert body["owner_id"] == "U-REC"
     assert body["delivered"] is False  # no whatsapp_client configured in this env
+
 
 def test_manual_send_records_event(client):
     ids = client.wros_ids
@@ -148,6 +161,7 @@ def test_manual_send_records_event(client):
     assert len(events) == 1
     assert events[0].event_data["body"] == "Following up on your documents."
 
+
 def test_manual_send_404_for_unknown_conversation(client):
     resp = client.post(
         "/ai-agent/conversations/999999/send",
@@ -155,6 +169,7 @@ def test_manual_send_404_for_unknown_conversation(client):
         headers=_auth(),
     )
     assert resp.status_code == 404
+
 
 def test_manual_send_rejects_empty_message(client):
     ids = client.wros_ids
@@ -164,6 +179,7 @@ def test_manual_send_rejects_empty_message(client):
         headers=_auth(),
     )
     assert resp.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # S-010 -- take-over / hand-back
@@ -179,6 +195,7 @@ def test_take_over_sets_human_owner(client):
     body = resp.json()
     assert body["owner_type"] == "hr_user"
     assert body["owner_id"] == "U-REC"
+
 
 def test_take_over_records_ownership_changed_event(client):
     ids = client.wros_ids
@@ -197,6 +214,7 @@ def test_take_over_records_ownership_changed_event(client):
     assert len(events) == 1
     assert events[0].event_data["new_owner_type"] == "hr_user"
 
+
 def test_hand_back_resets_to_ai(client):
     ids = client.wros_ids
     client.post(
@@ -212,9 +230,11 @@ def test_hand_back_resets_to_ai(client):
     assert body["owner_type"] == "ai_agent"
     assert body["owner_id"] == AI_AGENT_NAME
 
+
 def test_take_over_404_for_unknown_conversation(client):
     resp = client.post("/ai-agent/conversations/999999/take-over", headers=_auth())
     assert resp.status_code == 404
+
 
 def test_hand_back_404_for_unknown_conversation(client):
     resp = client.post("/ai-agent/conversations/999999/hand-back", headers=_auth())

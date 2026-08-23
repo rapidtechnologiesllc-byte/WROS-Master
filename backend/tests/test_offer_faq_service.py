@@ -10,8 +10,10 @@ execute_escalation() is built from; BR-02 enforces answers reference
 real offer data via a cheap post-LLM heuristic; Gemini via an
 injectable llm_call so no test ever hits a real external API.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date
 
 import pytest
@@ -34,14 +36,24 @@ from app.models.user import Users
 
 import app.services.offer_faq_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        OfferLetter.__table__, OfferFAQEntry.__table__, ConsentRecord.__table__, Notification.__table__,
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Submission.__table__, SubmissionViolation.__table__, RecruiterInterventionQueue.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -49,6 +61,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -69,8 +82,10 @@ def seeded(db_session):
 
     return candidate, conv, offer
 
+
 def _fake_llm(answer):
     return lambda prompt: answer
+
 
 # ── BR-03: only active when offer_faq_active=true ─────────────────────
 
@@ -82,6 +97,7 @@ def test_not_active_when_offer_faq_flag_false(db_session, seeded):
     result = svc.answer_offer_question(db_session, candidate, conv, "U-ORG", "When do I start?")
     assert result["outcome"] == "not_active"
 
+
 def test_no_offer_found(db_session, seeded):
     candidate, conv, offer = seeded
     offer.offer_status = "Pending"
@@ -89,6 +105,7 @@ def test_no_offer_found(db_session, seeded):
 
     result = svc.answer_offer_question(db_session, candidate, conv, "U-ORG", "When do I start?")
     assert result["outcome"] == "no_offer_found"
+
 
 # ── TC-001/AC-1: start date question answered with real offer data ───
 
@@ -103,6 +120,7 @@ def test_start_date_question_answered_with_real_data(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "ai_message_sent").first()
     assert event is not None
     assert "2026-09-01" in event.event_data.get("body", "")
+
 
 # ── TC-002/AC-2: benefits question uses FAQ content ───────────────────
 
@@ -120,6 +138,7 @@ def test_benefits_question_uses_tenant_faq_entry_when_present(db_session, seeded
     assert result["outcome"] == "answered"
     assert "dental coverage" in captured_prompt["value"]
 
+
 def test_leave_policy_question_falls_back_to_default_content(db_session, seeded):
     candidate, conv, offer = seeded
     captured_prompt = {}
@@ -131,6 +150,7 @@ def test_leave_policy_question_falls_back_to_default_content(db_session, seeded)
     result = svc.answer_offer_question(db_session, candidate, conv, "U-ORG", "What is the leave policy?", llm_call=llm_call)
     assert result["outcome"] == "answered"
     assert "18 days" in captured_prompt["value"]
+
 
 # ── TC-003/AC-3/BR-01: negotiation escalates, never answered ──────────
 
@@ -166,6 +186,7 @@ def test_negotiation_question_escalates_and_notifies_recruiter(db_session, seede
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
 
+
 # ── BR-02: implausible/generic answer -> escalate instead ─────────────
 
 def test_generic_non_specific_answer_escalates_instead(db_session, seeded):
@@ -175,6 +196,7 @@ def test_generic_non_specific_answer_escalates_instead(db_session, seeded):
     result = svc.answer_offer_question(db_session, candidate, conv, "U-ORG", "When do I start?", llm_call=llm_call)
     assert result["outcome"] == "escalated"
     assert result["answer"] == svc.SAFE_FALLBACK_MESSAGE
+
 
 # ── AC-5: LLM failure -> safe fallback + escalate ─────────────────────
 

@@ -15,6 +15,7 @@ from app.middleware.auth_middleware import RateLimitMiddleware
 
 handler_call_count = {"n": 0}
 
+
 def _build_app(max_requests=3, window_seconds=60):
     handler_call_count["n"] = 0
     app = FastAPI()
@@ -27,12 +28,14 @@ def _build_app(max_requests=3, window_seconds=60):
 
     return app
 
+
 def test_requests_under_the_limit_reach_business_logic():
     client = TestClient(_build_app(max_requests=3, window_seconds=60))
     for _ in range(3):
         resp = client.get("/ping")
         assert resp.status_code == 200
     assert handler_call_count["n"] == 3
+
 
 def test_exceeding_the_limit_is_throttled_before_business_logic():
     client = TestClient(_build_app(max_requests=3, window_seconds=60))
@@ -45,12 +48,14 @@ def test_exceeding_the_limit_is_throttled_before_business_logic():
     # throttled request -- business logic was never reached.
     assert handler_call_count["n"] == 3
 
+
 def test_throttled_response_does_not_leak_internal_details():
     client = TestClient(_build_app(max_requests=1, window_seconds=60))
     client.get("/ping")
     resp = client.get("/ping")
     assert resp.status_code == 429
     assert "Rate limit exceeded" in resp.json()["detail"]
+
 
 def test_different_ips_are_tracked_independently():
     """
@@ -68,6 +73,7 @@ def test_different_ips_are_tracked_independently():
 
     # A different IP has its own independent bucket, unaffected by 1.1.1.1's usage.
     assert mw._is_rate_limited("2.2.2.2", now) is False
+
 
 def test_window_expiry_allows_requests_again():
     mw = RateLimitMiddleware(app=lambda scope, receive, send: None, max_requests=1, window_seconds=10)

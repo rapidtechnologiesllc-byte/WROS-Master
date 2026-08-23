@@ -9,8 +9,10 @@ prompts, 0.0 for classification (BR-02). Every call_llm() invocation
 logs to prompt_execution_log, success or failure (BR-03), with a
 real retry-once-then-raise on repeated failure.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -23,9 +25,13 @@ from app.models.user import Users
 
 import app.services.prompt_framework_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[Users.__table__, Candidate.__table__, PromptExecutionLog.__table__])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -33,6 +39,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -42,8 +49,10 @@ def seeded(db_session):
     db_session.commit()
     return candidate
 
+
 def _no_sleep(seconds):
     pass
+
 
 # ── build_prompt() ───────────────────────────────────────────────────
 
@@ -62,6 +71,7 @@ def test_build_prompt_replaces_all_placeholders_no_leftover_braces():
     assert "Priya" in result["user_prompt"]
     assert "What is your notice period?" in result["user_prompt"]
 
+
 def test_build_prompt_uses_thunder_name_from_context_not_hardcoded():
     """BR-04: never hardcoded -- a renamed agent flows through untouched."""
     context = {"thunder_name": "Blitz", "name": "Priya", "memory": {}, "recent_messages": [], "missing_fields": []}
@@ -69,26 +79,32 @@ def test_build_prompt_uses_thunder_name_from_context_not_hardcoded():
     assert "Blitz" in result["system_prompt"]
     assert "Thunder, Talent Scout" not in result["system_prompt"]
 
+
 def test_build_prompt_conversational_temperature_is_0_7():
     result = svc.build_prompt("QUALIFICATION", {"name": "Priya"})
     assert result["temperature"] == 0.7
+
 
 def test_build_prompt_classification_temperature_is_0_0():
     result = svc.build_prompt("INTENT_DETECTION", {})
     assert result["temperature"] == 0.0
 
+
 def test_build_prompt_unknown_prompt_type_raises():
     with pytest.raises(svc.UnknownPromptType):
         svc.build_prompt("NOT_A_REAL_TYPE", {})
+
 
 def test_build_prompt_missing_required_field_logs_warning_but_still_builds(caplog):
     result = svc.build_prompt("QUALIFICATION", {})  # missing required "name"
     assert result["system_prompt"]  # still built, not blocked
     assert "there" in result["user_prompt"]  # default fallback for candidate_name
 
+
 def test_build_prompt_empty_summary_renders_as_empty_string():
     result = svc.build_prompt("QUALIFICATION", {"name": "Priya", "memory": {}})
     assert "{{candidate_summary}}" not in result["user_prompt"]
+
 
 # ── call_llm() ───────────────────────────────────────────────────────
 
@@ -106,6 +122,7 @@ def test_call_llm_success_logs_execution_and_returns_response(db_session, seeded
     assert logs[0].prompt_type == "QUALIFICATION"
     assert logs[0].template_version == "v1.0"
     assert logs[0].response_preview == "Thunder's reply text"
+
 
 def test_call_llm_retries_once_then_succeeds(db_session, seeded):
     attempts = []
@@ -125,6 +142,7 @@ def test_call_llm_retries_once_then_succeeds(db_session, seeded):
     assert logs[0].success is False
     assert logs[1].success is True
 
+
 def test_call_llm_both_attempts_fail_raises_and_logs_both(db_session, seeded):
     def always_fails(sp, up, mt, t):
         raise RuntimeError("Gemini down")
@@ -137,11 +155,13 @@ def test_call_llm_both_attempts_fail_raises_and_logs_both(db_session, seeded):
     assert all(not log.success for log in logs)
     assert all(log.error_message for log in logs)
 
+
 def test_call_llm_without_candidate_id_still_logs(db_session, seeded):
     response = svc.call_llm(db_session, "U-ORG", None, "ESCALATION_CHECK", "v1.0", "sp", "up", 150, 0.0, llm_call=lambda sp, up, mt, t: '{"needs_escalation": false}')
     assert response == '{"needs_escalation": false}'
     logs = db_session.query(PromptExecutionLog).filter(PromptExecutionLog.candidate_id.is_(None)).all()
     assert len(logs) == 1
+
 
 # ── get_prompt_templates() ───────────────────────────────────────────
 

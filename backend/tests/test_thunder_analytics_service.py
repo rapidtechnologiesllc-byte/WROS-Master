@@ -8,8 +8,10 @@ split reuses the real ConversationEvent.triggered_by field
 "qualified" reuses S-059's real SCREENED marker (CandidateJobScore
 existing). BR-01's 20% human-dependency target verified directly.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -27,9 +29,16 @@ from app.models.user import Users, Jobs
 
 import app.services.thunder_analytics_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Jobs.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        CandidateJobScore.__table__, CandidateGhostingStatus.__table__, CandidateEngagementMetrics.__table__, CandidateDropRisk.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -38,10 +47,12 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+
 @pytest.fixture()
 def seeded_hr(db_session):
     db_session.add(Users(UserID="U-HR", UserRole="HR Manager", UserEmail="hr@blitzenx.com", UserPassword="h", tenant_id=None))
     db_session.commit()
+
 
 def _candidate_with_conv(db, cid, created_at):
     db.add(Candidate(candidateID=cid, candidateEmail=f"{cid.lower()}@example.com", candidatePassword="h", candidateFirstName=cid))
@@ -49,6 +60,7 @@ def _candidate_with_conv(db, cid, created_at):
     db.add(conv)
     db.commit()
     return conv
+
 
 def _job_score(db, cid, calculated_at, job_id="J-1"):
     job = Jobs(jobID=job_id, jobTitle="Sr. Dev", jobDescription="d", jobSkills="[]", jobExperience="5", jobLocation="Remote")
@@ -58,6 +70,7 @@ def _job_score(db, cid, calculated_at, job_id="J-1"):
     score.calculated_at = calculated_at
     db.add(score)
     db.commit()
+
 
 # ── TC-001: qualification rate ──────────────────────────────────────────
 
@@ -70,6 +83,7 @@ def test_qualification_rate_computed_correctly(db_session, seeded_hr):
 
     result = svc.get_thunder_analytics(db_session, "U-ORG", date_from=(now - timedelta(days=10)).date(), date_to=now.date())
     assert result["summary"]["qualification_rate"] == 70
+
 
 # ── TC-002: human intervention rate ──────────────────────────────────────
 
@@ -87,6 +101,7 @@ def test_human_intervention_rate_and_thunder_pct(db_session, seeded_hr):
     assert result["agent_actions_breakdown"]["thunder_pct"] == 82.0
     assert result["summary"]["human_dependency_target_pct"] == 20
 
+
 # ── Escalation / ghosting rates ──────────────────────────────────────────
 
 def test_escalation_and_ghosting_rates(db_session, seeded_hr):
@@ -101,6 +116,7 @@ def test_escalation_and_ghosting_rates(db_session, seeded_hr):
     assert result["summary"]["escalation_rate"] == 50.0
     assert result["summary"]["ghosting_rate"] == 50.0
 
+
 # ── Engagement metrics reuse ──────────────────────────────────────────────
 
 def test_avg_days_to_qualify_reuses_engagement_metrics(db_session, seeded_hr):
@@ -113,6 +129,7 @@ def test_avg_days_to_qualify_reuses_engagement_metrics(db_session, seeded_hr):
     assert result["summary"]["avg_days_to_qualify"] == 3.0
     assert result["summary"]["avg_messages_per_candidate"] == 10.0
 
+
 # ── Top risk candidates ──────────────────────────────────────────────────
 
 def test_top_risk_candidates_returned(db_session, seeded_hr):
@@ -124,6 +141,7 @@ def test_top_risk_candidates_returned(db_session, seeded_hr):
     assert len(result["top_risk_candidates"]) == 1
     assert result["top_risk_candidates"][0]["drop_risk_score"] == 88
 
+
 # ── Trends ──────────────────────────────────────────────────────────────
 
 def test_trends_cover_full_date_range(db_session, seeded_hr):
@@ -131,12 +149,14 @@ def test_trends_cover_full_date_range(db_session, seeded_hr):
     result = svc.get_thunder_analytics(db_session, "U-ORG", date_from=today - timedelta(days=6), date_to=today)
     assert len(result["trends"]) == 7
 
+
 def test_new_candidates_counted_per_day(db_session, seeded_hr):
     now = datetime.utcnow()
     _candidate_with_conv(db_session, "C-1", now)
 
     result = svc.get_thunder_analytics(db_session, "U-ORG", date_from=now.date(), date_to=now.date())
     assert result["trends"][0]["new_candidates"] == 1
+
 
 # ── Empty state ───────────────────────────────────────────────────────────
 

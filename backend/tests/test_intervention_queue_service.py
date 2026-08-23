@@ -11,8 +11,10 @@ isolation, so a real regression in the wiring would actually be caught
 here. BR-01 (CRITICAL sorts first), BR-02 (dedup), BR-03 (auto-resolve)
 all verified directly.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -48,9 +50,22 @@ import app.services.intervention_queue_service as svc
 import app.services.offer_decision_service as offer_decision_svc
 import app.services.sla_monitoring_service as sla_svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Jobs.__table__, Candidate.__table__, CandidateInfoForm.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateJobScore.__table__,
+        SubmissionInterview.__table__, OfferLetter.__table__, CandidateJoiningScore.__table__,
+        PreboardingDocument.__table__, Employee.__table__, Submission.__table__,
+        CandidateAbandonmentScore.__table__, CandidateSentimentLog.__table__, CandidateGhostingStatus.__table__,
+        FollowUpSchedule.__table__, CandidateDropRisk.__table__, Notification.__table__,
+        CandidateSLABreach.__table__, RecruiterInterventionQueue.__table__,
+        CandidateAIAssignment.__table__, ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -58,6 +73,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def candidate(db_session):
@@ -68,6 +84,7 @@ def candidate(db_session):
     db_session.commit()
     return c
 
+
 def _make_conversation(db, created_at=None):
     conv = CandidateConversation(tenant_id="U-ORG", candidate_id="C-1", status="open", owner_type="ai_agent", owner_id="Thunder", escalation_state="none", channel_preference="whatsapp")
     if created_at:
@@ -76,6 +93,7 @@ def _make_conversation(db, created_at=None):
     db.commit()
     return conv
 
+
 # ── Core add/dedup/resolve ───────────────────────────────────────────────
 
 def test_add_to_queue_creates_open_item(db_session, candidate):
@@ -83,6 +101,7 @@ def test_add_to_queue_creates_open_item(db_session, candidate):
     assert result["outcome"] == "created"
     row = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.id == result["id"]).first()
     assert row.status == "OPEN"
+
 
 def test_add_to_queue_dedups_open_item(db_session, candidate):
     svc.add_to_queue(db_session, "C-1", "U-ORG", "ESCALATION", "first reason", 2)
@@ -93,6 +112,7 @@ def test_add_to_queue_dedups_open_item(db_session, candidate):
     assert row.reason_detail == "updated reason"
     assert row.priority == 1
 
+
 def test_resolve_queue_items(db_session, candidate):
     svc.add_to_queue(db_session, "C-1", "U-ORG", "HIGH_DROP_RISK", "risk 72", 2)
     count = svc.resolve_queue_items(db_session, "C-1", "U-ORG", ["HIGH_DROP_RISK"])
@@ -100,6 +120,7 @@ def test_resolve_queue_items(db_session, candidate):
     row = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.candidate_id == "C-1").first()
     assert row.status == "RESOLVED"
     assert row.resolved_at is not None
+
 
 # ── BR-01: CRITICAL sorts first regardless of age ───────────────────────
 
@@ -111,12 +132,14 @@ def test_critical_sorts_first_regardless_of_age(db_session, candidate):
     assert queue[0]["queue_reason"] == "CRITICAL_DROP_RISK"
     assert queue[1]["queue_reason"] == "SLA_BREACH"
 
+
 def test_queue_summary_counts_by_priority(db_session, candidate):
     svc.add_to_queue(db_session, "C-1", "U-ORG", "CRITICAL_DROP_RISK", "84", 1)
     svc.add_to_queue(db_session, "C-1", "U-ORG", "SLA_BREACH", "29h", 2)
 
     summary = svc.get_queue_summary(db_session, "U-ORG")
     assert summary == {"critical": 1, "high": 1, "medium": 0, "total": 2}
+
 
 # ── Take over / resolve ──────────────────────────────────────────────────
 
@@ -132,9 +155,11 @@ def test_take_over_transfers_ownership_and_marks_in_progress(db_session, candida
     assert conv.owner_type == "hr_user"
     assert conv.owner_id == "U-HR"
 
+
 def test_take_over_unknown_item_raises(db_session):
     with pytest.raises(svc.QueueItemNotFound):
         svc.take_over_queue_item(db_session, 999999, "U-ORG", "U-HR")
+
 
 def test_mark_resolved_with_note(db_session, candidate):
     result = svc.add_to_queue(db_session, "C-1", "U-ORG", "OFFER_COUNTER", "countered", 3)
@@ -143,6 +168,7 @@ def test_mark_resolved_with_note(db_session, candidate):
     row = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.id == result["id"]).first()
     assert row.resolved_by == "U-HR"
     assert row.resolution_note == "Handled, offer revised."
+
 
 def test_resolved_items_hidden_after_retention_window(db_session, candidate):
     result = svc.add_to_queue(db_session, "C-1", "U-ORG", "OFFER_COUNTER", "countered", 3)
@@ -153,6 +179,7 @@ def test_resolved_items_hidden_after_retention_window(db_session, candidate):
 
     queue = svc.get_queue(db_session, "U-ORG")
     assert queue == []
+
 
 # ── Real wiring: TC-001, escalation via S-035's real escalate() ─────────
 
@@ -166,6 +193,7 @@ def test_escalation_adds_queue_item_via_real_escalate(db_session, candidate):
     assert row.status == "OPEN"
     assert row.priority == 2  # HIGH -- no legal keyword
 
+
 def test_escalation_with_legal_keyword_is_critical(db_session, candidate):
     conv = _make_conversation(db_session)
     state_svc.escalate(db_session, conv, reason="Candidate mentioned their lawyer", triggered_by="ai_agent")
@@ -173,6 +201,7 @@ def test_escalation_with_legal_keyword_is_critical(db_session, candidate):
 
     row = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.candidate_id == "C-1").first()
     assert row.priority == 1  # CRITICAL
+
 
 def test_escalation_resolved_auto_resolves_queue_item(db_session, candidate):
     conv = _make_conversation(db_session)
@@ -183,6 +212,7 @@ def test_escalation_resolved_auto_resolves_queue_item(db_session, candidate):
 
     row = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.candidate_id == "C-1").first()
     assert row.status == "RESOLVED"
+
 
 # ── Real wiring: drop risk (TC-005) ──────────────────────────────────────
 
@@ -202,6 +232,7 @@ def test_critical_drop_risk_adds_queue_item(db_session, candidate):
     assert row is not None
     assert row.priority == 1
 
+
 def test_drop_risk_falling_below_50_resolves_queue_item(db_session, candidate):
     row = RecruiterInterventionQueue(tenant_id="U-ORG", candidate_id="C-1", queue_reason="HIGH_DROP_RISK", reason_detail="72", priority=2, status="OPEN")
     db_session.add(row)
@@ -213,6 +244,7 @@ def test_drop_risk_falling_below_50_resolves_queue_item(db_session, candidate):
 
     refreshed = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.candidate_id == "C-1").first()
     assert refreshed.status == "RESOLVED"
+
 
 # ── Real wiring: abandonment ──────────────────────────────────────────────
 
@@ -228,6 +260,7 @@ def test_high_abandonment_adds_queue_item(db_session, candidate):
     row = db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.candidate_id == "C-1", RecruiterInterventionQueue.queue_reason == "HIGH_ABANDONMENT").first()
     assert row is not None
 
+
 # ── Real wiring: SLA breach ────────────────────────────────────────────────
 
 def test_sla_breach_adds_queue_item(db_session, candidate):
@@ -242,6 +275,7 @@ def test_sla_breach_adds_queue_item(db_session, candidate):
     assert row is not None
     assert row.priority == 2
 
+
 # ── Real wiring: offer counter ────────────────────────────────────────────
 
 def test_offer_counter_adds_queue_item_alongside_escalation(db_session, candidate):
@@ -255,6 +289,7 @@ def test_offer_counter_adds_queue_item_alongside_escalation(db_session, candidat
     reasons = {r.queue_reason for r in db_session.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.candidate_id == "C-1").all()}
     assert "OFFER_COUNTER" in reasons
     assert "ESCALATION" in reasons  # documented real overlap -- see module docstring
+
 
 # ── Real wiring: document overdue ────────────────────────────────────────
 
@@ -280,6 +315,7 @@ def test_document_overdue_adds_and_resolves_queue_item(db_session, candidate):
 
     db_session.refresh(row)
     assert row.status == "RESOLVED"
+
 
 # ── Real wiring: no-show ──────────────────────────────────────────────────
 

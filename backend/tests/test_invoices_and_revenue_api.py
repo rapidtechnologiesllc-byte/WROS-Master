@@ -8,11 +8,13 @@ POST /revenue/reconciliation/scan|alerts/{id}/resolve, GET
 proves HRMS-0906 (S-225 Revenue Leakage), HRMS-0903 (Reconciliation),
 and HRMS-0909 (S-228 Client Revenue Dashboard) end-to-end.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys. Timesheets are built directly against the DB rather
 than through the /timesheets API, since these tests are about the
 invoice/revenue layer, not timesheet submission itself.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -36,14 +38,17 @@ from app.models.timesheet_dispute import TimesheetDispute
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 def _monday_of(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
 
 # Far enough in the past that scan_project_revenue_leakage's default
 # 7-day grace period has definitely elapsed relative to real "now".
 PERIOD_START = date.today() - timedelta(days=60)
 PERIOD_END = date.today() - timedelta(days=30)
 TS_WEEK = _monday_of(date.today() - timedelta(days=45))
+
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -60,9 +65,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -142,11 +152,14 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
 
+
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
+
 
 def _make_timesheet(client, *, status="APPROVED", week_starting_date=TS_WEEK, billable_hours=40.0, approved_at=None):
     ids = client.wros_ids
@@ -164,6 +177,7 @@ def _make_timesheet(client, *, status="APPROVED", week_starting_date=TS_WEEK, bi
     db.close()
     return ts_id
 
+
 def _generate_invoice(client, *, period_start=PERIOD_START, period_end=PERIOD_END):
     ids = client.wros_ids
     return client.post(
@@ -171,6 +185,7 @@ def _generate_invoice(client, *, period_start=PERIOD_START, period_end=PERIOD_EN
         json={"project_id": ids["project_id"], "period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
         headers=_auth(),
     )
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0907 -- Invoicing
@@ -185,10 +200,12 @@ def test_generate_invoice_success(client):
     assert body["total_usd_cents"] == 15000 * 40
     assert len(body["line_items"]) == 1
 
+
 def test_generate_invoice_blocks_unapproved_timesheet(client):
     _make_timesheet(client, status="SUBMITTED")
     resp = _generate_invoice(client)
     assert resp.status_code == 409
+
 
 def test_generate_invoice_blocks_open_dispute(client):
     ts_id = _make_timesheet(client)
@@ -204,6 +221,7 @@ def test_generate_invoice_blocks_open_dispute(client):
     resp = _generate_invoice(client)
     assert resp.status_code == 409
 
+
 def test_generate_invoice_404_for_unknown_project(client):
     resp = client.post(
         "/invoices/generate",
@@ -211,6 +229,7 @@ def test_generate_invoice_404_for_unknown_project(client):
         headers=_auth(),
     )
     assert resp.status_code == 404
+
 
 def test_approve_send_mark_paid_flow(client):
     _make_timesheet(client)
@@ -232,11 +251,13 @@ def test_approve_send_mark_paid_flow(client):
     assert paid_resp.status_code == 200
     assert paid_resp.json()["status"] == "PAID"
 
+
 def test_send_blocked_before_approval(client):
     _make_timesheet(client)
     invoice_id = _generate_invoice(client).json()["id"]
     resp = client.post(f"/invoices/{invoice_id}/send", headers=_auth())
     assert resp.status_code == 409
+
 
 def test_list_invoices_filtered_by_status(client):
     _make_timesheet(client)
@@ -245,9 +266,11 @@ def test_list_invoices_filtered_by_status(client):
     assert resp.status_code == 200
     assert len(resp.json()["invoices"]) == 1
 
+
 def test_get_invoice_404_for_unknown_id(client):
     resp = client.get("/invoices/does-not-exist", headers=_auth())
     assert resp.status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0906 -- Revenue Leakage Detection
@@ -266,6 +289,7 @@ def test_scan_leakage_returns_null_before_grace_period(client):
     assert resp.status_code == 200
     assert resp.json() is None
 
+
 def test_scan_leakage_flags_unbilled_hours_after_grace_period(client):
     _make_timesheet(client)
     resp = client.post(
@@ -277,6 +301,7 @@ def test_scan_leakage_flags_unbilled_hours_after_grace_period(client):
     body = resp.json()
     assert body is not None
     assert body["unbilled_hours"] == 40.0
+
 
 def test_scan_leakage_returns_null_once_fully_invoiced(client):
     _make_timesheet(client)
@@ -290,6 +315,7 @@ def test_scan_leakage_returns_null_once_fully_invoiced(client):
     assert resp.status_code == 200
     assert resp.json() is None
 
+
 def test_scan_leakage_404_for_unknown_project(client):
     resp = client.post(
         "/revenue/leakage/scan",
@@ -297,6 +323,7 @@ def test_scan_leakage_404_for_unknown_project(client):
         headers=_auth(),
     )
     assert resp.status_code == 404
+
 
 def test_log_leakage_reason_suppresses_from_active_list(client):
     _make_timesheet(client)
@@ -321,6 +348,7 @@ def test_log_leakage_reason_suppresses_from_active_list(client):
     list_after = client.get("/revenue/leakage", headers=_auth())
     assert list_after.json()["flags"] == []
 
+
 def test_log_leakage_reason_404_for_unknown_flag(client):
     resp = client.post(
         "/revenue/leakage/does-not-exist/log-reason",
@@ -328,6 +356,7 @@ def test_log_leakage_reason_404_for_unknown_flag(client):
         headers=_auth(),
     )
     assert resp.status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0903 -- Timesheet-to-Revenue Reconciliation
@@ -342,6 +371,7 @@ def test_reconciliation_scan_creates_alert_for_uninvoiced_approved_timesheet(cli
     assert len(alerts) == 1
     assert alerts[0]["status"] == "UNRESOLVED"
 
+
 def test_reconciliation_scan_is_idempotent(client):
     _make_timesheet(client, approved_at=datetime.utcnow() - timedelta(days=5))
     first = client.post("/revenue/reconciliation/scan", headers=_auth())
@@ -349,16 +379,19 @@ def test_reconciliation_scan_is_idempotent(client):
     assert len(first.json()["alerts"]) == len(second.json()["alerts"]) == 1
     assert first.json()["alerts"][0]["id"] == second.json()["alerts"][0]["id"]
 
+
 def test_reconciliation_scan_skips_recently_approved_timesheet(client):
     _make_timesheet(client, approved_at=datetime.utcnow())
     resp = client.post("/revenue/reconciliation/scan", headers=_auth())
     assert resp.json()["alerts"] == []
+
 
 def test_reconciliation_scan_skips_already_invoiced_timesheet(client):
     _make_timesheet(client, approved_at=datetime.utcnow() - timedelta(days=5), week_starting_date=TS_WEEK)
     _generate_invoice(client)
     resp = client.post("/revenue/reconciliation/scan", headers=_auth())
     assert resp.json()["alerts"] == []
+
 
 def test_reconciliation_alerts_list_and_resolve(client):
     _make_timesheet(client, approved_at=datetime.utcnow() - timedelta(days=5))
@@ -377,9 +410,11 @@ def test_reconciliation_alerts_list_and_resolve(client):
     resolved = client.get("/revenue/reconciliation/alerts?status=RESOLVED", headers=_auth())
     assert len(resolved.json()["alerts"]) == 1
 
+
 def test_resolve_reconciliation_alert_404_for_unknown_id(client):
     resp = client.post("/revenue/reconciliation/alerts/does-not-exist/resolve", headers=_auth())
     assert resp.status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # HRMS-0909 -- Client Revenue Realization Dashboard
@@ -400,6 +435,7 @@ def test_dashboard_returns_insufficient_data_for_client_with_no_projects(client)
     assert body["earned_usd_cents"] is None
     assert "INSUFFICIENT_DATA" in body["note"]
 
+
 def test_dashboard_computes_earned_and_billable_ratio(client):
     _make_timesheet(client)
     invoice_id = _generate_invoice(client).json()["id"]
@@ -412,6 +448,7 @@ def test_dashboard_computes_earned_and_billable_ratio(client):
     assert body["billable_ratio_pct"] == 100.0
     # project defaults to TIME_AND_MATERIALS -- burn rate is FIXED_BID-only.
     assert body["burn_rate_pct"] is None
+
 
 def test_dashboard_404_for_unknown_client(client):
     resp = client.get("/revenue/dashboard/clients/does-not-exist", headers=_auth())

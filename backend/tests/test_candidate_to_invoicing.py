@@ -9,6 +9,7 @@ import pytest
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 
+
 class TestCandidateToInvoicingWorkflow:
     """Complete workflow: Candidate → Job → Interview → Offer → Employee → Allocation → Timesheet → Invoice"""
 
@@ -222,6 +223,7 @@ class TestCandidateToInvoicingWorkflow:
         print(f"  Timesheet ID: {timesheet.id}")
         print(f"  Invoice ID: {invoice.id}")
         print(f"  Invoice Amount: ${invoice.total_usd_cents / 100:.2f}")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

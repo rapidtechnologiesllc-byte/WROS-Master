@@ -64,17 +64,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # app -- see the developer handoff), since it's exactly the kind
         # of public candidate-facing intake B4 calls out by name.
         "/jobs/{job_id}/apply",
-        # Career site API -- external candidates (careers.blitzenx.com)
-        "/careers/jobs",
-        "/careers/jobs/{job_id}",
-        "/careers/applications/by-email/{email}",
-        "/careers/analyze-resume",
-        "/careers/applications",
-        "/careers/clarifications/generate",
-        "/careers/applications/{app_id}/clarifications/{clarification_id}/answer",
-        "/careers/conversations/save",
-        # Candidate check-returning for welcome-back feature (career site)
-        "/candidates/check-returning",
     ]
     
     async def dispatch(self, request: Request, call_next: Callable):

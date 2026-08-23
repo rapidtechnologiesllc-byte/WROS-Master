@@ -2,8 +2,10 @@
 GET /sla/breaches -- HTTP wiring for S-020/HRMS-0420: recruiter-auth
 gated, returns active NO_CONTACT breaches for the resolved tenant.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -23,6 +25,7 @@ from app.models.sla_breach import CandidateSLABreach
 from app.models.user import Users
 import app.models  # noqa: F401
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -36,9 +39,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -73,8 +81,10 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for_user(email):
     return security.create_access_token(data={"sub": email, "type": "Super User"})
+
 
 def test_list_breaches_returns_active_breach(client):
     resp = client.get("/sla/breaches?is_resolved=false", headers={"Authorization": f"Bearer {_token_for_user('ceo@blitzenx.com')}"})
@@ -84,9 +94,11 @@ def test_list_breaches_returns_active_breach(client):
     assert body["breaches"][0]["candidate_name"] == "Priya"
     assert body["breaches"][0]["sla_type"] == "NO_CONTACT"
 
+
 def test_list_breaches_requires_auth(client):
     resp = client.get("/sla/breaches?is_resolved=false")
     assert resp.status_code in (401, 403)
+
 
 def test_resolved_true_is_rejected(client):
     resp = client.get("/sla/breaches?is_resolved=true", headers={"Authorization": f"Bearer {_token_for_user('ceo@blitzenx.com')}"})

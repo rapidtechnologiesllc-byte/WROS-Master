@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-08-19T12:00:40.256750",
+  "passed": 11,
+  "failed": 0,
+  "errors": [],
+  "test_details": [
+    {
+      "name": "Login: Super User",
+      "passed": true,
+      "message": "Token obtained: eyJhbGciOiJIUzI1NiIs..."
+    },
+    {
+      "name": "Login: Finance Manager",
+      "passed": true,
+      "message": "Token obtained: eyJhbGciOiJIUzI1NiIs..."
+    },
+    {
+      "name": "Login: Employee",
+      "passed": true,
+      "message": "Token obtained: eyJhbGciOiJIUzI1NiIs..."
+    },
+    {
+      "name": "Invalid token rejection",
+      "passed": true,
+      "message": "HTTP 401"
+    },
+    {
+      "name": "Missing auth header rejection",
+      "passed": true,
+      "message": "HTTP 401"
+    },
+    {
+      "name": "Navigation: Super User",
+      "passed": true,
+      "message": "10 modules, 177 resources"
+    },
+    {
+      "name": "Navigation: Finance Manager",
+      "passed": true,
+      "message": "6 modules, 76 resources"
+    },
+    {
+      "name": "Navigation: Employee",
+      "passed": true,
+      "message": "2 modules, 17 resources"
+    },
+    {
+      "name": "Access control: Super User -> /hr/me",
+      "passed": true,
+      "message": "HTTP 200 (authorized)"
+    },
+    {
+      "name": "Access control: Finance Manager -> /hr/me",
+      "passed": true,
+      "message": "HTTP 200 (authorized)"
+    },
+    {
+      "name": "Access control: Employee -> /hr/me",
+      "passed": true,
+      "message": "HTTP 200 (authorized)"
+    }
+  ]
+}

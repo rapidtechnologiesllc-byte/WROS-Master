@@ -6,21 +6,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug",
-    "test:e2e:report": "playwright show-report",
-    "test:e2e:candidate": "playwright test candidate.spec.js",
-    "test:e2e:recruiter": "playwright test recruiter.spec.js",
-    "test:e2e:employee": "playwright test employee.spec.js",
-    "test:e2e:buhead": "playwright test bu-head.spec.js",
-    "test:e2e:partner": "playwright test partner.spec.js",
-    "test:e2e:cfo": "playwright test cfo.spec.js",
-    "test:e2e:ceo": "playwright test ceo.spec.js",
-    "test:e2e:chromium": "playwright test --project=chromium",
-    "test:e2e:firefox": "playwright test --project=firefox",
-    "test:e2e:webkit": "playwright test --project=webkit"
+    "eject": "react-scripts eject"
   },
   "dependencies": {
     "antd": "^5.15.0",
@@ -40,7 +26,6 @@
     "styled-components": "^6.4.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17"

@@ -9,8 +9,10 @@ candidate_missing_fields table); BR-01's QUALIFYING maps onto real
 status != "closed" AND escalation_state not pending/escalated; LLM is
 injectable Gemini.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -24,9 +26,16 @@ from app.models.user import Users
 
 import app.services.qualification_engine_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateInfoForm.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -34,6 +43,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -56,10 +66,12 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
+
 def test_get_next_missing_field_returns_highest_priority(db_session, seeded):
     candidate, conv = seeded
     field = svc.get_next_missing_field(db_session, candidate, "U-ORG")
     assert field["field"] == "candidateMobile"
+
 
 def test_get_next_missing_field_none_when_all_present(db_session, seeded):
     candidate, conv = seeded
@@ -68,12 +80,14 @@ def test_get_next_missing_field_none_when_all_present(db_session, seeded):
     field = svc.get_next_missing_field(db_session, candidate, "U-ORG")
     assert field is None
 
+
 def test_get_next_missing_field_excludes_skipped(db_session, seeded):
     candidate, conv = seeded
     svc.skip_field(db_session, "C-1", "U-ORG", "candidateMobile")
     db_session.commit()
     field = svc.get_next_missing_field(db_session, candidate, "U-ORG")
     assert field is None  # only missing field was skipped
+
 
 def test_first_ask_returns_base_question(db_session, seeded):
     candidate, conv = seeded
@@ -84,6 +98,7 @@ def test_first_ask_returns_base_question(db_session, seeded):
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "QUESTION_ASKED").all()
     assert len(events) == 1
     assert events[0].event_data["ask_count"] == 1
+
 
 def test_second_ask_returns_llm_variation(db_session, seeded):
     candidate, conv = seeded
@@ -98,6 +113,7 @@ def test_second_ask_returns_llm_variation(db_session, seeded):
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "QUESTION_ASKED").all()
     assert len(events) == 2
     assert events[1].event_data["ask_count"] == 2
+
 
 def test_llm_failure_on_variation_falls_back_to_base_question(db_session, seeded):
     candidate, conv = seeded
@@ -114,6 +130,7 @@ def test_llm_failure_on_variation_falls_back_to_base_question(db_session, seeded
     failures = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "QUESTION_VARIATION_FAILED").all()
     assert len(failures) == 1
 
+
 def test_qualification_plan_returns_next_field_and_question(db_session, seeded):
     candidate, conv = seeded
     plan = svc.get_qualification_plan(db_session, conv, candidate, "U-ORG", llm_call=lambda p: "variation")
@@ -124,6 +141,7 @@ def test_qualification_plan_returns_next_field_and_question(db_session, seeded):
     assert plan["question"] == svc.QUALIFICATION_QUESTIONS["candidateMobile"]
     assert plan["remaining_fields_count"] == 1
 
+
 def test_qualification_plan_complete_when_no_fields_missing(db_session, seeded):
     candidate, conv = seeded
     candidate.candidateMobile = "+919876543210"
@@ -131,6 +149,7 @@ def test_qualification_plan_complete_when_no_fields_missing(db_session, seeded):
 
     plan = svc.get_qualification_plan(db_session, conv, candidate, "U-ORG")
     assert plan == {"is_complete": True, "next_field": None, "question": None, "remaining_fields_count": 0}
+
 
 def test_qualification_plan_raises_when_not_qualifying_state(db_session, seeded):
     candidate, conv = seeded
@@ -140,6 +159,7 @@ def test_qualification_plan_raises_when_not_qualifying_state(db_session, seeded)
     with pytest.raises(svc.QualificationNotApplicable):
         svc.get_qualification_plan(db_session, conv, candidate, "U-ORG")
 
+
 def test_qualification_plan_raises_when_escalated(db_session, seeded):
     candidate, conv = seeded
     conv.escalation_state = "escalated"
@@ -147,6 +167,7 @@ def test_qualification_plan_raises_when_escalated(db_session, seeded):
 
     with pytest.raises(svc.QualificationNotApplicable):
         svc.get_qualification_plan(db_session, conv, candidate, "U-ORG")
+
 
 def test_auto_skip_after_max_asks_moves_to_next_field(db_session, seeded):
     candidate, conv = seeded
@@ -163,6 +184,7 @@ def test_auto_skip_after_max_asks_moves_to_next_field(db_session, seeded):
     assert plan["is_complete"] is True
     skipped = svc.skipped_field_names(db_session, "C-1", "U-ORG")
     assert "candidateMobile" in skipped
+
 
 def test_skip_field_is_idempotent(db_session, seeded):
     candidate, conv = seeded

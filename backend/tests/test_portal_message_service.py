@@ -4,6 +4,7 @@ S-346/HRMS-P116 -- Portal Real-Time Chat Widget's reply-generation addition.
 
 Adapted to real architecture: stores into ConversationEvent (channel=
 "portal"), not a new conversation_messages table -- same pattern as
+S-002/S-003. Throwaway SQLite -- never the real database.
 
 No real Gemini call is made anywhere in this file -- ChatGoogleGenerativeAI
 and the prompt-framework REST call are both mocked, same convention as
@@ -12,6 +13,7 @@ generates a Thunder reply (S-346), which would otherwise hit the network
 on every single test in this file.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
@@ -39,9 +41,11 @@ import app.services.prompt_framework_service as prompt_framework_svc
 import app.services.thunder_service as thunder_svc
 import app.services.portal_message_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(thunder_svc, "GEMINI_API_KEY", "fake-key-for-test")
+
 
 @pytest.fixture(autouse=True)
 def _mock_gemini(monkeypatch):
@@ -50,6 +54,7 @@ def _mock_gemini(monkeypatch):
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = mock_response
     monkeypatch.setattr(thunder_svc, "ChatGoogleGenerativeAI", MagicMock(return_value=mock_llm))
+
 
 @pytest.fixture(autouse=True)
 def _mock_intent_and_escalation_llm(monkeypatch):
@@ -61,9 +66,20 @@ def _mock_intent_and_escalation_llm(monkeypatch):
     assertions are unaffected by the new reply-generation step."""
     monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: '{"intent": "unclear", "confidence": 0.0}')
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, Jobs.__table__, CandidateInfoForm.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
+        Notification.__table__, ConsentRecord.__table__, InternalNote.__table__, FollowUpSchedule.__table__,
+        CandidateGhostingStatus.__table__, OutreachCampaign.__table__, CampaignTouchpoint.__table__,
+        CandidateFieldSkip.__table__, CandidateMemory.__table__, CandidateMemoryFact.__table__,
+        PromptExecutionLog.__table__, CandidateSLABreach.__table__, CandidateSentimentLog.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -71,6 +87,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def candidate_with_conversation(db_session):
@@ -90,6 +107,7 @@ def candidate_with_conversation(db_session):
     db_session.commit()
     return candidate, conversation
 
+
 def test_send_portal_message_stores_real_event(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     result = svc.send_portal_message(db_session, candidate, conversation.id, "Hi, when's my interview?")
@@ -100,21 +118,25 @@ def test_send_portal_message_stores_real_event(db_session, candidate_with_conver
     assert event.event_data["channel"] == "portal"
     assert event.event_data["body"] == "Hi, when's my interview?"
 
+
 def test_send_portal_message_trims_whitespace(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     svc.send_portal_message(db_session, candidate, conversation.id, "   hello   ")
     event = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "candidate_reply").first()
     assert event.event_data["body"] == "hello"
 
+
 def test_send_portal_message_empty_raises(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     with pytest.raises(svc.PortalMessageEmpty):
         svc.send_portal_message(db_session, candidate, conversation.id, "   ")
 
+
 def test_send_portal_message_too_long_raises(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     with pytest.raises(svc.PortalMessageTooLong):
         svc.send_portal_message(db_session, candidate, conversation.id, "x" * 4001)
+
 
 def test_send_portal_message_wrong_candidate_raises_not_found(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
@@ -125,10 +147,12 @@ def test_send_portal_message_wrong_candidate_raises_not_found(db_session, candid
     with pytest.raises(svc.PortalConversationNotFound):
         svc.send_portal_message(db_session, other, conversation.id, "sneaky cross-candidate message")
 
+
 def test_send_portal_message_nonexistent_conversation_raises_not_found(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     with pytest.raises(svc.PortalConversationNotFound):
         svc.send_portal_message(db_session, candidate, 999999, "hi")
+
 
 def test_send_portal_message_rate_limit_21st_message_raises(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
@@ -137,6 +161,7 @@ def test_send_portal_message_rate_limit_21st_message_raises(db_session, candidat
 
     with pytest.raises(svc.PortalRateLimitExceeded):
         svc.send_portal_message(db_session, candidate, conversation.id, "one too many")
+
 
 def test_rate_limit_only_counts_last_hour(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
@@ -155,6 +180,7 @@ def test_rate_limit_only_counts_last_hour(db_session, candidate_with_conversatio
     result = svc.send_portal_message(db_session, candidate, conversation.id, "fresh message")
     assert result["message_id"] is not None
 
+
 def test_paused_conversation_still_accepts_messages(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     conversation.status = "paused"
@@ -162,6 +188,7 @@ def test_paused_conversation_still_accepts_messages(db_session, candidate_with_c
 
     result = svc.send_portal_message(db_session, candidate, conversation.id, "still here")
     assert result["message_id"] is not None
+
 
 def test_get_history_returns_ascending_order(db_session, candidate_with_conversation):
     """S-346: each send_portal_message() call now also generates a real
@@ -179,6 +206,7 @@ def test_get_history_returns_ascending_order(db_session, candidate_with_conversa
     assert bodies == ["first", AUTO_REPLY, "second", AUTO_REPLY, "reply"]
     assert history["total_count"] == 5
 
+
 def test_get_history_wrong_candidate_raises_not_found(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     other = Candidate(candidateID="C-200", candidateEmail="other@example.com", candidatePassword="h")
@@ -187,6 +215,7 @@ def test_get_history_wrong_candidate_raises_not_found(db_session, candidate_with
 
     with pytest.raises(svc.PortalConversationNotFound):
         svc.get_portal_message_history(db_session, other, conversation.id)
+
 
 def test_get_history_excludes_non_portal_channel_events(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
@@ -205,6 +234,7 @@ def test_get_history_excludes_non_portal_channel_events(db_session, candidate_wi
     assert history["messages"][0]["message_body"] == "portal message"
     assert history["messages"][1]["message_body"] == "Real Thunder reply text, long enough to pass validation."
 
+
 def test_store_outbound_portal_message_marks_delivered(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     event = svc.store_outbound_portal_message(db_session, conversation, sender_type="ai_agent", message_body="Thanks for reaching out!")
@@ -212,6 +242,7 @@ def test_store_outbound_portal_message_marks_delivered(db_session, candidate_wit
 
     assert event.event_data["delivery_status"] == "DELIVERED"
     assert event.event_data["channel"] == "portal"
+
 
 # ---------------------------------------------------------------------------
 # S-346/HRMS-P116 -- synchronous reply generation
@@ -235,6 +266,7 @@ def test_send_portal_message_generates_a_real_reply(db_session, candidate_with_c
     assert reply_event.event_data["channel"] == "portal"
     assert reply_event.event_data["delivery_status"] == "DELIVERED"
 
+
 def test_human_owned_conversation_gets_no_auto_reply(db_session, candidate_with_conversation):
     """R-08: a human recruiter has taken over -- Thunder must not
     auto-reply on the portal either, same ownership posture as every
@@ -248,6 +280,7 @@ def test_human_owned_conversation_gets_no_auto_reply(db_session, candidate_with_
     assert result["reply"] is None
     assert db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "ai_message_sent").count() == 0
 
+
 def test_thunder_paused_conversation_gets_no_auto_reply(db_session, candidate_with_conversation):
     candidate, conversation = candidate_with_conversation
     conversation.is_thunder_paused = True
@@ -257,6 +290,7 @@ def test_thunder_paused_conversation_gets_no_auto_reply(db_session, candidate_wi
 
     assert result["reply"] is None
     assert db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "ai_message_sent").count() == 0
+
 
 def test_reply_generation_failure_is_fail_soft_not_fail_closed(db_session, candidate_with_conversation, monkeypatch):
     """The candidate's own message must still be stored (and the call

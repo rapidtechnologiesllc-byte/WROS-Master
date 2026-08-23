@@ -6,10 +6,12 @@ logic (no pre-existing backend, unlike almost everything else in
 EPIC-05) -- so this file also covers the service layer directly, not
 just the HTTP wrapper.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import json
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -32,6 +34,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -47,9 +50,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -163,15 +171,19 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
+
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/resource-forecast/expiring")
     assert resp.status_code in (401, 403)
+
 
 def test_expiring_allocations_bucketed_correctly(client):
     ids = client.wros_ids
@@ -186,6 +198,7 @@ def test_expiring_allocations_bucketed_correctly(client):
     assert body["sixty_to_90_days"][0]["employee_id"] == ids["later_employee_id"]
 
     assert body["thirty_to_60_days"] == []
+
 
 def test_gap_analysis_computes_supply_vs_demand_per_skill(client):
     resp = client.get("/resource-forecast/gap-analysis", headers=_auth())
@@ -204,6 +217,7 @@ def test_gap_analysis_computes_supply_vs_demand_per_skill(client):
     # demand requires it -- so it correctly never surfaces as a row at
     # all (the service only unions skills from those three sources).
     assert "PolicyCenter" not in rows
+
 
 def test_gap_analysis_scoped_to_business_unit_filters_demand_only(client):
     """business_unit_id narrows open_demand_count to that BU's own

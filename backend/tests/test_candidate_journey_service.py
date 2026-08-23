@@ -11,8 +11,10 @@ directly. BR-01's literal multi-visit history has no real equivalent
 in this codebase and is not attempted -- flagged in the module
 docstring, not silently faked.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -33,9 +35,18 @@ from app.models.user import Users, Jobs
 
 import app.services.candidate_journey_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Jobs.__table__, Candidate.__table__, CandidateInfoForm.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateJobScore.__table__,
+        SubmissionInterview.__table__, OfferLetter.__table__, CandidateJoiningScore.__table__,
+        PreboardingDocument.__table__, Employee.__table__, Submission.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -43,6 +54,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def candidate(db_session):
@@ -58,6 +70,7 @@ def candidate(db_session):
     db_session.commit()
     return c
 
+
 def _make_conversation(db, created_at=None):
     conv = CandidateConversation(tenant_id="U-ORG", candidate_id="C-1", status="open", owner_type="ai_agent", owner_id="Thunder", escalation_state="none", channel_preference="whatsapp")
     if created_at:
@@ -66,13 +79,16 @@ def _make_conversation(db, created_at=None):
     db.commit()
     return conv
 
+
 def _reply(db, conv, created_at):
     db.add(ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={}, triggered_by="candidate", created_at=created_at))
     db.commit()
 
+
 def _ai_message(db, conv, created_at):
     db.add(ConversationEvent(conversation_id=conv.id, event_type="ai_message_sent", event_data={"body": "hi"}, triggered_by="ai_agent", created_at=created_at))
     db.commit()
+
 
 def _job_score(db, calculated_at, overall=87, technical=92, compensation=100, availability=75):
     job = Jobs(jobID="J-1", jobTitle="Sr. Dev", jobDescription="d", jobSkills="[]", jobExperience="5", jobLocation="Remote")
@@ -84,6 +100,7 @@ def _job_score(db, calculated_at, overall=87, technical=92, compensation=100, av
     db.commit()
     return score
 
+
 def _submission(db, submitted_at=None):
     sub = Submission(tenant_id=None, demand_id="D-1", client_id="CL-1", candidate_id="C-1", submitted_by_user_id="U-HR", status="OFFER_EXTENDED")
     if submitted_at:
@@ -91,6 +108,7 @@ def _submission(db, submitted_at=None):
     db.add(sub)
     db.commit()
     return sub
+
 
 def _interview(db, submission, level, outcome="PENDING", scheduled_at=None, created_at=None):
     interview = SubmissionInterview(tenant_id=None, submission_id=submission.id, candidate_id="C-1", level=level, outcome=outcome, scheduled_at=scheduled_at)
@@ -100,6 +118,7 @@ def _interview(db, submission, level, outcome="PENDING", scheduled_at=None, crea
     db.commit()
     return interview
 
+
 def _offer(db, offer_status="Pending", created_at=None, responded_at=None, joining_date=None, released_at=None):
     offer = OfferLetter(candidate_id="C-1", position="Sr. Dev", salary="24 LPA", joining_date=joining_date or date(2026, 9, 1), offer_expire_date=date(2026, 8, 20), offer_status=offer_status, created_by="U-HR", responded_at=responded_at, released_at=released_at)
     if created_at:
@@ -108,11 +127,13 @@ def _offer(db, offer_status="Pending", created_at=None, responded_at=None, joini
     db.commit()
     return offer
 
+
 def _employee(db, joining_date=date(2026, 9, 1), employee_number="EMP-001"):
     emp = Employee(candidate_id="C-1", first_name="Priya", last_name="S", email="priya@blitzenx.com", joining_date=joining_date, employee_number=employee_number)
     db.add(emp)
     db.commit()
     return emp
+
 
 # ── TC-001: rendering, candidate in SCREENED state ──────────────────────
 
@@ -133,6 +154,7 @@ def test_screened_candidate_shows_correct_stage_colors(db_session, candidate):
     assert by_name["JOINED"]["status"] == "pending"
     assert result["current_stage"] == "SCREENED"
 
+
 # ── TC-002: active metrics card, QUALIFYING state ───────────────────────
 
 def test_qualifying_active_metrics(db_session, candidate):
@@ -151,6 +173,7 @@ def test_qualifying_active_metrics(db_session, candidate):
     assert metrics["profile_completeness_pct"] is not None
     assert metrics["days_in_stage"] == 4
 
+
 # ── Only ENGAGED reached (brand new candidate) ──────────────────────────
 
 def test_only_engaged_reached_for_brand_new_candidate(db_session, candidate):
@@ -162,6 +185,7 @@ def test_only_engaged_reached_for_brand_new_candidate(db_session, candidate):
     assert result["current_stage"] == "ENGAGED"
     for name in ("QUALIFYING", "SCREENED", "INTERVIEW", "OFFER", "PREBOARDING", "JOINED"):
         assert by_name[name]["status"] == "pending"
+
 
 # ── INTERVIEW stage L1/L2 metrics ───────────────────────────────────────
 
@@ -181,6 +205,7 @@ def test_interview_stage_shows_l1_l2_outcomes(db_session, candidate):
     assert metrics["l1_outcome"] == "PASS"
     assert metrics["l2_outcome"] == "PENDING"
 
+
 def test_superseded_interviews_excluded(db_session, candidate):
     conv = _make_conversation(db_session)
     _reply(db_session, conv, datetime.utcnow())
@@ -194,6 +219,7 @@ def test_superseded_interviews_excluded(db_session, candidate):
     result = svc.get_candidate_journey(db_session, "C-1", "U-ORG")
     by_name = {s["stage_name"]: s for s in result["stages"]}
     assert by_name["INTERVIEW"]["metrics"]["l1_outcome"] == "PASS"
+
 
 # ── OFFER stage ──────────────────────────────────────────────────────────
 
@@ -209,6 +235,7 @@ def test_offer_stage_metrics(db_session, candidate):
     by_name = {s["stage_name"]: s for s in result["stages"]}
     assert by_name["OFFER"]["status"] == "active"
     assert by_name["OFFER"]["metrics"]["offer_status"] == "Released"
+
 
 # ── PREBOARDING stage (S-058 wiring) ────────────────────────────────────
 
@@ -233,6 +260,7 @@ def test_preboarding_stage_uses_accepted_offer_and_joining_score(db_session, can
     assert metrics["documents_total"] == 2
     assert metrics["days_until_start"] == 10
 
+
 def test_offer_not_yet_accepted_does_not_reach_preboarding(db_session, candidate):
     conv = _make_conversation(db_session)
     _reply(db_session, conv, datetime.utcnow())
@@ -245,6 +273,7 @@ def test_offer_not_yet_accepted_does_not_reach_preboarding(db_session, candidate
     by_name = {s["stage_name"]: s for s in result["stages"]}
     assert by_name["OFFER"]["status"] == "active"
     assert by_name["PREBOARDING"]["status"] == "pending"
+
 
 # ── BR-02: JOINED only green after real Employee conversion ────────────
 
@@ -261,6 +290,7 @@ def test_br02_joined_stays_pending_until_employee_conversion(db_session, candida
     assert by_name["PREBOARDING"]["status"] == "active"
     assert by_name["JOINED"]["status"] == "pending"
 
+
 def test_br02_joined_turns_active_only_with_real_employee_row(db_session, candidate):
     conv = _make_conversation(db_session)
     _reply(db_session, conv, datetime.utcnow())
@@ -276,6 +306,7 @@ def test_br02_joined_turns_active_only_with_real_employee_row(db_session, candid
     assert by_name["PREBOARDING"]["status"] == "completed"
     assert by_name["JOINED"]["metrics"]["employee_number"] == "EMP-042"
     assert result["current_stage"] == "JOINED"
+
 
 def test_candidate_not_found_raises(db_session):
     with pytest.raises(svc.CandidateNotFound):

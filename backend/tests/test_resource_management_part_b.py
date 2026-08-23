@@ -2,9 +2,11 @@
 Phase 4 Part B -- bench_pool lifecycle, utilization metrics, the
 allocation-conflict audit log, and the Staffing Eligibility Engine.
 
+Throwaway SQLite -- never the real database.
 """
 import json
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -42,9 +44,18 @@ from app.services.resource_management_service import (
     remove_employee_from_bench,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Employee.__table__, EmployeeEmploymentHistory.__table__,
+        EmployeeAllocation.__table__, Timesheet.__table__, TimesheetEntry.__table__,
+        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -52,6 +63,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -81,6 +93,7 @@ def fixtures(db_session):
 
     return tenant, client, demand, employee
 
+
 # ---------------------------------------------------------------------------
 # Bench pool lifecycle -- wired through allocate/end_allocation
 # ---------------------------------------------------------------------------
@@ -94,12 +107,14 @@ def test_mark_employee_on_bench_is_idempotent(db_session, fixtures):
     assert first.id == second.id
     assert db_session.query(BenchPoolEntry).count() == 1
 
+
 def test_mark_employee_on_bench_captures_skills_and_cost(db_session, fixtures):
     _, _, _, employee = fixtures
     entry = mark_employee_on_bench(db_session, employee)
 
     assert entry.skill_tags == '["Guidewire", "PolicyCenter"]'
     assert entry.bench_cost_usd_cents == round(900000 / 30)
+
 
 def test_end_allocation_creates_bench_pool_entry(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -111,6 +126,7 @@ def test_end_allocation_creates_bench_pool_entry(db_session, fixtures):
     db_session.commit()
 
     assert db_session.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).count() == 1
+
 
 def test_mark_employee_on_bench_opens_one_history_period(db_session, fixtures):
     _, _, _, employee = fixtures
@@ -124,10 +140,12 @@ def test_mark_employee_on_bench_opens_one_history_period(db_session, fixtures):
     assert periods[0].bench_end_date is None
     assert periods[0].reason_for_bench == "NEWLY_JOINED"
 
+
 def test_mark_employee_on_bench_rejects_invalid_reason(db_session, fixtures):
     _, _, _, employee = fixtures
     with pytest.raises(ValueError):
         mark_employee_on_bench(db_session, employee, reason="NOT_A_REAL_REASON")
+
 
 def test_remove_from_bench_closes_the_open_period_and_computes_cost(db_session, fixtures):
     _, _, _, employee = fixtures
@@ -146,6 +164,7 @@ def test_remove_from_bench_closes_the_open_period_and_computes_cost(db_session, 
     assert periods[0].bench_end_date == date.today()
     assert periods[0].bench_cost_usd_cents == round(900000 / 30 * 10)
 
+
 def test_bench_period_history_survives_multiple_stints(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     mark_employee_on_bench(db_session, employee, reason="NEWLY_JOINED")
@@ -163,6 +182,7 @@ def test_bench_period_history_survives_multiple_stints(db_session, fixtures):
     assert len(closed) == 1 and len(open_) == 1
     assert open_[0].reason_for_bench == "PROJECT_ENDED"
 
+
 def test_bench_aging_alerts_fire_at_30_60_90_days(db_session, fixtures):
     _, _, _, employee = fixtures
     entry = mark_employee_on_bench(db_session, employee)
@@ -175,6 +195,7 @@ def test_bench_aging_alerts_fire_at_30_60_90_days(db_session, fixtures):
     assert alerts[0]["days_on_bench"] == 30
     assert alerts[0]["employee_id"] == employee.id
 
+
 def test_bench_aging_alerts_silent_between_milestones(db_session, fixtures):
     _, _, _, employee = fixtures
     entry = mark_employee_on_bench(db_session, employee)
@@ -183,6 +204,7 @@ def test_bench_aging_alerts_silent_between_milestones(db_session, fixtures):
     entry.available_from = date.today() - timedelta(days=45)
     db_session.commit()
     assert check_bench_aging_alerts(db_session, tenant_id=employee.tenant_id) == []
+
 
 def test_allocate_removes_bench_pool_entry(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -194,6 +216,7 @@ def test_allocate_removes_bench_pool_entry(db_session, fixtures):
     db_session.commit()
 
     assert db_session.query(BenchPoolEntry).count() == 0
+
 
 def test_ending_one_of_several_concurrent_allocations_does_not_bench(db_session, fixtures):
     """allow_concurrent=True lets an employee hold 2 allocations; ending
@@ -216,6 +239,7 @@ def test_ending_one_of_several_concurrent_allocations_does_not_bench(db_session,
     assert employee.status == "ALLOCATED"
     assert db_session.query(BenchPoolEntry).count() == 0
 
+
 def test_get_bench_duration_days_computed_from_available_from(db_session, fixtures):
     _, _, _, employee = fixtures
     entry = mark_employee_on_bench(db_session, employee)
@@ -224,6 +248,7 @@ def test_get_bench_duration_days_computed_from_available_from(db_session, fixtur
     db_session.commit()
 
     assert get_bench_duration_days(entry) == 10
+
 
 def test_get_current_bench_pool_scoped_by_tenant(db_session, fixtures):
     tenant, _, _, employee = fixtures
@@ -236,6 +261,7 @@ def test_get_current_bench_pool_scoped_by_tenant(db_session, fixtures):
 
     other_tenant_pool = get_current_bench_pool(db_session, tenant_id=999999)
     assert other_tenant_pool == []
+
 
 # ---------------------------------------------------------------------------
 # Allocation conflict log
@@ -263,12 +289,14 @@ def test_over_capacity_allocation_logs_conflict(db_session, fixtures):
     assert float(entries[0].existing_utilization_pct) == 70
     assert float(entries[0].attempted_utilization_pct) == 50
 
+
 # ---------------------------------------------------------------------------
 # Utilization metrics
 # ---------------------------------------------------------------------------
 
 def _monday_of(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
 
 def test_record_weekly_utilization_metric_from_approved_timesheet(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -290,6 +318,7 @@ def test_record_weekly_utilization_metric_from_approved_timesheet(db_session, fi
     assert float(metric.bench_hours) == 8
     assert float(metric.utilization_pct) == 80
 
+
 def test_record_weekly_utilization_metric_zero_when_no_approved_timesheet(db_session, fixtures):
     _, _, _, employee = fixtures
     week = _monday_of(date.today())
@@ -299,6 +328,7 @@ def test_record_weekly_utilization_metric_zero_when_no_approved_timesheet(db_ses
     assert float(metric.billable_hours) == 0
     assert float(metric.bench_hours) == 40
     assert float(metric.utilization_pct) == 0
+
 
 def test_record_weekly_utilization_metric_is_upserted_not_duplicated(db_session, fixtures):
     _, _, _, employee = fixtures
@@ -313,6 +343,7 @@ def test_record_weekly_utilization_metric_is_upserted_not_duplicated(db_session,
         EmployeeUtilizationMetric.employee_id == employee.id
     ).count() == 1
 
+
 # ---------------------------------------------------------------------------
 # Staffing Eligibility Engine
 # ---------------------------------------------------------------------------
@@ -323,6 +354,7 @@ def test_staffing_eligible_by_default(db_session, fixtures):
     assert eligible is True
     assert reason is None
 
+
 def test_staffing_ineligible_mid_buddy_program(db_session, fixtures):
     _, _, _, employee = fixtures
     employee.buddy_program_status = "IN_PROGRESS"
@@ -331,6 +363,7 @@ def test_staffing_ineligible_mid_buddy_program(db_session, fixtures):
     assert eligible is False
     assert "Buddy Program" in reason
 
+
 def test_staffing_ineligible_for_core_without_certification(db_session, fixtures):
     _, _, _, employee = fixtures
     assert employee.core_certified is False
@@ -338,6 +371,7 @@ def test_staffing_ineligible_for_core_without_certification(db_session, fixtures
     eligible, reason = is_staffing_eligible(employee, "CORE")
     assert eligible is False
     assert "Core-certified" in reason
+
 
 def test_staffing_eligible_for_core_when_certified(db_session, fixtures):
     _, _, _, employee = fixtures

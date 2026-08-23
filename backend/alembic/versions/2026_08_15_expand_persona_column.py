@@ -1,7 +1,7 @@
 """Expand ai_agent_persona column from String(100) to Text for long personas
 
 Revision ID: 20260815_expand_persona
-Revises: 2026_08_12_work_orders
+Revises:
 Create Date: 2026-08-15 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260815_expand_persona'
-down_revision = '2026_08_12_work_orders'
+down_revision = None
 branch_labels = None
 depends_on = None
 

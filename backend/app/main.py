@@ -23,9 +23,6 @@ from app.models import agent_phalanx  # noqa: F401
 # Referral models — imported here for database table creation
 from app.models import referral  # noqa: F401
 
-# Career site models — imported here for database table creation
-from app.models import career  # noqa: F401
-
 
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
@@ -174,8 +171,8 @@ async def shutdown_event():
     shutdown_scheduler()
 
 
-# Include API routes with /api/v1 prefix
-app.include_router(router, prefix="/api/v1")
+# Include API routes
+app.include_router(router)
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time

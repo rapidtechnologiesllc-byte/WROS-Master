@@ -15,6 +15,7 @@ Avinash's 2026-08-05 direction:
 - Finance Task tracks "mark paid once paid" to prevent approval-and-forget
 """
 import os
+import tempfile
 from datetime import date, datetime
 
 import pytest
@@ -32,9 +33,13 @@ from app.services.expense_service import (
     mark_expense_paid, track_reimbursement,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -42,6 +47,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _make_user(db, user_id, role, *, tenant_id=None, business_unit_id=None):
     user = Users(
@@ -52,11 +58,13 @@ def _make_user(db, user_id, role, *, tenant_id=None, business_unit_id=None):
     db.commit()
     return user
 
+
 def _make_client(db, name, *, status="PROSPECT", tenant_id=None):
     client = Client(company_name=name, status=status, tenant_id=tenant_id)
     db.add(client)
     db.commit()
     return client
+
 
 class TestSubmitExpense:
     """S-325: submit_expense - Employee logs expense for reimbursement."""
@@ -148,6 +156,7 @@ class TestSubmitExpense:
                 amount_usd_cents=-5000, expense_date=date(2026, 8, 1),
                 receipt_ref="REC-001",
             )
+
 
 class TestApproveExpense:
     """S-325: approve_expense - Manager and Finance approval workflow."""
@@ -268,6 +277,7 @@ class TestApproveExpense:
         assert task is not None
         assert "Mark expense as paid" in task.title
 
+
 class TestReimburseExpense:
     """S-325: reimburse_expense - Mark expense as reimbursed."""
 
@@ -349,6 +359,7 @@ class TestReimburseExpense:
 
         with pytest.raises(ExpenseValidationError, match="must be APPROVED"):
             mark_expense_paid(db_session, expense)
+
 
 class TestTrackReimbursement:
     """S-325: track_reimbursement - Monitor expense status through workflow."""
@@ -477,6 +488,7 @@ class TestTrackReimbursement:
         assert "days_awaiting_manager" in reimbursement
         assert "days_awaiting_finance" in reimbursement
         assert reimbursement["is_fully_processed"] is False  # Not yet reimbursed
+
 
 class TestCompleteExpenseWorkflow:
     """S-325: Complete end-to-end workflow from submission to reimbursement."""

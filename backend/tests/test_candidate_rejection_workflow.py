@@ -13,6 +13,7 @@ Story: S-322 (Candidate Rejection Workflow)
 """
 
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -36,13 +37,26 @@ from app.services.candidate_rejection_service import (
     create_default_rejection_reasons,
 )
 
+
+@pytest.fixture()
 def db_session():
     """Create an in-memory SQLite test database."""
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
 
     # Only create tables we need for this test
     tables_to_create = [
+        Candidate.__table__,
+        CandidateStatus.__table__,
+        CandidateRejection.__table__,
+        CandidateRejectionReason.__table__,
+        CandidateHistory.__table__,
+        Users.__table__,
+        AuditLog.__table__,
+    ]
 
+    Base.metadata.create_all(engine, tables=tables_to_create)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -50,6 +64,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _seed_candidate(db, **overrides):
     """Helper to create a test candidate."""
@@ -69,6 +84,7 @@ def _seed_candidate(db, **overrides):
     db.commit()
     return candidate
 
+
 def _seed_user(db, **overrides):
     """Helper to create a test user."""
     defaults = dict(
@@ -83,6 +99,7 @@ def _seed_user(db, **overrides):
     db.add(user)
     db.commit()
     return user
+
 
 # ---------------------------------------------------------------------------
 # Test reject_candidate()
@@ -106,6 +123,7 @@ def test_reject_candidate_creates_rejection_record(db_session):
     assert rejection.rejection_status == "ACTIVE"
     assert rejection.email_sent == False
 
+
 def test_reject_candidate_updates_candidate_status(db_session):
     """Test that reject_candidate updates candidate pipeline status."""
     candidate = _seed_candidate(db_session)
@@ -124,6 +142,7 @@ def test_reject_candidate_updates_candidate_status(db_session):
     assert status is not None
     assert status.piplineStatus == "Rejected"
     assert status.status == "Inactive"
+
 
 def test_reject_candidate_creates_audit_history(db_session):
     """Test that reject_candidate creates history entry."""
@@ -145,6 +164,7 @@ def test_reject_candidate_creates_audit_history(db_session):
     assert history.event_type == "Rejection"
     assert "ROLE_MISMATCH" in history.note
 
+
 def test_reject_candidate_with_job_id(db_session):
     """Test reject_candidate with job_id."""
     candidate = _seed_candidate(db_session)
@@ -159,6 +179,7 @@ def test_reject_candidate_with_job_id(db_session):
 
     assert rejection.job_id == "JOB-123"
 
+
 def test_reject_candidate_not_found_raises_error(db_session):
     """Test that rejecting non-existent candidate raises error."""
     with pytest.raises(CandidateNotFoundError):
@@ -167,6 +188,7 @@ def test_reject_candidate_not_found_raises_error(db_session):
             candidate_id="C-NONEXISTENT",
             rejection_reason="UNKNOWN",
         )
+
 
 def test_reject_candidate_records_rejected_by_user(db_session):
     """Test that rejection records who performed the action."""
@@ -182,6 +204,7 @@ def test_reject_candidate_records_rejected_by_user(db_session):
     )
 
     assert rejection.rejected_by_user_id == user.UserID
+
 
 # ---------------------------------------------------------------------------
 # Test send_rejection_email()
@@ -209,6 +232,7 @@ def test_send_rejection_email_updates_record(db_session):
     assert updated.email_sent == True
     assert updated.email_sent_at is not None
 
+
 def test_send_rejection_email_not_found_raises_error(db_session):
     """Test that sending email for non-existent rejection raises error."""
     with pytest.raises(CandidateRejectionError):
@@ -216,6 +240,7 @@ def test_send_rejection_email_not_found_raises_error(db_session):
             db_session,
             rejection_id=9999,
         )
+
 
 def test_reject_candidate_with_email(db_session):
     """Test reject_candidate with send_email=True."""
@@ -231,6 +256,7 @@ def test_reject_candidate_with_email(db_session):
     # Email sending may fail if EmailService not fully set up, but flag should update
     # This test verifies the flow works (mocking handled by test environment)
     assert rejection.id is not None
+
 
 # ---------------------------------------------------------------------------
 # Test archive_candidate()
@@ -256,6 +282,7 @@ def test_archive_candidate_marks_as_archived(db_session):
     assert archived.rejection_status == "ARCHIVED"
     assert archived.archived_at is not None
 
+
 def test_archive_candidate_records_who_archived(db_session):
     """Test that archive_candidate records who performed action."""
     candidate = _seed_candidate(db_session)
@@ -275,6 +302,7 @@ def test_archive_candidate_records_who_archived(db_session):
     )
 
     assert archived.archived_by_user_id == user.UserID
+
 
 def test_archive_candidate_creates_history(db_session):
     """Test that archive_candidate creates history entry."""
@@ -301,6 +329,7 @@ def test_archive_candidate_creates_history(db_session):
 
     assert history is not None
 
+
 def test_archive_candidate_appends_to_note(db_session):
     """Test that archive_candidate appends to rejection note."""
     candidate = _seed_candidate(db_session)
@@ -322,6 +351,7 @@ def test_archive_candidate_appends_to_note(db_session):
     assert "Initial note" in archived.rejection_note
     assert "Archive note here" in archived.rejection_note
 
+
 def test_archive_candidate_no_active_rejection_raises_error(db_session):
     """Test that archiving non-rejected candidate raises error."""
     candidate = _seed_candidate(db_session)
@@ -331,6 +361,7 @@ def test_archive_candidate_no_active_rejection_raises_error(db_session):
             db_session,
             candidate_id=candidate.candidateID,
         )
+
 
 # ---------------------------------------------------------------------------
 # Test Rejection Reasons
@@ -345,6 +376,7 @@ def test_get_rejection_reasons_returns_list(db_session):
     assert len(reasons) > 0
     assert any(r.reason_code == "LACK_OF_EXPERIENCE" for r in reasons)
     assert any(r.reason_code == "FAILED_INTERVIEW" for r in reasons)
+
 
 def test_get_rejection_reasons_filters_active(db_session):
     """Test that get_rejection_reasons filters by active status."""
@@ -363,6 +395,7 @@ def test_get_rejection_reasons_filters_active(db_session):
         active_reasons = get_rejection_reasons(db_session, active_only=True)
         assert all(r.is_active for r in active_reasons)
 
+
 def test_create_default_rejection_reasons_idempotent(db_session):
     """Test that creating default reasons twice doesn't create duplicates."""
     create_default_rejection_reasons(db_session)
@@ -372,6 +405,7 @@ def test_create_default_rejection_reasons_idempotent(db_session):
     count_second = db_session.query(CandidateRejectionReason).count()
 
     assert count_first == count_second
+
 
 # ---------------------------------------------------------------------------
 # Test Candidate Rejection Status Queries
@@ -389,6 +423,7 @@ def test_get_candidate_rejection_status_not_rejected(db_session):
     assert is_rejected == False
     assert latest is None
     assert len(all_rejections) == 0
+
 
 def test_get_candidate_rejection_status_rejected(db_session):
     """Test rejection status for rejected candidate."""
@@ -409,6 +444,7 @@ def test_get_candidate_rejection_status_rejected(db_session):
     assert is_rejected == True
     assert latest.id == rejection.id
     assert len(all_rejections) == 1
+
 
 def test_get_candidate_rejection_status_archived(db_session):
     """Test rejection status when archived."""
@@ -437,6 +473,7 @@ def test_get_candidate_rejection_status_archived(db_session):
     # But all_rejections should still include the archived one
     assert len(all_rejections) == 1
     assert all_rejections[0].rejection_status == "ARCHIVED"
+
 
 def test_get_candidate_rejection_status_multiple_rejections(db_session):
     """Test rejection status with multiple rejections."""
@@ -471,6 +508,7 @@ def test_get_candidate_rejection_status_multiple_rejections(db_session):
     assert latest.id == rejection2.id
     assert len(all_rejections) == 2
 
+
 # ---------------------------------------------------------------------------
 # Test Tenant Isolation
 # ---------------------------------------------------------------------------
@@ -503,6 +541,7 @@ def test_reject_candidate_tenant_isolation(db_session):
             send_email=False,
         )
 
+
 # ---------------------------------------------------------------------------
 # Test Error Handling
 # ---------------------------------------------------------------------------
@@ -521,6 +560,7 @@ def test_reject_candidate_with_none_tenant_defaults(db_session):
 
     assert rejection.tenant_id == 1
 
+
 def test_reject_candidate_timestamps_set(db_session):
     """Test that rejection timestamps are set correctly."""
     candidate = _seed_candidate(db_session)
@@ -536,6 +576,7 @@ def test_reject_candidate_timestamps_set(db_session):
     after = datetime.utcnow()
 
     assert before <= rejection.rejected_at <= after
+
 
 # ---------------------------------------------------------------------------
 # Integration Tests

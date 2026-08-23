@@ -79,35 +79,3 @@ export const sendPortalReply = (token, conversationId, messageBody) =>
 // on a short interval for messages newer than after_id.
 export const pollPortalMessages = (token, conversationId, afterId) =>
   portalRequest(`/portal/conversations/${conversationId}/messages/poll?after_id=${afterId}`, token);
-
-// S-089 (HRMS-P109): Candidate Portal — Offer Viewer
-export const getPortalOffers = (token) => portalRequest("/portal/offers", token);
-
-// S-090 (HRMS-P110): Candidate Portal — Document Upload
-export const getPortalDocuments = (token) => portalRequest("/portal/documents", token);
-
-export const uploadPortalDocument = async (token, file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch(`${getApiBaseUrl()}/portal/documents/upload`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-
-  let data = null;
-  try {
-    data = await response.json();
-  } catch (_) {
-    data = null;
-  }
-
-  if (!response.ok) {
-    const error = new Error(data?.message || "Upload failed");
-    error.status = response.status;
-    throw error;
-  }
-
-  return data;
-};

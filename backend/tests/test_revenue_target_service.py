@@ -5,8 +5,10 @@ persistent deficit; a positive year pays that deficit down first, and
 only the leftover counts as that year's own surplus -- never banked
 forward as credit.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime
 
 import pytest
@@ -25,9 +27,13 @@ from app.services.revenue_target_service import (
     set_bu_revenue_target, set_partner_goal, status_band,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -35,6 +41,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 def _make_invoice(db, client, amount_usd_cents, year):
     project = Project(client_id=client.id, name=f"{client.company_name} Engagement", status="ACTIVE", billing_type="TIME_AND_MATERIALS")
@@ -49,11 +56,13 @@ def _make_invoice(db, client, amount_usd_cents, year):
     db.commit()
     return invoice
 
+
 def test_status_band_thresholds():
     assert status_band(96, 100) == "ON_TRACK"
     assert status_band(85, 100) == "AT_RISK"
     assert status_band(50, 100) == "BEHIND"
     assert status_band(0, 0) == "NO_TARGET"
+
 
 def test_bu_target_vs_actual(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -75,6 +84,7 @@ def test_bu_target_vs_actual(db_session):
     assert result["actual_usd_cents"] == 900000
     assert result["status"] == "AT_RISK"  # 90% -- below the 95% ON_TRACK threshold
 
+
 def test_bu_target_is_append_only_most_recent_wins(db_session):
     axion = BusinessUnit(name="Axion")
     db_session.add(axion)
@@ -85,6 +95,7 @@ def test_bu_target_is_append_only_most_recent_wins(db_session):
 
     result = get_bu_target_vs_actual(db_session, axion.id, "ANNUAL", 2026)
     assert result["target_amount_usd_cents"] == 1500000  # most recent, old row still exists in history
+
 
 def test_partner_goal_requires_ceo(db_session):
     troy = Users(UserID="troy", UserRole="Partner", UserEmail="troy@blitzenx.com", UserPassword="h")
@@ -97,6 +108,7 @@ def test_partner_goal_requires_ceo(db_session):
             target_amount_usd_cents=2000000, created_by_user=troy,
         )
 
+
 def test_partner_goal_ceo_can_set(db_session):
     avinash = Users(UserID="avinash", UserRole="Super User", UserEmail="avinash@blitzenx.com", UserPassword="h")
     db_session.add(avinash)
@@ -108,6 +120,7 @@ def test_partner_goal_ceo_can_set(db_session):
     )
     assert goal.created_by == "avinash"
     assert goal.partner_user_id == "troy"
+
 
 def test_fy_carry_forward_deficit_persists_and_gets_paid_down(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -144,6 +157,7 @@ def test_fy_carry_forward_deficit_persists_and_gets_paid_down(db_session):
     assert position["years"][1]["current_fy_surplus_usd_cents"] == 0  # fully absorbed by paydown
 
     assert position["cumulative_deficit_usd_cents"] == 100000
+
 
 def test_fy_surplus_shown_once_deficit_fully_paid(db_session):
     tenant = Tenant(name="BlitzenX")

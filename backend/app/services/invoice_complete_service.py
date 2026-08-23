@@ -6,9 +6,9 @@ import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models.invoice import Invoice, INVOICE_STATUSES
+from app.models.invoice import Invoice, InvoiceStatus
 from app.models.timesheet import Timesheet
-from app.models.employee_allocation import EmployeeAllocation
+from app.models.allocation import EmployeeAllocation
 from app.models.client import Client
 from app.models.project import Project
 

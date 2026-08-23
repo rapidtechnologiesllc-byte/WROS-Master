@@ -19,15 +19,18 @@ from app.models import (
 )
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 
+
 @pytest.fixture
 def hm_service():
     """Create service instance for testing"""
     return HiringManagerValidationService()
 
+
 @pytest.fixture
 def mock_db():
     """Create mock database session"""
     return Mock(spec=Session)
+
 
 @pytest.fixture
 def sample_job():
@@ -41,6 +44,7 @@ def sample_job():
         auto_schedule_after_approval=True
     )
 
+
 @pytest.fixture
 def sample_candidate():
     """Create sample candidate for testing"""
@@ -52,6 +56,7 @@ def sample_candidate():
         phone="+1234567890"
     )
 
+
 @pytest.fixture
 def sample_hiring_manager():
     """Create sample hiring manager user"""
@@ -60,6 +65,7 @@ def sample_hiring_manager():
         user_email="manager@example.com",
         user_name="Manager Name"
     )
+
 
 class TestCreateValidationQuestions:
     """Tests for create_validation_questions method"""
@@ -87,6 +93,7 @@ class TestCreateValidationQuestions:
                 "required": True,
                 "determine_flow": True
             }
+        ]
 
         mock_db.query.return_value.filter.return_value.first.return_value = sample_job
 
@@ -142,6 +149,7 @@ class TestCreateValidationQuestions:
         questions = [
             {"question_id": f"q_{i:03d}", "question_text": f"Question {i}"}
             for i in range(11)
+        ]
 
         with pytest.raises(ValueError, match="Maximum 10 questions allowed"):
             hm_service.create_validation_questions(
@@ -198,6 +206,7 @@ class TestCreateValidationQuestions:
 
         assert result["auto_schedule_after_approval"] is False
 
+
 class TestSendToHM:
     """Tests for send_to_hm method"""
 
@@ -210,6 +219,7 @@ class TestSendToHM:
             sample_candidate,  # Second call for candidate
             sample_hiring_manager,  # Third call for HM
             None  # Fourth call for existing validation
+        ]
         mock_db.query.return_value = query_mock
 
         # Execute
@@ -272,6 +282,7 @@ class TestSendToHM:
         query_mock.filter.return_value.first.side_effect = [
             sample_job,  # Job found
             None  # Candidate not found
+        ]
         mock_db.query.return_value = query_mock
 
         with pytest.raises(ValueError, match="Candidate .* not found"):
@@ -293,6 +304,7 @@ class TestSendToHM:
             sample_job,  # Job found
             sample_candidate,  # Candidate found
             None  # HM not found
+        ]
         mock_db.query.return_value = query_mock
 
         with pytest.raises(ValueError, match="Hiring manager .* not found"):
@@ -323,6 +335,7 @@ class TestSendToHM:
             sample_candidate,  # Candidate found
             sample_hiring_manager,  # HM found
             existing_validation  # Existing validation found
+        ]
         mock_db.query.return_value = query_mock
 
         result = hm_service.send_to_hm(
@@ -335,6 +348,7 @@ class TestSendToHM:
 
         assert result["status"] == "already_exists"
         assert result["validation_id"] == "existing_validation_id"
+
 
 class TestRecordHMResponse:
     """Tests for record_hm_response method"""
@@ -516,6 +530,7 @@ class TestRecordHMResponse:
 
         assert result["response_time_hours"] >= 2
 
+
 class TestDetermineDecision:
     """Tests for decision determination logic"""
 
@@ -603,6 +618,7 @@ class TestDetermineDecision:
         assert result["status"] == HMValidationStatus.MAYBE
         assert result["next_step"] == "escalate_for_review"
 
+
 class TestIntegrationScenarios:
     """Integration tests for complete workflows"""
 
@@ -612,6 +628,7 @@ class TestIntegrationScenarios:
         questions = [
             {"question_id": "q_001", "question_text": "Experience match?"},
             {"question_id": "q_004", "question_text": "Move forward?", "determine_flow": True}
+        ]
 
         query_mock = Mock()
         query_mock.filter.return_value.first.return_value = sample_job
@@ -636,6 +653,7 @@ class TestIntegrationScenarios:
             sample_candidate,
             sample_hiring_manager,
             None
+        ]
 
         send_result = hm_service.send_to_hm(
             db=mock_db,

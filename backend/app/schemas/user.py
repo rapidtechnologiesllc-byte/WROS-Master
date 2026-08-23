@@ -481,6 +481,23 @@ class OfferLetterResponse(BaseModel):
     candidate_signature_path: str | None = None
     signed_offer_path: str | None = None
 
+class CreateUserWithRolesRequest(BaseModel):
+    user_name: str
+    user_email: str
+    user_password: str
+    job_title: Optional[str] = None
+    partner_id: Optional[int] = None
+    business_unit_id: Optional[int] = None
+    role_ids: List[int]
+
+class UpdateUserWithRolesRequest(BaseModel):
+    user_name: Optional[str] = None
+    job_title: Optional[str] = None
+    partner_id: Optional[int] = None
+    business_unit_id: Optional[int] = None
+    role_ids: Optional[List[int]] = None
+    assigned_at: Optional[str] = None
+
 class OfferAcceptanceRequest(BaseModel):
     offer_id: int
     action: str  # "accept" or "reject"

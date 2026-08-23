@@ -8,8 +8,10 @@ HRMS-P811 BR-0811-01), the FT-only gate (HRMS-P806) and dedup
 (HRMS-P806/P811, SUSPENSION_PENDING requiring explicit Admin
 confirmation, never automatic).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -49,9 +51,19 @@ from app.services.sub_vendor_submission_service import (
     SubmissionValidationError,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Candidate.__table__, Users.__table__,
+        SubVendorAccount.__table__, SubVendorUser.__table__, SubVendorRequest.__table__,
+        SubVendorSubmission.__table__, SubVendorViolation.__table__, SubVendorDedupRejection.__table__,
+        ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -59,6 +71,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -88,6 +101,7 @@ def fixtures(db_session):
 
     return tenant, client, demand, account, request
 
+
 # ---------------------------------------------------------------------------
 # HRMS-P801: registration & approval
 # ---------------------------------------------------------------------------
@@ -99,9 +113,11 @@ def test_new_account_starts_pending_approval(db_session, fixtures):
     assert fresh.status == "PENDING_APPROVAL"
     assert is_approved_for_submission(fresh) is False
 
+
 def test_approved_account_can_submit(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     assert is_approved_for_submission(account) is True
+
 
 def test_request_requires_approved_vendor(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
@@ -110,6 +126,7 @@ def test_request_requires_approved_vendor(db_session, fixtures):
 
     with pytest.raises(SubVendorNotApproved):
         create_sub_vendor_request(db_session, tenant_id=tenant.id, demand=demand, sub_vendor=unapproved, assigned_by="U-RM")
+
 
 # ---------------------------------------------------------------------------
 # HRMS-P811 BR-0811-01: deadline auto-close
@@ -126,6 +143,7 @@ def test_close_expired_requests(db_session, fixtures):
     assert closed == 1
     assert request.status == "CLOSED"
 
+
 def test_close_expired_requests_ignores_future_deadline(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     request.deadline = datetime.utcnow() + timedelta(days=1)
@@ -134,6 +152,7 @@ def test_close_expired_requests_ignores_future_deadline(db_session, fixtures):
     closed = close_expired_requests(db_session)
     assert closed == 0
     assert request.status == "OPEN"
+
 
 # ---------------------------------------------------------------------------
 # HRMS-P806: FT-only gate
@@ -153,6 +172,7 @@ def test_submission_rejected_for_c2c(db_session, fixtures):
     assert len(violations) == 1
     assert violations[0].violation_type == "C2C_NOT_ACCEPTED"
 
+
 def test_submission_accepted_gate_passes_for_w2(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     submission = submit_candidate(
@@ -162,6 +182,7 @@ def test_submission_accepted_gate_passes_for_w2(db_session, fixtures):
     )
     db_session.commit()
     assert submission.status == "PENDING_REVIEW"
+
 
 def test_submission_blocked_for_unapproved_vendor(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
@@ -173,6 +194,7 @@ def test_submission_blocked_for_unapproved_vendor(db_session, fixtures):
             db_session, request=request, sub_vendor=unapproved,
             candidate_name="X", candidate_email="x@x.com", employment_type="W2_FULLTIME",
         )
+
 
 # ---------------------------------------------------------------------------
 # HRMS-P807: dedup, tracked separately from FT violations
@@ -206,6 +228,7 @@ def test_submission_rejected_on_email_dedup(db_session, fixtures):
     violations = db_session.query(SubVendorViolation).filter(SubVendorViolation.sub_vendor_id == account.id).count()
     assert violations == 0
 
+
 # ---------------------------------------------------------------------------
 # HRMS-P808: recruiter review, always through createCandidateSafe()
 # ---------------------------------------------------------------------------
@@ -229,6 +252,7 @@ def test_accept_submission_creates_real_candidate_with_source_tag(db_session, fi
     assert submission.status == "ACCEPTED"
     assert submission.created_candidate_id == candidate.candidateID
 
+
 def test_cannot_accept_already_reviewed_submission(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     submission = submit_candidate(
@@ -242,6 +266,7 @@ def test_cannot_accept_already_reviewed_submission(db_session, fixtures):
     with pytest.raises(InvalidSubmissionReviewTransition):
         accept_submission(db_session, submission)
 
+
 def test_reject_requires_min_20_char_feedback(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     submission = submit_candidate(
@@ -252,6 +277,7 @@ def test_reject_requires_min_20_char_feedback(db_session, fixtures):
 
     with pytest.raises(SubmissionValidationError):
         reject_submission(db_session, submission, feedback_note="too short")
+
 
 def test_reject_success(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
@@ -265,6 +291,7 @@ def test_reject_success(db_session, fixtures):
     db_session.commit()
     assert submission.status == "REJECTED"
 
+
 def test_request_more_info(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     submission = submit_candidate(
@@ -277,6 +304,7 @@ def test_request_more_info(db_session, fixtures):
     db_session.commit()
     assert submission.status == "MORE_INFO_REQUESTED"
 
+
 # ---------------------------------------------------------------------------
 # HRMS-P806/P811: 3/5-strike compliance escalation
 # ---------------------------------------------------------------------------
@@ -288,6 +316,7 @@ def _log_c2c_violations(db, request, account, count):
             candidate_name=f"C2C {i}", candidate_email=f"c2c{i}@example.com", employment_type="C2C",
         )
 
+
 def test_three_violations_trigger_under_review(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     _log_c2c_violations(db_session, request, account, 3)
@@ -298,6 +327,7 @@ def test_three_violations_trigger_under_review(db_session, fixtures):
 
     assert result == "UNDER_REVIEW"
     assert account.compliance_status == "UNDER_REVIEW"
+
 
 def test_five_violations_trigger_suspension_pending_not_suspended(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
@@ -311,10 +341,12 @@ def test_five_violations_trigger_suspension_pending_not_suspended(db_session, fi
     assert account.compliance_status == "SUSPENSION_PENDING"
     assert account.compliance_status != "SUSPENDED"  # BR-0811-02: not automatic
 
+
 def test_confirm_suspension_requires_pending_state(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     with pytest.raises(InvalidSubmissionReviewTransition):
         confirm_suspension(db_session, account)
+
 
 def test_confirm_suspension_transitions_to_suspended(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
@@ -328,6 +360,7 @@ def test_confirm_suspension_transitions_to_suspended(db_session, fixtures):
 
     assert account.compliance_status == "SUSPENDED"
 
+
 def test_under_two_violations_no_escalation(db_session, fixtures):
     tenant, client, demand, account, request = fixtures
     _log_c2c_violations(db_session, request, account, 2)
@@ -336,6 +369,7 @@ def test_under_two_violations_no_escalation(db_session, fixtures):
     result = evaluate_compliance_escalation(db_session, account)
     assert result is None
     assert account.compliance_status == "GOOD_STANDING"
+
 
 def test_suspended_vendor_cannot_submit(db_session, fixtures):
     tenant, client, demand, account, request = fixtures

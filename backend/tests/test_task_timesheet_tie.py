@@ -4,9 +4,11 @@ Task<->Timesheet tie backlog item, 2026-08-05
 Timesheet -- internal Task work (no client allocation) uses task_id
 instead. Real architecture decision from Avinash: nullable
 allocation_id + task_id, ck_timesheet_allocation_or_task enforces
+exactly one of the two is always set. Throwaway SQLite -- never the
 real database.
 """
 import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -29,9 +31,17 @@ from app.services.timesheet_service import (
     create_weekly_draft_for_task,
 )
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, Employee.__table__,
+        EmployeeAllocation.__table__, Task.__table__,
+        Timesheet.__table__, TimesheetEntry.__table__, TimesheetAnomalyFlag.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -40,8 +50,10 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+
 def _monday_of(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
 
 def _make_employee(db, tenant_id, user_id="U-EMP", wros_user_id="U-EMP"):
     if wros_user_id:
@@ -55,11 +67,13 @@ def _make_employee(db, tenant_id, user_id="U-EMP", wros_user_id="U-EMP"):
     db.commit()
     return employee
 
+
 def _make_task(db, assigned_to_user_id="U-EMP"):
     task = Task(title="Submit Q3 compliance report", priority="MEDIUM", assigned_to_user_id=assigned_to_user_id)
     db.add(task)
     db.commit()
     return task
+
 
 def test_create_weekly_draft_for_task_sets_task_id_not_allocation_id(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -74,6 +88,7 @@ def test_create_weekly_draft_for_task_sets_task_id_not_allocation_id(db_session)
 
     assert ts.task_id == task.id
     assert ts.allocation_id is None
+
 
 def test_create_weekly_draft_for_task_is_idempotent(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -91,6 +106,7 @@ def test_create_weekly_draft_for_task_is_idempotent(db_session):
     assert first.id == second.id
     assert db_session.query(Timesheet).count() == 1
 
+
 def test_create_weekly_draft_for_task_rejects_non_monday(db_session):
     tenant = Tenant(name="BlitzenX")
     db_session.add(tenant)
@@ -101,6 +117,7 @@ def test_create_weekly_draft_for_task_rejects_non_monday(db_session):
     not_monday = date.today() if date.today().weekday() != 0 else date.today() + timedelta(days=1)
     with pytest.raises(InvalidTimesheetEntry):
         create_weekly_draft_for_task(db_session, task, employee.id, not_monday, tenant_id=tenant.id)
+
 
 def test_timesheet_requires_allocation_or_task(db_session):
     """ck_timesheet_allocation_or_task -- a real structural invariant,
@@ -118,6 +135,7 @@ def test_timesheet_requires_allocation_or_task(db_session):
     db_session.add(orphan)
     with pytest.raises(IntegrityError):
         db_session.commit()
+
 
 def test_scan_flags_unlinked_task_when_task_deleted(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -137,6 +155,7 @@ def test_scan_flags_unlinked_task_when_task_deleted(db_session):
     db_session.commit()
     assert any(f.anomaly_type == "UNLINKED_TASK" for f in flags)
 
+
 def test_scan_flags_unlinked_task_when_assigned_to_someone_else(db_session):
     tenant = Tenant(name="BlitzenX")
     db_session.add(tenant)
@@ -152,6 +171,7 @@ def test_scan_flags_unlinked_task_when_assigned_to_someone_else(db_session):
     db_session.commit()
     assert any(f.anomaly_type == "UNLINKED_TASK" for f in flags)
 
+
 def test_scan_does_not_flag_correctly_assigned_task(db_session):
     tenant = Tenant(name="BlitzenX")
     db_session.add(tenant)
@@ -166,6 +186,7 @@ def test_scan_does_not_flag_correctly_assigned_task(db_session):
     flags = scan_timesheet_anomalies(db_session, ts)
     db_session.commit()
     assert not any(f.anomaly_type == "UNLINKED_TASK" for f in flags)
+
 
 def test_scan_never_flags_unlinked_task_on_allocation_backed_timesheet(db_session):
     """The check is entirely out of scope for allocation-backed

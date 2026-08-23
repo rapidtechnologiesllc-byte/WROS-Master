@@ -1,7 +1,7 @@
 """Add WorkOrder model for PO/SOW revenue linkage
 
 Revision ID: 2026_08_12_work_orders
-Revises: 001_slm_tables
+Revises: <previous_revision>
 Create Date: 2026-08-12 00:00:00.000000
 
 FEATURE-2026-08-12T5: Work Order / PO / Engagement Records
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '2026_08_12_work_orders'
-down_revision = '001_slm_tables'
+down_revision = None
 branch_labels = None
 depends_on = None
 

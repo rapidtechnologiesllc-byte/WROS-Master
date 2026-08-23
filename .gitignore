@@ -1,63 +1,45 @@
-# Dependencies
-node_modules/
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-.Python
-env/
-venv/
+# Backend
+backend/.env
+backend/__pycache__/
+backend/.pytest_cache/
+backend/venv/
+backend/.venv/
+backend/*.pyc
+backend/dist/
+backend/build/
 
-# Build outputs
-/frontend/build/
-/frontend/dist/
-/career/build/
-/career/dist/
-*.egg
+# Frontend
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.next/
 
-# Environment
-.env
-.env.local
-.env.production
-.env.*.local
+# Careers
+careers/.env
+careers/__pycache__/
+careers/.pytest_cache/
+careers/venv/
+careers/.venv/
+careers/*.pyc
 
-# IDE
+# System
+.DS_Store
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
+.env
 
 # Logs
-logs/
 *.log
-npm-debug.log*
+/tmp/
 
-# Database
-*.sqlite3
-*.db
-local_dev.db
-
-# Temp
-.tmp/
-temp/
-*.temp
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Coverage
-htmlcov/
-.coverage
-.pytest_cache/
-
-# Node
-dist/
-.cache/
-
-# Python
-*.egg-info/
-dist/
-build/
+# Backups
+/backups/
+*.backup
+*.bak

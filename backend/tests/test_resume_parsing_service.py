@@ -11,10 +11,12 @@ cascade target -- no total_experience_years/current_employer column on
 Candidate. BR-01's overlap-merge is tested against this story's own
 worked example (TC-002: 42 months / 3.5 years).
 
+Throwaway SQLite -- never the real database.
 """
 import io
 import json
 import os
+import tempfile
 from datetime import date
 
 import pytest
@@ -32,8 +34,17 @@ from app.models.user import Jobs, Users
 
 import app.services.resume_parsing_service as svc
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        CandidateResumeParsed.__table__, CandidateAIAssignment.__table__, Notification.__table__,
+        CandidateSkillTag.__table__, Jobs.__table__, CandidateJobApplication.__table__, CandidateJobScore.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -41,6 +52,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -52,6 +64,7 @@ def seeded(db_session):
     db_session.add(conv)
     db_session.commit()
     return candidate, conv
+
 
 def _make_real_pdf_bytes(text_lines):
     from pypdf import PdfWriter
@@ -91,6 +104,7 @@ def _make_real_pdf_bytes(text_lines):
     writer.write(buf)
     return buf.getvalue()
 
+
 def _make_real_docx_bytes(text_lines):
     import docx
     document = docx.Document()
@@ -100,38 +114,47 @@ def _make_real_docx_bytes(text_lines):
     document.save(buf)
     return buf.getvalue()
 
+
 RESUME_LINES = [
     "Priya Sharma",
     "Senior Software Engineer with extensive backend experience.",
     "Worked at multiple companies building scalable systems.",
     "Email priya@example.com Phone +919876543210",
     "Skilled in Python, SQL, and cloud infrastructure design work.",
+]
+
 
 def test_extract_text_from_real_pdf():
     pdf_bytes = _make_real_pdf_bytes(RESUME_LINES)
     text = svc.extract_text_from_pdf(pdf_bytes)
     assert "Priya Sharma" in text
 
+
 def test_extract_text_from_real_docx():
     docx_bytes = _make_real_docx_bytes(RESUME_LINES)
     text = svc.extract_text_from_docx(docx_bytes)
     assert "Priya Sharma" in text
+
 
 def test_extract_raw_text_too_short_raises():
     docx_bytes = _make_real_docx_bytes(["Hi"])
     with pytest.raises(svc.TextExtractionFailed):
         svc.extract_raw_text(docx_bytes, ".docx")
 
+
 def test_extract_raw_text_unsupported_extension_raises():
     with pytest.raises(svc.TextExtractionFailed):
         svc.extract_raw_text(b"whatever", ".txt")
+
 
 # ── BR-01/BR-02: overlap calculation ────────────────────────────────
 
 def test_no_overlap_simple_sum():
     work_history = [
         {"start_date": "2018-01", "end_date": "2019-12"},  # 24 months inclusive
+    ]
     assert svc.calculate_total_experience_months(work_history) == 24
+
 
 def test_overlapping_roles_counted_once_tc002():
     """This story's own worked example: Company A Jan2020-Dec2022,
@@ -140,9 +163,11 @@ def test_overlapping_roles_counted_once_tc002():
     work_history = [
         {"employer": "Company A", "start_date": "2020-01", "end_date": "2022-12"},
         {"employer": "Company B", "start_date": "2021-06", "end_date": "2023-06"},
+    ]
     months = svc.calculate_total_experience_months(work_history)
     assert months == 42
     assert round(months / 12.0, 1) == 3.5
+
 
 def test_current_role_uses_today_as_end_date():
     work_history = [{"start_date": "2020-01", "end_date": None}]
@@ -151,14 +176,18 @@ def test_current_role_uses_today_as_end_date():
     expected = (today.year - 2020) * 12 + (today.month - 1) + 1
     assert months == expected
 
+
 def test_malformed_entry_skipped_not_crashed():
     work_history = [
         {"start_date": "2020-01", "end_date": "2019-01"},  # end before start -- bad data
         {"start_date": "2021-01", "end_date": "2021-12"},  # valid, 12 months
+    ]
     assert svc.calculate_total_experience_months(work_history) == 12
+
 
 def test_empty_work_history_returns_zero():
     assert svc.calculate_total_experience_months([]) == 0
+
 
 # ── parse_resume() integration ──────────────────────────────────────
 
@@ -175,6 +204,7 @@ def _valid_llm_response():
         "certifications": [],
         "languages": ["English"],
     })
+
 
 def test_parse_resume_success_updates_candidate_resume_parsed_and_candidate(db_session, seeded):
     candidate, conv = seeded
@@ -203,6 +233,7 @@ def test_parse_resume_success_updates_candidate_resume_parsed_and_candidate(db_s
     assert events[0].event_data["total_experience_months"] == 42
     assert events[0].event_data["skills_count"] == 3
 
+
 def test_parse_resume_second_parse_updates_existing_row_not_duplicate(db_session, seeded):
     candidate, conv = seeded
     docx_bytes = _make_real_docx_bytes(RESUME_LINES)
@@ -212,6 +243,7 @@ def test_parse_resume_second_parse_updates_existing_row_not_duplicate(db_session
 
     rows = db_session.query(CandidateResumeParsed).filter(CandidateResumeParsed.candidate_id == "C-1").all()
     assert len(rows) == 1  # UNIQUE candidate_id -- upserted, not duplicated
+
 
 def test_parse_resume_text_extraction_failure(db_session, seeded):
     candidate, conv = seeded
@@ -225,6 +257,7 @@ def test_parse_resume_text_extraction_failure(db_session, seeded):
 
     db_session.refresh(candidate)
     assert candidate.total_experience_months is None  # profile untouched
+
 
 def test_parse_resume_llm_failure_retries_once_then_notifies_recruiter(db_session, seeded):
     candidate, conv = seeded

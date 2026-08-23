@@ -22,6 +22,7 @@ from app.models.onboarding_workflow import OnboardingWorkflow
 
 client = TestClient(app)
 
+
 class TestStartOnboardingEndpoint:
     """Test POST /onboarding-workflow/start endpoint."""
 
@@ -74,6 +75,7 @@ class TestStartOnboardingEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
+
 
 class TestAssignBuddyEndpoint:
     """Test POST /onboarding-workflow/assign-buddy endpoint."""
@@ -131,6 +133,7 @@ class TestAssignBuddyEndpoint:
         )
 
         assert response.status_code == 200
+
 
 class TestSendWelcomeKitEndpoint:
     """Test POST /onboarding-workflow/send-welcome-kit endpoint."""
@@ -194,6 +197,7 @@ class TestSendWelcomeKitEndpoint:
         )
 
         assert response.status_code == 400
+
 
 class TestScheduleTrainingEndpoint:
     """Test POST /onboarding-workflow/schedule-training endpoint."""
@@ -266,6 +270,7 @@ class TestScheduleTrainingEndpoint:
 
         assert response.status_code == 400
 
+
 class TestGetWorkflowEndpoint:
     """Test GET /onboarding-workflow/{workflow_id} endpoint."""
 
@@ -293,6 +298,7 @@ class TestGetWorkflowEndpoint:
 
         assert response.status_code == 404
 
+
 class TestGetWorkflowByEmployeeEndpoint:
     """Test GET /onboarding-workflow/employee/{employee_id} endpoint."""
 
@@ -318,6 +324,7 @@ class TestGetWorkflowByEmployeeEndpoint:
         )
 
         assert response.status_code == 404
+
 
 class TestGetWorkflowTasksEndpoint:
     """Test GET /onboarding-workflow/{workflow_id}/tasks endpoint."""
@@ -349,6 +356,7 @@ class TestGetWorkflowTasksEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert all(t["status"] == "PENDING" for t in data["tasks"])
+
 
 class TestGetWorkflowTrainingEndpoint:
     """Test GET /onboarding-workflow/{workflow_id}/training endpoint."""
@@ -382,6 +390,7 @@ class TestGetWorkflowTrainingEndpoint:
         assert data["total_sessions"] == 0
         assert len(data["training_sessions"]) == 0
 
+
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -393,6 +402,7 @@ def test_auth_headers(test_user):
         "Authorization": f"Bearer test_token",
         "X-Tenant-ID": "test_tenant",
     }
+
 
 @pytest.fixture
 def test_employee(db_session):
@@ -411,6 +421,7 @@ def test_employee(db_session):
     db_session.commit()
     return employee
 
+
 @pytest.fixture
 def test_user(db_session):
     """Create test user."""
@@ -426,6 +437,7 @@ def test_user(db_session):
     db_session.commit()
     return user
 
+
 @pytest.fixture
 def setup_workflow(db_session):
     """Fixture to setup onboarding workflow."""
@@ -439,6 +451,7 @@ def setup_workflow(db_session):
         )
         return result["workflow_id"]
     return _setup
+
 
 @pytest.fixture
 def setup_training(db_session):

@@ -6,9 +6,11 @@ been asked gets a normal login plus show_2fa_opt_in_popup=true; once
 they opt in, every future login challenges them for an emailed code.
 
 Builds a small standalone FastAPI app (auth + mfa routers only) against
+a throwaway SQLite database -- never the real one, never real .env JWT
 keys or real SMTP, same pattern as test_email_otp_login_flow.py.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -25,6 +27,7 @@ from app.models.candidate import Candidate
 from app.models.tenant import Tenant
 from app.models.user import Users
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -40,9 +43,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[Tenant.__table__, Users.__table__, Candidate.__table__])
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -87,8 +95,10 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
+
 def _login(client, email):
     return client.post("/auth/login", json={"email": email, "password": "correct-horse"})
+
 
 # ---- login-time behavior ----
 
@@ -100,12 +110,14 @@ def test_never_asked_candidate_logs_in_normally_and_gets_the_popup_flag(client):
     assert body["show_2fa_opt_in_popup"] is True
     assert body["access_token"]  # a real, full candidate token -- login is not blocked
 
+
 def test_declined_candidate_logs_in_normally_with_no_popup(client):
     resp = _login(client, "declined@example.com")
     assert resp.status_code == 200
     body = resp.json()
     assert body["candidate_otp_required"] is False
     assert body["show_2fa_opt_in_popup"] is False
+
 
 def test_opted_in_candidate_gets_a_pending_token_not_a_full_one(client):
     resp = _login(client, "opted-in@example.com")
@@ -114,6 +126,7 @@ def test_opted_in_candidate_gets_a_pending_token_not_a_full_one(client):
     assert body["candidate_otp_required"] is True
     assert body["show_2fa_opt_in_popup"] is False
     assert body["access_token"]  # pending token
+
 
 # ---- opt-in endpoint ----
 
@@ -129,12 +142,14 @@ def test_never_asked_candidate_can_opt_in(client):
     second_login = _login(client, "never-asked@example.com")
     assert second_login.json()["candidate_otp_required"] is True
 
+
 def test_opt_in_endpoint_requires_a_full_candidate_token_not_a_pending_one(client):
     login = _login(client, "opted-in@example.com")
     pending_token = login.json()["access_token"]
 
     resp = client.post("/auth/mfa/candidate/opt-in", json={"opted_in": False}, headers={"Authorization": f"Bearer {pending_token}"})
     assert resp.status_code == 403
+
 
 # ---- email verify / resend ----
 
@@ -160,12 +175,14 @@ def test_correct_code_completes_login(client):
     assert real_resp.status_code == 200
     assert real_resp.json()["id"] == "C-OPTED-IN"
 
+
 def test_wrong_code_is_rejected(client):
     login = _login(client, "opted-in@example.com")
     pending_token = login.json()["access_token"]
 
     resp = client.post("/auth/mfa/candidate/email/verify", json={"code": "000000"}, headers={"Authorization": f"Bearer {pending_token}"})
     assert resp.status_code == 401
+
 
 def test_pending_token_cannot_reach_a_normal_candidate_route(client):
     login = _login(client, "opted-in@example.com")
@@ -181,6 +198,7 @@ def test_pending_token_cannot_reach_a_normal_candidate_route(client):
     resp = client.get("/some-other-candidate-route", headers={"Authorization": f"Bearer {pending_token}"})
     assert resp.status_code == 403
 
+
 def test_a_full_candidate_token_cannot_be_used_as_a_pending_token(client):
     """The inverse of the check above -- a normal, already-verified
     candidate session must not be accepted by the OTP-pending-only
@@ -190,6 +208,7 @@ def test_a_full_candidate_token_cannot_be_used_as_a_pending_token(client):
 
     resp = client.post("/auth/mfa/candidate/email/verify", json={"code": "111222"}, headers={"Authorization": f"Bearer {full_token}"})
     assert resp.status_code == 403
+
 
 def test_resend_issues_a_new_code_that_works(client):
     login = _login(client, "opted-in@example.com")
@@ -206,6 +225,7 @@ def test_resend_issues_a_new_code_that_works(client):
     fresh = client.post("/auth/mfa/candidate/email/verify", json={"code": "333444"}, headers=headers)
     assert fresh.status_code == 200
 
+
 def test_code_is_single_use(client):
     login = _login(client, "opted-in@example.com")
     pending_token = login.json()["access_token"]
@@ -216,6 +236,7 @@ def test_code_is_single_use(client):
 
     second = client.post("/auth/mfa/candidate/email/verify", json={"code": "111222"}, headers=headers)
     assert second.status_code == 400
+
 
 def test_expired_code_is_rejected(client):
     login = _login(client, "opted-in@example.com")
@@ -233,6 +254,7 @@ def test_expired_code_is_rejected(client):
 
     resp = client.post("/auth/mfa/candidate/email/verify", json={"code": "111222"}, headers=headers)
     assert resp.status_code == 401
+
 
 def test_internal_user_mfa_pending_token_cannot_be_used_on_candidate_endpoints(client):
     """Cross-token-type isolation: an internal-user mfa_pending token

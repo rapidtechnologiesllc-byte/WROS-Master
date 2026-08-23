@@ -11,8 +11,10 @@ BR-02 cancel-all-pending-on-reply; no formal "event bus" publish on the
 3rd follow-up (see module docstring for the cross-story ownership
 resolution with S-042).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -36,6 +38,7 @@ from app.models.user import Users
 
 import app.services.follow_up_scheduler_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     """whatsapp_routing_service.DEFAULT_WHATSAPP_NUMBER is captured once
@@ -46,6 +49,7 @@ def _fake_whatsapp_number(monkeypatch):
     needs a number to send from."""
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
+
 
 # Real 2026-08-04 reconciliation: this scheduler is now INTERVIEW-stage-
 # only (see module constant FOLLOWUP_ELIGIBLE_STAGES) -- every test
@@ -61,12 +65,23 @@ def _default_interview_stage(monkeypatch):
         lambda *a, **kw: {"current_stage": "INTERVIEW"},
     )
 
+
 # A real Monday 10am IST -- inside the business-hours-weekday window,
 # so tests aren't flaky depending on when they happen to run.
 BUSINESS_HOURS_NOW = datetime(2026, 8, 3, 4, 30, 0)  # 2026-08-03 is a Monday; 04:30 UTC = 10:00 IST
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        FollowUpSchedule.__table__, ConsentRecord.__table__, CandidateGhostingStatus.__table__,
+        CandidateJobScore.__table__, CandidateJoiningScore.__table__, Employee.__table__,
+        OfferLetter.__table__, PreboardingDocument.__table__, Submission.__table__, SubmissionInterview.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -74,6 +89,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -92,6 +108,7 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv, original
 
+
 # ── TC-001 / AC-1: schedule creation ────────────────────────────────
 
 def test_schedule_follow_up_creates_pending_record(db_session, seeded):
@@ -101,6 +118,7 @@ def test_schedule_follow_up_creates_pending_record(db_session, seeded):
     assert record.status == "PENDING"
     assert record.follow_up_number == 1
 
+
 def test_schedule_follow_up_whatsapp_defaults_to_24h(db_session, seeded):
     candidate, conv, original = seeded
     before = datetime.utcnow()
@@ -108,12 +126,14 @@ def test_schedule_follow_up_whatsapp_defaults_to_24h(db_session, seeded):
     delta = record.scheduled_at - before
     assert timedelta(hours=23, minutes=58) <= delta <= timedelta(hours=24, minutes=2)
 
+
 def test_schedule_follow_up_email_defaults_to_48h(db_session, seeded):
     candidate, conv, original = seeded
     before = datetime.utcnow()
     record = svc.schedule_follow_up(db_session, "C-1", "U-ORG", conv.id, "email", original.id, 1)
     delta = record.scheduled_at - before
     assert timedelta(hours=47, minutes=58) <= delta <= timedelta(hours=48, minutes=2)
+
 
 def test_schedule_follow_up_dedupes_existing_pending(db_session, seeded):
     candidate, conv, original = seeded
@@ -124,6 +144,7 @@ def test_schedule_follow_up_dedupes_existing_pending(db_session, seeded):
     rows = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1").all()
     assert len(rows) == 1
 
+
 # ── BR-01: max 3 follow-ups ──────────────────────────────────────────
 
 def test_schedule_follow_up_refuses_fourth(db_session, seeded):
@@ -132,11 +153,13 @@ def test_schedule_follow_up_refuses_fourth(db_session, seeded):
     assert result is None
     assert db_session.query(FollowUpSchedule).count() == 0
 
+
 # ── TC-005: SLA hours configurable via env var ──────────────────────
 
 def test_followup_hours_configurable_via_env(monkeypatch):
     monkeypatch.setattr(svc, "WHATSAPP_FOLLOWUP_HOURS", 12)
     assert svc.followup_hours_for_channel("whatsapp") == 12
+
 
 # ── TC-002 / AC-3: execution job sends a due follow-up ──────────────
 
@@ -158,6 +181,7 @@ def test_execution_job_sends_due_followup_and_marks_sent(db_session, seeded, mon
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "ai_message_sent").all()
     assert any(e.event_data.get("body") == "Just checking in!" for e in events)
 
+
 def test_execution_job_schedules_next_followup_when_under_max(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
     record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=BUSINESS_HOURS_NOW - timedelta(minutes=5), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
@@ -170,6 +194,7 @@ def test_execution_job_schedules_next_followup_when_under_max(db_session, seeded
     pending = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1", FollowUpSchedule.status == "PENDING").first()
     assert pending is not None
     assert pending.follow_up_number == 2
+
 
 # ── TC-004 / AC-5: no 4th follow-up scheduled after the 3rd ─────────
 
@@ -184,6 +209,7 @@ def test_execution_job_does_not_schedule_fourth_after_third(db_session, seeded, 
 
     remaining_pending = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1", FollowUpSchedule.status == "PENDING").count()
     assert remaining_pending == 0
+
 
 # ── TC-003 / AC-4: cancel on reply ──────────────────────────────────
 
@@ -205,10 +231,12 @@ def test_execution_job_cancels_when_candidate_already_replied(db_session, seeded
     db_session.refresh(record)
     assert record.status == "CANCELLED"
 
+
 def test_cancel_pending_follow_ups_cancels_all(db_session, seeded):
     candidate, conv, original = seeded
     db_session.add_all([
         FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() + timedelta(hours=1), status="PENDING", follow_up_number=1),
+    ])
     db_session.commit()
 
     count = svc.cancel_pending_follow_ups(db_session, "C-1", "U-ORG")
@@ -216,10 +244,12 @@ def test_cancel_pending_follow_ups_cancels_all(db_session, seeded):
     row = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1").first()
     assert row.status == "CANCELLED"
 
+
 def test_cancel_pending_follow_ups_no_pending_returns_zero(db_session, seeded):
     candidate, conv, original = seeded
     count = svc.cancel_pending_follow_ups(db_session, "C-1", "U-ORG")
     assert count == 0
+
 
 # ── AC-9: skip if recruiter owns ────────────────────────────────────
 
@@ -238,6 +268,7 @@ def test_execution_job_skips_when_recruiter_owns(db_session, seeded):
     db_session.refresh(record)
     assert record.status == "SKIPPED"
 
+
 def test_execution_job_skips_when_conversation_closed(db_session, seeded):
     candidate, conv, original = seeded
     conv.status = "closed"
@@ -249,6 +280,7 @@ def test_execution_job_skips_when_conversation_closed(db_session, seeded):
 
     result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["skipped"] == 1
+
 
 def test_execution_job_skips_when_escalated(db_session, seeded):
     candidate, conv, original = seeded
@@ -262,6 +294,7 @@ def test_execution_job_skips_when_escalated(db_session, seeded):
     result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["skipped"] == 1
 
+
 def test_execution_job_ignores_not_yet_due_followups(db_session, seeded):
     candidate, conv, original = seeded
     record = FollowUpSchedule(tenant_id="U-ORG", candidate_id="C-1", conversation_id=conv.id, channel="whatsapp", scheduled_at=datetime.utcnow() + timedelta(hours=1), status="PENDING", follow_up_number=1, triggered_by_message_id=original.id)
@@ -270,6 +303,7 @@ def test_execution_job_ignores_not_yet_due_followups(db_session, seeded):
 
     result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)
     assert result["processed"] == 0
+
 
 def test_execution_job_logs_generation_failed_on_fallback(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
@@ -282,6 +316,7 @@ def test_execution_job_logs_generation_failed_on_fallback(db_session, seeded, mo
 
     failed_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "FOLLOWUP_GENERATION_FAILED").all()
     assert len(failed_events) == 1
+
 
 def test_execution_job_never_raises_on_bad_row(db_session, seeded, monkeypatch):
     candidate, conv, original = seeded
@@ -296,6 +331,7 @@ def test_execution_job_never_raises_on_bad_row(db_session, seeded, monkeypatch):
 
     result = svc.run_follow_up_execution_job(db_session, now=BUSINESS_HOURS_NOW)  # should not raise
     assert result["skipped"] == 1
+
 
 # ── Real 2026-08-04 cadence-by-stage reconciliation ──────────────────
 
@@ -314,6 +350,7 @@ def test_execution_job_skips_non_interview_stage(db_session, seeded, monkeypatch
     assert result["skipped"] == 1
     db_session.refresh(record)
     assert record.status == "SKIPPED"
+
 
 def test_execution_job_reschedules_outside_business_hours(db_session, seeded, monkeypatch):
     """BR: 24 calendar hours, but only sent Mon-Fri 9am-9pm candidate-

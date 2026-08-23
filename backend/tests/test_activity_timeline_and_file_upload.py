@@ -8,9 +8,11 @@ auto-approves), and that a successful upload writes exactly one
 activity_timeline entry too (the two halves of this framework working
 together, not in isolation).
 
+Throwaway SQLite, real SharePoint call mocked -- never a real network
 call or the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -25,9 +27,15 @@ from app.models.user import Users
 import app.services.activity_timeline_service as timeline_svc
 import app.services.file_upload_service as upload_svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Tenant.__table__, Users.__table__, ActivityTimeline.__table__, FileUpload.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -35,6 +43,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -46,8 +55,10 @@ def seeded(db_session):
     db_session.commit()
     return tenant, user
 
+
 def _fake_sharepoint_upload(access_token, entity_type, entity_id, file_content, unique_filename):
     return {"webUrl": f"https://sharepoint.example/{entity_type}/{entity_id}/{unique_filename}"}
+
 
 # ---------------------------------------------------------------------------
 # activity_timeline_service
@@ -72,6 +83,7 @@ def test_two_unrelated_entity_types_write_to_the_same_table(db_session, seeded):
     assert project_feed["total"] == 1
     assert project_feed["entries"][0]["action"] == "MILESTONE_HIT"
 
+
 def test_timeline_newest_first_and_paginated(db_session, seeded):
     tenant, user = seeded
     for i in range(3):
@@ -85,6 +97,7 @@ def test_timeline_newest_first_and_paginated(db_session, seeded):
     assert result["total"] == 3
     assert len(result["entries"]) == 2
     assert result["entries"][0]["action"] == "EVENT_2"  # newest first
+
 
 # ---------------------------------------------------------------------------
 # file_upload_service
@@ -106,6 +119,7 @@ def test_successful_upload_is_clean_and_accessible(db_session, seeded, monkeypat
     url = upload_svc.get_file_access_url(db_session, file_upload.id)
     assert url is not None and "invoice" not in url  # unique filename, not the raw original name
 
+
 def test_pending_file_never_issues_access_url(db_session, seeded, monkeypatch):
     """AC-2 -- no scan result at all (unconfigured scanner) must never
     unlock access."""
@@ -122,6 +136,7 @@ def test_pending_file_never_issues_access_url(db_session, seeded, monkeypatch):
 
     assert file_upload.scan_status == "QUARANTINED"
     assert upload_svc.get_file_access_url(db_session, file_upload.id) is None
+
 
 def test_scan_service_failure_quarantines_not_auto_approves(db_session, seeded, monkeypatch):
     """AC-3."""
@@ -141,6 +156,7 @@ def test_scan_service_failure_quarantines_not_auto_approves(db_session, seeded, 
 
     assert file_upload.scan_status == "QUARANTINED"
 
+
 def test_upload_writes_exactly_one_activity_timeline_entry(db_session, seeded, monkeypatch):
     tenant, user = seeded
     monkeypatch.setattr(upload_svc, "_upload_to_sharepoint", _fake_sharepoint_upload)
@@ -157,6 +173,7 @@ def test_upload_writes_exactly_one_activity_timeline_entry(db_session, seeded, m
         ActivityTimeline.entity_type == "candidate", ActivityTimeline.entity_id == "C-1",
     ).count()
     assert after == before + 1
+
 
 def test_list_files_for_entity_scoped_correctly(db_session, seeded, monkeypatch):
     tenant, user = seeded

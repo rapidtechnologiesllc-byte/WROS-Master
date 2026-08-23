@@ -10,8 +10,10 @@ Integer/tenants-table FK); real in-process 30s TTL cache in place of
 the spec's nonexistent Redis; job context limited to the real Jobs
 model's fields (no bill_rate column exists).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -27,9 +29,17 @@ from app.models.user import Users, Jobs
 
 import app.services.candidate_context_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateInfoForm.__table__, Jobs.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
+        CandidateMemory.__table__, CandidateMemoryFact.__table__, CandidateSLABreach.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -38,6 +48,7 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
         svc._CONTEXT_CACHE.clear()
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -64,9 +75,11 @@ def seeded(db_session):
 
     return candidate, conv
 
+
 def _next_field_only(field_name):
     """Monkeypatch-style stub used to make qualification deterministic in tests."""
     return {"field": field_name}
+
 
 # ── build_candidate_context() -- assembly completeness ──────────────
 
@@ -87,9 +100,11 @@ def test_build_candidate_context_assembles_all_sections(db_session, seeded):
     assert context["thunder"]["name"] == "Thunder"
     assert context["build_latency_ms"] >= 0
 
+
 def test_build_candidate_context_raises_for_unknown_candidate(db_session, seeded):
     with pytest.raises(svc.CandidateNotFound):
         svc.build_candidate_context(db_session, "NOPE", "U-ORG", use_cache=False)
+
 
 # ── BR-02 tenant isolation ────────────────────────────────────────────
 
@@ -109,6 +124,7 @@ def test_build_candidate_context_does_not_leak_conversation_across_tenants(db_se
     assert context_real["conversation"]["id"] == real_conv.id
     assert context_real["conversation"]["owner_name"] == "Thunder"
 
+
 # ── job context ───────────────────────────────────────────────────────
 
 def test_build_candidate_context_includes_job_when_job_id_set(db_session, seeded):
@@ -118,12 +134,14 @@ def test_build_candidate_context_includes_job_when_job_id_set(db_session, seeded
         "experience_required": "5+ years", "location": "Bangalore", "bill_rate": "18-22 LPA",
     }
 
+
 def test_build_candidate_context_job_is_none_when_no_job_id(db_session, seeded):
     candidate, _ = seeded
     candidate.job_id = None
     db_session.commit()
     context = svc.build_candidate_context(db_session, "C-1", "U-ORG", use_cache=False)
     assert context["job"] is None
+
 
 # ── cache behavior (BR-03 adaptation) ────────────────────────────────
 
@@ -139,6 +157,7 @@ def test_build_candidate_context_returns_cached_result_within_ttl(db_session, se
     assert second is first
     assert second["candidate"]["name"] == "Priya Sharma"
 
+
 def test_build_candidate_context_use_cache_false_always_rebuilds(db_session, seeded):
     svc.build_candidate_context(db_session, "C-1", "U-ORG")
     candidate, _ = seeded
@@ -147,6 +166,7 @@ def test_build_candidate_context_use_cache_false_always_rebuilds(db_session, see
 
     fresh = svc.build_candidate_context(db_session, "C-1", "U-ORG", use_cache=False)
     assert fresh["candidate"]["name"] == "Changed Sharma"
+
 
 def test_invalidate_candidate_context_cache_forces_rebuild(db_session, seeded):
     svc.build_candidate_context(db_session, "C-1", "U-ORG")
@@ -157,6 +177,7 @@ def test_invalidate_candidate_context_cache_forces_rebuild(db_session, seeded):
     svc.invalidate_candidate_context_cache("U-ORG", "C-1")
     rebuilt = svc.build_candidate_context(db_session, "C-1", "U-ORG")
     assert rebuilt["candidate"]["name"] == "Changed Sharma"
+
 
 def test_cache_is_scoped_per_tenant_and_candidate(db_session, seeded):
     """Same candidate_id, different tenant_id must not share a cache slot."""
@@ -171,6 +192,7 @@ def test_cache_is_scoped_per_tenant_and_candidate(db_session, seeded):
     assert ctx_a["conversation"]["owner_name"] == "Thunder"
     assert ctx_b["conversation"]["owner_name"] == "RivalBot"
 
+
 # ── next_question (only during real qualifying state) ────────────────
 
 def test_next_question_is_none_when_conversation_closed(db_session, seeded):
@@ -179,6 +201,7 @@ def test_next_question_is_none_when_conversation_closed(db_session, seeded):
     db_session.commit()
     context = svc.build_candidate_context(db_session, "C-1", "U-ORG", use_cache=False)
     assert context["next_question"] is None
+
 
 def test_next_question_populated_when_qualifying_and_fields_missing(db_session, seeded):
     candidate, conv = seeded
@@ -189,6 +212,7 @@ def test_next_question_populated_when_qualifying_and_fields_missing(db_session, 
         assert context["next_question"] is not None
         assert "field_name" in context["next_question"]
         assert "question" in context["next_question"]
+
 
 def test_no_conversation_yields_none_conversation_and_no_next_question(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -201,6 +225,7 @@ def test_no_conversation_yields_none_conversation_and_no_next_question(db_sessio
     assert context["recent_messages"] == []
     assert context["next_question"] is None
 
+
 # ── get_context_for_prompt() -- integration with S-031's build_prompt() ──
 
 def test_get_context_for_prompt_combines_context_and_prompt(db_session, seeded):
@@ -212,12 +237,14 @@ def test_get_context_for_prompt_combines_context_and_prompt(db_session, seeded):
     assert "{{" not in result["system_prompt"]
     assert "{{" not in result["user_prompt"]
 
+
 def test_get_context_for_prompt_injects_next_question_into_params(db_session, seeded):
     candidate, conv = seeded
     result = svc.get_context_for_prompt(db_session, "C-1", "U-ORG", "QUALIFICATION")
     next_question = result["context"]["next_question"]
     if next_question:
         assert next_question["question"] in result["user_prompt"]
+
 
 def test_get_context_for_prompt_explicit_additional_params_win(db_session, seeded):
     result = svc.get_context_for_prompt(

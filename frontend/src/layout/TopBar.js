@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Settings, Eye, EyeOff, Search, User, KeyRound, LogOut } from "lucide-react";
+import { Bell, Eye, EyeOff, Search, User, KeyRound, LogOut } from "lucide-react";
 import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
@@ -401,14 +401,6 @@ export default function TopBar({
                 ) : null}
               </div>
 
-              <button
-                type="button"
-                aria-label="Settings"
-                onClick={() => navigate(ROUTES.ADMIN_SETTINGS)}
-                className="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
 
               <div className="relative" ref={dropdownRef}>
                 <button

@@ -3,9 +3,11 @@ GET/PATCH /tenants/me/locale -- proves S-219/HRMS-0121 (Multi-Continent
 Locale & Currency Config) end-to-end. Genuinely new backend -- no
 Tenant-config model, service, or REST layer existed before this.
 
+Throwaway SQLite app, throwaway JWT keys -- never the real database or
 real signing keys.
 """
 import os
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -20,6 +22,7 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
+
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -36,9 +39,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
 @pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -75,15 +83,19 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
+
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
+
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/tenants/me/locale")
     assert resp.status_code in (401, 403)
+
 
 def test_get_locale_defaults(client):
     resp = client.get("/tenants/me/locale", headers=_auth())
@@ -92,6 +104,7 @@ def test_get_locale_defaults(client):
     assert body["default_timezone"] == "UTC"
     assert body["default_date_format"] == "MM/DD/YYYY"
     assert body["default_currency"] == "USD"
+
 
 def test_update_locale_partial(client):
     resp = client.patch(
@@ -110,6 +123,7 @@ def test_update_locale_partial(client):
     get_resp = client.get("/tenants/me/locale", headers=_auth())
     assert get_resp.json()["default_currency"] == "INR"
 
+
 def test_update_locale_rejects_invalid_currency(client):
     resp = client.patch(
         "/tenants/me/locale",
@@ -117,6 +131,7 @@ def test_update_locale_rejects_invalid_currency(client):
         headers=_auth(),
     )
     assert resp.status_code == 422
+
 
 def test_update_locale_rejects_invalid_date_format(client):
     resp = client.patch(

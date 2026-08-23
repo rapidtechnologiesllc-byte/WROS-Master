@@ -1,0 +1,16 @@
+# WROS Monorepo Code Owners
+# Auto-assign reviewers based on changed files
+
+# Backend - Python FastAPI service
+backend/                    @backend-team
+
+# Frontend - React application
+frontend/                   @frontend-team
+
+# Careers - Careers integration service
+careers/                    @careers-team
+
+# Repository configuration
+.github/                    @maintainers
+.gitignore                  @maintainers
+README.md                   @maintainers

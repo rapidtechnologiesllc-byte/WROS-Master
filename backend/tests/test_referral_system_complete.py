@@ -19,6 +19,7 @@ from app.models.user import Jobs
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
 
+
 class TestJobReferralSetup:
     """Test job referral program setup."""
 
@@ -67,6 +68,7 @@ class TestJobReferralSetup:
         finally:
             db.close()
 
+
 class TestReferralRecording:
     """Test employee referral submission."""
 
@@ -112,6 +114,7 @@ class TestReferralRecording:
                 "INTERVIEWED",
                 "OFFERED",
                 "HIRED",
+            ]
 
             for status in statuses:
                 result = EmployeeReferralService.update_referral_status(
@@ -128,6 +131,7 @@ class TestReferralRecording:
 
         finally:
             db.close()
+
 
 class TestBonusPayment:
     """Test referral bonus creation and payment."""
@@ -195,6 +199,7 @@ class TestBonusPayment:
 
         finally:
             db.close()
+
 
 class TestRoleBasedAccess:
     """Test role-based access control."""
@@ -294,6 +299,7 @@ class TestRoleBasedAccess:
 
         finally:
             db.close()
+
 
 class TestRoleBasedDashboards:
     """Test role-based dashboard views."""
@@ -403,6 +409,7 @@ class TestRoleBasedDashboards:
         finally:
             db.close()
 
+
 class TestReferralAnalytics:
     """Test analytics and reporting."""
 
@@ -440,6 +447,7 @@ class TestReferralAnalytics:
 
         finally:
             db.close()
+
 
 class TestEndToEndWorkflow:
     """Test complete referral workflow."""
@@ -525,6 +533,7 @@ class TestEndToEndWorkflow:
 
         finally:
             db.close()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -8,8 +8,10 @@ re-proving R-08 itself (already covered by test_whatsapp_routing.py;
 here we only confirm send_thunder_message() doesn't bypass it), plus
 build_candidate_context()'s cross-channel aggregation.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -35,12 +37,22 @@ from app.services.thunder_service import (
     send_thunder_message,
 )
 
+
 @pytest.fixture(autouse=True)
 def _default_whatsapp_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
 
+
+@pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, Jobs.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateAIAssignment.__table__,
+        Notification.__table__, ConsentRecord.__table__, InternalNote.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -48,6 +60,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -73,6 +86,7 @@ def fixtures(db_session):
 
     return org_owner, recruiter, candidate, conversation
 
+
 def _grant_consent(db, candidate_id, *, given=True, captured_at=None):
     record = ConsentRecord(
         subject_type="candidate", subject_id=candidate_id,
@@ -84,6 +98,7 @@ def _grant_consent(db, candidate_id, *, given=True, captured_at=None):
     db.commit()
     return record
 
+
 # ---------------------------------------------------------------------------
 # has_active_consent
 # ---------------------------------------------------------------------------
@@ -92,16 +107,19 @@ def test_has_active_consent_false_when_no_record(db_session, fixtures):
     _, _, candidate, _ = fixtures
     assert has_active_consent(db_session, candidate.candidateID) is False
 
+
 def test_has_active_consent_true_when_granted(db_session, fixtures):
     _, _, candidate, _ = fixtures
     _grant_consent(db_session, candidate.candidateID, given=True)
     assert has_active_consent(db_session, candidate.candidateID) is True
+
 
 def test_has_active_consent_latest_record_wins_on_revocation(db_session, fixtures):
     _, _, candidate, _ = fixtures
     _grant_consent(db_session, candidate.candidateID, given=True, captured_at=datetime(2026, 1, 1))
     _grant_consent(db_session, candidate.candidateID, given=False, captured_at=datetime(2026, 1, 2))
     assert has_active_consent(db_session, candidate.candidateID) is False
+
 
 # ---------------------------------------------------------------------------
 # send_thunder_message -- consent gate
@@ -116,6 +134,7 @@ def test_send_rejected_without_consent(db_session, fixtures):
         )
     assert db_session.query(ConversationEvent).count() == 0
 
+
 def test_send_succeeds_with_consent(db_session, fixtures):
     _, _, candidate, conversation = fixtures
     _grant_consent(db_session, candidate.candidateID)
@@ -125,6 +144,7 @@ def test_send_succeeds_with_consent(db_session, fixtures):
     )
     assert event.event_type == "ai_message_sent"
     assert event.event_data["body"] == "Hi there"
+
 
 # ---------------------------------------------------------------------------
 # send_thunder_message -- R-08 ownership lock is NOT bypassed
@@ -144,6 +164,7 @@ def test_send_still_enforces_r08_ownership_lock(db_session, fixtures):
             sender_type="ai_agent", whatsapp_client=lambda *a: True,
         )
 
+
 # ---------------------------------------------------------------------------
 # send_thunder_message -- debounce
 # ---------------------------------------------------------------------------
@@ -159,6 +180,7 @@ def _backdate_last_event(db, conversation, *, seconds_ago):
     db.add(event)
     db.commit()
 
+
 def test_duplicate_send_within_debounce_window_is_suppressed(db_session, fixtures):
     _, _, candidate, conversation = fixtures
     _grant_consent(db_session, candidate.candidateID)
@@ -173,6 +195,7 @@ def test_duplicate_send_within_debounce_window_is_suppressed(db_session, fixture
             sender_type="ai_agent", whatsapp_client=lambda *a: True,
         )
 
+
 def test_different_message_within_window_is_not_suppressed(db_session, fixtures):
     _, _, candidate, conversation = fixtures
     _grant_consent(db_session, candidate.candidateID)
@@ -186,6 +209,7 @@ def test_different_message_within_window_is_not_suppressed(db_session, fixtures)
         sender_type="ai_agent", whatsapp_client=lambda *a: True,
     )
     assert event.event_data["body"] == "Second, different message"
+
 
 def test_same_message_after_debounce_window_elapses_is_allowed(db_session, fixtures):
     _, _, candidate, conversation = fixtures
@@ -208,6 +232,7 @@ def test_same_message_after_debounce_window_elapses_is_allowed(db_session, fixtu
     )
     assert event.event_data["body"] == "Same message"
 
+
 # ---------------------------------------------------------------------------
 # send_thunder_message -- channel scoping
 # ---------------------------------------------------------------------------
@@ -220,6 +245,7 @@ def test_non_whatsapp_channel_not_implemented(db_session, fixtures):
             db_session, conversation, candidate, "Hi", sender_type="ai_agent", channel="email",
         )
 
+
 # ---------------------------------------------------------------------------
 # build_candidate_context
 # ---------------------------------------------------------------------------
@@ -228,6 +254,7 @@ def test_context_desire_profile_is_none_not_fabricated(db_session, fixtures):
     _, _, candidate, _ = fixtures
     context = build_candidate_context(db_session, candidate)
     assert context["desire_profile"] is None
+
 
 def test_context_aggregates_cross_channel_history_in_order(db_session, fixtures):
     _, _, candidate, conversation = fixtures
@@ -270,6 +297,7 @@ def test_context_aggregates_cross_channel_history_in_order(db_session, fixtures)
     assert context["current_owner_type"] == "ai_agent"
     assert context["active_conversation_id"] == conversation.id
 
+
 def test_context_reflects_current_owner_after_takeover(db_session, fixtures):
     _, recruiter, candidate, conversation = fixtures
     conversation.owner_type = "hr_user"
@@ -280,6 +308,7 @@ def test_context_reflects_current_owner_after_takeover(db_session, fixtures):
     context = build_candidate_context(db_session, candidate)
     assert context["current_owner_type"] == "hr_user"
     assert context["current_owner_id"] == recruiter.UserID
+
 
 def test_context_includes_real_open_jobs_and_excludes_closed(db_session, fixtures):
     """Real bug fix, 2026-07-23: Thunder deflected "what roles do you
@@ -306,6 +335,7 @@ def test_context_includes_real_open_jobs_and_excludes_closed(db_session, fixture
             jobExperience="0-1 years", jobLocation="Remote",
             jobStatus="Closed", noOfPositions=0,
         ),
+    ])
     db_session.commit()
 
     context = build_candidate_context(db_session, candidate)
@@ -315,6 +345,7 @@ def test_context_includes_real_open_jobs_and_excludes_closed(db_session, fixture
     guidewire_job = next(j for j in context["open_jobs"] if j["job_id"] == "J-OPEN")
     assert guidewire_job["title"] == "Lead Guidewire Business Analyst"
     assert guidewire_job["experience_required"] == "5-8 years"
+
 
 def test_context_includes_candidate_own_profile_for_matching(db_session, fixtures):
     """Without the candidate's own skills/experience/title in context,

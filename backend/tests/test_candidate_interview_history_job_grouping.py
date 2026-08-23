@@ -8,8 +8,10 @@ job info on each interview row. Proves the real route now returns
 job_id/job_title per interview, and that they're correct per round --
 not just that the underlying columns exist.
 
+Throwaway SQLite, throwaway JWT keys -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime
 
 import pytest
@@ -27,6 +29,7 @@ from app.models.tenant import Tenant
 from app.models.user import Interview, InterviewPanel, Jobs, Users
 import app.models  # noqa: F401
 
+
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -40,8 +43,14 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
+
+@pytest.fixture()
 def client(throwaway_jwt_keys):
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    TestSessionLocal = sessionmaker(bind=engine)
 
     def override_get_db():
         db = TestSessionLocal()
@@ -85,6 +94,7 @@ def client(throwaway_jwt_keys):
         Interview(panel_id=panel_a_l1.id, candidate_id="C-MULTI", status="Completed", start_time=now, end_time=now),
         Interview(panel_id=panel_a_l2.id, candidate_id="C-MULTI", status="Scheduled", start_time=now, end_time=now),
         Interview(panel_id=panel_b_l1.id, candidate_id="C-MULTI", status="Completed", start_time=now, end_time=now),
+    ])
     db.commit()
     db.close()
 
@@ -95,9 +105,11 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
+
 def _auth():
     token = security.create_access_token(data={"sub": "admin@blitzenx.com", "type": "Super User", "name": "admin@blitzenx.com"})
     return {"Authorization": f"Bearer {token}"}
+
 
 def test_candidate_history_returns_job_id_and_title_per_round(client):
     resp = client.get("/interviews/candidate-history/C-MULTI", headers=_auth())

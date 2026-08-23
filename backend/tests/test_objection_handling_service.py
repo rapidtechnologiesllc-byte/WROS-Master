@@ -12,9 +12,11 @@ never reaches the LLM at all -- no shareable-salary flag exists
 anywhere in this codebase, so that branch is always the safe fallback,
 provably (not just prompted).
 
+Throwaway SQLite -- never the real database.
 """
 import json
 import os
+import tempfile
 
 import pytest
 from sqlalchemy import create_engine
@@ -31,10 +33,19 @@ from app.models.user import Users, Jobs
 
 import app.services.objection_handling_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
     engine_path = db_path
+    os.close(fd)
     engine = create_engine(f"sqlite:///{engine_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateInfoForm.__table__, Jobs.__table__,
+        CandidateConversation.__table__, ConversationEvent.__table__, CandidateFieldSkip.__table__,
+        CandidateMemory.__table__, CandidateMemoryFact.__table__, CandidateSLABreach.__table__,
+        PromptExecutionLog.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -42,6 +53,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(engine_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -54,13 +66,16 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
+
 def _llm_returning(payload):
     return lambda system_prompt, user_prompt, max_tokens, temperature: json.dumps(payload)
+
 
 def _llm_raising(exc):
     def _raise(*args, **kwargs):
         raise exc
     return _raise
+
 
 def test_classify_objection_salary(db_session, seeded):
     _, conv = seeded
@@ -71,6 +86,7 @@ def test_classify_objection_salary(db_session, seeded):
     assert result["objection_type"] == "SALARY"
     assert result["confidence"] == 0.92
 
+
 def test_classify_objection_unknown_type_collapses_to_other(db_session, seeded):
     _, conv = seeded
     result = svc.classify_objection(
@@ -79,15 +95,18 @@ def test_classify_objection_unknown_type_collapses_to_other(db_session, seeded):
     )
     assert result["objection_type"] == "OTHER"
 
+
 def test_classify_objection_llm_failure_collapses_safely(db_session, seeded):
     _, conv = seeded
     result = svc.classify_objection(db_session, conv.tenant_id, "C-1", "some message", llm_call=_llm_raising(RuntimeError("down")))
     assert result == {"objection_type": "OTHER", "key_concern": "", "confidence": 0.0}
 
+
 def test_classify_objection_invalid_json_collapses_safely(db_session, seeded):
     _, conv = seeded
     result = svc.classify_objection(db_session, conv.tenant_id, "C-1", "some message", llm_call=lambda sp, up, mt, t: "not json")
     assert result == {"objection_type": "OTHER", "key_concern": "", "confidence": 0.0}
+
 
 def test_handle_objection_stores_memory_fact(db_session, seeded):
     candidate, conv = seeded
@@ -99,6 +118,7 @@ def test_handle_objection_stores_memory_fact(db_session, seeded):
     assert fact is not None
     assert fact.fact_value == "not willing to relocate"
 
+
 def test_handle_objection_logs_objection_raised_event(db_session, seeded):
     candidate, conv = seeded
     llm = _llm_returning({"objection_type": "TIMING", "key_concern": "happy where I am", "confidence": 0.8})
@@ -108,6 +128,7 @@ def test_handle_objection_logs_objection_raised_event(db_session, seeded):
     assert len(events) == 1
     assert events[0].event_data["objection_type"] == "TIMING"
     assert events[0].event_data["occurrence_number"] == 1
+
 
 def test_salary_objection_never_reaches_llm_for_response_br02(db_session, seeded):
     """BR-02: SALARY objection response is the safe fallback, generated
@@ -122,6 +143,7 @@ def test_salary_objection_never_reaches_llm_for_response_br02(db_session, seeded
     result = svc.handle_objection(db_session, conv, candidate, "the salary is too low", llm_call=llm)
     assert result["response"] == svc.SALARY_NO_NUMBERS_MESSAGE
 
+
 def test_third_occurrence_escalates_br01(db_session, seeded):
     candidate, conv = seeded
     llm = _llm_returning({"objection_type": "SALARY", "key_concern": "wants more money", "confidence": 0.9})
@@ -134,6 +156,7 @@ def test_third_occurrence_escalates_br01(db_session, seeded):
     assert exc_info.value.objection_type == "SALARY"
     assert exc_info.value.count == 3
 
+
 def test_escalation_count_is_per_objection_type_not_global(db_session, seeded):
     """Two SALARY objections + one LOCATION objection should NOT
     trigger BR-01 -- the count is scoped per objection_type."""
@@ -145,6 +168,7 @@ def test_escalation_count_is_per_objection_type_not_global(db_session, seeded):
     svc.handle_objection(db_session, conv, candidate, "not relocating", llm_call=location_llm)
     result = svc.handle_objection(db_session, conv, candidate, "salary still low", llm_call=salary_llm)  # 2nd SALARY -- not yet escalated
     assert result["occurrence_number"] == 2
+
 
 def test_objection_response_uses_llm_for_non_salary_types(db_session, seeded):
     candidate, conv = seeded

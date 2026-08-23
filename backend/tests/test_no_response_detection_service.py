@@ -10,8 +10,10 @@ formal "event bus" publish -- POST_THIRD is logged directly, the sole
 real transition this job owns (see follow_up_scheduler_service's
 module docstring for why S-041 does not also claim it).
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import datetime, timedelta
 
 import pytest
@@ -28,9 +30,16 @@ from app.models.user import Users
 
 import app.services.no_response_detection_service as svc
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        FollowUpSchedule.__table__, CandidateNoResponseLog.__table__, ConsentRecord.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -38,6 +47,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -51,11 +61,13 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
+
 def _outbound(db_session, conv, hours_ago):
     event = ConversationEvent(conversation_id=conv.id, event_type="ai_message_sent", event_data={"channel": "whatsapp", "body": "Hi!"}, triggered_by="ai_agent", created_at=datetime.utcnow() - timedelta(hours=hours_ago))
     db_session.add(event)
     db_session.commit()
     return event
+
 
 # ── TC-001 / AC-2: first no-response detection ──────────────────────
 
@@ -73,6 +85,7 @@ def test_stale_whatsapp_message_schedules_first_followup(db_session, seeded):
     log = db_session.query(CandidateNoResponseLog).filter(CandidateNoResponseLog.candidate_id == "C-1", CandidateNoResponseLog.detection_type == "FIRST_NO_RESPONSE").first()
     assert log is not None
 
+
 def test_not_yet_stale_message_does_not_schedule(db_session, seeded):
     candidate, conv = seeded
     _outbound(db_session, conv, hours_ago=5)  # well under the 24h threshold
@@ -80,6 +93,7 @@ def test_not_yet_stale_message_does_not_schedule(db_session, seeded):
     result = svc.run_no_response_detection_job(db_session)
     assert result["first_detected"] == 0
     assert db_session.query(FollowUpSchedule).count() == 0
+
 
 def test_candidate_already_replied_skips_detection(db_session, seeded):
     candidate, conv = seeded
@@ -90,6 +104,7 @@ def test_candidate_already_replied_skips_detection(db_session, seeded):
     result = svc.run_no_response_detection_job(db_session)
     assert result["first_detected"] == 0
     assert db_session.query(FollowUpSchedule).count() == 0
+
 
 # ── TC-002 / BR-01: no duplicate while a PENDING follow-up exists ────
 
@@ -103,6 +118,7 @@ def test_no_duplicate_when_pending_followup_exists(db_session, seeded):
     assert result["first_detected"] == 0
     rows = db_session.query(FollowUpSchedule).filter(FollowUpSchedule.candidate_id == "C-1").all()
     assert len(rows) == 1  # unchanged
+
 
 # ── TC-003 / AC-5: after 3 SENT follow-ups, POST_THIRD logged ───────
 
@@ -119,6 +135,7 @@ def test_post_third_logged_after_three_sent_followups(db_session, seeded):
     log = db_session.query(CandidateNoResponseLog).filter(CandidateNoResponseLog.candidate_id == "C-1", CandidateNoResponseLog.detection_type == "POST_THIRD").first()
     assert log is not None
 
+
 def test_post_third_not_logged_twice(db_session, seeded):
     candidate, conv = seeded
     outbound = _outbound(db_session, conv, hours_ago=100)
@@ -133,6 +150,7 @@ def test_post_third_not_logged_twice(db_session, seeded):
     logs = db_session.query(CandidateNoResponseLog).filter(CandidateNoResponseLog.candidate_id == "C-1", CandidateNoResponseLog.detection_type == "POST_THIRD").all()
     assert len(logs) == 1
 
+
 # ── AC-6: skip recruiter-owned conversations ─────────────────────────
 
 def test_skips_recruiter_owned_conversation(db_session, seeded):
@@ -146,6 +164,7 @@ def test_skips_recruiter_owned_conversation(db_session, seeded):
     assert result["checked"] == 0
     assert db_session.query(FollowUpSchedule).count() == 0
 
+
 # ── AC-7: skip closed/escalated conversations ────────────────────────
 
 def test_skips_closed_conversation(db_session, seeded):
@@ -157,6 +176,7 @@ def test_skips_closed_conversation(db_session, seeded):
     result = svc.run_no_response_detection_job(db_session)
     assert result["checked"] == 0
 
+
 def test_skips_escalated_conversation(db_session, seeded):
     candidate, conv = seeded
     conv.escalation_state = "escalated"
@@ -165,6 +185,7 @@ def test_skips_escalated_conversation(db_session, seeded):
 
     result = svc.run_no_response_detection_job(db_session)
     assert result["checked"] == 0
+
 
 # ── never raises ──────────────────────────────────────────────────────
 
@@ -178,6 +199,7 @@ def test_job_never_raises_on_bad_conversation(db_session, seeded, monkeypatch):
     monkeypatch.setattr(svc, "schedule_follow_up", _boom)
     result = svc.run_no_response_detection_job(db_session)  # should not raise
     assert isinstance(result, dict)
+
 
 def test_no_outbound_message_yet_is_not_checked(db_session, seeded):
     candidate, conv = seeded  # no ai_message_sent event at all

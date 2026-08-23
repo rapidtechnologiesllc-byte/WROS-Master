@@ -11,8 +11,10 @@ just no longer offer-FAQ mode); BR-02 decline reason is a true
 one-time ask; BR-03 counter notifies the recruiter with P1 urgency and
 the real offer expiry date.
 
+Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date
 from unittest.mock import patch
 
@@ -40,14 +42,26 @@ from app.models.user import Users
 
 import app.services.offer_decision_service as svc
 
+
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine, tables=[
+        Users.__table__, Candidate.__table__, CandidateStatus.__table__, CandidateConversation.__table__, ConversationEvent.__table__,
+        OfferLetter.__table__, ConsentRecord.__table__, Notification.__table__, CandidateOwnership.__table__, CandidateHistory.__table__,
+        PreboardingDocument.__table__, PreboardingTouchpoint.__table__,
+        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
+        Submission.__table__, SubmissionViolation.__table__, RecruiterInterventionQueue.__table__,
+        CandidateOpportunityWatch.__table__,
+    ])
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -55,6 +69,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def seeded(db_session):
@@ -94,6 +109,7 @@ def seeded(db_session):
 
     return candidate, conv, offer, submission
 
+
 # ── BR-03 gate ─────────────────────────────────────────────────────────
 
 def test_not_active_when_offer_faq_flag_false(db_session, seeded):
@@ -104,6 +120,7 @@ def test_not_active_when_offer_faq_flag_false(db_session, seeded):
     result = svc.handle_offer_decision(db_session, candidate, conv, "U-ORG", "offer_accepted", "I accept")
     assert result["outcome"] == "not_active"
 
+
 def test_no_offer_found(db_session, seeded):
     candidate, conv, offer, submission = seeded
     offer.offer_status = "Pending"
@@ -111,6 +128,7 @@ def test_no_offer_found(db_session, seeded):
 
     result = svc.handle_offer_decision(db_session, candidate, conv, "U-ORG", "offer_accepted", "I accept")
     assert result["outcome"] == "no_offer_found"
+
 
 # ── TC-001/AC-1: acceptance ────────────────────────────────────────────
 
@@ -139,6 +157,7 @@ def test_acceptance_updates_offer_and_notifies(db_session, seeded):
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
 
+
 # ── TC-002/AC-2: decline ────────────────────────────────────────────────
 
 def test_decline_updates_offer_transitions_pool_and_asks_reason_once(db_session, seeded):
@@ -165,6 +184,7 @@ def test_decline_updates_offer_transitions_pool_and_asks_reason_once(db_session,
     ask_event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "DECLINE_REASON_REQUESTED").first()
     assert ask_event is not None
 
+
 def test_decline_reason_never_asked_twice(db_session, seeded):
     candidate, conv, offer, submission = seeded
     db_session.add(ConversationEvent(conversation_id=conv.id, event_type="DECLINE_REASON_REQUESTED", event_data={}, triggered_by="system"))
@@ -175,6 +195,7 @@ def test_decline_reason_never_asked_twice(db_session, seeded):
 
     ask_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "DECLINE_REASON_REQUESTED").all()
     assert len(ask_events) == 1  # not asked a second time
+
 
 # ── TC-003/AC-3/BR-03: counter ──────────────────────────────────────────
 
@@ -200,6 +221,7 @@ def test_counter_escalates_and_notifies_recruiter_with_urgency(db_session, seede
     assert notification is not None
     assert notification.priority_tier == "P1"
     assert "2026-08-20" in notification.message
+
 
 def test_never_raises_on_unexpected_error(db_session, seeded):
     candidate, conv, offer, submission = seeded

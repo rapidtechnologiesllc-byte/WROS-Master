@@ -20,22 +20,28 @@ from app.services.thunder_service import ThunderService
 from app.services.hm_validation_service import HMValidationService
 from app.services.ai_recruiter_integration_service import AIRecruiterIntegrationService
 
+
+@pytest.fixture
 def db_session():
     """Create test database session"""
     # Mock DB implementation
     pass
 
+
 @pytest.fixture
 def thunder_service():
     return ThunderService()
+
 
 @pytest.fixture
 def hm_service():
     return HMValidationService()
 
+
 @pytest.fixture
 def ai_recruiter_service():
     return AIRecruiterIntegrationService()
+
 
 class TestThunderSessionLifecycle:
     """Test Thunder session creation, progression, and submission"""
@@ -173,6 +179,7 @@ class TestThunderSessionLifecycle:
         assert candidate.candidateEmail == "newcandidate@example.com"
         assert candidate.candidateName == "New Candidate"
 
+
 class TestHMValidationDecisionLogic:
     """Test HM validation decision paths (APPROVED/REJECTED/MAYBE)"""
 
@@ -226,6 +233,7 @@ class TestHMValidationDecisionLogic:
         )
 
         assert decision["status"] == HMValidationStatus.MAYBE
+
 
 class TestCompleteAutonomousFlow:
     """Test full Thunder → AI Recruiter → HM Validation → Interview flow"""
@@ -374,6 +382,7 @@ class TestCompleteAutonomousFlow:
         assert result is True
         assert validation.status == HMValidationStatus.REJECTED
 
+
 class TestTimeoutAndEscalation:
     """Test timeout handling and escalation to HM's manager"""
 
@@ -411,6 +420,7 @@ class TestTimeoutAndEscalation:
         )
 
         assert decision["status"] == HMValidationStatus.MAYBE
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

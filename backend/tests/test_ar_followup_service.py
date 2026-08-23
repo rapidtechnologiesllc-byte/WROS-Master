@@ -1,6 +1,8 @@
 """
+EPIC-16 AR Follow-Up. Throwaway SQLite -- never the real database.
 """
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -18,9 +20,13 @@ from app.models.user import Users
 from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_follow_up
 import app.models  # noqa: F401
 
+
 @pytest.fixture()
 def db_session():
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
     engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -28,6 +34,7 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
+
 
 @pytest.fixture()
 def world(db_session):
@@ -59,6 +66,7 @@ def world(db_session):
 
     return {"tenant": tenant, "client": client, "project": project, "am_user": am_user}
 
+
 def _make_invoice(db, world, *, sent_days_ago, total_usd_cents=50_000_00):
     invoice = Invoice(
         tenant_id=world["tenant"].id, client_id=world["client"].id, project_id=world["project"].id,
@@ -70,6 +78,7 @@ def _make_invoice(db, world, *, sent_days_ago, total_usd_cents=50_000_00):
     db.commit()
     return invoice
 
+
 def test_scan_overdue_invoices_respects_grace_period(db_session, world):
     _make_invoice(db_session, world, sent_days_ago=45)  # overdue
     _make_invoice(db_session, world, sent_days_ago=10)  # within grace
@@ -77,6 +86,7 @@ def test_scan_overdue_invoices_respects_grace_period(db_session, world):
     overdue = scan_overdue_invoices(db_session, grace_days=30)
     assert len(overdue) == 1
     assert overdue[0]["days_overdue"] >= 45
+
 
 def test_scan_overdue_invoices_excludes_paid(db_session, world):
     invoice = _make_invoice(db_session, world, sent_days_ago=45)
@@ -87,6 +97,7 @@ def test_scan_overdue_invoices_excludes_paid(db_session, world):
     overdue = scan_overdue_invoices(db_session, grace_days=30)
     assert overdue == []
 
+
 def test_trigger_ar_follow_up_creates_task_assigned_to_account_manager(db_session, world):
     invoice = _make_invoice(db_session, world, sent_days_ago=45)
 
@@ -96,6 +107,7 @@ def test_trigger_ar_follow_up_creates_task_assigned_to_account_manager(db_sessio
     assert task.assigned_to_user_id == "U-AM"
     assert "Builders Insurance" in task.title
 
+
 def test_trigger_ar_follow_up_idempotent(db_session, world):
     invoice = _make_invoice(db_session, world, sent_days_ago=45)
 
@@ -104,6 +116,7 @@ def test_trigger_ar_follow_up_idempotent(db_session, world):
 
     assert first.id == second.id
     assert db_session.query(Task).filter(Task.invoice_id == invoice.id).count() == 1
+
 
 def test_trigger_ar_follow_up_creates_new_task_after_prior_one_completed(db_session, world):
     """Completing the follow-up Task (invoice finally paid, or manually
@@ -117,6 +130,7 @@ def test_trigger_ar_follow_up_creates_new_task_after_prior_one_completed(db_sess
 
     second = trigger_ar_follow_up(db_session, invoice)
     assert second.id != first.id
+
 
 def test_trigger_ar_follow_up_unassigned_when_no_account_manager(db_session, world):
     world["client"].account_manager_employee_id = None
