@@ -79,6 +79,234 @@ class EmailService:
         </body></html>
         """
 
+    # ------------------------------------------------------------------
+    # Candidate Stage Progression Emails
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _candidate_stage_screening_html(
+        candidate_name: str,
+        job_title: str,
+    ) -> str:
+        return EmailService._base_html(
+            title="Application Status Update",
+            body_inner=f"""
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1f2937;">
+              Hi {candidate_name},
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              Thank you for your interest in the <strong>{job_title}</strong> position at BlitzenX.
+              We're pleased to inform you that your application has been received and is currently
+              under review by our hiring team.
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              We appreciate your time and will be in touch soon with updates on your application status.
+            </p>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4b5563;">
+              Best regards,<br/>
+              <strong>The BlitzenX Recruitment Team</strong>
+            </p>
+            """
+        )
+
+    @staticmethod
+    def _candidate_stage_interview_html(
+        candidate_name: str,
+        job_title: str,
+        interview_round: Optional[str] = None,
+    ) -> str:
+        return EmailService._base_html(
+            title="Interview Invitation",
+            body_inner=f"""
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1f2937;">
+              Hi {candidate_name},
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              Great news! You've been selected for an interview for the <strong>{job_title}</strong> position.
+              {'Our team was impressed by your qualifications and would like to learn more about your experience.' if interview_round is None else f'You have advanced to the {interview_round} round.'}
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              Our recruitment team will be reaching out shortly with interview details, including date, time, and format.
+              Please keep an eye on your email for further information.
+            </p>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4b5563;">
+              Best regards,<br/>
+              <strong>The BlitzenX Recruitment Team</strong>
+            </p>
+            """
+        )
+
+    @staticmethod
+    def _candidate_stage_offer_html(
+        candidate_name: str,
+        job_title: str,
+        company_name: str = "BlitzenX",
+    ) -> str:
+        return EmailService._base_html(
+            title="Offer Extended",
+            body_inner=f"""
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1f2937;">
+              Hi {candidate_name},
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              Congratulations! We're delighted to extend an offer for the <strong>{job_title}</strong> position at {company_name}.
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              We were impressed by your qualifications and believe you'll be a great addition to our team.
+              Our recruitment team will be sending you the formal offer details shortly, including compensation, benefits, and next steps.
+            </p>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4b5563;">
+              We look forward to working with you!<br/>
+              <strong>The BlitzenX Recruitment Team</strong>
+            </p>
+            """
+        )
+
+    @staticmethod
+    def _candidate_stage_hired_html(
+        candidate_name: str,
+        job_title: str,
+        company_name: str = "BlitzenX",
+        start_date: Optional[str] = None,
+    ) -> str:
+        start_date_msg = f" and your start date is {start_date}" if start_date else ""
+        return EmailService._base_html(
+            title="Welcome Aboard!",
+            body_inner=f"""
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1f2937;">
+              Hi {candidate_name},
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              Welcome to {company_name}! Your employment for the <strong>{job_title}</strong> position has been confirmed{start_date_msg}.
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              We're excited to have you join our team! Our Human Resources team will be in touch with onboarding details,
+              including orientation schedule, required documentation, and your first day logistics.
+            </p>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4b5563;">
+              Looking forward to seeing you soon!<br/>
+              <strong>The BlitzenX Recruitment Team</strong>
+            </p>
+            """
+        )
+
+    @staticmethod
+    def _candidate_stage_rejected_html(
+        candidate_name: str,
+        job_title: str,
+    ) -> str:
+        return EmailService._base_html(
+            title="Application Status Update",
+            body_inner=f"""
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1f2937;">
+              Hi {candidate_name},
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              Thank you for your interest in the <strong>{job_title}</strong> position at BlitzenX.
+              We appreciate the time and effort you invested in our interview process.
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              While we were impressed by your background, we have decided to move forward with other candidates
+              who were a closer fit for this specific role at this time.
+            </p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b5563;">
+              We encourage you to stay in touch and apply for future opportunities that may be a better match for your skills and experience.
+            </p>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4b5563;">
+              Best regards,<br/>
+              <strong>The BlitzenX Recruitment Team</strong>
+            </p>
+            """
+        )
+
+    @staticmethod
+    def send_stage_update(
+        recipient_email: str,
+        candidate_name: str,
+        old_stage: str,
+        new_stage: str,
+        job_title: str = "Opportunity",
+        **kwargs
+    ) -> bool:
+        """
+        Send candidate stage progression email.
+
+        Stages: APPLIED, SCREENING, INTERVIEW, OFFER, HIRED, REJECTED
+        """
+        try:
+            token = EmailService._get_token()
+
+            # Build subject and HTML based on stage transition
+            subject = ""
+            html_body = ""
+
+            if new_stage == "SCREENING":
+                subject = f"Your Application for {job_title} - BlitzenX"
+                html_body = EmailService._candidate_stage_screening_html(candidate_name, job_title)
+
+            elif new_stage == "INTERVIEW":
+                subject = f"Interview Invitation for {job_title} - BlitzenX"
+                html_body = EmailService._candidate_stage_interview_html(
+                    candidate_name,
+                    job_title,
+                    kwargs.get("interview_round")
+                )
+
+            elif new_stage == "OFFER":
+                subject = f"Job Offer for {job_title} - BlitzenX"
+                html_body = EmailService._candidate_stage_offer_html(candidate_name, job_title)
+
+            elif new_stage == "HIRED":
+                subject = f"Welcome to BlitzenX!"
+                html_body = EmailService._candidate_stage_hired_html(
+                    candidate_name,
+                    job_title,
+                    start_date=kwargs.get("start_date")
+                )
+
+            elif new_stage == "REJECTED":
+                subject = f"Update on Your Application for {job_title} - BlitzenX"
+                html_body = EmailService._candidate_stage_rejected_html(candidate_name, job_title)
+
+            else:
+                # Unknown stage, don't send
+                return False
+
+            # Send email via Microsoft Graph
+            payload = {
+                "message": {
+                    "subject": subject,
+                    "body": {
+                        "contentType": "HTML",
+                        "content": html_body,
+                    },
+                    "toRecipients": [
+                        {
+                            "emailAddress": {
+                                "address": recipient_email,
+                                "name": candidate_name,
+                            }
+                        }
+                    ],
+                    "from": {
+                        "emailAddress": {
+                            "address": EmailService.SERVICE_EMAIL,
+                            "name": EmailService.SERVICE_NAME,
+                        }
+                    },
+                },
+                "saveToSentItems": True,
+            }
+
+            endpoint = "https://graph.microsoft.com/v1.0/me/sendMail"
+            EmailService._graph_post(endpoint, payload, token)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send stage update email to {recipient_email}: {str(e)}")
+            return False
+
     @staticmethod
     def _interview_invite_html(
         candidate_name: str,
