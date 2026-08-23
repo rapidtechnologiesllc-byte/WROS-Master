@@ -80,7 +80,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             db.flush()  # Get the module ID
             print(f"  + Module: {module_name}")
         else:
-            print(f"  ✓ Module: {module_name} already exists")
+            print(f"  OK Module: {module_name} already exists")
 
         # Create resources for this module
         for resource_name in resource_names:
@@ -91,7 +91,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             ).first()
 
             if existing:
-                print(f"    ✓ Resource: {resource_name}")
+                print(f"    OK Resource: {resource_name}")
                 continue
 
             # Use custom route if defined, otherwise use default /{resource_name}
@@ -108,7 +108,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             )
             db.add(resource)
             resource_count += 1
-            print(f"    + Resource: {resource_name} → {route_path}")
+            print(f"    + Resource: {resource_name} -> {route_path}")
 
     db.commit()
     print(f"\nCreated {resource_count} resources\n")
