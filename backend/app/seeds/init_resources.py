@@ -48,7 +48,10 @@ MODULES_AND_RESOURCES = {
         "performance-management",
         "htd-intake",
         "buddy-program",
-        "convert-to-employee"
+        "convert-to-employee",
+        "utilization-dashboard",
+        "resource-forecast",
+        "employee-in-bench"
     ],
     "Sales": [
         "clients",
@@ -61,14 +64,10 @@ MODULES_AND_RESOURCES = {
     ],
     "Project Management": [
         "projects",
-        "tasks",
         "resources",
         "budget",
         "schedule",
-        "core-pull",
-        "utilization-dashboard",
-        "resource-forecast",
-        "forecast-vs-actual"
+        "core-pull"
     ],
     "Finance": [
         "invoices",
@@ -95,13 +94,12 @@ MODULES_AND_RESOURCES = {
         "audit-logs",
         "error-logs",
         "system-health",
-        "slm-dashboard",
         "slm-training-data",
         "message-queue",
         "ticket-routing",
         "ai-config",
         "locale-currency"
-    ],  # error-logs already included
+    ],
     "Executive": [
         "ceo-dashboard",
         "cfo-dashboard",
@@ -121,7 +119,8 @@ MODULES_AND_RESOURCES = {
         "ask-thunder",
         "thunder-analytics",
         "ask-flash",
-        "ai-coaching"
+        "ai-coaching",
+        "slm-dashboard"
     ],
 }
 
