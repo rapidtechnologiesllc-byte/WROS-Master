@@ -351,10 +351,17 @@ def create_business_unit(
     if db.query(BusinessUnit).filter(BusinessUnit.name == data.name).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Business unit '{data.name}' already exists")
     try:
+        # Determine tenant_id (default to 1 if None)
+        tenant_id = user.tenant_id if hasattr(user, 'tenant_id') and user.tenant_id else 1
+
         business_unit = BusinessUnit(
             name=data.name,
+            display_name=data.name,
             description=data.description,
-            # created_at is set by server_default â€” do NOT pass it manually
+            bu_code=data.name.upper().replace(" ", ""),
+            tenant_id=tenant_id,
+            active=True,
+            # created_at is set by server_default - do NOT pass it manually
         )
         db.add(business_unit)
         db.commit()
@@ -410,7 +417,7 @@ def delete_business_unit(
 
 
 # ===========================================================================
-# Expanded Module Ã— Verb Permissions (HubSpot-Style RBAC Grid)
+# Expanded Module Ã- Verb Permissions (HubSpot-Style RBAC Grid)
 # ===========================================================================
 
 @router.get(
@@ -424,7 +431,7 @@ def get_modules_and_verbs(
     user=Depends(get_current_hr_or_admin),
 ):
     """
-    Return the complete moduleÃ—verb matrix for building the RBAC settings grid.
+    Return the complete moduleÃ-verb matrix for building the RBAC settings grid.
     Includes module list and verb list per module.
 
     No permission check required â€” read-only data for UI rendering.
@@ -451,7 +458,7 @@ def get_roles_and_permissions_matrix(
 ):
     """
     Return all roles with their assigned permissions in matrix format.
-    Used to render the RBAC settings grid (roles as rows, modulesÃ—verbs as columns).
+    Used to render the RBAC settings grid (roles as rows, modulesÃ-verbs as columns).
 
     Response format:
     {
@@ -1540,3 +1547,4 @@ def get_user_audit_trail(
     except Exception as e:
         logger.error(f"Error fetching audit trail: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
+
