@@ -33,6 +33,7 @@ from app.core.mfa import (
     role_requires_mfa,
 )
 from app.services.email_service import EmailService
+from app.services.roletemplateservice import roletemplatepermissionsservice
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
@@ -143,12 +144,15 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         # into the mfa_pending flow.
         email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
         if totp_gate or email_otp_gate:
+            # Fetch permissions even for MFA pending token (needed after MFA completes)
+            permissions = roletemplatepermissionsservice.get_user_permissions(db, user.UserID)
             pending_token = create_access_token(
                 data={
                     "sub": user.UserID,
                     "email": user.UserEmail,
                     "type": "user",
-                    "mfa_pending": True
+                    "mfa_pending": True,
+                    "permissions": permissions,  # ✅ Include for post-MFA login
                 },
                 expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
             )
@@ -193,12 +197,17 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 email_otp_required=email_otp_gate,
             )
 
+        # ✅ NEW: Fetch user permissions for navigation menu
+        permissions = roletemplatepermissionsservice.get_user_permissions(db, user.UserID)
+
         access_token = create_access_token(
             data={
                 "sub": user.UserID,
                 "email": user.UserEmail,
                 "type": "user",
                 "name": user.UserName,
+                "password_must_reset": user.password_must_reset or False,
+                "permissions": permissions,  # ✅ Include permissions in JWT
             }
         )
 
@@ -209,6 +218,8 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_role=user_role,
             user_name=user.UserName or "",
             user_email=user.UserEmail,
+            password_must_reset=user.password_must_reset or False,
+            permissions=permissions,  # ✅ Include in response
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
@@ -290,3 +301,25 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         status_code=401,
         detail="Invalid email or password",
     )
+
+
+@router.put("/change-password", response_model=dict)
+def change_password(
+    new_password: str = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin),
+):
+    """
+    Change password for authenticated user (no current password required).
+    Used for force password reset after first login with auto-generated password.
+    """
+    if not new_password or not new_password.strip():
+        raise HTTPException(status_code=400, detail="New password is required")
+
+    # Update password and clear the must-reset flag
+    current_user.UserPassword = get_password_hash(new_password)
+    current_user.password_must_reset = False
+    db.add(current_user)
+    db.commit()
+
+    return {"status": "success", "message": "Password changed successfully"}

@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_hr_or_admin
+from app.core.data_scoping import enforce_data_scope
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.user import Users
@@ -166,6 +167,10 @@ def list_invoices(
     current_user: Users = Depends(get_current_hr_or_admin),
 ):
     query = db.query(Invoice).filter(Invoice.tenant_id == current_user.tenant_id)
+
+    # ✅ Apply RBAC data scoping - users only see invoices in their scope
+    query = enforce_data_scope(query, current_user, Invoice, db)
+
     if project_id:
         query = query.filter(Invoice.project_id == project_id)
     if client_id:

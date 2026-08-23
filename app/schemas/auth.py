@@ -87,6 +87,7 @@ class UnifiedLoginResponse(BaseModel):
     user_name: Optional[str] = None
     user_email: Optional[EmailStr] = None
     permissions: Optional[dict] = None  # Role template permissions {resource: {can_view, can_create, can_edit, can_delete}}
+    password_must_reset: bool = False  # Auto-created users must reset password on first login
 
     # Candidate-specific (None for users)
     candidate_id: Optional[str] = None

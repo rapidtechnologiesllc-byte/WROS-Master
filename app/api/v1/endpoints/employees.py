@@ -65,12 +65,14 @@ from app.schemas.employee import (
     UtilizationSummaryItem,
     UtilizationSummaryResponse,
 )
+from app.core.security import get_password_hash
 from app.services.employee_service import (
     DuplicateEmployeeEmail,
     convert_candidate_to_employee,
     create_employee_profile,
     generate_employee_number,
 )
+from app.utils.uniq_id_generator import user_id_generator, generate_password
 from app.services.performance_store_service import (
     get_performance_events,
     get_score_averages_by_event_type,
@@ -177,6 +179,30 @@ def create_employee(
         )
     except DuplicateEmployeeEmail as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+    # Auto-create user account if role_template_id provided
+    if body.role_template_id:
+        existing_user = db.query(Users).filter(Users.UserEmail == body.email).first()
+        if not existing_user:
+            auto_password = generate_password()
+            new_user = Users(
+                UserID=user_id_generator(),
+                UserName=f"{body.first_name} {body.last_name}".strip(),
+                UserEmail=body.email,
+                UserPassword=get_password_hash(auto_password),
+                business_unit_id=body.business_unit_id,
+                role_template_id=body.role_template_id,
+                tenant_id=current_user.tenant_id,
+                UserRole="Employee",
+                password_must_reset=True,  # Force password reset on first login
+                mfa_enabled=False,
+            )
+            db.add(new_user)
+            db.flush()
+            employee.user_id = new_user.UserID  # Link employee to user
+        else:
+            employee.user_id = existing_user.UserID
+
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)

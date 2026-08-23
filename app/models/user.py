@@ -41,6 +41,8 @@ class Users(Base):
     # way mfa_secret is.
     email_otp_code_hash = Column(String(64), nullable=True)
     email_otp_expires_at = Column(DateTime, nullable=True)
+    # Auto-generated password on first login requires forced reset
+    password_must_reset = Column(Boolean, nullable=False, default=False)
     # EPIC-14/S-435 (HRMS-1408) -- Candidate & Employee Lifecycle
     # Communication Linking. Tracks the high-water mark for this user's
     # M365 mail sync (app.services.msgraph_mail_sync_service) so each
