@@ -86,6 +86,8 @@ import InvoicesScreen from "../screens/InvoicesScreen";
 import InvoiceManagementScreen from "../screens/InvoiceManagementScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
+import SLMDashboard from "../screens/SLMDashboard";
+import SLMTrainingData from "../screens/SLMTrainingData";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
@@ -638,6 +640,8 @@ export default function AppRoutes() {
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<MessageTemplatesScreen />} />
+            <Route path="settings/slm-dashboard" element={<SLMDashboard />} />
+            <Route path="settings/slm-training" element={<SLMTrainingData />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
@@ -892,31 +896,6 @@ export default function AppRoutes() {
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
-            <Route path="settings/locale" element={<TenantLocaleScreen />} />
-            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
-            <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
-            <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
-            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
-            <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
-            <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
-            <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
-            <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
-            <Route path="my-tasks" element={<MyTasksScreen />} />
-            <Route path="my-timesheet" element={<MyTimesheetScreen />} />
-            <Route path="my-expenses" element={<MyExpensesScreen />} />
-            <Route path="my-referrals" element={<MyReferralsScreen />} />
-            <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
-            <Route path="buddy-program" element={<BuddyProgramListScreen />} />
-            <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
-            <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
-            <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
-            <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
-            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
-            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
-            <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
-            <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
-            <Route path="admin/role-templates" element={<RoleTemplateManager />} />
           <Route
             path="candidates"
             element={
