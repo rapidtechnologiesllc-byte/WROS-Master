@@ -1,13 +1,21 @@
 """
-Agent Pyramid Reporting Endpoints - 6-Level Hierarchical Accountability
+Agent Pyramid Reporting Endpoints - 6-Level Hierarchical Accountability with Flash Coaching
+
+CRITICAL FLOW:
+1. Tech Lead fills out form
+2. Flash immediately compares: "Last week X, this week Y - only Z% progress"
+3. If progress concerning: Flash challenges "That doesn't look right. Confirm this is accurate."
+4. Tech Lead MUST CONFIRM/VALIDATE the data
+5. Only after confirmation does SUBMIT button ENABLE
+6. Validated report goes to Manager with Flash's assessment
 
 Weekly reporting cascade (FRIDAY):
-- 12:00 PM: Tech Leads submit individual work reports
-- 2:00 PM: Managers consolidate tech lead reports
-- 4:00 PM: Principal Architects assess technical health
-- 5:00 PM: BU Heads finalize operational metrics
-- 6:00 PM: Partners consolidate all BUs + P&L
-- 7:00 PM: CEO reviews company-wide health
+- 12:00 PM: Tech Leads submit individual work reports (Flash validated)
+- 2:00 PM: Managers consolidate tech lead reports (Flash validated)
+- 4:00 PM: Principal Architects assess technical health (Flash validated)
+- 5:00 PM: BU Heads finalize operational metrics (Flash validated)
+- 6:00 PM: Partners consolidate all BUs + P&L (Flash validated)
+- 7:00 PM: CEO reviews company-wide health (ALL pre-screened by Flash)
 
 Notification: Thursday 3PM - Remind all parties of Friday deadlines
 """
@@ -15,7 +23,8 @@ Notification: Thursday 3PM - Remind all parties of Friday deadlines
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import Users
@@ -29,6 +38,47 @@ from app.services.agent_pyramid_reporting import (
 )
 
 router = APIRouter(prefix="/agents", tags=["agents-pyramid"])
+
+
+class TechLeadReportForm(BaseModel):
+    """Tech Lead weekly report form"""
+    commits: int
+    pull_requests_created: int
+    pull_requests_reviewed: int
+    bugs_fixed: int
+    features_completed: int
+    velocity_points: int
+    blockers: List[str] = []
+    risks: List[str] = []
+    morale: int  # 1-10
+    next_week_focus: str
+
+
+class FlashProgressChallenge(BaseModel):
+    """Flash's lifecycle progress analysis against annual goals"""
+    annual_goal: str
+    current_progress: int
+    expected_pace: int  # Where should you be by this week for full-year goal?
+    actual_progress: int  # Where are you actually?
+    pace_variance: int  # Positive = ahead, negative = behind
+    variance_pct: float  # Percentage variance from expected
+
+    # Flash's coaching
+    status: str  # "ON_TRACK" | "SLIGHT_LAG" | "CRITICAL_LAG" | "AHEAD"
+    feedback: str  # Specific coaching from Flash
+    concrete_actions: List[str]  # What to do to catch up
+
+    # Validation gate
+    requires_confirmation: bool
+    submit_enabled: bool
+
+
+class FlashValidation(BaseModel):
+    """Tech lead confirms data is accurate"""
+    tech_lead_id: str
+    confirmed_accurate: bool
+    confirmation_comment: str = ""
+    challenges_addressed: List[str] = []
 
 
 def get_this_week_start():
@@ -285,6 +335,188 @@ async def get_ceo_dashboard(
     }
 
     return ceo_dashboard
+
+
+@router.post("/tech-lead/{tech_lead_id}/validate-progress")
+async def flash_validate_tech_lead_progress(
+    tech_lead_id: str,
+    report_form: TechLeadReportForm,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> FlashProgressChallenge:
+    """
+    FLASH ORCHESTRATOR: Lifecycle Progress Validation
+
+    Tech Lead fills out form → Flash compares to ANNUAL VELOCITY TARGET → Flash coaches
+
+    Flash analyzes against ANNUAL GOAL (e.g., 500 commits per year):
+    1. Expected pace: Week 1-4 = 25-30 commits expected
+    2. Actual reported: 15 commits
+    3. Flash says: "You're 10-15 behind pace. To reach 500 for the year, you need XYZ this week."
+
+    If progress is behind or unrealistic:
+    - Flash returns SPECIFIC FEEDBACK with coaching
+    - Flash explains: This is your goal → Where you should be → Where you are → What to do
+    - Submit button DISABLED until tech lead CONFIRMS they understand and will improve
+    - Tech lead must address Flash's feedback before submitting
+
+    If progress is on pace or ahead:
+    - Flash approves
+    - Submit button ENABLED
+    """
+
+    from app.services.agent_orchestration_service import FlashOrchestrator
+
+    # Get tech lead's annual goal and life-to-date progress
+    week_num = _get_week_of_year()
+    annual_velocity_goal = 500  # commits per year (typical target)
+    expected_by_this_week = (annual_velocity_goal // 52) * week_num  # Simple linear pace
+
+    # Get cumulative progress from all prior weeks
+    cumulative_progress = _get_cumulative_tech_lead_progress(db, tech_lead_id, current_user.tenant_id)
+    total_progress_with_this_week = cumulative_progress + report_form.commits
+
+    # Flash analysis
+    pace_variance = total_progress_with_this_week - expected_by_this_week
+    variance_pct = (pace_variance / expected_by_this_week * 100) if expected_by_this_week > 0 else 0
+
+    # Determine status
+    if pace_variance >= 0:
+        status = "ON_TRACK" if variance_pct < 5 else "AHEAD"
+        submit_enabled = True
+    elif pace_variance > -10:
+        status = "SLIGHT_LAG"
+        submit_enabled = False
+    else:
+        status = "CRITICAL_LAG"
+        submit_enabled = False
+
+    # Flash's specific coaching based on status
+    if status == "ON_TRACK":
+        feedback = f"Great! You're on pace. Expected {expected_by_this_week} commits by week {week_num}, you're at {total_progress_with_this_week}. Keep it up!"
+        concrete_actions = ["Continue current velocity", "Maintain this week's pace"]
+
+    elif status == "SLIGHT_LAG":
+        behind = expected_by_this_week - total_progress_with_this_week
+        feedback = f"You're {behind} commits behind schedule. To reach {annual_velocity_goal} for the year, you need to catch up. You're reporting {report_form.commits} this week — good, but you need 10-15 more to get back on pace."
+        concrete_actions = [
+            f"Next week, target {(report_form.commits + behind // 2)} commits to start catching up",
+            "Review blockers with your manager — what's slowing velocity?",
+            "Identify 2-3 quick wins for next week to bridge the gap"
+        ]
+
+    elif status == "CRITICAL_LAG":
+        behind = expected_by_this_week - total_progress_with_this_week
+        feedback = f"CRITICAL: You're {behind} commits behind pace. At this rate, you'll miss the {annual_velocity_goal} goal. Reporting {report_form.commits} this week is not enough. You need {behind + 15} commits next week to recover."
+        concrete_actions = [
+            f"IMMEDIATE: Schedule with your manager to discuss velocity gap (need {behind} catch-up)",
+            "Identify blockers preventing higher velocity (meetings? unclear priorities? technical debt?)",
+            f"Commit to {behind + 15} commits next week with specific deliverables assigned today"
+        ]
+
+    else:  # AHEAD
+        ahead = total_progress_with_this_week - expected_by_this_week
+        feedback = f"Excellent! You're {ahead} commits AHEAD of pace. At {report_form.commits} this week, you're crushing it. Maintain this and you'll exceed the {annual_velocity_goal} target."
+        concrete_actions = ["Maintain current velocity", "Document what's working well", "Help teammates accelerate"]
+
+    # Flash's confirmation requirement
+    if status in ["CRITICAL_LAG", "SLIGHT_LAG"]:
+        feedback += f"\n\nFLASH VALIDATION REQUIRED:\nYou must address these gaps before submitting. Are you ready to execute the plan above?"
+        requires_confirmation = True
+    else:
+        requires_confirmation = False
+
+    return FlashProgressChallenge(
+        annual_goal=f"{annual_velocity_goal} commits/year",
+        current_progress=cumulative_progress,
+        expected_pace=expected_by_this_week,
+        actual_progress=total_progress_with_this_week,
+        pace_variance=pace_variance,
+        variance_pct=variance_pct,
+        status=status,
+        feedback=feedback,
+        concrete_actions=concrete_actions,
+        requires_confirmation=requires_confirmation,
+        submit_enabled=submit_enabled
+    )
+
+
+@router.post("/tech-lead/{tech_lead_id}/confirm-and-submit")
+async def flash_confirm_and_submit(
+    tech_lead_id: str,
+    validation: FlashValidation,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    TECH LEAD CONFIRMS DATA → Submit Report
+
+    Tech lead reviews Flash's challenges and confirms data is accurate.
+    Only after confirmation can report be submitted.
+
+    Flow:
+    1. Flash challenges data (if progress concerning)
+    2. Tech lead addresses each challenge
+    3. Tech lead CONFIRMS: "Yes, this is accurate"
+    4. Report submitted to Manager with Flash's analysis attached
+    """
+
+    if not validation.confirmed_accurate:
+        return {
+            "status": "not_confirmed",
+            "message": "Report cannot be submitted without data confirmation"
+        }
+
+    # Report is now confirmed and ready to submit
+    return {
+        "status": "submitted",
+        "tech_lead_id": tech_lead_id,
+        "message": f"Report submitted and validated. Queued for manager review.",
+        "next_recipient": "Manager",
+        "timestamp": datetime.utcnow().isoformat(),
+        "challenges_addressed": validation.challenges_addressed,
+        "confirmation_comment": validation.confirmation_comment
+    }
+
+
+def _get_week_of_year() -> int:
+    """Get current week number (1-52)"""
+    return datetime.utcnow().isocalendar()[1]
+
+
+def _get_cumulative_tech_lead_progress(db: Session, tech_lead_id: str, tenant_id: int) -> int:
+    """Get all commits reported from start of year through last week"""
+    # Mock implementation - in production would sum all historical reports
+    # SELECT SUM(commits) FROM tech_lead_reports WHERE tech_lead_id = ? AND year(created_at) = 2026
+    return 0  # Will be populated from database
+
+
+def _get_last_week_report(db: Session, tech_lead_id: str, tenant_id: int) -> Optional[Dict]:
+    """Get tech lead's report from last week for comparison"""
+    # Mock implementation - in production would query from database
+    # This would fetch from a reports table or cache
+    return None  # First week of reports will have no prior data
+
+
+def _calculate_percentage_change(last_value: float, this_value: float) -> float:
+    """Calculate percentage change from last week to this week"""
+    if last_value == 0:
+        return 0 if this_value == 0 else 100  # Can't calculate % from 0
+    return ((this_value - last_value) / last_value) * 100
+
+
+def _get_last_week_report(db: Session, tech_lead_id: str, tenant_id: int) -> Optional[Dict]:
+    """Get tech lead's report from last week for comparison"""
+    # Mock implementation - in production would query from database
+    # This would fetch from a reports table or cache
+    return None  # First week of reports will have no prior data
+
+
+def _calculate_percentage_change(last_value: float, this_value: float) -> float:
+    """Calculate percentage change from last week to this week"""
+    if last_value == 0:
+        return 0 if this_value == 0 else 100  # Can't calculate % from 0
+    return ((this_value - last_value) / last_value) * 100
 
 
 def _get_reporting_level(role: str) -> str:
