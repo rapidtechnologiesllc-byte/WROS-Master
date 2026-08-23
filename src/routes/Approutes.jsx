@@ -91,6 +91,7 @@ import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
+import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
 import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
@@ -645,7 +646,7 @@ export default function AppRoutes() {
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
-            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
+            <Route path="settings/templates" element={<EmailTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
@@ -898,7 +899,7 @@ export default function AppRoutes() {
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
-            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
+            <Route path="settings/templates" element={<EmailTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
