@@ -29,6 +29,7 @@ export default function EmployeeOnboardingModal({
     reporting_manager_id: '',
     delivery_center_id: '',
     business_unit_id: '',
+    role_template_id: '', // Role will be assigned when user is auto-created
     joining_date: new Date().toISOString().split('T')[0],
     employment_type: 'PERMANENT',
     work_location: 'ONSITE'
@@ -38,6 +39,7 @@ export default function EmployeeOnboardingModal({
   const [deliveryCenters, setDeliveryCenters] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -85,6 +87,10 @@ export default function EmployeeOnboardingModal({
       // Load employees (for reporting manager dropdown)
       const empRes = await apiRequest('/employees');
       setEmployees(empRes.data || []);
+
+      // Load role templates (for user role assignment)
+      const rolesRes = await apiRequest('/role-templates');
+      setRoles(rolesRes.data || []);
     } catch (err) {
       console.error('Failed to load data:', err);
       setErrors({ load: 'Failed to load form data' });
@@ -103,6 +109,7 @@ export default function EmployeeOnboardingModal({
     if (!formData.delivery_center_id) newErrors.delivery_center_id = 'Delivery center is required';
     if (!formData.business_unit_id) newErrors.business_unit_id = 'Business unit is required';
     if (!formData.joining_date) newErrors.joining_date = 'Joining date is required';
+    if (!formData.role_template_id) newErrors.role_template_id = 'Role template is required (user will be auto-created with this role)';
 
     // Reporting manager required unless CEO level
     if (formData.org_node_id !== '1' && !formData.reporting_manager_id) {
@@ -130,6 +137,7 @@ export default function EmployeeOnboardingModal({
         reporting_manager_id: formData.reporting_manager_id || null,
         delivery_center_id: formData.delivery_center_id,
         business_unit_id: formData.business_unit_id,
+        role_template_id: formData.role_template_id, // Will auto-create user with this role
         joining_date: formData.joining_date,
         employment_type: formData.employment_type,
         work_location: formData.work_location
@@ -402,6 +410,33 @@ export default function EmployeeOnboardingModal({
                 <option value="HYBRID">Hybrid</option>
               </select>
             </div>
+          </div>
+
+          {/* Role Template - User will be auto-created with this role */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Role Template (for auto-created user) *
+            </label>
+            <select
+              value={formData.role_template_id}
+              onChange={(e) => setFormData({ ...formData, role_template_id: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-md text-sm ${
+                errors.role_template_id ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
+            >
+              <option value="">Select a role template...</option>
+              {roles.map(role => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            {errors.role_template_id && (
+              <p className="text-xs text-red-600 mt-1">{errors.role_template_id}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              User account will be auto-created with this role when employee is created.
+            </p>
           </div>
 
           {/* Buttons */}
