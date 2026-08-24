@@ -698,6 +698,23 @@ def create_user_with_roles(
     db.commit()
     db.refresh(new_user)
 
+    # Create UserRole junction records for each role_template_id
+    from app.models.user import UserRole
+    from app.core.tenant_context import get_tenant_id
+
+    tenant_id = get_tenant_id()
+
+    for role_id in role_ids:
+        user_role = UserRole(
+            user_id=new_user.UserID,
+            role_template_id=role_id,
+            business_unit_id=business_unit_id,
+            tenant_id=tenant_id
+        )
+        db.add(user_role)
+
+    db.commit()
+
     return UserResponse(
         user_id=new_user.UserID,
         user_name=new_user.UserName or "",
@@ -723,6 +740,9 @@ def update_user_with_roles(
     Update a user with roles, job title, partner, and business unit.
     Requires permission: user.manage
     """
+    from app.models.user import UserRole
+    from app.core.tenant_context import get_tenant_id
+
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
@@ -735,6 +755,22 @@ def update_user_with_roles(
         target.partner_id = request.partner_id
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
+
+    # Handle role updates: delete old roles and create new ones
+    if request.role_ids is not None:
+        # Delete existing UserRole records
+        db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+
+        # Create new UserRole records for each role_id
+        tenant_id = get_tenant_id()
+        for role_id in request.role_ids:
+            user_role = UserRole(
+                user_id=user_id,
+                role_template_id=role_id,
+                business_unit_id=request.business_unit_id or target.business_unit_id,
+                tenant_id=tenant_id
+            )
+            db.add(user_role)
 
     db.commit()
     db.refresh(target)

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiRequest } from '../services/api/client';
 
 const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = null }) => {
   const [formData, setFormData] = useState({
@@ -58,12 +59,6 @@ const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = n
         return;
       }
 
-      const token = localStorage.getItem('hrms_token');
-      const endpoint = mode === 'create'
-        ? 'http://localhost:8080/api/admin/users-access-control/business-units'
-        : `http://localhost:8080/api/admin/users-access-control/business-units/${bu.id}`;
-      const method = mode === 'create' ? 'POST' : 'PUT';
-
       const payload = {
         name: formData.name,
         display_name: formData.display_name,
@@ -71,21 +66,14 @@ const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = n
         bu_code: formData.bu_code
       };
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+      const endpoint = mode === 'create'
+        ? '/api/admin/users-access-control/business-units'
+        : `/api/admin/users-access-control/business-units/${bu.id}`;
+
+      await apiRequest(endpoint, {
+        method: mode === 'create' ? 'POST' : 'PUT',
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || 'Failed to save business unit');
-        setLoading(false);
-        return;
-      }
 
       setLoading(false);
       onSuccess?.();
