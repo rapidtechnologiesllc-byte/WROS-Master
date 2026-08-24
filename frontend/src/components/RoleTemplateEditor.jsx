@@ -166,6 +166,11 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         await savePermissions(newTemplateId);
 
         toast.success('Role template created successfully');
+
+        // Invalidate frontend permission cache so it refreshes on next login/navigation
+        // Backend is source of truth; this ensures UI reflects latest permissions
+        localStorage.removeItem('hrms_permissions');
+
         if (onSuccess) onSuccess(response.data);
         onClose();
       } else {
@@ -182,6 +187,11 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         await savePermissions(templateId);
 
         toast.success('Role template updated successfully');
+
+        // Invalidate frontend permission cache so it refreshes on next login/navigation
+        // Backend is source of truth; this ensures UI reflects latest permissions
+        localStorage.removeItem('hrms_permissions');
+
         if (onSuccess) onSuccess();
         onClose();
       }
