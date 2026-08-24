@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { apiRequest } from '../services/api/client';
 
 const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null }) => {
   const [formData, setFormData] = useState({
@@ -23,45 +24,28 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
 
   const loadData = async () => {
     try {
-      const token = localStorage.getItem('hrms_token');
-
       // Load business units
-      const buRes = await fetch('http://localhost:8080/api/admin/users-access-control/business-units', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (buRes.ok) {
-        const data = await buRes.json();
-        setBusinessUnits(data.business_units || data || []);
-      }
+      const buRes = await apiRequest('/api/admin/users-access-control/business-units');
+      const buData = buRes.data || [];
+      setBusinessUnits(Array.isArray(buData) ? buData : (buData.business_units || []));
 
       // Load roles
-      const rolesRes = await fetch('http://localhost:8080/admin/role-templates', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (rolesRes.ok) {
-        const data = await rolesRes.json();
-        setRoles(data.role_templates || []);
-      }
+      const rolesRes = await apiRequest('/admin/role-templates');
+      const rolesData = rolesRes.data || [];
+      setRoles(Array.isArray(rolesData) ? rolesData : (rolesData.role_templates || []));
 
       // Load positions for job title dropdown
-      const posRes = await fetch('http://localhost:8080/org/positions', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (posRes.ok) {
-        const posData = await posRes.json();
-        setPositions(posData || []);
-      }
+      const posRes = await apiRequest('/org/positions');
+      const posData = posRes.data || [];
+      setPositions(Array.isArray(posData) ? posData : []);
 
       // Load modules for permissions editor
-      const modulesRes = await fetch('http://localhost:8080/admin/modules', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (modulesRes.ok) {
-        const modulesData = await modulesRes.json();
-        setModules(modulesData.modules || []);
-      }
+      const modulesRes = await apiRequest('/admin/modules');
+      const modulesData = modulesRes.data || [];
+      setModules(Array.isArray(modulesData) ? modulesData : (modulesData.modules || []));
     } catch (err) {
       console.error('Error loading data:', err);
+      setError(`Failed to load form data: ${err.message}`);
     }
   };
 
@@ -145,10 +129,9 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         return;
       }
 
-      const token = localStorage.getItem('hrms_token');
       const endpoint = mode === 'create'
-        ? 'http://localhost:8080/hr/users/create-with-roles'
-        : `http://localhost:8080/hr/users/${user.user_id}/update-with-roles`;
+        ? '/hr/users/create-with-roles'
+        : `/hr/users/${user.user_id}/update-with-roles`;
       const method = mode === 'create' ? 'POST' : 'PUT';
 
       const payload = {
@@ -160,21 +143,10 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         role_ids: formData.role_ids
       };
 
-      const response = await fetch(endpoint, {
+      await apiRequest(endpoint, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || 'Failed to save user');
-        setLoading(false);
-        return;
-      }
 
       setLoading(false);
       try {
