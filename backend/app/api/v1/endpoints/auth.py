@@ -132,11 +132,17 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     user = authenticate_user(db, request.email, request.password)
     logger.info(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'False'}")
     if user:
-        # Get authoritative UserRole from database (ORM not loading correctly)
+        # Get authoritative role_template_id from database (ORM not loading correctly)
         from sqlalchemy import text
-        user_role = db.execute(text('SELECT "UserRole" FROM "users" WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
-        if not user_role:
-            user_role = user.UserRole
+        role_template_id = db.execute(text('SELECT role_template_id FROM app_schema.users WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
+
+        # Get role template name
+        user_role = user.UserRole or "User"  # Fall back to UserRole field or "User"
+        if role_template_id:
+            from app.models.role_template import RoleTemplate
+            rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
+            if rt:
+                user_role = rt.name
         # Phase 1 B3 -- gate is off by default (mfa_enforcement_enabled())
         # and only applies to MFA_REQUIRED_ROLES even when on. See
         # app.core.mfa's module docstring: do not enable the env flag

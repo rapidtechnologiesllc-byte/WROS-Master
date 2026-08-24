@@ -28,6 +28,7 @@ import {
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
 import { getHrMe } from "../services/api/users";
+import RoleTemplateEditor from "../components/RoleTemplateEditor";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -661,8 +662,23 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         </Button>
       </div>
 
-      {editingTemplateId ? (
-        <div className="border rounded-lg p-6 bg-white">
+      {/* Use RoleTemplateEditor for editing */}
+      {editingTemplateId && (
+        <RoleTemplateEditor
+          mode="edit"
+          templateId={editingTemplateId}
+          onClose={() => setEditingTemplateId(null)}
+          onSuccess={() => {
+            setEditingTemplateId(null);
+            window.location.reload();
+          }}
+          modules={modules}
+        />
+      )}
+
+      {!editingTemplateId && (
+        <>
+          <div className="border rounded-lg p-6 bg-white hidden">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">{editingTemplate?.name}</h3>
@@ -876,139 +892,18 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         </>
       )}
 
-      {/* Create Role Template Modal - with Module & Resource Permissions */}
+      {/* Use RoleTemplateEditor for creating */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg m-4 my-8">
-            <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Create New Role Template</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-              {/* Basic Info */}
-              <div className="space-y-4">
-                <Input
-                  label="Template Name *"
-                  placeholder="e.g., Senior Recruiter, Finance Manager"
-                  value={createRoleForm.name}
-                  onChange={(val) => setCreateRoleForm({ ...createRoleForm, name: val })}
-                />
-                <Input
-                  label="Description (Optional)"
-                  placeholder="Brief description of this role..."
-                  value={createRoleForm.description}
-                  onChange={(val) => setCreateRoleForm({ ...createRoleForm, description: val })}
-                />
-              </div>
-
-              {/* Module & Resource Permissions */}
-              <div className="border rounded-lg bg-white">
-                <div className="bg-gray-50 p-4 border-b">
-                  <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions *</p>
-                  <p className="text-xs text-gray-600">Enable at least one module and select resources</p>
-                </div>
-
-                <div className="divide-y max-h-96 overflow-y-auto">
-                  {Array.isArray(modules) && modules.map((module, idx) => {
-                    const moduleName = typeof module === 'string' ? module : module.name;
-                    const isEnabled = createTemplateModuleStates[moduleName];
-                    const resources = (typeof module === 'object' ? module.resources : []) || [];
-
-                    return (
-                      <div key={`module_${idx}`}>
-                        <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
-                          <button
-                            onClick={() => setCreateTemplateExpandedModules(prev => ({
-                              ...prev,
-                              [moduleName]: !prev[moduleName]
-                            }))}
-                            className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded"
-                          >
-                            <span className="text-gray-600">{createTemplateExpandedModules[moduleName] ? '▼' : '▶'}</span>
-                            <h4 className="font-semibold text-gray-900 capitalize">{moduleName}</h4>
-                          </button>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleCreateRoleToggleModule(moduleName, resources, true)}
-                              className={`px-3 py-1 rounded text-sm font-semibold ${
-                                isEnabled ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'
-                              }`}
-                            >
-                              ON
-                            </button>
-                            <button
-                              onClick={() => handleCreateRoleToggleModule(moduleName, resources, false)}
-                              className={`px-3 py-1 rounded text-sm font-semibold ${
-                                !isEnabled ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'
-                              }`}
-                            >
-                              OFF
-                            </button>
-                          </div>
-                        </div>
-
-                        {resources.length > 0 && createTemplateExpandedModules[moduleName] && (
-                          <div className="divide-y">
-                            {resources.map(resource => {
-                              const resName = resource.name || resource.resource_name;
-                              const perms = createTemplatePermissions[resName] || { view: false, create: false, edit: false, delete: false };
-
-                              return (
-                                <div key={resName} className={`px-4 py-3 ${!isEnabled ? 'bg-gray-50 opacity-60' : ''}`}>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className={`text-sm font-medium ${!isEnabled ? 'text-gray-500' : 'text-gray-900'}`}>
-                                      {resource.display || resName}
-                                    </span>
-                                  </div>
-                                  <div className="grid grid-cols-4 gap-2">
-                                    {['view', 'create', 'edit', 'delete'].map(action => (
-                                      <button
-                                        key={action}
-                                        onClick={() => isEnabled && handleCreateRoleTogglePermission(resName, action, perms[action])}
-                                        disabled={!isEnabled}
-                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
-                                          !isEnabled
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : perms[action]
-                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
-                                        }`}
-                                      >
-                                        {action.charAt(0).toUpperCase()}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="border-t p-6 flex gap-3 justify-end sticky bottom-0 bg-white">
-              <Button
-                variant="outline"
-                onClick={() => setShowCreateModal(false)}
-                disabled={creatingTemplate}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateRole}
-                disabled={creatingTemplate || !canCreateTemplate()}
-              >
-                {creatingTemplate ? "Creating..." : "Create Role Template"}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <RoleTemplateEditor
+          mode="create"
+          templateId={null}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            window.location.reload();
+          }}
+          modules={modules}
+        />
       )}
     </div>
   );

@@ -324,31 +324,30 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                               <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
                             </div>
                           </div>
-                          {/* Toggle ON/OFF - doesn't auto-enable, just expands module */}
+                          {/* Toggle button with proper color coding */}
                           <button
                             onClick={() => {
                               setExpandedModules(prev => ({
                                 ...prev,
-                                [moduleName]: enabledCount > 0 ? !prev[moduleName] : true
+                                [moduleName]: !prev[moduleName]
                               }));
-                              handleToggleModule(moduleName, resources, enabledCount > 0 ? false : true);
                             }}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              enabledCount === totalPossible && totalPossible > 0
+                              enabledCount === 0
+                                ? 'bg-red-500'
+                                : enabledCount === totalPossible && totalPossible > 0
                                 ? 'bg-green-500'
-                                : enabledCount > 0
-                                ? 'bg-amber-400'
-                                : 'bg-red-500'
+                                : 'bg-yellow-400'
                             }`}
-                            title={enabledCount > 0 ? 'Disable module' : 'Enable module'}
+                            title={`${enabledCount}/${totalPossible} permissions enabled`}
                           >
                             <span
                               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                enabledCount === totalPossible && totalPossible > 0
+                                enabledCount === 0
+                                  ? 'translate-x-1'
+                                  : enabledCount === totalPossible && totalPossible > 0
                                   ? 'translate-x-6'
-                                  : enabledCount > 0
-                                  ? 'translate-x-4'
-                                  : 'translate-x-1'
+                                  : 'translate-x-3'
                               }`}
                             />
                           </button>

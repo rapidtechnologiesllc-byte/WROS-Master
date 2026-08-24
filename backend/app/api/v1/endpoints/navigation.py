@@ -75,62 +75,39 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     }
     """
     try:
-        # Get user ID - handle both Users object and dict formats
+        # Get user ID
         if hasattr(current_user, 'UserID'):
             user_id = current_user.UserID
             tenant_id = getattr(current_user, 'tenant_id', 1)
         else:
-            user_id = current_user.get("sub") or current_user.get("user_id")
+            user_id = current_user.get("sub")
             tenant_id = current_user.get("tenant_id", 1)
 
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        # Load module/resource structure from init_resources.py (source of truth)
-        # instead of from DB which can have corruption/duplicates
+        # Load module/resource structure from init_resources.py
         from app.seeds.init_resources import MODULES_AND_RESOURCES, RESOURCE_ROUTES
 
         navigation_modules = {}
         module_icons = {
-            "Personal": "LayoutDashboard",
-            "Recruitment": "Users",
-            "Workforce": "Users2",
-            "Finance": "BadgeDollarSign",
-            "Sales": "Briefcase",
-            "Project Management": "FolderKanban",
-            "Reporting": "BarChart3",
-            "System": "Settings",
-            "Executive": "TrendingUp",
-            "Admin": "Shield",
-            "Executive Dashboards": "BarChart3",
-            "AI & Automation": "Bot"
+            "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2",
+            "Finance": "BadgeDollarSign", "Sales": "Briefcase", "Project Management": "FolderKanban",
+            "Reporting": "BarChart3", "System": "Settings", "Executive": "TrendingUp",
+            "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
         }
 
-        logger.warning(f"[NAV] Building navigation from init_resources.py for user_id={user_id}")
-
-        # Build navigation from init_resources.py structure
+        # Build navigation from init_resources
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
             module_icon = module_icons.get(module_name, "Briefcase")
-            navigation_modules[module_name] = {
-                "label": module_name,
-                "icon": module_icon,
-                "items": []
-            }
+            navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
-            # Add each resource if user has permission
             for resource_name in resource_names:
-                # Normalize resource name: convert hyphens to underscores
-                # (database stores with underscores, init_resources uses hyphens)
                 db_resource_name = resource_name.replace('-', '_')
-                can_view = RoleTemplatePermissionService.can_view(
-                    db, user_id, db_resource_name, tenant_id
-                )
+                can_view = RoleTemplatePermissionService.can_view(db, user_id, db_resource_name, tenant_id)
 
                 if can_view:
-                    # Get route from RESOURCE_ROUTES (uses hyphenated names) or generate
-                    # RESOURCE_ROUTES dict uses hyphenated keys, so use original resource_name
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
-                    # Ensure route starts with /
                     if not route.startswith('/'):
                         route = f"/{route}"
 
@@ -141,12 +118,14 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                         "route": route
                     })
 
-        # Convert to list of groups, filtering out empty modules
-        groups = [module for module in navigation_modules.values() if module["items"]]
-
-        logger.warning(f"[NAV] Returning {len(groups)} modules for user_id={user_id}")
-        return {"groups": groups}
+        groups = [m for m in navigation_modules.values() if m["items"]]
+        logger.warning(f"[NAV] Returning {len(groups)} groups")
+        response = {"data": {"groups": groups}}
+        logger.warning(f"[NAV] Response: {response}")
+        return response
 
     except Exception as e:
-        logger.error(f"Error building navigation for user {current_user}: {e}", exc_info=True)
-        return {"groups": []}
+        logger.error(f"Navigation error: {e}", exc_info=True)
+        response = {"data": {"groups": []}}
+        logger.warning(f"[NAV] Error response: {response}")
+        return response

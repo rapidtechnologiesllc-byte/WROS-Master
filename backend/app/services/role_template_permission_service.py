@@ -34,18 +34,18 @@ class RoleTemplatePermissionService:
                 logger.warning(f"User not found: {user_id}")
                 return None
 
-            if not user.role_id:
-                logger.warning(f"User {user_id} has no role_id assigned")
+            if not user.role_template_id:
+                logger.warning(f"User {user_id} has no role_template_id assigned")
                 return None
 
             role = db.query(RoleTemplate).filter(
-                RoleTemplate.id == user.role_id,
+                RoleTemplate.id == user.role_template_id,
                 RoleTemplate.tenant_id == tenant_id,
                 RoleTemplate.enabled == True
             ).first()
 
             if not role:
-                logger.warning(f"Role template {user.role_id} not found for user {user_id}")
+                logger.warning(f"Role template {user.role_template_id} not found for user {user_id}")
                 return None
 
             return role
