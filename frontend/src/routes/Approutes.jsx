@@ -19,8 +19,6 @@ import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import UserFormPage from "../screens/UserFormPage";
 import DeliveryCentersAdmin from "../screens/DeliveryCentersAdmin";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
-import RoleTemplateManager from "../screens/RoleTemplateManager";
-import RoleTemplateFormPage from "../screens/RoleTemplateFormPage";
 import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
 import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
 import Verification from "../screens/Verification";
@@ -927,9 +925,6 @@ export default function AppRoutes() {
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
-            <Route path="admin/role-templates" element={<RoleTemplateManager />} />
-            <Route path="admin/role-templates/create" element={<RoleTemplateFormPage />} />
-            <Route path="admin/role-templates/:templateId/edit" element={<RoleTemplateFormPage />} />
             <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
