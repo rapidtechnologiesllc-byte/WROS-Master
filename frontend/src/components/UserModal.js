@@ -49,7 +49,7 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
 
   const loadData = async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
 
       // Load business units
       const buRes = await fetch('http://localhost:8080/api/admin/users-access-control/business-units', {
@@ -82,7 +82,7 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
 
   const loadPartners = async (buId) => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       const res = await fetch(`http://localhost:8080/hr/users/all`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -144,7 +144,7 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         return;
       }
 
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       const endpoint = mode === 'create'
         ? 'http://localhost:8080/hr/users/create-with-roles'
         : `http://localhost:8080/hr/users/${user.user_id}`;
