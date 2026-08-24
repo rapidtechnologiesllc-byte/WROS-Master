@@ -82,17 +82,6 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleRoleToggle = (roleId) => {
-    setFormData(prev => {
-      // Single-select: if already selected, deselect; otherwise select only this one
-      const isSelected = prev.role_ids.includes(roleId);
-      return {
-        ...prev,
-        role_ids: isSelected ? [] : [roleId]
-      };
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -292,41 +281,20 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
           {/* Role Template Section */}
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900">Role Template *</h3>
-            <p className="text-sm text-gray-600">Select one or more role templates for this user</p>
-            <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-              {roles.map(role => {
-                const isSelected = formData.role_ids.includes(role.id);
-                const hasSelection = formData.role_ids.length > 0;
-                const isDisabled = hasSelection && !isSelected;
-
-                return (
-                  <label
-                    key={role.id}
-                    className={`flex items-center gap-3 p-2 rounded cursor-pointer ${
-                      isDisabled
-                        ? 'opacity-50 cursor-not-allowed bg-gray-100'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleRoleToggle(role.id)}
-                      disabled={isDisabled}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 disabled:cursor-not-allowed"
-                    />
-                    <span className={`text-sm font-medium ${isDisabled ? 'text-gray-500' : 'text-gray-900'}`}>
-                      {role.name}
-                    </span>
-                    {role.description && (
-                      <span className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
-                        ({role.description})
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
+            <select
+              value={formData.role_ids[0] || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, role_ids: e.target.value ? [parseInt(e.target.value)] : [] }))}
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select a role template...</option>
+              {roles.map(role => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                  {role.description ? ` - ${role.description}` : ''}
+                </option>
+              ))}
+            </select>
             {formData.role_ids.length === 0 && !Object.values(manualPermissions).some(p => p) && (
               <p className="text-sm text-gray-600">Or set custom permissions below</p>
             )}
