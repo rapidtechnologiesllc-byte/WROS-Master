@@ -15,6 +15,7 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
   const [businessUnits, setBusinessUnits] = useState([]);
   const [partners, setPartners] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -67,6 +68,15 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
       if (rolesRes.ok) {
         const data = await rolesRes.json();
         setRoles(data.role_templates || []);
+      }
+
+      // Load positions for job title dropdown
+      const posRes = await fetch('http://localhost:8080/org/positions', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (posRes.ok) {
+        const posData = await posRes.json();
+        setPositions(posData || []);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -260,14 +270,17 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-              <input
-                type="text"
+              <select
                 name="job_title"
                 value={formData.job_title}
                 onChange={handleInputChange}
-                placeholder="e.g., Senior Recruiter"
                 className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="">Select a position...</option>
+                {positions.map((pos) => (
+                  <option key={pos.id} value={pos.name}>{pos.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
