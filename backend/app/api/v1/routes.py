@@ -78,6 +78,7 @@ from app.api.v1.endpoints.error_log import router as error_log_router
 from app.api.v1.endpoints.bu_context import router as bu_context_router
 from app.api.v1.endpoints.system_config import router as system_config_router
 from app.api.v1.endpoints.activity_timeline import router as activity_timeline_router
+from app.api.v1.endpoints.certifications_admin import router as certifications_admin_router
 from app.api.v1.endpoints.agents import router as agents_router
 from app.api.v1.endpoints.flash_interview import router as flash_interview_router
 from app.api.v1.endpoints.hiring_workflow import router as hiring_workflow_router
@@ -228,4 +229,5 @@ router.include_router(router=agent_accountability_router)
 router.include_router(router=pipeline_orchestration_router)
 router.include_router(router=finance_monitoring_router)
 router.include_router(router=agent_pyramid_router)
-router.include_router(router=goals_router)
+router.include_router(router=goals_router)
+router.include_router(router=certifications_admin_router)

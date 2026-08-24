@@ -262,3 +262,35 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
 
     db.commit()
     logger.info(f"[KPI] Recalculated score: emp={employee_id} cert_score={certification_score}")
+
+
+# ==== Form Dropdown Data Endpoints ====
+
+@router.get("/business-units")
+def list_business_units_for_form(db: Session = Depends(get_db)):
+    """List all business units for form dropdown"""
+    from app.models.business_unit import BusinessUnit
+    units = db.query(BusinessUnit).all()
+    return [
+        {
+            "id": u.id,
+            "name": u.business_unit_name or u.name,
+            "code": u.bu_code
+        }
+        for u in units
+    ]
+
+
+@router.get("/roles")
+def list_roles_for_form(db: Session = Depends(get_db)):
+    """List all roles for form dropdown"""
+    from app.models.rbac import Role
+    roles = db.query(Role).all()
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "description": r.description
+        }
+        for r in roles
+    ]
