@@ -274,7 +274,7 @@ def list_business_units_for_form(db: Session = Depends(get_db)):
     return [
         {
             "id": u.id,
-            "name": u.business_unit_name or u.name,
+            "name": u.display_name or u.name,
             "code": u.bu_code
         }
         for u in units
