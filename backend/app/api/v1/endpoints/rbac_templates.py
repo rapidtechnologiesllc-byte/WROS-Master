@@ -31,7 +31,7 @@ class RoleTemplateCreate(BaseModel):
 class RoleTemplateUpdate(BaseModel):
     display_name: Optional[str] = None
     description: Optional[str] = None
-    permissions: List[PermissionInput]
+    permissions: List[PermissionInput] = []
 
 
 class RoleTemplateResponse(BaseModel):
