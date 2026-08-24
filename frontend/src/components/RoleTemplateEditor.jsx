@@ -114,14 +114,16 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       return;
     }
 
-    // Require at least one permission to be enabled
-    const totalPermissions = Object.values(permissions).reduce((count, perms) => {
-      return count + Object.values(perms).filter(Boolean).length;
-    }, 0);
+    // Require at least one permission to be enabled (only for create mode)
+    if (mode === 'create') {
+      const totalPermissions = Object.values(permissions).reduce((count, perms) => {
+        return count + Object.values(perms).filter(Boolean).length;
+      }, 0);
 
-    if (totalPermissions === 0) {
-      toast.error('Please enable at least one permission for this role template');
-      return;
+      if (totalPermissions === 0) {
+        toast.error('Please enable at least one permission for this role template');
+        return;
+      }
     }
 
     setSaving(true);
@@ -171,7 +173,8 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           method: 'PUT',
           body: JSON.stringify({
             name: formData.name,
-            description: formData.description
+            description: formData.description,
+            permissions: []
           })
         });
 
@@ -272,6 +275,19 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Template ID
+              </label>
+              <input
+                type="text"
+                value={mode === 'edit' ? templateId : 'Auto-generated'}
+                disabled
+                className="w-full rounded-lg bg-gray-100 dark:bg-gray-900 px-4 py-3 text-base font-semibold font-sans text-gray-600 dark:text-gray-400 outline-none cursor-not-allowed opacity-60"
+                style={{ border: '1.5px solid #4b5563' }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Template Name *
               </label>
               <Input
@@ -288,12 +304,24 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Description
               </label>
-              <textarea
+              <input
+                type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Describe what this role template is for..."
-                rows="3"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  width: '100%',
+                  padding: '8px 16px',
+                  border: '1.5px solid #4b5563',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  backgroundColor: 'white',
+                  color: '#111827',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}
               />
             </div>
           </div>

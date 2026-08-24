@@ -103,15 +103,7 @@ class Settings:
     # CORS Settings - Environment-based configuration
     # Default: localhost for development
     # Production: Use CORS_ORIGINS env var as comma-separated list
-    CORS_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8080",
-        "http://localhost:52518",
-        "http://127.0.0.1:52518",
-        "http://localhost:60046",
-        "http://127.0.0.1:60046",
-    ]
+    CORS_ORIGINS: list = ["*"]  # Temporary wildcard for dev testing
 
     # Allow additional origins from environment variable (production/staging)
     _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()
