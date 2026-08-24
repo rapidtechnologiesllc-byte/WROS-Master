@@ -723,6 +723,53 @@ def list_role_templates(
         "limit": limit
     }
 
+@router.get("/role-templates/{template_id}")
+def get_role_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get a single role template with all permissions."""
+    from app.models.role_template import RoleTemplatePermission, Resource
+
+    template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == template_id,
+        RoleTemplate.tenant_id == current_user.tenant_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Role template not found")
+
+    # Load all permissions for this template
+    permissions = db.query(RoleTemplatePermission).filter(
+        RoleTemplatePermission.role_template_id == template.id
+    ).all()
+
+    perm_list = []
+    for perm in permissions:
+        resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
+        if resource:
+            perm_list.append({
+                "resource_id": perm.resource_id,
+                "resource_name": resource.name,
+                "resource_display": resource.display_name,
+                "can_view": perm.can_view,
+                "can_create": perm.can_create,
+                "can_edit": perm.can_edit,
+                "can_delete": perm.can_delete,
+            })
+
+    return {
+        "id": template.id,
+        "name": template.name,
+        "display_name": template.display_name,
+        "description": template.description,
+        "is_system": getattr(template, 'is_system', False),
+        "is_active": getattr(template, 'is_active', True),
+        "permissions": perm_list,
+    }
+
+
 @router.post("/role-templates")
 def create_role_template(
     req: RoleTemplateCreateRequest,
