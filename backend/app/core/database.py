@@ -48,14 +48,15 @@ _engine_kwargs = {
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 # Configure schema for database
-# PostgreSQL: use public schema
+# PostgreSQL: use app_schema (app_user has privileges there)
 # SQLite: no schema support, skip configuration
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_conn, connection_record):
     if "sqlite" not in DATABASE_URL.lower():
-        # PostgreSQL only
+        # PostgreSQL only — use app_schema where app_user has CREATE privileges
         cursor = dbapi_conn.cursor()
-        cursor.execute("SET search_path TO public")
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS app_schema")
+        cursor.execute("SET search_path TO app_schema, public")
         cursor.close()
 
 # SessionLocal class

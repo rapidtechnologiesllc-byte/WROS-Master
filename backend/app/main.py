@@ -86,76 +86,65 @@ async def log_unhandled_exception(request: Request, exc: Exception):
 async def startup_event():
     """
     Application startup event.
-    Fast path: start scheduler immediately.
-    Slow DB work (create_all + RBAC seed) runs in a background thread.
+    Creates tables and seeds RBAC data.
     """
     import asyncio
+    import time
     from concurrent.futures import ThreadPoolExecutor
+    from sqlalchemy.exc import OperationalError
+
+    # Validate configuration immediately
+    settings.validate_config()
+    logger.info("[OK] Configuration validated")
 
     # Start APScheduler immediately (no I/O needed)
     from app.core.scheduler import start_scheduler
     start_scheduler()
+    logger.info("[OK] Scheduler started")
 
-    # Validate configuration
-    settings.validate_config()
-    logger.info("[OK] Configuration validated")
+    # Run DB operations synchronously (not in background thread)
+    # This ensures tables exist before app accepts requests
+    try:
+        logger.info("[Startup] Creating database tables...")
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("[OK] Database tables initialized")
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
+        return  # Don't crash startup, but tables won't exist
 
-    # Run slow DB operations in a thread so uvicorn reports "started" right away
-    loop = asyncio.get_event_loop()
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="startup")
+    # Seed RBAC with retries
+    from app.core.database import SessionLocal
+    from app.services.role_template_seed import seed_role_templates
 
-    async def _db_init():
-        def _run():
-            import time
-            from sqlalchemy.exc import OperationalError
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2  # seconds
 
-            try:
-                # checkfirst=True skips tables that already exist — much faster on restarts
-                Base.metadata.create_all(bind=engine, checkfirst=True)
-                logger.info("[OK] Database tables initialized")
-            except Exception as exc:
-                logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
-                return  # Can't continue without tables
-
-            # Seed RBAC with retries — transient network blips (08S01) are common on cold start
-            from app.core.database import SessionLocal
-            from app.services.rbac_service import RBACService
-            from app.services.role_template_seed import seed_role_templates
-
-            MAX_RETRIES = 3
-            RETRY_DELAY = 5  # seconds
-
-            for attempt in range(1, MAX_RETRIES + 1):
-                _db = SessionLocal()
-                try:
-                    # RBACService.seed_roles_and_permissions(_db)  # Replaced by seed_role_templates
-                    seed_role_templates(_db, tenant_id=1)
-                    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-                    logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-                    break  # Success — exit retry loop
-                except OperationalError as exc:
-                    logger.warning(
-                        f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
-                        f"(DB connectivity issue): {exc}"
-                    )
-                    if attempt < MAX_RETRIES:
-                        logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
-                        time.sleep(RETRY_DELAY)
-                    else:
-                        logger.error(
-                            "[Startup] RBAC seed failed after all retries. "
-                            "The app will run but role/permission data may be incomplete."
-                        )
-                except Exception as exc:
-                    logger.error(f"Background startup error: {exc}", exc_info=True)
-                    break  # Non-retryable error
-                finally:
-                    _db.close()
-
-        await loop.run_in_executor(executor, _run)
-
-    # Fire-and-forget — don't await so uvicorn finishes startup immediately
-    loop.create_task(_db_init())
+    for attempt in range(1, MAX_RETRIES + 1):
+        _db = SessionLocal()
+        try:
+            logger.info(f"[Startup] Seeding RBAC (attempt {attempt}/{MAX_RETRIES})...")
+            seed_role_templates(_db, tenant_id=1)
+            logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+            logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+            break  # Success — exit retry loop
+        except OperationalError as exc:
+            logger.warning(
+                f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
+                f"(DB connectivity issue): {exc}"
+            )
+            if attempt < MAX_RETRIES:
+                logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+            else:
+                logger.error(
+                    "[Startup] RBAC seed failed after all retries. "
+                    "The app will run but role/permission data may be incomplete."
+                )
+        except Exception as exc:
+            logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
+            break
+        finally:
+            _db.close()
 
 
 @app.on_event("shutdown")
