@@ -28,11 +28,12 @@ if not DATABASE_URL:
         "Format: postgresql://username:password@host:port/database_name"
     )
 
-if not DATABASE_URL.startswith("postgresql://"):
+if not (DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("sqlite://")):
     raise ValueError(
         f"Invalid DATABASE_URL: '{DATABASE_URL[:30]}...'. "
-        "Only PostgreSQL is supported. "
-        "Format: postgresql://username:password@host:port/database_name"
+        "Only PostgreSQL and SQLite are supported. "
+        "PostgreSQL Format: postgresql://username:password@host:port/database_name\n"
+        "SQLite Format: sqlite:///./local_dev.sqlite3"
     )
 
 # PostgreSQL connection pool settings
@@ -47,12 +48,16 @@ _engine_kwargs = {
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
-# Configure app_schema for PostgreSQL
+# Configure schema for database
+# PostgreSQL: use public schema
+# SQLite: no schema support, skip configuration
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_conn, connection_record):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("SET search_path TO app_schema")
-    cursor.close()
+    if "sqlite" not in DATABASE_URL.lower():
+        # PostgreSQL only
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET search_path TO public")
+        cursor.close()
 
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
