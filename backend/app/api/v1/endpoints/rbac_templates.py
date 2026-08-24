@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.services.rbac_service import RBACService
-from app.models.rbac_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from pydantic import BaseModel
 from typing import List, Optional
 
