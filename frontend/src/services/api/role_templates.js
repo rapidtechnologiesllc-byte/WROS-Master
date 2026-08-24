@@ -43,8 +43,37 @@ export const deleteRoleTemplate = async (templateId) => {
 
 // Modules and Resources
 export const listModulesAndResources = async () => {
-  const { data } = await apiRequest("/admin/modules", { method: "GET" });
-  return data?.modules || [];
+  try {
+    const { data } = await apiRequest("/admin/modules", { method: "GET" });
+    const modules = data?.modules || [];
+
+    // Load resources for each module
+    const modulesWithResources = await Promise.all(
+      modules.map(async (module) => {
+        try {
+          const { data: resourceData } = await apiRequest(
+            `/admin/modules/${module.name}/resources`,
+            { method: "GET" }
+          );
+          return {
+            ...module,
+            resources: resourceData?.resources || []
+          };
+        } catch (err) {
+          console.warn(`Failed to load resources for module ${module.name}:`, err);
+          return {
+            ...module,
+            resources: []
+          };
+        }
+      })
+    );
+
+    return modulesWithResources;
+  } catch (err) {
+    console.error("Failed to load modules:", err);
+    return [];
+  }
 };
 
 export const getModuleResources = async (moduleName) => {
