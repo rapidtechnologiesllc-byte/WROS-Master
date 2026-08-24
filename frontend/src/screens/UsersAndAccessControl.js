@@ -1351,17 +1351,8 @@ export default function UsersAndAccessControl() {
 
 function BusinessUnitsSection() {
   const [businessUnits, setBusinessUnits] = useState([]);
-  const [showAddBUModal, setShowAddBUModal] = useState(false);
-  const [newBUName, setNewBUName] = useState("");
-  const [newBUDescription, setNewBUDescription] = useState("");
-  const [newBURegion, setNewBURegion] = useState("");
-  const [newBUContinent, setNewBUContinent] = useState("");
-  const [editingBUId, setEditingBUId] = useState(null);
-  const [editBUName, setEditBUName] = useState("");
-  const [editBUDescription, setEditBUDescription] = useState("");
-  const [editBURegion, setEditBURegion] = useState("");
-  const [editBUContinent, setEditBUContinent] = useState("");
-  const [isSubmittingBU, setIsSubmittingBU] = useState(false);
+  const [showBUModal, setShowBUModal] = useState(false);
+  const [selectedBU, setSelectedBU] = useState(null);
 
   useEffect(() => {
     loadBusinessUnits();
@@ -1369,96 +1360,21 @@ function BusinessUnitsSection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const { data } = await apiRequest("/bu-context/available-buses", {
-        skipAuth: true,
+      const { data } = await apiRequest("/api/admin/users-access-control/business-units", {
         method: "GET"
       });
-      const busData = data?.business_units || [];
-      setBusinessUnits(busData);
+      const busData = data?.business_units || data || [];
+      setBusinessUnits(Array.isArray(busData) ? busData : []);
     } catch (err) {
       console.error("Failed to load business units:", err);
       setBusinessUnits([]);
     }
   };
 
-  const handleAddBusinessUnit = async (e) => {
-    e.preventDefault();
-    if (!newBUName.trim()) {
-      toast.error("Business Unit Name is required");
-      return;
-    }
-    setIsSubmittingBU(true);
-    try {
-      const payload = {
-        name: newBUName.trim(),
-        description: newBUDescription.trim() || null,
-        ...(newBURegion && { region: newBURegion.trim() }),
-        ...(newBUContinent && { continent: newBUContinent.trim() }),
-      };
-
-      await apiRequest("/rbac/business-units", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      toast.success("Business Unit created successfully");
-      loadBusinessUnits();
-      setShowAddBUModal(false);
-      setNewBUName("");
-      setNewBUDescription("");
-      setNewBURegion("");
-      setNewBUContinent("");
-    } catch (err) {
-      toast.error(err?.message || "Failed to add business unit");
-    } finally {
-      setIsSubmittingBU(false);
-    }
-  };
-
-  const handleEditBusinessUnit = (bu) => {
-    setEditingBUId(bu.id);
-    setEditBUName(bu.name || "");
-    setEditBUDescription(bu.description || "");
-    setEditBURegion(bu.region || "");
-    setEditBUContinent(bu.continent || "");
-  };
-
-  const handleSaveEditedBusinessUnit = async () => {
-    if (!editBUName.trim()) {
-      toast.error("Business Unit Name is required");
-      return;
-    }
-    setIsSubmittingBU(true);
-    try {
-      await apiRequest(`/rbac/business-units/${editingBUId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editBUName.trim(),
-          description: editBUDescription.trim() || null,
-          ...(editBURegion && { region: editBURegion.trim() }),
-          ...(editBUContinent && { continent: editBUContinent.trim() }),
-        }),
-      });
-      loadBusinessUnits();
-      setEditingBUId(null);
-      setEditBUName("");
-      setEditBUDescription("");
-      setEditBURegion("");
-      setEditBUContinent("");
-      toast.success("Business Unit updated successfully");
-    } catch (err) {
-      toast.error(err?.message || "Failed to update business unit");
-    } finally {
-      setIsSubmittingBU(false);
-    }
-  };
-
   const handleDeleteBusinessUnit = async (buId) => {
     if (!window.confirm("Are you sure you want to delete this business unit?")) return;
     try {
-      await apiRequest(`/rbac/business-units/${buId}`, { method: "DELETE" });
+      await apiRequest(`/api/admin/users-access-control/business-units/${buId}`, { method: "DELETE" });
       loadBusinessUnits();
       toast.success("Business Unit deleted successfully");
     } catch (err) {
@@ -1469,32 +1385,33 @@ function BusinessUnitsSection() {
   return (
     <div className="space-y-4">
       <button
-        onClick={() => setShowAddBUModal(true)}
+        onClick={() => { setSelectedBU(null); setShowBUModal(true); }}
         className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
       >
         <Plus className="h-4 w-4" /> Add Business Unit
       </button>
+
       <div className="space-y-3">
         {businessUnits.map((bu) => (
           <div key={bu.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
             <div className="flex-1">
               <h4 className="font-semibold text-gray-900">{bu.name}</h4>
+              {bu.display_name && <p className="text-sm text-gray-500 mt-1">Display Name: {bu.display_name}</p>}
               {bu.description && <p className="text-sm text-gray-600 mt-1">{bu.description}</p>}
-              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
-                <div><span className="font-medium">Region:</span> {bu.region || "-"}</div>
-                <div><span className="font-medium">Continent:</span> {bu.continent || "-"}</div>
-              </div>
+              {bu.bu_code && <p className="text-sm text-gray-500 mt-1">Code: {bu.bu_code}</p>}
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => handleEditBusinessUnit(bu)}
+                onClick={() => { setSelectedBU(bu); setShowBUModal(true); }}
                 className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                title="Edit business unit"
               >
                 <Edit2 className="h-4 w-4" />
               </button>
               <button
                 onClick={() => handleDeleteBusinessUnit(bu.id)}
                 className="p-2 text-red-600 hover:bg-red-50 rounded"
+                title="Delete business unit"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -1503,134 +1420,13 @@ function BusinessUnitsSection() {
         ))}
       </div>
 
-      {showAddBUModal && (
-        <SimpleModal isOpen={true} onClose={() => { setShowAddBUModal(false); setNewBUName(""); setNewBUDescription(""); setNewBURegion(""); setNewBUContinent(""); }} title="Add Business Unit">
-          <form onSubmit={handleAddBusinessUnit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit Name *</label>
-              <input
-                type="text"
-                value={newBUName}
-                onChange={(e) => setNewBUName(e.target.value)}
-                placeholder="e.g., Asia Pacific"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                disabled={isSubmittingBU}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={newBUDescription}
-                onChange={(e) => setNewBUDescription(e.target.value)}
-                placeholder="Add a description..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                rows="3"
-                disabled={isSubmittingBU}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-              <input
-                type="text"
-                value={newBURegion}
-                onChange={(e) => setNewBURegion(e.target.value)}
-                placeholder="e.g., Asia, Europe, North America"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Continent</label>
-              <input
-                type="text"
-                value={newBUContinent}
-                onChange={(e) => setNewBUContinent(e.target.value)}
-                placeholder="e.g., Asia, Europe, North America"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div className="flex gap-2 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => { setShowAddBUModal(false); setNewBUName(""); setNewBUDescription(""); setNewBURegion(""); setNewBUContinent(""); }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                disabled={isSubmittingBU}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
-                disabled={!newBUName.trim() || isSubmittingBU}
-              >
-                {isSubmittingBU ? "Adding..." : "Add Business Unit"}
-              </button>
-            </div>
-          </form>
-        </SimpleModal>
-      )}
-
-      {editingBUId && (
-        <SimpleModal isOpen={true} onClose={() => setEditingBUId(null)} title="Edit Business Unit">
-          <form onSubmit={(e) => { e.preventDefault(); handleSaveEditedBusinessUnit(); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit Name *</label>
-              <input
-                type="text"
-                value={editBUName}
-                onChange={(e) => setEditBUName(e.target.value)}
-                placeholder="e.g., Asia Pacific"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={editBUDescription}
-                onChange={(e) => setEditBUDescription(e.target.value)}
-                placeholder="Add a description..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                rows="3"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-              <input
-                type="text"
-                value={editBURegion}
-                onChange={(e) => setEditBURegion(e.target.value)}
-                placeholder="e.g., Asia, Europe, North America"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Continent</label>
-              <input
-                type="text"
-                value={editBUContinent}
-                onChange={(e) => setEditBUContinent(e.target.value)}
-                placeholder="e.g., Asia, Europe, North America"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div className="flex gap-2 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => setEditingBUId(null)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
-                disabled={!editBUName.trim() || isSubmittingBU}
-              >
-                {isSubmittingBU ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </SimpleModal>
-      )}
+      <BusinessUnitModal
+        isOpen={showBUModal}
+        onClose={() => { setShowBUModal(false); setSelectedBU(null); }}
+        onSuccess={() => loadBusinessUnits()}
+        mode={selectedBU ? 'edit' : 'create'}
+        bu={selectedBU}
+      />
     </div>
   );
 }
