@@ -225,9 +225,6 @@ def update_role_template(
     if not template:
         raise HTTPException(status_code=404, detail="Role template not found")
 
-    if template.is_system:
-        raise HTTPException(status_code=400, detail="Cannot modify system role templates")
-
     # Update basic fields
     if data.display_name:
         template.display_name = data.display_name
