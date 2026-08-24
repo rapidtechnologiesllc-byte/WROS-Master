@@ -104,8 +104,8 @@ def get_me(
         user_email=current_user.UserEmail,
         user_role=current_user.UserRole,
         job_title=current_user.job_title,
-        permission_role=role.name if role else None,
-        role_id=current_user.role_id,
+        permission_role=roles_list[0] if roles_list else None,
+        role_id=current_user.role_template_id,
         business_unit_id=current_user.business_unit_id,
         created_at=current_user.CreatedAt,
         access_token=access_token,
@@ -200,11 +200,11 @@ def get_all_users(
     """
     # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
     users = db.query(Users).all()
-    
+
     # Build response
     users_data = []
     for u in users:
-        role = db.query(Role).filter(Role.id == u.role_id).first()
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first() if u.role_template_id else None
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
@@ -212,7 +212,7 @@ def get_all_users(
             user_role=u.UserRole,
             job_title=u.job_title,
             created_at=u.CreatedAt,
-            permission_role=role.name if role else None,
+            permission_role=role_template.name if role_template else None,
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,

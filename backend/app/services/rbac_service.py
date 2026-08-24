@@ -125,16 +125,13 @@ class RBACService:
             business_unit_id: Optional BU context for the role
             tenant_id: Tenant ID
         """
-        user_role = UserRole(
-            user_id=user_id,
-            role_template_id=role_id,
-            business_unit_id=business_unit_id,
-            tenant_id=tenant_id
-        )
-        db.add(user_role)
-        db.commit()
-        db.refresh(user_role)
-        return user_role
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if user:
+            user.role_template_id = role_id
+            db.commit()
+            db.refresh(user)
+            return user
+        return None
 
     @staticmethod
     def remove_role_from_user(db: Session, user_id: str, role_id: int, tenant_id: int = 1):

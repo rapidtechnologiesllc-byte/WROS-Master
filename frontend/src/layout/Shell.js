@@ -114,10 +114,11 @@ const RESOURCE_KEY_TO_PATH = {
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   const { apiRequest } = await import("../services/api/client");
-  const response = await apiRequest("/hr/me/navigation", { method: "GET" });
+  const result = await apiRequest("/hr/me/navigation", { method: "GET" });
 
-  // Backend MUST return proper structure with groups
-  const navData = response?.data;
+  // apiRequest returns { data, response } where data is already parsed JSON
+  // Backend returns { data: { groups: [...] } }
+  const navData = result?.data?.data;
   if (!navData) {
     throw new Error("Navigation response missing data structure");
   }
