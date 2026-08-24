@@ -220,7 +220,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       for (const [action, enabled] of Object.entries(perms)) {
         try {
           if (enabled) {
-            await apiRequest(`/api/admin/users-access-control/role-templates/${tId}/grant-permission`, {
+            await apiRequest(`/admin/role-templates/${tId}/grant-permission`, {
               method: 'POST',
               body: JSON.stringify({
                 resource_name: resourceName,
@@ -228,7 +228,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
               })
             });
           } else {
-            await apiRequest(`/api/admin/users-access-control/role-templates/${tId}/revoke-permission`, {
+            await apiRequest(`/admin/role-templates/${tId}/revoke-permission`, {
               method: 'POST',
               body: JSON.stringify({
                 resource_name: resourceName,
