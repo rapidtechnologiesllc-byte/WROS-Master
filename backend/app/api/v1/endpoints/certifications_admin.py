@@ -283,14 +283,14 @@ def list_business_units_for_form(db: Session = Depends(get_db)):
 
 @router.get("/roles")
 def list_roles_for_form(db: Session = Depends(get_db)):
-    """List all roles for form dropdown"""
-    from app.models.rbac import Role
-    roles = db.query(Role).all()
+    """List all role templates for form dropdown"""
+    from app.models.role_template import RoleTemplate
+    templates = db.query(RoleTemplate).all()
     return [
         {
-            "id": r.id,
-            "name": r.name,
-            "description": r.description
+            "id": t.id,
+            "name": t.display_name or t.name,
+            "description": t.description
         }
-        for r in roles
+        for t in templates
     ]
