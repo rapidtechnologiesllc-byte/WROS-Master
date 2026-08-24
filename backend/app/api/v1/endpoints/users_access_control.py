@@ -266,30 +266,36 @@ def list_business_units(
     limit: int = Query(100, ge=1, le=500)
 ):
     """List all business units."""
-    query = db.query(BusinessUnit)
+    try:
+        query = db.query(BusinessUnit)
 
-    if hasattr(current_user, 'tenant_id'):
-        query = query.filter(BusinessUnit.tenant_id == current_user.tenant_id)
+        if hasattr(current_user, 'tenant_id'):
+            query = query.filter(BusinessUnit.tenant_id == current_user.tenant_id)
 
-    total = query.count()
-    bus = query.offset(skip).limit(limit).all()
+        total = query.count()
+        bus = query.offset(skip).limit(limit).all()
 
-    return {
-        "business_units": [
-            {
-                "id": b.id,
-                "name": b.name,
-                "display_name": b.display_name,
-                "bu_code": b.bu_code,
-                "description": b.description,
-                "created_at": b.created_at,
-            }
-            for b in bus
-        ],
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    }
+        return {
+            "business_units": [
+                {
+                    "id": b.id,
+                    "name": b.name,
+                    "display_name": b.display_name,
+                    "bu_code": b.bu_code,
+                    "description": b.description,
+                    "created_at": b.created_at,
+                }
+                for b in bus
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit
+        }
+    except Exception as e:
+        print(f"[ERROR] list_business_units failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.post("/business-units")
 def create_business_unit(
