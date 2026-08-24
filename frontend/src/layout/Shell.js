@@ -99,6 +99,18 @@ const ICON_COMPONENTS_BY_NAME = {
   "Award": UserPlus,
 };
 
+// Map resource keys to their correct admin paths
+const RESOURCE_KEY_TO_PATH = {
+  "users": "/admin/users-access-control/users",
+  "business_units": "/admin/users-access-control/business-units",
+  "delivery_centers": "/admin/users-access-control/delivery-centers",
+  "organizational_hierarchy": "/admin/users-access-control/organizational-hierarchy",
+  "role_templates": "/admin/users-access-control/role-templates",
+  "certifications": "/admin/users-access-control/certifications",
+  "error_log": "/admin/users-access-control/error-log",
+  "message_templates": "/admin/users-access-control/message-templates",
+};
+
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   const { apiRequest } = await import("../services/api/client");
@@ -123,18 +135,12 @@ async function fetchNavigationFromBackend() {
 
     return {
       ...group,
-      items: group.items.map(item => {
-        if (!item.key || !item.label || !item.route) {
-          throw new Error(`Navigation item missing required fields: key=${item.key}, label=${item.label}, route=${item.route}`);
-        }
-
-        return {
-          key: item.key,
-          label: item.label,
-          icon: ICON_MAP_BY_RESOURCE[item.key],
-          path: item.route,
-        };
-      })
+      items: group.items.map(item => ({
+        key: item.key,
+        label: item.label,
+        icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
+        path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
+      }))
     };
   });
 
@@ -312,32 +318,26 @@ export default function Shell({
   useEffect(() => {
     const loadNavigation = async () => {
       try {
-        // Load role template modules to filter navigation
-        const modules = await loadRoleTemplateModules();
-        setAllowedModules(modules);
-        console.debug("Role template modules loaded:", { moduleCount: modules.length, modules });
-
         // Fetch pre-built navigation from backend (already filtered by user permissions)
+        // Backend returns only items the user has permission to see - no frontend filtering needed
         const navGroups = await fetchNavigationFromBackend();
 
-        // Filter navigation groups based on allowed modules
-        const filteredGroups = navGroups
-          .map(group => ({
-            ...group,
-            items: filterNavigationByModules(group.items, modules)
-          }))
-          .filter(group => group.items && group.items.length > 0); // Remove empty groups
-
-        setNav({ standalone: [], groups: filteredGroups });
-        console.debug("Navigation loaded and filtered:", {
-          groupCount: filteredGroups.length,
-          totalItems: filteredGroups.reduce((sum, g) => sum + g.items.length, 0)
+        setNav({ standalone: [], groups: navGroups });
+        console.debug("Navigation loaded:", {
+          groupCount: navGroups.length,
+          totalItems: navGroups.reduce((sum, g) => sum + g.items.length, 0),
+          groups: navGroups.map(g => `${g.label}(${g.items.length})`).join(", ")
         });
       } catch (error) {
         console.error("Failed to load navigation:", error);
-        // Fallback: load navigation without module filtering
-        const navGroups = await fetchNavigationFromBackend();
-        setNav({ standalone: [], groups: navGroups });
+        // Fallback: try loading again with no special handling
+        try {
+          const navGroups = await fetchNavigationFromBackend();
+          setNav({ standalone: [], groups: navGroups });
+        } catch (retryError) {
+          console.error("Navigation reload failed:", retryError);
+          setNav({ standalone: [], groups: [] });
+        }
       }
     };
 

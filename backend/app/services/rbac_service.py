@@ -19,6 +19,13 @@ class RBACService:
     """Database-driven RBAC - all data comes from role_templates."""
 
     @staticmethod
+    def list_roles(db: Session, tenant_id: int = 1) -> List[RoleTemplate]:
+        """Get all available role templates for the given tenant."""
+        return db.query(RoleTemplate).filter(
+            RoleTemplate.tenant_id == tenant_id
+        ).all()
+
+    @staticmethod
     def get_user_roles(user_id: str, db: Session, tenant_id: int = 1) -> List[RoleTemplate]:
         """Get all role templates assigned to a user.
 

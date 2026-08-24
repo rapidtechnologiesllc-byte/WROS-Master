@@ -1,0 +1,576 @@
+// Interview scheduling flow with Microsoft meeting creation.
+import { useEffect, useMemo, useState } from "react";
+import { Calendar } from "lucide-react";
+import { Button, Card, Input, Select } from "../components/ui";
+import {
+  assignPanelMember,
+  createInterview,
+  createInterviewPanel,
+} from "../services/api/interviews";
+import {
+  getGraphMe,
+  getMicrosoftSigninUrl,
+  scheduleTeamsMeeting,
+  scheduleUserMeeting,
+} from "../services/api/msgraph";
+import { getAllUsers } from "../services/api/users";
+
+export default function InterviewSchedule({
+  candidate,
+  job,
+  candidates = [],
+  jobs = [],
+  selectedCandidateId = "",
+  selectedJobId = "",
+  onChangeCandidate,
+  onChangeJob,
+  onSchedule,
+  onViewStatus,
+}) {
+  const normalizeText = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const findMatchingJobForCandidate = (candidateJobTitle) => {
+    const normalizedCandidateJob = normalizeText(candidateJobTitle);
+    if (!normalizedCandidateJob || !Array.isArray(jobs) || !jobs.length)
+      return null;
+    const exact = jobs.find(
+      (j) => normalizeText(j?.title) === normalizedCandidateJob,
+    );
+    if (exact) return exact;
+    const contains = jobs.find((j) => {
+      const normalizedJobTitle = normalizeText(j?.title);
+      return (
+        normalizedJobTitle.includes(normalizedCandidateJob) ||
+        normalizedCandidateJob.includes(normalizedJobTitle)
+      );
+    });
+    return contains || null;
+  };
+
+  const [roundName, setRoundName] = useState("HR");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [attendeeEmails, setAttendeeEmails] = useState("");
+  const [timezone, setTimezone] = useState("UTC");
+  const [interviewerOptions, setInterviewerOptions] = useState([]);
+  const [selectedInterviewers, setSelectedInterviewers] = useState([]);
+  const [statusNotice, setStatusNotice] = useState("");
+  const [isScheduling, setIsScheduling] = useState(false);
+  // Rehire guard (S-XXX priority item, 2026-08-05): "none" -> normal flow;
+  // "needs_justification" -> candidate has a past no-hire, must explain
+  // why before retrying; "pending_approval" -> AI did not clear the
+  // justification, blocked until a hiring manager decides via the
+  // Rehire Approvals queue (no panel exists yet either way).
+  const [rehireGateStatus, setRehireGateStatus] = useState("none");
+  const [rehireJustification, setRehireJustification] = useState("");
+  const [rehirePendingInfo, setRehirePendingInfo] = useState(null);
+  // Panel diversity backlog item, 2026-08-05: advisory only, shown
+  // alongside statusNotice rather than replacing it -- reusing the same
+  // interviewer across a candidate's different jobs still succeeds.
+  const [diversityWarnings, setDiversityWarnings] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [msConnected, setMsConnected] = useState(false);
+  const [msUserEmail, setMsUserEmail] = useState("");
+  // S-XXX orphan-code fix, 2026-08-06: /msgraph/service/calendar/schedule
+  // uses application-level Graph permissions ("No user sign-in required"
+  // per its own docstring) -- lets a recruiter who hasn't personally
+  // connected Microsoft still get a real Teams link, organized on behalf
+  // of whichever mailbox they name (their own, by default).
+  const [useServiceAccount, setUseServiceAccount] = useState(false);
+  const [organizerEmail, setOrganizerEmail] = useState(
+    localStorage.getItem("hrms_user_email") || "",
+  );
+
+  const newId = useMemo(() => {
+    const n = Math.floor(3000 + Math.random() * 7000);
+    return `I-${n}`;
+  }, []);
+
+  const activeCandidate = useMemo(() => {
+    return (
+      candidates.find(
+        (c) => String(c.id) === String(selectedCandidateId || candidate?.id),
+      ) || candidate
+    );
+  }, [candidates, selectedCandidateId, candidate]);
+
+  const activeJob = useMemo(() => {
+    return (
+      jobs.find((j) => String(j.id) === String(selectedJobId || job?.id)) || job
+    );
+  }, [jobs, selectedJobId, job]);
+
+  useEffect(() => {
+    if (!attendeeEmails && activeCandidate?.email) {
+      setAttendeeEmails(activeCandidate.email);
+    }
+  }, [attendeeEmails, activeCandidate?.email]);
+
+  useEffect(() => {
+    if (!activeCandidate?.jobTitle || !Array.isArray(jobs) || !jobs.length)
+      return;
+    const matchedJob = findMatchingJobForCandidate(activeCandidate.jobTitle);
+    if (matchedJob && String(matchedJob.id) !== String(activeJob?.id || "")) {
+      onChangeJob?.(matchedJob.id);
+      setStatusNotice(
+        `Auto-selected job "${matchedJob.title}" for ${activeCandidate.name}.`,
+      );
+    }
+  }, [
+    activeCandidate?.id,
+    activeCandidate?.jobTitle,
+    jobs,
+    activeJob?.id,
+    onChangeJob,
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkMicrosoft = async () => {
+      try {
+        // Check if a Microsoft account is connected for scheduling.
+        const me = await getGraphMe();
+        if (!isMounted) return;
+        const email =
+          me?.user?.email ||
+          me?.user?.userPrincipalName ||
+          me?.user?.mail ||
+          "";
+        setMsConnected(true);
+        setMsUserEmail(email);
+      } catch (err) {
+        if (!isMounted) return;
+        setMsConnected(false);
+        setMsUserEmail("");
+      }
+    };
+    checkMicrosoft();
+    // OAuth opens another tab; when user returns here, re-check connection.
+    let debounceTimer;
+    const scheduleRecheck = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => checkMicrosoft(), 400);
+    };
+    const onFocus = () => scheduleRecheck();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRecheck();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      isMounted = false;
+      clearTimeout(debounceTimer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const res = await getAllUsers();
+        if (!isMounted) return;
+        const users = (res || []).map((u) => ({
+          id: u.user_id,
+          name: u.user_name || u.user_email,
+          email: u.user_email,
+        }));
+        setInterviewerOptions(users);
+      } catch (err) {
+        if (!isMounted) return;
+        setStatusNotice(err.message || "Failed to load interviewer list.");
+      } finally {
+        if (isMounted) {
+          setIsLoadingUsers(false);
+        }
+      }
+    };
+    loadUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return (
+    <div className="grid gap-4">
+      <Card
+        title="Interview Request / Scheduling"
+        icon={<Calendar className="h-4 w-4" />}
+        right={
+          <Button variant="ghost" onClick={onViewStatus}>
+            View status
+          </Button>
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border bg-gray-50 p-4">
+            <div className="text-xs font-semibold text-gray-500">Candidate</div>
+            <div className="text-sm font-extrabold tracking-tight">
+              {activeCandidate?.name}
+            </div>
+            <div className="mt-1 text-xs text-gray-600">
+              {activeCandidate?.id}
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-gray-50 p-4">
+            <div className="text-xs font-semibold text-gray-500">Job</div>
+            <div className="text-sm font-extrabold tracking-tight">
+              {activeJob?.title}
+            </div>
+            <div className="mt-1 text-xs text-gray-600">{activeJob?.id}</div>
+          </div>
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">
+              Candidate
+            </div>
+            <select
+              value={activeCandidate?.id || ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                onChangeCandidate?.(value);
+                const nextCandidate = candidates.find(
+                  (c) => String(c.id) === String(value),
+                );
+                if (nextCandidate?.email) {
+                  setAttendeeEmails(nextCandidate.email);
+                }
+                const matchedJob = findMatchingJobForCandidate(
+                  nextCandidate?.jobTitle,
+                );
+                if (matchedJob) {
+                  onChangeJob?.(matchedJob.id);
+                  setStatusNotice(
+                    `Auto-selected job "${matchedJob.title}" for ${nextCandidate?.name}.`,
+                  );
+                } else if (nextCandidate?.jobTitle) {
+                  setStatusNotice(
+                    `No matching job found for candidate job title "${nextCandidate.jobTitle}".`,
+                  );
+                }
+              }}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-gray-700">Job</div>
+            <select
+              value={activeJob?.id || ""}
+              onChange={(event) => onChangeJob?.(event.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+            >
+              {jobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title} ({j.id})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <Select
+            label="Round"
+            value={roundName}
+            onChange={(value) => setRoundName(value)}
+            options={["HR", "Technical", "Manager"]}
+          />
+          <Input
+            label="Start Time"
+            value={startTime}
+            onChange={setStartTime}
+            type="datetime-local"
+          />
+          <Input
+            label="End Time"
+            value={endTime}
+            onChange={setEndTime}
+            type="datetime-local"
+          />
+          <div className="md:col-span-2">
+            <div className="mb-1 text-xs font-semibold text-gray-700">
+              Interviewers {isLoadingUsers ? "(loading...)" : ""}
+            </div>
+            <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border bg-white px-3 py-2 text-sm">
+              {interviewerOptions.length === 0 ? (
+                <div className="text-gray-500">No interviewers available.</div>
+              ) : (
+                interviewerOptions.map((user) => {
+                  const checked = selectedInterviewers.includes(user.id);
+                  return (
+                    <label key={user.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          if (event.target.checked) {
+                            setSelectedInterviewers((prev) => [
+                              ...prev,
+                              user.id,
+                            ]);
+                          } else {
+                            setSelectedInterviewers((prev) =>
+                              prev.filter((id) => id !== user.id),
+                            );
+                          }
+                        }}
+                      />
+                      <span>
+                        {user.name} ({user.id})
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold text-gray-700">
+                Microsoft account connection
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => window.open(getMicrosoftSigninUrl(), "_blank")}
+                disabled={useServiceAccount}
+              >
+                {msConnected ? "Re-connect Microsoft" : "Connect Microsoft"}
+              </Button>
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              Status:{" "}
+              {msConnected
+                ? `Connected${msUserEmail ? ` (${msUserEmail})` : ""}`
+                : "Not connected"}
+            </div>
+            <label className="mt-3 flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={useServiceAccount}
+                onChange={(e) => setUseServiceAccount(e.target.checked)}
+              />
+              Schedule via Teams using the service account instead (no
+              personal Microsoft sign-in required)
+            </label>
+            {useServiceAccount ? (
+              <div className="mt-2">
+                <Input
+                  label="Organizer Email"
+                  value={organizerEmail}
+                  onChange={setOrganizerEmail}
+                  placeholder="organizer@company.com"
+                />
+              </div>
+            ) : null}
+          </div>
+          <div className="md:col-span-2">
+            <Input
+              label="Attendee Emails (comma separated)"
+              value={attendeeEmails}
+              onChange={setAttendeeEmails}
+            />
+          </div>
+          <Input label="Timezone" value={timezone} onChange={setTimezone} />
+        </div>
+
+        {rehireGateStatus === "needs_justification" ? (
+          <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <div className="text-sm font-semibold text-amber-800">
+              This candidate has a past no-hire outcome on record
+            </div>
+            <div className="mt-1 text-xs text-amber-700">
+              A written justification is required before a new round can be
+              scheduled. Thunder reviews it automatically — if it isn't
+              clearly justified, the hiring manager decides instead.
+            </div>
+            <textarea
+              className="mt-2 w-full rounded-xl border border-amber-300 p-2 text-sm"
+              rows={3}
+              placeholder="Why should this candidate be re-interviewed? Be specific."
+              value={rehireJustification}
+              onChange={(e) => setRehireJustification(e.target.value)}
+            />
+          </div>
+        ) : null}
+
+        {rehireGateStatus === "pending_approval" ? (
+          <div className="mt-4 rounded-2xl border border-blue-300 bg-blue-50 p-4">
+            <div className="text-sm font-semibold text-blue-800">
+              Awaiting hiring manager approval
+            </div>
+            <div className="mt-1 text-xs text-blue-700">
+              {rehirePendingInfo?.aiReasoning
+                ? `Thunder's review: ${rehirePendingInfo.aiReasoning}`
+                : "This request needs a hiring manager's sign-off before it can be scheduled."}
+              {rehirePendingInfo?.reviewId
+                ? ` (Review #${rehirePendingInfo.reviewId})`
+                : ""}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex justify-end">
+          <Button
+            onClick={async () => {
+              if (!startTime || !endTime) {
+                setStatusNotice("Start and end time are required.");
+                return;
+              }
+              const interviewerList = selectedInterviewers;
+              if (!interviewerList.length) {
+                setStatusNotice("At least one interviewer ID is required.");
+                return;
+              }
+              if (
+                rehireGateStatus === "needs_justification" &&
+                !rehireJustification.trim()
+              ) {
+                setStatusNotice("Justification is required to proceed.");
+                return;
+              }
+              const attendeeList = attendeeEmails
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              setStatusNotice("");
+              setDiversityWarnings([]);
+              if (useServiceAccount) {
+                if (!organizerEmail.trim()) {
+                  setStatusNotice("Organizer email is required for service-account scheduling.");
+                  return;
+                }
+              } else if (!msConnected) {
+                setStatusNotice(
+                  "Microsoft sign-in required. Please connect first.",
+                );
+                window.open(getMicrosoftSigninUrl(), "_blank");
+                return;
+              }
+              setIsScheduling(true);
+              try {
+                const panel = await createInterviewPanel({
+                  candidateId: activeCandidate.id,
+                  roundName,
+                  jobId: activeJob?.id,
+                  rehireJustification:
+                    rehireGateStatus === "needs_justification"
+                      ? rehireJustification
+                      : undefined,
+                });
+                setRehireGateStatus("none");
+                setRehirePendingInfo(null);
+                const panelId = panel?.id;
+                const newDiversityWarnings = [];
+                for (const interviewerId of interviewerList) {
+                  const assigned = await assignPanelMember({ panelId, interviewerId });
+                  if (assigned?.diversity_warning) {
+                    newDiversityWarnings.push(assigned.diversity_warning);
+                  }
+                }
+                setDiversityWarnings(newDiversityWarnings);
+                const startIso = new Date(startTime).toISOString();
+                const endIso = new Date(endTime).toISOString();
+                const meeting = useServiceAccount
+                  ? await scheduleTeamsMeeting({
+                      organizerEmail: organizerEmail.trim(),
+                      subject: `Interview - ${activeCandidate.name} (${roundName})`,
+                      startIso,
+                      endIso,
+                      attendees: attendeeList,
+                      timezone: timezone || "UTC",
+                      teamsOnline: true,
+                    })
+                  : await scheduleUserMeeting({
+                      subject: `Interview - ${activeCandidate.name} (${roundName})`,
+                      startIso,
+                      endIso,
+                      attendees: attendeeList,
+                      timezone: timezone || "UTC",
+                      teamsOnline: true,
+                    });
+                const interview = await createInterview({
+                  panelId,
+                  candidateId: activeCandidate.id,
+                  startTime: startIso,
+                  endTime: endIso,
+                  meetingLink: meeting?.joinUrl || null,
+                  outlookEventId: meeting?.eventId || null,
+                  status: "Scheduled",
+                });
+                onSchedule({
+                  id: interview.id || newId,
+                  panelId,
+                  panelRoundName: roundName,
+                  candidateId: activeCandidate.id,
+                  startTime: interview.start_time,
+                  endTime: interview.end_time,
+                  meetingLink: interview.meeting_link || meeting?.joinUrl || "",
+                  outlookEventId:
+                    interview.outlook_event_id || meeting?.eventId || "",
+                  status: interview.status || "Scheduled",
+                });
+                setStatusNotice("Interview scheduled.");
+              } catch (err) {
+                // Rehire guard: 400 = justification required (first
+                // attempt), 409 = justification submitted but AI did not
+                // clear it, routed to the hiring manager instead.
+                if (
+                  err.status === 400 &&
+                  (err.message || "").toLowerCase().includes("no-hire")
+                ) {
+                  setRehireGateStatus("needs_justification");
+                  setStatusNotice("");
+                  return;
+                }
+                if (err.status === 409 && err.detail?.error === "rehire_review_pending") {
+                  setRehireGateStatus("pending_approval");
+                  setRehirePendingInfo({
+                    reviewId: err.detail.review_id,
+                    aiReasoning: err.detail.ai_reasoning,
+                  });
+                  setStatusNotice("");
+                  return;
+                }
+                const message = err.message || "Failed to schedule interview.";
+                if (message.toLowerCase().includes("sign in first")) {
+                  window.open(getMicrosoftSigninUrl(), "_blank");
+                }
+                setStatusNotice(message);
+              } finally {
+                setIsScheduling(false);
+              }
+            }}
+            disabled={isScheduling || rehireGateStatus === "pending_approval"}
+          >
+            {isScheduling
+              ? "Scheduling..."
+              : rehireGateStatus === "needs_justification"
+              ? "Submit justification & schedule"
+              : "Schedule"}
+          </Button>
+        </div>
+        {statusNotice ? (
+          <div className="mt-2 text-xs text-gray-500">{statusNotice}</div>
+        ) : null}
+        {diversityWarnings.length ? (
+          <div className="mt-2 text-xs text-amber-600">
+            {diversityWarnings.map((warning, idx) => (
+              <div key={idx}>⚠ {warning}</div>
+            ))}
+          </div>
+        ) : null}
+      </Card>
+    </div>
+  );
+}

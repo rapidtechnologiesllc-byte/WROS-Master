@@ -3,6 +3,7 @@
 // One resource = One row with 4 action checkboxes (V/C/E/D)
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus, Edit2, Trash2, Copy, ChevronDown, ChevronRight, Search, AlertCircle, CheckCircle2
 } from "lucide-react";
@@ -28,35 +29,7 @@ const groupResourcesByModule = (permissions) => {
   return grouped;
 };
 
-function RoleListPanel({ roles, selectedRoleId, onRoleSelect, onAddRole, onCloneRole, onDeleteRole }) {
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newRoleName, setNewRoleName] = useState("");
-  const [newRoleDisplay, setNewRoleDisplay] = useState("");
-
-  const handleCreate = async () => {
-    if (!newRoleName.trim()) {
-      toast.error("Role name is required");
-      return;
-    }
-    try {
-      await apiRequest("/admin/role-templates", {
-        method: "POST",
-        body: JSON.stringify({
-          name: newRoleName,
-          display_name: newRoleDisplay || newRoleName,
-          description: "",
-          permissions: []
-        })
-      });
-      toast.success("Role created successfully");
-      setIsCreateModalOpen(false);
-      setNewRoleName("");
-      setNewRoleDisplay("");
-      onAddRole();
-    } catch (error) {
-      toast.error(`Failed to create role: ${error.message}`);
-    }
-  };
+function RoleListPanel({ roles, selectedRoleId, onRoleSelect, onCloneRole, onDeleteRole, navigate }) {
 
   return (
     <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
@@ -64,7 +37,7 @@ function RoleListPanel({ roles, selectedRoleId, onRoleSelect, onAddRole, onClone
       <div className="p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Roles</h2>
         <Button
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => navigate('/admin/role-templates/create')}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white"
           size="sm"
         >
@@ -127,52 +100,6 @@ function RoleListPanel({ roles, selectedRoleId, onRoleSelect, onAddRole, onClone
           </div>
         ))}
       </div>
-
-      {/* Create Role Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 w-96 shadow-lg">
-            <h3 className="text-lg font-semibold mb-4">Create New Role</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role Name (identifier)
-                </label>
-                <Input
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="e.g., recruiter, hr_manager"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Display Name
-                </label>
-                <Input
-                  value={newRoleDisplay}
-                  onChange={(e) => setNewRoleDisplay(e.target.value)}
-                  placeholder="e.g., Recruiter"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-6">
-              <Button
-                onClick={() => setIsCreateModalOpen(false)}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreate}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Create
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -406,6 +333,7 @@ function PermissionsMatrixPanel({ role, allModules, onPermissionChange, onRefres
 }
 
 export default function RoleTemplateManager() {
+  const navigate = useNavigate();
   const [roles, setRoles] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState(null);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -587,9 +515,9 @@ export default function RoleTemplateManager() {
         roles={roles}
         selectedRoleId={selectedRoleId}
         onRoleSelect={setSelectedRoleId}
-        onAddRole={loadData}
         onCloneRole={handleCloneRole}
         onDeleteRole={handleDeleteRole}
+        navigate={navigate}
       />
       <PermissionsMatrixPanel
         role={selectedRole}

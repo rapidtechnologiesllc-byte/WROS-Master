@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-08-19T02:49:18.667127",
+  "passed": 6,
+  "failed": 6,
+  "errors": [],
+  "test_details": [
+    {
+      "name": "Login: Super User",
+      "passed": true,
+      "message": "Token obtained: eyJhbGciOiJIUzI1NiIs..."
+    },
+    {
+      "name": "Login: Recruiter",
+      "passed": false,
+      "message": "HTTP 401"
+    },
+    {
+      "name": "Login: Finance Manager",
+      "passed": true,
+      "message": "Token obtained: eyJhbGciOiJIUzI1NiIs..."
+    },
+    {
+      "name": "Login: Employee",
+      "passed": true,
+      "message": "Token obtained: eyJhbGciOiJIUzI1NiIs..."
+    },
+    {
+      "name": "Invalid token rejection",
+      "passed": true,
+      "message": "HTTP 401"
+    },
+    {
+      "name": "Missing auth header rejection",
+      "passed": true,
+      "message": "HTTP 401"
+    },
+    {
+      "name": "Navigation: Super User",
+      "passed": false,
+      "message": "Missing: {'Engagement', 'Executive'}, Extra: {'Engagement & Communications', 'Executive Dashboards'}"
+    },
+    {
+      "name": "Navigation: Finance Manager",
+      "passed": true,
+      "message": "6 modules, 76 resources"
+    },
+    {
+      "name": "Navigation: Employee",
+      "passed": false,
+      "message": "Missing: {'Engagement'}, Extra: {'Engagement & Communications'}"
+    },
+    {
+      "name": "Permission check: Super User \u2192 candidates",
+      "passed": false,
+      "message": "HTTP 404"
+    },
+    {
+      "name": "Permission check: Finance Manager \u2192 candidates",
+      "passed": false,
+      "message": "HTTP 404"
+    },
+    {
+      "name": "Permission check: Employee \u2192 candidates",
+      "passed": false,
+      "message": "HTTP 404"
+    }
+  ]
+}

@@ -1,18 +1,8 @@
 // Shared API client helpers (base URL + auth headers).
 //
-// REACT_APP_API_BASE_URL is set explicitly per environment via
-// .env.development (npm start -> localhost) and .env.production
-// (npm run build -> the real backend) -- CRA loads the matching file
-// automatically based on NODE_ENV, no manual setup needed per machine.
-//
-// The fallback below is intentionally NOT the production URL. It used
-// to be, which meant any environment that didn't set the env var --
-// including a bare `npm start` with no .env files present -- silently
-// talked to the real production backend and real candidate/employee
-// PII. Falling back to localhost instead means a misconfigured
-// environment fails loudly and obviously (connection refused) rather
-// than quietly reading/writing real data.
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
+// Use relative URLs so dev server proxy (setupProxy.js) can forward to backend.
+// In production, REACT_APP_API_BASE_URL can be set to the actual backend URL.
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "";
 
 export const getApiBaseUrl = () => API_BASE_URL;
 

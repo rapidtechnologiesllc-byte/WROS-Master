@@ -33,6 +33,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.rbac import Role, RoleAttribute, Permission, RolePermission
 from app.models.business_unit import BusinessUnit
+from app.models.business_unit_context import BusinessUnitContext
 from app.models.role_template import Module as RoleTemplateModule, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.module import Module, ModulePermission
 from app.models.org_structure import Department, OrgNode, OrgPosition, ApprovalChain, PartnerBUAssignment
@@ -175,6 +176,7 @@ __all__ = [
     "Permission",
     "RolePermission",
     "BusinessUnit",
+    "BusinessUnitContext",
     # Role Templates (ZERO-HARDCODING)
     "RoleTemplateModule",
     "Resource",

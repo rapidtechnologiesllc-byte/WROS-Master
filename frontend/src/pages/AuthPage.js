@@ -124,6 +124,23 @@ export default function AuthPage() {
         data?.candidate_id || data?.candidate_email || data?.candidate_role,
       );
 
+    // ✅ NEW: Check for password reset requirement (auto-created users)
+    if (data?.password_must_reset && !looksLikeCandidate) {
+      localStorage.setItem("hrms_user_type", "employee");
+      if (data?.user_role) {
+        localStorage.setItem("hrms_role", data.user_role.toUpperCase());
+      }
+      if (data?.user_name) {
+        localStorage.setItem("hrms_user_name", data.user_name);
+      }
+      if (data?.user_email) {
+        localStorage.setItem("hrms_user_email", data.user_email);
+      }
+      // Force password reset on first login
+      window.location.href = "/force-password-reset";
+      return;
+    }
+
     let redirectPath = "/";
     if (looksLikeCandidate) {
       localStorage.setItem("hrms_user_type", "candidate");

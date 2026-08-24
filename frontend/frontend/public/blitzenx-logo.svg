@@ -1,0 +1,23 @@
+<svg width="268" height="93" viewBox="0 0 268 93" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="268" height="93" fill="#0F3C69"/>
+  <rect x="89" width="1" height="93" fill="#1A4E84" opacity="0.55"/>
+  <rect x="178" width="1" height="93" fill="#1A4E84" opacity="0.55"/>
+  <text
+    x="32"
+    y="62"
+    font-family="Inter, Arial, Helvetica, sans-serif"
+    font-size="47"
+    font-weight="700"
+    letter-spacing="0"
+    fill="#FFFFFF"
+  >BLITZEN</text>
+  <text
+    x="226"
+    y="62"
+    font-family="Inter, Arial, Helvetica, sans-serif"
+    font-size="47"
+    font-weight="700"
+    letter-spacing="0"
+    fill="#F05A3A"
+  >X</text>
+</svg>
