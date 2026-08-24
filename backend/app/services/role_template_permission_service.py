@@ -38,7 +38,10 @@ class RoleTemplatePermissionService:
     @staticmethod
     def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
         """
-        Check if user is a Super User (bypass all permission checks).
+        Check if user is a Super User by verifying they have permissions for ALL resources.
+
+        A Super User is one whose assigned roles grant access to every resource in the system.
+        This is dynamic - determined by database permissions, not role names.
 
         Args:
             db: Database session
@@ -46,18 +49,34 @@ class RoleTemplatePermissionService:
             tenant_id: Tenant ID for multi-tenancy
 
         Returns:
-            True if user is Super User, False otherwise
+            True if user's roles cover all resources, False otherwise
         """
         try:
             # Get user's role templates
             user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
+            if not user_roles:
+                return False
 
-            # Check if any role is "Super User"
-            for role in user_roles:
-                if role.name and role.name.lower() in ['super user', 'super_user', 'admin']:
-                    return True
+            role_ids = [role.id for role in user_roles]
 
-            return False
+            # Get total resource count
+            total_resources = db.query(Resource).filter(
+                Resource.tenant_id == tenant_id,
+                Resource.enabled == True
+            ).count()
+
+            if total_resources == 0:
+                return False
+
+            # Get resources this user's roles can access (UNION of all roles)
+            accessible_resources = db.query(RoleTemplatePermission.resource_id).filter(
+                RoleTemplatePermission.role_template_id.in_(role_ids),
+                RoleTemplatePermission.can_view == True
+            ).distinct().count()
+
+            # User is super user if they have access to ALL resources
+            return accessible_resources >= total_resources
+
         except Exception as e:
             logger.error(f"Error checking super user status: {e}")
             return False
