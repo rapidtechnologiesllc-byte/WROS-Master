@@ -18,7 +18,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     if (mode === 'edit' && templateId) {
       const fetchTemplate = async () => {
         try {
-          const { data } = await apiRequest(`/api/admin/users-access-control/role-templates/${templateId}`, {
+          const { data } = await apiRequest(`/admin/role-templates/${templateId}`, {
             method: 'GET'
           });
 

@@ -217,30 +217,41 @@ def update_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update role template permissions."""
+    from app.core.logging import logger
     try:
+        logger.info(f"[PUT] Updating role template {template_id} for user {current_user.UserID}")
+
         template = db.query(RoleTemplate).filter(
             RoleTemplate.id == template_id,
             RoleTemplate.tenant_id == current_user.tenant_id
         ).first()
 
         if not template:
+            logger.warning(f"[PUT] Template {template_id} not found for tenant {current_user.tenant_id}")
             raise HTTPException(status_code=404, detail="Role template not found")
+
+        logger.info(f"[PUT] Found template: {template.name}")
 
         # Update basic fields
         if data.display_name:
             template.display_name = data.display_name
+            logger.info(f"[PUT] Updated display_name to: {data.display_name}")
         if data.description is not None:
             template.description = data.description
+            logger.info(f"[PUT] Updated description")
 
         # Delete existing permissions
+        logger.info(f"[PUT] Deleting existing permissions for template {template_id}")
         db.query(RoleTemplatePermission).filter(
             RoleTemplatePermission.role_template_id == template.id
         ).delete()
         db.flush()
+        logger.info(f"[PUT] Permissions deleted and flushed")
 
         # Add new permissions
         if data.permissions:
-            for perm_input in data.permissions:
+            logger.info(f"[PUT] Adding {len(data.permissions)} new permissions")
+            for idx, perm_input in enumerate(data.permissions):
                 perm = RoleTemplatePermission(
                     role_template_id=template.id,
                     resource_id=perm_input.resource_id,
@@ -250,15 +261,21 @@ def update_role_template(
                     can_delete=perm_input.can_delete
                 )
                 db.add(perm)
+                logger.info(f"[PUT] Added permission {idx+1}: resource_id={perm_input.resource_id}")
 
+        logger.info(f"[PUT] Flushing permissions")
         db.flush()
+        logger.info(f"[PUT] Committing transaction")
         db.commit()
+        logger.info(f"[PUT] Role template {template_id} updated successfully")
 
         return {"message": "Role template updated successfully"}
     except Exception as e:
+        logger.error(f"[PUT] Error updating role template {template_id}: {str(e)}", exc_info=True)
         db.rollback()
         import traceback
-        print(f"Error updating role template: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
 
