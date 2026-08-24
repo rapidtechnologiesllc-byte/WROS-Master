@@ -252,3 +252,44 @@ class UserRole(Base):
     user = relationship("Users", foreign_keys=[user_id])
     role_template = relationship("RoleTemplate", foreign_keys=[role_template_id])
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id])
+
+
+class UserCustomPermission(Base):
+    """
+    Custom permission override for a user.
+
+    Allows granting or restricting specific permissions to a user,
+    independent of their role template permissions.
+
+    Architecture: Single role + manual overrides
+    - User has one role_template (via users.role_id)
+    - Can have custom permission overrides for specific resources
+    - Permission = role permission OR custom override
+    """
+    __tablename__ = "user_custom_permissions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    resource_id = Column(Integer, ForeignKey("resources.id"), nullable=False, index=True)
+
+    # Permission flags (TRUE = grant, FALSE = restrict)
+    can_view = Column(Boolean, nullable=False, default=False)
+    can_create = Column(Boolean, nullable=False, default=False)
+    can_edit = Column(Boolean, nullable=False, default=False)
+    can_delete = Column(Boolean, nullable=False, default=False)
+
+    # Audit trail
+    override_reason = Column(String(255), nullable=True)  # Why was this override set?
+    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)  # Admin who set it
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Ensure only one override per user+resource
+    __table_args__ = (
+        {"sqlite_autoincrement": True},
+    )
+
+    # Relationships
+    user = relationship("Users", foreign_keys=[user_id])
+    resource = relationship("Resource", foreign_keys=[resource_id])
+    created_by_user = relationship("Users", foreign_keys=[created_by])
