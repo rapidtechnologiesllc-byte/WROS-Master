@@ -119,13 +119,17 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
 
             # Add each resource if user has permission
             for resource_name in resource_names:
+                # Normalize resource name: convert hyphens to underscores
+                # (database stores with underscores, init_resources uses hyphens)
+                db_resource_name = resource_name.replace('-', '_')
                 can_view = RoleTemplatePermissionService.can_view(
-                    db, user_id, resource_name, tenant_id
+                    db, user_id, db_resource_name, tenant_id
                 )
 
                 if can_view:
-                    # Get route from RESOURCE_ROUTES or generate from resource name
-                    route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name.replace('_', '-')}"
+                    # Get route from RESOURCE_ROUTES (uses hyphenated names) or generate
+                    # RESOURCE_ROUTES dict uses hyphenated keys, so use original resource_name
+                    route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
                     # Ensure route starts with /
                     if not route.startswith('/'):
                         route = f"/{route}"
