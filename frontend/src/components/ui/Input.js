@@ -29,7 +29,8 @@ export default function Input({
         onBlur={onBlur}
         disabled={disabled}
         readOnly={readOnly}
-        className={`w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none ring-0 ${actionNotice && value === "" ? `border-red-900`: `focus:border-gray-900`} `}
+        style={{ border: '1.5px solid #4b5563' }}
+        className={`w-full rounded-lg bg-white dark:bg-gray-800 px-4 py-3 text-base font-semibold font-sans text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 outline-none transition-all duration-200 shadow-sm ${disabled ? 'bg-gray-100 dark:bg-gray-900 cursor-not-allowed opacity-60' : ''}`}
       />
     </label>
   );
