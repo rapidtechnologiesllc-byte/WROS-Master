@@ -1,5 +1,5 @@
 # main.py  # 2026-08-17 - Force reload for bug fixes
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -76,6 +76,18 @@ async def log_unhandled_exception(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
     response = JSONResponse(status_code=500, content={"detail": "Internal server error."})
     # Add CORS headers to exception response so browser doesn't block it
+    origin = request.headers.get("origin", "http://localhost:3000")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTPException (401, 403, 404, etc.) with CORS headers"""
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    # Add CORS headers so browser doesn't block 401, 403, 404, etc responses
     origin = request.headers.get("origin", "http://localhost:3000")
     response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
