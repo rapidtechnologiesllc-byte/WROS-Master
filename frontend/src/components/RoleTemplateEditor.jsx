@@ -114,6 +114,16 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       return;
     }
 
+    // Require at least one permission to be enabled
+    const totalPermissions = Object.values(permissions).reduce((count, perms) => {
+      return count + Object.values(perms).filter(Boolean).length;
+    }, 0);
+
+    if (totalPermissions === 0) {
+      toast.error('Please enable at least one permission for this role template');
+      return;
+    }
+
     setSaving(true);
     try {
       if (mode === 'create') {
