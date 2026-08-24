@@ -58,7 +58,7 @@ const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = n
         return;
       }
 
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       const endpoint = mode === 'create'
         ? 'http://localhost:8080/api/admin/users-access-control/business-units'
         : `http://localhost:8080/api/admin/users-access-control/business-units/${bu.id}`;

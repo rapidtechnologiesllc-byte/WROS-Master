@@ -69,7 +69,7 @@ const DeliveryCenterModal = ({ isOpen, onClose, onSuccess, mode = 'create', dc =
         return;
       }
 
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       const endpoint = mode === 'create'
         ? 'http://localhost:8080/api/admin/users-access-control/delivery-centers'
         : `http://localhost:8080/api/admin/users-access-control/delivery-centers/${dc.id}`;
