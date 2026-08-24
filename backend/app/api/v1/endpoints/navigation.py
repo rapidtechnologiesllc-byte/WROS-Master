@@ -135,11 +135,13 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                     }
 
                 # Add resource to module (use database fields directly)
+                # Generate route if not in database: resource_name -> /resource-name
+                route = resource.route_path or f"/{resource.name.replace('_', '-')}"
                 navigation_modules[module_name]["items"].append({
                     "key": resource.name,
                     "label": resource.display_name,
                     "icon": get_icon_for_resource(resource.name),
-                    "route": resource.route_path
+                    "route": route
                 })
 
         # Convert to list of groups
