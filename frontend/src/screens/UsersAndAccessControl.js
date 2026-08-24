@@ -189,15 +189,15 @@ function safeText(v) {
 // USERS SECTION
 // ============================================================================
 
-function UsersSection({ loading, error, users, roles, currentUserPermissions = {} }) {
+function UsersSection({ loading, error, users, roles, currentUserPermissions = {}, onUserSaved = () => {} }) {
   const [busy, setBusy] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [userModalMode, setUserModalMode] = useState('create');
+  const [editingUser, setEditingUser] = useState(null);
   const [showBUModal, setShowBUModal] = useState(false);
   const [selectedBU, setSelectedBU] = useState(null);
 
   // Legacy modal states (keep for compatibility during transition)
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -319,13 +319,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     );
   }, [users, searchTerm]);
 
-  // Load job titles and business units when modals open
+  // Load job titles and business units when modal opens
   useEffect(() => {
-    if (showCreateModal || showEditModal) {
+    if (showUserModal) {
       loadJobTitles();
       loadBusinessUnits();
     }
-  }, [showCreateModal, showEditModal]);
+  }, [showUserModal]);
 
   const selectedUser = users.find(u => u.user_id === selectedUserId);
 
@@ -539,7 +539,11 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           className="max-w-xs"
         />
         <Button
-          onClick={() => setShowUserModal(true)}
+          onClick={() => {
+            setUserModalMode('create');
+            setEditingUser(null);
+            setShowUserModal(true);
+          }}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -551,7 +555,17 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         columns={[
           { header: "Name", accessor: "user_name", key: "name" },
           { header: "Email", accessor: "user_email", key: "email" },
-          { header: "Role", accessor: "user_role", key: "role" },
+          { header: "Job Title", accessor: "job_title", key: "job_title" },
+          {
+            header: "Role Template",
+            key: "role_template",
+            cell: (row) => {
+              // Show the primary/first role template assigned to the user
+              if (!row.role_ids || row.role_ids.length === 0) return "—";
+              const primaryRole = roles.find(r => r.id === row.role_ids[0]);
+              return primaryRole?.name || "—";
+            }
+          },
           {
             header: "Actions",
             key: "actions",
@@ -560,89 +574,33 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 {canEdit(currentUserPermissions, "user") && (
                   <button
                     onClick={async () => {
-                      setSelectedUserId(row.user_id);
-                      // Load business units on demand
-                      await loadBusinessUnits();
                       try {
-                        // Fetch user's assigned roles from the new endpoint
+                        // Fetch user's assigned roles
                         const userRoles = await apiRequest(`/rbac/users/${row.user_id}/roles`, {
                           method: "GET"
                         });
                         const roleIds = (userRoles?.data?.roles || []).map(r => r.id);
 
-                        // Fetch saved permissions for this user
-                        const savedPermissions = await getUserPermissions(row.user_id);
-
-                        // Merge saved permissions with defaults
-                        const defaultPermissions = {
-                          expandAllPermissions: false,
-                          expanded_candidates: false,
-                          expanded_jobs: false,
-                          expanded_interviews: false,
-                          expanded_admin: false,
-                          perm_candidates_view: true,
-                          perm_candidates_create: true,
-                          perm_candidates_edit: true,
-                          perm_candidates_delete: true,
-                          perm_jobs_view: true,
-                          perm_jobs_create: true,
-                          perm_jobs_edit: true,
-                          perm_jobs_delete: true,
-                          perm_interviews_view: true,
-                          perm_interviews_create: true,
-                          perm_interviews_edit: true,
-                          perm_interviews_delete: true,
-                          perm_admin_view: true,
-                          perm_admin_create: true,
-                          perm_admin_edit: true,
-                          perm_admin_delete: true
-                        };
-
-                        setEditForm({
-                          user_name: safeText(row.user_name),
-                          job_title: row.job_title || "",
-                          user_role: safeText(row.user_role),
-                          business_unit_id: row.business_unit_id || "",
-                          role_ids: roleIds,
-                          ...defaultPermissions,
-                          ...savedPermissions
+                        // Set up edit user with role_ids
+                        setEditingUser({
+                          ...row,
+                          role_ids: roleIds
                         });
+                        setUserModalMode('edit');
+                        setShowUserModal(true);
                       } catch (err) {
-                        console.error("Failed to fetch user roles or permissions:", err);
-                        // Fallback: start with empty role_ids so user can select new roles
-                        setEditForm({
-                          user_name: safeText(row.user_name),
-                          job_title: row.job_title || "",
-                          user_role: safeText(row.user_role),
-                          business_unit_id: row.business_unit_id || "",
-                          role_ids: [],
-                          expandAllPermissions: false,
-                          expanded_candidates: false,
-                          expanded_jobs: false,
-                          expanded_interviews: false,
-                          expanded_admin: false,
-                          perm_candidates_view: true,
-                          perm_candidates_create: true,
-                          perm_candidates_edit: true,
-                          perm_candidates_delete: true,
-                          perm_jobs_view: true,
-                          perm_jobs_create: true,
-                          perm_jobs_edit: true,
-                          perm_jobs_delete: true,
-                          perm_interviews_view: true,
-                          perm_interviews_create: true,
-                          perm_interviews_edit: true,
-                          perm_interviews_delete: true,
-                          perm_admin_view: true,
-                          perm_admin_create: true,
-                          perm_admin_edit: true,
-                          perm_admin_delete: true
+                        console.error("Failed to fetch user roles:", err);
+                        // Fallback: open edit with empty role_ids
+                        setEditingUser({
+                          ...row,
+                          role_ids: []
                         });
+                        setUserModalMode('edit');
+                        setShowUserModal(true);
                       }
-                      setShowEditModal(true);
                     }}
                     className="text-blue-600 hover:text-blue-700"
-                    title="Edit user and permissions"
+                    title="Edit user"
                   >
                     <Edit2 className="h-4 w-4" />
                   </button>
@@ -679,222 +637,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
       {/* User Modal - Create/Edit */}
       <UserModal
         isOpen={showUserModal}
-        onClose={() => setShowUserModal(false)}
-        onSuccess={() => loadData()}
-        mode="create"
+        onClose={() => {
+          setShowUserModal(false);
+          setEditingUser(null);
+          setUserModalMode('create');
+        }}
+        onSuccess={onUserSaved}
+        mode={userModalMode}
+        user={editingUser}
       />
-
-      {/* Edit User Modal - WITH PERMISSIONS */}
-      <SimpleModal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title="Edit User"
-      >
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-          <Input
-            label="Name"
-            value={editForm.user_name}
-            onChange={(val) => setEditForm({ ...editForm, user_name: val })}
-          />
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-            <select
-              value={editForm.job_title || ""}
-              onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a job title...</option>
-              {jobTitles.length > 0 ? (
-                jobTitles.map(title => (
-                  <option key={title.id} value={title.name}>{title.name}</option>
-                ))
-              ) : (
-                <option disabled>Loading job titles...</option>
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Partner</label>
-            <select
-              value={editForm.partner_id || ""}
-              onChange={(e) => setEditForm({ ...editForm, partner_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a partner...</option>
-              {partners.map(partner => (
-                <option key={partner.id} value={partner.id}>{partner.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Role Template Selection (required) - Dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role Template *</label>
-            <select
-              value={editForm.role_ids?.[0] || ""}
-              onChange={(e) => {
-                const roleId = e.target.value ? parseInt(e.target.value, 10) : null;
-                setEditForm({ ...editForm, role_ids: roleId ? [roleId] : [] });
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select a role template...</option>
-              {roles.filter(role => (role.name !== "Super User" || role.id) && (role.is_active !== false)).map(role => {
-                const isOrgLevel = ORG_LEVEL_ROLES.includes(role.name);
-                return (
-                  <option key={role.id} value={role.id}>
-                    {role.name} {isOrgLevel ? "(Org-level)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Select a role template from the available options (disabled templates not shown)</p>
-          </div>
-
-          {/* Business Unit Selection (conditional) */}
-          {editForm.role_ids && editForm.role_ids.length > 0 &&
-           !editForm.role_ids.some(id => {
-             const role = roles.find(r => r.id === id);
-             return ORG_LEVEL_ROLES.includes(role?.name);
-           }) && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit *</label>
-              <select
-                value={editForm.business_unit_id}
-                onChange={(e) => setEditForm({ ...editForm, business_unit_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select a business unit...</option>
-                {businessUnits.map(bu => (
-                  <option key={bu.id} value={bu.id}>
-                    {bu.bu_name || bu.name || `BU ${bu.id}`}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Required for BU-scoped roles</p>
-            </div>
-          )}
-
-          {/* Org-level access indicator */}
-          {editForm.role_ids && editForm.role_ids.length > 0 &&
-           editForm.role_ids.some(id => {
-             const role = roles.find(r => r.id === id);
-             return ORG_LEVEL_ROLES.includes(role?.name);
-           }) && (
-            <div className="p-3 bg-blue-50 text-sm text-blue-700 rounded border border-blue-200">
-              ✓ This user will have <strong>organization-wide access</strong> (no Business Unit restriction)
-            </div>
-          )}
-
-          {/* Permissions Section */}
-          <div className="border-t pt-4 mt-4">
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Permissions</h3>
-                  <p className="text-xs text-gray-600">Override or customize permissions for this user</p>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded"
-                    checked={editForm.expandAllPermissions}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      const modules = ["recruitment", "sales", "workforce", "project_management", "finance", "admin"];
-                      const expandState = {};
-                      modules.forEach(m => {
-                        expandState[`expanded_${m}`] = checked;
-                      });
-                      setEditForm({
-                        ...editForm,
-                        expandAllPermissions: checked,
-                        ...expandState
-                      });
-                    }}
-                  />
-                  <span className="text-xs text-gray-700 font-medium">Expand all</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {[
-                { name: "Recruitment", key: "recruitment", desc: "Candidates, Jobs, Interviews" },
-                { name: "Sales", key: "sales", desc: "Client Management, Deals" },
-                { name: "Workforce", key: "workforce", desc: "Employees, Timesheets, Projects" },
-                { name: "Project Management", key: "project_management", desc: "Projects, Allocations, Resources" },
-                { name: "Finance", key: "finance", desc: "Invoices, Reports, Payments" },
-                { name: "Admin", key: "admin", desc: "System, Users, Configuration" }
-              ].map(module => {
-                const expandedKey = `expanded_${module.key}`;
-                const isExpanded = editForm.expandAllPermissions || editForm[expandedKey];
-
-                return (
-                  <div key={module.key} className="border rounded-lg">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditForm({
-                          ...editForm,
-                          [expandedKey]: !editForm[expandedKey]
-                        });
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-3 hover:bg-gray-50"
-                    >
-                      <div className="flex flex-col items-start gap-0.5">
-                        <div className="text-sm font-medium text-gray-900">{module.name}</div>
-                        <div className="text-xs text-gray-500">{module.desc}</div>
-                      </div>
-                      <div className="text-gray-500 text-lg">
-                        {isExpanded ? '▼' : '▶'}
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="flex flex-wrap gap-3 px-3 py-3 bg-gray-50 border-t">
-                        {["view", "create", "edit", "delete"].map(verb => {
-                          const permKey = `perm_${module.key}_${verb}`;
-                          return (
-                            <label key={verb} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded"
-                                checked={editForm[permKey] ?? true}
-                                onChange={(e) => setEditForm({ ...editForm, [permKey]: e.target.checked })}
-                              />
-                              <span className="text-sm text-gray-700 capitalize">{verb}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex gap-3 justify-end pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setShowEditModal(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateUser}
-              disabled={busy}
-            >
-              {busy ? "Updating..." : "Update User"}
-            </Button>
-          </div>
-        </div>
-      </SimpleModal>
 
       {/* Reset Password Modal */}
       <SimpleModal
@@ -1159,7 +910,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         />
         <button
           onClick={handleOpenCreateEditor}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-bx-orange hover:bg-bx-orange-hover text-white rounded-md text-sm font-medium transition-colors"
         >
           + New Role Template
         </button>
@@ -1288,7 +1039,30 @@ export default function UsersAndAccessControl() {
     try {
       // Load users (required)
       const usersRes = await getAllUsers();
-      setUsers(Array.isArray(usersRes) ? usersRes : []);
+      let usersData = Array.isArray(usersRes) ? usersRes : [];
+
+      // Fetch role_ids for each user
+      try {
+        const usersWithRoles = await Promise.all(
+          usersData.map(async (user) => {
+            try {
+              const roleRes = await apiRequest(`/rbac/users/${user.user_id}/roles`, {
+                method: "GET"
+              });
+              const roleIds = (roleRes?.data?.roles || []).map(r => r.id);
+              return { ...user, role_ids: roleIds };
+            } catch (err) {
+              console.warn(`Failed to load roles for user ${user.user_id}:`, err);
+              return { ...user, role_ids: [] };
+            }
+          })
+        );
+        usersData = usersWithRoles;
+      } catch (roleErr) {
+        console.warn("Failed to load user roles, continuing without role data:", roleErr);
+      }
+
+      setUsers(usersData);
 
       // Load role templates (optional - may fail due to permissions)
       try {
@@ -1643,7 +1417,7 @@ function OrganizationalHierarchySection() {
                 </button>
                 <button
                   onClick={handleAddPosition}
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-3 py-1 text-xs bg-bx-orange text-white rounded hover:bg-bx-orange-hover"
                   disabled={!newPositionName.trim()}
                 >
                   Add
@@ -2274,7 +2048,7 @@ function LocationsSection() {
             <p className="text-gray-600 mb-4">The requested section does not exist.</p>
             <button
               onClick={() => navigate("/admin/users-access-control/users")}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover"
             >
               Go to Users
             </button>
@@ -2286,6 +2060,7 @@ function LocationsSection() {
             users={users}
             roles={roles}
             currentUserPermissions={currentUserPermissions}
+            onUserSaved={loadData}
           />
         ) : activeTab === "business-units" ? (
           <BusinessUnitsSection />

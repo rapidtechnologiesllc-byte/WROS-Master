@@ -188,7 +188,7 @@ const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = n
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-gray-400"
+              className="px-4 py-2 text-sm font-medium text-white bg-bx-orange rounded-xl hover:bg-bx-orange-hover disabled:bg-gray-400"
             >
               {loading ? 'Saving...' : mode === 'create' ? 'Create' : 'Update'}
             </button>
