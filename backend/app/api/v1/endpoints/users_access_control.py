@@ -254,9 +254,9 @@ def delete_user(
 
 class BusinessUnitCreateRequest(BaseModel):
     name: str
+    display_name: str
+    bu_code: Optional[str] = None
     description: Optional[str] = None
-    region: Optional[str] = None
-    continent: Optional[str] = None
 
 @router.get("/business-units")
 def list_business_units(
@@ -278,11 +278,11 @@ def list_business_units(
         "business_units": [
             {
                 "id": b.id,
-                "name": b.bu_name or b.name,
-                "description": getattr(b, 'description', None),
-                "region": getattr(b, 'region', None),
-                "continent": getattr(b, 'continent', None),
-                "created_at": getattr(b, 'created_at', None),
+                "name": b.name,
+                "display_name": b.display_name,
+                "bu_code": b.bu_code,
+                "description": b.description,
+                "created_at": b.created_at,
             }
             for b in bus
         ],
@@ -299,7 +299,6 @@ def create_business_unit(
 ):
     """Create a new business unit (Admin and Super User only)."""
     # Check permissions (RBAC-aware)
-    # Check for old role-based system or new RBAC
     is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
                     (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
 
@@ -307,18 +306,17 @@ def create_business_unit(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
 
     # Validate input
-    if not req.name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business Unit name is required")
+    if not req.name or not req.display_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business Unit name and display name are required")
 
     # Determine tenant_id (default to 1 if None)
     tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
 
     new_bu = BusinessUnit(
-        bu_name=req.name,
         name=req.name,
+        display_name=req.display_name,
+        bu_code=req.bu_code or req.name.upper().replace(" ", ""),
         description=req.description,
-        region=req.region,
-        continent=req.continent,
         tenant_id=tenant_id
     )
 
@@ -328,7 +326,9 @@ def create_business_unit(
 
     return {
         "id": new_bu.id,
-        "name": new_bu.bu_name or new_bu.name,
+        "name": new_bu.name,
+        "display_name": new_bu.display_name,
+        "bu_code": new_bu.bu_code,
         "status": "created"
     }
 
@@ -353,21 +353,22 @@ def update_business_unit(
 
     # Update fields
     if req.name:
-        bu.bu_name = req.name
         bu.name = req.name
+    if req.display_name:
+        bu.display_name = req.display_name
+    if req.bu_code:
+        bu.bu_code = req.bu_code
     if req.description is not None:
         bu.description = req.description
-    if req.region:
-        bu.region = req.region
-    if req.continent:
-        bu.continent = req.continent
 
     db.commit()
     db.refresh(bu)
 
     return {
         "id": bu.id,
-        "name": bu.bu_name or bu.name,
+        "name": bu.name,
+        "display_name": bu.display_name,
+        "bu_code": bu.bu_code,
         "status": "updated"
     }
 
