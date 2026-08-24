@@ -28,15 +28,27 @@ load_dotenv()
 # LLM initialisation (re-uses the same key as job_description_generator)
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-_llm = ChatGoogleGenerativeAI(
-    api_key=GEMINI_API_KEY,
-    model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
-    temperature=0.2,                    # low temp → consistent scores
-)
+_llm = None
+
+try:
+    _llm = ChatGoogleGenerativeAI(
+        api_key=GEMINI_API_KEY,
+        model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
+        temperature=0.2,                    # low temp → consistent scores
+    )
+except Exception as e:
+    # If Google credentials not available, LLM will be None
+    # ATS scoring will return stub response
+    import sys
+    print(f"[WARNING] ATS Scorer: Google credentials not available: {e}", file=sys.stderr)
 
 
 def _invoke_llm(prompt: str) -> str:
     """Invoke the LLM and normalise the response to a plain string."""
+    if _llm is None:
+        # Return stub response if LLM not available (e.g., Google credentials missing)
+        return '{"score": 50, "message": "ATS scoring unavailable - Google credentials not configured"}'
+
     response = _llm.invoke(prompt)
     if isinstance(response.content, str):
         return response.content
