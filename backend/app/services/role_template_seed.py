@@ -322,40 +322,27 @@ def assign_users_to_role_templates(db: Session, tenant_id: int = 1) -> None:
         tenant_id: Tenant ID for multi-tenancy (default: 1)
     """
     try:
-        from app.models.user import Users, UserRole
+        from app.models.user import Users
 
-        # Get all users who don't yet have a UserRole record (new system)
+        # Migration: Assign users without role_template_id to a default template
+        # Users now have direct role_template_id column instead of UserRole junction table
         users_without_template = db.query(Users).filter(
-            Users.UserRole.isnot(None),
-            ~Users.UserID.in_(
-                db.query(UserRole.user_id).filter(UserRole.tenant_id == tenant_id)
-            )
+            Users.role_template_id.is_(None)
         ).all()
 
-        for user in users_without_template:
-            if not user.UserRole:
-                continue
-
-            # Find role template with matching name
-            role_template = db.query(RoleTemplate).filter(
-                RoleTemplate.name == user.UserRole,
+        # If there are users without templates, assign them to Recruiter template
+        if users_without_template:
+            recruiter_template = db.query(RoleTemplate).filter(
+                RoleTemplate.name == "Recruiter",
                 RoleTemplate.tenant_id == tenant_id
             ).first()
 
-            if not role_template:
-                logger.warning(f"No role template found for user role: {user.UserRole}")
-                continue
+            if recruiter_template:
+                for user in users_without_template:
+                    user.role_template_id = recruiter_template.id
 
-            # Create UserRole record
-            user_role = UserRole(
-                user_id=user.UserID,
-                role_template_id=role_template.id,
-                business_unit_id=user.business_unit_id,
-                tenant_id=tenant_id
-            )
-            db.add(user_role)
+                db.commit()
 
-        db.commit()
         logger.info("[OK] Existing users assigned to role templates")
 
     except Exception as exc:
