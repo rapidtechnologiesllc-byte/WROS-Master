@@ -18,7 +18,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     if (mode === 'edit' && templateId) {
       const fetchTemplate = async () => {
         try {
-          const { data } = await apiRequest(`/role-templates/${templateId}`, {
+          const { data } = await apiRequest(`/api/admin/users-access-control/role-templates/${templateId}`, {
             method: 'GET'
           });
 
@@ -131,11 +131,11 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       if (mode === 'create') {
         // Check if template name already exists (preventing duplicates)
         try {
-          await apiRequest(`/role-templates?search=${encodeURIComponent(formData.name)}`, {
+          await apiRequest(`/api/admin/users-access-control/role-templates?search=${encodeURIComponent(formData.name)}`, {
             method: 'GET'
           });
           // If we got here, check if name already exists
-          const checkResponse = await apiRequest(`/role-templates`, {
+          const checkResponse = await apiRequest(`/api/admin/users-access-control/role-templates`, {
             method: 'GET'
           });
 
@@ -151,7 +151,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           // If search fails, continue with creation (endpoint may not support search)
         }
 
-        const response = await apiRequest('/role-templates', {
+        const response = await apiRequest('/api/admin/users-access-control/role-templates', {
           method: 'POST',
           body: JSON.stringify({
             name: formData.name,
@@ -169,7 +169,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         if (onSuccess) onSuccess(response.data);
         onClose();
       } else {
-        await apiRequest(`/role-templates/${templateId}`, {
+        await apiRequest(`/api/admin/users-access-control/role-templates/${templateId}`, {
           method: 'PUT',
           body: JSON.stringify({
             name: formData.name,
@@ -210,7 +210,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       for (const [action, enabled] of Object.entries(perms)) {
         try {
           if (enabled) {
-            await apiRequest(`/role-templates/${tId}/grant-permission`, {
+            await apiRequest(`/api/admin/users-access-control/role-templates/${tId}/grant-permission`, {
               method: 'POST',
               body: JSON.stringify({
                 resource_name: resourceName,
@@ -218,7 +218,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
               })
             });
           } else {
-            await apiRequest(`/role-templates/${tId}/revoke-permission`, {
+            await apiRequest(`/api/admin/users-access-control/role-templates/${tId}/revoke-permission`, {
               method: 'POST',
               body: JSON.stringify({
                 resource_name: resourceName,
