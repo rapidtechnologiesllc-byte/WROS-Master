@@ -15,7 +15,7 @@ from typing import List, Set
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
 from app.services.organization_service import OrganizationService
 
