@@ -134,39 +134,11 @@ async function fetchNavigationFromBackend() {
     return groups;
   } catch (error) {
     console.error("Failed to fetch navigation from backend:", error);
-    // FALLBACK: Return default navigation for authenticated users
-    // This ensures menu shows even if backend navigation endpoint fails
-    return getDefaultNavigationItems();
+    // Do NOT fall back to partial hardcoded menu - fail loudly so we can fix the backend
+    throw new Error(`Navigation endpoint failed: ${error.message}`);
   }
 }
 
-// Fallback navigation when backend fetch fails
-function getDefaultNavigationItems() {
-  return [
-    {
-      label: "Recruitment",
-      items: [
-        { key: "candidates", label: "Candidates", icon: Users, path: "/candidates" },
-        { key: "jobs", label: "Jobs", icon: Briefcase, path: "/jobs" },
-        { key: "interviews", label: "Interviews", icon: Users, path: "/interviews" },
-        { key: "offers", label: "Offers", icon: FileTextIcon, path: "/offers" },
-      ]
-    },
-    {
-      label: "Workforce & Employees",
-      items: [
-        { key: "employees", label: "Employees", icon: Users2, path: "/employees" },
-        { key: "timesheets", label: "Timesheets", icon: Clock, path: "/timesheets" },
-      ]
-    },
-    {
-      label: "Administration",
-      items: [
-        { key: "users", label: "Users", icon: Shield, path: "/admin/users-access-control" },
-      ]
-    }
-  ];
-}
 
 // Permission-based navigation builder (2026-08-12)
 // Maps nav keys to their required permissions
