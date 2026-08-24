@@ -15,8 +15,7 @@ from app.models.user import (
     InterviewPanel,
     PanelMember,
     Interview,
-    InterviewFeedback,
-    UserRole
+    InterviewFeedback
 )
 from app.models.candidate import (
     Candidate,
@@ -154,7 +153,6 @@ __all__ = [
     "PanelMember",
     "Interview",
     "InterviewFeedback",
-    "UserRole",
     # Candidate models
     "Candidate",
     "CandidateInfoForm",

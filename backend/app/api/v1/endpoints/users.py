@@ -58,25 +58,17 @@ def get_me(
     # Get tenant ID (default to 1, handle None case)
     tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
 
-    # Get user's roles from UserRole junction table
-    from app.models.user import UserRole
-    from app.models.role_template import RoleTemplate
-
+    # Get user's assigned role template
     user_roles = []
     roles_list = []
 
-    # Query UserRole junction table for all roles assigned to this user
-    user_role_records = db.query(UserRole).filter(
-        UserRole.user_id == current_user.UserID,
-        UserRole.tenant_id == tenant_id
-    ).all()
-
-    for ur in user_role_records:
-        if ur.role_template:
-            roles_list.append(ur.role_template.name)
+    if current_user.role_template_id:
+        rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
+        if rt:
+            roles_list.append(rt.name)
             user_roles.append({
-                "id": ur.role_template.id,
-                "name": ur.role_template.name,
+                "id": rt.id,
+                "name": rt.name,
             })
 
     # Get all permissions for the user based on their role template permissions
