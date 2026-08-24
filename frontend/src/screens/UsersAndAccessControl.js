@@ -1887,24 +1887,101 @@ function LocationsSection() {
     setFormData({ name: "", type: "Delivery", city: "", country: "", headcount: 0 });
   };
 
-  const handleAdd = () => {
+  // Load delivery centers from backend
+  useEffect(() => {
+    const loadDeliveryCenters = async () => {
+      try {
+        const token = localStorage.getItem('hrms_token');
+        console.log('[DC LOAD] Loading delivery centers...');
+        const response = await fetch('http://localhost:8080/api/admin/users-access-control/delivery-centers', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        console.log('[DC LOAD] Response:', data);
+
+        if (data.delivery_centers && Array.isArray(data.delivery_centers)) {
+          const mapped = data.delivery_centers.map(dc => ({
+            id: dc.id,
+            name: dc.name || '',
+            type: dc.delivery_center_type || 'Delivery',
+            buServed: ["North America"],
+            headcount: dc.headcount || 0,
+            city: dc.location_city || '',
+            country: dc.location_country || ''
+          }));
+          console.log('[DC LOAD] Mapped DCs:', mapped);
+          setDeliveryCenters(mapped);
+        }
+      } catch (err) {
+        console.error('[DC LOAD] Error loading delivery centers:', err);
+      }
+    };
+    loadDeliveryCenters();
+  }, []);
+
+  const handleAdd = async () => {
     if (!formData.name.trim()) {
       toast.error("Delivery Center name is required");
       return;
     }
-    const newDC = {
-      id: Math.max(...deliveryCenters.map(dc => dc.id), 0) + 1,
-      name: formData.name,
-      type: formData.type,
-      buServed: ["North America"],
-      headcount: formData.headcount,
-      city: formData.city,
-      country: formData.country
-    };
-    setDeliveryCenters([...deliveryCenters, newDC]);
-    resetForm();
-    setShowAddModal(false);
-    toast.success("Delivery Center added successfully");
+    if (!formData.city.trim()) {
+      toast.error("City is required");
+      return;
+    }
+    if (!formData.country.trim()) {
+      toast.error("Country is required");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('hrms_token');
+      const payload = {
+        name: formData.name,
+        dc_code: formData.name.toUpperCase().replace(/\s+/g, ''),
+        delivery_center_type: formData.type,
+        location_city: formData.city,
+        location_country: formData.country,
+        headcount: formData.headcount || 0
+      };
+
+      console.log('[DC CREATE] Sending payload:', payload);
+      console.log('[DC CREATE] Token exists:', !!token);
+
+      const response = await fetch('http://localhost:8080/api/admin/users-access-control/delivery-centers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      console.log('[DC CREATE] Response status:', response.status);
+      const data = await response.json();
+      console.log('[DC CREATE] Response data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to create delivery center');
+      }
+
+      // Add to local state for immediate UI update
+      const newDC = {
+        id: data.id,
+        name: formData.name,
+        type: formData.type,
+        buServed: ["North America"],
+        headcount: formData.headcount,
+        city: formData.city,
+        country: formData.country
+      };
+      setDeliveryCenters([...deliveryCenters, newDC]);
+      resetForm();
+      setShowAddModal(false);
+      toast.success("Delivery Center added successfully");
+    } catch (err) {
+      console.error('[DC CREATE] Error:', err);
+      toast.error(err.message || "Failed to create delivery center");
+    }
   };
 
   const handleEdit = (dc) => {
