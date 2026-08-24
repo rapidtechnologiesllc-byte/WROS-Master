@@ -28,12 +28,11 @@ if not DATABASE_URL:
         "Format: postgresql://username:password@host:port/database_name"
     )
 
-if not (DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("sqlite://")):
+if not DATABASE_URL.startswith("postgresql://"):
     raise ValueError(
         f"Invalid DATABASE_URL: '{DATABASE_URL[:30]}...'. "
-        "Only PostgreSQL and SQLite are supported. "
-        "PostgreSQL Format: postgresql://username:password@host:port/database_name\n"
-        "SQLite Format: sqlite:///./local_dev.sqlite3"
+        "Only PostgreSQL is supported (no SQLite in production). "
+        "Format: postgresql://username:password@host:port/database_name"
     )
 
 # PostgreSQL connection pool settings
