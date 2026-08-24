@@ -8,16 +8,18 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
     user_password: '',
     job_title: '',
     business_unit_id: '',
-    partner_id: '',
     role_ids: []
   });
 
   const [businessUnits, setBusinessUnits] = useState([]);
-  const [partners, setPartners] = useState([]);
   const [roles, setRoles] = useState([]);
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showPermissionsEditor, setShowPermissionsEditor] = useState(false);
+  const [manualPermissions, setManualPermissions] = useState({});
+  const [expandedModules, setExpandedModules] = useState({});
+  const [modules, setModules] = useState([]);
 
   const loadData = async () => {
     try {
@@ -49,6 +51,15 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         const posData = await posRes.json();
         setPositions(posData || []);
       }
+
+      // Load modules for permissions editor
+      const modulesRes = await fetch('http://localhost:8080/admin/modules', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (modulesRes.ok) {
+        const modulesData = await modulesRes.json();
+        setModules(modulesData.modules || []);
+      }
     } catch (err) {
       console.error('Error loading data:', err);
     }
@@ -65,7 +76,6 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         user_password: '',
         job_title: user.job_title || '',
         business_unit_id: user.business_unit_id || '',
-        partner_id: user.partner_id || '',
         role_ids: user.role_ids || []
       });
     } else {
@@ -75,7 +85,6 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         user_password: '',
         job_title: '',
         business_unit_id: '',
-        partner_id: '',
         role_ids: []
       });
     }
@@ -83,29 +92,6 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
     loadData();
   }, [isOpen, mode, user]);
 
-  // Load partners when business unit changes
-  useEffect(() => {
-    if (formData.business_unit_id) {
-      loadPartners(formData.business_unit_id);
-    }
-  }, [formData.business_unit_id]);
-
-  const loadPartners = async (buId) => {
-    try {
-      const token = localStorage.getItem('hrms_token');
-      const res = await fetch(`http://localhost:8080/hr/users/all`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Filter users by business unit
-        const buPartners = data.users?.filter(u => u.business_unit_id == buId) || [];
-        setPartners(buPartners);
-      }
-    } catch (err) {
-      console.error('Error loading partners:', err);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -148,8 +134,11 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         setLoading(false);
         return;
       }
-      if (formData.role_ids.length === 0) {
-        setError('At least one role is required');
+
+      // Either role template OR manual permissions must be set
+      const hasManualPermissions = Object.keys(manualPermissions).length > 0;
+      if (formData.role_ids.length === 0 && !hasManualPermissions) {
+        setError('Select a role template or configure custom permissions');
         setLoading(false);
         return;
       }
@@ -157,7 +146,7 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
       const token = localStorage.getItem('hrms_token');
       const endpoint = mode === 'create'
         ? 'http://localhost:8080/hr/users/create-with-roles'
-        : `http://localhost:8080/hr/users/${user.user_id}`;
+        : `http://localhost:8080/hr/users/${user.user_id}/update-with-roles`;
       const method = mode === 'create' ? 'POST' : 'PUT';
 
       const payload = {
@@ -166,7 +155,6 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         ...(mode === 'create' && { user_password: formData.user_password }),
         job_title: formData.job_title || null,
         business_unit_id: parseInt(formData.business_unit_id),
-        partner_id: formData.partner_id ? parseInt(formData.partner_id) : null,
         role_ids: formData.role_ids
       };
 
@@ -187,12 +175,31 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
       }
 
       setLoading(false);
-      onSuccess?.();
+      try {
+        onSuccess?.();
+      } catch (successErr) {
+        console.error('Error in onSuccess callback:', successErr);
+      }
       onClose();
     } catch (err) {
       setError(err.message || 'An error occurred');
       setLoading(false);
     }
+  };
+
+  const handlePermissionSave = (permissions) => {
+    setManualPermissions(permissions);
+    setShowPermissionsEditor(false);
+  };
+
+  const handleTogglePermission = (moduleName, action) => {
+    setManualPermissions(prev => ({
+      ...prev,
+      [moduleName]: {
+        ...prev[moduleName],
+        [action]: !prev[moduleName]?.[action]
+      }
+    }));
   };
 
   if (!isOpen) return null;
@@ -306,30 +313,12 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
               </select>
             </div>
 
-            {formData.business_unit_id && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Partner (Employee)</label>
-                <select
-                  name="partner_id"
-                  value={formData.partner_id}
-                  onChange={handleInputChange}
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Partner</option>
-                  {partners.map(partner => (
-                    <option key={partner.user_id} value={partner.user_id}>
-                      {partner.user_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
 
-          {/* Roles Section */}
+          {/* Role Template Section */}
           <div className="space-y-4">
-            <h3 className="font-medium text-gray-900">Roles *</h3>
-            <p className="text-sm text-gray-600">Select one or more roles for this user</p>
+            <h3 className="font-medium text-gray-900">Role Template *</h3>
+            <p className="text-sm text-gray-600">Select one or more role templates for this user</p>
             <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
               {roles.map(role => (
                 <label key={role.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
@@ -346,10 +335,30 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
                 </label>
               ))}
             </div>
-            {formData.role_ids.length === 0 && (
-              <p className="text-sm text-red-600">At least one role is required</p>
+            {formData.role_ids.length === 0 && !Object.values(manualPermissions).some(p => p) && (
+              <p className="text-sm text-gray-600">Or set custom permissions below</p>
             )}
           </div>
+
+          {/* Manual Permissions Section - Show only if no role template selected */}
+          {formData.role_ids.length === 0 && (
+            <div className="space-y-4 border-t pt-4">
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">Custom Permissions</h3>
+                <p className="text-sm text-gray-600 mb-4">Granularly select permissions for this user</p>
+                <button
+                  type="button"
+                  onClick={() => setShowPermissionsEditor(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-bx-orange rounded-xl hover:bg-bx-orange-hover"
+                >
+                  Configure Permissions
+                </button>
+                {Object.keys(manualPermissions).length > 0 && (
+                  <p className="text-xs text-green-600 mt-2">✓ Custom permissions configured</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 justify-end pt-4 border-t">
@@ -363,13 +372,117 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-gray-400"
+              className="px-4 py-2 text-sm font-medium text-white bg-bx-orange rounded-xl hover:bg-bx-orange-hover disabled:bg-gray-400"
             >
               {loading ? 'Saving...' : mode === 'create' ? 'Create User' : 'Update User'}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Permissions Editor Modal */}
+      {showPermissionsEditor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Configure Permissions</h2>
+                <p className="text-sm text-gray-600 mt-1">Select granular permissions for this user</p>
+              </div>
+              <button onClick={() => setShowPermissionsEditor(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
+                {modules.map(module => {
+                  const enabled = Object.values(manualPermissions[module.name] || {}).some(p => p);
+                  const count = Object.values(manualPermissions[module.name] || {}).filter(Boolean).length;
+
+                  return (
+                    <div key={module.id}>
+                      <div className="bg-blue-50 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div
+                            className="flex items-center gap-3 flex-1 cursor-pointer hover:opacity-70"
+                            onClick={() => setExpandedModules(prev => ({ ...prev, [module.id]: !prev[module.id] }))}
+                          >
+                            <span className="text-gray-600 text-lg">{expandedModules[module.id] ? '▼' : '▶'}</span>
+                            <div>
+                              <h4 className="font-semibold text-gray-900 capitalize">{module.name}</h4>
+                              <p className="text-xs text-gray-600">{count}/4 permissions</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (enabled) {
+                                setManualPermissions(prev => ({
+                                  ...prev,
+                                  [module.name]: { view: false, create: false, edit: false, delete: false }
+                                }));
+                              } else {
+                                setExpandedModules(prev => ({ ...prev, [module.id]: true }));
+                              }
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              enabled ? 'bg-green-500' : 'bg-red-500'
+                            }`}
+                            title={enabled ? 'Disable module' : 'Enable module'}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {expandedModules[module.id] && (
+                        <div className="bg-white px-4 py-3 space-y-2">
+                          {['view', 'create', 'edit', 'delete'].map(action => (
+                            <label key={action} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
+                              <input
+                                type="checkbox"
+                                checked={manualPermissions[module.name]?.[action] || false}
+                                onChange={() => handleTogglePermission(module.name, action)}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                              />
+                              <span className="text-sm font-medium text-gray-900 capitalize">{action}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end px-6 py-4 border-t">
+              <button
+                type="button"
+                onClick={() => setShowPermissionsEditor(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handlePermissionSave(manualPermissions);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-bx-orange rounded-xl hover:bg-bx-orange-hover"
+              >
+                Save Permissions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
