@@ -169,10 +169,10 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         if (onSuccess) onSuccess(response.data);
         onClose();
       } else {
-        await apiRequest(`/api/admin/users-access-control/role-templates/${templateId}`, {
+        await apiRequest(`/admin/role-templates/${templateId}`, {
           method: 'PUT',
           body: JSON.stringify({
-            name: formData.name,
+            display_name: formData.name,
             description: formData.description,
             permissions: []
           })
