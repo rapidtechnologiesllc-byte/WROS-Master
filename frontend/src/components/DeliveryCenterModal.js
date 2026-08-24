@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiRequest } from '../services/api/client';
 
 const DeliveryCenterModal = ({ isOpen, onClose, onSuccess, mode = 'create', dc = null }) => {
   const [formData, setFormData] = useState({
@@ -69,12 +70,6 @@ const DeliveryCenterModal = ({ isOpen, onClose, onSuccess, mode = 'create', dc =
         return;
       }
 
-      const token = localStorage.getItem('hrms_token');
-      const endpoint = mode === 'create'
-        ? 'http://localhost:8080/api/admin/users-access-control/delivery-centers'
-        : `http://localhost:8080/api/admin/users-access-control/delivery-centers/${dc.id}`;
-      const method = mode === 'create' ? 'POST' : 'PUT';
-
       const payload = {
         name: formData.name,
         dc_code: formData.dc_code,
@@ -84,21 +79,14 @@ const DeliveryCenterModal = ({ isOpen, onClose, onSuccess, mode = 'create', dc =
         delivery_center_type: formData.delivery_center_type || ''
       };
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+      const endpoint = mode === 'create'
+        ? '/api/admin/users-access-control/delivery-centers'
+        : `/api/admin/users-access-control/delivery-centers/${dc.id}`;
+
+      await apiRequest(endpoint, {
+        method: mode === 'create' ? 'POST' : 'PUT',
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || 'Failed to save delivery center');
-        setLoading(false);
-        return;
-      }
 
       setLoading(false);
       onSuccess?.();
