@@ -206,45 +206,52 @@ def update_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update role template permissions."""
-    check_rbac_permission(current_user, db)
+    try:
+        check_rbac_permission(current_user, db)
 
-    template = db.query(RoleTemplate).filter(
-        RoleTemplate.id == template_id,
-        RoleTemplate.tenant_id == current_user.tenant_id
-    ).first()
+        template = db.query(RoleTemplate).filter(
+            RoleTemplate.id == template_id,
+            RoleTemplate.tenant_id == current_user.tenant_id
+        ).first()
 
-    if not template:
-        raise HTTPException(status_code=404, detail="Role template not found")
+        if not template:
+            raise HTTPException(status_code=404, detail="Role template not found")
 
-    if template.is_system:
-        raise HTTPException(status_code=400, detail="Cannot modify system role templates")
+        # Update basic fields
+        if data.display_name:
+            template.display_name = data.display_name
+        if data.description is not None:
+            template.description = data.description
 
-    # Update basic fields
-    if data.display_name:
-        template.display_name = data.display_name
-    if data.description is not None:
-        template.description = data.description
+        # Delete existing permissions
+        db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == template.id
+        ).delete()
+        db.flush()
 
-    # Delete existing permissions
-    db.query(RoleTemplatePermission).filter(
-        RoleTemplatePermission.role_template_id == template.id
-    ).delete()
+        # Add new permissions
+        if data.permissions:
+            for perm_input in data.permissions:
+                perm = RoleTemplatePermission(
+                    role_template_id=template.id,
+                    resource_id=perm_input.resource_id,
+                    can_view=perm_input.can_view,
+                    can_create=perm_input.can_create,
+                    can_edit=perm_input.can_edit,
+                    can_delete=perm_input.can_delete
+                )
+                db.add(perm)
 
-    # Add new permissions
-    for perm_input in data.permissions:
-        perm = RoleTemplatePermission(
-            role_template_id=template.id,
-            resource_id=perm_input.resource_id,
-            can_view=perm_input.can_view,
-            can_create=perm_input.can_create,
-            can_edit=perm_input.can_edit,
-            can_delete=perm_input.can_delete
-        )
-        db.add(perm)
+        db.flush()
+        db.commit()
 
-    db.commit()
-
-    return {"message": "Role template updated successfully"}
+        return {"message": "Role template updated successfully"}
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"Error updating role template: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
 
 
 @router.delete("/{template_id}")
