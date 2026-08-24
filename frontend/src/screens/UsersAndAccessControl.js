@@ -28,9 +28,6 @@ import {
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
 import { getHrMe } from "../services/api/users";
-import RoleTemplateEditor from "../components/RoleTemplateEditor";
-import UserModal from "../components/UserModal";
-import BusinessUnitModal from "../components/BusinessUnitModal";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -189,15 +186,9 @@ function safeText(v) {
 // USERS SECTION
 // ============================================================================
 
-function UsersSection({ loading, error, users, roles, currentUserPermissions = {}, onUserSaved = () => {} }) {
+function UsersSection({ loading, error, users, roles, currentUserPermissions = {}, employees = [] }) {
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [userModalMode, setUserModalMode] = useState('create');
-  const [editingUser, setEditingUser] = useState(null);
-  const [showBUModal, setShowBUModal] = useState(false);
-  const [selectedBU, setSelectedBU] = useState(null);
-
-  // Legacy modal states (keep for compatibility during transition)
   const [showResetModal, setShowResetModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -219,95 +210,10 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
   const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
 
-  const [createForm, setCreateForm] = useState({
-    user_name: "",
-    job_title: "",
-    user_email: "",
-    user_password: "",
-    user_role: roles[0]?.name || "",
-    business_unit_id: "",
-    partner_id: "",
-    role_ids: [] // Multi-role support
-  });
-
-  const [editForm, setEditForm] = useState({
-    user_name: "",
-    job_title: "",
-    user_role: "",
-    business_unit_id: "",
-    partner_id: "",
-    role_ids: [], // Multi-role support for edit
-    expandAllPermissions: false,
-    expanded_candidates: false,
-    expanded_jobs: false,
-    expanded_interviews: false,
-    expanded_admin: false,
-    perm_candidates_view: true,
-    perm_candidates_create: true,
-    perm_candidates_edit: true,
-    perm_candidates_delete: true,
-    perm_jobs_view: true,
-    perm_jobs_create: true,
-    perm_jobs_edit: true,
-    perm_jobs_delete: true,
-    perm_interviews_view: true,
-    perm_interviews_create: true,
-    perm_interviews_edit: true,
-    perm_interviews_delete: true,
-    perm_admin_view: true,
-    perm_admin_create: true,
-    perm_admin_edit: true,
-    perm_admin_delete: true
-  });
-
   const [resetForm, setResetForm] = useState({
     new_password: ""
   });
 
-  // Load business units on demand (when modal opens)
-  const loadBusinessUnits = async () => {
-    try {
-      // Try the RBAC endpoint first
-      const { data } = await apiRequest("/rbac/business-units", {
-        method: "GET"
-      });
-      const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
-      setBusinessUnits(busData);
-    } catch (err) {
-      console.error("Failed to load business units from /rbac/business-units:", err);
-      try {
-        // Fallback: try legacy endpoint
-        const { data } = await apiRequest("/business-units", {
-          method: "GET"
-        });
-        const busData = Array.isArray(data) ? data : (data?.business_units || data?.data || []);
-        setBusinessUnits(busData);
-      } catch (fallbackErr) {
-        console.error("Fallback also failed, using default business units:", fallbackErr);
-        // Fallback: set some default business units
-        setBusinessUnits([
-          { id: 1, name: "North America", bu_name: "North America" },
-          { id: 2, name: "Europe", bu_name: "Europe" },
-          { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
-        ]);
-      }
-    }
-  };
-
-  // Load job titles from database (via API)
-  const loadJobTitles = async () => {
-    try {
-      const { data } = await apiRequest("/hr/job-titles", {
-        method: "GET"
-      });
-      const titles = Array.isArray(data?.job_titles) ? data.job_titles : [];
-      setJobTitles(titles);
-    } catch (err) {
-      console.error("Failed to load job titles:", err);
-      // If API fails, use empty list (user can still type or fallback to defaults)
-      setJobTitles([]);
-    }
-  };
 
   const filteredUsers = useMemo(() => {
     if (!Array.isArray(users)) return [];
@@ -319,171 +225,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     );
   }, [users, searchTerm]);
 
-  // Load job titles and business units when modal opens
-  useEffect(() => {
-    if (showUserModal) {
-      loadJobTitles();
-      loadBusinessUnits();
-    }
-  }, [showUserModal]);
 
   const selectedUser = users.find(u => u.user_id === selectedUserId);
-
-  const handleCreate = async () => {
-    // Validate all required fields
-    if (!createForm.user_name.trim()) {
-      toast.error("User name is required.");
-      return;
-    }
-    if (!createForm.user_email.trim()) {
-      toast.error("Email is required.");
-      return;
-    }
-    if (!createForm.user_password.trim()) {
-      toast.error("Password is required.");
-      return;
-    }
-
-    // Support both multi-role (new) and single role (legacy) modes
-    const roleIds = createForm.role_ids?.length > 0 ? createForm.role_ids :
-                    (createForm.user_role ? [roles.find(r => r.name === createForm.user_role)?.id].filter(Boolean) : []);
-
-    if (roleIds.length === 0) {
-      toast.error("At least one role is required.");
-      return;
-    }
-
-    // Check if any selected roles are BU-scoped (not org-level)
-    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
-    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
-    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
-
-    // Validate BU requirement based on role type
-    if (hasBUScopedRole && !createForm.business_unit_id) {
-      toast.error("Business Unit is required for BU-scoped roles.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const payload = {
-        user_name: createForm.user_name,
-        user_email: createForm.user_email,
-        user_password: createForm.user_password,
-        job_title: createForm.job_title || "",
-        role_ids: roleIds.map(id => parseInt(id, 10))
-      };
-
-      // Only include BU if it's not an org-level-only user
-      if (!hasOrgLevelRole && createForm.business_unit_id) {
-        payload.business_unit_id = parseInt(createForm.business_unit_id, 10);
-      }
-
-      // Include partner if selected
-      if (createForm.partner_id) {
-        payload.partner_id = parseInt(createForm.partner_id, 10);
-      }
-
-      // Use new multi-role endpoint when roles are selected
-      if (roleIds.length > 0) {
-        console.debug("[CREATE USER] Payload being sent:", payload);
-        console.debug("[CREATE USER] Stringified payload:", JSON.stringify(payload));
-        const response = await apiRequest("/hr/users/create-with-roles", {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        console.debug("[CREATE USER] Response:", response);
-      }
-
-      toast.success("User created successfully.");
-      setShowCreateModal(false);
-      setCreateForm({ user_name: "", job_title: "", user_email: "", user_password: "", user_role: roles[0]?.name || "", business_unit_id: "", partner_id: "", role_ids: [] });
-      window.location.reload();
-    } catch (err) {
-      toast.error(err.message || "Failed to create user.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleUpdateUser = async () => {
-    if (!selectedUserId) return;
-    if (!editForm.user_name.trim()) {
-      toast.error("User name is required.");
-      return;
-    }
-
-    // Support both multi-role (new) and single role (legacy) modes
-    const roleIds = editForm.role_ids?.length > 0 ? editForm.role_ids :
-                    (editForm.user_role ? [roles.find(r => r.name === editForm.user_role)?.id].filter(Boolean) : []);
-
-    if (roleIds.length === 0) {
-      toast.error("At least one role is required.");
-      return;
-    }
-
-    // Check if any selected roles are BU-scoped (not org-level)
-    const selectedRoles = roleIds.map(id => roles.find(r => r.id === id)).filter(Boolean);
-    const hasOrgLevelRole = selectedRoles.some(r => ORG_LEVEL_ROLES.includes(r.name));
-    const hasBUScopedRole = selectedRoles.some(r => !ORG_LEVEL_ROLES.includes(r.name));
-
-    // Validate BU requirement based on role type
-    if (hasBUScopedRole && !editForm.business_unit_id) {
-      toast.error("Business Unit is required for BU-scoped roles.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const payload = {
-        user_name: editForm.user_name,
-        job_title: editForm.job_title || "",
-        role_ids: roleIds.map(id => parseInt(id, 10)),
-        assigned_at: new Date().toISOString()
-      };
-
-      // Only include BU if it's not an org-level-only user
-      if (!hasOrgLevelRole && editForm.business_unit_id) {
-        payload.business_unit_id = parseInt(editForm.business_unit_id, 10);
-      }
-
-      // Include partner if selected
-      if (editForm.partner_id) {
-        payload.partner_id = parseInt(editForm.partner_id, 10);
-      }
-
-      // Use new multi-role endpoint
-      if (roleIds.length > 0) {
-        await apiRequest(`/hr/users/${selectedUserId}/update-with-roles`, {
-          method: "PUT",
-          body: JSON.stringify(payload)
-        });
-      }
-
-      // Note: Permission overrides endpoint not yet implemented in backend
-      // Skip permission overrides for now - role-based permissions are sufficient
-      // TODO: Implement /rbac/users/{userId}/permissions PATCH endpoint if needed
-
-      toast.success("User updated successfully.");
-      setShowEditModal(false);
-
-      // If current user was updated, clear localStorage to force refresh of role/permissions
-      const currentUserId = localStorage.getItem("hrms_user_id");
-      if (currentUserId === selectedUserId) {
-        localStorage.removeItem("hrms_roles");
-        localStorage.removeItem("hrms_permissions");
-        localStorage.removeItem("hrms_business_unit_id");
-        localStorage.removeItem("hrms_business_unit_name");
-      }
-
-      window.location.reload();
-    } catch (err) {
-      console.error("Failed to update user:", err);
-      toast.error(err.message || "Failed to update user.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const handleDelete = async () => {
     if (!selectedUserId) return;
@@ -539,11 +282,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           className="max-w-xs"
         />
         <Button
-          onClick={() => {
-            setUserModalMode('create');
-            setEditingUser(null);
-            setShowUserModal(true);
-          }}
+          onClick={() => navigate('/admin/users-access-control/users/create')}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -555,17 +294,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         columns={[
           { header: "Name", accessor: "user_name", key: "name" },
           { header: "Email", accessor: "user_email", key: "email" },
-          { header: "Job Title", accessor: "job_title", key: "job_title" },
-          {
-            header: "Role Template",
-            key: "role_template",
-            cell: (row) => {
-              // Show the primary/first role template assigned to the user
-              if (!row.role_ids || row.role_ids.length === 0) return "—";
-              const primaryRole = roles.find(r => r.id === row.role_ids[0]);
-              return primaryRole?.name || "—";
-            }
-          },
+          { header: "Role", accessor: "permission_role", key: "role" },
           {
             header: "Actions",
             key: "actions",
@@ -573,34 +302,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
               <div className="flex items-center gap-2">
                 {canEdit(currentUserPermissions, "user") && (
                   <button
-                    onClick={async () => {
-                      try {
-                        // Fetch user's assigned roles
-                        const userRoles = await apiRequest(`/rbac/users/${row.user_id}/roles`, {
-                          method: "GET"
-                        });
-                        const roleIds = (userRoles?.data?.roles || []).map(r => r.id);
-
-                        // Set up edit user with role_ids
-                        setEditingUser({
-                          ...row,
-                          role_ids: roleIds
-                        });
-                        setUserModalMode('edit');
-                        setShowUserModal(true);
-                      } catch (err) {
-                        console.error("Failed to fetch user roles:", err);
-                        // Fallback: open edit with empty role_ids
-                        setEditingUser({
-                          ...row,
-                          role_ids: []
-                        });
-                        setUserModalMode('edit');
-                        setShowUserModal(true);
-                      }
-                    }}
+                    onClick={() => navigate(`/admin/users-access-control/users/${row.user_id}/edit`)}
                     className="text-blue-600 hover:text-blue-700"
-                    title="Edit user"
+                    title="Edit user and permissions"
                   >
                     <Edit2 className="h-4 w-4" />
                   </button>
@@ -633,73 +337,49 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         ]}
         data={filteredUsers}
       />
-
-      {/* User Modal - Create/Edit */}
-      <UserModal
-        isOpen={showUserModal}
-        onClose={() => {
-          setShowUserModal(false);
-          setEditingUser(null);
-          setUserModalMode('create');
-        }}
-        onSuccess={onUserSaved}
-        mode={userModalMode}
-        user={editingUser}
-      />
-
-      {/* Reset Password Modal */}
-      <SimpleModal
-        isOpen={showResetModal}
-        onClose={() => setShowResetModal(false)}
-        title="Reset Password"
-      >
-        <div className="space-y-4">
-          <Input
-            label="New Password"
-            type="password"
-            placeholder="••••••••"
-            value={resetForm.new_password}
-            onChange={(val) => setResetForm({ new_password: val })}
-          />
-          <div className="flex gap-3 justify-end pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowResetModal(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleResetPassword}
-              disabled={busy}
-            >
-              {busy ? "Resetting..." : "Reset Password"}
-            </Button>
-          </div>
-        </div>
-      </SimpleModal>
-
-      {/* User Permissions Modal */}
-      <UserPermissionsModal
-        isOpen={showPermissionsModal}
-        onClose={() => setShowPermissionsModal(false)}
-        user={selectedUser}
-        roles={roles}
-      />
     </div>
   );
 }
+
 
 // ============================================================================
 // ROLE TEMPLATES SECTION (showing all templates with their permissions)
 // ============================================================================
 
 function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
-  const [editorMode, setEditorMode] = useState(null); // 'create', 'edit', or null
-  const [editorTemplateId, setEditorTemplateId] = useState(null);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toggling, setToggling] = useState({});
   const [togglingTemplate, setTogglingTemplate] = useState({});
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createRoleForm, setCreateRoleForm] = useState({ name: "", description: "" });
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [expandedModules, setExpandedModules] = useState({});
+  const [moduleStates, setModuleStates] = useState({});
+  const [createTemplatePermissions, setCreateTemplatePermissions] = useState({});
+  const [createTemplateModuleStates, setCreateTemplateModuleStates] = useState({});
+  const [createTemplateExpandedModules, setCreateTemplateExpandedModules] = useState({});
+
+  // Fetch template details when editingTemplateId changes
+  useEffect(() => {
+    if (editingTemplateId) {
+      const fetchTemplate = async () => {
+        try {
+          const { data } = await apiRequest(`/admin/role-templates/${editingTemplateId}`, {
+            method: "GET"
+          });
+          setEditingTemplate(data || { name: "New Template", description: "", permissions: [] });
+        } catch (err) {
+          console.error("Failed to fetch template:", err);
+          setEditingTemplate({ name: "New Template", description: "", permissions: [] });
+        }
+      };
+      fetchTemplate();
+    } else {
+      setEditingTemplate(null);
+    }
+  }, [editingTemplateId]);
 
   const filteredRoles = useMemo(() => {
     if (!searchTerm) return roles;
@@ -710,9 +390,13 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     );
   }, [roles, searchTerm]);
 
-  // Count users per template
-  const getUserCount = (roleId) => {
-    return users.filter(u => u.role_id === roleId).length;
+  // Count users per template - match by template name
+  const getUserCount = (templateId, templateName) => {
+    return users.filter(u => {
+      // Match by user_role field (e.g., "Admin" matches template.name "Admin")
+      if (u.user_role === templateName) return true;
+      return false;
+    }).length;
   };
 
   // Convert flat permission list to hierarchical structure { module: { verb: true } }
@@ -753,6 +437,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     });
     return hierarchy;
   };
+
+  const editingPermissions = convertPermissionsToHierarchy(editingTemplate?.permissions || []);
 
   const handleTogglePermission = async (resourceName, verb, currentState) => {
     if (!editingTemplateId) return;
@@ -849,6 +535,41 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   if (loading) return <div className="p-6 text-gray-500">Loading templates...</div>;
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 
+  const handleCreateRole = async () => {
+    if (!createRoleForm.name.trim()) {
+      toast.error("Role name is required.");
+      return;
+    }
+
+    if (!canCreateTemplate()) {
+      toast.error("Please enable at least one module and select permissions.");
+      return;
+    }
+
+    setCreatingTemplate(true);
+    try {
+      await apiRequest("/admin/role-templates", {
+        method: "POST",
+        body: JSON.stringify({
+          name: createRoleForm.name,
+          display_name: createRoleForm.name,
+          description: createRoleForm.description,
+          permissions: createTemplatePermissions  // ✅ Use actual permissions
+        })
+      });
+      toast.success("Role created successfully.");
+      setShowCreateModal(false);
+      setCreateRoleForm({ name: "", description: "" });
+      setCreateTemplatePermissions({});
+      setCreateTemplateModuleStates({});
+      window.location.reload();
+    } catch (err) {
+      toast.error(err.message || "Failed to create role.");
+    } finally {
+      setCreatingTemplate(false);
+    }
+  };
+
   const handleToggleTemplateStatus = async (templateId, currentStatus) => {
     setTogglingTemplate({ ...togglingTemplate, [templateId]: true });
 
@@ -877,26 +598,48 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
-  const handleOpenCreateEditor = () => {
-    setEditorMode('create');
-    setEditorTemplateId(null);
+  const handleNewRoleTemplate = () => {
+    // Show modal to get template name/description from user
+    setShowCreateModal(true);
+    setCreateRoleForm({ name: "", description: "" });
+    setCreateTemplatePermissions({});
+    setCreateTemplateModuleStates({});
   };
 
-  const handleOpenEditEditor = (templateId) => {
-    setEditorMode('edit');
-    setEditorTemplateId(templateId);
-  };
+  const handleCreateRoleToggleModule = (moduleName, resources, shouldEnable) => {
+    setCreateTemplateModuleStates(prev => ({
+      ...prev,
+      [moduleName]: shouldEnable
+    }));
 
-  const handleCloseEditor = () => {
-    setEditorMode(null);
-    setEditorTemplateId(null);
-  };
-
-  const handleEditorSuccess = () => {
-    // Refresh roles list after create/edit
-    if (editorMode === 'create') {
-      window.location.reload();
+    if (!shouldEnable) {
+      // Clear permissions for this module when turning it off
+      const newPerms = { ...createTemplatePermissions };
+      resources.forEach(resource => {
+        const resName = resource.name || resource.resource_name;
+        delete newPerms[resName];
+      });
+      setCreateTemplatePermissions(newPerms);
     }
+  };
+
+  const handleCreateRoleTogglePermission = (resourceName, action, hasPermission) => {
+    const newPerms = { ...createTemplatePermissions };
+    if (!newPerms[resourceName]) {
+      newPerms[resourceName] = { view: false, create: false, edit: false, delete: false };
+    }
+    newPerms[resourceName][action] = !hasPermission;
+    setCreateTemplatePermissions(newPerms);
+  };
+
+  const canCreateTemplate = () => {
+    // Check if at least one module is enabled
+    const hasEnabledModule = Object.values(createTemplateModuleStates).some(enabled => enabled);
+    // Check if at least one permission is selected
+    const hasPermissions = Object.values(createTemplatePermissions).some(perms =>
+      Object.values(perms).some(p => p)
+    );
+    return createRoleForm.name.trim() && hasEnabledModule && hasPermissions;
   };
 
   return (
@@ -908,17 +651,172 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        <button
-          onClick={handleOpenCreateEditor}
-          className="px-4 py-2 bg-bx-orange hover:bg-bx-orange-hover text-white rounded-md text-sm font-medium transition-colors"
+        <Button
+          onClick={handleNewRoleTemplate}
+          disabled={creatingTemplate}
+          className="gap-2"
         >
-          + New Role Template
-        </button>
+          <Plus className="h-4 w-4" />
+          {creatingTemplate ? "Creating..." : "New role template"}
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {editingTemplateId ? (
+        <div className="border rounded-lg p-6 bg-white">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">{editingTemplate?.name}</h3>
+              <p className="text-sm text-gray-600">{editingTemplate?.description}</p>
+              <p className="text-xs text-gray-500 mt-1">{getUserCount(editingTemplateId, editingTemplate?.name)} users using this template</p>
+            </div>
+            <button
+              onClick={() => setEditingTemplateId(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="border rounded-lg bg-white">
+            <div className="bg-gray-50 p-4 border-b">
+              <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions</p>
+              <p className="text-xs text-gray-600">✓ = Enabled | ○ = Disabled</p>
+            </div>
+
+            <div className="divide-y max-h-[600px] overflow-y-auto">
+              {Array.isArray(modules) && modules.length > 0 ? (
+                modules.map((module, moduleIdx) => {
+                  const moduleName = typeof module === 'string' ? module : module.name;
+                  const moduleObj = typeof module === 'object' ? module : null;
+                  const resources = moduleObj?.resources || [];
+
+                  // For Recruitment module, show all 11 resources
+                  const displayResources = moduleName === 'Recruitment'
+                    ? [
+                        { id: 7, name: 'candidates', display: 'Candidates' },
+                        { id: 8, name: 'jobs', display: 'Jobs' },
+                        { id: 9, name: 'submissions', display: 'Submissions' },
+                        { id: 10, name: 'interviews', display: 'Interviews' },
+                        { id: 11, name: 'offers', display: 'Offer Letters' },
+                        { id: 12, name: 'intervention_queue', display: 'Intervention Queue' },
+                        { id: 13, name: 'rehire_approvals', display: 'Rehire Approval' },
+                        { id: 14, name: 'risk_dashboard', display: 'Risk Dashboard' },
+                        { id: 15, name: 'thunder_analytics', display: 'Thunder Analytics' },
+                        { id: 16, name: 'bulk_launch', display: 'Bulk Launch' },
+                        { id: 17, name: 'thunder_chat', display: 'Thunder Chat' }
+                      ]
+                    : resources;
+
+                  return (
+                    <div key={`module_${moduleIdx}`}>
+                      <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
+                        <button
+                          onClick={() => setExpandedModules(prev => ({
+                            ...prev,
+                            [moduleName]: !prev[moduleName]
+                          }))}
+                          className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+                        >
+                          <span className="text-gray-600">
+                            {expandedModules[moduleName] ? '▼' : '▶'}
+                          </span>
+                          <h4 className="font-semibold text-gray-900 capitalize">{moduleName.replace(/_/g, ' ')}</h4>
+                        </button>
+
+                        <div className="flex gap-2 items-center ml-auto">
+                          <button
+                            onClick={() => handleToggleModule(moduleName, displayResources, true)}
+                            disabled={toggling[moduleName]}
+                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                              moduleStates[moduleName]?.enabled
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                            }`}
+                          >
+                            ON
+                          </button>
+                          <button
+                            onClick={() => handleToggleModule(moduleName, displayResources, false)}
+                            disabled={toggling[moduleName]}
+                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                              !moduleStates[moduleName]?.enabled
+                                ? 'bg-red-500 text-white'
+                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                            }`}
+                          >
+                            OFF
+                          </button>
+                        </div>
+                      </div>
+
+                      {expandedModules[moduleName] && (
+                      <div className="divide-y">
+                        {displayResources.length > 0 ? (
+                          displayResources.map(resource => {
+                            const resId = resource.id || resource.resource_id;
+                            const resName = resource.name || resource.resource_name;
+                            const resDisplay = resource.display || resource.display_name || resName;
+
+                            // Look up permissions for this resource in editingPermissions
+                            const perms = editingPermissions[resName] || {
+                              view: false,
+                              create: false,
+                              edit: false,
+                              delete: false
+                            };
+
+                            const isModuleEnabled = moduleStates[moduleName]?.enabled !== false;
+
+                            return (
+                              <div key={`res_${resId}`} className={`px-4 py-3 ${!isModuleEnabled ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className={`text-sm font-medium ${!isModuleEnabled ? 'text-gray-500' : 'text-gray-900'}`}>{resDisplay}</span>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-2">
+                                  {['view', 'create', 'edit', 'delete'].map(action => {
+                                    const hasPermission = perms[action] || false;
+                                    return (
+                                      <button
+                                        key={action}
+                                        onClick={() => isModuleEnabled && handleTogglePermission(resName, action, hasPermission)}
+                                        disabled={!isModuleEnabled}
+                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
+                                          !isModuleEnabled
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : hasPermission
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                        }`}
+                                        title={action.charAt(0).toUpperCase() + action.slice(1)}
+                                      >
+                                        {hasPermission ? '✓' : '○'} {action.charAt(0).toUpperCase()}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500">No resources in this module</div>
+                        )}
+                      </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">No modules available</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
-            const userCount = getUserCount(role.id);
+            const userCount = getUserCount(role.id, role.name);
             const isActive = role.is_active !== false; // Default to true if not specified
             return (
               <div
@@ -959,7 +857,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">{userCount} user{userCount !== 1 ? 's' : ''}</span>
                   <button
-                    onClick={() => handleOpenEditEditor(role.id)}
+                    onClick={() => setEditingTemplateId(role.id)}
                     disabled={!isActive}
                     className={`text-sm font-medium transition ${
                       isActive
@@ -974,17 +872,143 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
               </div>
             );
           })}
-      </div>
+          </div>
+        </>
+      )}
 
-      {/* RoleTemplateEditor Modal */}
-      {editorMode && (
-        <RoleTemplateEditor
-          mode={editorMode}
-          templateId={editorTemplateId}
-          onClose={handleCloseEditor}
-          onSuccess={handleEditorSuccess}
-          modules={modules}
-        />
+      {/* Create Role Template Modal - with Module & Resource Permissions */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg m-4 my-8">
+            <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Create New Role Template</h2>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Basic Info */}
+              <div className="space-y-4">
+                <Input
+                  label="Template Name *"
+                  placeholder="e.g., Senior Recruiter, Finance Manager"
+                  value={createRoleForm.name}
+                  onChange={(val) => setCreateRoleForm({ ...createRoleForm, name: val })}
+                />
+                <Input
+                  label="Description (Optional)"
+                  placeholder="Brief description of this role..."
+                  value={createRoleForm.description}
+                  onChange={(val) => setCreateRoleForm({ ...createRoleForm, description: val })}
+                />
+              </div>
+
+              {/* Module & Resource Permissions */}
+              <div className="border rounded-lg bg-white">
+                <div className="bg-gray-50 p-4 border-b">
+                  <p className="font-medium text-gray-900 mb-1">Module & Resource Permissions *</p>
+                  <p className="text-xs text-gray-600">Enable at least one module and select resources</p>
+                </div>
+
+                <div className="divide-y max-h-96 overflow-y-auto">
+                  {Array.isArray(modules) && modules.map((module, idx) => {
+                    const moduleName = typeof module === 'string' ? module : module.name;
+                    const isEnabled = createTemplateModuleStates[moduleName];
+                    const resources = (typeof module === 'object' ? module.resources : []) || [];
+
+                    return (
+                      <div key={`module_${idx}`}>
+                        <div className="bg-blue-50 px-4 py-3 border-b flex items-center justify-between">
+                          <button
+                            onClick={() => setCreateTemplateExpandedModules(prev => ({
+                              ...prev,
+                              [moduleName]: !prev[moduleName]
+                            }))}
+                            className="flex-1 flex items-center gap-3 text-left hover:bg-blue-100 px-2 py-1 rounded"
+                          >
+                            <span className="text-gray-600">{createTemplateExpandedModules[moduleName] ? '▼' : '▶'}</span>
+                            <h4 className="font-semibold text-gray-900 capitalize">{moduleName}</h4>
+                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCreateRoleToggleModule(moduleName, resources, true)}
+                              className={`px-3 py-1 rounded text-sm font-semibold ${
+                                isEnabled ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'
+                              }`}
+                            >
+                              ON
+                            </button>
+                            <button
+                              onClick={() => handleCreateRoleToggleModule(moduleName, resources, false)}
+                              className={`px-3 py-1 rounded text-sm font-semibold ${
+                                !isEnabled ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'
+                              }`}
+                            >
+                              OFF
+                            </button>
+                          </div>
+                        </div>
+
+                        {resources.length > 0 && createTemplateExpandedModules[moduleName] && (
+                          <div className="divide-y">
+                            {resources.map(resource => {
+                              const resName = resource.name || resource.resource_name;
+                              const perms = createTemplatePermissions[resName] || { view: false, create: false, edit: false, delete: false };
+
+                              return (
+                                <div key={resName} className={`px-4 py-3 ${!isEnabled ? 'bg-gray-50 opacity-60' : ''}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className={`text-sm font-medium ${!isEnabled ? 'text-gray-500' : 'text-gray-900'}`}>
+                                      {resource.display || resName}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-2">
+                                    {['view', 'create', 'edit', 'delete'].map(action => (
+                                      <button
+                                        key={action}
+                                        onClick={() => isEnabled && handleCreateRoleTogglePermission(resName, action, perms[action])}
+                                        disabled={!isEnabled}
+                                        className={`py-1 px-2 rounded text-xs font-semibold transition ${
+                                          !isEnabled
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : perms[action]
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                        }`}
+                                      >
+                                        {action.charAt(0).toUpperCase()}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="border-t p-6 flex gap-3 justify-end sticky bottom-0 bg-white">
+              <Button
+                variant="outline"
+                onClick={() => setShowCreateModal(false)}
+                disabled={creatingTemplate}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateRole}
+                disabled={creatingTemplate || !canCreateTemplate()}
+              >
+                {creatingTemplate ? "Creating..." : "Create Role Template"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1039,30 +1063,7 @@ export default function UsersAndAccessControl() {
     try {
       // Load users (required)
       const usersRes = await getAllUsers();
-      let usersData = Array.isArray(usersRes) ? usersRes : [];
-
-      // Fetch role_ids for each user
-      try {
-        const usersWithRoles = await Promise.all(
-          usersData.map(async (user) => {
-            try {
-              const roleRes = await apiRequest(`/rbac/users/${user.user_id}/roles`, {
-                method: "GET"
-              });
-              const roleIds = (roleRes?.data?.roles || []).map(r => r.id);
-              return { ...user, role_ids: roleIds };
-            } catch (err) {
-              console.warn(`Failed to load roles for user ${user.user_id}:`, err);
-              return { ...user, role_ids: [] };
-            }
-          })
-        );
-        usersData = usersWithRoles;
-      } catch (roleErr) {
-        console.warn("Failed to load user roles, continuing without role data:", roleErr);
-      }
-
-      setUsers(usersData);
+      setUsers(Array.isArray(usersRes) ? usersRes : []);
 
       // Load role templates (optional - may fail due to permissions)
       try {
@@ -1121,9 +1122,8 @@ export default function UsersAndAccessControl() {
 // ============================================================================
 
 function BusinessUnitsSection() {
+  const navigate = useNavigate();
   const [businessUnits, setBusinessUnits] = useState([]);
-  const [showBUModal, setShowBUModal] = useState(false);
-  const [selectedBU, setSelectedBU] = useState(null);
 
   useEffect(() => {
     loadBusinessUnits();
@@ -1131,21 +1131,23 @@ function BusinessUnitsSection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const { data } = await apiRequest("/api/admin/users-access-control/business-units", {
+      const { data } = await apiRequest("/bu-context/available-buses", {
+        skipAuth: true,
         method: "GET"
       });
-      const busData = data?.business_units || data || [];
-      setBusinessUnits(Array.isArray(busData) ? busData : []);
+      const busData = data?.business_units || [];
+      setBusinessUnits(busData);
     } catch (err) {
       console.error("Failed to load business units:", err);
       setBusinessUnits([]);
     }
   };
 
+
   const handleDeleteBusinessUnit = async (buId) => {
     if (!window.confirm("Are you sure you want to delete this business unit?")) return;
     try {
-      await apiRequest(`/api/admin/users-access-control/business-units/${buId}`, { method: "DELETE" });
+      await apiRequest(`/rbac/business-units/${buId}`, { method: "DELETE" });
       loadBusinessUnits();
       toast.success("Business Unit deleted successfully");
     } catch (err) {
@@ -1156,33 +1158,32 @@ function BusinessUnitsSection() {
   return (
     <div className="space-y-4">
       <button
-        onClick={() => { setSelectedBU(null); setShowBUModal(true); }}
+        onClick={() => navigate('/admin/users-access-control/business-units/create')}
         className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
       >
         <Plus className="h-4 w-4" /> Add Business Unit
       </button>
-
       <div className="space-y-3">
         {businessUnits.map((bu) => (
           <div key={bu.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
             <div className="flex-1">
               <h4 className="font-semibold text-gray-900">{bu.name}</h4>
-              {bu.display_name && <p className="text-sm text-gray-500 mt-1">Display Name: {bu.display_name}</p>}
               {bu.description && <p className="text-sm text-gray-600 mt-1">{bu.description}</p>}
-              {bu.bu_code && <p className="text-sm text-gray-500 mt-1">Code: {bu.bu_code}</p>}
+              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                <div><span className="font-medium">Region:</span> {bu.region || "-"}</div>
+                <div><span className="font-medium">Continent:</span> {bu.continent || "-"}</div>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => { setSelectedBU(bu); setShowBUModal(true); }}
+                onClick={() => navigate(`/admin/users-access-control/business-units/${bu.id}/edit`)}
                 className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                title="Edit business unit"
               >
                 <Edit2 className="h-4 w-4" />
               </button>
               <button
                 onClick={() => handleDeleteBusinessUnit(bu.id)}
                 className="p-2 text-red-600 hover:bg-red-50 rounded"
-                title="Delete business unit"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -1190,14 +1191,6 @@ function BusinessUnitsSection() {
           </div>
         ))}
       </div>
-
-      <BusinessUnitModal
-        isOpen={showBUModal}
-        onClose={() => { setShowBUModal(false); setSelectedBU(null); }}
-        onSuccess={() => loadBusinessUnits()}
-        mode={selectedBU ? 'edit' : 'create'}
-        bu={selectedBU}
-      />
     </div>
   );
 }
@@ -1238,6 +1231,7 @@ function OrganizationalHierarchySection() {
   const [editOrgNodeBusinessUnit, setEditOrgNodeBusinessUnit] = useState("");
   const [editOrgNodeLocation, setEditOrgNodeLocation] = useState("");
   const [newPositionName, setNewPositionName] = useState("");
+  const [newPositionRoleTemplate, setNewPositionRoleTemplate] = useState("");
   const [isSubmittingOrgNode, setIsSubmittingOrgNode] = useState(false);
 
   useEffect(() => {
@@ -1247,8 +1241,19 @@ function OrganizationalHierarchySection() {
 
   const loadOrgNodes = async () => {
     try {
-      const { data } = await apiRequest("/org/nodes");
-      setOrgNodes(Array.isArray(data) ? data : data?.org_nodes || []);
+      // Fetch users instead of org nodes (org nodes endpoint doesn't exist yet)
+      const { data } = await apiRequest("/hr/users/all");
+      const usersList = data?.users || [];
+      // Convert users to org nodes format
+      const nodes = usersList.map(u => ({
+        id: u.user_id,
+        employee_name: u.user_name,
+        position: u.permission_role || u.user_role,
+        business_unit: u.business_unit_name,
+        reports_to: null,
+        location: null
+      }));
+      setOrgNodes(Array.isArray(nodes) ? nodes : []);
     } catch (err) {
       console.error("Failed to load org nodes:", err);
     }
@@ -1298,8 +1303,13 @@ function OrganizationalHierarchySection() {
   const handleAddPosition = (e) => {
     e.preventDefault();
     if (newPositionName.trim()) {
-      setPositions([...positions, { id: Math.max(...positions.map(p => p.id), 0) + 1, name: newPositionName }]);
+      setPositions([...positions, {
+        id: Math.max(...positions.map(p => p.id), 0) + 1,
+        name: newPositionName,
+        role_template_id: newPositionRoleTemplate ? parseInt(newPositionRoleTemplate) : null
+      }]);
       setNewPositionName("");
+      setNewPositionRoleTemplate("");
       setShowAddPositionModal(false);
       toast.success("Position added");
     }
@@ -1316,7 +1326,7 @@ function OrganizationalHierarchySection() {
   const handleEditOrgNode = (node) => {
     setEditingOrgNodeId(node.id);
     setEditOrgNodeEmployeeName(node.employee_name);
-    setEditOrgNodePosition(node.position_id.toString());
+    setEditOrgNodePosition(node.position_id ? node.position_id.toString() : "");
     setEditOrgNodeReportsTo(node.reports_to ? node.reports_to.toString() : "");
     setEditOrgNodeBusinessUnit(node.business_unit || "");
     setEditOrgNodeLocation(node.location || "");
@@ -1408,16 +1418,27 @@ function OrganizationalHierarchySection() {
                 placeholder="Enter new position name"
                 className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
               />
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Role Template (Optional)</label>
+                <select
+                  value={newPositionRoleTemplate}
+                  onChange={(e) => setNewPositionRoleTemplate(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">No role template</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Optionally assign a role template to this position</p>
+              </div>
               <div className="flex gap-2 justify-end">
                 <button
-                  onClick={() => setShowAddPositionModal(false)}
+                  onClick={() => { setShowAddPositionModal(false); setNewPositionRoleTemplate(""); }}
                   className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddPosition}
-                  className="px-3 py-1 text-xs bg-bx-orange text-white rounded hover:bg-bx-orange-hover"
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                   disabled={!newPositionName.trim()}
                 >
                   Add
@@ -1640,146 +1661,11 @@ function OrganizationalHierarchySection() {
 // ============================================================================
 
 function LocationsSection() {
+  const navigate = useNavigate();
   const [deliveryCenters, setDeliveryCenters] = useState([
     { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150, city: "Austin", country: "USA" },
     { id: 2, name: "Youngstown, OH", type: "Delivery", buServed: ["North America"], headcount: 300, city: "Youngstown", country: "USA" },
   ]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingDCId, setEditingDCId] = useState(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    type: "Delivery",
-    city: "",
-    country: "",
-    headcount: 0
-  });
-
-  const resetForm = () => {
-    setFormData({ name: "", type: "Delivery", city: "", country: "", headcount: 0 });
-  };
-
-  // Load delivery centers from backend
-  useEffect(() => {
-    const loadDeliveryCenters = async () => {
-      try {
-        const token = localStorage.getItem('hrms_token');
-        console.log('[DC LOAD] Loading delivery centers...');
-        const response = await fetch('http://localhost:8080/api/admin/users-access-control/delivery-centers', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        console.log('[DC LOAD] Response:', data);
-
-        if (data.delivery_centers && Array.isArray(data.delivery_centers)) {
-          const mapped = data.delivery_centers.map(dc => ({
-            id: dc.id,
-            name: dc.name || '',
-            type: dc.delivery_center_type || 'Delivery',
-            buServed: ["North America"],
-            headcount: dc.headcount || 0,
-            city: dc.location_city || '',
-            country: dc.location_country || ''
-          }));
-          console.log('[DC LOAD] Mapped DCs:', mapped);
-          setDeliveryCenters(mapped);
-        }
-      } catch (err) {
-        console.error('[DC LOAD] Error loading delivery centers:', err);
-      }
-    };
-    loadDeliveryCenters();
-  }, []);
-
-  const handleAdd = async () => {
-    if (!formData.name.trim()) {
-      toast.error("Delivery Center name is required");
-      return;
-    }
-    if (!formData.city.trim()) {
-      toast.error("City is required");
-      return;
-    }
-    if (!formData.country.trim()) {
-      toast.error("Country is required");
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('hrms_token');
-      const payload = {
-        name: formData.name,
-        dc_code: formData.name.toUpperCase().replace(/\s+/g, ''),
-        delivery_center_type: formData.type,
-        location_city: formData.city,
-        location_country: formData.country,
-        headcount: formData.headcount || 0
-      };
-
-      console.log('[DC CREATE] Sending payload:', payload);
-      console.log('[DC CREATE] Token exists:', !!token);
-
-      const response = await fetch('http://localhost:8080/api/admin/users-access-control/delivery-centers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      console.log('[DC CREATE] Response status:', response.status);
-      const data = await response.json();
-      console.log('[DC CREATE] Response data:', data);
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Failed to create delivery center');
-      }
-
-      // Add to local state for immediate UI update
-      const newDC = {
-        id: data.id,
-        name: formData.name,
-        type: formData.type,
-        buServed: ["North America"],
-        headcount: formData.headcount,
-        city: formData.city,
-        country: formData.country
-      };
-      setDeliveryCenters([...deliveryCenters, newDC]);
-      resetForm();
-      setShowAddModal(false);
-      toast.success("Delivery Center added successfully");
-    } catch (err) {
-      console.error('[DC CREATE] Error:', err);
-      toast.error(err.message || "Failed to create delivery center");
-    }
-  };
-
-  const handleEdit = (dc) => {
-    setEditingDCId(dc.id);
-    setFormData({
-      name: dc.name,
-      type: dc.type,
-      city: dc.city || "",
-      country: dc.country || "",
-      headcount: dc.headcount
-    });
-  };
-
-  const handleSaveEdit = () => {
-    if (!formData.name.trim()) {
-      toast.error("Delivery Center name is required");
-      return;
-    }
-    setDeliveryCenters(deliveryCenters.map(dc =>
-      dc.id === editingDCId
-        ? { ...dc, name: formData.name, type: formData.type, city: formData.city, country: formData.country, headcount: formData.headcount }
-        : dc
-    ));
-    resetForm();
-    setEditingDCId(null);
-    toast.success("Delivery Center updated successfully");
-  };
 
   const handleDelete = (dcId) => {
     if (window.confirm("Are you sure you want to delete this delivery center?")) {
@@ -1791,7 +1677,7 @@ function LocationsSection() {
   return (
     <div className="space-y-4">
       <button
-        onClick={() => { resetForm(); setShowAddModal(true); }}
+        onClick={() => navigate('/admin/users-access-control/delivery-centers/create')}
         className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
       >
         <Plus className="h-4 w-4" /> Add Delivery Center
@@ -1832,158 +1718,6 @@ function LocationsSection() {
           </div>
         ))}
       </div>
-
-      {showAddModal && (
-        <SimpleModal isOpen={true} onClose={() => { setShowAddModal(false); resetForm(); }} title="Add Delivery Center">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Center Name *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Mumbai, India"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="Delivery">Delivery Center</option>
-                <option value="HQ">Headquarters</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  placeholder="City"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <input
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  placeholder="Country"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Headcount</label>
-              <input
-                type="number"
-                value={formData.headcount}
-                onChange={(e) => setFormData({ ...formData, headcount: parseInt(e.target.value) || 0 })}
-                placeholder="Number of employees"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div className="flex gap-2 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => { setShowAddModal(false); resetForm(); }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
-                disabled={!formData.name.trim()}
-              >
-                Add Delivery Center
-              </button>
-            </div>
-          </div>
-        </SimpleModal>
-      )}
-
-      {editingDCId && (
-        <SimpleModal isOpen={true} onClose={() => { setEditingDCId(null); resetForm(); }} title="Edit Delivery Center">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Center Name *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Mumbai, India"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="Delivery">Delivery Center</option>
-                <option value="HQ">Headquarters</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  placeholder="City"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <input
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  placeholder="Country"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Headcount</label>
-              <input
-                type="number"
-                value={formData.headcount}
-                onChange={(e) => setFormData({ ...formData, headcount: parseInt(e.target.value) || 0 })}
-                placeholder="Number of employees"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div className="flex gap-2 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => { setEditingDCId(null); resetForm(); }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
-                disabled={!formData.name.trim()}
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </SimpleModal>
-      )}
     </div>
   );
 }
@@ -2048,7 +1782,7 @@ function LocationsSection() {
             <p className="text-gray-600 mb-4">The requested section does not exist.</p>
             <button
               onClick={() => navigate("/admin/users-access-control/users")}
-              className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Go to Users
             </button>
@@ -2060,7 +1794,6 @@ function LocationsSection() {
             users={users}
             roles={roles}
             currentUserPermissions={currentUserPermissions}
-            onUserSaved={loadData}
           />
         ) : activeTab === "business-units" ? (
           <BusinessUnitsSection />

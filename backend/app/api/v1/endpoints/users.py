@@ -55,9 +55,6 @@ def get_me(
     """
     from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-    # Resolve the RBAC role name (if any)
-    role = db.query(Role).filter(Role.id == current_user.role_id).first() if current_user.role_id else None
-
     # Get tenant ID (default to 1, handle None case)
     tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
 

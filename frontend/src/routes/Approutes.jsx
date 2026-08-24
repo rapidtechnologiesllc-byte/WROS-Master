@@ -16,8 +16,13 @@ import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
+import UserFormPage from "../screens/UserFormPage";
+import DeliveryCentersAdmin from "../screens/DeliveryCentersAdmin";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import RoleTemplateManager from "../screens/RoleTemplateManager";
+import RoleTemplateFormPage from "../screens/RoleTemplateFormPage";
+import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
+import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
 import { getAllInterviews, updateInterview } from "../services/api/interviews";
@@ -86,11 +91,10 @@ import InvoicesScreen from "../screens/InvoicesScreen";
 import InvoiceManagementScreen from "../screens/InvoiceManagementScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
-import SLMDashboard from "../screens/SLMDashboard";
-import SLMTrainingData from "../screens/SLMTrainingData";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
+import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
 import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
@@ -113,6 +117,7 @@ import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
+import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
@@ -319,6 +324,11 @@ export default function AppRoutes() {
   const token = localStorage.getItem("hrms_token");
   if (!token || window.location.pathname.startsWith("/auth")) {
     return <AuthPage />;
+  }
+
+  // ✅ NEW: Force password reset on first login for auto-created users
+  if (window.location.pathname === "/force-password-reset") {
+    return <ForcePasswordReset />;
   }
 
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
@@ -639,9 +649,7 @@ export default function AppRoutes() {
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
-            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
-            <Route path="admin/slm-dashboard" element={<SLMDashboard />} />
-            <Route path="admin/slm-training" element={<SLMTrainingData />} />
+            <Route path="settings/templates" element={<EmailTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
@@ -660,8 +668,8 @@ export default function AppRoutes() {
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
-            <Route path="users" element={<UsersAndAccessControl />} />
-            <Route path="users/:section" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
+            <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
@@ -820,11 +828,6 @@ export default function AppRoutes() {
             />
 
             <Route
-              path="offers"
-              element={<OfferLettersScreen />}
-            />
-
-            <Route
               path="offers-listing"
               element={
                 <OfferListing
@@ -898,6 +901,38 @@ export default function AppRoutes() {
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
+            <Route path="settings/locale" element={<TenantLocaleScreen />} />
+            <Route path="settings/templates" element={<EmailTemplatesScreen />} />
+            <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
+            <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
+            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
+            <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
+            <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
+            <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
+            <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
+            <Route path="my-tasks" element={<MyTasksScreen />} />
+            <Route path="my-timesheet" element={<MyTimesheetScreen />} />
+            <Route path="my-expenses" element={<MyExpensesScreen />} />
+            <Route path="my-referrals" element={<MyReferralsScreen />} />
+            <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
+            <Route path="buddy-program" element={<BuddyProgramListScreen />} />
+            <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
+            <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
+            <Route path="admin/error-log" element={<ErrorLogScreen />} />
+            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
+            <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
+            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
+            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
+            <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
+            <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
+            <Route path="admin/role-templates" element={<RoleTemplateManager />} />
+            <Route path="admin/role-templates/create" element={<RoleTemplateFormPage />} />
+            <Route path="admin/role-templates/:templateId/edit" element={<RoleTemplateFormPage />} />
+            <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
+            <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
+            <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
           <Route
             path="candidates"
             element={

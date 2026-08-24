@@ -326,7 +326,8 @@ def require_resource_permission(resource_name: str, action: str = "view"):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
         # Super User bypass
-        if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
+        from app.services.rbac_service import RBACService
+        if RBACService.is_super_user(db, user.UserID, user.tenant_id):
             return user
 
         # Check resource + action permission

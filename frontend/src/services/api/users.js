@@ -130,6 +130,19 @@ export const changeHrMePassword = async ({
   });
   return data;
 };
+
+// Force password change (no current password required - used after auto-creation or first login)
+export const changePassword = async ({
+  new_password,
+}) => {
+  const { data } = await apiRequest("/auth/change-password", {
+    method: "PUT",
+    body: JSON.stringify({
+      new_password,
+    }),
+  });
+  return data;
+};
 export const searchUsers = async ({
   name,
   permission_role,
