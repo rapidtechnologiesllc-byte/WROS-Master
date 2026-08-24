@@ -19,35 +19,6 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load initial data
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (mode === 'edit' && user) {
-      setFormData({
-        user_name: user.user_name || '',
-        user_email: user.user_email || '',
-        user_password: '',
-        job_title: user.job_title || '',
-        business_unit_id: user.business_unit_id || '',
-        partner_id: user.partner_id || '',
-        role_ids: user.role_ids || []
-      });
-    } else {
-      setFormData({
-        user_name: '',
-        user_email: '',
-        user_password: '',
-        job_title: '',
-        business_unit_id: '',
-        partner_id: '',
-        role_ids: []
-      });
-    }
-
-    loadData();
-  }, [isOpen, mode, user]);
-
   const loadData = async () => {
     try {
       const token = localStorage.getItem('hrms_token');
@@ -82,6 +53,35 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
       console.error('Error loading data:', err);
     }
   };
+
+  // Load initial data
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (mode === 'edit' && user) {
+      setFormData({
+        user_name: user.user_name || '',
+        user_email: user.user_email || '',
+        user_password: '',
+        job_title: user.job_title || '',
+        business_unit_id: user.business_unit_id || '',
+        partner_id: user.partner_id || '',
+        role_ids: user.role_ids || []
+      });
+    } else {
+      setFormData({
+        user_name: '',
+        user_email: '',
+        user_password: '',
+        job_title: '',
+        business_unit_id: '',
+        partner_id: '',
+        role_ids: []
+      });
+    }
+
+    loadData();
+  }, [isOpen, mode, user]);
 
   // Load partners when business unit changes
   useEffect(() => {
