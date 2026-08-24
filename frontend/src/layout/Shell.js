@@ -101,42 +101,50 @@ const ICON_COMPONENTS_BY_NAME = {
 
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
-  try {
-    const { apiRequest } = await import("../services/api/client");
-    const response = await apiRequest("/hr/me/navigation", { method: "GET" });
+  const { apiRequest } = await import("../services/api/client");
+  const response = await apiRequest("/hr/me/navigation", { method: "GET" });
 
-    // apiRequest returns { data, response } structure - extract the actual data
-    const navData = response?.data || response;
+  // Backend MUST return proper structure with groups
+  const navData = response?.data;
+  if (!navData) {
+    throw new Error("Navigation response missing data structure");
+  }
 
-    if (!navData || !navData.groups) {
-      console.warn("Invalid navigation response:", response);
-      return [];
+  if (!navData.groups || !Array.isArray(navData.groups)) {
+    throw new Error("Navigation response missing or invalid groups array");
+  }
+
+  // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
+  // Transform items to use route for navigation - REQUIRES all fields to be present
+  const groups = navData.groups.map(group => {
+    if (!group.items || !Array.isArray(group.items)) {
+      throw new Error(`Navigation group "${group.label}" missing items array`);
     }
 
-    // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
-    // Transform items to use route instead of path for navigation
-    const groups = navData.groups.map(group => ({
+    return {
       ...group,
-      items: group.items.map(item => ({
-        key: item.key,
-        label: item.label,
-        icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
-        path: item.route || `/${item.key.replace(/_/g, "-")}`, // Fallback path if route not provided
-      }))
-    }));
+      items: group.items.map(item => {
+        if (!item.key || !item.label || !item.route) {
+          throw new Error(`Navigation item missing required fields: key=${item.key}, label=${item.label}, route=${item.route}`);
+        }
 
-    console.debug("Navigation fetched from backend:", {
-      groupCount: groups.length,
-      totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
-      modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
-    });
+        return {
+          key: item.key,
+          label: item.label,
+          icon: ICON_MAP_BY_RESOURCE[item.key],
+          path: item.route,
+        };
+      })
+    };
+  });
 
-    return groups;
-  } catch (error) {
-    console.error("Failed to fetch navigation from backend:", error);
-    // Do NOT fall back to partial hardcoded menu - fail loudly so we can fix the backend
-    throw new Error(`Navigation endpoint failed: ${error.message}`);
-  }
+  console.debug("Navigation fetched from backend:", {
+    groupCount: groups.length,
+    totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
+    modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
+  });
+
+  return groups;
 }
 
 
