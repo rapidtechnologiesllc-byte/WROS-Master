@@ -40,7 +40,7 @@ def migrate():
         UNIQUE(user_id, resource_id)
     )
     """)
-    print("   ✓ Table created")
+    print("   [OK] Table created")
 
     # Step 2: Populate users.role_id from user_roles (take first/only role)
     print("\n2. Migrating users to single role_id...")
@@ -58,7 +58,7 @@ def migrate():
     """)
 
     migrated = c.rowcount
-    print(f"   ✓ Migrated {migrated} users")
+    print(f"   [OK] Migrated {migrated} users")
 
     # Step 3: Log users with multiple roles (manual review needed)
     print("\n3. Checking for users with multiple roles...")
@@ -75,7 +75,7 @@ def migrate():
         for user_id, count in multi_role_users:
             print(f"     - {user_id}: {count} roles -> kept 1st, others ignored")
     else:
-        print("   ✓ No users with multiple roles")
+        print("   [OK] No users with multiple roles")
 
     # Step 4: Verify migration
     print("\n4. Verification...")
@@ -96,7 +96,7 @@ def migrate():
     print("MIGRATION COMPLETE")
     print("=" * 70)
     print("\nNEW ARCHITECTURE (Option C):")
-    print("  1. users.role_id → role_template (SINGLE role per user)")
+    print("  1. users.role_id -> role_template (SINGLE role per user)")
     print("  2. user_custom_permissions (override specific permissions)")
     print("  3. user_roles table (DEPRECATED - for audit trail only)")
     print("\nPERMISSION LOGIC:")
