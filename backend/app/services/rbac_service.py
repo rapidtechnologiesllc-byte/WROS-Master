@@ -10,7 +10,7 @@ rbac_service_deprecated.py for reference only.
 from typing import List, Optional, Set
 from sqlalchemy.orm import Session
 
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
 from app.services.permission_helper import PermissionHelper
 
@@ -27,19 +27,16 @@ class RBACService:
 
     @staticmethod
     def get_user_roles(user_id: str, db: Session, tenant_id: int = 1) -> List[RoleTemplate]:
-        """Get all role templates assigned to a user.
+        """Get role template assigned to a user.
 
-        Returns list of RoleTemplate objects user has via UserRole junction.
+        Returns list of single RoleTemplate object user has via role_template_id.
         """
-        user_roles = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.tenant_id == tenant_id
-        ).all()
+        user = db.query(Users).filter(Users.UserID == user_id).first()
 
         roles = []
-        for user_role in user_roles:
+        if user and user.role_template_id:
             role = db.query(RoleTemplate).filter(
-                RoleTemplate.id == user_role.role_template_id
+                RoleTemplate.id == user.role_template_id
             ).first()
             if role:
                 roles.append(role)
@@ -141,13 +138,11 @@ class RBACService:
 
     @staticmethod
     def remove_role_from_user(db: Session, user_id: str, role_id: int, tenant_id: int = 1):
-        """Remove a role template from a user."""
-        db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.role_template_id == role_id,
-            UserRole.tenant_id == tenant_id
-        ).delete()
-        db.commit()
+        """Remove role template assignment from a user."""
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if user:
+            user.role_template_id = None
+            db.commit()
 
     @staticmethod
     def get_users_with_permission(db: Session, permission: str, tenant_id: int = 1) -> List[Users]:
