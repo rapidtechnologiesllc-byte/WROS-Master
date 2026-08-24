@@ -162,7 +162,7 @@ function getDefaultNavigationItems() {
     {
       label: "Administration",
       items: [
-        { key: "users", label: "Users", icon: Shield, path: "/users-access-control" },
+        { key: "users", label: "Users", icon: Shield, path: "/admin/users-access-control" },
       ]
     }
   ];
