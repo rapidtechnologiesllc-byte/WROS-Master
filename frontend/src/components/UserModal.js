@@ -104,6 +104,11 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
         setLoading(false);
         return;
       }
+      if (!formData.job_title?.trim()) {
+        setError('Job Title is required');
+        setLoading(false);
+        return;
+      }
       if (!formData.business_unit_id) {
         setError('Business unit is required');
         setLoading(false);
@@ -239,12 +244,13 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Job Title *</label>
               <select
                 name="job_title"
                 value={formData.job_title}
                 onChange={handleInputChange}
                 className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
               >
                 <option value="">Select a position...</option>
                 {positions.map((pos) => (
