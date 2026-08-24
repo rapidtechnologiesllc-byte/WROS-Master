@@ -279,65 +279,6 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
     return resource_count
 
 
-def grant_super_user_all_permissions(db: Session, tenant_id: int = 1):
-    """Grant Super User role all V/C/E/D permissions on all resources."""
-
-    print(f"Granting Super User all permissions...")
-
-    # Get Super User role template
-    super_user_role = db.query(RoleTemplate).filter(
-        RoleTemplate.name.ilike("super user"),
-        RoleTemplate.tenant_id == tenant_id
-    ).first()
-
-    if not super_user_role:
-        print("  ERROR: Super User role not found!")
-        return 0
-
-    print(f"  Found Super User role (id={super_user_role.id})")
-
-    # Get all resources
-    all_resources = db.query(Resource).filter(
-        Resource.tenant_id == tenant_id,
-        Resource.enabled == True
-    ).all()
-
-    print(f"  Found {len(all_resources)} resources to grant permissions for")
-
-    created_count = 0
-
-    # Grant Super User all permissions for each resource
-    for resource in all_resources:
-        # Check if permission already exists
-        existing = db.query(RoleTemplatePermission).filter(
-            RoleTemplatePermission.role_template_id == super_user_role.id,
-            RoleTemplatePermission.resource_id == resource.id
-        ).first()
-
-        if existing:
-            # Make sure all permissions are enabled
-            existing.can_view = True
-            existing.can_create = True
-            existing.can_edit = True
-            existing.can_delete = True
-        else:
-            # Create new permission record with all V/C/E/D enabled
-            permission = RoleTemplatePermission(
-                role_template_id=super_user_role.id,
-                resource_id=resource.id,
-                can_view=True,
-                can_create=True,
-                can_edit=True,
-                can_delete=True
-            )
-            db.add(permission)
-            created_count += 1
-
-    db.commit()
-    print(f"  Granted {created_count} new permissions to Super User\n")
-    return created_count
-
-
 def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     """Make Personal resources (dashboard, my-tasks, etc.) mandatory for all users."""
 
@@ -403,24 +344,20 @@ def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
 
 
 def main():
-    """Initialize all modules, resources, and Super User permissions."""
+    """Initialize all modules and resources. Role template permissions are managed separately in the database."""
 
     db = SessionLocal()
     try:
         # Step 1: Create all modules and resources
         resource_count = init_modules_and_resources(db, tenant_id=1)
 
-        # Step 2: Grant Super User all permissions
-        permission_count = grant_super_user_all_permissions(db, tenant_id=1)
-
-        # Step 3: Make Personal resources mandatory for all users
+        # Step 2: Make Personal resources mandatory for all users
         mandatory_count = make_personal_resources_mandatory(db, tenant_id=1)
 
         print("=" * 70)
         print("SUCCESS: Resource Initialization Complete!")
         print("=" * 70)
         print(f"Resources created: {resource_count}")
-        print(f"Permissions granted to Super User: {permission_count}")
         print(f"Personal resources made mandatory: {mandatory_count}")
         print("\nAll users now have mandatory access to Personal resources:")
         print("  - Dashboard")
@@ -428,7 +365,7 @@ def main():
         print("  - My Timesheet")
         print("  - My Expenses")
         print("  - My Referrals")
-        print("\nSuper User has FULL access to all modules and resources!")
+        print("\nRole template permissions are configured in the database, not seeded here.")
         print("=" * 70)
 
     except Exception as e:

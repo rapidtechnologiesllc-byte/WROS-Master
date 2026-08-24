@@ -86,66 +86,59 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        # Get all resources with module relationship
-        resources = db.query(Resource).join(Module).filter(
-            Resource.tenant_id == tenant_id,
-            Resource.enabled == True
-        ).all()
+        # Load module/resource structure from init_resources.py (source of truth)
+        # instead of from DB which can have corruption/duplicates
+        from app.seeds.init_resources import MODULES_AND_RESOURCES, RESOURCE_ROUTES
 
-        logger.warning(f"[NAV] Building navigation for user_id={user_id}, found {len(resources)} resources")
-
-        # Check permissions for each resource and group by module
         navigation_modules = {}
+        module_icons = {
+            "Personal": "LayoutDashboard",
+            "Recruitment": "Users",
+            "Workforce": "Users2",
+            "Finance": "BadgeDollarSign",
+            "Sales": "Briefcase",
+            "Project Management": "FolderKanban",
+            "Reporting": "BarChart3",
+            "System": "Settings",
+            "Executive": "TrendingUp",
+            "Admin": "Shield",
+            "Executive Dashboards": "BarChart3",
+            "AI & Automation": "Bot"
+        }
 
-        for resource in resources:
-            # Check if user can view this resource
-            can_view = RoleTemplatePermissionService.can_view(
-                db, user_id, resource.name, tenant_id
-            )
+        logger.warning(f"[NAV] Building navigation from init_resources.py for user_id={user_id}")
 
-            if can_view:
-                # Use module object (already loaded via join)
-                module = resource.module
-                module_name = module.name
-                module_label = module.display_name
+        # Build navigation from init_resources.py structure
+        for module_name, resource_names in MODULES_AND_RESOURCES.items():
+            module_icon = module_icons.get(module_name, "Briefcase")
+            navigation_modules[module_name] = {
+                "label": module_name,
+                "icon": module_icon,
+                "items": []
+            }
 
-                # Initialize module if needed
-                if module_name not in navigation_modules:
-                    # Get icon for module (use first resource's icon as fallback)
-                    module_icon = "Briefcase"
-                    if module_name == "Recruitment":
-                        module_icon = "Users"
-                    elif module_name == "Workforce":
-                        module_icon = "Users2"
-                    elif module_name == "Finance":
-                        module_icon = "BadgeDollarSign"
-                    elif module_name == "Admin":
-                        module_icon = "Shield"
-                    elif module_name == "System":
-                        module_icon = "Home"
-                    elif module_name == "Executive":
-                        module_icon = "TrendingUp"
-                    elif module_name == "Engagement":
-                        module_icon = "MessageCircle"
+            # Add each resource if user has permission
+            for resource_name in resource_names:
+                can_view = RoleTemplatePermissionService.can_view(
+                    db, user_id, resource_name, tenant_id
+                )
 
-                    navigation_modules[module_name] = {
-                        "label": module_label,
-                        "icon": module_icon,
-                        "items": []
-                    }
+                if can_view:
+                    # Get route from RESOURCE_ROUTES or generate from resource name
+                    route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name.replace('_', '-')}"
+                    # Ensure route starts with /
+                    if not route.startswith('/'):
+                        route = f"/{route}"
 
-                # Add resource to module (use database fields directly)
-                # Generate route if not in database: resource_name -> /resource-name
-                route = resource.route_path or f"/{resource.name.replace('_', '-')}"
-                navigation_modules[module_name]["items"].append({
-                    "key": resource.name,
-                    "label": resource.display_name,
-                    "icon": get_icon_for_resource(resource.name),
-                    "route": route
-                })
+                    navigation_modules[module_name]["items"].append({
+                        "key": resource_name,
+                        "label": resource_name.replace('-', ' ').title(),
+                        "icon": get_icon_for_resource(resource_name),
+                        "route": route
+                    })
 
-        # Convert to list of groups
-        groups = list(navigation_modules.values())
+        # Convert to list of groups, filtering out empty modules
+        groups = [module for module in navigation_modules.values() if module["items"]]
 
         logger.warning(f"[NAV] Returning {len(groups)} modules for user_id={user_id}")
         return {"groups": groups}
