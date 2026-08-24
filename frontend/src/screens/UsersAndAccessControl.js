@@ -31,7 +31,6 @@ import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
 import UserModal from "../components/UserModal";
 import BusinessUnitModal from "../components/BusinessUnitModal";
-import DeliveryCenterModal from "../components/DeliveryCenterModal";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -194,9 +193,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [busy, setBusy] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showBUModal, setShowBUModal] = useState(false);
-  const [showDCModal, setShowDCModal] = useState(false);
   const [selectedBU, setSelectedBU] = useState(null);
-  const [selectedDC, setSelectedDC] = useState(null);
 
   // Legacy modal states (keep for compatibility during transition)
   const [showCreateModal, setShowCreateModal] = useState(false);
