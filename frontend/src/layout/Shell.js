@@ -305,16 +305,22 @@ export default function Shell({
     };
   }, []); // Run once on mount
 
-  const normalizedRole = String(role || "")
-    .trim()
-    .toUpperCase();
-  const isSuperUser = ["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(
-    normalizedRole,
-  );
-  const isAdmin = normalizedRole === "ADMIN";
-  const isHR_Manager = normalizedRole === "HR MANAGER";
-  const isHiringManager = normalizedRole === "HIRING MANAGER";
-  const isHrOperations = normalizedRole === "HR OPERATIONS";
+  // RBAC-driven: Permission-based checks (no hardcoded role names)
+  // These derive from role template permissions, not legacy role strings
+  const perms = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+    } catch {
+      return [];
+    }
+  })();
+
+  // Permission-based feature flags (derived from role template permissions)
+  const isSuperUser = perms.includes('*.*');  // Only SuperUser role template gets wildcard
+  const isAdmin = perms.includes('administration.manage');  // Only Admin role template gets this
+  const isHR_Manager = perms.includes('employees.manage');  // HR Manager role template
+  const isHiringManager = perms.includes('recruitment.create');  // Hiring Manager role template
+  const isHrOperations = perms.includes('recruitment.edit');  // HR Operations role template
 
   // Fetch navigation structure from backend based on role template permissions (all 175 resources)
   const [nav, setNav] = useState({

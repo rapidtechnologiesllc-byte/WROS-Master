@@ -37,6 +37,193 @@ Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
 
 ---
 
+## 🚨 CRITICAL: "FAIL FAST" ERROR HANDLING PRINCIPLE (2026-08-24 Session)
+
+**STATUS:** ✅ ENFORCED - All catch blocks now raise exceptions instead of returning empty values
+
+### The Principle: Never Silently Fail
+
+**RULE:** Service layer functions and async operations MUST ALWAYS raise exceptions on error.
+
+**NEVER DO THIS:**
+```python
+# ❌ WRONG: Silent failure
+def parse_skills(skills_json):
+    try:
+        return json.loads(skills_json)
+    except Exception:
+        return []  # SILENT FAILURE - downstream code thinks parsing succeeded
+```
+
+```javascript
+// ❌ WRONG: Silent failure
+try {
+  const data = await apiRequest('/api/endpoint');
+} catch (err) {
+  console.error(err);  // Only logs, doesn't raise
+  // Downstream code continues as if nothing failed
+}
+```
+
+**DO THIS INSTEAD:**
+```python
+# ✅ CORRECT: Explicit failure
+def parse_skills(skills_json):
+    try:
+        return json.loads(skills_json)
+    except Exception as e:
+        logger.error(f"Failed to parse skills: {e}", exc_info=True)
+        raise ValueError(f"Invalid JSON in skills: {str(e)}")  # Fail fast
+```
+
+```javascript
+// ✅ CORRECT: Explicit failure
+try {
+  const data = await apiRequest('/api/endpoint');
+} catch (err) {
+  console.error(`[ModuleName] Failed to call endpoint: ${err.message}`, err);
+  throw new Error(`API call failed: ${err.message}`);  // Fail fast
+}
+```
+
+### Why This Matters
+
+| Scenario | Silent Failure | Fail Fast |
+|----------|---|---|
+| **User sees error** | ❌ No (gets wrong result) | ✅ Yes (clear error) |
+| **Debuggable** | ❌ No (hard to trace) | ✅ Yes (stack trace) |
+| **Testable** | ❌ No (test passes falsely) | ✅ Yes (test catches error) |
+| **Production issue** | ❌ Data corruption risk | ✅ Fast incident response |
+
+### Catch Block Patterns
+
+**Pattern 1: Return empty collection**
+```python
+# ❌ WRONG
+except Exception:
+    return []  # Silent failure
+
+# ✅ CORRECT
+except Exception as e:
+    logger.error(f"Failed to query: {e}", exc_info=True)
+    raise
+```
+
+**Pattern 2: Return empty dict**
+```javascript
+// ❌ WRONG
+catch (err) {
+  return {};  // Silent failure
+}
+
+// ✅ CORRECT
+catch (err) {
+  throw new Error(`Failed to get config: ${err.message}`);
+}
+```
+
+**Pattern 3: Swallow exception**
+```python
+# ❌ WRONG
+except Exception as e:
+    logger.warning(f"Failed: {e}")
+    # Returns implicitly (None)
+
+# ✅ CORRECT
+except Exception as e:
+    logger.error(f"Failed: {e}", exc_info=True)
+    raise  # or raise Exception(...)
+```
+
+### Exceptions to the Rule
+
+**ONLY these patterns are acceptable:**
+
+1. **Endpoints returning error responses** (intentional error handling):
+```python
+@router.get("/endpoint")
+def endpoint(db: Session):
+    try:
+        data = service.get_data(db)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}  # ✅ Explicit error response
+    return {"status": "success", "data": data}
+```
+
+2. **Optional operations with fallback**:
+```python
+# ✅ CORRECT: Fallback is intentional
+try:
+    config = load_config_from_file()
+except FileNotFoundError:
+    logger.warning("Config file not found, using defaults")
+    config = get_default_config()  # Explicit fallback, logged
+```
+
+3. **Fire-and-forget background tasks** (logged):
+```python
+# ✅ CORRECT: Non-critical background work
+try:
+    send_notification_email(user)
+except Exception as e:
+    logger.error(f"Failed to send email to {user.email}: {e}")
+    # Don't raise - email is non-critical to main flow
+```
+
+### Prevention Mechanisms
+
+**ESLint Rule (Frontend):**
+- File: `.eslintrc.no-silent-catch.js`
+- Detects: `return []`, `return {}`, `return null` in catch blocks without re-throw
+- Run: ESLint will flag violations during code review
+
+**Pytest Plugin (Backend):**
+- File: `backend/app/core/pytest_no_silent_failures.py`
+- Detects: Silent returns in service layer functions
+- Run: `pytest` will fail if violations found
+
+**Enable in CI/CD:**
+```yaml
+# .github/workflows/test.yml
+- name: Check for silent failures
+  run: |
+    npm run lint:no-silent  # Frontend ESLint
+    pytest backend/        # Backend pytest plugin
+```
+
+### Checklist for Code Review
+
+When reviewing code, check for:
+- [ ] No catch blocks with `return []` or `return {}`
+- [ ] No catch blocks that log-then-continue without raise
+- [ ] Service functions always raise on error
+- [ ] Error messages include context (file, function, user action)
+- [ ] Logging includes `exc_info=True` (Python) or full error stack (JavaScript)
+
+### Examples from Real Fixes (2026-08-24)
+
+**Before (Silent Failure):**
+```python
+# backend/app/services/flash_service.py:480-481
+def _skill_tags(entry):
+    try:
+        return json.loads(entry.skill_tags)
+    except (json.JSONDecodeError, TypeError):
+        return []  # ❌ Silent - downstream code uses empty skills
+```
+
+**After (Fail Fast):**
+```python
+def _skill_tags(entry):
+    try:
+        return json.loads(entry.skill_tags)
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.error(f"Failed to parse skill_tags: {exc}")
+        raise ValueError(f"Invalid JSON in skill_tags: {exc}")  # ✅ Fails immediately
+```
+
+---
+
 ## 🚨 PRODUCTION DATABASE PROTECTION (2026-08-24 Session)
 
 **STATUS:** ✅ IMPLEMENTED - Multi-layer protection prevents production database access from local development

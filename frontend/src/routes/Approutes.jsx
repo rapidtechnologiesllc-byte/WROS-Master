@@ -126,37 +126,34 @@ import MyReferralsScreen from "../screens/MyReferralsScreen";
 import MessageQueueDashboard from "../screens/MessageQueueDashboard";
 
 
-// Wrapper component that renders the appropriate dashboard based on user job_title
+// Wrapper component that renders the appropriate dashboard based on user permissions
+// RBAC-driven: Uses permissions from role templates, not hardcoded job titles
 const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
-  const normalized = String(jobTitle || "").trim().toUpperCase();
+  const perms = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+    } catch {
+      return [];
+    }
+  })();
 
-  // CEO gets the CEO dashboard
-  if (normalized === "CEO") {
+  // CEO/SuperUser dashboard (wildcard permission)
+  if (perms.includes('*.*')) {
     return <CEOUnifiedDashboard />;
   }
 
-  // CFO gets the CFO dashboard
-  if (normalized === "CFO") {
+  // CFO dashboard (finance.manage permission)
+  if (perms.includes('finance.manage')) {
     return <CFOAgentScreen />;
   }
 
-  // Partner gets Partner ROI dashboard
-  if (normalized.includes("PARTNER")) {
+  // Partner dashboard (business_unit.manage permission or partner-specific)
+  if (perms.includes('business_unit.manage') || perms.includes('reports.manage')) {
     return <PartnerROIAgentScreen />;
   }
 
-  // HR Manager gets HR dashboard (when built)
-  if (normalized === "HR MANAGER") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Resource Manager gets resource management dashboard (when built)
-  if (normalized === "RESOURCE MANAGER") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Admin gets admin dashboard (when built)
-  if (normalized === "ADMIN") {
+  // HR Manager and Resource Manager get standard dashboard
+  if (perms.includes('employees.manage') || perms.includes('recruitment.create')) {
     return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
   }
 
@@ -274,18 +271,9 @@ const normalizeJobStatusForApi = (uiStatus) => {
   return lower;
 };
 
-const normalizeRole = (rawRole) => {
-  const upper = String(rawRole || "")
-    .trim()
-    .toUpperCase();
-  if (["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(upper)) {
-    return "SUPER_USER";
-  }
-  if (["ADMIN", "HR", "RECRUITER", "CANDIDATE"].includes(upper)) {
-    return upper;
-  }
-  return upper || "RECRUITER";
-};
+// NOTE: normalizeRole() REMOVED - role checking is now entirely permission-based
+// Role names from role templates are not hardcoded in frontend
+// Instead, check user's permissions (which come from role template assignments)
 
 export default function AppRoutes() {
   // Public, unauthenticated Thunder chat widget -- a real external
@@ -335,10 +323,17 @@ export default function AppRoutes() {
   const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
     .trim()
     .toLowerCase();
-  const normalizedRole = normalizeRole(storedRole);
-  const isAdminOrSuperUser =
-    normalizedRole === "ADMIN" || normalizedRole === "SUPER_USER";
-  const isSuperUser = normalizedRole === "SUPER_USER";
+
+  // RBAC-driven: Check permissions instead of hardcoded role names
+  // Import these from permissionsRbac for consistent permission checking
+  const { isSuperAdmin: isSuperUser } = (() => {
+    try {
+      const perms = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      return { isSuperAdmin: perms.includes('*.*') };
+    } catch {
+      return { isSuperAdmin: false };
+    }
+  })();
 
   const handleLogout = () => {
     localStorage.removeItem("hrms_token");

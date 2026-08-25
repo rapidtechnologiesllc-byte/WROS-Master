@@ -95,32 +95,32 @@ export function hasRole(roleName) {
   return roles.some(role => role.toLowerCase() === roleName.toLowerCase());
 }
 
+/**
+ * RBAC-driven: Check if user has wildcard permission ('*.*')
+ * This permission is ONLY assigned by the SuperUser role template
+ * NOT based on hardcoded role name matching
+ */
 export function isSuperUser() {
-  const roles = JSON.parse(localStorage.getItem('hrms_roles') || '[]');
   let permissions = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
 
   if (!permissions || permissions.length === 0) {
     permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
   }
 
-  if (Array.isArray(permissions) && permissions.includes('*.*')) return true;
-  if (Array.isArray(roles)) {
-    return roles.some(role => role.toLowerCase() === 'super user');
-  }
-  return false;
+  // ONLY check for wildcard permission (assigned by role template)
+  // Do NOT check for hardcoded role names like 'super user' or 'admin'
+  return Array.isArray(permissions) && permissions.includes('*.*');
 }
 
+/**
+ * RBAC-driven: Check if user has 'administration.manage' permission
+ * This permission is assigned by the Admin role template
+ * NOT based on hardcoded role name matching
+ */
 export function isAdmin() {
-  // Try new RBAC system first (hrms_roles from backend)
-  let roles = JSON.parse(localStorage.getItem('hrms_roles') || '[]');
-
-  // Fall back to legacy 'roles' key
-  if (!roles || roles.length === 0) {
-    roles = JSON.parse(localStorage.getItem('roles') || '[]');
-  }
-
-  if (!Array.isArray(roles)) return false;
-  return roles.some(role => role.toLowerCase() === 'admin');
+  // Check for administration.manage permission (assigned by Admin role template)
+  // Do NOT check for hardcoded role names
+  return hasPermission('administration.manage');
 }
 
 export function getRoles() {

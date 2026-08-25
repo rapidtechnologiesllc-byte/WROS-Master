@@ -62,8 +62,9 @@ class ResumeSearchService:
             logger.info(f"[ResumeIndex] Indexed resume for candidate {candidate.candidateID}")
 
         except Exception as e:
-            logger.error(f"[ResumeIndex] Failed to index resume for {candidate.candidateID}: {e}")
-            # Don't fail the parsing flow; indexing is secondary
+            logger.error(f"[ResumeIndex] Failed to index resume for {candidate.candidateID}: {e}", exc_info=True)
+            # CRITICAL FIX: Raise exception instead of silent failure
+            raise ValueError(f"Failed to index resume for candidate {candidate.candidateID}: {str(e)}")
 
     @staticmethod
     def _build_searchable_text(resume_parsed: CandidateResumeParsed) -> str:
