@@ -294,7 +294,7 @@ export default function UserFormPage() {
               Business Unit *
             </label>
             <select
-              value={formData.business_unit_id}
+              value={String(formData.business_unit_id || '')}
               onChange={handleBusinessUnitChange}
               disabled={saving}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
@@ -302,7 +302,7 @@ export default function UserFormPage() {
             >
               <option value="">Select Business Unit</option>
               {businessUnits.map(bu => {
-                const buId = bu.id || bu.BusinessUnitID;
+                const buId = String(bu.id || bu.BusinessUnitID);
                 const buName = bu.display_name || bu.BusinessUnitName || bu.business_unit_name || bu.name;
                 return (
                   <option key={buId} value={buId}>{buName}</option>
@@ -317,7 +317,7 @@ export default function UserFormPage() {
               Role Template *
             </label>
             <select
-              value={formData.role_template_id}
+              value={String(formData.role_template_id || '')}
               onChange={handleRoleTemplateChange}
               disabled={saving}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
@@ -325,7 +325,7 @@ export default function UserFormPage() {
             >
               <option value="">Select Role Template</option>
               {roleTemplates.map(template => {
-                const templateId = template.id || template.TemplateID;
+                const templateId = String(template.id || template.TemplateID);
                 const templateName = template.name || template.TemplateName || template.template_name;
                 return (
                   <option key={templateId} value={templateId}>{templateName}</option>
