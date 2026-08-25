@@ -874,11 +874,10 @@ function BusinessUnitsSection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const { data } = await apiRequest("/bu-context/available-buses", {
-        skipAuth: true,
+      const response = await apiRequest("/admin/certifications/business-units", {
         method: "GET"
       });
-      const busData = data?.business_units || [];
+      const busData = Array.isArray(response) ? response : response?.data || [];
       setBusinessUnits(busData);
     } catch (err) {
       console.error("Failed to load business units:", err);
@@ -1004,8 +1003,9 @@ function OrganizationalHierarchySection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const { data } = await apiRequest("/bu-context/available-buses", { skipAuth: true });
-      setBusinessUnits(data?.business_units || []);
+      const response = await apiRequest("/admin/certifications/business-units");
+      const busData = Array.isArray(response) ? response : response?.data || [];
+      setBusinessUnits(busData);
     } catch (err) {
       console.error("Failed to load business units:", err);
     }
