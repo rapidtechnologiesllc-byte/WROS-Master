@@ -59,7 +59,7 @@ export default function UserFormPage() {
     try {
       setLoading(true);
       const usersRes = await apiRequest('/hr/users/all');
-      const user = usersRes.data?.users?.find(u => u.user_id === parseInt(userId));
+      const user = usersRes.data?.users?.find(u => u.user_id === userId);
 
       if (user) {
         const rolesRes = await apiRequest(`/rbac/users/${userId}/roles`);
