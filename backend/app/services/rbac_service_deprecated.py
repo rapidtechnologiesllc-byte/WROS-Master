@@ -506,14 +506,14 @@ class RBACService:
         2. Legacy format (backward compatibility)
 
         Process:
-        1. Get user's assigned role template (via UserRole)
+        1. Get user's assigned role template (via users.role_template_id)
         2. Query RoleTemplatePermission for that template
         3. Check if resource.action is granted
 
         Returns True if permission granted, False otherwise.
         """
         try:
-            from app.models.user import Users, UserRole
+            from app.models.user import Users
             from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
 
             # Get user
@@ -526,15 +526,14 @@ class RBACService:
             if hasattr(user, 'is_admin') and user.is_admin:
                 return True
 
-            # Get user's assigned role template (via UserRole junction table)
-            user_role = db.query(UserRole).filter(UserRole.user_id == user_id).first()
-            if not user_role or not user_role.role_template_id:
+            # Get user's assigned role template (direct from users.role_template_id)
+            if not user.role_template_id:
                 # Fallback to legacy role-based permission check
                 return permission in RBACService.get_user_permissions(db, user_id)
 
             # Get the role template
             role_template = db.query(RoleTemplate).filter(
-                RoleTemplate.id == user_role.role_template_id
+                RoleTemplate.id == user.role_template_id
             ).first()
             if not role_template:
                 # Fallback to legacy
