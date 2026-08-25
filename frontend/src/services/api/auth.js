@@ -5,7 +5,7 @@ export const validateEmail = async (email) => {
   const { data } = await apiRequest("/auth/validate-email", {
     method: "POST",
     skipAuth: true,
-    body: JSON.stringify({ UserEmail: email, UserPassword: "" })
+    body: JSON.stringify({ email, password: "" })
   });
   return data;
 };
