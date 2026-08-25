@@ -759,34 +759,57 @@ def update_user_with_roles(
 @router.put(
     "/users/{user_id}",
     response_model=UserResponse,
-    summary="Update an HR/Admin user's profile or role",
+    summary="Update an HR/Admin user's profile, role, job title, and role template",
     dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def update_user(
     user_id: str,
-    user_name: Optional[str] = None,
-    user_role: Optional[str] = None,
+    request: UpdateUserWithRolesRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_hr_or_admin)
 ):
     """
-    Update a user's name or role.
+    Update a user's name, role, job title, role template, and business unit.
+    If user has NULL tenant_id, assigns current user's tenant_id.
     Requires permission: user.manage
     """
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
-    if user_name is not None:
-        target.UserName = user_name
-    if user_role is not None:
-        target.UserRole = user_role
+
+    # Fix NULL tenant_id by assigning current user's tenant
+    if target.tenant_id is None:
+        target.tenant_id = current_user.tenant_id or 1
+
+    if request.user_name is not None:
+        target.UserName = request.user_name
+    if request.user_role is not None:
+        target.UserRole = request.user_role
+    if request.job_title is not None:
+        target.job_title = request.job_title
+    if request.role_template_id is not None:
+        target.role_template_id = request.role_template_id
+    if request.business_unit_id is not None:
+        target.business_unit_id = request.business_unit_id
+
     db.commit()
     db.refresh(target)
+
+    # Build response with all fields
+    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first() if target.role_template_id else None
+
     return UserResponse(
         user_id=target.UserID,
         user_name=target.UserName or "",
         user_email=target.UserEmail,
         user_role=target.UserRole,
+        job_title=target.job_title,
+        role_template_id=target.role_template_id,
+        permission_role=role_template.name if role_template else None,
+        department_id=target.department_id,
+        department_name=target.department.name if target.department else None,
+        business_unit_id=target.business_unit_id,
+        business_unit_name=target.business_unit.name if target.business_unit else None,
         created_at=target.CreatedAt
     )
 
