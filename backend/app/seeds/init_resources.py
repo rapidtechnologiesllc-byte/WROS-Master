@@ -1,8 +1,8 @@
 """
 Initialize all Modules, Resources, and grant Super User role full permissions.
 
-SOURCE OF TRUTH: This file defines ALL modules and resources available in WROS.
-All routes are derived from actual frontend implementation in Approutes.jsx.
+STRICT CONTRACT ENFORCEMENT: This file imports module/resource definitions from api_contract.py
+as the single source of truth. Both frontend and backend use the same definitions.
 
 This script creates:
 1. All Module records
@@ -15,120 +15,11 @@ Run with: python -m app.seeds.init_resources
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.contracts import MODULES_AND_RESOURCES as CONTRACT_MODULES_AND_RESOURCES
 
-# All modules and their resources (with optional route_path for custom routes)
-# Source: Derived from frontend/src/routes/Approutes.jsx actual route definitions
-MODULES_AND_RESOURCES = {
-    "Personal": [
-        "dashboard",
-        "my-tasks",
-        "my-timesheet",
-        "my-expenses",
-        "my-referrals"
-    ],
-    "Recruitment": [
-        "candidates",
-        "jobs",
-        "submissions",
-        "interviews",
-        "offer-letters",
-        "intervention-queue",
-        "rehire-approval",
-        "candidate-review",
-        "risk-dashboard",
-        "thunder-analytics",
-        "bulk-launch"
-    ],
-    "Workforce": [
-        "employees",
-        "onboarding",
-        "allocations",
-        "timesheets",
-        "leave-management",
-        "performance-management",
-        "htd-intake",
-        "buddy-program",
-        "convert-to-employee",
-        "utilization-dashboard",
-        "resource-forecast",
-        "employee-in-bench"
-    ],
-    "Sales": [
-        "clients",
-        "opportunities",
-        "proposals",
-        "sales-ops",
-        "pipeline-management",
-        "partner-roi",
-        "demand-confirmation"
-    ],
-    "Project Management": [
-        "projects",
-        "resources",
-        "budget",
-        "schedule",
-        "core-pull"
-    ],
-    "Finance": [
-        "invoices",
-        "expenses",
-        "payroll",
-        "reports",
-        "budget-management",
-        "forecasts",
-        "invoice-management",
-        "finance-operations",
-        "executive-revenue-dashboard"
-    ],
-    "Reporting": [
-        "analytics",
-        "kpi-dashboard",
-        "data-export",
-        "scheduled-reports",
-        "bi-explorer"
-    ],
-    "System": [
-        "configuration",
-        "api-keys",
-        "webhooks",
-        "audit-logs",
-        "error-logs",
-        "system-health",
-        "slm-training-data",
-        "message-queue",
-        "ticket-routing",
-        "ai-config",
-        "locale-currency"
-    ],
-    "Executive": [
-        "ceo-dashboard",
-        "cfo-dashboard",
-        "partner-dashboard",
-        "executive-signal",
-        "admin-agent-state",
-        "admin-weekly-recap",
-        "training-certification",
-        "bu-head-dashboard"
-    ],
-    "Admin": [
-        "users-access-control",
-        "admin-settings",
-        "certifications"
-    ],
-    "Executive Dashboards": [
-        "ceo-dashboard-view",
-        "cfo-dashboard-view",
-        "partner-dashboard-view",
-        "bu-head-dashboard-view"
-    ],
-    "AI & Automation": [
-        "ask-thunder",
-        "thunder-analytics",
-        "ask-flash",
-        "ai-coaching",
-        "slm-dashboard"
-    ],
-}
+# STRICT: Import from contract, NOT hardcoded here
+# This ensures database always matches the contract
+MODULES_AND_RESOURCES = CONTRACT_MODULES_AND_RESOURCES
 
 # Resource-specific route paths (custom routes for certain resources)
 # Maps resource name to frontend route path
