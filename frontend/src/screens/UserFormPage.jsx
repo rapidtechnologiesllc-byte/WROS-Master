@@ -58,12 +58,21 @@ export default function UserFormPage() {
   const loadUserData = async () => {
     try {
       setLoading(true);
+      console.log('[DEBUG] loadUserData: Starting, userId from URL:', userId);
+
       const usersRes = await apiRequest('/hr/users/all');
-      const user = usersRes.data?.users?.find(u => u.user_id === userId);
+      console.log('[DEBUG] loadUserData: Users response:', usersRes);
+      console.log('[DEBUG] loadUserData: Users array:', usersRes.data?.users);
+
+      const user = usersRes.data?.users?.find(u => {
+        console.log('[DEBUG] loadUserData: Comparing u.user_id:', u.user_id, 'type:', typeof u.user_id, 'with userId:', userId, 'type:', typeof userId, 'match:', u.user_id === userId);
+        return u.user_id === userId;
+      });
+
+      console.log('[DEBUG] loadUserData: Found user:', user);
 
       if (user) {
-        const rolesRes = await apiRequest(`/rbac/users/${userId}/roles`);
-        const roleIds = (rolesRes.data?.roles || []).map(r => r.id || r.RoleID);
+        console.log('[DEBUG] loadUserData: User found, loaded from users list');
 
         setFormData({
           user_name: user.user_name || '',
@@ -71,14 +80,16 @@ export default function UserFormPage() {
           user_password: '',
           job_title: user.job_title || '',
           business_unit_id: user.business_unit_id || '',
-          role_template_id: roleIds[0] || ''
+          role_template_id: user.role_template_id || ''
         });
       } else {
+        console.log('[DEBUG] loadUserData: User not found - showing error and navigating');
         toast.error('User not found');
         navigate('/admin/users-access-control/users');
       }
     } catch (err) {
-      console.error('Failed to load user data:', err);
+      console.error('[DEBUG] loadUserData: ERROR:', err);
+      console.error('[DEBUG] loadUserData: Error details:', err.message, err.response?.status, err.response?.data);
       toast.error('Failed to load user details');
       navigate('/admin/users-access-control/users');
     } finally {
