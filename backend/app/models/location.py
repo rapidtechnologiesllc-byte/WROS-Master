@@ -11,7 +11,9 @@ class Location(Base):
     __tablename__ = "locations"
 
     id = Column(String(36), primary_key=True, default=lambda: str(__import__('uuid').uuid4()))
-    tenant_id = Column(Integer, nullable=False, index=True)
+    # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
+    # All new locations get tenant_id from creator's tenant (fallback to 1)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
     name = Column(String(255), nullable=False, index=True)
     city = Column(String(255), nullable=True)
     country = Column(String(255), nullable=True)
