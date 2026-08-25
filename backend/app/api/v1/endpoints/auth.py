@@ -36,7 +36,8 @@ from app.services.email_service import EmailService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse, UnifiedLoginRequest, UnifiedLoginResponse
+from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse
+from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, validate_login_request, validate_login_response
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
 
 router = APIRouter(prefix="/auth", tags=["auth"])
