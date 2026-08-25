@@ -33,7 +33,7 @@ from app.models.base import Base
 class ResumeParseFeedback:
     """Record when recruiter corrects a parsing error"""
     id: Optional[int] = None
-    candidate_id: str = None
+    feedback_session_id: str = None
     parsed_value: str = None  # What SLM extracted
     corrected_value: str = None  # What recruiter fixed
     field_name: str = None  # Which field (skills, title, etc.)
@@ -48,7 +48,7 @@ class SLMFeedback(Base):
     __tablename__ = "slm_feedback"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(String(36), nullable=False, index=True)
+    feedback_session_id = Column(String(100), nullable=False, index=True, unique=True)
     field_name = Column(String(100), nullable=False, index=True)  # skills, title, employer, etc.
     parsed_value = Column(String(1000), nullable=True)
     corrected_value = Column(String(1000), nullable=True)
@@ -88,7 +88,7 @@ class SLMFeedbackEngine:
     @staticmethod
     def record_correction(
         db: Session,
-        candidate_id: str,
+        feedback_session_id: str,
         field_name: str,
         parsed_value: str,
         corrected_value: str,
@@ -102,7 +102,7 @@ class SLMFeedbackEngine:
 
         Args:
             db: Database session
-            candidate_id: Candidate being parsed
+            feedback_session_id: Anonymized session ID (no candidate linkage)
             field_name: Which field was wrong (skills, title, employer, etc.)
             parsed_value: What SLM extracted (wrong)
             corrected_value: What recruiter fixed
@@ -112,7 +112,7 @@ class SLMFeedbackEngine:
             return  # No correction needed
 
         feedback = SLMFeedback(
-            candidate_id=candidate_id,
+            feedback_session_id=feedback_session_id,
             field_name=field_name,
             parsed_value=parsed_value,
             corrected_value=corrected_value,
@@ -123,14 +123,14 @@ class SLMFeedbackEngine:
         db.flush()
 
         logger.info(
-            f"[SLMFeedback] Recorded correction for {candidate_id}.{field_name}: "
+            f"[SLMFeedback] Recorded correction for session {feedback_session_id}.{field_name}: "
             f"'{parsed_value}' → '{corrected_value}' (confidence: {confidence_score:.2f})"
         )
 
     @staticmethod
     def record_validation(
         db: Session,
-        candidate_id: str,
+        feedback_session_id: str,
         field_name: str,
         parsed_value: str,
         confidence_score: float = 0.8,
@@ -141,7 +141,7 @@ class SLMFeedbackEngine:
         Positive feedback - helps the model understand what it's doing right.
         """
         feedback = SLMFeedback(
-            candidate_id=candidate_id,
+            feedback_session_id=feedback_session_id,
             field_name=field_name,
             parsed_value=parsed_value,
             corrected_value=parsed_value,  # Same = validated
@@ -152,7 +152,7 @@ class SLMFeedbackEngine:
         db.add(feedback)
         db.flush()
 
-        logger.debug(f"[SLMFeedback] Validated {candidate_id}.{field_name}: '{parsed_value}'")
+        logger.debug(f"[SLMFeedback] Validated session {feedback_session_id}.{field_name}: '{parsed_value}'")
 
     @staticmethod
     def get_feedback_stats(db: Session, days: int = 7) -> Dict:
