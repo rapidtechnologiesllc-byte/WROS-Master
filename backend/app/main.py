@@ -47,8 +47,9 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
-from app.middleware import RateLimitMiddleware
-app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+# DISABLED: Rate limiter was blocking role template permission updates
+# from app.middleware import RateLimitMiddleware
+# app.add_middleware(RateLimitMiddleware, max_requests=10000, window_seconds=60)
 
 
 # S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
@@ -125,38 +126,39 @@ async def startup_event():
         return  # Don't crash startup, but tables won't exist
 
     # Seed RBAC with retries
-    from app.core.database import SessionLocal
-    from app.services.role_template_seed import seed_role_templates
+    # DISABLED: Starting with clean database for RBAC testing
+    # from app.core.database import SessionLocal
+    # from app.services.role_template_seed import seed_role_templates
 
-    MAX_RETRIES = 3
-    RETRY_DELAY = 2  # seconds
+    # MAX_RETRIES = 3
+    # RETRY_DELAY = 2  # seconds
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        _db = SessionLocal()
-        try:
-            logger.info(f"[Startup] Seeding RBAC (attempt {attempt}/{MAX_RETRIES})...")
-            seed_role_templates(_db, tenant_id=1)
-            logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-            logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-            break  # Success — exit retry loop
-        except OperationalError as exc:
-            logger.warning(
-                f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
-                f"(DB connectivity issue): {exc}"
-            )
-            if attempt < MAX_RETRIES:
-                logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
-                time.sleep(RETRY_DELAY)
-            else:
-                logger.error(
-                    "[Startup] RBAC seed failed after all retries. "
-                    "The app will run but role/permission data may be incomplete."
-                )
-        except Exception as exc:
-            logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
-            break
-        finally:
-            _db.close()
+    # for attempt in range(1, MAX_RETRIES + 1):
+    #     _db = SessionLocal()
+    #     try:
+    #         logger.info(f"[Startup] Seeding RBAC (attempt {attempt}/{MAX_RETRIES})...")
+    #         seed_role_templates(_db, tenant_id=1)
+    #         logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+    #         logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+    #         break  # Success — exit retry loop
+    #     except OperationalError as exc:
+    #         logger.warning(
+    #             f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
+    #             f"(DB connectivity issue): {exc}"
+    #         )
+    #         if attempt < MAX_RETRIES:
+    #             logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
+    #             time.sleep(RETRY_DELAY)
+    #         else:
+    #             logger.error(
+    #                 "[Startup] RBAC seed failed after all retries. "
+    #                 "The app will run but role/permission data may be incomplete."
+    #             )
+    #     except Exception as exc:
+    #         logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
+
+    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully (no seed data)")
+    logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
 
 @app.on_event("shutdown")

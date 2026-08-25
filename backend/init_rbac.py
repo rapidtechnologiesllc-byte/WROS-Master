@@ -19,7 +19,7 @@ def init_rbac():
         result = db.execute(text("SELECT id FROM tenants WHERE name = 'BlitzenX' LIMIT 1"))
         tenant = result.scalar()
         if not tenant:
-            db.execute(text("INSERT INTO tenants (name, is_active) VALUES ('BlitzenX', 1)"))
+            db.execute(text("INSERT INTO tenants (name, is_active) VALUES ('BlitzenX', true)"))
             db.commit()
             result = db.execute(text("SELECT id FROM tenants WHERE name = 'BlitzenX' LIMIT 1"))
             tenant = result.scalar()

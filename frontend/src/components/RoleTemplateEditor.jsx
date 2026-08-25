@@ -60,7 +60,10 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     setPermissions(prev => ({
       ...prev,
       [resourceName]: {
-        ...prev[resourceName],
+        view: prev[resourceName]?.view ?? false,
+        create: prev[resourceName]?.create ?? false,
+        edit: prev[resourceName]?.edit ?? false,
+        delete: prev[resourceName]?.delete ?? false,
         [action]: !prev[resourceName]?.[action]
       }
     }));
@@ -85,6 +88,9 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       const newPerms = { ...permissions };
       resources.forEach(resource => {
         const resName = resource.name || resource.resource_name;
+        if (!newPerms[resName]) {
+          newPerms[resName] = {};
+        }
         ['view', 'create', 'edit', 'delete'].forEach(action => {
           newPerms[resName][action] = false;
         });
@@ -151,7 +157,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           // If search fails, continue with creation (endpoint may not support search)
         }
 
-        const response = await apiRequest('/api/admin/users-access-control/role-templates', {
+        const response = await apiRequest('/admin/role-templates', {
           method: 'POST',
           body: JSON.stringify({
             name: formData.name,
@@ -372,7 +378,12 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                               <p className="text-xs text-gray-600">{enabledCount}/{totalPossible} permissions</p>
                             </div>
                           </div>
-                          {/* Toggle button with proper color coding */}
+                          {/* Toggle button with proper color coding
+                            Red: No permissions enabled
+                            Amber/Yellow: Some permissions enabled (partial)
+                            Green: All permissions enabled
+                            Used to track state: checkbox status → permissions state → grant/revoke calls
+                        */}
                           <button
                             onClick={() => {
                               setExpandedModules(prev => ({
