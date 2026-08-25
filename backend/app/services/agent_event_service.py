@@ -155,7 +155,8 @@ class AgentEventService:
             ]
 
         except Exception as e:
-            return []
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Failed to get pending events for agent {agent_name}: {str(e)}")
 
     @staticmethod
     def consume_event(
