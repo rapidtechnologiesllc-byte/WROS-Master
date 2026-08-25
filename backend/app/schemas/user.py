@@ -377,7 +377,7 @@ class HrMeResponse(BaseModel):
     user_role: str
     job_title: Optional[str] = None
     permission_role: Optional[str] = None
-    role_id: Optional[int] = None
+    role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
     created_at: datetime
     access_token: str
@@ -560,7 +560,7 @@ class SingleUserResponse(BaseModel):
     user_role: str
     job_title: Optional[str] = None
     permission_role: Optional[str] = None
-    role_id: Optional[int] = None
+    role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
     created_at: datetime
 

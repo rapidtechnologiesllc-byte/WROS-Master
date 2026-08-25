@@ -49,7 +49,7 @@ class UserCreateRequest(BaseModel):
     user_password: str
     job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
-    role_ids: List[int] = []
+    role_template_id: int
 
 class UserUpdateRequest(BaseModel):
     user_name: Optional[str] = None
@@ -131,12 +131,15 @@ def create_user(
     - user_password: User's password (required)
     - job_title: User's job title (optional)
     - business_unit_id: Business unit to assign user to (optional)
-    - role_ids: List of role IDs to assign to user (optional)
+    - role_template_id: Role template ID to assign to user (required)
     """
 
     # Validate input
     if not req.user_name or not req.user_email or not req.user_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name, email, and password are required")
+
+    if not req.role_template_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role template is required")
 
     # Check if user already exists
     existing = db.query(Users).filter(Users.UserEmail == req.user_email).first()
@@ -152,9 +155,10 @@ def create_user(
         UserName=req.user_name,
         UserEmail=req.user_email,
         UserPassword=get_password_hash(req.user_password),
-        UserRole=req.role_ids[0] if req.role_ids else "RECRUITER",  # Set default role
+        UserRole="User",  # Default legacy role
         job_title=req.job_title,
         business_unit_id=req.business_unit_id,
+        role_template_id=req.role_template_id,  # Assign role template
         is_active=True,
         tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
     )
@@ -853,8 +857,7 @@ def delete_role_template(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role template not found")
 
     # Check if template is in use
-    from app.models.user import UserRole
-    in_use = db.query(UserRole).filter(UserRole.role_template_id == template_id).first()
+    in_use = db.query(Users).filter(Users.role_template_id == template_id).first()
     if in_use:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete role template in use")
 

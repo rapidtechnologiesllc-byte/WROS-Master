@@ -46,7 +46,7 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.audit_log import AuditLog
 from app.models.consent import ConsentRecord
-from app.models.user import Users, Jobs, UserRole, CandidateAssignment, InterviewPanel, PanelMember, Interview, InterviewFeedback
+from app.models.user import Users, Jobs, CandidateAssignment, InterviewPanel, PanelMember, Interview, InterviewFeedback
 from app.models.candidate import Candidate, CandidateInfoForm, CandidateEducationForm, CandidateExperienceForm, CandidateAadharForm, CandidatePanForm, CandidateStatus, CandidateJobApplication
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
