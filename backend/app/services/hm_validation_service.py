@@ -337,7 +337,8 @@ class HMValidationService:
 
         except Exception as e:
             logger.error(f"Error generating interview briefing: {str(e)}")
-            return {}
+            # CRITICAL FIX: Raise error instead of returning empty dict
+            raise Exception(f"Failed to generate interview briefing: {str(e)}")
 
     async def get_pending_validations(
         self,
@@ -360,4 +361,5 @@ class HMValidationService:
 
         except Exception as e:
             logger.error(f"Error fetching pending validations: {str(e)}")
-            return []
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Failed to fetch pending validations: {str(e)}")

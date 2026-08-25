@@ -263,7 +263,8 @@ class EmployeeReferralService:
             return result
 
         except Exception as e:
-            return []
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Failed to get pending bonuses: {str(e)}")
 
     @staticmethod
     def notify_finance_about_bonus(
