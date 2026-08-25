@@ -41,9 +41,8 @@ class UnifiedLoginRequest(BaseModel):
 
 
 class ValidateEmailRequest(BaseModel):
-    """STRICT: Email validation request - must have email, can have password"""
+    """STRICT: Email validation request - Step 1 of login, only email needed"""
     email: EmailStr = Field(..., description="Email to validate")
-    password: str = Field(default="", description="Optional password for Step 2")
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
