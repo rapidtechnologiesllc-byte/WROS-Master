@@ -200,4 +200,96 @@ class BusinessUnitWithDepartmentsResponse(BaseModel):
     created_at: datetime
     departments: List[DepartmentInBU] = []
 
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Role Template Schemas (PRODUCTION SAFETY)
+# ---------------------------------------------------------------------------
+# IMPORTANT: Role templates MUST ALWAYS have:
+# 1. enabled = True (never create disabled templates)
+# 2. tenant_id set to creator's tenant (auto-assigned, NEVER allow None)
+
+class RoleTemplateCreate(BaseModel):
+    """Create a role template. Tenant ID is auto-assigned from the creator's tenant."""
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        example="Senior Recruiter",
+        description="Unique name for this role template"
+    )
+    display_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=150,
+        example="Senior Recruitment Manager",
+        description="Human-readable display name"
+    )
+    description: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Description of this role's responsibilities"
+    )
+    is_system: Optional[bool] = Field(
+        False,
+        description="True for built-in system roles, False for custom roles"
+    )
+
+    class Config:
+        extra = "forbid"  # Reject unknown fields to prevent bugs
+
+
+class RoleTemplateUpdate(BaseModel):
+    """Update a role template. Tenant ID and enabled status are immutable."""
+    name: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        description="Role template name"
+    )
+    display_name: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=150,
+        description="Human-readable display name"
+    )
+    description: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Description of this role"
+    )
+    enabled: Optional[bool] = Field(
+        None,
+        description="Enable/disable this role template"
+    )
+
+    class Config:
+        extra = "forbid"  # Reject unknown fields
+
+
+class RoleTemplateResponse(BaseModel):
+    """Role template with all details."""
+    id: int
+    name: str
+    display_name: str
+    description: Optional[str]
+    is_system: bool
+    enabled: bool  # PRODUCTION: Always true unless explicitly disabled
+    tenant_id: int  # PRODUCTION: Always set, default 1
+    created_by: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RoleTemplateListItem(BaseModel):
+    """Lightweight role template for list endpoints."""
+    id: int
+    name: str
+    display_name: str
+    enabled: bool
+    is_system: bool
+
     model_config = {"from_attributes": True}

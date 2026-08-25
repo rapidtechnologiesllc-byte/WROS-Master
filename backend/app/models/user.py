@@ -21,11 +21,11 @@ class Users(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     job_title = Column(String(150), nullable=True)  # e.g., "CEO", "Developer", "HR Manager"
     department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
-    # HRMS-0109 — nullable for the same reason: existing rows get backfilled
-    # in a follow-up step, not broken by this migration. Every tenant-scoped
-    # query must filter on this column via app.core.tenant_context, never
-    # trust a tenant id supplied by the caller.
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
+    # All new users get tenant_id from creator's tenant (fallback to 1)
+    # Every tenant-scoped query must filter on this column via app.core.tenant_context,
+    # never trust a tenant id supplied by the caller.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
     # Phase 1 B3 — MFA. mfa_enabled starts False for every existing row;
     # mfa_secret is populated at enrollment, never before. See
     # app.core.mfa -- enforcement itself is behind a separate,

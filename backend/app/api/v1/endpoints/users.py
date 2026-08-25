@@ -593,7 +593,7 @@ def get_assigned_interviews(
 def create_user(
     request: SignupRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_hr_or_admin)
 ):
     """
     Create a new internal user (HR, Admin, etc.).
@@ -604,12 +604,17 @@ def create_user(
     existing = check_user(db, request.user_email)
     if existing:
         raise HTTPException(status_code=400, detail=f"User with email {request.user_email} already exists")
+
+    # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
+    tenant_id = current_user.tenant_id or 1
+
     new_user = Users(
         UserID=user_id_generator(),
         UserName=request.user_name,
         UserEmail=request.user_email,
         UserPassword=get_password_hash(request.user_password),
-        UserRole=request.user_role
+        UserRole=request.user_role,
+        tenant_id=tenant_id  # PRODUCTION: Always set from creator's tenant or default to 1
     )
     db.add(new_user)
     db.commit()
@@ -660,12 +665,17 @@ def create_user_with_roles(
     if existing:
         raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
 
+    # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
+    # This ensures new users are never created without a tenant
+    tenant_id = current_user.tenant_id or 1
+
     new_user = Users(
         UserID=user_id_generator(),
         UserName=user_name,
         UserEmail=user_email,
         UserPassword=get_password_hash(user_password),
-        UserRole="Admin"  # Default role
+        UserRole="Admin",  # Default role
+        tenant_id=tenant_id  # PRODUCTION: Always set from creator's tenant or default to 1
     )
 
     # Set job_title if provided

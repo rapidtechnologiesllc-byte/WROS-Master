@@ -144,7 +144,7 @@ class NavigationResponse(BaseModel):
 # ============================================================================
 
 MODULES_AND_RESOURCES = {
-    "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals"],
+    "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "ask-flash"],
     "Recruitment": ["candidates", "jobs", "submissions", "interviews", "offer-letters",
                     "intervention-queue", "rehire-approval", "candidate-review",
                     "risk-dashboard", "thunder-analytics", "bulk-launch"],
@@ -164,7 +164,7 @@ MODULES_AND_RESOURCES = {
                   "admin-agent-state", "admin-weekly-recap", "bu-head-dashboard"],
     "Admin": ["users-access-control", "admin-settings", "certifications"],
     "Executive Dashboards": ["ceo-dashboard-view", "cfo-dashboard-view", "partner-dashboard-view", "bu-head-dashboard-view"],
-    "AI & Automation": ["ask-thunder", "thunder-analytics", "ask-flash", "ai-coaching", "slm-dashboard"],
+    "AI & Automation": ["ask-thunder", "ai-coaching", "slm-dashboard"],
 }
 
 
