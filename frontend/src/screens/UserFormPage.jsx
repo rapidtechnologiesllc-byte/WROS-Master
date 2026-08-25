@@ -76,6 +76,7 @@ export default function UserFormPage() {
 
       if (user) {
         console.log('[DEBUG] loadUserData: User found, loaded from users list');
+        console.log('[DEBUG] loadUserData: job_title =', user.job_title, 'role_template_id =', user.role_template_id);
 
         setFormData({
           user_name: user.user_name || '',
@@ -85,6 +86,8 @@ export default function UserFormPage() {
           business_unit_id: user.business_unit_id || '',
           role_template_id: user.role_template_id || ''
         });
+
+        console.log('[DEBUG] loadUserData: formData set to:', { job_title: user.job_title, role_template_id: user.role_template_id });
       } else {
         console.log('[DEBUG] loadUserData: User not found - showing error and navigating');
         toast.error('User not found');
