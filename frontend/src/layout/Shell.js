@@ -114,18 +114,25 @@ const RESOURCE_KEY_TO_PATH = {
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
   const { apiRequest } = await import("../services/api/client");
+  console.debug("Fetching navigation from /hr/me/navigation...");
+
   const result = await apiRequest("/hr/me/navigation", { method: "GET" });
+  console.debug("Navigation API response:", result?.data);
 
   // apiRequest returns { data, response } where data is already parsed JSON
   // Backend returns { data: { groups: [...] } }
   const navData = result?.data?.data;
+  console.debug("Extracted navData:", navData);
+
   if (!navData) {
     throw new Error("Navigation response missing data structure");
   }
 
   if (!navData.groups || !Array.isArray(navData.groups)) {
-    throw new Error("Navigation response missing or invalid groups array");
+    throw new Error(`Navigation response missing or invalid groups array. navData.groups=${navData.groups}`);
   }
+
+  console.debug(`Processing ${navData.groups.length} groups...`);
 
   // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
   // Transform items to use route for navigation - REQUIRES all fields to be present
