@@ -845,7 +845,8 @@ def read_candidate_replies(
         raise
     except Exception as exc:
         logger.error(f"[AIAgent] Graph inbox read failed: {exc}")
-        return []
+        # CRITICAL FIX: Raise error instead of returning empty list
+        raise Exception(f"Graph API failed to read inbox: {str(exc)}")
 
 
 def read_all_inbox(

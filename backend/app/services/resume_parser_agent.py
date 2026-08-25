@@ -62,7 +62,8 @@ class ResumeParsedAgent:
             return []
         except Exception as e:
             logger.error(f"Failed to extract skills: {e}")
-            return None
+            # CRITICAL FIX: Raise error instead of returning None
+            raise Exception(f"Failed to extract skills from resume: {str(e)}")
 
     async def extract_experience(self, resume_text: str) -> Optional[list]:
         """
@@ -79,7 +80,8 @@ class ResumeParsedAgent:
             return []
         except Exception as e:
             logger.error(f"Failed to extract experience: {e}")
-            return None
+            # CRITICAL FIX: Raise error instead of returning None
+            raise Exception(f"Failed to extract experience from resume: {str(e)}")
 
     async def extract_education(self, resume_text: str) -> Optional[list]:
         """
@@ -96,4 +98,5 @@ class ResumeParsedAgent:
             return []
         except Exception as e:
             logger.error(f"Failed to extract education: {e}")
-            return None
+            # CRITICAL FIX: Raise error instead of returning None
+            raise Exception(f"Failed to extract education from resume: {str(e)}")

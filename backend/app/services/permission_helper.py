@@ -111,7 +111,8 @@ class PermissionHelper:
         ).first()
 
         if not user or not user.role_template_id:
-            return []
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Cannot determine user modules: user not found or missing role template for user_id={user_id}")
 
         modules = set()
 

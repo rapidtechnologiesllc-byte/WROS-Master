@@ -201,12 +201,14 @@ class RoleTemplatePermissionService:
         try:
             # Validate input
             if not user_id:
-                return {}
+                # CRITICAL FIX: Raise error instead of returning empty dict
+                raise Exception(f"Cannot get user permissions: user_id is required")
 
             # Get user's role template
             role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
             if not role:
-                return {}
+                # CRITICAL FIX: Raise error instead of returning empty dict
+                raise Exception(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
             # Get all resources for this tenant
             resources = db.query(Resource).filter(
@@ -215,7 +217,8 @@ class RoleTemplatePermissionService:
             ).all()
 
             if not resources:
-                return {}
+                # CRITICAL FIX: Raise error instead of returning empty dict
+                raise Exception(f"Cannot get user permissions: no resources found for tenant_id={tenant_id}")
 
             # Get all role template permissions for this role
             role_perms = db.query(RoleTemplatePermission).filter(
@@ -278,4 +281,5 @@ class RoleTemplatePermissionService:
 
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            return {}
+            # CRITICAL FIX: Raise error instead of returning empty dict
+            raise Exception(f"Failed to get user permissions for user_id={user_id}: {str(e)}")

@@ -464,4 +464,5 @@ class CandidateScoringService:
             return [skills_json.lower().strip()]
         except Exception as e:
             logger.warning(f"Error parsing skills: {e}")
-            return []
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Failed to parse candidate skills: {str(e)}")
