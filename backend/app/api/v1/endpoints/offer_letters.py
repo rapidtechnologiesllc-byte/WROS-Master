@@ -221,6 +221,12 @@ def respond_to_offer(
 
     # â”€â”€ Pool ownership transition: candidate rejects offer â†’ Org Pool â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if request.action.lower() == "reject":
+        # BU Lifecycle: Revert to org-wide (NULL) on offer decline
+        candidate_record = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
+        if candidate_record:
+            candidate_record.associated_bu_id = None
+            db.commit()
+
         from app.services.candidate_pool_service import set_org_pool
         set_org_pool(
             candidate_id=offer.candidate_id,

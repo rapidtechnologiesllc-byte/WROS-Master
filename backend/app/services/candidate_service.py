@@ -107,6 +107,7 @@ def create_candidate_safe(
         candidatePassword=get_password_hash(plain_password),
         candidateTempPassword=plain_password,
         candidateIsVerified=False,
+        associated_bu_id=None,  # BU lifecycle: New candidates are org-wide (NULL)
         **fields,
     )
     db.add(candidate)
