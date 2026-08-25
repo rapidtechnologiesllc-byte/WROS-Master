@@ -75,6 +75,10 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     }
     """
     try:
+        import sys
+        print("[NAV-ENDPOINT-CALLED]", file=sys.stderr)
+        sys.stderr.flush()
+
         logger.warning("[NAV-FIX] Starting navigation with resource_name fix active")
         # Get user ID
         if hasattr(current_user, 'UserID'):
@@ -87,8 +91,13 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
+        print(f"[NAV-USER-ID] {user_id}", file=sys.stderr)
+        sys.stderr.flush()
+
         # Load module/resource structure from init_resources.py
         from app.seeds.init_resources import MODULES_AND_RESOURCES, RESOURCE_ROUTES
+        print(f"[NAV-LOADED] MODULES_AND_RESOURCES has {len(MODULES_AND_RESOURCES)} modules", file=sys.stderr)
+        sys.stderr.flush()
 
         navigation_modules = {}
         module_icons = {
@@ -99,6 +108,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         }
 
         # Build navigation from init_resources
+        import sys
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
             module_icon = module_icons.get(module_name, "Briefcase")
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
@@ -109,9 +119,10 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 # Permission checks must use original resource_name from contract
                 can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
 
-                # DEBUG: Log permission checks for missing modules
-                if module_name in ["Executive", "Executive Dashboards", "AI & Automation"]:
-                    logger.warning(f"[NAV-DEBUG] {module_name} - {resource_name}: can_view={can_view}")
+                # DEBUG: Test for missing modules
+                if module_name == "Executive" and resource_name == "ceo-dashboard":
+                    print(f"[TEST] Executive:ceo-dashboard can_view={can_view}", file=sys.stderr)
+                    sys.stderr.flush()
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
@@ -133,6 +144,6 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
 
     except Exception as e:
         logger.error(f"Navigation error: {e}", exc_info=True)
-        response = {"data": {"groups": []}}
-        logger.warning(f"[NAV] Error response: {response}")
-        return response
+        # Do NOT return fallback empty response - let error propagate
+        # ALL navigation should be fully dynamic, no hardcoded fallbacks
+        raise
