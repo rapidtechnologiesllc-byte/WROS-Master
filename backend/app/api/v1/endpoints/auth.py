@@ -37,7 +37,7 @@ from app.services.role_template_permission_service import RoleTemplatePermission
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse
-from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, validate_login_request, validate_login_response
+from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, ValidateEmailRequest, validate_login_request, validate_login_response
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -99,10 +99,11 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     return SignupResponse(response="User created successfully")
     
 @router.post("/validate-email")
-def validate_email(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
+def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db)):
     """
     Validate if an email exists as an employee user.
     Returns {exists: true/false} so frontend can show appropriate error.
+    Password field is optional (only used if provided for Step 2).
     """
     email = request.email.strip().lower()
     user = check_user(db, email)
