@@ -1125,6 +1125,33 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
 
+        # ── Every 30 min: SLM_IMPROVEMENT_CYCLE (Self-Learning Model) ───────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.slm_daily_improvement import SLMImprovementScheduler
+
+            def _run_slm_improvement():
+                db = SessionLocal()
+                try:
+                    result = SLMImprovementScheduler.run_and_report(db)
+                    if result.get("corrections_processed") > 0 or result.get("outcomes_processed") > 0:
+                        logger.info(f"[scheduler] SLM improvement: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] SLM improvement error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_slm_improvement,
+                trigger="interval",
+                minutes=30,
+                id="slm_improvement_30min",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled SLM improvement cycle (every 30 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register SLM improvement scheduler: {exc}")
+
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""

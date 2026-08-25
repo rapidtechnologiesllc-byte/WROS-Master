@@ -49,7 +49,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 # Auto-approval logic
 # ---------------------------------------------------------------------------
 
-# Roles that can publish jobs immediately — no approval workflow needed
+# Roles that can publish jobs immediately - no approval workflow needed
 AUTO_APPROVE_ROLES = {"super user", "bu head", "hiring manager"}
 
 def _can_auto_approve_job(user) -> bool:
@@ -419,7 +419,7 @@ def get_my_jobs(
     - **Hiring Manager** (`hiringManagerID`)
     - **Contact Person** (`contactPerson`)
 
-    All three roles are checked with OR logic — a job appears once even if
+    All three roles are checked with OR logic - a job appears once even if
     the user matches more than one column.
     """
     from sqlalchemy import or_
@@ -560,9 +560,9 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     """
     Create a new job posting.
 
-    Job status is determined by the creator's role — it is NOT taken from the request body.
-    - Super User / BU Head / Hiring Manager → published immediately (status: active)
-    - All other roles (HR, HRBP, Recruiter, etc.) → saved as draft (status: pending_approval)
+    Job status is determined by the creator's role - it is NOT taken from the request body.
+    - Super User / BU Head / Hiring Manager -> published immediately (status: active)
+    - All other roles (HR, HRBP, Recruiter, etc.) -> saved as draft (status: pending_approval)
 
     Args:
         request: JobCreateRequest containing job details
@@ -649,6 +649,27 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     db.commit()
     db.refresh(job)
 
+    # Wire SLM: Store job metadata for continuous learning
+    try:
+        from app.services.slm_job_metadata_service import SLMJobMetadataService
+
+        SLMJobMetadataService.store_job_metadata(
+            db=db,
+            job_id=job_id,
+            job_title=request.job_title,
+            job_description=request.job_description,
+            business_unit_id=request.business_unit,
+            department=request.department_id,
+            required_skills=request.job_skills.split(',') if request.job_skills else None,
+            min_experience_months=None,
+            max_experience_months=None,
+            created_by=user.UserID
+        )
+        logger.info(f"[SLM] Stored metadata for job: {job_id} ({request.job_title})")
+    except Exception as e:
+        logger.error(f"[SLM] Failed to store job metadata: {e}", exc_info=True)
+        # Continue - SLM failure shouldn't block job creation
+
     if job_status == "active":
         # Real trigger, never a scheduled poll -- a newly PUBLISHED job
         # is exactly the "real match might now exist" event per
@@ -702,7 +723,7 @@ def approve_job(
     if job.jobStatus != "pending_approval":
         raise HTTPException(
             status_code=400,
-            detail=f"Job cannot be approved — current status is '{job.jobStatus}'. Only 'pending_approval' jobs can be approved."
+            detail=f"Job cannot be approved - current status is '{job.jobStatus}'. Only 'pending_approval' jobs can be approved."
         )
 
     job.jobStatus = "active"
@@ -939,7 +960,7 @@ def post_job_on_linkedin(
     "/{job_id}/apply",
     response_model=JobApplicationResponse,
     status_code=201,
-    summary="Apply for a job (public — no auth required)",
+    summary="Apply for a job (public - no auth required)",
 )
 async def apply_for_job(
     job_id: str,
@@ -961,7 +982,7 @@ async def apply_for_job(
     db: Session = Depends(get_db),
 ):
     """
-    Public endpoint — no authentication required.
+    Public endpoint - no authentication required.
 
     Submit a job application for a specific open job.
     Education and experience are provided as JSON-encoded strings in the form body.
@@ -974,7 +995,7 @@ async def apply_for_job(
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     if job.jobStatus.lower() not in ("active", "public"):
         raise HTTPException(status_code=400, detail="This job is not open for applications")
-    # 2. Duplicate-application check — R-07: email/phone/LinkedIn each
+    # 2. Duplicate-application check - R-07: email/phone/LinkedIn each
     # checked independently (createCandidateSafe()'s dedup runs again,
     # redundantly but harmlessly, at actual creation time below).
     existing, _matched_on = find_duplicate_candidate(db, email=email, mobile=phone)
@@ -1082,15 +1103,15 @@ async def apply_for_job(
 
     # 12. Upload resume to SharePoint (if provided)
     #     _upload_document_helper handles validation, Graph token, SP upload,
-    #     and CandidateDocument metadata — exactly like the HR upload endpoint.
+    #     and CandidateDocument metadata - exactly like the HR upload endpoint.
     if resume and resume.filename:
         try:
             await _upload_document_helper(resume, "resume", candidate, db)
         except HTTPException:
-            # If SP upload fails we don't roll back the application — just surface the error
+            # If SP upload fails we don't roll back the application - just surface the error
             raise
 
-    # 13. Fire ATS scoring in the background — does NOT block the response
+    # 13. Fire ATS scoring in the background - does NOT block the response
     # 2026-08-05 real fix: must NOT pass this request's own `db` (or ORM
     # objects bound to it) into a BackgroundTask -- the session is closed
     # before the task runs. See ats.run_ats_scoring_in_background()'s own
@@ -1130,7 +1151,7 @@ def assign_candidate_to_job(
 ):
     """
     Link a candidate to the given job (or switch them to a different job).
-    The operation is idempotent — assigning the same job twice is safe.
+    The operation is idempotent - assigning the same job twice is safe.
     To move a candidate to another job, call this endpoint with the new job_id.
     Raises 404 if either the job or candidate does not exist.
     """
@@ -1169,7 +1190,7 @@ def assign_candidate_to_job(
             performed_by_id=performed_by,
         )
         db.commit()
-    # If no BU on job — candidate stays in Org Pool (no change needed)
+    # If no BU on job - candidate stays in Org Pool (no change needed)
 
     return CandidateJobSummary(
         candidate_id=candidate.candidateID,
@@ -1204,12 +1225,12 @@ def unassign_candidate_from_job(
     db.commit()
     db.refresh(candidate)
 
-    # ── Pool ownership transition: unassigned → Org Pool ─────────────────────
+    # ── Pool ownership transition: unassigned -> Org Pool ─────────────────────
     from app.services.candidate_pool_service import set_org_pool
     performed_by = getattr(user, 'UserID', None)
     set_org_pool(
         candidate_id=candidate_id,
-        reason="Unassigned from job — returned to Org Pool",
+        reason="Unassigned from job - returned to Org Pool",
         db=db,
         performed_by_id=performed_by,
     )
@@ -1530,9 +1551,9 @@ def get_job_statistics(
     Return aggregated application statistics for a specific job.
 
     **Includes:**
-    - `total_applications` — total candidates assigned via the multi-job table
-    - `applied`, `shortlisted`, `interview`, `offered`, `hired`, `rejected` — named counts
-    - `status_breakdown` — full list of every status with its count (covers custom statuses)
+    - `total_applications` - total candidates assigned via the multi-job table
+    - `applied`, `shortlisted`, `interview`, `offered`, `hired`, `rejected` - named counts
+    - `status_breakdown` - full list of every status with its count (covers custom statuses)
 
     Returns **404** if the job does not exist.
     """
