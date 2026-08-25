@@ -750,6 +750,8 @@ def update_user_with_roles(
         user_name=target.UserName or "",
         user_email=target.UserEmail,
         user_role=target.UserRole,
+        job_title=target.job_title,
+        role_template_id=target.role_template_id,
         created_at=target.CreatedAt
     )
 
