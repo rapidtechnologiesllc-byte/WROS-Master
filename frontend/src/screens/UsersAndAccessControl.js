@@ -296,7 +296,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           { header: "Name", accessor: "user_name", key: "name" },
           { header: "Email", accessor: "user_email", key: "email" },
           { header: "Job Title", accessor: "job_title", key: "job_title" },
-          { header: "Role Template", accessor: "role_template_name", key: "role_template" },
+          { header: "Role Template", accessor: "permission_role", key: "role_template" },
           {
             header: "Actions",
             key: "actions",
