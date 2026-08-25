@@ -7,7 +7,7 @@ Used by all service layer files to replace hardcoded role filters.
 from typing import List
 from sqlalchemy.orm import Session
 
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplateModuleAccess, Module
 
 
@@ -28,9 +28,7 @@ def get_users_with_permission(permission: str, db: Session, tenant_id: int = 1) 
     resource, action = permission.lower().split('.', 1)
 
     return db.query(Users).join(
-        UserRole, Users.UserID == UserRole.user_id
-    ).join(
-        RoleTemplate, UserRole.role_template_id == RoleTemplate.id
+        RoleTemplate, Users.role_template_id == RoleTemplate.id
     ).join(
         RoleTemplateModuleAccess, RoleTemplate.id == RoleTemplateModuleAccess.role_template_id
     ).join(

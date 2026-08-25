@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_hr_or_admin, require_resource_permission, get_current_internal_user
-from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
+from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
@@ -105,7 +105,7 @@ def get_me(
         user_role=current_user.UserRole,
         job_title=current_user.job_title,
         permission_role=roles_list[0] if roles_list else None,
-        role_id=current_user.role_template_id,
+        role_template_id=current_user.role_template_id,
         business_unit_id=current_user.business_unit_id,
         created_at=current_user.CreatedAt,
         access_token=access_token,
@@ -709,12 +709,9 @@ def update_user_with_roles(
     current_user: Users = Depends(get_current_hr_or_admin)
 ):
     """
-    Update a user with roles, job title, partner, and business unit.
+    Update a user with role template (single), job title, partner, and business unit.
     Requires permission: user.manage
     """
-    from app.models.user import UserRole
-    from app.core.tenant_context import get_tenant_id
-
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
@@ -728,21 +725,9 @@ def update_user_with_roles(
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
 
-    # Handle role updates: delete old roles and create new ones
-    if request.role_ids is not None:
-        # Delete existing UserRole records
-        db.query(UserRole).filter(UserRole.user_id == user_id).delete()
-
-        # Create new UserRole records for each role_id
-        tenant_id = get_tenant_id()
-        for role_id in request.role_ids:
-            user_role = UserRole(
-                user_id=user_id,
-                role_template_id=role_id,
-                business_unit_id=request.business_unit_id or target.business_unit_id,
-                tenant_id=tenant_id
-            )
-            db.add(user_role)
+    # Handle role template update: set single role_template_id on user
+    if request.role_template_id is not None:
+        target.role_template_id = request.role_template_id
 
     db.commit()
     db.refresh(target)

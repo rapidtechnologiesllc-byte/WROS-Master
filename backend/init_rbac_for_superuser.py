@@ -7,7 +7,7 @@ os.environ['DATABASE_URL'] = 'postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localho
 from sqlalchemy import event, create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models.role_template import RoleTemplate, Resource, RoleTemplatePermission, Module
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.tenant import Tenant
 
 engine = create_engine('postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/onboarding_prod')
@@ -153,22 +153,10 @@ try:
     print("\n[7] Assigning super user to Super User role...")
     super_user = db.query(Users).filter(Users.UserEmail == 'superuser@blitzenx.com').first()
     if super_user:
-        # Check if already assigned
-        existing = db.query(UserRole).filter(
-            UserRole.user_id == super_user.UserID,
-            UserRole.role_template_id == super_admin_role_id
-        ).first()
-
-        if existing:
+        if super_user.role_template_id == super_admin_role_id:
             print("[OK] Super user already assigned to Super User role")
         else:
-            user_role = UserRole(
-                user_id=super_user.UserID,
-                role_template_id=super_admin_role_id,
-                tenant_id=1,
-                business_unit_id=None
-            )
-            db.add(user_role)
+            super_user.role_template_id = super_admin_role_id
             db.commit()
             print("[OK] Super user assigned to Super User role")
     else:
@@ -178,21 +166,10 @@ try:
     print("\n[8] Assigning recruiter to Recruiter role...")
     recruiter = db.query(Users).filter(Users.UserEmail == 'recruiter@test.com').first()
     if recruiter:
-        existing = db.query(UserRole).filter(
-            UserRole.user_id == recruiter.UserID,
-            UserRole.role_template_id == recruiter_role_id
-        ).first()
-
-        if existing:
+        if recruiter.role_template_id == recruiter_role_id:
             print("[OK] Recruiter already assigned to Recruiter role")
         else:
-            user_role = UserRole(
-                user_id=recruiter.UserID,
-                role_template_id=recruiter_role_id,
-                tenant_id=1,
-                business_unit_id=None
-            )
-            db.add(user_role)
+            recruiter.role_template_id = recruiter_role_id
             db.commit()
             print("[OK] Recruiter assigned to Recruiter role")
     else:
