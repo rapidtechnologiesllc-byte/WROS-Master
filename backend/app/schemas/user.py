@@ -483,22 +483,122 @@ class OfferLetterResponse(BaseModel):
     signed_offer_path: str | None = None
 
 class CreateUserWithRolesRequest(BaseModel):
-    user_name: str
-    user_email: str
-    user_password: str
-    job_title: Optional[str] = None
-    partner_id: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    role_template_id: int
+    """
+    Request schema for creating a new user with RBAC role template.
+
+    Required Fields:
+    - user_name: User's display name (required)
+    - user_email: User's email address (required, unique within tenant)
+    - user_password: Initial password (required, min 8 chars)
+    - role_template_id: RBAC role template ID (required)
+
+    Optional Fields:
+    - job_title: User's job position
+    - business_unit_id: Primary business unit assignment
+    - partner_id: Optional partner assignment
+
+    ❌ DEPRECATED FIELDS (DO NOT USE):
+    - user_role: Use role_template_id instead
+    - password: Misspelling of user_password
+
+    Schema Validation:
+    - extra='forbid': Rejects unknown/deprecated fields with 422 error
+    - validate_default: Validates defaults on assignment
+    - min_length: Enforces minimum string lengths
+
+    Example:
+        {
+            "user_name": "John Doe",
+            "user_email": "john@example.com",
+            "user_password": "SecurePassword123!",
+            "job_title": "Senior Consultant",
+            "role_template_id": 3,
+            "business_unit_id": 1
+        }
+    """
+    user_name: str = Field(..., min_length=1, max_length=255, description="User's display name")
+    user_email: str = Field(..., max_length=255, description="User's unique email within tenant")
+    user_password: str = Field(..., min_length=8, max_length=255, description="Initial password (min 8 chars)")
+    job_title: Optional[str] = Field(None, max_length=255, description="User's job position")
+    partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")
+    business_unit_id: Optional[int] = Field(None, gt=0, description="Primary business unit ID")
+    role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
+
+    class Config:
+        extra = 'forbid'  # STRICT: Reject any unknown fields (catches deprecated fields)
+        validate_default = True
+        json_schema_extra = {
+            "version": "1.0",
+            "deprecated_fields": ["user_role (use role_template_id)", "password (use user_password)"],
+            "notes": "Do NOT attempt to pass user_role or password fields - schema will reject with 422 error"
+        }
 
 class UpdateUserWithRolesRequest(BaseModel):
-    user_name: Optional[str] = None
-    user_email: Optional[str] = None
-    job_title: Optional[str] = None
-    partner_id: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    role_template_id: Optional[int] = None
-    assigned_at: Optional[str] = None
+    """
+    Request schema for updating user account with RBAC role template.
+
+    THIS SCHEMA USES role_template_id FOR RBAC, NOT DEPRECATED user_role FIELD.
+
+    Optional Fields (all optional, update only what's needed):
+    - user_name: User's display name (max 255 chars)
+    - user_email: User's email (max 255 chars)
+    - job_title: User's job position (max 255 chars)
+    - business_unit_id: Primary business unit (must be > 0)
+    - role_template_id: RBAC role template ID (must be > 0)
+    - partner_id: Partner assignment (must be > 0)
+    - assigned_at: ISO 8601 timestamp for role assignment
+
+    ❌ DEPRECATED FIELDS (DO NOT USE):
+    - user_role: REMOVED - use role_template_id instead
+    - user_password: Use password reset endpoint instead
+    - UserID: Read-only, cannot be updated
+    - CreatedAt: Audit field, immutable
+
+    Schema Validation Rules:
+    - extra='forbid': ANY deprecated field is REJECTED with HTTP 422
+    - Field lengths: Enforced (user_name max 255, job_title max 255)
+    - IDs: Must be positive integers (gt=0)
+    - No empty strings allowed (min_length=1 for strings)
+
+    Example Valid Request:
+        {
+            "job_title": "Senior Consultant",
+            "role_template_id": 3,
+            "business_unit_id": 1
+        }
+
+    Example Invalid Request (will be rejected):
+        {
+            "user_role": "Admin"  ← DEPRECATED, returns 422
+        }
+
+    Endpoint Behavior:
+    - If tenant_id is NULL, auto-assigns current_user.tenant_id
+    - Only provided fields are updated (partial update supported)
+    - Response includes updated UserResponse with all fields
+    """
+    user_name: Optional[str] = Field(None, min_length=1, max_length=255, description="User's display name (1-255 chars)")
+    user_email: Optional[str] = Field(None, max_length=255, description="User's email (unique within tenant)")
+    job_title: Optional[str] = Field(None, max_length=255, description="User's job position/title")
+    partner_id: Optional[int] = Field(None, gt=0, description="Partner ID (must be > 0)")
+    business_unit_id: Optional[int] = Field(None, gt=0, description="Business unit ID (must be > 0)")
+    role_template_id: Optional[int] = Field(None, gt=0, description="RBAC role template ID (must be > 0, e.g., 1=SuperUser, 3=Recruiter)")
+    assigned_at: Optional[str] = Field(None, description="ISO 8601 timestamp for role assignment")
+
+    class Config:
+        extra = 'forbid'  # CRITICAL: Reject ANY unknown fields (catches typos, deprecated fields)
+        validate_default = True  # Validate even None values
+        json_schema_extra = {
+            "version": "2.0",
+            "critical_note": "Do NOT use deprecated user_role field - it will be rejected with HTTP 422",
+            "deprecated_fields": [
+                "user_role (REMOVED - use role_template_id instead)",
+                "user_password (use POST /password-reset instead)",
+                "UserID (read-only)",
+                "CreatedAt (audit field, immutable)"
+            ],
+            "auto_fix": "If user has NULL tenant_id, endpoint auto-assigns current_user.tenant_id"
+        }
 
 class OfferAcceptanceRequest(BaseModel):
     offer_id: int
