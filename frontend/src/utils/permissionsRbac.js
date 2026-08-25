@@ -61,15 +61,14 @@ export const hasAllPermissions = (permissions) => {
 
 /**
  * Check if user is super admin (can access everything)
- * @returns {boolean} True if user is super admin
+ * RBAC-driven: Checks for '*.*' permission (only assigned to SuperUser role template)
+ * Not driven by hardcoded role names or is_super_admin field
+ * @returns {boolean} True if user has wildcard permissions
  */
 export const isSuperAdmin = () => {
   try {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return false;
-
-    const user = JSON.parse(userStr);
-    return user.is_super_admin === true;
+    // Check if user has wildcard permission (assigned by SuperUser role template)
+    return hasPermission('*.*');
   } catch (error) {
     console.error('Failed to check super admin status:', error);
     // CRITICAL FIX: Throw security error instead of silent failure

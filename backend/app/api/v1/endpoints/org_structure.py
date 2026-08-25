@@ -99,7 +99,7 @@ def initialize_org_structure(
     response_model=List[OrgPositionResponse],
     summary="List all org positions",
     description="Returns all organizational positions (CEO, Partner, BU Head, etc.)",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+    dependencies=[Depends(get_current_internal_user)],
 )
 def list_org_positions(
     db: Session = Depends(get_db),

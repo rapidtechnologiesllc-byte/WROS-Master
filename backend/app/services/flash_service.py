@@ -477,8 +477,9 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
     def _skill_tags(entry: BenchPoolEntry) -> List[str]:
         try:
             return json.loads(entry.skill_tags) if entry.skill_tags else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.error(f"[Flash] Failed to parse skill_tags for bench entry {entry.id}: {exc}")
+            raise ValueError(f"Invalid JSON in skill_tags: {exc}")
 
     results = []
     for entry, employee in entries:

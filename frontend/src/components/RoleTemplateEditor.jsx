@@ -155,6 +155,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           }
         } catch (err) {
           // If search fails, continue with creation (endpoint may not support search)
+          console.warn(`[RoleTemplateEditor] Template duplicate check failed for "${formData.name}": ${err.message}`, err);
         }
 
         const response = await apiRequest('/admin/role-templates', {
@@ -243,7 +244,9 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
             });
           }
         } catch (err) {
-          console.error(`Failed to ${enabled ? 'grant' : 'revoke'} ${resourceName} ${action}:`, err);
+          const errorMsg = `Failed to ${enabled ? 'grant' : 'revoke'} ${resourceName} ${action}: ${err.message}`;
+          console.error(errorMsg, err);
+          throw new Error(errorMsg);
         }
       }
     }
