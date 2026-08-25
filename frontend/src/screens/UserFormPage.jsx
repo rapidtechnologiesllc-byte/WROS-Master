@@ -146,7 +146,7 @@ export default function UserFormPage() {
 
       if (mode === 'create') {
         payload.user_password = formData.user_password;
-        await apiRequest('/users/create-with-roles', {
+        await apiRequest('/hr/users/create-with-roles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
