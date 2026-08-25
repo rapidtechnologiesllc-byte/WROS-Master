@@ -125,6 +125,18 @@ async def startup_event():
         logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
         return  # Don't crash startup, but tables won't exist
 
+    # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
+    try:
+        logger.info("[Startup] Initializing default organizational positions...")
+        from app.core.database import SessionLocal
+        from app.services.org_structure_service import init_default_positions
+        db = SessionLocal()
+        result = init_default_positions(db)
+        db.close()
+        logger.info(f"[OK] Organizational positions initialized (created: {result['created']}, updated: {result['updated']})")
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
+
     # Seed RBAC with retries
     # DISABLED: Starting with clean database for RBAC testing
     # from app.core.database import SessionLocal

@@ -271,14 +271,17 @@ def list_business_units_for_form(db: Session = Depends(get_db)):
     """List all business units for form dropdown"""
     from app.models.business_unit import BusinessUnit
     units = db.query(BusinessUnit).all()
-    return [
-        {
+    data = []
+    for u in units:
+        item = {
             "id": u.id,
             "name": u.display_name or u.name,
+            "display_name": u.display_name or u.name,
+            "business_unit_name": u.name,
             "code": u.bu_code
         }
-        for u in units
-    ]
+        data.append(item)
+    return data
 
 
 @router.get("/roles")
@@ -290,6 +293,8 @@ def list_roles_for_form(db: Session = Depends(get_db)):
         {
             "id": t.id,
             "name": t.display_name or t.name,
+            "display_name": t.display_name or t.name,
+            "TemplateName": t.name,
             "description": t.description
         }
         for t in templates
