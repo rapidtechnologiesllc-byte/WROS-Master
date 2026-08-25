@@ -1,6 +1,6 @@
 """Role Template management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
@@ -28,6 +28,10 @@ class RoleTemplateCreate(BaseModel):
     display_name: str
     description: Optional[str] = None
     permissions: List[PermissionInput]
+
+
+class ToggleStatusRequest(BaseModel):
+    is_active: bool
 
 
 class GrantRevokePermissionInput(BaseModel):
@@ -473,6 +477,7 @@ def delete_role_template(
 @router.post("/{template_id}/toggle-status")
 def toggle_template_status(
     template_id: int,
+    request: ToggleStatusRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -485,8 +490,8 @@ def toggle_template_status(
     if not template:
         raise HTTPException(status_code=404, detail="Role template not found")
 
-    # Toggle the enabled status
-    template.enabled = not template.enabled
+    # Set enabled status from request
+    template.enabled = request.is_active
     db.add(template)
     db.commit()
     db.refresh(template)
@@ -495,6 +500,7 @@ def toggle_template_status(
         "id": template.id,
         "name": template.name,
         "enabled": template.enabled,
+        "is_active": template.enabled,
         "message": f"Role template {'enabled' if template.enabled else 'disabled'} successfully"
     }
 
