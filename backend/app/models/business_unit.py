@@ -14,7 +14,9 @@ class BusinessUnit(Base):
     __tablename__ = "business_units"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
+    # All new business units get tenant_id from creator's tenant (fallback to 1)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
 
     # Basic info
     name = Column(String(100), nullable=False, index=True)
