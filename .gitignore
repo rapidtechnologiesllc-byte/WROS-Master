@@ -1,5 +1,8 @@
 # Backend
 backend/.env
+backend/.env.local
+backend/.env.production
+backend/.env.*.local
 backend/__pycache__/
 backend/.pytest_cache/
 backend/venv/
@@ -7,6 +10,9 @@ backend/.venv/
 backend/*.pyc
 backend/dist/
 backend/build/
+# CRITICAL: Never commit production credentials to git
+backend/*production*
+backend/*prod*
 
 # Frontend
 frontend/.env.local

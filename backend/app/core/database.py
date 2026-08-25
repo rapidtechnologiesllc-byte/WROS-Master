@@ -11,6 +11,7 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
+from app.core.database_safety import validate_database_url, ProductionDatabaseError
 
 # Load environment configuration
 # Resolve .env relative to this file to handle different CWD scenarios
@@ -18,7 +19,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 
-# Get database URL from environment
+# Get and validate database URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
@@ -34,6 +35,12 @@ if not DATABASE_URL.startswith("postgresql://"):
         "Only PostgreSQL is supported (no SQLite in production). "
         "Format: postgresql://username:password@host:port/database_name"
     )
+
+# 🚨 SAFETY CHECK: Prevent production database access from local development
+try:
+    validate_database_url(DATABASE_URL)
+except ProductionDatabaseError as e:
+    raise RuntimeError(str(e)) from e
 
 # PostgreSQL connection pool settings
 _engine_kwargs = {

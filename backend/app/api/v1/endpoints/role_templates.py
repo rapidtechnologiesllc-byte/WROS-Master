@@ -324,18 +324,26 @@ def grant_permission(
             can_delete=False
         )
         db.add(perm)
+        db.flush()  # Flush to ensure perm has an ID
 
-    # Grant the action
-    if action == "view":
+    # Grant the action - only update if it's currently false
+    action_updated = False
+    if action == "view" and not perm.can_view:
         perm.can_view = True
-    elif action == "create":
+        action_updated = True
+    elif action == "create" and not perm.can_create:
         perm.can_create = True
-    elif action == "edit":
+        action_updated = True
+    elif action == "edit" and not perm.can_edit:
         perm.can_edit = True
-    elif action == "delete":
+        action_updated = True
+    elif action == "delete" and not perm.can_delete:
         perm.can_delete = True
+        action_updated = True
 
-    db.commit()
+    # Only commit if something changed
+    if action_updated or not perm.id:
+        db.commit()
 
     # Audit log
     RBACauditService.log_permission_granted(
@@ -386,19 +394,27 @@ def revoke_permission(
     ).first()
 
     if not perm:
-        raise HTTPException(status_code=404, detail="Permission not found")
+        # If permission doesn't exist, it's already revoked - return success
+        return {"message": f"Permission already revoked: {resource_name} - {action}"}
 
-    # Revoke the action
-    if action == "view":
+    # Revoke the action - only update if it's currently true
+    action_updated = False
+    if action == "view" and perm.can_view:
         perm.can_view = False
-    elif action == "create":
+        action_updated = True
+    elif action == "create" and perm.can_create:
         perm.can_create = False
-    elif action == "edit":
+        action_updated = True
+    elif action == "edit" and perm.can_edit:
         perm.can_edit = False
-    elif action == "delete":
+        action_updated = True
+    elif action == "delete" and perm.can_delete:
         perm.can_delete = False
+        action_updated = True
 
-    db.commit()
+    # Only commit if something changed
+    if action_updated:
+        db.commit()
 
     # Audit log
     RBACauditService.log_permission_revoked(
