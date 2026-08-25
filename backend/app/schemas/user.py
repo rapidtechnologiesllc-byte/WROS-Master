@@ -107,6 +107,7 @@ class UserResponse(BaseModel):
     user_email: str
     user_role: str
     job_title: Optional[str] = None
+    role_template_id: Optional[int] = None
     permission_role: Optional[str] = None
     department_id: Optional[int] = None
     department_name: Optional[str] = None
@@ -492,6 +493,7 @@ class CreateUserWithRolesRequest(BaseModel):
 
 class UpdateUserWithRolesRequest(BaseModel):
     user_name: Optional[str] = None
+    user_email: Optional[str] = None
     job_title: Optional[str] = None
     partner_id: Optional[int] = None
     business_unit_id: Optional[int] = None
