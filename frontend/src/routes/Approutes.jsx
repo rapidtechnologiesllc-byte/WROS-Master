@@ -395,7 +395,7 @@ export default function AppRoutes() {
     return <CandidateSelfService onLogout={handleLogout} />;
   }
 
-  const [role, setRole] = useState(normalizedRole);
+  const [role, setRole] = useState(storedRole);
   const [candidateRecord, setCandidateRecord] = useState(null);
   const [candidates, setCandidates] = useState([]);
 
