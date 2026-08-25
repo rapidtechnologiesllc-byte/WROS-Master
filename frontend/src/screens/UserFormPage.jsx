@@ -49,7 +49,9 @@ export default function UserFormPage() {
       setPositions(posRes.data || []);
     } catch (err) {
       console.error('Failed to load form data:', err);
-      toast.error('Failed to load form data');
+      const message = err?.message || 'Failed to load form data. Please check your permissions.';
+      toast.error(message);
+      throw err;
     }
   };
 
