@@ -136,7 +136,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     if user:
         # Get authoritative role_template_id from database (ORM not loading correctly)
         from sqlalchemy import text
-        role_template_id = db.execute(text('SELECT role_template_id FROM app_schema.users WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
+        role_template_id = db.execute(text('SELECT role_template_id FROM users WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
 
         # Get role template name
         user_role = user.UserRole or "User"  # Fall back to UserRole field or "User"

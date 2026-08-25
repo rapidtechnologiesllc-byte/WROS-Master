@@ -1142,6 +1142,14 @@ def assign_candidate_to_job(
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
     candidate.job_id = job_id
     candidate.candidateJobTitle = job.jobTitle
+
+    # BU Lifecycle: When candidate submitted to job, lock to job's BU
+    if job.business_unit_id:
+        candidate.associated_bu_id = job.business_unit_id
+        # Only set submission_bu_id if not already set (first submission)
+        if candidate.submission_bu_id is None:
+            candidate.submission_bu_id = job.business_unit_id
+
     db.commit()
     db.refresh(candidate)
 
