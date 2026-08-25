@@ -557,7 +557,7 @@ def get_candidates_by_my_bu(
     Business Unit** (pool_status = 'BU Owned').
 
     - The BU is determined automatically from the logged-in user's
-      `business_unit_id` â€” no parameter needed.
+      `business_unit_id` --" no parameter needed.
     - Use `include_org_pool=true` to also fetch unassigned Org Pool candidates
       (useful for BU managers who want to pick new candidates).
     - Optionally filter by `pipeline_status`.
@@ -566,7 +566,7 @@ def get_candidates_by_my_bu(
     """
     from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 
-    # â”€â”€ Resolve the calling user's BU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Resolve the calling user's BU â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     calling_user = db.query(Users).filter(Users.UserID == user.UserID).first()
     bu_id = calling_user.business_unit_id if calling_user else None
 
@@ -579,14 +579,14 @@ def get_candidates_by_my_bu(
             ),
         )
 
-    # â”€â”€ Find candidate IDs that belong to this BU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Find candidate IDs that belong to this BU â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     ownership_query = db.query(CandidateOwnership).filter(
         CandidateOwnership.owned_by_bu_id == bu_id,
         CandidateOwnership.pool_status == POOL_BU,
     )
     bu_candidate_ids = {row.candidateID for row in ownership_query.all()}
 
-    # â”€â”€ Optionally include Org Pool candidates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Optionally include Org Pool candidates â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if include_org_pool:
         owned_ids = {row.candidateID for row in db.query(CandidateOwnership).all()}
         all_candidate_ids = db.query(Candidate.candidateID).all()
@@ -601,7 +601,7 @@ def get_candidates_by_my_bu(
     if not bu_candidate_ids:
         return AllCandidatesResponse(total_candidates=0, candidates=[])
 
-    # â”€â”€ Fetch candidate rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Fetch candidate rows â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     candidate_query = db.query(Candidate).filter(
         Candidate.candidateID.in_(bu_candidate_ids)
     )
@@ -616,7 +616,7 @@ def get_candidates_by_my_bu(
 
     candidates = candidate_query.all()
 
-    # â”€â”€ Build full response (reusing exact same pattern as get_all_candidates) â”€
+    # â"€â"€ Build full response (reusing exact same pattern as get_all_candidates) â"€
     candidates_data = []
     for candidate in candidates:
         name_parts = [
@@ -762,37 +762,99 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             detail=f"Candidate with ID {candidate_id} not found"
         )
     
-    # Update only provided fields
+    # Store original values for SLM correction tracking
+    corrections = {}
+
+    # Update only provided fields and track corrections
     if request.candidate_first_name is not None:
+        old_val = candidate.candidateFirstName
         candidate.candidateFirstName = request.candidate_first_name
+        if old_val != request.candidate_first_name:
+            corrections['candidate_first_name'] = (old_val, request.candidate_first_name)
+
     if request.candidate_middle_name is not None:
+        old_val = candidate.candidateMiddleName
         candidate.candidateMiddleName = request.candidate_middle_name
+        if old_val != request.candidate_middle_name:
+            corrections['candidate_middle_name'] = (old_val, request.candidate_middle_name)
+
     if request.candidate_last_name is not None:
+        old_val = candidate.candidateLastName
         candidate.candidateLastName = request.candidate_last_name
+        if old_val != request.candidate_last_name:
+            corrections['candidate_last_name'] = (old_val, request.candidate_last_name)
+
     if request.candidate_mobile is not None:
+        old_val = candidate.candidateMobile
         candidate.candidateMobile = request.candidate_mobile
+        if old_val != request.candidate_mobile:
+            corrections['candidate_mobile'] = (old_val, request.candidate_mobile)
+
     if request.candidate_gender is not None:
+        old_val = candidate.candidateGender
         candidate.candidateGender = request.candidate_gender
+        if old_val != request.candidate_gender:
+            corrections['candidate_gender'] = (old_val, request.candidate_gender)
+
     if request.candidate_date_of_birth is not None:
+        old_val = candidate.candidateDateOfBirth
         candidate.candidateDateOfBirth = request.candidate_date_of_birth
+        if old_val != request.candidate_date_of_birth:
+            corrections['candidate_date_of_birth'] = (old_val, request.candidate_date_of_birth)
+
     if request.candidate_source is not None:
+        old_val = candidate.candidateSource
         candidate.candidateSource = request.candidate_source
+        if old_val != request.candidate_source:
+            corrections['candidate_source'] = (old_val, request.candidate_source)
+
     if request.candidate_experience is not None:
+        old_val = candidate.candidateExperience
         candidate.candidateExperience = request.candidate_experience
+        if old_val != request.candidate_experience:
+            corrections['candidate_experience'] = (old_val, request.candidate_experience)
+
     if request.candidate_skills is not None:
+        old_val = candidate.candidateSkills
         candidate.candidateSkills = request.candidate_skills
+        if old_val != request.candidate_skills:
+            corrections['candidate_skills'] = (old_val, request.candidate_skills)
+
     if request.candidate_joining_date is not None:
+        old_val = candidate.candidateJoiningDate
         candidate.candidateJoiningDate = request.candidate_joining_date
+        if old_val != request.candidate_joining_date:
+            corrections['candidate_joining_date'] = (old_val, request.candidate_joining_date)
+
     if request.candidate_expected_salary is not None:
+        old_val = candidate.candidateExpectedSalary
         candidate.candidateExpectedSalary = request.candidate_expected_salary
+        if old_val != request.candidate_expected_salary:
+            corrections['candidate_expected_salary'] = (old_val, request.candidate_expected_salary)
+
     if request.candidate_current_salary is not None:
+        old_val = candidate.candidateCurrentSalary
         candidate.candidateCurrentSalary = request.candidate_current_salary
+        if old_val != request.candidate_current_salary:
+            corrections['candidate_current_salary'] = (old_val, request.candidate_current_salary)
+
     if request.candidate_current_location is not None:
+        old_val = candidate.candidateCurrentLocation
         candidate.candidateCurrentLocation = request.candidate_current_location
+        if old_val != request.candidate_current_location:
+            corrections['candidate_current_location'] = (old_val, request.candidate_current_location)
+
     if request.candidate_job_title is not None:
+        old_val = candidate.candidateJobTitle
         candidate.candidateJobTitle = request.candidate_job_title
+        if old_val != request.candidate_job_title:
+            corrections['candidate_job_title'] = (old_val, request.candidate_job_title)
+
     if request.candidate_employee_type is not None:
+        old_val = candidate.candidateEmployeeType
         candidate.candidateEmployeeType = request.candidate_employee_type
+        if old_val != request.candidate_employee_type:
+            corrections['candidate_employee_type'] = (old_val, request.candidate_employee_type)
 
     # Update CandidateInfoForm when personal info fields are updated
     personal_info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).first()
@@ -817,6 +879,26 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             status_code=500,
             detail=f"Failed to update candidate: {str(e)}"
         )
+
+    # Wire SLM: Record corrections for learning
+    if corrections:
+        try:
+            from app.services.slm_feedback_engine import SLMFeedbackEngine
+            for field_name, (parsed_value, corrected_value) in corrections.items():
+                SLMFeedbackEngine.record_correction(
+                    db=db,
+                    candidate_id=candidate_id,
+                    field_name=field_name,
+                    parsed_value=str(parsed_value) if parsed_value is not None else "",
+                    corrected_value=str(corrected_value) if corrected_value is not None else "",
+                    confidence_score=0.5  # Recruiter correction
+                )
+            from app.core.logging import logger
+            logger.info(f"[SLM] Recorded {len(corrections)} corrections for candidate: {candidate_id}")
+        except Exception as e:
+            from app.core.logging import logger
+            logger.error(f"[SLM] Failed to record candidate corrections: {e}", exc_info=True)
+            # Continue - SLM failure shouldn't block updates
 
     # Return full candidate object so frontend doesn't need separate refresh GET
     # Convert skills list to comma-separated string if it's a list
@@ -879,7 +961,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     # Delete child records in FK-safe order (deepest children first)
     # ---------------------------------------------------------------
 
-    # 1. InterviewFeedback â†’ references interviews.id
+    # 1. InterviewFeedback â†' references interviews.id
     feedback_ids = [
         row.id for row in
         db.query(Interview.id).filter(Interview.candidate_id == candidate_id).all()
@@ -887,7 +969,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     if feedback_ids:
         db.query(InterviewFeedback).filter(InterviewFeedback.interview_id.in_(feedback_ids)).delete(synchronize_session=False)
 
-    # 2. PanelMember â†’ references interview_panels.id
+    # 2. PanelMember â†' references interview_panels.id
     panel_ids = [
         row.id for row in
         db.query(InterviewPanel.id).filter(InterviewPanel.candidate_id == candidate_id).all()
@@ -895,16 +977,16 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
     if panel_ids:
         db.query(PanelMember).filter(PanelMember.panel_id.in_(panel_ids)).delete(synchronize_session=False)
 
-    # 3. Interviews â†’ references interview_panels.id + candidates.candidateID
+    # 3. Interviews â†' references interview_panels.id + candidates.candidateID
     db.query(Interview).filter(Interview.candidate_id == candidate_id).delete(synchronize_session=False)
 
-    # 4. InterviewPanel â†’ references candidates.candidateID
+    # 4. InterviewPanel â†' references candidates.candidateID
     db.query(InterviewPanel).filter(InterviewPanel.candidate_id == candidate_id).delete(synchronize_session=False)
 
-    # 5. CandidateAssignment â†’ references candidates.candidateID
+    # 5. CandidateAssignment â†' references candidates.candidateID
     db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == candidate_id).delete(synchronize_session=False)
 
-    # 6. CandidateDocument (SharePoint file metadata) â†’ references candidates.candidateID
+    # 6. CandidateDocument (SharePoint file metadata) â†' references candidates.candidateID
     db.query(CandidateDocument).filter(CandidateDocument.candidate_id == candidate_id).delete(synchronize_session=False)
 
     # 7. Candidate form tables
@@ -928,34 +1010,34 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         CandidateChecklist.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 9. CandidateHistory â€” has backref="history" which makes SQLAlchemy try to
+    # 9. CandidateHistory --" has backref="history" which makes SQLAlchemy try to
     #    SET candidateID=NULL before the parent delete; column is NOT NULL so we
     #    must delete these rows explicitly first.
     db.query(CandidateHistory).filter(
         CandidateHistory.candidateID == candidate_id
     ).delete(synchronize_session=False)
 
-    # 10. OfferLetter â€” no ondelete="CASCADE" on FK; must be deleted manually.
+    # 10. OfferLetter --" no ondelete="CASCADE" on FK; must be deleted manually.
     db.query(OfferLetter).filter(
         OfferLetter.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 11. InternalNote â€” has backref="internal_notes"; same NULL risk as CandidateHistory.
+    # 11. InternalNote --" has backref="internal_notes"; same NULL risk as CandidateHistory.
     db.query(InternalNote).filter(
         InternalNote.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 12. ATSScore â€” has ondelete="CASCADE" but ORM may still interfere; explicit is safer.
+    # 12. ATSScore --" has ondelete="CASCADE" but ORM may still interfere; explicit is safer.
     db.query(ATSScore).filter(
         ATSScore.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 13. HRAssignment â€” has ondelete="CASCADE" but explicit delete ensures no ORM conflict.
+    # 13. HRAssignment --" has ondelete="CASCADE" but explicit delete ensures no ORM conflict.
     db.query(HRAssignment).filter(
         HRAssignment.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 14. CandidateOwnership â€” has ondelete="CASCADE".
+    # 14. CandidateOwnership --" has ondelete="CASCADE".
     db.query(CandidateOwnership).filter(
         CandidateOwnership.candidateID == candidate_id
     ).delete(synchronize_session=False)
@@ -978,13 +1060,13 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         CandidateAIAssignment.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 16. CandidateJobApplication â€” has ondelete="CASCADE".
+    # 16. CandidateJobApplication --" has ondelete="CASCADE".
     from app.models.candidate import CandidateJobApplication
     db.query(CandidateJobApplication).filter(
         CandidateJobApplication.candidate_id == candidate_id
     ).delete(synchronize_session=False)
 
-    # 17. Finally delete the candidate row â€” all FKs cleared above.
+    # 17. Finally delete the candidate row --" all FKs cleared above.
     db.delete(candidate)
     db.commit()
     
@@ -1074,7 +1156,7 @@ def convert_candidate_to_employee(
         ))
 
         db.commit()
-        logger.info(f"âœ… Candidate {candidate_id} converted to Employee {employee.id}")
+        logger.info(f"âœ... Candidate {candidate_id} converted to Employee {employee.id}")
 
         return {
             "status": "success",
@@ -1118,13 +1200,13 @@ def get_candidate_contacts(
     Returns the full contact details for everyone connected to a candidate:
 
     **From CandidateAssignment (direct assignment):**
-    - `assigned_hiring_manager` â€” the HR user directly assigned to manage this candidate
-    - `assigned_reporting_manager` â€” the reporting manager directly assigned to the candidate
+    - `assigned_hiring_manager` --" the HR user directly assigned to manage this candidate
+    - `assigned_reporting_manager` --" the reporting manager directly assigned to the candidate
 
     **From the candidate's linked Job (via `candidate.job_id`):**
-    - `job_contact_person` â€” the contact person recorded on the job posting
-    - `job_hiring_manager` â€” the hiring manager recorded on the job posting
-    - `job_recruiter` â€” the recruiter recorded on the job posting
+    - `job_contact_person` --" the contact person recorded on the job posting
+    - `job_hiring_manager` --" the hiring manager recorded on the job posting
+    - `job_recruiter` --" the recruiter recorded on the job posting
 
     All fields are `null` when the corresponding record does not exist.
     """
