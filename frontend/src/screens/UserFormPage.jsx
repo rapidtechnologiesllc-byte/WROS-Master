@@ -40,11 +40,13 @@ export default function UserFormPage() {
   const loadInitialData = async () => {
     try {
       const [rolesRes, busRes, posRes] = await Promise.all([
-        apiRequest('/admin/certifications/roles'),
+        apiRequest('/admin/role-templates'),
         apiRequest('/admin/certifications/business-units'),
         apiRequest('/org/positions')
       ]);
-      setRoleTemplates(rolesRes.data || []);
+      // Filter to only enabled templates - disabled templates shouldn't be selectable
+      const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
+      setRoleTemplates(enabledTemplates);
       setBusinessUnits(busRes.data || []);
       setPositions(posRes.data || []);
     } catch (err) {
