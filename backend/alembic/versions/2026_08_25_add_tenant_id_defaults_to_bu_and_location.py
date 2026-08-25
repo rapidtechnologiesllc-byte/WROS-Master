@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 
 revision = '2026_08_25_001'
-down_revision = None
+down_revision = '2026_08_24_002'
 branch_labels = None
 depends_on = None
 
