@@ -586,7 +586,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       // Update the roles array with toggled status
       setRoles(roles.map(r =>
         r.id === templateId
-          ? { ...r, is_active: !currentStatus }
+          ? { ...r, enabled: !currentStatus }
           : r
       ));
 
@@ -681,7 +681,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
             const userCount = getUserCount(role.id, role.name);
-            const isActive = role.is_active !== false; // Default to true if not specified
+            const isActive = role.enabled !== false; // Use enabled field from backend
             return (
               <div
                 key={role.id}
