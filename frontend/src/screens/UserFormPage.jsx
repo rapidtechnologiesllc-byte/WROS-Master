@@ -26,6 +26,7 @@ export default function UserFormPage() {
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const [selectedTemplatePermissions, setSelectedTemplatePermissions] = useState([]);
 
   useEffect(() => {
     loadInitialData();
@@ -119,8 +120,23 @@ export default function UserFormPage() {
     setFormData(prev => ({ ...prev, business_unit_id: e.target.value }));
   };
 
-  const handleRoleTemplateChange = (e) => {
-    setFormData(prev => ({ ...prev, role_template_id: e.target.value }));
+  const handleRoleTemplateChange = async (e) => {
+    const templateId = e.target.value;
+    setFormData(prev => ({ ...prev, role_template_id: templateId }));
+
+    // Fetch permissions for the selected template
+    if (templateId) {
+      try {
+        const response = await apiRequest(`/admin/role-templates/${templateId}`);
+        const permissions = response.data?.permissions || [];
+        setSelectedTemplatePermissions(permissions);
+      } catch (error) {
+        console.error('Failed to fetch template permissions:', error);
+        setSelectedTemplatePermissions([]);
+      }
+    } else {
+      setSelectedTemplatePermissions([]);
+    }
   };
 
   const handleSave = async (e) => {
@@ -333,6 +349,29 @@ export default function UserFormPage() {
               })}
             </select>
           </div>
+
+          {/* Template Permissions Display */}
+          {selectedTemplatePermissions.length > 0 && (
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="font-semibold text-sm text-gray-800 mb-3">Access & Permissions</h3>
+              <div className="space-y-2">
+                {selectedTemplatePermissions.map((perm, idx) => {
+                  const actions = [];
+                  if (perm.can_view) actions.push('View');
+                  if (perm.can_create) actions.push('Create');
+                  if (perm.can_edit) actions.push('Edit');
+                  if (perm.can_delete) actions.push('Delete');
+
+                  return (
+                    <div key={idx} className="flex items-start justify-between text-sm">
+                      <span className="font-medium text-gray-700">{perm.resource_display || perm.resource_name}</span>
+                      <span className="text-gray-600">{actions.join(', ')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 justify-end pt-4 border-t">
