@@ -24,7 +24,8 @@ export const getUserPermissions = () => {
     return user.permissions || [];
   } catch (error) {
     console.error('Failed to get user permissions from localStorage:', error);
-    return [];
+    // CRITICAL FIX: Throw security error instead of silent failure
+    throw new Error(`Failed to load permissions from storage: ${error.message}`);
   }
 };
 
@@ -71,7 +72,8 @@ export const isSuperAdmin = () => {
     return user.is_super_admin === true;
   } catch (error) {
     console.error('Failed to check super admin status:', error);
-    return false;
+    // CRITICAL FIX: Throw security error instead of silent failure
+    throw new Error(`Failed to verify admin status: ${error.message}`);
   }
 };
 
@@ -301,6 +303,8 @@ export const cacheUserPermissions = (user) => {
     localStorage.setItem('user', JSON.stringify(user));
   } catch (error) {
     console.error('Failed to cache user permissions:', error);
+    // CRITICAL FIX: Throw error instead of silent failure
+    throw new Error(`Failed to cache user permissions: ${error.message}`);
   }
 };
 
@@ -313,6 +317,8 @@ export const clearCachedPermissions = () => {
     localStorage.removeItem('user');
   } catch (error) {
     console.error('Failed to clear cached permissions:', error);
+    // CRITICAL FIX: Throw error instead of silent failure
+    throw new Error(`Failed to clear permissions: ${error.message}`);
   }
 };
 
@@ -366,7 +372,8 @@ export const loadRoleTemplateModules = async () => {
     return Array.from(modules);
   } catch (error) {
     console.error('Failed to load role template modules:', error);
-    return [];
+    // CRITICAL FIX: Throw error instead of silent failure
+    throw new Error(`Failed to load role template modules: ${error.message}`);
   }
 };
 

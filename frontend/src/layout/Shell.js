@@ -344,7 +344,20 @@ export default function Shell({
           setNav({ standalone: [], groups: navGroups });
         } catch (retryError) {
           console.error("Navigation reload failed:", retryError);
-          setNav({ standalone: [], groups: [] });
+          // CRITICAL FIX: Show error banner instead of empty navigation
+          setNav({
+            standalone: [],
+            groups: [{
+              label: "Error",
+              icon: "AlertCircle",
+              items: [{
+                key: "nav-error",
+                label: `Navigation failed to load: ${retryError.message}. Please refresh the page.`,
+                icon: "AlertOctagon",
+                path: "#"
+              }]
+            }]
+          });
         }
       }
     };
