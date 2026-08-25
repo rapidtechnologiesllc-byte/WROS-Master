@@ -211,6 +211,7 @@ def get_all_users(
             user_email=u.UserEmail,
             user_role=u.UserRole,
             job_title=u.job_title,
+            role_template_id=u.role_template_id,
             created_at=u.CreatedAt,
             permission_role=role_template.name if role_template else None,
             department_id=u.department_id,
@@ -728,6 +729,8 @@ def update_user_with_roles(
 
     if request.user_name is not None:
         target.UserName = request.user_name
+    if request.user_email is not None:
+        target.UserEmail = request.user_email
     if request.job_title is not None:
         target.job_title = request.job_title
     if request.partner_id is not None:
