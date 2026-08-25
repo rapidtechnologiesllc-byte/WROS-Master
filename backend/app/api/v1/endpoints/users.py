@@ -783,8 +783,6 @@ def update_user(
 
     if request.user_name is not None:
         target.UserName = request.user_name
-    if request.user_role is not None:
-        target.UserRole = request.user_role
     if request.job_title is not None:
         target.job_title = request.job_title
     if request.role_template_id is not None:
