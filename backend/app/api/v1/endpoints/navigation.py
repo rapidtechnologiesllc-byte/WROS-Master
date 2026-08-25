@@ -75,6 +75,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     }
     """
     try:
+        logger.warning("[NAV-FIX] Starting navigation with resource_name fix active")
         # Get user ID
         if hasattr(current_user, 'UserID'):
             user_id = current_user.UserID
@@ -103,8 +104,14 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
             for resource_name in resource_names:
-                db_resource_name = resource_name.replace('-', '_')
-                can_view = RoleTemplatePermissionService.can_view(db, user_id, db_resource_name, tenant_id)
+                # CRITICAL FIX: Resources stored in DB with hyphens, NOT underscores
+                # "ceo-dashboard" (in DB) not "ceo_dashboard"
+                # Permission checks must use original resource_name from contract
+                can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
+
+                # DEBUG: Log permission checks for missing modules
+                if module_name in ["Executive", "Executive Dashboards", "AI & Automation"]:
+                    logger.warning(f"[NAV-DEBUG] {module_name} - {resource_name}: can_view={can_view}")
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
