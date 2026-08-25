@@ -76,7 +76,19 @@ export default function UserFormPage() {
 
       if (user) {
         console.log('[DEBUG] loadUserData: User found, loaded from users list');
-        console.log('[DEBUG] loadUserData: job_title =', user.job_title, 'role_template_id =', user.role_template_id);
+        console.log('[DEBUG] loadUserData: job_title =', user.job_title, 'role_template_id =', user.role_template_id, 'permission_role =', user.permission_role);
+
+        // If role_template_id is not returned, try to find it by matching permission_role
+        let roleTemplateId = user.role_template_id || '';
+        if (!roleTemplateId && user.permission_role) {
+          const matchingTemplate = roleTemplates.find(t =>
+            (t.name || t.TemplateName || t.template_name) === user.permission_role
+          );
+          if (matchingTemplate) {
+            roleTemplateId = matchingTemplate.id || matchingTemplate.TemplateID;
+            console.log('[DEBUG] loadUserData: Mapped permission_role to role_template_id:', roleTemplateId);
+          }
+        }
 
         setFormData({
           user_name: user.user_name || '',
@@ -84,10 +96,10 @@ export default function UserFormPage() {
           user_password: '',
           job_title: user.job_title || '',
           business_unit_id: user.business_unit_id || '',
-          role_template_id: user.role_template_id || ''
+          role_template_id: roleTemplateId
         });
 
-        console.log('[DEBUG] loadUserData: formData set to:', { job_title: user.job_title, role_template_id: user.role_template_id });
+        console.log('[DEBUG] loadUserData: formData set to:', { job_title: user.job_title, role_template_id: roleTemplateId });
       } else {
         console.log('[DEBUG] loadUserData: User not found - showing error and navigating');
         toast.error('User not found');
