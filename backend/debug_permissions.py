@@ -4,7 +4,7 @@ sys.path.insert(0, "/dev/OnboardingModule-Backend")
 
 from app.core.database import SessionLocal
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource, Module
-from app.models.user import Users, UserRole
+from app.models.user import Users
 
 db = SessionLocal()
 
@@ -39,11 +39,11 @@ fm_user = db.query(Users).filter(Users.UserEmail == "finance_mgr@test.com").firs
 if fm_user:
     print(f"\nFinance Manager User: {fm_user.UserID} ({fm_user.UserName})")
 
-    # Get user roles
-    user_roles = db.query(UserRole).filter(UserRole.user_id == fm_user.UserID).all()
-    print(f"User Roles: {len(user_roles)}")
-    for ur in user_roles:
-        role = db.query(RoleTemplate).filter(RoleTemplate.id == ur.role_template_id).first()
-        print(f"  - {role.name if role else 'UNKNOWN'}")
+    # Get user's role template
+    if fm_user.role_template_id:
+        role = db.query(RoleTemplate).filter(RoleTemplate.id == fm_user.role_template_id).first()
+        print(f"User Role: {role.name if role else 'UNKNOWN'}")
+    else:
+        print("User Role: NOT ASSIGNED")
 
 db.close()

@@ -6,7 +6,7 @@ from app.core.logging import logger
 from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.services.email_service import EmailService
 from app.utils.uniq_id_generator import user_id_generator, generate_password
 

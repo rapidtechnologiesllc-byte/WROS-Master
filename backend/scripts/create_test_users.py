@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.core.security import get_password_hash
 from app.core.logging import logger
@@ -87,21 +87,12 @@ def create_test_users(db: Session):
                 UserEmail=user_data["email"],
                 UserPassword=get_password_hash(user_data["password"]),
                 UserRole=user_data["role"],  # Legacy role field
+                role_template_id=role_template.id,  # New RBAC system - single role per user
                 is_active=True,
                 business_unit_id=user_data["business_unit_id"],
                 tenant_id=tenant_id,
             )
             db.add(user)
-            db.flush()  # Ensure user is added before creating UserRole
-
-            # Create UserRole entry (new RBAC system)
-            user_role = UserRole(
-                user_id=user.UserID,
-                role_template_id=role_template.id,
-                business_unit_id=user_data["business_unit_id"],
-                tenant_id=tenant_id,
-            )
-            db.add(user_role)
             db.commit()
 
             logger.info(f"✓ Created user: {user_data['email']} with role {user_data['role']}")

@@ -38,7 +38,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.offer import Offer, OfferStatus
 from app.models.interview import InterviewDecisionLog, InterviewPanelDecision
-from app.models.user import Users, UserRole, Interview, InterviewFeedback, Jobs
+from app.models.user import Users, Interview, InterviewFeedback, Jobs
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.invoice import Invoice, InvoiceLineItem
