@@ -114,6 +114,7 @@ from app.api.v1.endpoints.pipeline_orchestration import router as pipeline_orche
 from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring_router
 from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 from app.api.v1.endpoints.goals_management import router as goals_router
+from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 
 router = fastapi.APIRouter()
 
@@ -230,4 +231,5 @@ router.include_router(router=pipeline_orchestration_router)
 router.include_router(router=finance_monitoring_router)
 router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
-router.include_router(router=certifications_admin_router)
+router.include_router(router=certifications_admin_router)
+router.include_router(router=slm_feedback_router)

@@ -52,11 +52,6 @@ class SLMJobMetadata(Base):
     min_experience_months = Column(Integer, nullable=True)
     max_experience_months = Column(Integer, nullable=True)
 
-    # Salary info
-    min_salary = Column(Float, nullable=True)
-    max_salary = Column(Float, nullable=True)
-    salary_currency = Column(String(10), nullable=True)
-
     # Hiring outcomes (updated when candidates complete the hiring journey)
     candidates_submitted = Column(Integer, default=0)  # Total submitted
     candidates_interviewed = Column(Integer, default=0)  # Passed interview
@@ -93,9 +88,6 @@ class SLMJobMetadataService:
         required_skills: Optional[list] = None,
         min_experience_months: Optional[int] = None,
         max_experience_months: Optional[int] = None,
-        min_salary: Optional[float] = None,
-        max_salary: Optional[float] = None,
-        salary_currency: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> bool:
         """
@@ -111,9 +103,6 @@ class SLMJobMetadataService:
             required_skills: List of required skills
             min_experience_months: Minimum experience required
             max_experience_months: Maximum experience level
-            min_salary: Minimum salary
-            max_salary: Maximum salary
-            salary_currency: Currency (USD, EUR, etc.)
             created_by: User ID who created the job
 
         Returns:
@@ -140,12 +129,6 @@ class SLMJobMetadataService:
                     existing.min_experience_months = min_experience_months
                 if max_experience_months:
                     existing.max_experience_months = max_experience_months
-                if min_salary:
-                    existing.min_salary = min_salary
-                if max_salary:
-                    existing.max_salary = max_salary
-                if salary_currency:
-                    existing.salary_currency = salary_currency
                 existing.updated_at = datetime.utcnow()
 
                 logger.info(f"Updated job metadata: {job_id} ({job_title})")
@@ -160,9 +143,6 @@ class SLMJobMetadataService:
                     required_skills=required_skills,
                     min_experience_months=min_experience_months,
                     max_experience_months=max_experience_months,
-                    min_salary=min_salary,
-                    max_salary=max_salary,
-                    salary_currency=salary_currency,
                     created_by=created_by,
                     created_at=datetime.utcnow(),
                 )
@@ -243,7 +223,7 @@ class SLMJobMetadataService:
 
     @staticmethod
     def get_job_metadata(db: Session, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get job metadata."""
+        """Get job metadata (no confidential salary information)."""
         try:
             job_metadata = db.query(SLMJobMetadata).filter(
                 SLMJobMetadata.job_id == job_id
@@ -260,8 +240,6 @@ class SLMJobMetadataService:
                 "required_skills": job_metadata.required_skills,
                 "min_experience_months": job_metadata.min_experience_months,
                 "max_experience_months": job_metadata.max_experience_months,
-                "min_salary": job_metadata.min_salary,
-                "max_salary": job_metadata.max_salary,
                 "candidates_submitted": job_metadata.candidates_submitted,
                 "candidates_interviewed": job_metadata.candidates_interviewed,
                 "candidates_offered": job_metadata.candidates_offered,

@@ -10,7 +10,7 @@ from app.services.cfo_agent_service import (
     get_org_financial_snapshot, get_cfo_alerts, get_bu_financial_comparison,
     get_expense_breakdown, get_financial_forecast
 )
-from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary
+from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary, get_fy_executive_dashboard
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -201,6 +201,27 @@ def get_ceo_fy_summary(
     try:
         summary = get_fy_executive_summary(db)
         return {"status": "success", "data": summary}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ceo/executive-dashboard", dependencies=[Depends(require_resource_permission("revenue", "view"))])
+def get_ceo_executive_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Get CEO executive dashboard with FY progress + SLM insights.
+
+    Includes:
+    - FY progress against annual targets (headcount, revenue, margin, etc.)
+    - SLM model accuracy and readiness for retraining
+    - Top performing jobs by hire success rate
+    - Key priorities and headline summary
+    """
+    try:
+        dashboard = get_fy_executive_dashboard(db)
+        return {"status": "success", "data": dashboard}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
