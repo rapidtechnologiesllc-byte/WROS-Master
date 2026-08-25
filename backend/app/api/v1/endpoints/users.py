@@ -293,11 +293,8 @@ def search_users(
             RoleTemplate.name == user_role
         )
 
-    # â”€â”€ RBAC permission role filter â€” join through Role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if permission_role:
-        query = query.join(Role, Role.id == Users.role_id).filter(
-            Role.name == permission_role
-        )
+    # NOTE: permission_role filter removed 2026-08-24 (referenced non-existent Role model and Users.role_id field)
+    # If needed, use RoleTemplate join: query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
 
     # â”€â”€ Department filter â€” join through Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if department:
@@ -321,7 +318,7 @@ def search_users(
 
     users_data = []
     for u in matched_users:
-        role = db.query(Role).filter(Role.id == u.role_id).first()
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
@@ -329,7 +326,7 @@ def search_users(
             user_role=u.UserRole,
             job_title=u.job_title,
             created_at=u.CreatedAt,
-            permission_role=role.name if role else None,
+            permission_role=role_template.name if role_template else None,
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
@@ -362,7 +359,7 @@ def get_user_details_by_id(
             detail=f"User with ID '{user_id}' not found"
         )
 
-    role = db.query(Role).filter(Role.id == u.role_id).first() if u.role_id else None
+    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first() if u.role_template_id else None
 
     return UserResponse(
         user_id=u.UserID,
@@ -371,7 +368,7 @@ def get_user_details_by_id(
         user_role=u.UserRole,
         job_title=u.job_title,
         created_at=u.CreatedAt,
-        permission_role=role.name if role else None,
+        permission_role=role_template.name if role_template else None,
         department_id=u.department_id,
         department_name=u.department.name if u.department else None,
         business_unit_id=u.business_unit_id,
@@ -647,7 +644,7 @@ def create_user_with_roles(
     job_title = request.job_title
     partner_id = request.partner_id
     business_unit_id = request.business_unit_id
-    role_ids = request.role_ids
+    role_template_id = request.role_template_id
 
     if not user_name or not user_name.strip():
         raise HTTPException(status_code=400, detail="User name is required")
@@ -655,8 +652,8 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="User email is required")
     if not user_password or not user_password.strip():
         raise HTTPException(status_code=400, detail="Password is required")
-    if not role_ids or len(role_ids) == 0:
-        raise HTTPException(status_code=400, detail="At least one role is required")
+    if not role_template_id:
+        raise HTTPException(status_code=400, detail="Role template is required")
 
     from app.core.database import check_user
     existing = check_user(db, user_email)
@@ -683,26 +680,12 @@ def create_user_with_roles(
     if business_unit_id:
         new_user.business_unit_id = business_unit_id
 
+    # Set role_template_id on user directly (single role per user)
+    new_user.role_template_id = role_template_id
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-
-    # Create UserRole junction records for each role_template_id
-    from app.models.user import UserRole
-    from app.core.tenant_context import get_tenant_id
-
-    tenant_id = get_tenant_id()
-
-    for role_id in role_ids:
-        user_role = UserRole(
-            user_id=new_user.UserID,
-            role_template_id=role_id,
-            business_unit_id=business_unit_id,
-            tenant_id=tenant_id
-        )
-        db.add(user_role)
-
-    db.commit()
 
     return UserResponse(
         user_id=new_user.UserID,

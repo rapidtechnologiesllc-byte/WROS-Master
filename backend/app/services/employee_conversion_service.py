@@ -22,12 +22,10 @@ class EmployeeConversionService:
         password = generate_password()
         user_id = user_id_generator()
         user = Users(UserID=user_id, UserName=employee_name, UserEmail=employee_email, UserPassword=get_password_hash(password), business_unit_id=business_unit_id, tenant_id=tenant_id, UserRole="Employee")
-        db.add(user)
-        db.flush()
+        # Set role_template_id on user directly (use first role from role_ids, or None if not provided)
         if role_ids:
-            for rid in role_ids:
-                ur = UserRole(id=f"ur_{user.UserID}_{rid}", user_id=user.UserID, role_id=rid, bu_context_id=business_unit_id)
-                db.add(ur)
+            user.role_template_id = role_ids[0]  # Single role per user (first one if multiple provided)
+        db.add(user)
         db.flush()
         return user
 

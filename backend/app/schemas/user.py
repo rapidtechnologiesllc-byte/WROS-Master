@@ -488,14 +488,14 @@ class CreateUserWithRolesRequest(BaseModel):
     job_title: Optional[str] = None
     partner_id: Optional[int] = None
     business_unit_id: Optional[int] = None
-    role_ids: List[int]
+    role_template_id: int
 
 class UpdateUserWithRolesRequest(BaseModel):
     user_name: Optional[str] = None
     job_title: Optional[str] = None
     partner_id: Optional[int] = None
     business_unit_id: Optional[int] = None
-    role_ids: Optional[List[int]] = None
+    role_template_id: Optional[int] = None
     assigned_at: Optional[str] = None
 
 class OfferAcceptanceRequest(BaseModel):
