@@ -98,6 +98,7 @@ import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
 import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
+import AdminAgentConfig from "../screens/AdminAgentConfig";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
 import MyTimesheetScreen from "../screens/MyTimesheetScreen";
@@ -659,6 +660,7 @@ export default function AppRoutes() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
+            <Route path="admin/agent-config" element={<AdminAgentConfig />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />

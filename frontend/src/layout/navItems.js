@@ -31,6 +31,7 @@ import {
   Gift,
   Zap,
   Database,
+  Cog,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -121,6 +122,9 @@ export const NAV_ITEMS = {
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
   messageTemplates: { path: ROUTES.MESSAGE_TEMPLATES, label: "Message Templates", icon: MessageSquareText },
+  // Agent Configuration -- manage agent pipeline settings and orchestration
+  // Super User/Admin only. Configure agents, set queue names, manage pipeline order.
+  agentConfig: { path: ROUTES.AGENT_CONFIG, label: "Agent Configuration", icon: Cog },
   // S-028/HRMS-0428 -- Self-Learning Model (SLM) for resume parsing management.
   // Super User only. Monitor parsing accuracy, manage training data, retrain model.
   slmDashboard: { path: ROUTES.SLM_DASHBOARD, label: "Resume Parser (SLM)", icon: Zap },
