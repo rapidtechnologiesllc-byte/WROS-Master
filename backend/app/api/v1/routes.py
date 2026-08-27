@@ -119,6 +119,7 @@ from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid
 from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.spartan_integration import router as spartan_router
 from app.api.v1.endpoints.strategic_consul import router as consul_router
+from app.api.v1.endpoints.spartan_forecasting import router as forecasting_router
 
 router = fastapi.APIRouter()
 
@@ -240,4 +241,5 @@ router.include_router(router=queue_router)
 router.include_router(router=doctor_traces_router)
 router.include_router(router=system_health_router)
 router.include_router(router=spartan_router)
-router.include_router(router=consul_router)
+router.include_router(router=consul_router)
+router.include_router(router=forecasting_router)

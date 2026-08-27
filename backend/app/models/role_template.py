@@ -51,6 +51,12 @@ class RoleTemplate(Base):
     name = Column(String(100), nullable=False)  # e.g., "Recruiter", "HR Manager"
     display_name = Column(String(150), nullable=False)
     description = Column(Text)
+
+    # Hierarchy: 17 levels (1=Intern → 17=CEO)
+    hierarchy_level = Column(Integer, nullable=False, default=5)  # 1-17: defines authority level
+    # Specialization: what they do day-to-day (Recruitment, Development, HR, Finance, PM, QA, etc.)
+    specialization = Column(String(100), nullable=False, default="General")  # Defines expertise domain
+
     is_system = Column(Boolean, default=False)  # True for built-in roles, False for custom
     # PRODUCTION SAFETY: enabled MUST default to True, never allow None
     enabled = Column(Boolean, default=True, nullable=False, server_default="true")
