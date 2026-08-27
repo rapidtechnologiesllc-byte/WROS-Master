@@ -70,6 +70,12 @@ function MessageQueueDashboard() {
     resolved: 0,
     pending: 0,
   });
+  const [forecasts, setForecasts] = useState({
+    recruitment: null,
+    resources: null,
+    revenue: null,
+  });
+  const [forecastsLoading, setForecastsLoading] = useState(false);
 
   const loadTasks = async () => {
     try {
@@ -137,6 +143,28 @@ function MessageQueueDashboard() {
     }
   };
 
+  const loadForecasts = async () => {
+    try {
+      setForecastsLoading(true);
+      const [recruitmentRes, resourcesRes, revenueRes] = await Promise.all([
+        apiRequest("/spartan/forecasting/recruitment/forecast", { method: "POST" }),
+        apiRequest("/spartan/forecasting/resources/forecast", { method: "POST" }),
+        apiRequest("/spartan/forecasting/revenue/forecast", { method: "POST" }),
+      ]);
+
+      setForecasts({
+        recruitment: recruitmentRes?.data || null,
+        resources: resourcesRes?.data || null,
+        revenue: revenueRes?.data || null,
+      });
+    } catch (error) {
+      console.error("Failed to load forecasts", error);
+      message.error("Failed to load forecasting data");
+    } finally {
+      setForecastsLoading(false);
+    }
+  };
+
   const loadHealth = async () => {
     try {
       setHealthLoading(true);
@@ -166,12 +194,14 @@ function MessageQueueDashboard() {
     loadTasks();
     loadEscalations();
     loadHealth();
+    loadForecasts();
 
     // Auto-refresh all data every 10 seconds
     const interval = setInterval(() => {
       loadTasks();
       if (activeTab === "escalations") loadEscalations();
       if (activeTab === "health") loadHealth();
+      if (activeTab === "forecasting") loadForecasts();
     }, 10000);
 
     return () => clearInterval(interval);
@@ -397,8 +427,9 @@ function MessageQueueDashboard() {
               loadTasks();
               if (activeTab === "escalations") loadEscalations();
               if (activeTab === "health") loadHealth();
+              if (activeTab === "forecasting") loadForecasts();
             }}
-            loading={loading || escalationsLoading || healthLoading}
+            loading={loading || escalationsLoading || healthLoading || forecastsLoading}
           >
             Refresh
           </Button>
@@ -585,6 +616,142 @@ function MessageQueueDashboard() {
                         </Card>
                       </Col>
                     </Row>
+                  </Card>
+                </Spin>
+              </>
+            ),
+          },
+          {
+            key: "forecasting",
+            label: "Autonomous Forecasting",
+            children: (
+              <>
+                <Spin spinning={forecastsLoading}>
+                  <Row gutter={16} style={{ marginBottom: 24 }}>
+                    <Col span={8}>
+                      <Card>
+                        <h3 style={{ marginTop: 0 }}>Recruitment Forecast</h3>
+                        {forecasts.recruitment ? (
+                          <>
+                            <p>
+                              <strong>Status:</strong>{" "}
+                              <Tag color={
+                                forecasts.recruitment.gap_analysis?.status === 'CRITICAL' ? 'red' :
+                                forecasts.recruitment.gap_analysis?.status === 'BEHIND' ? 'orange' :
+                                'green'
+                              }>
+                                {forecasts.recruitment.gap_analysis?.status}
+                              </Tag>
+                            </p>
+                            <p>
+                              <strong>Achievement:</strong> {forecasts.recruitment.current_state?.achievement_percent?.toFixed(1)}%
+                            </p>
+                            <p>
+                              <strong>Needed:</strong> +{forecasts.recruitment.gap_analysis?.candidates_needed} candidates
+                            </p>
+                            <p>
+                              <strong>Escalate to:</strong> {forecasts.recruitment.escalation_node}
+                            </p>
+                          </>
+                        ) : (
+                          <Empty description="Loading..." />
+                        )}
+                      </Card>
+                    </Col>
+                    <Col span={8}>
+                      <Card>
+                        <h3 style={{ marginTop: 0 }}>Resource Forecast</h3>
+                        {forecasts.resources ? (
+                          <>
+                            <p>
+                              <strong>Status:</strong>{" "}
+                              <Tag color={
+                                forecasts.resources.gap_analysis?.status === 'UNDERSTAFFED' ? 'red' : 'green'
+                              }>
+                                {forecasts.resources.gap_analysis?.status}
+                              </Tag>
+                            </p>
+                            <p>
+                              <strong>Utilization:</strong> {forecasts.resources.current_state?.utilization_percent}%
+                            </p>
+                            <p>
+                              <strong>Demand Fulfillment:</strong> {forecasts.resources.current_state?.demand_fulfillment_percent}%
+                            </p>
+                            <p>
+                              <strong>Escalate to:</strong> {forecasts.resources.escalation_node}
+                            </p>
+                          </>
+                        ) : (
+                          <Empty description="Loading..." />
+                        )}
+                      </Card>
+                    </Col>
+                    <Col span={8}>
+                      <Card>
+                        <h3 style={{ marginTop: 0 }}>Revenue Forecast</h3>
+                        {forecasts.revenue ? (
+                          <>
+                            <p>
+                              <strong>Status:</strong>{" "}
+                              <Tag color={
+                                forecasts.revenue.gap_analysis?.status === 'CRITICAL' ? 'red' : 'orange'
+                              }>
+                                {forecasts.revenue.gap_analysis?.status}
+                              </Tag>
+                            </p>
+                            <p>
+                              <strong>Revenue Gap:</strong> ${(forecasts.revenue.gap_analysis?.revenue_gap / 1_000_000).toFixed(1)}M
+                            </p>
+                            <p>
+                              <strong>Months of Runway:</strong> {forecasts.revenue.gap_analysis?.months_of_runway?.toFixed(2)}
+                            </p>
+                            <p>
+                              <strong>Escalate to:</strong> {forecasts.revenue.escalation_node}
+                            </p>
+                          </>
+                        ) : (
+                          <Empty description="Loading..." />
+                        )}
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  <Card title="Forecast Recommendations">
+                    {forecasts.recruitment?.resource_options && (
+                      <div style={{ marginBottom: 16 }}>
+                        <h4>Recruitment Options:</h4>
+                        {forecasts.recruitment.resource_options.map((opt, idx) => (
+                          <div key={idx} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                            <p><strong>{opt.option}</strong> - {opt.cost}</p>
+                            <p><small>{opt.expected_result}</small></p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {forecasts.resources?.resource_options && (
+                      <div style={{ marginBottom: 16 }}>
+                        <h4>Resource Options:</h4>
+                        {forecasts.resources.resource_options.map((opt, idx) => (
+                          <div key={idx} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                            <p><strong>{opt.option}</strong> - {opt.cost}</p>
+                            <p><small>{opt.expected_result}</small></p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {forecasts.revenue?.revenue_options && (
+                      <div>
+                        <h4>Revenue Options:</h4>
+                        {forecasts.revenue.revenue_options.map((opt, idx) => (
+                          <div key={idx} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                            <p><strong>{opt.option}</strong> - {opt.value}</p>
+                            <p><small>Probability: {opt.probability}, Timeline: {opt.timeline}</small></p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </Card>
                 </Spin>
               </>

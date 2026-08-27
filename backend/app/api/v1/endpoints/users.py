@@ -31,6 +31,8 @@ from app.schemas.user import (
     UpdateUserWithRolesRequest,
 )
 from app.utils.uniq_id_generator import user_id_generator
+from app.services.org_hierarchy_validator import validate_before_employee_creation
+from app.models.org_structure import OrgNode
 
 router = APIRouter(prefix="/hr", tags=["hr"])
 
@@ -641,7 +643,14 @@ def create_user_with_roles(
     current_user: Users = Depends(get_current_hr_or_admin)
 ):
     """
-    Create a new user with roles and job title.
+    Create a new user with roles and org hierarchy (MANDATORY: hierarchy_level + specialization).
+
+    REQUIRED FIELDS (from request):
+    - user_name, user_email, user_password, role_template_id
+    - hierarchy_level (1-17): MANDATORY - defines org position
+    - specialization: MANDATORY - Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
+
+    Validates reporting structure before creating OrgNode.
     Requires permission: user.manage
     """
     user_name = request.user_name
@@ -651,6 +660,9 @@ def create_user_with_roles(
     partner_id = request.partner_id
     business_unit_id = request.business_unit_id
     role_template_id = request.role_template_id
+    hierarchy_level = request.hierarchy_level  # MANDATORY
+    specialization = request.specialization    # MANDATORY
+    parent_node_id = request.parent_node_id
 
     if not user_name or not user_name.strip():
         raise HTTPException(status_code=400, detail="User name is required")
@@ -667,8 +679,27 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
 
     # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
-    # This ensures new users are never created without a tenant
     tenant_id = current_user.tenant_id or 1
+
+    # Validate role template exists
+    role_template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == role_template_id
+    ).first()
+
+    if not role_template:
+        raise HTTPException(status_code=400, detail="Role template not found")
+
+    # CRITICAL: Validate org hierarchy with 17-level system + specialization
+    is_valid, error_msg = validate_before_employee_creation(
+        db,
+        hierarchy_level=hierarchy_level,
+        specialization=specialization,
+        parent_node_id=parent_node_id,
+        business_unit_id=business_unit_id
+    )
+
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid reporting structure: {error_msg}")
 
     new_user = Users(
         UserID=user_id_generator(),
@@ -676,27 +707,44 @@ def create_user_with_roles(
         UserEmail=user_email,
         UserPassword=get_password_hash(user_password),
         UserRole="Admin",  # Default role
-        tenant_id=tenant_id  # PRODUCTION: Always set from creator's tenant or default to 1
+        tenant_id=tenant_id
     )
 
-    # Set job_title if provided
+    # Set optional fields if provided
     if job_title:
         new_user.job_title = job_title
-
-    # Set partner_id if provided
     if partner_id:
         new_user.partner_id = partner_id
-
-    # Set business_unit_id if provided
     if business_unit_id:
         new_user.business_unit_id = business_unit_id
 
-    # Set role_template_id on user directly (single role per user)
     new_user.role_template_id = role_template_id
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Create OrgNode record with VALIDATED hierarchy_level and specialization
+    try:
+        org_node = OrgNode(
+            name=f"{new_user.UserName} - {specialization}",
+            node_type="PERSON",
+            user_id=new_user.UserID,
+            parent_node_id=parent_node_id,
+            hierarchy_level=hierarchy_level,  # From request (already validated)
+            specialization=specialization,    # From request (already validated)
+            authority_level="INDIVIDUAL",     # Default, can be overridden per role
+            business_unit_id=business_unit_id,
+            email=user_email,
+            tenant_id=tenant_id,
+        )
+        db.add(org_node)
+        db.commit()
+        db.refresh(org_node)
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"Failed to create OrgNode for new user {user_email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create organizational hierarchy: {str(e)}")
 
     return UserResponse(
         user_id=new_user.UserID,

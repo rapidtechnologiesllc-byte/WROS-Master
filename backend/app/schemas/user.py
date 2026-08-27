@@ -484,18 +484,21 @@ class OfferLetterResponse(BaseModel):
 
 class CreateUserWithRolesRequest(BaseModel):
     """
-    Request schema for creating a new user with RBAC role template.
+    Request schema for creating a new user with RBAC role template and org hierarchy.
 
     Required Fields:
     - user_name: User's display name (required)
     - user_email: User's email address (required, unique within tenant)
     - user_password: Initial password (required, min 8 chars)
     - role_template_id: RBAC role template ID (required)
+    - hierarchy_level: Org hierarchy level 1-17 (required) - see ORG_HIERARCHY_LEVELS.md
+    - specialization: Specialization domain (required) - Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
 
     Optional Fields:
     - job_title: User's job position
     - business_unit_id: Primary business unit assignment
     - partner_id: Optional partner assignment
+    - parent_node_id: Org hierarchy - who this person reports to (validated against hierarchy rules)
 
     ❌ DEPRECATED FIELDS (DO NOT USE):
     - user_role: Use role_template_id instead
@@ -504,7 +507,8 @@ class CreateUserWithRolesRequest(BaseModel):
     Schema Validation:
     - extra='forbid': Rejects unknown/deprecated fields with 422 error
     - validate_default: Validates defaults on assignment
-    - min_length: Enforces minimum string lengths
+    - hierarchy_level must be 1-17
+    - specialization must be from approved list
 
     Example:
         {
@@ -513,16 +517,22 @@ class CreateUserWithRolesRequest(BaseModel):
             "user_password": "SecurePassword123!",
             "job_title": "Senior Consultant",
             "role_template_id": 3,
-            "business_unit_id": 1
+            "business_unit_id": 1,
+            "hierarchy_level": 5,
+            "specialization": "Recruitment",
+            "parent_node_id": "hiring-manager-uuid"
         }
     """
     user_name: str = Field(..., min_length=1, max_length=255, description="User's display name")
     user_email: str = Field(..., max_length=255, description="User's unique email within tenant")
     user_password: str = Field(..., min_length=8, max_length=255, description="Initial password (min 8 chars)")
+    role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
+    hierarchy_level: int = Field(..., ge=1, le=17, description="Org hierarchy level: 1 (Intern) to 17 (CEO) - MANDATORY")
+    specialization: str = Field(..., min_length=1, max_length=100, description="Specialization domain (Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis) - MANDATORY")
     job_title: Optional[str] = Field(None, max_length=255, description="User's job position")
     partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")
     business_unit_id: Optional[int] = Field(None, gt=0, description="Primary business unit ID")
-    role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
+    parent_node_id: Optional[str] = Field(None, description="Org hierarchy: who this person reports to (validated by org_hierarchy_validator)")
 
     class Config:
         extra = 'forbid'  # STRICT: Reject any unknown fields (catches deprecated fields)

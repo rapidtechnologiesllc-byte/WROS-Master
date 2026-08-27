@@ -106,6 +106,10 @@ class OrgNode(Base):
     Each node has one parent (except the root CEO node, which has parent_id=null).
     This creates the tree structure within a department. Cross-department reporting
     (e.g., CEO over all departments, Partner over all BU Heads) is defined by position rank.
+
+    HIERARCHY ENFORCEMENT (2026-08-27):
+    - hierarchy_level: 1-17 (Intern → CEO) defines authority and valid parents
+    - specialization: domain (Recruitment, Development, HR, Finance, etc.) for same-domain reporting
     """
     __tablename__ = "org_nodes"
 
@@ -122,6 +126,12 @@ class OrgNode(Base):
 
     # Department this node belongs to (null for corporate-level: CEO, Partner)
     department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
+
+    # MANDATORY: Hierarchy level (1-17) for enforcement of reporting structure
+    hierarchy_level = Column(Integer, nullable=False, default=5, comment="1-17: Intern→CEO, defines authority")
+
+    # MANDATORY: Specialization domain (Recruitment, Development, HR, Finance, etc.)
+    specialization = Column(String(100), nullable=False, default="General", comment="Specialization: Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis")
 
     active = Column(Boolean, default=True, nullable=False, index=True)
 
