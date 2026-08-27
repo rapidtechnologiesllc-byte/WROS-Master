@@ -31,6 +31,7 @@ export const ROUTES = {
   MESSAGE_TEMPLATES: "/settings/templates",
   SLM_DASHBOARD: "/admin/slm-dashboard",
   SLM_TRAINING: "/admin/slm-training",
+  AGENT_CONFIG: "/admin/agent-config",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
   CANDIDATE_DETAILS: "/candidates/details",

@@ -10,14 +10,14 @@ GET /recruiting/funnel/happiness-only - Just employee happiness
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.recruitment_funnel_dashboard_service import RecruitmentFunnelDashboard
 from app.core.logging import logger
 
 router = APIRouter(prefix="/recruiting", tags=["recruitment-funnel"])
 
 
-@router.get("/funnel")
+@router.get("/funnel", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_full_recruitment_funnel(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -65,7 +65,7 @@ async def get_full_recruitment_funnel(
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
-@router.get("/funnel/recruitment")
+@router.get("/funnel/recruitment", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_recruitment_only(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -84,7 +84,7 @@ async def get_recruitment_only(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/funnel/resources")
+@router.get("/funnel/resources", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_resources_only(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -102,7 +102,7 @@ async def get_resources_only(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/funnel/happiness")
+@router.get("/funnel/happiness", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_happiness_only(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -120,7 +120,7 @@ async def get_happiness_only(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/funnel/2030-trajectory")
+@router.get("/funnel/2030-trajectory", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_2030_trajectory(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)

@@ -11,7 +11,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.agent_orchestration_service import (
     FlashOrchestrator,
     ThunderAgent,
@@ -30,7 +30,7 @@ from app.core.logging import logger
 router = APIRouter(prefix="/pipeline", tags=["pipeline-orchestration"])
 
 
-@router.post("/start/{candidate_id}")
+@router.post("/start/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def start_candidate_pipeline(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -62,7 +62,7 @@ async def start_candidate_pipeline(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
+@router.get("/status", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_pipeline_status(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
@@ -94,7 +94,7 @@ async def get_pipeline_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/execute-agents")
+@router.post("/execute-agents", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def execute_all_agents(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),

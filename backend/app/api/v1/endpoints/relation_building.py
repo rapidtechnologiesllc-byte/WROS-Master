@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.core.logging import logger
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.relation_building_dashboard_service import RelationBuildingDashboard
@@ -17,7 +17,7 @@ from app.models.user import Users
 router = APIRouter(prefix="/relation-building", tags=["relation-building"])
 
 
-@router.post("/extract-persona/{candidate_id}")
+@router.post("/extract-persona/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def extract_candidate_persona(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -83,7 +83,7 @@ async def extract_candidate_persona(
         raise HTTPException(status_code=500, detail="Internal server error during persona extraction")
 
 
-@router.get("/candidate-relationship/{candidate_id}")
+@router.get("/candidate-relationship/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_candidate_relationship_status(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -113,7 +113,7 @@ async def get_candidate_relationship_status(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/flash-report")
+@router.post("/flash-report", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_flash_candidate_intelligence(
     tenant_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -149,7 +149,7 @@ async def get_flash_candidate_intelligence(
     }
 
 
-@router.get("/dashboard/standup")
+@router.get("/dashboard/standup", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_daily_standup(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
@@ -197,7 +197,7 @@ async def get_daily_standup(
         raise HTTPException(status_code=500, detail="Internal server error generating standup report")
 
 
-@router.get("/dashboard/metrics")
+@router.get("/dashboard/metrics", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_metrics(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
@@ -234,7 +234,7 @@ async def get_agent_metrics(
 # ============== INTERACTION TRACKING ENDPOINTS ==============
 # These are called by other systems to update persona continuously
 
-@router.post("/interactions/email/{candidate_id}")
+@router.post("/interactions/email/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_email_interaction(
     candidate_id: str,
     email_text: str,
@@ -264,7 +264,7 @@ async def capture_email_interaction(
         raise HTTPException(status_code=500, detail="Error capturing email interaction")
 
 
-@router.post("/interactions/whatsapp/{candidate_id}")
+@router.post("/interactions/whatsapp/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_whatsapp_interaction(
     candidate_id: str,
     message_text: str,
@@ -294,7 +294,7 @@ async def capture_whatsapp_interaction(
         raise HTTPException(status_code=500, detail="Error capturing WhatsApp interaction")
 
 
-@router.post("/interactions/ai-recruiter/{candidate_id}")
+@router.post("/interactions/ai-recruiter/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_ai_recruiter_conversation(
     candidate_id: str,
     conversation_text: str,
@@ -322,7 +322,7 @@ async def capture_ai_recruiter_conversation(
         raise HTTPException(status_code=500, detail="Error capturing AI Recruiter conversation")
 
 
-@router.post("/interactions/interview/{candidate_id}")
+@router.post("/interactions/interview/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_interview_feedback(
     candidate_id: str,
     interview_data: Dict[str, Any],
@@ -348,7 +348,7 @@ async def capture_interview_feedback(
         raise HTTPException(status_code=500, detail="Error capturing interview feedback")
 
 
-@router.post("/interactions/offer/{candidate_id}")
+@router.post("/interactions/offer/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_offer_response(
     candidate_id: str,
     offer_response_data: Dict[str, Any],
@@ -377,7 +377,7 @@ async def capture_offer_response(
 # ============== PERSONAL INTELLIGENCE ENDPOINTS ==============
 # These extract and use 200+ personal data points for authentic relationship building
 
-@router.post("/personal-intelligence/{candidate_id}")
+@router.post("/personal-intelligence/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def extract_personal_intelligence(
     candidate_id: str,
     linkedin_profile: Optional[Dict[str, Any]] = None,
