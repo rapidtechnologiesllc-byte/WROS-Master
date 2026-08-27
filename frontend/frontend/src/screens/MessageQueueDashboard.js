@@ -38,99 +38,117 @@ const StatsContainer = styled.div`
 `;
 
 function MessageQueueDashboard() {
-  const [tasks, setTasks] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pagination, setPagination] = useState({
+    skip: 0,
+    limit: 50,
+    total: 0,
+  });
   const [stats, setStats] = useState({
     total: 0,
-    queued: 0,
-    active: 0,
+    pending: 0,
+    processing: 0,
     completed: 0,
+    retrying: 0,
     failed: 0,
   });
 
-  const loadTasks = async () => {
+  const loadMessages = async (skip = 0) => {
     try {
       setLoading(true);
-      const response = await apiRequest("/admin/queue/tasks", {
-        method: "GET",
-      });
+      const response = await apiRequest(
+        `/admin/queue?skip=${skip}&limit=${pagination.limit}`,
+        {
+          method: "GET",
+        }
+      );
 
-      if (response?.data?.tasks) {
-        setTasks(response.data.tasks);
-        calculateStats(response.data.tasks);
+      if (response?.data) {
+        setMessages(response.data);
+        setPagination({
+          skip: response.skip || 0,
+          limit: response.limit || 50,
+          total: response.total || 0,
+        });
+        calculateStats(response.data);
       }
     } catch (error) {
-      console.error("Failed to load tasks", error);
-      message.error("Failed to load message queue tasks");
+      console.error("Failed to load messages", error);
+      message.error("Failed to load message queue");
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateStats = (taskList) => {
+  const calculateStats = (messageList) => {
     const newStats = {
-      total: taskList.length,
-      queued: 0,
-      active: 0,
+      total: messageList.length,
+      pending: 0,
+      processing: 0,
       completed: 0,
+      retrying: 0,
       failed: 0,
     };
 
-    taskList.forEach((task) => {
-      const status = task.status?.toLowerCase();
-      if (status === "queued") newStats.queued++;
-      if (status === "active") newStats.active++;
-      if (status === "completed") newStats.completed++;
-      if (status === "failed") newStats.failed++;
+    messageList.forEach((msg) => {
+      const status = msg.status?.toUpperCase();
+      if (status === "PENDING") newStats.pending++;
+      if (status === "PROCESSING") newStats.processing++;
+      if (status === "COMPLETED") newStats.completed++;
+      if (status === "RETRYING") newStats.retrying++;
+      if (status === "FAILED") newStats.failed++;
     });
 
     setStats(newStats);
   };
 
   useEffect(() => {
-    loadTasks();
+    loadMessages();
     // Auto-refresh every 10 seconds
-    const interval = setInterval(loadTasks, 10000);
+    const interval = setInterval(() => loadMessages(pagination.skip), 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleRetryTask = async (taskId) => {
+  const handleRetryMessage = async (messageId) => {
     try {
-      await apiRequest(`/admin/queue/tasks/${taskId}/retry`, {
+      await apiRequest(`/admin/queue/tasks/${messageId}/retry`, {
         method: "POST",
       });
-      message.success("Task retry queued");
-      loadTasks();
+      message.success("Message retry queued");
+      loadMessages(pagination.skip);
     } catch (error) {
-      console.error("Failed to retry task", error);
-      message.error("Failed to retry task");
+      console.error("Failed to retry message", error);
+      message.error("Failed to retry message");
     }
   };
 
-  const handleClearTask = async (taskId) => {
+  const handleClearMessage = async (messageId) => {
     try {
-      await apiRequest(`/admin/queue/tasks/${taskId}/clear`, {
+      await apiRequest(`/admin/queue/tasks/${messageId}/clear`, {
         method: "POST",
       });
-      message.success("Task cleared");
-      loadTasks();
+      message.success("Message cleared");
+      loadMessages(pagination.skip);
     } catch (error) {
-      console.error("Failed to clear task", error);
-      message.error("Failed to clear task");
+      console.error("Failed to clear message", error);
+      message.error("Failed to clear message");
     }
   };
 
   const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "queued":
+    switch (status?.toUpperCase()) {
+      case "PENDING":
         return "blue";
-      case "active":
+      case "PROCESSING":
         return "processing";
-      case "completed":
+      case "COMPLETED":
         return "success";
-      case "failed":
+      case "RETRYING":
+        return "warning";
+      case "FAILED":
         return "error";
       default:
         return "default";
@@ -138,7 +156,7 @@ function MessageQueueDashboard() {
   };
 
   const getStatusIcon = (status) => {
-    if (status?.toLowerCase() === "failed") {
+    if (status?.toUpperCase() === "FAILED") {
       return <ExclamationCircleOutlined />;
     }
     return null;
@@ -146,17 +164,17 @@ function MessageQueueDashboard() {
 
   const columns = [
     {
-      title: "Task ID",
-      dataIndex: "task_id",
-      key: "task_id",
-      width: 200,
-      render: (id) => <code style={{ fontSize: "11px" }}>{id?.substring(0, 20)}...</code>,
+      title: "Message ID",
+      dataIndex: "id",
+      key: "id",
+      width: 180,
+      render: (id) => <code style={{ fontSize: "11px" }}>{id?.substring(0, 16)}...</code>,
     },
     {
-      title: "Task Name",
-      dataIndex: "task_name",
-      key: "task_name",
-      width: 200,
+      title: "Type",
+      dataIndex: "type",
+      key: "type",
+      width: 150,
     },
     {
       title: "Status",
@@ -170,13 +188,12 @@ function MessageQueueDashboard() {
       ),
     },
     {
-      title: "Progress",
-      dataIndex: "progress",
-      key: "progress",
+      title: "Resource ID",
+      dataIndex: "resource_id",
+      key: "resource_id",
       width: 150,
-      render: (progress) => (
-        <Progress percent={progress || 0} size="small" />
-      ),
+      render: (id) =>
+        id ? <code style={{ fontSize: "11px" }}>{id.substring(0, 16)}...</code> : "-",
     },
     {
       title: "Created",
@@ -189,28 +206,35 @@ function MessageQueueDashboard() {
           : "-",
     },
     {
+      title: "Retries",
+      dataIndex: "retry_count",
+      key: "retry_count",
+      width: 80,
+      render: (count) => count || 0,
+    },
+    {
       title: "Action",
       key: "action",
-      width: 250,
+      width: 200,
       render: (_, record) => (
         <Space>
           <Button
             type="link"
             size="small"
             onClick={() => {
-              setSelectedTask(record);
+              setSelectedMessage(record);
               setDrawerOpen(true);
             }}
           >
-            View Messages
+            Details
           </Button>
-          {record.status?.toLowerCase() === "failed" && (
+          {record.status?.toUpperCase() === "FAILED" && (
             <>
               <Button
                 type="link"
                 size="small"
                 icon={<RedoOutlined />}
-                onClick={() => handleRetryTask(record.task_id)}
+                onClick={() => handleRetryMessage(record.id)}
               >
                 Retry
               </Button>
@@ -219,7 +243,7 @@ function MessageQueueDashboard() {
                 size="small"
                 danger
                 icon={<DeleteOutlined />}
-                onClick={() => handleClearTask(record.task_id)}
+                onClick={() => handleClearMessage(record.id)}
               >
                 Clear
               </Button>
@@ -237,7 +261,7 @@ function MessageQueueDashboard() {
         <Space style={{ marginBottom: 16 }}>
           <Button
             icon={<ReloadOutlined />}
-            onClick={loadTasks}
+            onClick={() => loadMessages(0)}
             loading={loading}
           >
             Refresh
@@ -248,22 +272,22 @@ function MessageQueueDashboard() {
       <StatsContainer>
         <Card>
           <Statistic
-            title="Total Tasks"
-            value={stats.total}
+            title="Total Messages"
+            value={pagination.total}
             valueStyle={{ color: "#1890ff" }}
           />
         </Card>
         <Card>
           <Statistic
-            title="Queued"
-            value={stats.queued}
+            title="Pending"
+            value={stats.pending}
             valueStyle={{ color: "#1890ff" }}
           />
         </Card>
         <Card>
           <Statistic
-            title="Active"
-            value={stats.active}
+            title="Processing"
+            value={stats.processing}
             valueStyle={{ color: "#faad14" }}
           />
         </Card>
@@ -272,6 +296,13 @@ function MessageQueueDashboard() {
             title="Completed"
             value={stats.completed}
             valueStyle={{ color: "#52c41a" }}
+          />
+        </Card>
+        <Card>
+          <Statistic
+            title="Retrying"
+            value={stats.retrying}
+            valueStyle={{ color: "#faad14" }}
           />
         </Card>
         <Card>
@@ -285,14 +316,22 @@ function MessageQueueDashboard() {
 
       <Card>
         <Spin spinning={loading}>
-          {tasks.length === 0 ? (
-            <Empty description="No tasks in queue" />
+          {messages.length === 0 ? (
+            <Empty description="No messages in queue" />
           ) : (
             <Table
               columns={columns}
-              dataSource={tasks}
-              rowKey="task_id"
-              pagination={{ pageSize: 20 }}
+              dataSource={messages}
+              rowKey="id"
+              pagination={{
+                pageSize: pagination.limit,
+                total: pagination.total,
+                current: Math.floor(pagination.skip / pagination.limit) + 1,
+                onChange: (page) => {
+                  const newSkip = (page - 1) * pagination.limit;
+                  loadMessages(newSkip);
+                },
+              }}
               scroll={{ x: 1200 }}
             />
           )}
@@ -300,76 +339,89 @@ function MessageQueueDashboard() {
       </Card>
 
       <Drawer
-        title={`Task Messages: ${selectedTask?.task_name}`}
+        title={`Message Details: ${selectedMessage?.type}`}
         placement="right"
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
         width={600}
       >
-        {selectedTask && (
+        {selectedMessage && (
           <div>
             <div style={{ marginBottom: 16 }}>
-              <h3>Task Details</h3>
-              <p><strong>Task ID:</strong> <code>{selectedTask.task_id}</code></p>
-              <p><strong>Status:</strong> <Tag color={getStatusColor(selectedTask.status)}>{selectedTask.status}</Tag></p>
-              <p><strong>Created:</strong> {new Date(selectedTask.created_at).toLocaleString()}</p>
-              <p><strong>Progress:</strong> <Progress percent={selectedTask.progress || 0} /></p>
-            </div>
-
-            <div>
-              <h3>Messages & Events</h3>
-              {selectedTask.messages && selectedTask.messages.length > 0 ? (
-                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                  {selectedTask.messages.map((msg, idx) => (
-                    <Card
-                      key={idx}
-                      size="small"
-                      style={{ marginBottom: 12 }}
-                      type={msg.level === "error" ? "error" : "default"}
-                    >
-                      <p style={{ margin: 0, marginBottom: 4 }}>
-                        <strong>
-                          <Tag color={msg.level === "error" ? "red" : "blue"}>
-                            {msg.level?.toUpperCase()}
-                          </Tag>
-                        </strong>
-                        <small style={{ marginLeft: 8 }}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </small>
-                      </p>
-                      <p style={{ margin: 0, fontFamily: "monospace", fontSize: "12px", whiteSpace: "pre-wrap" }}>
-                        {msg.message}
-                      </p>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Empty description="No messages yet" />
+              <h3>Message Details</h3>
+              <p>
+                <strong>Message ID:</strong> <br />
+                <code style={{ fontSize: "11px", wordBreak: "break-all" }}>
+                  {selectedMessage.id}
+                </code>
+              </p>
+              <p>
+                <strong>Type:</strong> {selectedMessage.type}
+              </p>
+              <p>
+                <strong>Status:</strong>{" "}
+                <Tag color={getStatusColor(selectedMessage.status)}>
+                  {selectedMessage.status}
+                </Tag>
+              </p>
+              <p>
+                <strong>Resource ID:</strong>{" "}
+                {selectedMessage.resource_id ? (
+                  <code style={{ fontSize: "11px" }}>{selectedMessage.resource_id}</code>
+                ) : (
+                  "-"
+                )}
+              </p>
+              <p>
+                <strong>Created By:</strong> {selectedMessage.created_by || "-"}
+              </p>
+              <p>
+                <strong>Created:</strong>{" "}
+                {selectedMessage.created_at
+                  ? new Date(selectedMessage.created_at).toLocaleString()
+                  : "-"}
+              </p>
+              <p>
+                <strong>Updated:</strong>{" "}
+                {selectedMessage.updated_at
+                  ? new Date(selectedMessage.updated_at).toLocaleString()
+                  : "-"}
+              </p>
+              <p>
+                <strong>Retry Count:</strong> {selectedMessage.retry_count || 0}
+              </p>
+              {selectedMessage.error && (
+                <p>
+                  <strong>Error:</strong> <br />
+                  <code style={{ fontSize: "11px", whiteSpace: "pre-wrap" }}>
+                    {selectedMessage.error}
+                  </code>
+                </p>
               )}
             </div>
 
-            {selectedTask.status?.toLowerCase() === "failed" && (
+            {selectedMessage.status?.toUpperCase() === "FAILED" && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #ddd" }}>
                 <Space>
                   <Button
                     type="primary"
                     icon={<RedoOutlined />}
                     onClick={() => {
-                      handleRetryTask(selectedTask.task_id);
+                      handleRetryMessage(selectedMessage.id);
                       setDrawerOpen(false);
                     }}
                   >
-                    Retry Task
+                    Retry Message
                   </Button>
                   <Button
                     danger
                     icon={<DeleteOutlined />}
                     onClick={() => {
-                      handleClearTask(selectedTask.task_id);
+                      handleClearMessage(selectedMessage.id);
                       setDrawerOpen(false);
                     }}
                   >
-                    Clear Task
+                    Clear Message
                   </Button>
                 </Space>
               </div>

@@ -38,6 +38,7 @@ from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership
 
 from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_resource_permission
+from app.services.message_queue_service import MessageQueueService
 
 from app.schemas.candidate import (CandidateCreateRequest,
 CandidateCreateResponse, CandidateCompleteResponse,
@@ -215,6 +216,29 @@ def create_candidate(
     # wrapper (same one create_job.py's public application path already
     # uses) instead of a second, separate inline copy of the same logic.
     background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
+
+    # Enqueue candidate_created message for message queue processing
+    try:
+        candidate_name = f"{request.candidate_first_name or ''} {request.candidate_last_name or ''}".strip()
+        payload = {
+            "candidate_id": candidate_id,
+            "candidate_name": candidate_name,
+            "candidate_email": request.candidate_email,
+            "candidate_phone": request.candidate_mobile,
+            "candidate_location": request.candidate_current_location,
+            "candidate_job_title": request.candidate_job_title,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        MessageQueueService.enqueue(
+            message_type="candidate_created",
+            payload=payload,
+            resource_id=candidate_id,
+            created_by=user.UserID,
+            db=db,
+        )
+    except Exception as e:
+        logger.error(f"Failed to enqueue candidate_created message: {e}", exc_info=True)
+        # Don't fail the API call if message queue fails (async operation)
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(

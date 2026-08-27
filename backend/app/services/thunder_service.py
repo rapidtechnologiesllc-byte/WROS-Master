@@ -278,10 +278,29 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         return
 
     from app.services.email_service import EmailService
+    from app.services.message_queue_service import MessageQueueService
+
     try:
         EmailService.send_email(candidate.candidateEmail, email_subject, message_body, is_html=False)
+
+        # Mark candidate_created message as COMPLETED after email sent successfully
+        try:
+            from app.models.message_queue import MessageQueue
+            message = db.query(MessageQueue).filter(
+                MessageQueue.resource_id == candidate.candidateID,
+                MessageQueue.type == "candidate_created",
+                MessageQueue.status != MessageQueueService.STATUS_COMPLETED,
+            ).first()
+
+            if message:
+                MessageQueueService.mark_completed(message.id, db=db)
+                logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
+        except Exception as msg_err:
+            logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
+            # Don't fail email sending if message queue update fails
     except Exception as exc:
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")
+
     db.add(ConversationEvent(
         conversation_id=conversation.id, event_type="ai_message_sent",
         event_data={"channel": "email", "body": message_body, "auto_generated": True},
