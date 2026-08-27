@@ -61,6 +61,15 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/spartan/forecasting/decision/validate",
         "/spartan/forecasting/alert/generate",
         "/spartan/forecasting/health/summary",
+        "/spartan/demand",
+        "/spartan/finance/invoices",
+        "/spartan/finance/invoices/bulk-approve",
+        "/spartan/finance/revenue/recognize",
+        "/spartan/governance/consul-resolve",
+        "/spartan/governance/delivery-escalation",
+        "/spartan/governance/partner-escalation",
+        "/spartan/operations/queue",
+        "/spartan/timesheets/bulk-approve",
         "/admin/doctor/traces",
         "/admin/health",
         "/admin/queue/stats",
@@ -86,6 +95,18 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # app -- see the developer handoff), since it's exactly the kind
         # of public candidate-facing intake B4 calls out by name.
         "/jobs/{job_id}/apply",
+        # Spartan internal system routes with parameters
+        "/admin/doctor/traces/by-status/{status}",
+        "/admin/phalanx/{phalanx_name}/integrity",
+        "/admin/doctor/traces/{trace_id}/assign",
+        "/admin/queue/tasks/{task_id}/clear",
+        "/admin/queue/tasks/{task_id}/retry",
+        "/spartan/demand/{demand_id}",
+        "/spartan/jobs/{job_id}/close",
+        "/spartan/finance/invoices/{invoice_id}/approve",
+        "/spartan/jobs/{job_id}",
+        "/spartan/phalanx/{phalanx}/integrity",
+        "/spartan/kpis/{phalanx}",
     ]
     
     async def dispatch(self, request: Request, call_next: Callable):
