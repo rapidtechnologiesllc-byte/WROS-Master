@@ -9,14 +9,14 @@ GET /agents/accountability/scorecards - Individual agent performance cards
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.agent_accountability_service import AgentAccountabilityService
 from app.core.logging import logger
 
 router = APIRouter(prefix="/agents", tags=["agent-accountability"])
 
 
-@router.get("/accountability")
+@router.get("/accountability", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_accountability(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -53,7 +53,7 @@ async def get_agent_accountability(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/accountability/hand-offs")
+@router.get("/accountability/hand-offs", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_broken_hand_offs(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -92,7 +92,7 @@ async def get_broken_hand_offs(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/accountability/scorecards")
+@router.get("/accountability/scorecards", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_scorecards(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)

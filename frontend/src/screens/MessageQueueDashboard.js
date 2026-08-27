@@ -14,12 +14,16 @@ import {
   message,
   Badge,
   Progress,
+  Tabs,
+  Alert,
 } from "antd";
 import {
   ReloadOutlined,
   DeleteOutlined,
   RedoOutlined,
   ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import styled from "styled-components";
 import { apiRequest } from "../services/api/client";
@@ -39,15 +43,32 @@ const StatsContainer = styled.div`
 
 function MessageQueueDashboard() {
   const [tasks, setTasks] = useState([]);
+  const [escalations, setEscalations] = useState([]);
+  const [health, setHealth] = useState({
+    database: 'unknown',
+    messageQueue: 'unknown',
+    slmService: 'unknown',
+    doctorAgent: 'unknown',
+    alerts: [],
+  });
   const [loading, setLoading] = useState(false);
+  const [escalationsLoading, setEscalationsLoading] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("queue");
   const [stats, setStats] = useState({
     total: 0,
     queued: 0,
     active: 0,
     completed: 0,
     failed: 0,
+  });
+  const [escalationStats, setEscalationStats] = useState({
+    total: 0,
+    active: 0,
+    resolved: 0,
+    pending: 0,
   });
 
   const loadTasks = async () => {
@@ -89,12 +110,72 @@ function MessageQueueDashboard() {
     setStats(newStats);
   };
 
+  const loadEscalations = async () => {
+    try {
+      setEscalationsLoading(true);
+      const response = await apiRequest("/admin/doctor-traces", {
+        method: "GET",
+      });
+
+      if (response?.data?.traces) {
+        setEscalations(response.data.traces);
+
+        // Calculate escalation stats
+        const newStats = {
+          total: response.data.traces.length,
+          active: response.data.traces.filter(t => t.status === 'ACTIVE').length,
+          resolved: response.data.traces.filter(t => t.status === 'RESOLVED').length,
+          pending: response.data.traces.filter(t => t.status === 'PENDING').length,
+        };
+        setEscalationStats(newStats);
+      }
+    } catch (error) {
+      console.error("Failed to load escalations", error);
+      message.error("Failed to load doctor escalations");
+    } finally {
+      setEscalationsLoading(false);
+    }
+  };
+
+  const loadHealth = async () => {
+    try {
+      setHealthLoading(true);
+      const response = await apiRequest("/admin/health", {
+        method: "GET",
+      });
+
+      if (response?.data) {
+        setHealth({
+          database: response.data.database_status || 'unknown',
+          messageQueue: response.data.queue_status || 'unknown',
+          slmService: response.data.slm_status || 'unknown',
+          doctorAgent: response.data.doctor_status || 'unknown',
+          alerts: response.data.alerts || [],
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load health data", error);
+      // Don't show error message for health - it's auxiliary
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
   useEffect(() => {
+    // Load all data on mount
     loadTasks();
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(loadTasks, 10000);
+    loadEscalations();
+    loadHealth();
+
+    // Auto-refresh all data every 10 seconds
+    const interval = setInterval(() => {
+      loadTasks();
+      if (activeTab === "escalations") loadEscalations();
+      if (activeTab === "health") loadHealth();
+    }, 10000);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [activeTab]);
 
   const handleRetryTask = async (taskId) => {
     try {
@@ -143,6 +224,81 @@ function MessageQueueDashboard() {
     }
     return null;
   };
+
+  const getHealthColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case "healthy":
+      case "up":
+        return "success";
+      case "degraded":
+      case "warning":
+        return "warning";
+      case "down":
+      case "error":
+        return "error";
+      default:
+        return "default";
+    }
+  };
+
+  const escalationColumns = [
+    {
+      title: "Message ID",
+      dataIndex: "message_id",
+      key: "message_id",
+      width: 150,
+      render: (id) => <code style={{ fontSize: "11px" }}>{id?.substring(0, 16)}...</code>,
+    },
+    {
+      title: "Attempt",
+      dataIndex: "attempt_number",
+      key: "attempt_number",
+      width: 80,
+      render: (num) => <Tag color="blue">{num}</Tag>,
+    },
+    {
+      title: "Strategy",
+      dataIndex: "strategy",
+      key: "strategy",
+      width: 150,
+      render: (strategy) => (
+        <Tag>{strategy || "ESCALATE_TO_WROS"}</Tag>
+      ),
+    },
+    {
+      title: "Assigned To",
+      dataIndex: "assigned_to_user",
+      key: "assigned_to_user",
+      width: 150,
+      render: (user) => <span>{user?.name || "Unassigned"}</span>,
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 120,
+      render: (status) => (
+        <Tag color={status === 'RESOLVED' ? 'success' : status === 'ACTIVE' ? 'processing' : 'default'}>
+          {status}
+        </Tag>
+      ),
+    },
+    {
+      title: "WROS Ticket",
+      dataIndex: "wros_ticket_id",
+      key: "wros_ticket_id",
+      width: 150,
+      render: (ticketId) => ticketId ? <a href={`/tickets/${ticketId}`}>{ticketId}</a> : '-',
+    },
+    {
+      title: "Created",
+      dataIndex: "created_at",
+      key: "created_at",
+      width: 180,
+      render: (date) =>
+        date ? new Date(date).toLocaleString() : "-",
+    },
+  ];
 
   const columns = [
     {
@@ -233,71 +389,209 @@ function MessageQueueDashboard() {
   return (
     <PageContainer>
       <div>
-        <h1>Message Queue Dashboard</h1>
+        <h1>System Health Dashboard</h1>
         <Space style={{ marginBottom: 16 }}>
           <Button
             icon={<ReloadOutlined />}
-            onClick={loadTasks}
-            loading={loading}
+            onClick={() => {
+              loadTasks();
+              if (activeTab === "escalations") loadEscalations();
+              if (activeTab === "health") loadHealth();
+            }}
+            loading={loading || escalationsLoading || healthLoading}
           >
             Refresh
           </Button>
         </Space>
       </div>
 
-      <StatsContainer>
-        <Card>
-          <Statistic
-            title="Total Tasks"
-            value={stats.total}
-            valueStyle={{ color: "#1890ff" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Queued"
-            value={stats.queued}
-            valueStyle={{ color: "#1890ff" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Active"
-            value={stats.active}
-            valueStyle={{ color: "#faad14" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Completed"
-            value={stats.completed}
-            valueStyle={{ color: "#52c41a" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Failed"
-            value={stats.failed}
-            valueStyle={{ color: "#ff4d4f" }}
-          />
-        </Card>
-      </StatsContainer>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: "queue",
+            label: "Message Queue",
+            children: (
+              <>
+                <StatsContainer>
+                  <Card>
+                    <Statistic
+                      title="Total Tasks"
+                      value={stats.total}
+                      valueStyle={{ color: "#1890ff" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Queued"
+                      value={stats.queued}
+                      valueStyle={{ color: "#1890ff" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Active"
+                      value={stats.active}
+                      valueStyle={{ color: "#faad14" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Completed"
+                      value={stats.completed}
+                      valueStyle={{ color: "#52c41a" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Failed"
+                      value={stats.failed}
+                      valueStyle={{ color: "#ff4d4f" }}
+                    />
+                  </Card>
+                </StatsContainer>
 
-      <Card>
-        <Spin spinning={loading}>
-          {tasks.length === 0 ? (
-            <Empty description="No tasks in queue" />
-          ) : (
-            <Table
-              columns={columns}
-              dataSource={tasks}
-              rowKey="task_id"
-              pagination={{ pageSize: 20 }}
-              scroll={{ x: 1200 }}
-            />
-          )}
-        </Spin>
-      </Card>
+                <Card>
+                  <Spin spinning={loading}>
+                    {tasks.length === 0 ? (
+                      <Empty description="No tasks in queue" />
+                    ) : (
+                      <Table
+                        columns={columns}
+                        dataSource={tasks}
+                        rowKey="task_id"
+                        pagination={{ pageSize: 20 }}
+                        scroll={{ x: 1200 }}
+                      />
+                    )}
+                  </Spin>
+                </Card>
+              </>
+            ),
+          },
+          {
+            key: "escalations",
+            label: `Doctor Agent Escalations (${escalationStats.active})`,
+            children: (
+              <>
+                <StatsContainer>
+                  <Card>
+                    <Statistic
+                      title="Total Escalations"
+                      value={escalationStats.total}
+                      valueStyle={{ color: "#1890ff" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Active"
+                      value={escalationStats.active}
+                      valueStyle={{ color: "#ff4d4f" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Pending"
+                      value={escalationStats.pending}
+                      valueStyle={{ color: "#faad14" }}
+                    />
+                  </Card>
+                  <Card>
+                    <Statistic
+                      title="Resolved"
+                      value={escalationStats.resolved}
+                      valueStyle={{ color: "#52c41a" }}
+                    />
+                  </Card>
+                </StatsContainer>
+
+                <Card title="Doctor Agent Traces" style={{ marginTop: 16 }}>
+                  <Spin spinning={escalationsLoading}>
+                    {escalations.length === 0 ? (
+                      <Empty description="No escalations" />
+                    ) : (
+                      <Table
+                        columns={escalationColumns}
+                        dataSource={escalations}
+                        rowKey="id"
+                        pagination={{ pageSize: 20 }}
+                        scroll={{ x: 1400 }}
+                      />
+                    )}
+                  </Spin>
+                </Card>
+              </>
+            ),
+          },
+          {
+            key: "health",
+            label: "System Health",
+            children: (
+              <>
+                <Spin spinning={healthLoading}>
+                  {health.alerts && health.alerts.length > 0 && (
+                    <Alert
+                      message="System Alerts"
+                      description={
+                        <ul style={{ marginBottom: 0 }}>
+                          {health.alerts.map((alert, idx) => (
+                            <li key={idx}>{alert}</li>
+                          ))}
+                        </ul>
+                      }
+                      type="warning"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                    />
+                  )}
+
+                  <Card title="Service Status" style={{ marginBottom: 16 }}>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Card type="inner">
+                          <Space direction="vertical" style={{ width: "100%" }}>
+                            <div>
+                              <strong>Database:</strong>{" "}
+                              <Tag color={getHealthColor(health.database)}>
+                                {health.database}
+                              </Tag>
+                            </div>
+                            <div>
+                              <strong>Message Queue:</strong>{" "}
+                              <Tag color={getHealthColor(health.messageQueue)}>
+                                {health.messageQueue}
+                              </Tag>
+                            </div>
+                          </Space>
+                        </Card>
+                      </Col>
+                      <Col span={12}>
+                        <Card type="inner">
+                          <Space direction="vertical" style={{ width: "100%" }}>
+                            <div>
+                              <strong>SLM Service:</strong>{" "}
+                              <Tag color={getHealthColor(health.slmService)}>
+                                {health.slmService}
+                              </Tag>
+                            </div>
+                            <div>
+                              <strong>Doctor Agent:</strong>{" "}
+                              <Tag color={getHealthColor(health.doctorAgent)}>
+                                {health.doctorAgent}
+                              </Tag>
+                            </div>
+                          </Space>
+                        </Card>
+                      </Col>
+                    </Row>
+                  </Card>
+                </Spin>
+              </>
+            ),
+          },
+        ]}
+      />
 
       <Drawer
         title={`Task Messages: ${selectedTask?.task_name}`}

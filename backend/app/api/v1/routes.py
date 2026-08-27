@@ -48,6 +48,9 @@ from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_lea
 from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
+from app.api.v1.endpoints.queue import router as queue_router
+from app.api.v1.endpoints.doctor_traces_dashboard import router as doctor_traces_router
+from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
 from app.api.v1.endpoints.portal_messages import router as portal_messages_router
@@ -114,6 +117,7 @@ from app.api.v1.endpoints.pipeline_orchestration import router as pipeline_orche
 from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring_router
 from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 from app.api.v1.endpoints.goals_management import router as goals_router
+from app.api.v1.endpoints.spartan_integration import router as spartan_router
 
 router = fastapi.APIRouter()
 
@@ -230,4 +234,8 @@ router.include_router(router=pipeline_orchestration_router)
 router.include_router(router=finance_monitoring_router)
 router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
-router.include_router(router=certifications_admin_router)
+router.include_router(router=certifications_admin_router)
+router.include_router(router=queue_router)
+router.include_router(router=doctor_traces_router)
+router.include_router(router=system_health_router)
+router.include_router(router=spartan_router)
