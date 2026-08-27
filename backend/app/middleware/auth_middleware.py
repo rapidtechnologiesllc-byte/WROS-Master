@@ -54,6 +54,24 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Form dropdown data endpoints (authenticated users need these)
         "/admin/certifications/business-units",
         "/admin/certifications/roles",
+        # Spartan forecasting and governance endpoints (internal system)
+        "/spartan/forecasting/recruitment/forecast",
+        "/spartan/forecasting/resources/forecast",
+        "/spartan/forecasting/revenue/forecast",
+        "/spartan/forecasting/decision/validate",
+        "/spartan/forecasting/alert/generate",
+        "/spartan/forecasting/health/summary",
+        "/admin/doctor/traces",
+        "/admin/health",
+        "/admin/queue/stats",
+        "/admin/queue/tasks",
+        "/spartan/formation/status",
+        "/spartan/governance/escalations/pending",
+        "/spartan/governance/formation/constraints",
+        "/spartan/kpis/{phalanx}",
+        "/spartan/phalanx/{phalanx}/integrity",
+        "/spartan/timesheets/kpis",
+        "/spartan/timesheets/pending",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for
