@@ -118,6 +118,7 @@ from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring
 from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.spartan_integration import router as spartan_router
+from app.api.v1.endpoints.strategic_consul import router as consul_router
 
 router = fastapi.APIRouter()
 
@@ -238,4 +239,5 @@ router.include_router(router=certifications_admin_router)
 router.include_router(router=queue_router)
 router.include_router(router=doctor_traces_router)
 router.include_router(router=system_health_router)
-router.include_router(router=spartan_router)
+router.include_router(router=spartan_router)
+router.include_router(router=consul_router)
