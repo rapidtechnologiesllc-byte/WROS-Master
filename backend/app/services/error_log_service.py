@@ -35,7 +35,7 @@ def _page_on_call(db: Session, error: ErrorLog) -> None:
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     on_call = None
     for user in all_users:
-        if RBACService.has_permission(db, user.UserID, "admin-settings", "edit"):
+        if RBACService.has_permission(db, user.UserID, "admin-settings.edit"):
             on_call = user
             break
 
