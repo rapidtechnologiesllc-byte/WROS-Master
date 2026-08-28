@@ -23,6 +23,7 @@ import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
 import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
+import QueueManagementScreen from "../screens/QueueManagementScreen";
 import { getAllInterviews, updateInterview } from "../services/api/interviews";
 import {
   getAllCandidates,
@@ -673,6 +674,7 @@ export default function AppRoutes() {
             <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
             <Route path="admin/messagequeue" element={<MessageQueueDashboard />} />
+            <Route path="admin/queue-management" element={<QueueManagementScreen />} />
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />

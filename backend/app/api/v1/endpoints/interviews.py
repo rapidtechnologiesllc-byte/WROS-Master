@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
+from app.services.message_queue_service import MessageQueueService
 from app.services.interview_sequencing_service import (
     PriorRoundNotPassed,
     enforce_interview_sequencing_gate,
@@ -1378,15 +1379,15 @@ def create_interview(
 ):
     """
     Create a new interview.
-    
+
     Args:
         request: InterviewCreate with interview details
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         InterviewResponse with interview details
-        
+
     Raises:
         HTTPException: If panel or candidate not found, or time validation fails
     """
@@ -1397,7 +1398,7 @@ def create_interview(
             status_code=404,
             detail=f"Interview panel with ID {request.panel_id} not found"
         )
-    
+
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
     if not candidate:
@@ -1405,14 +1406,14 @@ def create_interview(
             status_code=404,
             detail=f"Candidate with ID {request.candidate_id} not found"
         )
-    
+
     # Validate time
     if request.end_time <= request.start_time:
         raise HTTPException(
             status_code=400,
             detail="End time must be after start time"
         )
-    
+
     # Create interview
     interview = Interview(
         panel_id=request.panel_id,
@@ -1423,8 +1424,29 @@ def create_interview(
         outlook_event_id=request.outlook_event_id,
         status=request.status
     )
-    
+
     db.add(interview)
+
+    # Queue interview_scheduled message (BEFORE commit for atomicity)
+    MessageQueueService.enqueue(
+        message_type="interview_scheduled",
+        payload={
+            "interview_id": interview.id,
+            "candidate_id": request.candidate_id,
+            "panel_id": request.panel_id,
+            "start_time": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
+            "end_time": request.end_time.isoformat() if hasattr(request.end_time, 'isoformat') else str(request.end_time),
+            "meeting_link": request.meeting_link,
+            "candidate_email": candidate.candidateEmail,
+            "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+        },
+        resource_id=request.candidate_id,
+        queue_type="EMAIL_QUEUE",
+        created_by=user.UserID,
+        db=db,
+    )
+
+    # ATOMIC COMMIT
     db.commit()
     db.refresh(interview)
 

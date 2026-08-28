@@ -1,20 +1,14 @@
-"""Queue Management Endpoints - Channel-based message queue API.
-
-Provides comprehensive queue management with:
-- Channel-based filtering (THUNDER_QUEUE, EMAIL_QUEUE, etc.)
-- Email engagement metrics
-- Queue health monitoring
-- Message routing visualization
-- Manual retry and error handling
-"""
+"""Queue Management Endpoints - Channel-based message queue API."""
 import logging
 from typing import Any, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.message_queue import MessageQueue, EmailTracking, EmailTrackingEvent
 
 logger = logging.getLogger(__name__)
 
@@ -38,350 +32,245 @@ def list_queue_messages(
     Query parameters:
         skip: Pagination offset (default: 0)
         limit: Maximum items to return (default: 50, max: 1000)
-        queue_type: Filter by channel (THUNDER_QUEUE, EMAIL_QUEUE, WHATSAPP_QUEUE, etc.)
+        queue_type: Filter by channel (THUNDER_QUEUE, EMAIL_QUEUE, etc.)
         status: Filter by status (PENDING, SLM_PROCESSING, CHANNEL_QUEUED, COMPLETED, FAILED)
         message_type: Filter by message type (candidate_created, interview_scheduled, etc.)
         created_after: Filter by creation date (ISO format)
         retry_count_min: Filter by minimum retry count
-
-    Returns:
-        {
-            "data": [...messages...],
-            "total": 150,
-            "skip": 0,
-            "limit": 50
-        }
     """
-    try:
-        from app.models.message_queue import MessageQueue
+    query = db.query(MessageQueue)
 
-        # Build query
-        query = db.query(MessageQueue)
+    # Apply filters
+    if queue_type:
+        query = query.filter(MessageQueue.queue_type == queue_type)
+    if status:
+        query = query.filter(MessageQueue.status == status)
+    if message_type:
+        query = query.filter(MessageQueue.type == message_type)
+    if created_after:
+        try:
+            after_dt = datetime.fromisoformat(created_after)
+            query = query.filter(MessageQueue.created_at >= after_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid created_after format (use ISO format)")
+    if retry_count_min is not None:
+        query = query.filter(MessageQueue.retry_count >= retry_count_min)
 
-        # Apply filters
-        if queue_type:
-            query = query.filter(MessageQueue.queue_type == queue_type.upper())
-        if status:
-            query = query.filter(MessageQueue.status == status.upper())
-        if message_type:
-            query = query.filter(MessageQueue.type == message_type)
-        if created_after:
-            try:
-                created_date = datetime.fromisoformat(created_after)
-                query = query.filter(MessageQueue.created_at >= created_date)
-            except ValueError:
-                raise ValueError(f"Invalid date format: {created_after}")
-        if retry_count_min is not None:
-            query = query.filter(MessageQueue.retry_count >= retry_count_min)
+    # Get total before pagination
+    total = query.count()
 
-        # Get total count
-        total = query.count()
+    # Apply pagination and sort by created_at descending
+    messages = query.order_by(desc(MessageQueue.created_at)).offset(skip).limit(limit).all()
 
-        # Get paginated results
-        messages = (
-            query
-            .order_by(MessageQueue.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+    # Build response
+    result = []
+    for m in messages:
+        result.append({
+            "id": m.id,
+            "type": m.type,
+            "queue_type": m.queue_type,
+            "status": m.status,
+            "resource_id": m.resource_id,
+            "retry_count": m.retry_count,
+            "error": m.error,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+            "created_by": m.created_by,
+            "email_status": m.email_status,
+            "opened_at": m.opened_at.isoformat() if m.opened_at else None,
+            "clicked_at": m.clicked_at.isoformat() if m.clicked_at else None,
+            "bounced_at": m.bounced_at.isoformat() if m.bounced_at else None,
+            "email_provider": m.email_provider,
+        })
 
-        result = [
-            {
-                "id": m.id,
-                "type": m.type,
-                "queue_type": m.queue_type,
-                "status": m.status,
-                "resource_id": m.resource_id,
-                "retry_count": m.retry_count,
-                "error": m.error,
-                "created_at": m.created_at.isoformat() if m.created_at else None,
-                "updated_at": m.updated_at.isoformat() if m.updated_at else None,
-                "created_by": m.created_by,
-                # Email-specific fields
-                "email_status": m.email_status,
-                "opened_at": m.opened_at.isoformat() if m.opened_at else None,
-                "clicked_at": m.clicked_at.isoformat() if m.clicked_at else None,
-                "bounced_at": m.bounced_at.isoformat() if m.bounced_at else None,
-            }
-            for m in messages
-        ]
-
-        return {
-            "data": result,
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to list queue messages: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to list queue messages: {str(e)}")
+    return {
+        "data": result,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 
 @router.get("/stats")
-def get_queue_stats(
-    queue_type: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Get comprehensive queue statistics.
+def get_queue_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get queue statistics aggregated by queue type and status."""
+    all_messages = db.query(MessageQueue).all()
 
-    Returns status breakdown for all queues or specific queue type.
-
-    Returns:
-        {
-            "total_messages": 500,
-            "queues": {
-                "EMAIL_QUEUE": {
-                    "PENDING": 10,
-                    "SLM_PROCESSING": 5,
-                    "CHANNEL_QUEUED": 20,
-                    "COMPLETED": 450,
-                    "FAILED": 5,
-                    "total": 490
-                },
-                "THUNDER_QUEUE": {...},
-                ...
-            },
-            "email_metrics": {
-                "total_sent": 490,
-                "open_rate": 42.5,
-                "click_rate": 18.2,
-                "bounce_rate": 2.1,
-                "reply_rate": 5.3
+    queue_stats = {}
+    for queue_type in ["THUNDER_QUEUE", "EMAIL_QUEUE", "WHATSAPP_QUEUE", "SMS_QUEUE", "SLACK_QUEUE",
+                       "APPROVAL_QUEUE", "COMMISSION_QUEUE", "CRM_QUEUE", "DASHBOARD_QUEUE", "CALENDAR_QUEUE", "SIGNATURE_QUEUE"]:
+        queue_messages = [m for m in all_messages if m.queue_type == queue_type]
+        if queue_messages:
+            queue_stats[queue_type] = {
+                "total": len(queue_messages),
+                "pending": len([m for m in queue_messages if m.status == "PENDING"]),
+                "processing": len([m for m in queue_messages if m.status == "SLM_PROCESSING"]),
+                "completed": len([m for m in queue_messages if m.status == "COMPLETED"]),
+                "failed": len([m for m in queue_messages if m.status == "FAILED"]),
             }
+
+    # Email engagement metrics
+    email_messages = [m for m in all_messages if m.queue_type == "EMAIL_QUEUE"]
+    email_metrics = None
+    if email_messages:
+        opened = len([m for m in email_messages if m.opened_at])
+        clicked = len([m for m in email_messages if m.clicked_at])
+        bounced = len([m for m in email_messages if m.bounced_at])
+        total = len(email_messages)
+
+        email_metrics = {
+            "total_sent": total,
+            "opened": opened,
+            "open_rate": (opened / total * 100) if total > 0 else 0,
+            "clicked": clicked,
+            "click_rate": (clicked / total * 100) if total > 0 else 0,
+            "bounced": bounced,
+            "bounce_rate": (bounced / total * 100) if total > 0 else 0,
         }
-    """
-    try:
-        from app.models.message_queue import MessageQueue, MessageChannel
-        from sqlalchemy import func
 
-        stats = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "queues": {},
-            "email_metrics": None,
-        }
-
-        # Get stats per queue type
-        if queue_type:
-            # Get stats for specific queue
-            channel_stats = (
-                db.query(
-                    MessageChannel.status,
-                    func.count(MessageChannel.id).label("count"),
-                )
-                .filter(MessageChannel.queue_type == queue_type.upper())
-                .group_by(MessageChannel.status)
-                .all()
-            )
-
-            queue_stats_dict = {"total": 0}
-            for status, count in channel_stats:
-                queue_stats_dict[status] = count
-                queue_stats_dict["total"] += count
-
-            stats["queues"][queue_type.upper()] = queue_stats_dict
-        else:
-            # Get stats for all queues
-            all_channel_stats = (
-                db.query(
-                    MessageChannel.queue_type,
-                    MessageChannel.status,
-                    func.count(MessageChannel.id).label("count"),
-                )
-                .group_by(MessageChannel.queue_type, MessageChannel.status)
-                .all()
-            )
-
-            for queue_t, status, count in all_channel_stats:
-                if queue_t not in stats["queues"]:
-                    stats["queues"][queue_t] = {"total": 0}
-                stats["queues"][queue_t][status] = count
-                stats["queues"][queue_t]["total"] += count
-
-            # Add email engagement metrics
-            email_tracking_stats = (
-                db.query(
-                    func.count(MessageQueue.id).label("total_sent"),
-                    func.count(func.nullif(MessageQueue.opened_at, None)).label("opened"),
-                    func.count(func.nullif(MessageQueue.clicked_at, None)).label("clicked"),
-                    func.count(func.nullif(MessageQueue.bounced_at, None)).label("bounced"),
-                    func.count(func.nullif(MessageQueue.replied_at, None)).label("replied"),
-                )
-                .filter(MessageQueue.queue_type == "EMAIL_QUEUE")
-                .first()
-            )
-
-            if email_tracking_stats and email_tracking_stats.total_sent > 0:
-                total = email_tracking_stats.total_sent
-                stats["email_metrics"] = {
-                    "total_sent": total,
-                    "opened": email_tracking_stats.opened or 0,
-                    "clicked": email_tracking_stats.clicked or 0,
-                    "bounced": email_tracking_stats.bounced or 0,
-                    "replied": email_tracking_stats.replied or 0,
-                    "open_rate": round((email_tracking_stats.opened or 0) / total * 100, 2),
-                    "click_rate": round((email_tracking_stats.clicked or 0) / total * 100, 2),
-                    "bounce_rate": round((email_tracking_stats.bounced or 0) / total * 100, 2),
-                    "reply_rate": round((email_tracking_stats.replied or 0) / total * 100, 2),
-                }
-
-        return stats
-
-    except Exception as e:
-        logger.error(f"Failed to get queue stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get queue stats: {str(e)}")
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "queues": queue_stats,
+        "email_metrics": email_metrics,
+    }
 
 
 @router.get("/{message_id}")
-def get_message_detail(
-    message_id: str,
-    db: Session = Depends(get_db),
-) -> Dict[str, Any]:
-    """Get detailed information about a message and its channel routes."""
-    try:
-        from app.models.message_queue import MessageQueue, MessageChannel, EmailTracking
+def get_message_detail(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get detailed information about a specific message."""
+    message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
 
-        message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
-        if not message:
-            raise HTTPException(status_code=404, detail="Message not found")
+    if not message:
+        raise HTTPException(status_code=404, detail=f"Message {message_id} not found")
 
-        # Get channel routes
-        channels = db.query(MessageChannel).filter(MessageChannel.message_id == message_id).all()
+    # Get any associated email tracking
+    email_tracking = db.query(EmailTracking).filter(EmailTracking.message_id == message_id).all()
 
-        # Get email tracking if applicable
-        email_trackings = db.query(EmailTracking).filter(EmailTracking.message_id == message_id).all()
+    # Get email events
+    email_events = []
+    for tracking in email_tracking:
+        events = db.query(EmailTrackingEvent).filter(
+            EmailTrackingEvent.tracking_id == tracking.id
+        ).order_by(EmailTrackingEvent.created_at).all()
 
-        return {
-            "message": {
-                "id": message.id,
-                "type": message.type,
-                "queue_type": message.queue_type,
-                "status": message.status,
-                "payload": message.payload,
-                "resource_id": message.resource_id,
-                "retry_count": message.retry_count,
-                "error": message.error,
-                "created_at": message.created_at.isoformat() if message.created_at else None,
-                "updated_at": message.updated_at.isoformat() if message.updated_at else None,
-                "created_by": message.created_by,
-            },
-            "channels": [
-                {
-                    "id": c.id,
-                    "queue_type": c.queue_type,
-                    "status": c.status,
-                    "error_details": c.error_details,
-                    "processed_at": c.processed_at.isoformat() if c.processed_at else None,
-                }
-                for c in channels
-            ],
-            "email_tracking": [
-                {
-                    "id": et.id,
-                    "recipient_email": et.recipient_email,
-                    "provider": et.provider,
-                    "status": et.status,
-                    "open_count": et.open_count,
-                    "click_count": et.click_count,
-                    "opened_at": et.opened_at.isoformat() if et.opened_at else None,
-                    "clicked_at": et.clicked_at.isoformat() if et.clicked_at else None,
-                    "bounced_at": et.bounced_at.isoformat() if et.bounced_at else None,
-                    "replied_at": et.replied_at.isoformat() if et.replied_at else None,
-                }
-                for et in email_trackings
-            ],
-        }
+        email_events.extend([{
+            "tracking_id": tracking.id,
+            "recipient": tracking.recipient_email,
+            "event_type": e.event_type,
+            "event_data": e.event_data,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        } for e in events])
 
-    except Exception as e:
-        logger.error(f"Failed to get message detail: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get message detail: {str(e)}")
+    return {
+        "message": {
+            "id": message.id,
+            "type": message.type,
+            "queue_type": message.queue_type,
+            "status": message.status,
+            "resource_id": message.resource_id,
+            "payload": message.payload,
+            "retry_count": message.retry_count,
+            "error": message.error,
+            "created_at": message.created_at.isoformat() if message.created_at else None,
+            "updated_at": message.updated_at.isoformat() if message.updated_at else None,
+            "created_by": message.created_by,
+        },
+        "email_tracking": [{
+            "id": t.id,
+            "recipient_email": t.recipient_email,
+            "provider": t.provider,
+            "status": t.status,
+            "sent_at": t.sent_at.isoformat() if t.sent_at else None,
+            "opened_at": t.opened_at.isoformat() if t.opened_at else None,
+            "clicked_at": t.clicked_at.isoformat() if t.clicked_at else None,
+            "bounced_at": t.bounced_at.isoformat() if t.bounced_at else None,
+        } for t in email_tracking],
+        "email_events": email_events,
+    }
 
 
 @router.post("/{message_id}/retry")
-def retry_message(
-    message_id: str,
-    db: Session = Depends(get_db),
-) -> Dict[str, Any]:
-    """Manually retry a failed message."""
-    try:
-        from app.models.message_queue import MessageQueue
+def retry_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Retry a failed message."""
+    message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
 
-        message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
-        if not message:
-            raise HTTPException(status_code=404, detail="Message not found")
+    if not message:
+        raise HTTPException(status_code=404, detail=f"Message {message_id} not found")
 
-        message.status = "PENDING"
-        message.retry_count = 0
-        message.error = None
-        message.next_retry_at = None
-        db.commit()
+    if message.status != "FAILED":
+        raise HTTPException(status_code=400, detail=f"Can only retry FAILED messages, current status: {message.status}")
 
-        logger.info(f"Message manually retried: {message_id}")
+    message.status = "PENDING"
+    message.retry_count += 1
+    message.error = None
+    message.updated_at = datetime.utcnow()
 
-        return {
-            "status": "success",
-            "message": f"Message {message_id} queued for retry",
-        }
+    db.commit()
+    logger.info(f"Retrying message {message_id} (attempt {message.retry_count})")
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to retry message: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retry message: {str(e)}")
+    return {
+        "status": "success",
+        "message_id": message_id,
+        "new_status": "PENDING",
+        "retry_count": message.retry_count,
+    }
 
 
 @router.post("/{message_id}/clear")
-def clear_message(
-    message_id: str,
-    db: Session = Depends(get_db),
-) -> Dict[str, Any]:
-    """Clear/dismiss a failed message."""
-    try:
-        from app.models.message_queue import MessageQueue
+def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Clear/delete a message from the queue."""
+    message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
 
-        message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
-        if not message:
-            raise HTTPException(status_code=404, detail="Message not found")
+    if not message:
+        raise HTTPException(status_code=404, detail=f"Message {message_id} not found")
 
-        message.status = "FAILED"
-        message.error = "Manually cleared by administrator"
-        db.commit()
+    db.query(EmailTracking).filter(EmailTracking.message_id == message_id).delete()
+    db.delete(message)
+    db.commit()
 
-        logger.info(f"Message manually cleared: {message_id}")
+    logger.info(f"Cleared message {message_id}")
 
-        return {
-            "status": "success",
-            "message": f"Message {message_id} cleared",
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to clear message: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to clear message: {str(e)}")
+    return {
+        "status": "success",
+        "message_id": message_id,
+        "action": "deleted",
+    }
 
 
 @router.get("/email/{message_id}/engagement")
-def get_email_engagement_metrics(
-    message_id: str,
-    db: Session = Depends(get_db),
-) -> Dict[str, Any]:
-    """Get email engagement metrics for a message."""
-    try:
-        from app.services.email_tracking_service import EmailTrackingService
+def get_email_engagement_metrics(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get email engagement metrics for a specific message."""
+    message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
 
-        metrics = EmailTrackingService.get_engagement_metrics(message_id=message_id, db=db)
+    if not message:
+        raise HTTPException(status_code=404, detail=f"Message {message_id} not found")
 
-        return {
-            "message_id": message_id,
-            "metrics": metrics,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+    if message.queue_type != "EMAIL_QUEUE":
+        raise HTTPException(status_code=400, detail="This endpoint only works with EMAIL_QUEUE messages")
 
-    except Exception as e:
-        logger.error(f"Failed to get engagement metrics: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get engagement metrics: {str(e)}")
+    tracking_records = db.query(EmailTracking).filter(EmailTracking.message_id == message_id).all()
+
+    total_sent = len(tracking_records)
+    opened = len([t for t in tracking_records if t.opened_at])
+    clicked = len([t for t in tracking_records if t.first_click_at])
+    replied = len([t for t in tracking_records if t.replied_at])
+    bounced = len([t for t in tracking_records if t.bounced_at])
+    spam_marked = len([t for t in tracking_records if t.spam_marked_at])
+
+    return {
+        "message_id": message_id,
+        "metrics": {
+            "total_sent": total_sent,
+            "opened": opened,
+            "open_rate": (opened / total_sent * 100) if total_sent > 0 else 0,
+            "clicked": clicked,
+            "click_rate": (clicked / total_sent * 100) if total_sent > 0 else 0,
+            "replied": replied,
+            "reply_rate": (replied / total_sent * 100) if total_sent > 0 else 0,
+            "bounced": bounced,
+            "bounce_rate": (bounced / total_sent * 100) if total_sent > 0 else 0,
+            "spam_marked": spam_marked,
+            "spam_rate": (spam_marked / total_sent * 100) if total_sent > 0 else 0,
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }

@@ -118,6 +118,9 @@ export const NAV_ITEMS = {
   // Message Queue Dashboard -- monitor background tasks, Celery queue status,
   // failed jobs, and retry capabilities. Real-time visibility into async operations.
   messageQueueDashboard: { path: ROUTES.MESSAGE_QUEUE_DASHBOARD, label: "Message Queue", icon: MessageSquareText },
+  // Queue Management -- channel-based message queue with engagement tracking,
+  // retry logic, and email delivery metrics. Real-time visibility into all message channels.
+  queueManagement: { path: '/admin/queue-management', label: "Queue Management", icon: MessageSquareText },
   // S-014/HRMS-0414 -- template.manage-gated activate action lives on
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).

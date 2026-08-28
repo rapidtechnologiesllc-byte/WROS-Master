@@ -134,10 +134,7 @@ def create_candidate(
     # unaffected by this change.
     candidate_id = candidate.candidateID
 
-    # Must commit before creating related records to ensure candidate exists
-    db.commit()
-    db.refresh(candidate)
-
+    # ATOMIC TRANSACTION: Add all objects to session before any commit
     # Create candidate status
     candidate_status = CandidateStatus(
         candidateID=candidate_id,
@@ -156,12 +153,6 @@ def create_candidate(
         submittedAt=datetime.now().date(),
     )
     db.add(candidate_info)
-
-    # CRITICAL: Must commit status before queuing background tasks.
-    # Background tasks run in a fresh session and need to find BOTH
-    # the candidate AND its status record. Without this commit,
-    # background tasks see incomplete data or 404 candidate not found.
-    db.commit()
 
     # Bulk-insert education records if provided
     if request.education_records:
@@ -196,49 +187,31 @@ def create_candidate(
             )
             db.add(exp_row)
 
-    if request.education_records or request.experience_records:
-        db.commit()
+    # Enqueue candidate_created message (BEFORE commit for atomicity)
+    candidate_name = f"{request.candidate_first_name or ''} {request.candidate_last_name or ''}".strip()
+    payload = {
+        "candidate_id": candidate_id,
+        "candidate_name": candidate_name,
+        "candidate_email": request.candidate_email,
+        "candidate_phone": request.candidate_mobile,
+        "candidate_location": request.candidate_current_location,
+        "candidate_job_title": request.candidate_job_title,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    MessageQueueService.enqueue(
+        message_type="candidate_created",
+        payload=payload,
+        resource_id=candidate_id,
+        created_by=user.UserID,
+        db=db,
+    )
 
-    # HRMS-0401: Thunder auto-assignment on candidate creation.
-    # 2026-08-12 real bug fix -- Avinash: "when i add a candidate there
-    # is no work done by flash neither any notification is showing up."
-    # This used to call assign_ai_agent() inline with a hardcoded
-    # tenant_id="1" that never matched what /activity-feed (and every
-    # other real reader) resolves via resolve_default_tenant_id() --
-    # the assignment silently succeeded but was invisible everywhere.
-    # It also wrote a ConversationEvent(conversation_id=None, ...) that
-    # violated a NOT NULL constraint on every single call, logged as an
-    # ERROR nobody was watching. Both are root-caused and fixed in
-    # run_auto_assign_ai_agent_in_background() itself -- see its own
-    # docstring, which already named this exact call site as one of its
-    # two intended callers back on 2026-08-05 but was never actually
-    # wired here until now. Using the real, tested background-task
-    # wrapper (same one create_job.py's public application path already
-    # uses) instead of a second, separate inline copy of the same logic.
+    # SINGLE ATOMIC COMMIT: All objects or none
+    db.commit()
+    db.refresh(candidate)
+
+    # Background tasks AFTER successful commit (not part of transaction)
     background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
-
-    # Enqueue candidate_created message for message queue processing
-    try:
-        candidate_name = f"{request.candidate_first_name or ''} {request.candidate_last_name or ''}".strip()
-        payload = {
-            "candidate_id": candidate_id,
-            "candidate_name": candidate_name,
-            "candidate_email": request.candidate_email,
-            "candidate_phone": request.candidate_mobile,
-            "candidate_location": request.candidate_current_location,
-            "candidate_job_title": request.candidate_job_title,
-            "created_at": datetime.utcnow().isoformat(),
-        }
-        MessageQueueService.enqueue(
-            message_type="candidate_created",
-            payload=payload,
-            resource_id=candidate_id,
-            created_by=user.UserID,
-            db=db,
-        )
-    except Exception as e:
-        logger.error(f"Failed to enqueue candidate_created message: {e}", exc_info=True)
-        # Don't fail the API call if message queue fails (async operation)
 
     # Return plain password so it can be sent to the candidate
     return CandidateCreateResponse(

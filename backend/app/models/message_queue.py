@@ -69,9 +69,10 @@ class MessageQueue(Base):
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationships
-    channels = relationship("MessageChannel", back_populates="message", cascade="all, delete-orphan")
-    email_tracking = relationship("EmailTracking", back_populates="message", cascade="all, delete-orphan")
+    # Relationships - Removed for now to avoid ORM mapping issues
+    # These can be loaded via explicit queries if needed
+    # channels = relationship("MessageChannel", back_populates="message", cascade="all, delete-orphan")
+    # email_tracking = relationship("EmailTracking", back_populates="message", cascade="all, delete-orphan")
 
     # Composite indexes for common queries
     __table_args__ = (
@@ -103,8 +104,8 @@ class MessageChannel(Base):
     processed_at = Column(DateTime(timezone=False), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
-    # Relationships
-    message = relationship("MessageQueue", back_populates="channels")
+    # Relationships - Disabled to avoid ORM mapping issues
+    # message = relationship("MessageQueue", back_populates="channels")
 
     __table_args__ = (
         Index("ix_message_channels_message_queue_type", "message_id", "queue_type"),
@@ -153,9 +154,9 @@ class EmailTracking(Base):
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationships
-    message = relationship("MessageQueue", back_populates="email_tracking")
-    events = relationship("EmailTrackingEvent", back_populates="tracking", cascade="all, delete-orphan")
+    # Relationships - Disabled to avoid ORM mapping issues
+    # message = relationship("MessageQueue", back_populates="email_tracking")
+    # events = relationship("EmailTrackingEvent", back_populates="tracking", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_email_tracking_message_recipient", "message_id", "recipient_email"),
@@ -179,8 +180,8 @@ class EmailTrackingEvent(Base):
     event_data = Column(JSON(), nullable=True)  # Additional event details (IP, user-agent, link clicked, etc.)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
-    # Relationships
-    tracking = relationship("EmailTracking", back_populates="events")
+    # Relationships - Disabled to avoid ORM mapping issues
+    # tracking = relationship("EmailTracking", back_populates="events")
 
     __table_args__ = (
         Index("ix_email_tracking_events_tracking_type", "tracking_id", "event_type"),
