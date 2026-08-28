@@ -581,6 +581,22 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.recuriter_id in ("string", ""):
         request.recuriter_id = None
 
+    # AUTO-DERIVE: If BU is selected but hiring_manager not provided, auto-assign from BU
+    if request.business_unit and not request.hiring_manager_id:
+        from app.models.rbac import Role
+
+        # Get Hiring Manager role from this BU
+        hiring_manager_role = db.query(Role).filter(Role.name == "Hiring Manager").first()
+        if hiring_manager_role:
+            potential_hm = db.query(Users).filter(
+                Users.business_unit_id == request.business_unit,
+                Users.role_id == hiring_manager_role.id
+            ).first()
+
+            if potential_hm:
+                request.hiring_manager_id = potential_hm.UserID
+                logger.info(f"[JobCreation] Auto-assigned Hiring Manager: {potential_hm.UserEmail} for BU: {request.business_unit}")
+
     # Validate that provided user IDs actually exist
     for user_id, field_name in [
         (request.contact_person, "contact_person"),
