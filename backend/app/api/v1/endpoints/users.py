@@ -32,6 +32,7 @@ from app.schemas.user import (
 )
 from app.utils.uniq_id_generator import user_id_generator
 from app.services.org_hierarchy_validator import validate_before_employee_creation
+from app.services.message_queue_service import MessageQueueService
 from app.models.org_structure import OrgNode
 
 router = APIRouter(prefix="/hr", tags=["hr"])
@@ -745,6 +746,25 @@ def create_user_with_roles(
         from app.core.logging import logger
         logger.error(f"Failed to create OrgNode for new user {user_email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create organizational hierarchy: {str(e)}")
+
+    # Queue user_created message for welcome email
+    MessageQueueService.enqueue(
+        message_type="user_created",
+        payload={
+            "user_id": new_user.UserID,
+            "user_name": new_user.UserName,
+            "user_email": new_user.UserEmail,
+            "user_role": new_user.UserRole,
+            "job_title": job_title,
+            "business_unit_id": business_unit_id,
+            "hierarchy_level": hierarchy_level,
+            "specialization": specialization,
+        },
+        resource_id=new_user.UserID,
+        queue_type="EMAIL_QUEUE",
+        created_by=current_user.UserID,
+        db=db,
+    )
 
     return UserResponse(
         user_id=new_user.UserID,
