@@ -18,7 +18,9 @@ from app.schemas.offer import (
     OfferSummary
 )
 from app.services.offer_management_service import OfferManagementService
+from app.services.message_queue_service import MessageQueueService
 from app.models.offer import Offer
+from app.models.candidate import Candidate
 
 router = APIRouter(prefix="/offers", tags=["offers"])
 offer_service = OfferManagementService()
@@ -78,6 +80,28 @@ def create_offer(
 
         # Fetch the created offer to return full response
         offer = db.query(Offer).filter(Offer.id == result["offer_id"]).first()
+
+        # Queue offer_generated message for approval workflow
+        candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
+        if offer and candidate:
+            MessageQueueService.enqueue(
+                message_type="offer_generated",
+                payload={
+                    "offer_id": offer.id,
+                    "candidate_id": request.candidate_id,
+                    "candidate_email": candidate.candidateEmail,
+                    "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+                    "position_title": request.position_title,
+                    "base_salary_usd_cents": request.base_salary_usd_cents,
+                    "signing_bonus_usd_cents": request.signing_bonus_usd_cents,
+                    "expected_start_date": str(request.expected_start_date),
+                },
+                resource_id=offer.id,
+                queue_type="APPROVAL_QUEUE",
+                created_by=user.UserID,
+                db=db,
+            )
+
         return OfferResponse.from_orm(offer)
 
     except HTTPException:
