@@ -81,6 +81,7 @@ from app.schemas.timesheet import (
     TimesheetListResponse,
     UpsertEntriesRequest,
 )
+from app.services.message_queue_service import MessageQueueService
 from app.services.timesheet_anomaly_service import (
     get_anomaly_flags_for_timesheet,
     scan_timesheet_anomalies,
@@ -210,6 +211,23 @@ def submit(
         raise HTTPException(status_code=422, detail=str(exc))
     except StaleTimesheetSubmission as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+    # Queue timesheet_submitted for manager dashboard & commission recalculation
+    MessageQueueService.enqueue(
+        message_type="timesheet_submitted",
+        payload={
+            "timesheet_id": timesheet_id,
+            "employee_id": timesheet.employee_id,
+            "week_of": str(timesheet.week_of),
+            "total_hours": sum(e.hours_logged or 0 for e in timesheet.entries) if timesheet.entries else 0,
+            "submitted_by": current_user.UserID,
+        },
+        resource_id=timesheet_id,
+        queue_type="DASHBOARD_QUEUE",
+        created_by=current_user.UserID,
+        db=db,
+    )
+
     db.commit()
     db.refresh(timesheet)
     return _to_item(db, timesheet)
