@@ -11,6 +11,7 @@ from app.core.dependencies import get_current_hr_or_admin, require_resource_perm
 from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
+from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
 from app.models.candidate import (
@@ -590,8 +591,28 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
             existing_user = db.query(Users).filter(Users.UserID == user_id).first()
             if not existing_user:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"User '{user_id}' provided for {field_name} does not exist in the system."
+                )
+
+    # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
+    if request.hiring_manager_id and request.business_unit:
+        from app.models.rbac import Role
+        from app.models.bu_access import BUAccess
+
+        # Get BU Head for this business unit
+        bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
+        if bu_head_role:
+            bu_head = db.query(Users).filter(
+                Users.role_id == bu_head_role.id,
+                Users.business_unit_id == request.business_unit
+            ).first()
+
+            # If hiring_manager_id is same as BU Head, reject (prevent self-approval)
+            if bu_head and request.hiring_manager_id == bu_head.UserID:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"BU Head cannot be their own Hiring Manager (separation of duties). Please assign a different hiring manager for this job."
                 )
 
     # Determine job status based on the creator's role
@@ -646,6 +667,28 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     )
 
     db.add(job)
+
+    # Queue job_created message (BEFORE commit for atomicity)
+    MessageQueueService.enqueue(
+        message_type="job_created",
+        payload={
+            "job_id": job_id,
+            "job_title": request.job_title,
+            "job_location": request.job_location,
+            "job_description": request.job_description,
+            "job_skills": request.job_skills,
+            "no_of_positions": request.no_of_positions,
+            "hiring_manager_id": request.hiring_manager_id,
+            "business_unit_id": request.business_unit,
+            "job_status": job_status,
+        },
+        resource_id=job_id,
+        queue_type="THUNDER_QUEUE",
+        created_by=user.UserID,
+        db=db,
+    )
+
+    # ATOMIC COMMIT
     db.commit()
     db.refresh(job)
 
