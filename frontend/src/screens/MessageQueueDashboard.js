@@ -1,32 +1,29 @@
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Table,
   Tag,
   Button,
-  Drawer,
-  Statistic,
-  Row,
-  Col,
   Space,
   Spin,
   Empty,
   message,
   Badge,
-  Progress,
-  Tabs,
+  Row,
+  Col,
+  Statistic,
+  Select,
   Alert,
-} from "antd";
+} from 'antd';
 import {
   ReloadOutlined,
   DeleteOutlined,
   RedoOutlined,
-  ExclamationCircleOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-} from "@ant-design/icons";
-import styled from "styled-components";
-import { apiRequest } from "../services/api/client";
+  ExclamationCircleOutlined,
+} from '@ant-design/icons';
+import styled from 'styled-components';
 
 const PageContainer = styled.div`
   padding: 24px;
@@ -37,375 +34,244 @@ const PageContainer = styled.div`
 const StatsContainer = styled.div`
   margin-bottom: 24px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 `;
 
-function MessageQueueDashboard() {
-  const [tasks, setTasks] = useState([]);
-  const [escalations, setEscalations] = useState([]);
-  const [health, setHealth] = useState({
-    database: 'unknown',
-    messageQueue: 'unknown',
-    slmService: 'unknown',
-    doctorAgent: 'unknown',
-    alerts: [],
-  });
-  const [loading, setLoading] = useState(false);
-  const [escalationsLoading, setEscalationsLoading] = useState(false);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("queue");
-  const [stats, setStats] = useState({
-    total: 0,
-    queued: 0,
-    active: 0,
-    completed: 0,
-    failed: 0,
-  });
-  const [escalationStats, setEscalationStats] = useState({
-    total: 0,
-    active: 0,
-    resolved: 0,
-    pending: 0,
-  });
-  const [forecasts, setForecasts] = useState({
-    recruitment: null,
-    resources: null,
-    revenue: null,
-  });
-  const [forecastsLoading, setForecastsLoading] = useState(false);
+const FilterContainer = styled.div`
+  margin-bottom: 20px;
+  padding: 16px;
+  background: white;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+`;
 
-  const loadTasks = async () => {
+const EmailMetricsContainer = styled.div`
+  margin: 20px 0;
+  padding: 16px;
+  background: white;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+`;
+
+function MessageQueueDashboard() {
+  const [messages, setMessages] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Filters
+  const [filterQueueType, setFilterQueueType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [skip, setSkip] = useState(0);
+  const [limit, setLimit] = useState(50);
+
+  // Queue types
+  const QUEUE_TYPES = [
+    'THUNDER_QUEUE',
+    'EMAIL_QUEUE',
+    'WHATSAPP_QUEUE',
+    'SMS_QUEUE',
+    'SLACK_QUEUE',
+    'APPROVAL_QUEUE',
+    'COMMISSION_QUEUE',
+    'CRM_QUEUE',
+    'DASHBOARD_QUEUE',
+    'CALENDAR_QUEUE',
+    'SIGNATURE_QUEUE',
+  ];
+
+  const STATUSES = [
+    'PENDING',
+    'SLM_PROCESSING',
+    'CHANNEL_QUEUED',
+    'COMPLETED',
+    'FAILED',
+  ];
+
+  // Fetch messages and stats
+  useEffect(() => {
+    fetchData();
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [filterQueueType, filterStatus, skip, limit]);
+
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await apiRequest("/admin/queue/tasks", {
-        method: "GET",
-      });
 
-      if (response?.data?.tasks) {
-        setTasks(response.data.tasks);
-        calculateStats(response.data.tasks);
-      }
-    } catch (error) {
-      console.error("Failed to load tasks", error);
-      message.error("Failed to load message queue tasks");
+      // Build query params
+      const params = new URLSearchParams();
+      params.append('skip', skip);
+      params.append('limit', limit);
+      if (filterQueueType) params.append('queue_type', filterQueueType);
+      if (filterStatus) params.append('status', filterStatus);
+
+      // Fetch messages
+      const messagesRes = await fetch(`/api/v1/queues?${params}`);
+      if (!messagesRes.ok) throw new Error('Failed to fetch messages');
+      const messagesData = await messagesRes.json();
+      setMessages(messagesData.data || []);
+
+      // Fetch stats
+      const statsRes = await fetch(`/api/v1/queues/stats`);
+      if (!statsRes.ok) throw new Error('Failed to fetch stats');
+      const statsData = await statsRes.json();
+      setStats(statsData);
+
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      console.error('Failed to fetch queue data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateStats = (taskList) => {
-    const newStats = {
-      total: taskList.length,
-      queued: 0,
-      active: 0,
-      completed: 0,
-      failed: 0,
-    };
-
-    taskList.forEach((task) => {
-      const status = task.status?.toLowerCase();
-      if (status === "queued") newStats.queued++;
-      if (status === "active") newStats.active++;
-      if (status === "completed") newStats.completed++;
-      if (status === "failed") newStats.failed++;
-    });
-
-    setStats(newStats);
-  };
-
-  const loadEscalations = async () => {
+  const handleRetry = async (messageId) => {
     try {
-      setEscalationsLoading(true);
-      const response = await apiRequest("/admin/doctor-traces", {
-        method: "GET",
+      const res = await fetch(`/api/v1/queues/${messageId}/retry`, {
+        method: 'POST',
       });
-
-      if (response?.data?.traces) {
-        setEscalations(response.data.traces);
-
-        // Calculate escalation stats
-        const newStats = {
-          total: response.data.traces.length,
-          active: response.data.traces.filter(t => t.status === 'ACTIVE').length,
-          resolved: response.data.traces.filter(t => t.status === 'RESOLVED').length,
-          pending: response.data.traces.filter(t => t.status === 'PENDING').length,
-        };
-        setEscalationStats(newStats);
-      }
-    } catch (error) {
-      console.error("Failed to load escalations", error);
-      message.error("Failed to load doctor escalations");
-    } finally {
-      setEscalationsLoading(false);
+      if (!res.ok) throw new Error('Failed to retry message');
+      message.success('Message queued for retry');
+      fetchData();
+    } catch (err) {
+      message.error(`Error: ${err.message}`);
     }
   };
 
-  const loadForecasts = async () => {
+  const handleClear = async (messageId) => {
     try {
-      setForecastsLoading(true);
-      const [recruitmentRes, resourcesRes, revenueRes] = await Promise.all([
-        apiRequest("/spartan/forecasting/recruitment/forecast", { method: "POST" }),
-        apiRequest("/spartan/forecasting/resources/forecast", { method: "POST" }),
-        apiRequest("/spartan/forecasting/revenue/forecast", { method: "POST" }),
-      ]);
-
-      setForecasts({
-        recruitment: recruitmentRes?.data || null,
-        resources: resourcesRes?.data || null,
-        revenue: revenueRes?.data || null,
+      const res = await fetch(`/api/v1/queues/${messageId}/clear`, {
+        method: 'POST',
       });
-    } catch (error) {
-      console.error("Failed to load forecasts", error);
-      message.error("Failed to load forecasting data");
-    } finally {
-      setForecastsLoading(false);
+      if (!res.ok) throw new Error('Failed to clear message');
+      message.success('Message cleared');
+      fetchData();
+    } catch (err) {
+      message.error(`Error: ${err.message}`);
     }
   };
 
-  const loadHealth = async () => {
-    try {
-      setHealthLoading(true);
-      const response = await apiRequest("/admin/health", {
-        method: "GET",
-      });
-
-      if (response?.data) {
-        setHealth({
-          database: response.data.database_status || 'unknown',
-          messageQueue: response.data.queue_status || 'unknown',
-          slmService: response.data.slm_status || 'unknown',
-          doctorAgent: response.data.doctor_status || 'unknown',
-          alerts: response.data.alerts || [],
-        });
-      }
-    } catch (error) {
-      console.error("Failed to load health data", error);
-      // Don't show error message for health - it's auxiliary
-    } finally {
-      setHealthLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Load all data on mount
-    loadTasks();
-    loadEscalations();
-    loadHealth();
-    loadForecasts();
-
-    // Auto-refresh all data every 10 seconds
-    const interval = setInterval(() => {
-      loadTasks();
-      if (activeTab === "escalations") loadEscalations();
-      if (activeTab === "health") loadHealth();
-      if (activeTab === "forecasting") loadForecasts();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [activeTab]);
-
-  const handleRetryTask = async (taskId) => {
-    try {
-      await apiRequest(`/admin/queue/tasks/${taskId}/retry`, {
-        method: "POST",
-      });
-      message.success("Task retry queued");
-      loadTasks();
-    } catch (error) {
-      console.error("Failed to retry task", error);
-      message.error("Failed to retry task");
-    }
-  };
-
-  const handleClearTask = async (taskId) => {
-    try {
-      await apiRequest(`/admin/queue/tasks/${taskId}/clear`, {
-        method: "POST",
-      });
-      message.success("Task cleared");
-      loadTasks();
-    } catch (error) {
-      console.error("Failed to clear task", error);
-      message.error("Failed to clear task");
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString();
   };
 
   const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "queued":
-        return "blue";
-      case "active":
-        return "processing";
-      case "completed":
-        return "success";
-      case "failed":
-        return "error";
+    switch (status) {
+      case 'PENDING':
+        return 'processing';
+      case 'SLM_PROCESSING':
+        return 'processing';
+      case 'CHANNEL_QUEUED':
+        return 'processing';
+      case 'COMPLETED':
+        return 'success';
+      case 'FAILED':
+        return 'error';
       default:
-        return "default";
+        return 'default';
     }
   };
 
-  const getStatusIcon = (status) => {
-    if (status?.toLowerCase() === "failed") {
-      return <ExclamationCircleOutlined />;
-    }
-    return null;
+  const getQueueTypeColor = (queueType) => {
+    if (!queueType) return 'default';
+    if (queueType.includes('EMAIL')) return 'blue';
+    if (queueType.includes('THUNDER')) return 'green';
+    if (queueType.includes('APPROVAL')) return 'orange';
+    if (queueType.includes('COMMISSION')) return 'purple';
+    return 'default';
   };
-
-  const getHealthColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "healthy":
-      case "up":
-        return "success";
-      case "degraded":
-      case "warning":
-        return "warning";
-      case "down":
-      case "error":
-        return "error";
-      default:
-        return "default";
-    }
-  };
-
-  const escalationColumns = [
-    {
-      title: "Message ID",
-      dataIndex: "message_id",
-      key: "message_id",
-      width: 150,
-      render: (id) => <code style={{ fontSize: "11px" }}>{id?.substring(0, 16)}...</code>,
-    },
-    {
-      title: "Attempt",
-      dataIndex: "attempt_number",
-      key: "attempt_number",
-      width: 80,
-      render: (num) => <Tag color="blue">{num}</Tag>,
-    },
-    {
-      title: "Strategy",
-      dataIndex: "strategy",
-      key: "strategy",
-      width: 150,
-      render: (strategy) => (
-        <Tag>{strategy || "ESCALATE_TO_WROS"}</Tag>
-      ),
-    },
-    {
-      title: "Assigned To",
-      dataIndex: "assigned_to_user",
-      key: "assigned_to_user",
-      width: 150,
-      render: (user) => <span>{user?.name || "Unassigned"}</span>,
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 120,
-      render: (status) => (
-        <Tag color={status === 'RESOLVED' ? 'success' : status === 'ACTIVE' ? 'processing' : 'default'}>
-          {status}
-        </Tag>
-      ),
-    },
-    {
-      title: "WROS Ticket",
-      dataIndex: "wros_ticket_id",
-      key: "wros_ticket_id",
-      width: 150,
-      render: (ticketId) => ticketId ? <a href={`/tickets/${ticketId}`}>{ticketId}</a> : '-',
-    },
-    {
-      title: "Created",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 180,
-      render: (date) =>
-        date ? new Date(date).toLocaleString() : "-",
-    },
-  ];
 
   const columns = [
     {
-      title: "Task ID",
-      dataIndex: "task_id",
-      key: "task_id",
-      width: 200,
-      render: (id) => <code style={{ fontSize: "11px" }}>{id?.substring(0, 20)}...</code>,
-    },
-    {
-      title: "Task Name",
-      dataIndex: "task_name",
-      key: "task_name",
-      width: 200,
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
+      title: 'Message ID',
+      dataIndex: 'id',
+      key: 'id',
       width: 120,
-      render: (status) => (
-        <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
-          {status}
-        </Tag>
-      ),
+      render: (text) => <code style={{ fontSize: '11px' }}>{text.substring(0, 8)}</code>,
     },
     {
-      title: "Progress",
-      dataIndex: "progress",
-      key: "progress",
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
       width: 150,
-      render: (progress) => (
-        <Progress percent={progress || 0} size="small" />
-      ),
     },
     {
-      title: "Created",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 180,
-      render: (date) =>
-        date
-          ? new Date(date).toLocaleString()
-          : "-",
+      title: 'Queue',
+      dataIndex: 'queue_type',
+      key: 'queue_type',
+      width: 120,
+      render: (text) => text ? <Tag color={getQueueTypeColor(text)}>{text}</Tag> : <span>-</span>,
     },
     {
-      title: "Action",
-      key: "action",
-      width: 250,
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (text) => <Tag color={getStatusColor(text)}>{text}</Tag>,
+    },
+    {
+      title: 'Created',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 150,
+      render: (text) => formatDate(text),
+    },
+    {
+      title: 'Retries',
+      dataIndex: 'retry_count',
+      key: 'retry_count',
+      width: 80,
+    },
+    {
+      title: 'Email Status',
+      dataIndex: 'email_status',
+      key: 'email_status',
+      width: 110,
+      render: (text, record) => {
+        if (!text) return <span>-</span>;
+        return (
+          <Space>
+            <Tag color={text === 'BOUNCED' || text === 'SPAM' ? 'red' : 'blue'}>{text}</Tag>
+            {record.opened_at && <span title="Opened">📖</span>}
+            {record.clicked_at && <span title="Clicked">🔗</span>}
+            {record.bounced_at && <span title="Bounced">⚠️</span>}
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 150,
       render: (_, record) => (
         <Space>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              setSelectedTask(record);
-              setDrawerOpen(true);
-            }}
-          >
-            View Messages
-          </Button>
-          {record.status?.toLowerCase() === "failed" && (
+          {record.status === 'FAILED' && (
             <>
               <Button
-                type="link"
                 size="small"
+                type="primary"
                 icon={<RedoOutlined />}
-                onClick={() => handleRetryTask(record.task_id)}
+                onClick={() => handleRetry(record.id)}
               >
                 Retry
               </Button>
               <Button
-                type="link"
                 size="small"
                 danger
                 icon={<DeleteOutlined />}
-                onClick={() => handleClearTask(record.task_id)}
+                onClick={() => handleClear(record.id)}
               >
                 Clear
               </Button>
@@ -416,428 +282,199 @@ function MessageQueueDashboard() {
     },
   ];
 
+  if (loading && !stats) {
+    return (
+      <PageContainer>
+        <Spin />
+      </PageContainer>
+    );
+  }
+
   return (
     <PageContainer>
-      <div>
-        <h1>System Health Dashboard</h1>
-        <Space style={{ marginBottom: 16 }}>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              loadTasks();
-              if (activeTab === "escalations") loadEscalations();
-              if (activeTab === "health") loadHealth();
-              if (activeTab === "forecasting") loadForecasts();
-            }}
-            loading={loading || escalationsLoading || healthLoading || forecastsLoading}
-          >
-            Refresh
-          </Button>
-        </Space>
-      </div>
+      {error && <Alert message={error} type="error" showIcon closable style={{ marginBottom: 16 }} />}
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={[
-          {
-            key: "queue",
-            label: "Message Queue",
-            children: (
-              <>
-                <StatsContainer>
-                  <Card>
-                    <Statistic
-                      title="Total Tasks"
-                      value={stats.total}
-                      valueStyle={{ color: "#1890ff" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Queued"
-                      value={stats.queued}
-                      valueStyle={{ color: "#1890ff" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Active"
-                      value={stats.active}
-                      valueStyle={{ color: "#faad14" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Completed"
-                      value={stats.completed}
-                      valueStyle={{ color: "#52c41a" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Failed"
-                      value={stats.failed}
-                      valueStyle={{ color: "#ff4d4f" }}
-                    />
-                  </Card>
-                </StatsContainer>
-
-                <Card>
-                  <Spin spinning={loading}>
-                    {tasks.length === 0 ? (
-                      <Empty description="No tasks in queue" />
-                    ) : (
-                      <Table
-                        columns={columns}
-                        dataSource={tasks}
-                        rowKey="task_id"
-                        pagination={{ pageSize: 20 }}
-                        scroll={{ x: 1200 }}
-                      />
-                    )}
-                  </Spin>
-                </Card>
-              </>
-            ),
-          },
-          {
-            key: "escalations",
-            label: `Doctor Agent Escalations (${escalationStats.active})`,
-            children: (
-              <>
-                <StatsContainer>
-                  <Card>
-                    <Statistic
-                      title="Total Escalations"
-                      value={escalationStats.total}
-                      valueStyle={{ color: "#1890ff" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Active"
-                      value={escalationStats.active}
-                      valueStyle={{ color: "#ff4d4f" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Pending"
-                      value={escalationStats.pending}
-                      valueStyle={{ color: "#faad14" }}
-                    />
-                  </Card>
-                  <Card>
-                    <Statistic
-                      title="Resolved"
-                      value={escalationStats.resolved}
-                      valueStyle={{ color: "#52c41a" }}
-                    />
-                  </Card>
-                </StatsContainer>
-
-                <Card title="Doctor Agent Traces" style={{ marginTop: 16 }}>
-                  <Spin spinning={escalationsLoading}>
-                    {escalations.length === 0 ? (
-                      <Empty description="No escalations" />
-                    ) : (
-                      <Table
-                        columns={escalationColumns}
-                        dataSource={escalations}
-                        rowKey="id"
-                        pagination={{ pageSize: 20 }}
-                        scroll={{ x: 1400 }}
-                      />
-                    )}
-                  </Spin>
-                </Card>
-              </>
-            ),
-          },
-          {
-            key: "health",
-            label: "System Health",
-            children: (
-              <>
-                <Spin spinning={healthLoading}>
-                  {health.alerts && health.alerts.length > 0 && (
-                    <Alert
-                      message="System Alerts"
-                      description={
-                        <ul style={{ marginBottom: 0 }}>
-                          {health.alerts.map((alert, idx) => (
-                            <li key={idx}>{alert}</li>
-                          ))}
-                        </ul>
-                      }
-                      type="warning"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                    />
-                  )}
-
-                  <Card title="Service Status" style={{ marginBottom: 16 }}>
-                    <Row gutter={16}>
+      {/* Statistics Section */}
+      {stats && (
+        <>
+          {/* Queue Stats */}
+          {stats.queues && Object.keys(stats.queues).length > 0 && (
+            <>
+              <h2>Queue Statistics</h2>
+              <StatsContainer>
+                {Object.entries(stats.queues).map(([queueType, queueStats]) => (
+                  <Card key={queueType} size="small">
+                    <Statistic title={queueType} value={queueStats.total} />
+                    <Row gutter={16} style={{ marginTop: 16 }}>
                       <Col span={12}>
-                        <Card type="inner">
-                          <Space direction="vertical" style={{ width: "100%" }}>
-                            <div>
-                              <strong>Database:</strong>{" "}
-                              <Tag color={getHealthColor(health.database)}>
-                                {health.database}
-                              </Tag>
-                            </div>
-                            <div>
-                              <strong>Message Queue:</strong>{" "}
-                              <Tag color={getHealthColor(health.messageQueue)}>
-                                {health.messageQueue}
-                              </Tag>
-                            </div>
-                          </Space>
-                        </Card>
+                        <Statistic
+                          title="Completed"
+                          value={queueStats.COMPLETED || 0}
+                          valueStyle={{ color: '#52c41a', fontSize: '14px' }}
+                        />
                       </Col>
                       <Col span={12}>
-                        <Card type="inner">
-                          <Space direction="vertical" style={{ width: "100%" }}>
-                            <div>
-                              <strong>SLM Service:</strong>{" "}
-                              <Tag color={getHealthColor(health.slmService)}>
-                                {health.slmService}
-                              </Tag>
-                            </div>
-                            <div>
-                              <strong>Doctor Agent:</strong>{" "}
-                              <Tag color={getHealthColor(health.doctorAgent)}>
-                                {health.doctorAgent}
-                              </Tag>
-                            </div>
-                          </Space>
-                        </Card>
+                        <Statistic
+                          title="Failed"
+                          value={queueStats.FAILED || 0}
+                          valueStyle={{ color: '#f5222d', fontSize: '14px' }}
+                        />
                       </Col>
                     </Row>
                   </Card>
-                </Spin>
-              </>
-            ),
-          },
-          {
-            key: "forecasting",
-            label: "Autonomous Forecasting",
-            children: (
-              <>
-                <Spin spinning={forecastsLoading}>
-                  <Row gutter={16} style={{ marginBottom: 24 }}>
-                    <Col span={8}>
-                      <Card>
-                        <h3 style={{ marginTop: 0 }}>Recruitment Forecast</h3>
-                        {forecasts.recruitment ? (
-                          <>
-                            <p>
-                              <strong>Status:</strong>{" "}
-                              <Tag color={
-                                forecasts.recruitment.gap_analysis?.status === 'CRITICAL' ? 'red' :
-                                forecasts.recruitment.gap_analysis?.status === 'BEHIND' ? 'orange' :
-                                'green'
-                              }>
-                                {forecasts.recruitment.gap_analysis?.status}
-                              </Tag>
-                            </p>
-                            <p>
-                              <strong>Achievement:</strong> {forecasts.recruitment.current_state?.achievement_percent?.toFixed(1)}%
-                            </p>
-                            <p>
-                              <strong>Needed:</strong> +{forecasts.recruitment.gap_analysis?.candidates_needed} candidates
-                            </p>
-                            <p>
-                              <strong>Escalate to:</strong> {forecasts.recruitment.escalation_node}
-                            </p>
-                          </>
-                        ) : (
-                          <Empty description="Loading..." />
-                        )}
-                      </Card>
-                    </Col>
-                    <Col span={8}>
-                      <Card>
-                        <h3 style={{ marginTop: 0 }}>Resource Forecast</h3>
-                        {forecasts.resources ? (
-                          <>
-                            <p>
-                              <strong>Status:</strong>{" "}
-                              <Tag color={
-                                forecasts.resources.gap_analysis?.status === 'UNDERSTAFFED' ? 'red' : 'green'
-                              }>
-                                {forecasts.resources.gap_analysis?.status}
-                              </Tag>
-                            </p>
-                            <p>
-                              <strong>Utilization:</strong> {forecasts.resources.current_state?.utilization_percent}%
-                            </p>
-                            <p>
-                              <strong>Demand Fulfillment:</strong> {forecasts.resources.current_state?.demand_fulfillment_percent}%
-                            </p>
-                            <p>
-                              <strong>Escalate to:</strong> {forecasts.resources.escalation_node}
-                            </p>
-                          </>
-                        ) : (
-                          <Empty description="Loading..." />
-                        )}
-                      </Card>
-                    </Col>
-                    <Col span={8}>
-                      <Card>
-                        <h3 style={{ marginTop: 0 }}>Revenue Forecast</h3>
-                        {forecasts.revenue ? (
-                          <>
-                            <p>
-                              <strong>Status:</strong>{" "}
-                              <Tag color={
-                                forecasts.revenue.gap_analysis?.status === 'CRITICAL' ? 'red' : 'orange'
-                              }>
-                                {forecasts.revenue.gap_analysis?.status}
-                              </Tag>
-                            </p>
-                            <p>
-                              <strong>Revenue Gap:</strong> ${(forecasts.revenue.gap_analysis?.revenue_gap / 1_000_000).toFixed(1)}M
-                            </p>
-                            <p>
-                              <strong>Months of Runway:</strong> {forecasts.revenue.gap_analysis?.months_of_runway?.toFixed(2)}
-                            </p>
-                            <p>
-                              <strong>Escalate to:</strong> {forecasts.revenue.escalation_node}
-                            </p>
-                          </>
-                        ) : (
-                          <Empty description="Loading..." />
-                        )}
-                      </Card>
-                    </Col>
-                  </Row>
+                ))}
+              </StatsContainer>
+            </>
+          )}
 
-                  <Card title="Forecast Recommendations">
-                    {forecasts.recruitment?.resource_options && (
-                      <div style={{ marginBottom: 16 }}>
-                        <h4>Recruitment Options:</h4>
-                        {forecasts.recruitment.resource_options.map((opt, idx) => (
-                          <div key={idx} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
-                            <p><strong>{opt.option}</strong> - {opt.cost}</p>
-                            <p><small>{opt.expected_result}</small></p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+          {/* Email Engagement Metrics */}
+          {stats.email_metrics && (
+            <>
+              <h2 style={{ marginTop: 24 }}>Email Engagement Metrics</h2>
+              <EmailMetricsContainer>
+                <Card size="small">
+                  <Statistic title="Total Sent" value={stats.email_metrics.total_sent} />
+                </Card>
+                <Card size="small">
+                  <Statistic
+                    title="Open Rate"
+                    value={stats.email_metrics.open_rate}
+                    suffix="%"
+                    valueStyle={{ color: '#1890ff' }}
+                  />
+                </Card>
+                <Card size="small">
+                  <Statistic
+                    title="Click Rate"
+                    value={stats.email_metrics.click_rate}
+                    suffix="%"
+                    valueStyle={{ color: '#52c41a' }}
+                  />
+                </Card>
+                <Card size="small">
+                  <Statistic
+                    title="Bounce Rate"
+                    value={stats.email_metrics.bounce_rate}
+                    suffix="%"
+                    valueStyle={{ color: '#f5222d' }}
+                  />
+                </Card>
+                <Card size="small">
+                  <Statistic
+                    title="Reply Rate"
+                    value={stats.email_metrics.reply_rate}
+                    suffix="%"
+                    valueStyle={{ color: '#faad14' }}
+                  />
+                </Card>
+              </EmailMetricsContainer>
+            </>
+          )}
+        </>
+      )}
 
-                    {forecasts.resources?.resource_options && (
-                      <div style={{ marginBottom: 16 }}>
-                        <h4>Resource Options:</h4>
-                        {forecasts.resources.resource_options.map((opt, idx) => (
-                          <div key={idx} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
-                            <p><strong>{opt.option}</strong> - {opt.cost}</p>
-                            <p><small>{opt.expected_result}</small></p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+      {/* Filters Section */}
+      <h2 style={{ marginTop: 24 }}>Filters</h2>
+      <FilterContainer>
+        <div>
+          <label style={{ display: 'block', marginBottom: 8 }}>Queue Type</label>
+          <Select
+            value={filterQueueType}
+            onChange={(value) => {
+              setFilterQueueType(value);
+              setSkip(0);
+            }}
+            placeholder="All Queues"
+            style={{ width: '100%' }}
+            options={[
+              { label: 'All Queues', value: '' },
+              ...QUEUE_TYPES.map(t => ({ label: t, value: t })),
+            ]}
+          />
+        </div>
 
-                    {forecasts.revenue?.revenue_options && (
-                      <div>
-                        <h4>Revenue Options:</h4>
-                        {forecasts.revenue.revenue_options.map((opt, idx) => (
-                          <div key={idx} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
-                            <p><strong>{opt.option}</strong> - {opt.value}</p>
-                            <p><small>Probability: {opt.probability}, Timeline: {opt.timeline}</small></p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-                </Spin>
-              </>
-            ),
-          },
-        ]}
-      />
+        <div>
+          <label style={{ display: 'block', marginBottom: 8 }}>Status</label>
+          <Select
+            value={filterStatus}
+            onChange={(value) => {
+              setFilterStatus(value);
+              setSkip(0);
+            }}
+            placeholder="All Statuses"
+            style={{ width: '100%' }}
+            options={[
+              { label: 'All Statuses', value: '' },
+              ...STATUSES.map(s => ({ label: s, value: s })),
+            ]}
+          />
+        </div>
 
-      <Drawer
-        title={`Task Messages: ${selectedTask?.task_name}`}
-        placement="right"
-        onClose={() => setDrawerOpen(false)}
-        open={drawerOpen}
-        width={600}
-      >
-        {selectedTask && (
-          <div>
-            <div style={{ marginBottom: 16 }}>
-              <h3>Task Details</h3>
-              <p><strong>Task ID:</strong> <code>{selectedTask.task_id}</code></p>
-              <p><strong>Status:</strong> <Tag color={getStatusColor(selectedTask.status)}>{selectedTask.status}</Tag></p>
-              <p><strong>Created:</strong> {new Date(selectedTask.created_at).toLocaleString()}</p>
-              <p><strong>Progress:</strong> <Progress percent={selectedTask.progress || 0} /></p>
+        <div>
+          <label style={{ display: 'block', marginBottom: 8 }}>Limit per Page</label>
+          <Select
+            value={limit}
+            onChange={(value) => {
+              setLimit(value);
+              setSkip(0);
+            }}
+            style={{ width: '100%' }}
+            options={[
+              { label: '10', value: 10 },
+              { label: '25', value: 25 },
+              { label: '50', value: 50 },
+              { label: '100', value: 100 },
+            ]}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
+            onClick={fetchData}
+            loading={loading}
+            style={{ width: '100%' }}
+          >
+            Refresh
+          </Button>
+        </div>
+      </FilterContainer>
+
+      {/* Messages Table */}
+      <h2 style={{ marginTop: 24 }}>Messages ({messages.length})</h2>
+      <Card loading={loading}>
+        {messages.length === 0 ? (
+          <Empty description="No messages found" />
+        ) : (
+          <>
+            <Table
+              columns={columns}
+              dataSource={messages}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              scroll={{ x: 1200 }}
+            />
+
+            {/* Pagination */}
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <Space>
+                <Button
+                  onClick={() => setSkip(Math.max(0, skip - limit))}
+                  disabled={skip === 0}
+                >
+                  Previous
+                </Button>
+                <span>
+                  Page {Math.floor(skip / limit) + 1} (showing {messages.length} of {skip + messages.length})
+                </span>
+                <Button onClick={() => setSkip(skip + limit)}>Next</Button>
+              </Space>
             </div>
-
-            <div>
-              <h3>Messages & Events</h3>
-              {selectedTask.messages && selectedTask.messages.length > 0 ? (
-                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                  {selectedTask.messages.map((msg, idx) => (
-                    <Card
-                      key={idx}
-                      size="small"
-                      style={{ marginBottom: 12 }}
-                      type={msg.level === "error" ? "error" : "default"}
-                    >
-                      <p style={{ margin: 0, marginBottom: 4 }}>
-                        <strong>
-                          <Tag color={msg.level === "error" ? "red" : "blue"}>
-                            {msg.level?.toUpperCase()}
-                          </Tag>
-                        </strong>
-                        <small style={{ marginLeft: 8 }}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </small>
-                      </p>
-                      <p style={{ margin: 0, fontFamily: "monospace", fontSize: "12px", whiteSpace: "pre-wrap" }}>
-                        {msg.message}
-                      </p>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Empty description="No messages yet" />
-              )}
-            </div>
-
-            {selectedTask.status?.toLowerCase() === "failed" && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #ddd" }}>
-                <Space>
-                  <Button
-                    type="primary"
-                    icon={<RedoOutlined />}
-                    onClick={() => {
-                      handleRetryTask(selectedTask.task_id);
-                      setDrawerOpen(false);
-                    }}
-                  >
-                    Retry Task
-                  </Button>
-                  <Button
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => {
-                      handleClearTask(selectedTask.task_id);
-                      setDrawerOpen(false);
-                    }}
-                  >
-                    Clear Task
-                  </Button>
-                </Space>
-              </div>
-            )}
-          </div>
+          </>
         )}
-      </Drawer>
+      </Card>
     </PageContainer>
   );
 }

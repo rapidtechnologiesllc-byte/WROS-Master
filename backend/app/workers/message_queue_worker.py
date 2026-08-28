@@ -1,27 +1,29 @@
-"""Message Queue Worker - Processes messages from queue every 5 minutes
+"""Message Queue Worker - Orchestrates message processing through SLM to channels
 
-Worker runs every 5 minutes and:
-1. Fetches PENDING + RETRYING messages
-2. Marks as PROCESSING
-3. Executes message (calls appropriate service)
-4. Calls SLM to analyze result
-5. SLM decides next action for Flash agent
-6. Marks as COMPLETED or schedules RETRYING
-7. Logs everything
+Worker runs every 2 minutes and:
+1. Fetches PENDING messages
+2. Marks as SLM_PROCESSING
+3. Calls SLM orchestration to decide which channels to trigger
+4. SLM creates channel queue items for each channel
+5. Updates message status to CHANNEL_QUEUED
+6. Logs everything
 
-All errors logged with exc_info=True for debugging.
+Then a separate channel processor worker:
+1. Fetches channel queue items by channel type
+2. Processes items (sends emails, creates approvals, etc.)
+3. Marks items as COMPLETED/FAILED
 """
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import DATABASE_URL
 from app.services.message_queue_service import MessageQueueService
-from app.services.slm_service import SLMService
+from app.services.slm_orchestration_service import SLMOrchestrationService
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +34,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def process_message_queue() -> None:
     """
-    Main worker function - processes all pending messages.
+    Main worker function - orchestrates message processing through SLM to channels.
 
-    Called every 5 minutes via scheduler.
-    Processes PENDING and RETRYING messages in FIFO order (oldest first).
+    Called every 2 minutes via scheduler.
+    Processes PENDING messages in FIFO order (oldest first).
     """
     db = SessionLocal()
     start_time = time.time()
@@ -50,224 +52,200 @@ def process_message_queue() -> None:
             logger.debug("No pending messages to process")
             return
 
-        logger.info(f"Processing {len(pending_messages)} pending messages")
+        logger.info(f"Processing {len(pending_messages)} pending messages...")
 
         processed_count = 0
-        error_count = 0
+        failed_count = 0
 
         for message in pending_messages:
-            try:
-                processed_count += message_process_single(message, db)
-            except Exception as e:
-                logger.error(f"Failed to process message {message['id']}: {e}", exc_info=True)
-                error_count += 1
+            message_id = message["id"]
+            message_type = message["type"]
+            payload = message["payload"]
+            resource_id = message["resource_id"]
 
-        elapsed = time.time() - start_time
+            try:
+                # Mark as SLM_PROCESSING
+                logger.debug(f"Marking message as SLM_PROCESSING: {message_id}")
+                MessageQueueService.mark_processing(message_id, db)
+
+                # Call SLM orchestration to create channel queue items
+                logger.info(
+                    f"Orchestrating message: {message_id} type={message_type} "
+                    f"resource_id={resource_id}"
+                )
+
+                result = SLMOrchestrationService.orchestrate_message(
+                    message_id=message_id,
+                    queue_type=message_type,
+                    payload=payload,
+                    resource_id=resource_id,
+                    db=db,
+                )
+
+                channels_created = result.get("channel_count", 0)
+                logger.info(
+                    f"Message orchestrated successfully: {message_id} "
+                    f"created {channels_created} channel queue items"
+                )
+
+                # Mark as CHANNEL_QUEUED (SLM decided what channels to trigger)
+                # Update message status to indicate it's queued in channels
+                from app.models.message_queue import MessageQueue
+
+                msg = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
+                if msg:
+                    msg.status = "CHANNEL_QUEUED"
+                    msg.updated_at = datetime.utcnow()
+                    db.commit()
+
+                processed_count += 1
+
+            except Exception as e:
+                failed_count += 1
+                logger.error(
+                    f"Failed to orchestrate message: {message_id} error: {e}",
+                    exc_info=True,
+                )
+
+                # Mark message as failed (will retry next cycle)
+                try:
+                    MessageQueueService.mark_failed(
+                        message_id,
+                        f"SLM orchestration failed: {str(e)}",
+                        should_retry=True,
+                        db=db,
+                    )
+                except Exception as retry_error:
+                    logger.error(
+                        f"Failed to mark message as failed: {retry_error}",
+                        exc_info=True,
+                    )
+
+        elapsed_time = time.time() - start_time
+
         logger.info(
             f"Message queue worker completed: "
-            f"processed={processed_count} errors={error_count} elapsed={elapsed:.2f}s"
+            f"processed={processed_count} failed={failed_count} "
+            f"elapsed_time={elapsed_time:.2f}s"
         )
 
     except Exception as e:
-        logger.error(f"Message queue worker crashed: {e}", exc_info=True)
-
+        logger.error(f"Worker failed: {e}", exc_info=True)
     finally:
         db.close()
 
 
-def message_process_single(message: Dict[str, Any], db) -> int:
+def process_channel_queues() -> None:
     """
-    Process a single message from the queue.
+    Channel processor worker - processes channel queue items.
 
-    Steps:
-    1. Mark PROCESSING
-    2. Execute based on message type
-    3. SLM analyzes result
-    4. Mark COMPLETED or RETRYING
-    5. Log everything
-
-    Args:
-        message: Message dict from queue
-        db: Database session
-
-    Returns:
-        1 if successful, 0 if failed
-
-    Raises:
-        Exception: On any processing error (fail fast)
+    Called every 1 minute.
+    Processes pending items for all channel types.
     """
-    message_id = message["id"]
-    message_type = message["type"]
-    payload = message["payload"]
+    from app.services.channel_queue_service import ChannelQueueService
+    from app.workers.channel_processors import ChannelProcessors
 
+    db = SessionLocal()
     start_time = time.time()
 
     try:
-        # Mark as PROCESSING
-        MessageQueueService.mark_processing(message_id, db)
+        logger.info("Channel queue processor starting...")
 
-        # Execute message based on type
-        logger.debug(f"Executing message: {message_id} type={message_type}")
-        result = _execute_message(message_type, payload)
+        # List of all channels to process
+        channels = [
+            ChannelQueueService.CHANNEL_EMAIL,
+            ChannelQueueService.CHANNEL_WHATSAPP,
+            ChannelQueueService.CHANNEL_SMS,
+            ChannelQueueService.CHANNEL_SLACK,
+            ChannelQueueService.CHANNEL_THUNDER,
+            ChannelQueueService.CHANNEL_APPROVAL,
+            ChannelQueueService.CHANNEL_COMMISSION,
+            ChannelQueueService.CHANNEL_CRM,
+            ChannelQueueService.CHANNEL_DASHBOARD,
+            ChannelQueueService.CHANNEL_CALENDAR,
+            ChannelQueueService.CHANNEL_SIGNATURE,
+        ]
 
-        processing_time_ms = int((time.time() - start_time) * 1000)
+        total_processed = 0
+        total_failed = 0
 
-        # Analyze result with SLM
-        logger.debug(f"SLM analyzing result for message: {message_id}")
-        decision = SLMService.analyze_message_result(message_id, message_type, result, db)
+        for channel_type in channels:
+            try:
+                # Fetch pending items for this channel
+                items = ChannelQueueService.get_pending_by_channel(
+                    channel_type=channel_type,
+                    limit=50,
+                    db=db,
+                )
 
-        # Log result
-        _log_message_processing(message_id, "COMPLETED", result, processing_time_ms, db)
+                if not items:
+                    continue
 
-        # Mark as COMPLETED
-        MessageQueueService.mark_completed(message_id, db)
+                logger.info(f"Processing {len(items)} items for channel: {channel_type}")
+
+                for item in items:
+                    item_id = item["id"]
+
+                    try:
+                        # Mark as processing
+                        ChannelQueueService.mark_processing(item_id, db)
+
+                        # Dispatch to appropriate processor
+                        success = ChannelProcessors.process_by_channel(
+                            channel_type=channel_type,
+                            item_id=item_id,
+                            item_data=item,
+                            db=db,
+                        )
+
+                        if success:
+                            total_processed += 1
+                        else:
+                            total_failed += 1
+
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to process channel item: {item_id} error: {e}",
+                            exc_info=True,
+                        )
+                        total_failed += 1
+
+                        # Mark as failed
+                        try:
+                            ChannelQueueService.mark_failed(
+                                item_id,
+                                str(e),
+                                should_retry=True,
+                                db=db,
+                            )
+                        except Exception as mark_error:
+                            logger.error(f"Failed to mark item as failed: {mark_error}")
+
+            except Exception as e:
+                logger.error(f"Failed to process channel {channel_type}: {e}", exc_info=True)
+
+        elapsed_time = time.time() - start_time
 
         logger.info(
-            f"Message processed successfully: {message_id} "
-            f"type={message_type} time={processing_time_ms}ms "
-            f"next_action={decision.get('next_action', 'none')}"
+            f"Channel queue processor completed: "
+            f"processed={total_processed} failed={total_failed} "
+            f"elapsed_time={elapsed_time:.2f}s"
         )
 
-        return 1
-
     except Exception as e:
-        processing_time_ms = int((time.time() - start_time) * 1000)
-
-        # Log error
-        _log_message_processing(message_id, "FAILED", {"error": str(e)}, processing_time_ms, db)
-
-        # Try to retry
-        should_retry = message["retry_count"] < MessageQueueService.MAX_RETRIES
-        is_scheduled = MessageQueueService.mark_failed(message_id, str(e), should_retry, db)
-
-        if is_scheduled:
-            logger.warning(
-                f"Message scheduled for retry: {message_id} "
-                f"attempt={message['retry_count'] + 1}/{MessageQueueService.MAX_RETRIES} "
-                f"error={str(e)}"
-            )
-        else:
-            logger.error(
-                f"Message permanently failed: {message_id} "
-                f"retries_exhausted={message['retry_count']} error={str(e)}"
-            )
-
-        return 0
+        logger.error(f"Channel processor worker failed: {e}", exc_info=True)
+    finally:
+        db.close()
 
 
-def _execute_message(message_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Execute message based on type.
+# ==================== ENTRY POINTS ====================
 
-    Routes to appropriate service for processing.
-    Returns result dict with success/failure status.
+if __name__ == "__main__":
+    # Test: Process one cycle of messages
+    logger.info("Starting message queue worker...")
+    process_message_queue()
+    logger.info("Message queue worker finished.")
 
-    Args:
-        message_type: Type of message (e.g., 'candidate_added')
-        payload: Message payload
-
-    Returns:
-        Result dict with success, data, and optional error
-
-    Raises:
-        Exception: If execution fails (fail fast)
-    """
-    logger.debug(f"Executing message type: {message_type}")
-
-    if message_type == "candidate_added":
-        # Payload: {"candidate_id": "...", "email": "..."}
-        return {"success": True, "message": "Candidate addition processed"}
-
-    elif message_type == "thunder_email_sent":
-        # Payload: {"candidate_id": "...", "email_address": "..."}
-        return {"success": True, "message": "Thunder email tracked"}
-
-    elif message_type == "flash_agent_action":
-        # Payload: {"action": "...", "result": {...}}
-        return {"success": True, "message": "Flash action logged"}
-
-    elif message_type == "interview_scheduled":
-        # Payload: {"interview_id": "...", "candidate_id": "...", ...}
-        return {"success": True, "message": "Interview scheduled"}
-
-    elif message_type == "offer_generated":
-        # Payload: {"offer_id": "...", "candidate_id": "...", ...}
-        return {"success": True, "message": "Offer generated"}
-
-    else:
-        logger.warning(f"Unknown message type: {message_type}")
-        return {
-            "success": False,
-            "error": f"Unknown message type: {message_type}",
-        }
-
-
-def _log_message_processing(
-    message_id: str,
-    status: str,
-    result: Dict[str, Any],
-    processing_time_ms: int,
-    db,
-) -> None:
-    """
-    Log message processing to message_log table.
-
-    Args:
-        message_id: Message ID
-        status: Processing status
-        result: Processing result
-        processing_time_ms: How long it took
-        db: Database session
-
-    Raises:
-        Exception: If logging fails
-    """
-    try:
-        from app.models.message_queue import MessageLog
-
-        log_entry = MessageLog(
-            id=__import__("uuid").uuid4().hex,
-            message_id=message_id,
-            status=status,
-            error=result.get("error") if status == "FAILED" else None,
-            processing_time_ms=processing_time_ms,
-        )
-
-        db.add(log_entry)
-        db.commit()
-
-    except Exception as e:
-        logger.error(f"Failed to log message processing: {e}", exc_info=True)
-        db.rollback()
-        # Don't raise - logging failure shouldn't stop worker
-
-
-# Scheduler integration
-def schedule_worker() -> None:
-    """
-    Schedule message queue worker to run every 5 minutes.
-
-    Call this during app startup to register the scheduled task.
-    Uses APScheduler to run process_message_queue() every 5 minutes.
-    """
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-
-        scheduler = BackgroundScheduler()
-        scheduler.add_job(
-            func=process_message_queue,
-            trigger="interval",
-            minutes=5,
-            id="message_queue_worker",
-            name="Process Message Queue",
-            replace_existing=True,
-        )
-
-        if not scheduler.running:
-            scheduler.start()
-
-        logger.info("Message queue worker scheduled to run every 5 minutes")
-
-    except Exception as e:
-        logger.error(f"Failed to schedule message queue worker: {e}", exc_info=True)
-        raise
+    logger.info("Starting channel processor worker...")
+    process_channel_queues()
+    logger.info("Channel processor worker finished.")
