@@ -441,6 +441,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
     if (!email.trim()) newErrors.email = "Email is required.";
+    if (!locationValue?.countryCode || !locationValue?.city) newErrors.location = "Location (Country and City) is required.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;

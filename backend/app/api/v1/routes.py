@@ -49,6 +49,7 @@ from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_r
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.queue import router as queue_router
+from app.api.v1.endpoints.queues import router as queues_router
 from app.api.v1.endpoints.doctor_traces_dashboard import router as doctor_traces_router
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.flash import router as flash_router
@@ -238,6 +239,7 @@ router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
 router.include_router(router=certifications_admin_router)
 router.include_router(router=queue_router)
+router.include_router(router=queues_router)
 router.include_router(router=doctor_traces_router)
 router.include_router(router=system_health_router)
 router.include_router(router=spartan_router)
