@@ -3,24 +3,10 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 module.exports = function(app) {
   // Proxy all API requests to backend running on port 8080
   app.use(
-    '/rbac',
+    '/api',
     createProxyMiddleware({
       target: 'http://localhost:8080',
       changeOrigin: true,
-      pathRewrite: {
-        '^/rbac': '/rbac'
-      }
-    })
-  );
-
-  app.use(
-    '/hr',
-    createProxyMiddleware({
-      target: 'http://localhost:8080',
-      changeOrigin: true,
-      pathRewrite: {
-        '^/hr': '/hr'
-      }
     })
   );
 
@@ -29,9 +15,38 @@ module.exports = function(app) {
     createProxyMiddleware({
       target: 'http://localhost:8080',
       changeOrigin: true,
-      pathRewrite: {
-        '^/auth': '/auth'
-      }
+    })
+  );
+
+  app.use(
+    '/rbac',
+    createProxyMiddleware({
+      target: 'http://localhost:8080',
+      changeOrigin: true,
+    })
+  );
+
+  app.use(
+    '/hr',
+    createProxyMiddleware({
+      target: 'http://localhost:8080',
+      changeOrigin: true,
+    })
+  );
+
+  app.use(
+    '/candidates',
+    createProxyMiddleware({
+      target: 'http://localhost:8080',
+      changeOrigin: true,
+    })
+  );
+
+  app.use(
+    '/jobs',
+    createProxyMiddleware({
+      target: 'http://localhost:8080',
+      changeOrigin: true,
     })
   );
 
@@ -40,9 +55,14 @@ module.exports = function(app) {
     createProxyMiddleware({
       target: 'http://localhost:8080',
       changeOrigin: true,
-      pathRewrite: {
-        '^/queues': '/queues'
-      }
+    })
+  );
+
+  app.use(
+    '/onboarding',
+    createProxyMiddleware({
+      target: 'http://localhost:8080',
+      changeOrigin: true,
     })
   );
 };
