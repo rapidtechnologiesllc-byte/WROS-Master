@@ -8,6 +8,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.models.message_queue import MessageQueue, EmailTracking, EmailTrackingEvent
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/queues", tags=["queue"])
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def list_queue_messages(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=1000),
@@ -91,7 +92,7 @@ def list_queue_messages(
     }
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def get_queue_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get queue statistics aggregated by queue type and status."""
     all_messages = db.query(MessageQueue).all()
@@ -135,7 +136,7 @@ def get_queue_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     }
 
 
-@router.get("/{message_id}")
+@router.get("/{message_id}", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def get_message_detail(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get detailed information about a specific message."""
     message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
@@ -189,7 +190,7 @@ def get_message_detail(message_id: str, db: Session = Depends(get_db)) -> Dict[s
     }
 
 
-@router.post("/{message_id}/retry")
+@router.post("/{message_id}/retry", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def retry_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Retry a failed message."""
     message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
@@ -216,7 +217,7 @@ def retry_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
     }
 
 
-@router.post("/{message_id}/clear")
+@router.post("/{message_id}/clear", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Clear/delete a message from the queue."""
     message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
@@ -237,7 +238,7 @@ def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
     }
 
 
-@router.get("/email/{message_id}/engagement")
+@router.get("/email/{message_id}/engagement", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def get_email_engagement_metrics(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get email engagement metrics for a specific message."""
     message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
