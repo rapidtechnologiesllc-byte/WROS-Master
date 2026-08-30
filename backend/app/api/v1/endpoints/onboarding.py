@@ -22,7 +22,9 @@ For backward compatibility with legacy routes:
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
-from app.core.dependencies import require_resource_permission
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.core.dependencies import require_resource_permission, get_current_hr_or_admin
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -46,14 +48,16 @@ def create_candidate_legacy(**kwargs):
     return RedirectResponse(url="/candidates/create", status_code=307)
 
 
-@router.api_route(
+@router.get(
     "/hr/get_all_candidates",
-    methods=["GET"],
     summary="DEPRECATED: Use GET /candidates/all instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
-def get_all_candidates_legacy(**kwargs):
+def get_all_candidates_legacy(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use GET /candidates/all instead.
@@ -61,7 +65,8 @@ def get_all_candidates_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    return RedirectResponse(url="/candidates/all", status_code=307)
+    from app.api.v1.endpoints.candidates.crud import get_all_candidates
+    return get_all_candidates(db=db, user=user)
 
 
 @router.api_route(
