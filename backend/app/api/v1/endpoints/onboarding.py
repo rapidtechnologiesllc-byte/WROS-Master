@@ -20,7 +20,7 @@ For backward compatibility with legacy routes:
 - /onboarding/hr/candidate/{id}/contacts → delegates to contacts service
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -29,15 +29,18 @@ from app.core.dependencies import require_resource_permission, get_current_hr_or
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
-# Legacy backward-compatibility routes - redirect to new microservices
-@router.api_route(
+# Legacy backward-compatibility routes - delegate to new microservices
+@router.post(
     "/hr/create_candidate",
-    methods=["POST"],
     summary="DEPRECATED: Use POST /candidates/create instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
-def create_candidate_legacy(**kwargs):
+def create_candidate_legacy(
+    request_body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use POST /candidates/create instead.
@@ -45,7 +48,11 @@ def create_candidate_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    return RedirectResponse(url="/candidates/create", status_code=307)
+    from app.api.v1.endpoints.candidates.crud import create_candidate
+    from app.schemas.candidate import CandidateCreateRequest
+
+    request = CandidateCreateRequest(**request_body)
+    return create_candidate(request=request, background_tasks=None, db=db, user=user)
 
 
 @router.get(
@@ -69,14 +76,17 @@ def get_all_candidates_legacy(
     return get_all_candidates(db=db, user=user)
 
 
-@router.api_route(
+@router.get(
     "/hr/candidate/{candidate_id}",
-    methods=["GET"],
     summary="DEPRECATED: Use GET /candidates/{candidate_id} instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
-def get_candidate_by_id_legacy(**kwargs):
+def get_candidate_by_id_legacy(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use GET /candidates/{candidate_id} instead.
@@ -84,18 +94,22 @@ def get_candidate_by_id_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    candidate_id = kwargs.get("candidate_id")
-    return RedirectResponse(url=f"/candidates/{candidate_id}", status_code=307)
+    from app.api.v1.endpoints.candidates.crud import get_candidate_by_id
+    return get_candidate_by_id(candidate_id=candidate_id, db=db, user=user)
 
 
-@router.api_route(
+@router.put(
     "/hr/update_candidate/{candidate_id}",
-    methods=["PUT"],
     summary="DEPRECATED: Use PUT /candidates/{candidate_id} instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
-def update_candidate_legacy(**kwargs):
+def update_candidate_legacy(
+    candidate_id: str,
+    request_body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use PUT /candidates/{candidate_id} instead.
@@ -103,18 +117,24 @@ def update_candidate_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    candidate_id = kwargs.get("candidate_id")
-    return RedirectResponse(url=f"/candidates/{candidate_id}", status_code=307)
+    from app.api.v1.endpoints.candidates.crud import update_candidate
+    from app.schemas.candidate import CandidateUpdateRequest
+
+    request = CandidateUpdateRequest(**request_body)
+    return update_candidate(candidate_id=candidate_id, request=request, db=db, user=user)
 
 
-@router.api_route(
+@router.delete(
     "/hr/delete_candidate/{candidate_id}",
-    methods=["DELETE"],
     summary="DEPRECATED: Use DELETE /candidates/{candidate_id} instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "delete"))],
 )
-def delete_candidate_legacy(**kwargs):
+def delete_candidate_legacy(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use DELETE /candidates/{candidate_id} instead.
@@ -122,18 +142,22 @@ def delete_candidate_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    candidate_id = kwargs.get("candidate_id")
-    return RedirectResponse(url=f"/candidates/{candidate_id}", status_code=307)
+    from app.api.v1.endpoints.candidates.crud import delete_candidate
+    return delete_candidate(candidate_id=candidate_id, db=db, user=user)
 
 
-@router.api_route(
+@router.post(
     "/candidates/{candidate_id}/convert-to-employee",
-    methods=["POST"],
     summary="DEPRECATED: Use POST /candidates/{candidate_id}/convert-to-employee instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
-def convert_candidate_legacy(**kwargs):
+def convert_candidate_legacy(
+    candidate_id: str,
+    request_body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use POST /candidates/{candidate_id}/convert-to-employee instead.
@@ -141,18 +165,24 @@ def convert_candidate_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    candidate_id = kwargs.get("candidate_id")
-    return RedirectResponse(url=f"/candidates/{candidate_id}/convert-to-employee", status_code=307)
+    from app.api.v1.endpoints.candidates.conversions import convert_candidate_to_employee
+    from app.schemas.candidate import ConvertToEmployeeRequest
+
+    request = ConvertToEmployeeRequest(**request_body)
+    return convert_candidate_to_employee(candidate_id=candidate_id, request=request, db=db, user=user)
 
 
-@router.api_route(
+@router.get(
     "/hr/candidate/{candidate_id}/contacts",
-    methods=["GET"],
     summary="DEPRECATED: Use GET /candidates/{candidate_id}/contacts instead",
     deprecated=True,
     dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
-def get_candidate_contacts_legacy(**kwargs):
+def get_candidate_contacts_legacy(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_hr_or_admin)
+):
     """
     DEPRECATED: This endpoint has been moved to the candidates microservice.
     Please use GET /candidates/{candidate_id}/contacts instead.
@@ -160,8 +190,8 @@ def get_candidate_contacts_legacy(**kwargs):
     This redirect is provided for backward compatibility only.
     It will be removed in a future version.
     """
-    candidate_id = kwargs.get("candidate_id")
-    return RedirectResponse(url=f"/candidates/{candidate_id}/contacts", status_code=307)
+    from app.api.v1.endpoints.candidates.conversions import get_candidate_contacts
+    return get_candidate_contacts(candidate_id=candidate_id, db=db, user=user)
 
 
 # Orchestration workflows (to be implemented)
