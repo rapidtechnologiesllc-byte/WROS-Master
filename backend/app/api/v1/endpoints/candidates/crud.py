@@ -75,6 +75,9 @@ def create_candidate(
 
     CRUD operation: Create only (no workflows).
     Queue integration: Enqueues candidate_created message to THUNDER_QUEUE.
+
+    CRITICAL: Candidate is assigned to user's business unit so Thunder can access it
+    via proper tenant/BU scoping. Without this, Thunder has no visibility.
     """
     if not request.candidate_current_location or not request.candidate_current_location.strip():
         raise HTTPException(
@@ -84,6 +87,12 @@ def create_candidate(
 
     password = generate_password()
     try:
+        # CRITICAL: Fetch user fresh from DB to get latest business_unit_id
+        # JWT token doesn't include business_unit_id, so we must query it
+        current_user = db.query(Users).filter(Users.UserID == user.UserID).first()
+        user_bu_id = current_user.business_unit_id if current_user else None
+        logger.info(f"[CreateCandidate] User {current_user.UserID} has BU ID: {user_bu_id}")
+
         candidate = create_candidate_safe(
             db,
             email=request.candidate_email,
@@ -106,7 +115,9 @@ def create_candidate(
             candidateCurrentSalary=request.candidate_current_salary,
             candidateCurrentLocation=request.candidate_current_location,
             candidateCreatedAt=datetime.now(),
+            associated_bu_id=user_bu_id,  # CRITICAL: Assign to user's BU for Thunder access
         )
+        logger.info(f"[CreateCandidate] Candidate {candidate.candidateID} assigned to BU: {candidate.associated_bu_id}")
     except DuplicateCandidateError:
         raise HTTPException(
             status_code=400,
@@ -164,7 +175,7 @@ def create_candidate(
             )
             db.add(exp_row)
 
-    # Enqueue message BEFORE commit (for atomicity)
+    # Enqueue message (will commit the entire transaction atomically)
     candidate_name = f"{request.candidate_first_name or ''} {request.candidate_last_name or ''}".strip()
     payload = {
         "candidate_id": candidate_id,
@@ -175,16 +186,17 @@ def create_candidate(
         "candidate_job_title": request.candidate_job_title,
         "created_at": datetime.utcnow().isoformat(),
     }
+    # Extract UUID from candidate_id (e.g., "CAN-abc123..." -> "abc123...")
+    resource_uuid = candidate_id.split("-", 1)[1] if "-" in candidate_id else candidate_id
     MessageQueueService.enqueue(
         message_type="candidate_created",
         payload=payload,
-        resource_id=candidate_id,
+        resource_id=resource_uuid,
         created_by=user.UserID,
         db=db,
     )
 
-    # SINGLE ATOMIC COMMIT
-    db.commit()
+    # enqueue() commits the transaction, refresh candidate from session
     db.refresh(candidate)
 
     # Background tasks AFTER commit

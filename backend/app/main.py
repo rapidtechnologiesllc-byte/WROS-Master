@@ -216,6 +216,8 @@ assert_all_routes_have_permission_declarations(
         "GET /rbac/modules-and-verbs",
         "GET /admin/certifications/business-units",
         "GET /admin/certifications/roles",
+        "GET /queues",
+        "GET /queues/stats",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")

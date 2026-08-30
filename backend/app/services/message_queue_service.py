@@ -38,6 +38,7 @@ class MessageQueueService:
         resource_id: Optional[str] = None,
         created_by: str = "system",
         db: Optional[Session] = None,
+        queue_type: Optional[str] = None,
     ) -> str:
         """
         Create and enqueue a new message.
@@ -70,10 +71,18 @@ class MessageQueueService:
                 logger.error(f"Payload not JSON serializable: {e}")
                 raise ValueError(f"Message payload must be JSON serializable: {str(e)}")
 
+            # Determine queue_type from message_type if not provided
+            if not queue_type:
+                if message_type == "candidate_created":
+                    queue_type = "THUNDER_QUEUE"
+                else:
+                    queue_type = "THUNDER_QUEUE"  # Default to THUNDER_QUEUE
+
             message_id = str(uuid.uuid4())
             message = MessageQueue(
                 id=message_id,
                 type=message_type,
+                queue_type=queue_type,
                 status=MessageQueueService.STATUS_PENDING,
                 payload=payload,
                 resource_id=resource_id,
@@ -82,7 +91,10 @@ class MessageQueueService:
                 error=None,
             )
 
+            # Add to session
             db.add(message)
+
+            # Commit the entire transaction (candidate + message together)
             db.commit()
 
             logger.info(

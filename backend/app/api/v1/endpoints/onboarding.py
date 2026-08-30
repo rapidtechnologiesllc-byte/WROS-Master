@@ -20,7 +20,7 @@ For backward compatibility with legacy routes:
 - /onboarding/hr/candidate/{id}/contacts → delegates to contacts service
 """
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -37,6 +37,7 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
 def create_candidate_legacy(
+    background_tasks: BackgroundTasks,
     request_body: dict = Body(...),
     db: Session = Depends(get_db),
     user=Depends(get_current_hr_or_admin)
@@ -52,7 +53,7 @@ def create_candidate_legacy(
     from app.schemas.candidate import CandidateCreateRequest
 
     request = CandidateCreateRequest(**request_body)
-    return create_candidate(request=request, background_tasks=None, db=db, user=user)
+    return create_candidate(request=request, background_tasks=background_tasks, db=db, user=user)
 
 
 @router.get(

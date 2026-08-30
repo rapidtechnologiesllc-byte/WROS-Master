@@ -72,6 +72,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/spartan/timesheets/bulk-approve",
         "/admin/doctor/traces",
         "/admin/health",
+        "/queues",
+        "/queues/stats",
         "/admin/queue/stats",
         "/admin/queue/tasks",
         "/spartan/formation/status",
