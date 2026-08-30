@@ -20,8 +20,9 @@ For backward compatibility with legacy routes:
 - /onboarding/hr/candidate/{id}/contacts → delegates to contacts service
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
+from app.core.dependencies import require_resource_permission
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -32,6 +33,7 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
     methods=["POST"],
     summary="DEPRECATED: Use POST /candidates/create instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
 def create_candidate_legacy(**kwargs):
     """
@@ -49,6 +51,7 @@ def create_candidate_legacy(**kwargs):
     methods=["GET"],
     summary="DEPRECATED: Use GET /candidates/all instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_all_candidates_legacy(**kwargs):
     """
@@ -66,6 +69,7 @@ def get_all_candidates_legacy(**kwargs):
     methods=["GET"],
     summary="DEPRECATED: Use GET /candidates/{candidate_id} instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_candidate_by_id_legacy(**kwargs):
     """
@@ -84,6 +88,7 @@ def get_candidate_by_id_legacy(**kwargs):
     methods=["PUT"],
     summary="DEPRECATED: Use PUT /candidates/{candidate_id} instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
 def update_candidate_legacy(**kwargs):
     """
@@ -102,6 +107,7 @@ def update_candidate_legacy(**kwargs):
     methods=["DELETE"],
     summary="DEPRECATED: Use DELETE /candidates/{candidate_id} instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "delete"))],
 )
 def delete_candidate_legacy(**kwargs):
     """
@@ -120,6 +126,7 @@ def delete_candidate_legacy(**kwargs):
     methods=["POST"],
     summary="DEPRECATED: Use POST /candidates/{candidate_id}/convert-to-employee instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
 )
 def convert_candidate_legacy(**kwargs):
     """
@@ -138,6 +145,7 @@ def convert_candidate_legacy(**kwargs):
     methods=["GET"],
     summary="DEPRECATED: Use GET /candidates/{candidate_id}/contacts instead",
     deprecated=True,
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_candidate_contacts_legacy(**kwargs):
     """
