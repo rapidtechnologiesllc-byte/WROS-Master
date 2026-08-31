@@ -180,9 +180,6 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     # Filter to only users with payroll_access or revenue.view_pnl permission
     finance_users = [
         u for u in all_users
-        if RBACService.has_permission(db, u.UserID, "revenue", "view")
-    ]
-
     return finance_users[0] if finance_users else None
 
 

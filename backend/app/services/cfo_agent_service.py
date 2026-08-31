@@ -176,8 +176,6 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     ).all()
 
     # Filter to only those with Partner-level permissions (business unit management)
-    partners = [p for p in partners if RBACService.has_permission(db, p.UserID, "business-units", "edit")]
-
     comparison = []
     for partner in partners:
         try:

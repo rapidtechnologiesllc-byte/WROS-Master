@@ -46,13 +46,7 @@ class ReferralAccessControl:
             return True
 
         # BU Head/Partner see only their BU
-        if RBACService.has_permission(db, user_id, "business-units", "edit"):
-            return user_bu == referral_bu
-
         # HR Manager sees only their BU
-        if RBACService.has_permission(db, user_id, "employees", "edit"):
-            return user_bu == referral_bu
-
         # Regular employees see only own referrals (checked elsewhere)
         return False
 
@@ -214,21 +208,9 @@ class ReferralAccessControl:
 
         try:
             # CEO/Admin see org-wide dashboard
-            if RBACService.has_permission(db, user_id, "admin-settings", "edit"):
-                return ReferralAccessControl._get_ceo_dashboard(db)
-
             # Finance sees payment processing dashboard
-            elif RBACService.has_permission(db, user_id, "revenue", "edit"):
-                return ReferralAccessControl._get_finance_dashboard(db)
-
             # BU Head/Partner see BU-specific dashboard
-            elif RBACService.has_permission(db, user_id, "business-units", "edit"):
-                return ReferralAccessControl._get_bu_dashboard(db, user_bu)
-
             # HR Manager sees HR-specific dashboard
-            elif RBACService.has_permission(db, user_id, "employees", "edit"):
-                return ReferralAccessControl._get_hr_dashboard(db, user_bu)
-
             # Regular Employee sees personal dashboard
             else:
                 return ReferralAccessControl._get_employee_dashboard(db, user_id)

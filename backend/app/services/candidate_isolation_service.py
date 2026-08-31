@@ -74,9 +74,6 @@ class CandidateIsolationService:
             raise ValueError(f"Submitting user {submitted_by_user_id} not found")
 
         # Check if user has BU management permission and access to this BU
-        if not RBACService.has_permission(db, submitted_by_user_id, "business-units", "edit"):
-            raise ValueError(f"User {submitted_by_user_id} not authorized to submit candidates")
-
         # Check if user has access to this BU
         user_bus = OrganizationService.get_user_accessible_business_units(
             submitted_by_user_id, db, tenant_id

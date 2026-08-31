@@ -40,9 +40,6 @@ def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional
 
     # Filter to those with business_unit.manage permission (Partner-level)
     for user in bu_users:
-        if RBACService.has_permission(db, user.UserID, "business_unit.manage"):
-            return user
-
     return None
 
 
