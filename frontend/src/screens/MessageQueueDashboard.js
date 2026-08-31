@@ -359,13 +359,125 @@ function MessageQueueDashboard() {
     <PageContainer>
       {error && <Alert message={error} type="error" showIcon closable style={{ marginBottom: 16 }} />}
 
+      {/* Top Summary Stats */}
+      {stats && stats.queues && (
+        <StatsContainer style={{ marginBottom: 24 }}>
+          <Card size="small">
+            <Statistic
+              title="Total Queues"
+              value={Object.keys(stats.queues).length}
+              suffix="/ 11"
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+          <Card size="small">
+            <Statistic
+              title="Total Messages"
+              value={stats.total || 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+          <Card size="small">
+            <Statistic
+              title="Completed"
+              value={Object.values(stats.queues).reduce((sum, q) => sum + (q.COMPLETED || 0), 0)}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+          <Card size="small">
+            <Statistic
+              title="Failed"
+              value={Object.values(stats.queues).reduce((sum, q) => sum + (q.FAILED || 0), 0)}
+              valueStyle={{ color: '#f5222d' }}
+            />
+          </Card>
+          <Card size="small">
+            <Statistic
+              title="Pending"
+              value={Object.values(stats.queues).reduce((sum, q) => sum + (q.PENDING || 0), 0)}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </StatsContainer>
+      )}
+
+      {/* All Queues Status Table */}
+      {stats && stats.queues && (
+        <Card style={{ marginBottom: 24 }}>
+          <h2 style={{ marginBottom: 16 }}>All Message Queues</h2>
+          <Table
+            dataSource={Object.entries(stats.queues).map(([queueType, queueStats]) => ({
+              key: queueType,
+              queue_type: queueType,
+              ...queueStats,
+            }))}
+            pagination={false}
+            size="small"
+            scroll={{ x: 1000 }}
+            columns={[
+              {
+                title: 'Queue Type',
+                dataIndex: 'queue_type',
+                key: 'queue_type',
+                width: 180,
+                render: (text) => (
+                  <Tag color={getQueueTypeColor(text)} style={{ fontSize: '12px', padding: '4px 8px' }}>
+                    {text}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Status',
+                dataIndex: 'total',
+                key: 'status',
+                width: 100,
+                render: (total, record) => {
+                  if (total === 0) return <Tag color="blue">IDLE</Tag>;
+                  if (record.FAILED > 0) return <Tag color="red">FAILED</Tag>;
+                  if (record.PENDING > 0) return <Tag color="orange">PROCESSING</Tag>;
+                  return <Tag color="green">OK</Tag>;
+                },
+              },
+              {
+                title: 'Total',
+                dataIndex: 'total',
+                key: 'total',
+                width: 80,
+                render: (total) => total || 0,
+              },
+              {
+                title: 'Pending',
+                dataIndex: 'PENDING',
+                key: 'PENDING',
+                width: 80,
+                render: (count) => <span style={{ color: '#faad14' }}>{count || 0}</span>,
+              },
+              {
+                title: 'Completed',
+                dataIndex: 'COMPLETED',
+                key: 'COMPLETED',
+                width: 100,
+                render: (count) => <span style={{ color: '#52c41a' }}>{count || 0}</span>,
+              },
+              {
+                title: 'Failed',
+                dataIndex: 'FAILED',
+                key: 'FAILED',
+                width: 80,
+                render: (count) => <span style={{ color: '#f5222d', fontWeight: 'bold' }}>{count || 0}</span>,
+              },
+            ]}
+          />
+        </Card>
+      )}
+
       {/* Statistics Section */}
       {stats && (
         <>
           {/* Queue Stats */}
           {stats.queues && Object.keys(stats.queues).length > 0 && (
             <>
-              <h2>Queue Statistics</h2>
+              <h2>Queue Details</h2>
               <StatsContainer>
                 {Object.entries(stats.queues).map(([queueType, queueStats]) => (
                   <Card key={queueType} size="small">
