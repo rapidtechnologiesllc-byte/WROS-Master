@@ -188,11 +188,13 @@ def create_candidate(
     }
     # Extract UUID from candidate_id (e.g., "CAN-abc123..." -> "abc123...")
     resource_uuid = candidate_id.split("-", 1)[1] if "-" in candidate_id else candidate_id
+    # Extract UUID from user.UserID (e.g., "USER-abc123..." -> "abc123...")
+    created_by_uuid = user.UserID.split("-", 1)[1] if "-" in user.UserID else user.UserID
     MessageQueueService.enqueue(
         message_type="candidate_created",
         payload=payload,
         resource_id=resource_uuid,
-        created_by=user.UserID,
+        created_by=created_by_uuid,
         db=db,
     )
 
