@@ -635,7 +635,7 @@ function MessageQueueDashboard() {
       </FilterContainer>
 
       {/* Messages Table */}
-      <h2 style={{ marginTop: 24 }}>Messages ({messages.length})</h2>
+      <h2 style={{ marginTop: 24 }}>Queue Messages ({messages.length})</h2>
       <Card loading={loading}>
         {messages.length === 0 ? (
           <Empty description="No messages found" />
