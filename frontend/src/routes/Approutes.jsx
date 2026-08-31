@@ -133,29 +133,34 @@ import MessageQueueDashboard from "../screens/MessageQueueDashboard";
 const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
   const perms = (() => {
     try {
-      return JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      // If stored as object (permission metadata), convert keys to array
+      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        return Object.keys(stored);
+      }
+      return Array.isArray(stored) ? stored : [];
     } catch {
       return [];
     }
   })();
 
   // CEO/SuperUser dashboard (wildcard permission)
-  if (perms.includes('*.*')) {
+  if (Array.isArray(perms) && perms.includes('*.*')) {
     return <CEOUnifiedDashboard />;
   }
 
   // CFO dashboard (finance.manage permission)
-  if (perms.includes('finance.manage')) {
+  if (Array.isArray(perms) && perms.includes('finance.manage')) {
     return <CFOAgentScreen />;
   }
 
   // Partner dashboard (business_unit.manage permission or partner-specific)
-  if (perms.includes('business_unit.manage') || perms.includes('reports.manage')) {
+  if ((Array.isArray(perms) && perms.includes('business_unit.manage')) || (Array.isArray(perms) && perms.includes('reports.manage'))) {
     return <PartnerROIAgentScreen />;
   }
 
   // HR Manager and Resource Manager get standard dashboard
-  if (perms.includes('employees.manage') || perms.includes('recruitment.create')) {
+  if ((Array.isArray(perms) && perms.includes('employees.manage')) || (Array.isArray(perms) && perms.includes('recruitment.create'))) {
     return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
   }
 
@@ -331,7 +336,7 @@ export default function AppRoutes() {
   const { isSuperAdmin: isSuperUser } = (() => {
     try {
       const perms = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-      return { isSuperAdmin: perms.includes('*.*') };
+      return { isSuperAdmin: Array.isArray(perms) && perms.includes('*.*') };
     } catch {
       return { isSuperAdmin: false };
     }

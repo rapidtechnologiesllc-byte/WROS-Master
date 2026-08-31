@@ -2,7 +2,7 @@
 import { apiRequest, getApiBaseUrl } from "./client";
 
 export const validateEmail = async (email) => {
-  const { data } = await apiRequest("/auth/validate-email", {
+  const { data } = await apiRequest("/api/v1/auth/validate-email", {
     method: "POST",
     skipAuth: true,
     body: JSON.stringify({ email })
@@ -11,7 +11,7 @@ export const validateEmail = async (email) => {
 };
 
 export const login = async (payload) => {
-  const { data } = await apiRequest("/auth/login", {
+  const { data } = await apiRequest("/api/v1/auth/login", {
     method: "POST",
     skipAuth: true,
     body: JSON.stringify(payload)

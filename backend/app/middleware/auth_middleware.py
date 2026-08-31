@@ -35,6 +35,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/auth/v1/signup",
         "/auth/login",
         "/auth/validate-email",
+        "/api/v1/auth/login",
+        "/api/v1/auth/validate-email",
         "/msgraph/auth/signin",
         # OAuth redirect target -- called by Microsoft's servers before any
         # app-level session exists. Structurally cannot require a bearer
