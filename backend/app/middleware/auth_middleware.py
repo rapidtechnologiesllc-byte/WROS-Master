@@ -102,6 +102,12 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # app -- see the developer handoff), since it's exactly the kind
         # of public candidate-facing intake B4 calls out by name.
         "/jobs/{job_id}/apply",
+        # Message queue control endpoints (registered without /api/v1 prefix in router)
+        "/queues/{queue_type}/start",
+        "/queues/{queue_type}/stop",
+        "/queues/{queue_type}/retry",
+        "/queues/{message_id}/retry",
+        "/queues/{message_id}/clear",
         # Spartan internal system routes with parameters
         "/admin/doctor/traces/by-status/{status}",
         "/admin/phalanx/{phalanx_name}/integrity",
