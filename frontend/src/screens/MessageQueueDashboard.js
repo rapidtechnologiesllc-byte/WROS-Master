@@ -114,6 +114,31 @@ function MessageQueueDashboard() {
     }
   };
 
+  const handleQueueAction = async (queueType, action) => {
+    try {
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`/api/v1/queues/${queueType}/${action}`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to ${action} queue: ${errText}`);
+      }
+
+      const result = await res.json();
+      message.success(result.message || `Queue ${action} successful`);
+
+      // Refresh stats
+      await fetchQueueStats();
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
+
   const queueColumns = [
     {
       title: 'Queue Type',
@@ -169,6 +194,38 @@ function MessageQueueDashboard() {
       width: '14%',
       render: (count) => <Tag color="blue">{count}</Tag>,
     },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '15%',
+      render: (text, record) => (
+        <Space size="small">
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => handleQueueAction(record.name, 'start')}
+            loading={loading}
+          >
+            Start
+          </Button>
+          <Button
+            size="small"
+            danger
+            onClick={() => handleQueueAction(record.name, 'stop')}
+            loading={loading}
+          >
+            Stop
+          </Button>
+          <Button
+            size="small"
+            onClick={() => handleQueueAction(record.name, 'retry')}
+            loading={loading}
+          >
+            Retry
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   const messageColumns = [
@@ -216,7 +273,84 @@ function MessageQueueDashboard() {
       key: 'retry_count',
       width: '10%',
     },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '15%',
+      render: (text, record) => (
+        <Space size="small">
+          {record.status === 'FAILED' && (
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => retryMessage(record.id)}
+            >
+              Retry
+            </Button>
+          )}
+          <Button
+            size="small"
+            danger
+            onClick={() => clearMessage(record.id)}
+          >
+            Clear
+          </Button>
+        </Space>
+      ),
+    },
   ];
+
+  const retryMessage = async (messageId) => {
+    try {
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`/api/v1/queues/${messageId}/retry`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to retry message: ${errText}`);
+      }
+
+      message.success('Message queued for retry');
+
+      // Refresh messages
+      if (selectedQueue) {
+        await fetchQueueMessages(selectedQueue);
+      }
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
+
+  const clearMessage = async (messageId) => {
+    try {
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`/api/v1/queues/${messageId}/clear`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to clear message: ${errText}`);
+      }
+
+      message.success('Message cleared from queue');
+
+      // Refresh messages
+      if (selectedQueue) {
+        await fetchQueueMessages(selectedQueue);
+      }
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
 
   return (
     <PageContainer>
