@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 
 ALGORITHM = "HS256"
 SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-key-super-secure-in-production")
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 
 security = HTTPBearer()
 
