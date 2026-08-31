@@ -323,7 +323,7 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     tenant_user = None
     for user in all_users:
-        if RBACService.has_permission(db, user.UserID, "tenant-config", "edit"):
+        if RBACService.has_permission(db, user.UserID, "tenant-config.edit"):
             tenant_user = user
             break
 
@@ -331,7 +331,7 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     if not tenant_user:
         all_users = db.query(Users).order_by(Users.UserID.asc()).all()
         for user in all_users:
-            if RBACService.has_permission(db, user.UserID, "admin-settings", "edit"):
+            if RBACService.has_permission(db, user.UserID, "admin-settings.edit"):
                 tenant_user = user
                 break
 
