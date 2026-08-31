@@ -6,10 +6,10 @@ GET  /queues/stats        - Get queue statistics
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import SessionLocal
 from app.models.message_queue import MessageQueue
 from app.services.message_queue_service import MessageQueueService
 
@@ -24,7 +24,6 @@ def get_queue_messages(
     status: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
 ):
     """
     Get all queue messages with optional filtering.
@@ -54,6 +53,7 @@ def get_queue_messages(
             "offset": 0
         }
     """
+    db = SessionLocal()
     try:
         query = db.query(MessageQueue)
 
@@ -96,10 +96,12 @@ def get_queue_messages(
     except Exception as e:
         logger.error(f"Failed to fetch queue messages: {e}", exc_info=True)
         raise
+    finally:
+        db.close()
 
 
 @router.get("/stats")
-def get_queue_stats(db: Session = Depends(get_db)):
+def get_queue_stats():
     """
     Get queue statistics.
 
@@ -119,6 +121,7 @@ def get_queue_stats(db: Session = Depends(get_db)):
             }
         }
     """
+    db = SessionLocal()
     try:
         # Get all messages
         messages = db.query(MessageQueue).all()
@@ -144,3 +147,5 @@ def get_queue_stats(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to get queue stats: {e}", exc_info=True)
         raise
+    finally:
+        db.close()
