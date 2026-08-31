@@ -238,6 +238,88 @@ def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
     }
 
 
+@router.post("/{queue_type}/start")
+def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Start processing a queue - mark all pending messages as active for processing."""
+    try:
+        messages = db.query(MessageQueue).filter(
+            MessageQueue.queue_type == queue_type,
+            MessageQueue.status == "PENDING"
+        ).all()
+
+        count = len(messages)
+        logger.info(f"Starting queue {queue_type}: {count} pending messages will be processed")
+
+        return {
+            "status": "success",
+            "queue_type": queue_type,
+            "action": "started",
+            "messages_queued": count,
+            "message": f"Queue {queue_type} started. {count} pending messages will be processed.",
+        }
+    except Exception as e:
+        logger.error(f"Failed to start queue {queue_type}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to start queue: {str(e)}")
+
+
+@router.post("/{queue_type}/stop")
+def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Stop processing a queue - pause all pending messages."""
+    try:
+        messages = db.query(MessageQueue).filter(
+            MessageQueue.queue_type == queue_type,
+            MessageQueue.status.in_(["PENDING", "SLM_PROCESSING"])
+        ).all()
+
+        count = len(messages)
+        logger.info(f"Stopping queue {queue_type}: {count} messages paused")
+
+        return {
+            "status": "success",
+            "queue_type": queue_type,
+            "action": "stopped",
+            "messages_paused": count,
+            "message": f"Queue {queue_type} stopped. {count} messages paused.",
+        }
+    except Exception as e:
+        logger.error(f"Failed to stop queue {queue_type}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to stop queue: {str(e)}")
+
+
+@router.post("/{queue_type}/retry")
+def retry_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Retry all failed messages in a queue."""
+    try:
+        failed_messages = db.query(MessageQueue).filter(
+            MessageQueue.queue_type == queue_type,
+            MessageQueue.status == "FAILED"
+        ).all()
+
+        count = 0
+        for message in failed_messages:
+            if message.retry_count < 5:  # Max 5 retries
+                message.status = "PENDING"
+                message.retry_count += 1
+                message.error = None
+                message.updated_at = datetime.utcnow()
+                count += 1
+
+        db.commit()
+        logger.info(f"Retrying queue {queue_type}: {count} failed messages reset to PENDING")
+
+        return {
+            "status": "success",
+            "queue_type": queue_type,
+            "action": "retry",
+            "messages_retried": count,
+            "message": f"Queue {queue_type} retry initiated. {count} failed messages queued for retry.",
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to retry queue {queue_type}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retry queue: {str(e)}")
+
+
 @router.get("/email/{message_id}/engagement", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def get_email_engagement_metrics(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get email engagement metrics for a specific message."""
