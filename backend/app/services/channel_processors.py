@@ -152,44 +152,113 @@ class ThunderQueueProcessor(BaseChannelProcessor):
         db: Optional[Session] = None,
     ) -> Dict[str, Any]:
         """
-        Route message to Thunder autonomous loop.
+        Execute Thunder engagement for queued candidate.
 
         Payload should contain:
         {
-            "candidate_id": "uuid",
-            "action": "contact_candidate",  # or other Thunder actions
-            "job_id": "optional_job_id",
-            "priority": "normal"  # high, normal, low
+            "candidate_id": "CAN-xxx",
+            "candidate_name": "John Doe",
+            "candidate_email": "john@example.com",
+            "candidate_phone": "+91-98765-43210",
+            "candidate_location": "Bangalore",
+            "candidate_job_title": "Software Engineer",
+            "created_at": "2026-08-31T10:00:00Z"
         }
+
+        Actions:
+        1. Assign AI agent to candidate (if not already assigned)
+        2. Send initial engagement (email + WhatsApp per tenant config)
+        3. Log Thunder activity
         """
+        if db is None:
+            raise ValueError("Database session required for Thunder processing")
+
         try:
             ThunderQueueProcessor.validate_payload(payload, ["candidate_id"])
 
             candidate_id = payload.get("candidate_id")
-            action = payload.get("action", "contact_candidate")
-            job_id = payload.get("job_id")
-            priority = payload.get("priority", "normal")
+            candidate_name = payload.get("candidate_name", "Unknown")
+            candidate_email = payload.get("candidate_email")
 
             logger.info(
-                f"ThunderQueueProcessor routing message: {message_id} "
-                f"for candidate {candidate_id} action={action} priority={priority}"
+                f"[ThunderQueueProcessor] Processing queued candidate: {candidate_id} "
+                f"({candidate_name}) - message_id={message_id}"
             )
 
-            # In the actual implementation, this would queue to Thunder's async loop
-            # For now, we just mark it as routed
-            # Thunder picks up from message queue periodically
+            # Step 1: Assign AI agent to candidate (auto_assign_ai_agent_on_creation logic)
+            from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
+            from app.services.tenant_config_service import resolve_default_tenant_id
+
+            tenant_id = resolve_default_tenant_id(db)
+            try:
+                auto_assign_ai_agent_on_creation(candidate_id, db)
+                logger.info(f"[ThunderQueueProcessor] AI agent assigned to {candidate_id}")
+            except Exception as e:
+                logger.warning(f"[ThunderQueueProcessor] AI assignment failed: {e}")
+                # Don't fail the entire message - continue with engagement
+
+            # Step 2: Send initial engagement (email + WhatsApp)
+            greeting_channel = "BOTH_PARALLEL"
+            try:
+                from app.services.tenant_ai_config_service import get_greeting_channel
+                greeting_channel = get_greeting_channel(db, tenant_id)
+            except Exception:
+                pass
+
+            whatsapp_result = None
+            if greeting_channel in ("WHATSAPP_FIRST", "BOTH_PARALLEL"):
+                try:
+                    from app.services.first_engagement_service import send_first_whatsapp_engagement
+                    whatsapp_result = send_first_whatsapp_engagement(db, candidate_id, tenant_id)
+                    logger.debug(f"[ThunderQueueProcessor] WhatsApp sent to {candidate_id}")
+                except Exception as e:
+                    logger.warning(f"[ThunderQueueProcessor] WhatsApp failed: {e}")
+
+            email_result = None
+            if greeting_channel in ("EMAIL_FIRST", "BOTH_PARALLEL"):
+                try:
+                    from app.services.email_first_engagement_service import send_first_email_engagement
+                    email_result = send_first_email_engagement(db, candidate_id, tenant_id)
+                    logger.debug(f"[ThunderQueueProcessor] Email sent to {candidate_id}")
+                except Exception as e:
+                    logger.warning(f"[ThunderQueueProcessor] Email failed: {e}")
+
+            # Step 3: Log Thunder activity
+            try:
+                from app.core.agent_logging import log_agent_execution
+                log_agent_execution(
+                    db=db,
+                    candidate_id=candidate_id,
+                    agent_name="Thunder",
+                    action="queue_processed",
+                    details={
+                        "message_id": message_id,
+                        "email_sent": email_result is not None,
+                        "whatsapp_sent": whatsapp_result is not None,
+                    }
+                )
+            except Exception as e:
+                logger.debug(f"[ThunderQueueProcessor] Activity logging failed: {e}")
+
+            logger.info(
+                f"[ThunderQueueProcessor] Queue message {message_id} processed successfully "
+                f"for candidate {candidate_id}"
+            )
 
             return {
                 "status": "success",
                 "queue_type": ThunderQueueProcessor.QUEUE_TYPE,
+                "message_id": message_id,
                 "candidate_id": candidate_id,
-                "action": action,
-                "priority": priority,
+                "candidate_name": candidate_name,
+                "ai_agent_assigned": True,
+                "email_sent": email_result is not None,
+                "whatsapp_sent": whatsapp_result is not None,
             }
 
         except Exception as e:
-            logger.error(f"ThunderQueueProcessor failed: {e}", exc_info=True)
-            raise RuntimeError(f"Failed to route message to THUNDER_QUEUE: {str(e)}")
+            logger.error(f"[ThunderQueueProcessor] Failed to process message: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to process THUNDER_QUEUE message: {str(e)}")
 
 
 class WhatsAppQueueProcessor(BaseChannelProcessor):

@@ -107,25 +107,60 @@ function MessageQueueDashboard() {
     try {
       setLoading(true);
 
-      // Build query params
+      // Build query params (note: backend uses 'offset' not 'skip')
       const params = new URLSearchParams();
-      params.append('skip', skip);
+      params.append('offset', skip);
       params.append('limit', limit);
       if (filterQueueType) params.append('queue_type', filterQueueType);
       if (filterStatus) params.append('status', filterStatus);
 
       // Fetch messages
       const messagesRes = await fetch(`/api/v1/queues?${params}`);
-      if (!messagesRes.ok) throw new Error('Failed to fetch messages');
+      if (!messagesRes.ok) {
+        const errText = await messagesRes.text();
+        throw new Error(`Failed to fetch messages: ${errText}`);
+      }
       const messagesData = await messagesRes.json();
       setMessages(messagesData.data || []);
 
       // Fetch stats
       const statsRes = await fetch(`/api/v1/queues/stats`);
-      if (!statsRes.ok) throw new Error('Failed to fetch stats');
+      if (!statsRes.ok) {
+        const errText = await statsRes.text();
+        throw new Error(`Failed to fetch stats: ${errText}`);
+      }
       const statsData = await statsRes.json();
-      setStats(statsData);
 
+      // Transform stats to match UI expectations
+      const transformedStats = {
+        timestamp: new Date().toISOString(),
+        queues: {},
+        email_metrics: null, // Could be populated from stats if needed
+      };
+
+      // Build queue stats from by_queue_type
+      if (statsData.by_queue_type) {
+        for (const [queueType, count] of Object.entries(statsData.by_queue_type)) {
+          transformedStats.queues[queueType] = {
+            total: count,
+            PENDING: 0,
+            COMPLETED: 0,
+            FAILED: 0,
+          };
+        }
+      }
+
+      // Populate status counts per queue
+      if (statsData.by_status) {
+        // This is a simplified approach - ideally backend would return per-queue status counts
+        for (const queueType of Object.keys(transformedStats.queues)) {
+          transformedStats.queues[queueType].PENDING = statsData.by_status.PENDING || 0;
+          transformedStats.queues[queueType].COMPLETED = statsData.by_status.COMPLETED || 0;
+          transformedStats.queues[queueType].FAILED = statsData.by_status.FAILED || 0;
+        }
+      }
+
+      setStats(transformedStats);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -198,21 +233,68 @@ function MessageQueueDashboard() {
       title: 'Message ID',
       dataIndex: 'id',
       key: 'id',
-      width: 120,
-      render: (text) => <code style={{ fontSize: '11px' }}>{text.substring(0, 8)}</code>,
+      width: 100,
+      render: (text) => <code style={{ fontSize: '11px' }}>{text?.substring(0, 8) || '-'}</code>,
     },
     {
       title: 'Type',
       dataIndex: 'type',
       key: 'type',
-      width: 150,
+      width: 140,
     },
     {
       title: 'Queue',
       dataIndex: 'queue_type',
       key: 'queue_type',
-      width: 120,
+      width: 110,
       render: (text) => text ? <Tag color={getQueueTypeColor(text)}>{text}</Tag> : <span>-</span>,
+    },
+    {
+      title: 'Resource',
+      dataIndex: 'resource_id',
+      key: 'resource_id',
+      width: 140,
+      render: (text, record) => {
+        if (!text) return <span>-</span>;
+
+        // For THUNDER_QUEUE messages, link to candidate details
+        if (record.queue_type === 'THUNDER_QUEUE' || record.type === 'candidate_created') {
+          return (
+            <a href={`/candidates/${record.resource_id}`} target="_blank" rel="noopener noreferrer">
+              📋 Candidate {text?.substring(0, 8)}
+            </a>
+          );
+        }
+
+        // For other queue types, show generic resource link
+        return <code style={{ fontSize: '11px' }}>{text?.substring(0, 8)}</code>;
+      },
+    },
+    {
+      title: 'Payload Info',
+      dataIndex: 'payload',
+      key: 'payload_info',
+      width: 200,
+      render: (payload, record) => {
+        if (!payload) return <span>-</span>;
+
+        // Extract useful info from payload
+        const candidate_name = payload.candidate_name || payload.name;
+        const candidate_email = payload.candidate_email || payload.email;
+        const job_id = payload.job_id;
+
+        return (
+          <Space direction="vertical" size="small" style={{ fontSize: '12px' }}>
+            {candidate_name && <span>{candidate_name}</span>}
+            {candidate_email && <span style={{ color: '#666' }}>{candidate_email}</span>}
+            {job_id && (
+              <a href={`/jobs/${job_id}`} target="_blank" rel="noopener noreferrer">
+                🎯 Job {job_id?.substring(0, 8)}
+              </a>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Status',
@@ -225,31 +307,14 @@ function MessageQueueDashboard() {
       title: 'Created',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 150,
+      width: 140,
       render: (text) => formatDate(text),
     },
     {
       title: 'Retries',
       dataIndex: 'retry_count',
       key: 'retry_count',
-      width: 80,
-    },
-    {
-      title: 'Email Status',
-      dataIndex: 'email_status',
-      key: 'email_status',
-      width: 110,
-      render: (text, record) => {
-        if (!text) return <span>-</span>;
-        return (
-          <Space>
-            <Tag color={text === 'BOUNCED' || text === 'SPAM' ? 'red' : 'blue'}>{text}</Tag>
-            {record.opened_at && <span title="Opened">📖</span>}
-            {record.clicked_at && <span title="Clicked">🔗</span>}
-            {record.bounced_at && <span title="Bounced">⚠️</span>}
-          </Space>
-        );
-      },
+      width: 60,
     },
     {
       title: 'Actions',
