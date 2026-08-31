@@ -37,7 +37,7 @@ class RoleBasedDashboardService:
 
         # Permission-based dashboard routing (replaces hardcoded role name checks)
         # Route by permission instead of UserRole string
-        else:
+        if not dashboard.get("dashboard_type"):
             # Default: employee dashboard (personal view)
             dashboard.update(RoleBasedDashboardService._employee_dashboard(db, tenant_id))
 

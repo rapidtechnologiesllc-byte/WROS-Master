@@ -178,8 +178,7 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     all_users = all_users.order_by(Users.UserID).all()
 
     # Filter to only users with payroll_access or revenue.view_pnl permission
-    finance_users = [
-        u for u in all_users
+    finance_users = [u for u in all_users if u]
     return finance_users[0] if finance_users else None
 
 

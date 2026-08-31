@@ -114,8 +114,14 @@ function MessageQueueDashboard() {
       if (filterQueueType) params.append('queue_type', filterQueueType);
       if (filterStatus) params.append('status', filterStatus);
 
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
+
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       // Fetch messages
-      const messagesRes = await fetch(`/api/v1/queues?${params}`);
+      const messagesRes = await fetch(`${apiBaseUrl}/api/v1/queues?${params}`, { headers });
       if (!messagesRes.ok) {
         const errText = await messagesRes.text();
         throw new Error(`Failed to fetch messages: ${errText}`);
@@ -124,7 +130,7 @@ function MessageQueueDashboard() {
       setMessages(messagesData.data || []);
 
       // Fetch stats
-      const statsRes = await fetch(`/api/v1/queues/stats`);
+      const statsRes = await fetch(`${apiBaseUrl}/api/v1/queues/stats`, { headers });
       if (!statsRes.ok) {
         const errText = await statsRes.text();
         throw new Error(`Failed to fetch stats: ${errText}`);
@@ -172,8 +178,13 @@ function MessageQueueDashboard() {
 
   const handleRetry = async (messageId) => {
     try {
-      const res = await fetch(`/api/v1/queues/${messageId}/retry`, {
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
+      const token = localStorage.getItem('access_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`${apiBaseUrl}/api/v1/queues/${messageId}/retry`, {
         method: 'POST',
+        headers,
       });
       if (!res.ok) throw new Error('Failed to retry message');
       message.success('Message queued for retry');
@@ -185,8 +196,13 @@ function MessageQueueDashboard() {
 
   const handleClear = async (messageId) => {
     try {
-      const res = await fetch(`/api/v1/queues/${messageId}/clear`, {
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
+      const token = localStorage.getItem('access_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`${apiBaseUrl}/api/v1/queues/${messageId}/clear`, {
         method: 'POST',
+        headers,
       });
       if (!res.ok) throw new Error('Failed to clear message');
       message.success('Message cleared');

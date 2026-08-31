@@ -212,7 +212,7 @@ class ReferralAccessControl:
             # BU Head/Partner see BU-specific dashboard
             # HR Manager sees HR-specific dashboard
             # Regular Employee sees personal dashboard
-            else:
+            if user_id:
                 return ReferralAccessControl._get_employee_dashboard(db, user_id)
 
         except Exception as e:
