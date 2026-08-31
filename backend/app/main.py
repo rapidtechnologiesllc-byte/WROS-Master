@@ -42,6 +42,10 @@ app = FastAPI(
 # Setup CORS middleware
 setup_cors(app)
 
+# Add authentication middleware (must be before other middlewares)
+from app.middleware.auth_middleware import AuthenticationMiddleware
+app.add_middleware(AuthenticationMiddleware)
+
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
