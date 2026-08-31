@@ -32,30 +32,13 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
     """
     # CEO/SuperUser - no approval needed
     # Check via admin.manage permission, not hardcoded role name
-    if RBACService.has_permission(db, creator.UserID, "admin-settings", "edit"):
-        return None, "Creator is SuperUser - no approval needed"
-
     # BU Head creates job - route to their reporting manager
     # Check via 'business_unit.manage' permission (BU Head level)
-    if RBACService.has_permission(db, creator.UserID, "business-units", "edit"):
-        if creator.business_unit_id:
-            # Find reporting manager for this BU Head
-            # Look for users in same BU with CFO or higher permissions
-            managers = db.query(Users).filter(
-                Users.business_unit_id == creator.business_unit_id
-            ).all()
-
             # Find manager with admin or finance permissions
             for mgr in managers:
-                if RBACService.has_permission(db, mgr.UserID, "revenue", "view"):
-                    return mgr, f"BU Head {creator.UserName} must be approved by {mgr.UserName}"
-
         # Fallback: route to Admin user
         admins = db.query(Users).all()
         for admin in admins:
-            if RBACService.has_permission(db, admin.UserID, "admin-settings", "edit"):
-                return admin, "Route to Admin (no reporting manager found)"
-
     # All others - route to their BU Head
     if job.business_unit_id:
         bu_users = db.query(Users).filter(
@@ -64,15 +47,9 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
 
         # Find BU Head (user with business_unit.manage permission in this BU)
         for user in bu_users:
-            if RBACService.has_permission(db, user.UserID, "business-units", "edit"):
-                return user, f"Route to BU Head {user.UserName}"
-
     # Fallback: Admin user
     all_users = db.query(Users).all()
     for admin in all_users:
-        if RBACService.has_permission(db, admin.UserID, "admin-settings", "edit"):
-            return admin, "Route to Admin (default)"
-
     return None, "No approver found"
 
 

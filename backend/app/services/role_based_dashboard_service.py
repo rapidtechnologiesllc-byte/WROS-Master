@@ -37,26 +37,6 @@ class RoleBasedDashboardService:
 
         # Permission-based dashboard routing (replaces hardcoded role name checks)
         # Route by permission instead of UserRole string
-        if RBACService.has_permission(db, user.UserID, "admin-settings", "edit"):
-            # CEO/Admin dashboard: strategic view of all agents
-            dashboard.update(RoleBasedDashboardService._ceo_dashboard(db, tenant_id))
-
-        elif RBACService.has_permission(db, user.UserID, "candidates", "create"):
-            # Recruiter dashboard: recruitment pipeline (recruiters can create candidates)
-            dashboard.update(RoleBasedDashboardService._recruiter_dashboard(db, tenant_id))
-
-        elif RBACService.has_permission(db, user.UserID, "employees", "edit"):
-            # HR Manager dashboard: people & culture (HR can edit employees)
-            dashboard.update(RoleBasedDashboardService._hr_dashboard(db, tenant_id))
-
-        elif RBACService.has_permission(db, user.UserID, "revenue", "view"):
-            # Finance dashboard: revenue & profitability (Finance has P&L view)
-            dashboard.update(RoleBasedDashboardService._finance_dashboard(db, tenant_id))
-
-        elif RBACService.has_permission(db, user.UserID, "employees", "view"):
-            # Manager dashboard: team & utilization (can view employee data)
-            dashboard.update(RoleBasedDashboardService._manager_dashboard(db, tenant_id))
-
         else:
             # Default: employee dashboard (personal view)
             dashboard.update(RoleBasedDashboardService._employee_dashboard(db, tenant_id))
