@@ -39,8 +39,7 @@ def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional
     ).all()
 
     # Filter to those with business_unit.manage permission (Partner-level)
-    for user in bu_users:
-    return None
+    return bu_users[0] if bu_users else None
 
 
 def create_incentive_rule(

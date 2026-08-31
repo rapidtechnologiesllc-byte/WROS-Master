@@ -186,8 +186,8 @@ async def shutdown_event():
     shutdown_scheduler()
 
 
-# Include API routes
-app.include_router(router)
+# Include API routes with /api/v1 prefix
+app.include_router(router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
