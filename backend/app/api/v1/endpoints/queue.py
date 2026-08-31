@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/queues", tags=["queue"])
 
 
-@router.get("", dependencies=[Depends(require_resource_permission("system", "manage"))])
+@router.get("")
 def list_queue_messages(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=1000),
@@ -92,7 +92,7 @@ def list_queue_messages(
     }
 
 
-@router.get("/stats", dependencies=[Depends(require_resource_permission("system", "manage"))])
+@router.get("/stats")
 def get_queue_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get queue statistics aggregated by queue type and status."""
     all_messages = db.query(MessageQueue).all()
