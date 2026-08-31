@@ -83,8 +83,8 @@ def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: S
             BUAccessItem(
                 business_unit_id=r.business_unit_id,
                 name=bus_by_id[r.business_unit_id].name if r.business_unit_id in bus_by_id else "(unknown BU)",
-                continent=bus_by_id[r.business_unit_id].continent if r.business_unit_id in bus_by_id else None,
-                region=bus_by_id[r.business_unit_id].region if r.business_unit_id in bus_by_id else None,
+                continent=None,
+                region=None,
                 is_default=r.is_default,
             )
             for r in rows
