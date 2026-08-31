@@ -34,7 +34,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.internal_note import InternalNote
 from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
-from app.models.candidate_ownership import CandidateOwnership
+from app.models.candidate_ownership import CandidateOwnership, POOL_BU
 
 from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
 from app.services.message_queue_service import MessageQueueService
@@ -174,6 +174,17 @@ def create_candidate(
                 document_id=exp.document_id,
             )
             db.add(exp_row)
+
+    # CRITICAL: Create CandidateOwnership record so candidate is visible via BU scoping
+    if user_bu_id:
+        ownership = CandidateOwnership(
+            candidateID=candidate_id,
+            owned_by_bu_id=user_bu_id,
+            pool_status=POOL_BU,
+            assigned_on=datetime.now(),
+        )
+        db.add(ownership)
+        logger.info(f"[CreateCandidate] Created CandidateOwnership for BU: {user_bu_id}")
 
     # Enqueue message (will commit the entire transaction atomically)
     candidate_name = f"{request.candidate_first_name or ''} {request.candidate_last_name or ''}".strip()
