@@ -78,6 +78,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/api/v1/queues/stats",
         "/admin/queue/stats",
         "/admin/queue/tasks",
+        "/api/v1/queues/test",
         "/spartan/formation/status",
         "/spartan/governance/escalations/pending",
         "/spartan/governance/formation/constraints",
@@ -116,22 +117,27 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         """
         Process each request and validate authentication.
-        
+
         Args:
             request: Incoming HTTP request
             call_next: Next middleware or route handler
-            
+
         Returns:
             Response from the next handler or error response
         """
         start_time = time.time()
         path = request.url.path
-        
+
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            response = await call_next(request)
+            return response
+
         # Skip authentication for public routes
         if self._is_public_route(path):
             response = await call_next(request)
             return response
-        
+
         # Extract token from Authorization header
         auth_header = request.headers.get("Authorization")
         
