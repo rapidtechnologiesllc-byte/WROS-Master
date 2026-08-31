@@ -116,7 +116,7 @@ async function fetchNavigationFromBackend() {
   const { apiRequest } = await import("../services/api/client");
   console.debug("Fetching navigation from /hr/me/navigation...");
 
-  const result = await apiRequest("/hr/me/navigation", { method: "GET" });
+  const result = await apiRequest("/api/v1/hr/me/navigation", { method: "GET" });
   console.debug("Navigation API response:", result?.data);
 
   // apiRequest returns { data, response } where data is already parsed JSON
@@ -309,18 +309,23 @@ export default function Shell({
   // These derive from role template permissions, not legacy role strings
   const perms = (() => {
     try {
-      return JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      // If stored as object (permission metadata), convert keys to array
+      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        return Object.keys(stored);
+      }
+      return Array.isArray(stored) ? stored : [];
     } catch {
       return [];
     }
   })();
 
   // Permission-based feature flags (derived from role template permissions)
-  const isSuperUser = perms.includes('*.*');  // Only SuperUser role template gets wildcard
-  const isAdmin = perms.includes('administration.manage');  // Only Admin role template gets this
-  const isHR_Manager = perms.includes('employees.manage');  // HR Manager role template
-  const isHiringManager = perms.includes('recruitment.create');  // Hiring Manager role template
-  const isHrOperations = perms.includes('recruitment.edit');  // HR Operations role template
+  const isSuperUser = Array.isArray(perms) && perms.includes('*.*');  // Only SuperUser role template gets wildcard
+  const isAdmin = Array.isArray(perms) && perms.includes('administration.manage');  // Only Admin role template gets this
+  const isHR_Manager = Array.isArray(perms) && perms.includes('employees.manage');  // HR Manager role template
+  const isHiringManager = Array.isArray(perms) && perms.includes('recruitment.create');  // Hiring Manager role template
+  const isHrOperations = Array.isArray(perms) && perms.includes('recruitment.edit');  // HR Operations role template
 
   // Fetch navigation structure from backend based on role template permissions (all 175 resources)
   const [nav, setNav] = useState({

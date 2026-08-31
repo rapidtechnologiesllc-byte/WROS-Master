@@ -114,14 +114,12 @@ function MessageQueueDashboard() {
       if (filterQueueType) params.append('queue_type', filterQueueType);
       if (filterStatus) params.append('status', filterStatus);
 
-      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
-
       // Get JWT token from localStorage
       const token = localStorage.getItem('hrms_token');
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-      // Fetch messages
-      const messagesRes = await fetch(`${apiBaseUrl}/api/v1/queues?${params}`, { headers });
+      // Fetch messages using relative URL (dev server proxy handles routing)
+      const messagesRes = await fetch(`/api/v1/queues?${params}`, { headers });
       if (!messagesRes.ok) {
         const errText = await messagesRes.text();
         throw new Error(`Failed to fetch messages: ${errText}`);
@@ -129,8 +127,8 @@ function MessageQueueDashboard() {
       const messagesData = await messagesRes.json();
       setMessages(messagesData.data || []);
 
-      // Fetch stats
-      const statsRes = await fetch(`${apiBaseUrl}/api/v1/queues/stats`, { headers });
+      // Fetch stats using relative URL (dev server proxy handles routing)
+      const statsRes = await fetch(`/api/v1/queues/stats`, { headers });
       if (!statsRes.ok) {
         const errText = await statsRes.text();
         throw new Error(`Failed to fetch stats: ${errText}`);

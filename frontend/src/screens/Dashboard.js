@@ -47,28 +47,32 @@ export default function Dashboard({
       try {
         // RBAC-driven: Check specific permissions instead of hardcoded role names
         // Each dashboard is gated by specific permission requirements
-        const perms = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+        const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+        // If stored as object (permission metadata), convert keys to array
+        const perms = (stored && typeof stored === 'object' && !Array.isArray(stored))
+          ? Object.keys(stored)
+          : (Array.isArray(stored) ? stored : []);
         navigationAttemptedRef.current = true;
 
         // Permission-based routing (not role-based hardcoding)
         // If user has CEO/CFO/Partner permissions, redirect to their dashboard
         // The role template name is NOT used for routing
-        if (perms.includes('*.*')) {
+        if (Array.isArray(perms) && perms.includes('*.*')) {
           // Wildcard permission = SuperUser/CEO
           window.location.replace("/ceo-fy-progress");
           return;
         }
-        if (perms.includes('finance.manage')) {
+        if (Array.isArray(perms) && perms.includes('finance.manage')) {
           // Finance management permission
           window.location.replace("/cfo-dashboard");
           return;
         }
-        if (perms.includes('business_unit.manage')) {
+        if (Array.isArray(perms) && perms.includes('business_unit.manage')) {
           // BU Head permission
           window.location.replace("/bu-head-dashboard");
           return;
         }
-        if (perms.includes('recruitment.manage')) {
+        if (Array.isArray(perms) && perms.includes('recruitment.manage')) {
           // Recruiter/Hiring Manager permission
           window.location.replace("/recruitment-dashboard");
           return;
