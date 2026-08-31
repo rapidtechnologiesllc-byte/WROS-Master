@@ -1093,6 +1093,48 @@ def start_scheduler():
         except Exception as exc:
             logger.warning(f"Could not register revenue scanning scheduler: {exc}")
 
+        # ── Every 2 min: MESSAGE_QUEUE_PROCESSING_JOB ───────────────────────
+        # CRITICAL: Process pending messages BEFORE Thunder runs so queue is ready
+        try:
+            from app.core.database import SessionLocal
+            from app.services.message_queue_coordinator import MessageQueueCoordinator
+
+            def _run_message_queue_processing():
+                db = SessionLocal()
+                try:
+                    # Step 1: Convert PENDING messages to CHANNEL_QUEUED (routes via SLM orchestration)
+                    pending_result = MessageQueueCoordinator.process_pending_messages(limit=100, db=db)
+                    if pending_result.get("messages_processed", 0) > 0 or pending_result.get("errors", 0) > 0:
+                        logger.info(f"[scheduler] Message queue processing (pending): {pending_result}")
+
+                    # Step 2: Process THUNDER_QUEUE messages specifically
+                    thunder_result = MessageQueueCoordinator.process_channel_messages(
+                        queue_type="THUNDER_QUEUE", limit=50, db=db
+                    )
+                    if thunder_result.get("channels_processed", 0) > 0 or thunder_result.get("channels_failed", 0) > 0:
+                        logger.info(f"[scheduler] Message queue processing (THUNDER): {thunder_result}")
+
+                    # Step 3: Mark fully-completed messages as COMPLETED
+                    complete_result = MessageQueueCoordinator.complete_messages(db=db)
+                    if complete_result.get("messages_completed", 0) > 0:
+                        logger.info(f"[scheduler] Message completion check: {complete_result}")
+
+                except Exception as exc:
+                    logger.error(f"[scheduler] Message queue processing error: {exc}", exc_info=True)
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_message_queue_processing,
+                trigger="interval",
+                minutes=2,
+                id="message_queue_processing_job",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled message queue processing (every 2 min)")
+        except Exception as exc:
+            logger.warning(f"Could not register message queue processing scheduler: {exc}")
+
         # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
         try:
             from app.core.database import SessionLocal
