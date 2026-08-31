@@ -111,9 +111,12 @@ async def startup_event():
     logger.info("[OK] Configuration validated")
 
     # Start APScheduler immediately (no I/O needed)
-    from app.core.scheduler import start_scheduler
-    start_scheduler()
-    logger.info("[OK] Scheduler started")
+    try:
+        from app.core.scheduler import start_scheduler
+        start_scheduler()
+        logger.info("[OK] Scheduler started")
+    except Exception as e:
+        logger.warning(f"[Startup] Scheduler failed to start (non-critical): {e}")
 
     # Run DB operations synchronously (not in background thread)
     # This ensures tables exist before app accepts requests

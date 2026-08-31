@@ -74,6 +74,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/admin/health",
         "/queues",
         "/queues/stats",
+        "/api/v1/queues",
+        "/api/v1/queues/stats",
         "/admin/queue/stats",
         "/admin/queue/tasks",
         "/spartan/formation/status",
