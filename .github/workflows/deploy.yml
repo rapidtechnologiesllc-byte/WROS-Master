@@ -126,8 +126,7 @@ jobs:
 
       - name: Update Nginx configuration
         run: |
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "sudo sed -i 's|root /home/HRMS/WROS-Master/frontend/build;|root /home/HRMS/WROS-Master/frontend/build/build;|g' /etc/nginx/sites-available/wros-hrms-frontend.conf"
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} sudo sed -i 's|root /home/HRMS/WROS-Master/frontend/build;|root /home/HRMS/WROS-Master/frontend/build/build;|g' /etc/nginx/sites-available/wros-hrms-frontend.conf
 
       - name: Restart Nginx service
         run: |
