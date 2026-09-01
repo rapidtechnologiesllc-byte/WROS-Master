@@ -24,7 +24,7 @@ class InternalNote(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # ── Candidate linkage ─────────────────────────────────────────────────────
-    candidate_id = Column(String(256),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -36,12 +36,12 @@ class InternalNote(Base):
 
     # Optional category to help HR filter / search notes
     # e.g. "General" | "Background Check" | "Salary Negotiation" | "Reference Check"
-    category = Column(String(256), nullable=True, default="General")
+    category = Column(String(512), nullable=True, default="General")
 
     # ── Authorship ────────────────────────────────────────────────────────────
     # HR user who created the note
-    created_by_id   = Column(String(256), nullable=False)       # user ID
-    created_by_name = Column(String(256), nullable=True)       # display name snapshot
+    created_by_id   = Column(String(512), nullable=False)       # user ID
+    created_by_name = Column(String(512), nullable=True)       # display name snapshot
 
     # ── Audit timestamps ──────────────────────────────────────────────────────
     created_at = Column(

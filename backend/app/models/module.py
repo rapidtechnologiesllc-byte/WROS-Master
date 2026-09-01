@@ -15,10 +15,10 @@ class SystemModule(Base):
     __tablename__ = "system_modules"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(256), unique=True, nullable=False, index=True)
-    display_name = Column(String(256), nullable=False)
+    name = Column(String(512), unique=True, nullable=False, index=True)
+    display_name = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
-    category = Column(String(256), nullable=False)  # Recruitment, Sales, Delivery, Finance, Admin
+    category = Column(String(512), nullable=False)  # Recruitment, Sales, Delivery, Finance, Admin
     is_active = Column(Boolean, default=True)
     tenant_id = Column(Integer, nullable=False, default = True)
 
@@ -39,7 +39,7 @@ class SystemModulePermission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     module_id = Column(Integer, ForeignKey("system_modules.id"), nullable=False, index=True)
-    verb = Column(String(256), nullable=False)  # view, create, edit, delete, merge, approve, manage, etc.
+    verb = Column(String(512), nullable=False)  # view, create, edit, delete, merge, approve, manage, etc.
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     tenant_id = Column(Integer, nullable=False, default = True)

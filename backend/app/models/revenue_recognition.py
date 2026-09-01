@@ -17,11 +17,11 @@ class RevenueRecognition(Base):
     """Track revenue recognition events from invoices"""
     __tablename__ = "revenue_recognitions"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Link to invoice
-    invoice_id = Column(String(256), ForeignKey("invoices.id"), nullable=False, index=True)
+    invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=False, index=True)
 
     # Revenue details
     amount = Column(Float, nullable=False)  # Amount recognized
@@ -38,7 +38,7 @@ class RevenueRecognition(Base):
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     recognized_at = Column(DateTime, nullable=True)
-    recognized_by = Column(String(256), nullable=True)
+    recognized_by = Column(String(512), nullable=True)
 
     # Relationships
     invoice = relationship("Invoice", foreign_keys=[invoice_id])

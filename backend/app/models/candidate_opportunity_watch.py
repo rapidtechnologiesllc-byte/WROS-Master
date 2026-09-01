@@ -29,14 +29,14 @@ def _new_uuid() -> str:
 class CandidateOpportunityWatch(Base):
     __tablename__ = "candidate_opportunity_watches"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)  # matches Candidate.tenant_id's own convention
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     reason = Column(String(30), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
 
-    matched_job_id = Column(String(256), ForeignKey("jobs.jobID"), nullable=True)
+    matched_job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True)
     matched_at = Column(DateTime, nullable=True)
     nudged_at = Column(DateTime, nullable=True)
 

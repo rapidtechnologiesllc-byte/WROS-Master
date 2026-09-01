@@ -38,7 +38,7 @@ class ConversationAuditLog(Base):
     tenant_id = Column(
         String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True,
     )
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
     )
     # NO ACTION, not SET NULL -- SQL Server rejects SET NULL here because
     # candidates->candidate_conversations->conversation_id and
@@ -49,11 +49,11 @@ class ConversationAuditLog(Base):
         Integer, ForeignKey("candidate_conversations.id", ondelete="NO ACTION"), nullable=True, index=True,
     )
 
-    audit_event_type = Column(String(256), nullable=False)
+    audit_event_type = Column(String(512), nullable=False)
     audit_event_description = Column(Text, nullable=False)
 
     actor_type = Column(String(20), nullable=False)
-    actor_id = Column(String(256), nullable=False)
+    actor_id = Column(String(512), nullable=False)
 
     before_state = Column(JSON, nullable=True)
     after_state = Column(JSON, nullable=True)

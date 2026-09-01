@@ -44,15 +44,15 @@ class OutreachCampaign(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    campaign_type = Column(String(256), nullable=False, server_default="STANDARD_OUTREACH")
+    campaign_type = Column(String(512), nullable=False, server_default="STANDARD_OUTREACH")
     status = Column(String(20), nullable=False, server_default="ACTIVE")
     started_at = Column(DateTime(timezone=False), nullable=False)
     completed_at = Column(DateTime(timezone=False), nullable=True)
-    stop_reason = Column(String(256), nullable=True)
+    stop_reason = Column(String(512), nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
 
@@ -71,12 +71,12 @@ class CampaignTouchpoint(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     campaign_id = Column(Integer, ForeignKey("outreach_campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     touchpoint_number = Column(Integer, nullable=False)
     channel = Column(String(20), nullable=False)
-    message_type = Column(String(256), nullable=False)
+    message_type = Column(String(512), nullable=False)
     scheduled_at = Column(DateTime(timezone=False), nullable=False)
     status = Column(String(20), nullable=False, server_default="PENDING")
     sent_at = Column(DateTime(timezone=False), nullable=True)

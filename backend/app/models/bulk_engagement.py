@@ -32,9 +32,9 @@ BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED")
 class BulkEngagementJob(Base):
     __tablename__ = "bulk_engagement_jobs"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    recruiter_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    recruiter_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
 
     candidate_ids = Column(JSON, nullable=False)  # full target list, in order
     total_count = Column(Integer, nullable=False)
@@ -55,7 +55,7 @@ class BulkEngagementError(Base):
     __tablename__ = "bulk_engagement_errors"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    job_id = Column(String(256), ForeignKey("bulk_engagement_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
+    job_id = Column(String(512), ForeignKey("bulk_engagement_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
     reason = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())

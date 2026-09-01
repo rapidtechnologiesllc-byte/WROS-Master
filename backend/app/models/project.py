@@ -60,14 +60,14 @@ CORE_CURRENCIES = ("USD",)
 class Project(Base):
     __tablename__ = "projects"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    client_id = Column(String(256), ForeignKey("clients.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     # Nullable: not every project traces back to a tracked opportunity
     # (e.g. an existing client's direct follow-on request) -- HRMS-0801's
     # own data mapping calls this out explicitly.
-    opportunity_id = Column(String(256), ForeignKey("opportunities.id"), nullable=True, index=True)
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
 
     name = Column(String(300), nullable=False)
     status = Column(
@@ -82,7 +82,7 @@ class Project(Base):
         Enum(*BILLING_CURRENCIES, name="project_currency", native_enum=False, create_constraint=True),
         nullable=False, default="USD",
     )
-    continent = Column(String(256), nullable=True)
+    continent = Column(String(512), nullable=True)
     # HRMS-0910 BR-0910-02: weekend timesheet entries are only flagged as
     # an anomaly when the project does NOT opt in to weekend billing.
     allow_weekend_billing = Column(Boolean, nullable=False, default=False)
@@ -117,21 +117,21 @@ class Project(Base):
     end_date = Column(Date, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-    created_by = Column(String(256), nullable=True)
+    created_by = Column(String(512), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class ProjectMilestone(Base):
     __tablename__ = "project_milestones"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    project_id = Column(String(256), ForeignKey("projects.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
 
     title = Column(String(300), nullable=False)
     description = Column(Text, nullable=True)
     due_date = Column(Date, nullable=False)
-    owner_employee_id = Column(String(256), ForeignKey("employees.id"), nullable=True)
+    owner_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True)
 
     is_complete = Column(
         Enum("PENDING", "COMPLETE", name="project_milestone_completion", native_enum=False, create_constraint=True),

@@ -15,26 +15,26 @@ class CandidateDocument(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     
     # Foreign key to candidate
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     
     # Document information
-    document_type = Column(String(256), nullable=False, index=True)  # resume, pan, aadhar, etc.
-    original_filename = Column(String(256), nullable=False)
-    stored_filename = Column(String(256), nullable=False)  # Unique filename in SharePoint
+    document_type = Column(String(512), nullable=False, index=True)  # resume, pan, aadhar, etc.
+    original_filename = Column(String(512), nullable=False)
+    stored_filename = Column(String(512), nullable=False)  # Unique filename in SharePoint
     file_size = Column(Integer, nullable=False)  # Size in bytes
     file_extension = Column(String(10), nullable=False)
-    mime_type = Column(String(256), nullable=True)
+    mime_type = Column(String(512), nullable=True)
     
     # SharePoint information
     sharepoint_url = Column(Text, nullable=True)
-    sharepoint_file_id = Column(String(256), nullable=True)
-    sharepoint_folder_path = Column(String(256), nullable=True)
+    sharepoint_file_id = Column(String(512), nullable=True)
+    sharepoint_folder_path = Column(String(512), nullable=True)
     
     # Security and validation
     is_virus_scanned = Column(Boolean, default=False)
-    virus_scan_result = Column(String(256), nullable=True)  # clean, infected, error
+    virus_scan_result = Column(String(512), nullable=True)  # clean, infected, error
     is_verified = Column(String(20), default="Pending")  # HR verification status: Pending, Verified, Rejected
-    verified_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    verified_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     verified_at = Column(DateTime, nullable=True)
     
     # Versioning
@@ -43,7 +43,7 @@ class CandidateDocument(Base):
     replaced_by = Column(Integer, ForeignKey("candidate_documents.id"), nullable=True)
     
     # Audit trail
-    uploaded_by = Column(String(256), nullable=False)  # candidate_id or user_id
+    uploaded_by = Column(String(512), nullable=False)  # candidate_id or user_id
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)  # Soft delete
@@ -51,7 +51,7 @@ class CandidateDocument(Base):
     
     # Additional metadata
     notes = Column(Text, nullable=True)
-    tags = Column(String(256), nullable=True)  # Comma-separated tags
+    tags = Column(String(512), nullable=True)  # Comma-separated tags
     
     # Relationships
     candidate = relationship("Candidate", back_populates="documents", foreign_keys=[candidate_id])

@@ -38,17 +38,17 @@ class CandidateHistory(Base):
     #   "Applied" | "Screening" | "Interview Scheduled" | "Interview Completed"
     #   "Offer Released" | "Offer Accepted" | "Offer Rejected"
     #   "Pre-Onboarding" | "Onboarded" | "Rejected" | "Custom"
-    event_type      = Column(String(256), nullable=False)
+    event_type      = Column(String(512), nullable=False)
 
     # Human-readable description / note (e.g. "Interview scheduled at 3 PM on 15 May")
     note            = Column(Text, nullable=True)
 
     # Who performed / triggered this event (user ID or name stored as string)
-    performed_by_id   = Column(String(256), nullable=True)   # user / HR / admin ID
-    performed_by_name = Column(String(256), nullable=True)  # display name snapshot
+    performed_by_id   = Column(String(512), nullable=True)   # user / HR / admin ID
+    performed_by_name = Column(String(512), nullable=True)  # display name snapshot
 
     # Optional reference IDs to related records
-    job_id          = Column(String(256), nullable=True)      # which job this event is for
+    job_id          = Column(String(512), nullable=True)      # which job this event is for
     interview_id    = Column(Integer, nullable=True)         # FK-less; store raw ID
     offer_letter_id = Column(Integer, nullable=True)         # FK-less; store raw ID
 

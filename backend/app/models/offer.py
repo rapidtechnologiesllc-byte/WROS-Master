@@ -37,17 +37,17 @@ class Offer(Base):
     __tablename__ = "offers"
 
     # ── Identity ──────────────────────────────────────────────────────────────
-    id = Column(String(256), primary_key=True, index=True)
+    id = Column(String(512), primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # ── Foreign Keys ──────────────────────────────────────────────────────────
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"),
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"),
                          nullable=False, index=True)
-    job_id = Column(String(256), ForeignKey("jobs.jobID"), nullable=False, index=True)
-    created_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False)
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
+    created_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False)
 
     # ── Offer Details ─────────────────────────────────────────────────────────
-    position_title = Column(String(256), nullable=False)
+    position_title = Column(String(512), nullable=False)
     base_salary_usd_cents = Column(BigInteger, nullable=False)  # Base annual salary in USD cents
     signing_bonus_usd_cents = Column(BigInteger, default = False, nullable=False)  # One-time signing bonus
     benefits = Column(JSON, default={}, nullable=False)  # Health insurance, 401k, PTO, etc.
@@ -62,13 +62,13 @@ class Offer(Base):
     status = Column(String(20), default=OfferStatus.DRAFT, nullable=False, index=True)
 
     # ── Approval Workflow ─────────────────────────────────────────────────────
-    approved_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    approved_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime(timezone=False), nullable=True)
     approval_notes = Column(Text, nullable=True)
 
     # ── Candidate Response ────────────────────────────────────────────────────
-    sent_to_email = Column(String(256), nullable=True)
-    accepted_by_candidate_id = Column(String(256), ForeignKey("candidates.candidateID"),
+    sent_to_email = Column(String(512), nullable=True)
+    accepted_by_candidate_id = Column(String(512), ForeignKey("candidates.candidateID"),
                                      nullable=True)
     accepted_at = Column(DateTime(timezone=False), nullable=True)
 

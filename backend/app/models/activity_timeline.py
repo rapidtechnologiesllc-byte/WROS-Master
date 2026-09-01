@@ -20,14 +20,14 @@ class ActivityTimeline(Base):
     # column added this round (safe-upgrade for existing/system rows).
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    entity_type = Column(String(256), nullable=False, index=True)
-    entity_id = Column(String(256), nullable=False, index=True)
+    entity_type = Column(String(512), nullable=False, index=True)
+    entity_id = Column(String(512), nullable=False, index=True)
 
     actor_type = Column(String(20), nullable=False, default="USER", server_default="USER")
     # Nullable -- a SYSTEM/AI_AGENT-authored entry has no real Users row.
-    actor_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    actor_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
-    action = Column(String(256), nullable=False)
+    action = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now(), index=True)

@@ -27,10 +27,10 @@ class EmployeePerformanceEvent(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     # e.g. "BUDDY_KPI", "CERTIFICATION_GATE" -- generic discriminator,
     # per 02-DATA-MODEL.md's own "one table, not one per type" design.
-    event_type = Column(String(256), nullable=False, index=True)
+    event_type = Column(String(512), nullable=False, index=True)
     event_data = Column(Text, nullable=True)  # JSON-encoded
     occurred_at = Column(DateTime(timezone=False), server_default=func.now())
 

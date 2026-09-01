@@ -19,11 +19,11 @@ class IntercompanySettlement(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    from_entity = Column(String(256), nullable=False)  # e.g. "BXIN", "BXUS" -- free text, no fixed enum yet
-    to_entity = Column(String(256), nullable=False)
+    from_entity = Column(String(512), nullable=False)  # e.g. "BXIN", "BXUS" -- free text, no fixed enum yet
+    to_entity = Column(String(512), nullable=False)
     amount_usd_cents = Column(Integer, nullable=False)
     settlement_date = Column(Date, nullable=False)
     reason = Column(Text, nullable=False)
 
-    created_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

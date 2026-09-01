@@ -43,18 +43,18 @@ CLIENT_DIRECTED_PURPOSES = {"CLIENT_CURRENT", "CLIENT_PROSPECT"}
 class ExpenseRecord(Base):
     __tablename__ = "expense_records"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Derived from the logger's own BU at creation time -- never a
     # freely-editable field, same rule as Client.business_unit_id.
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
-    logged_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
+    logged_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
 
     purpose = Column(Enum(*EXPENSE_PURPOSES, name="expense_purpose", native_enum=False, create_constraint=True), nullable=False)
-    client_id = Column(String(256), ForeignKey("clients.id"), nullable=True, index=True)
-    conference_name = Column(String(256), nullable=True)
-    investment_label = Column(String(256), nullable=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=True, index=True)
+    conference_name = Column(String(512), nullable=True)
+    investment_label = Column(String(512), nullable=True)
 
     expense_category = Column(Enum(*EXPENSE_CATEGORIES, name="expense_category", native_enum=False, create_constraint=True), nullable=False)
     travel_type = Column(Enum(*TRAVEL_TYPES, name="expense_travel_type", native_enum=False, create_constraint=True), nullable=True)
@@ -62,10 +62,10 @@ class ExpenseRecord(Base):
     # Groups multiple line items from one door-to-door trip (a flight +
     # hotel + Uber + meals) without a separate trip table -- matches the
     # real ledger's flat, one-row-per-line-item shape.
-    trip_label = Column(String(256), nullable=True)
+    trip_label = Column(String(512), nullable=True)
 
     amount_usd_cents = Column(Integer, nullable=False)
-    location = Column(String(256), nullable=True)
+    location = Column(String(512), nullable=True)
     description = Column(Text, nullable=True)
     receipt_ref = Column(String(300), nullable=False)  # PRIORITY-3: Receipt is mandatory
     expense_date = Column(Date, nullable=False)
@@ -75,7 +75,7 @@ class ExpenseRecord(Base):
         Enum(*MANAGER_APPROVAL_STATUSES, name="expense_manager_approval_status", native_enum=False, create_constraint=True),
         nullable=False, default="PENDING",
     )
-    manager_approved_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    manager_approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     manager_approved_at = Column(DateTime, nullable=True)
 
     # Finance approval (after manager approval)
@@ -83,7 +83,7 @@ class ExpenseRecord(Base):
         Enum(*EXPENSE_PAYMENT_STATUSES, name="expense_payment_status", native_enum=False, create_constraint=True),
         nullable=False, default="PENDING",
     )
-    approved_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
 

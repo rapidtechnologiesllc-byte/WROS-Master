@@ -21,7 +21,7 @@ class ATSScore(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
 
     # ---------- FK references ----------
-    candidate_id = Column(String(256),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

@@ -10,17 +10,17 @@ JOB_URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
 
 class Users(Base):
     __tablename__ = "users"
-    UserID = Column(String(256), primary_key=True, index=True)
-    UserRole = Column(String(256), nullable=False)
+    UserID = Column(String(512), primary_key=True, index=True)
+    UserRole = Column(String(512), nullable=False)
     UserName = Column(String(150), nullable=True)
-    UserEmail = Column(String(256), unique=True, nullable=False, index=True)
-    UserPassword = Column(String(256), nullable=False)
+    UserEmail = Column(String(512), unique=True, nullable=False, index=True)
+    UserPassword = Column(String(512), nullable=False)
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # RBAC — single role template per user (replaces UserRole junction table)
     role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     job_title = Column(String(150), nullable=True)  # e.g., "CEO", "Developer", "HR Manager"
-    department_id = Column(String(256), ForeignKey("departments.id"), nullable=True, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
     # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
     # All new users get tenant_id from creator's tenant (fallback to 1)
     # Every tenant-scoped query must filter on this column via app.core.tenant_context,
@@ -71,7 +71,7 @@ class Users(Base):
     # Nullable: assign_ai_agent() falls back to the hardcoded
     # AI_AGENT_NAME/AI_AGENT_PERSONA defaults when unset (BR-02 -- an
     # agent name must never reach a candidate blank).
-    ai_agent_name = Column(String(256), nullable=True)
+    ai_agent_name = Column(String(512), nullable=True)
     ai_agent_persona = Column(Text, nullable=True)
     # S-065/HRMS-0465 -- no system_configuration table exists in this
     # codebase (same repeated gap every prior story flagged) -- this is
@@ -88,7 +88,7 @@ class Users(Base):
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
     # User Lifecycle Management — termination tracking
     terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
-    terminated_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True, index=True)
+    terminated_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
 
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
@@ -100,25 +100,25 @@ class Users(Base):
 
 class Jobs(Base):
     __tablename__ = "jobs"
-    jobID = Column(String(256), primary_key=True, index=True)
-    jobTitle = Column(String(256), nullable=False)
+    jobID = Column(String(512), primary_key=True, index=True)
+    jobTitle = Column(String(512), nullable=False)
     jobDescription = Column(Text, nullable=False)
     jobSkills = Column(Text, nullable=False)
-    jobExperience = Column(String(256), nullable=False)
-    jobLocation = Column(String(256), nullable=False)
-    salaryRange = Column(String(256), nullable=True)
+    jobExperience = Column(String(512), nullable=False)
+    jobLocation = Column(String(512), nullable=False)
+    salaryRange = Column(String(512), nullable=True)
     jobCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    companyType = Column(String(256), nullable=True)#full time, part time, contract, temporary, internship
-    companyName = Column(String(256), nullable=True)
-    contactPerson = Column(String(256), ForeignKey("users.UserID"), nullable=True)
-    jobStatus = Column(String(256), nullable=True)
+    companyType = Column(String(512), nullable=True)#full time, part time, contract, temporary, internship
+    companyName = Column(String(512), nullable=True)
+    contactPerson = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    jobStatus = Column(String(512), nullable=True)
     noOfPositions = Column(Integer, nullable=True)
     startDate = Column(Date, nullable=True)
     endDate = Column(Date, nullable=True)
-    recuriterID = Column(String(256), ForeignKey("users.UserID"), nullable=True)
-    hiringManagerID = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    recuriterID = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    hiringManagerID = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
-    department_id = Column(String(256), ForeignKey("departments.id"), nullable=True, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     # S-037/HRMS-0437 -- structured requirements with boolean AND/OR matching
@@ -128,7 +128,7 @@ class Jobs(Base):
     # job_skills_boolean_mode: "AND" requires all mandatory skills, "OR" allows any skill
     job_skills_boolean_mode = Column(String(10), nullable=False, server_default="AND", default="AND")
     min_experience_years = Column(Integer, nullable=True)
-    domain = Column(String(256), nullable=True)
+    domain = Column(String(512), nullable=True)
     certifications_preferred = Column(JSON, nullable=True)
     # S-038/HRMS-0438 -- same lazy-parse posture as the S-037 columns
     # above. The real recruiter-entered field is salaryRange (free text,
@@ -162,10 +162,10 @@ class CandidateAssignment(Base):
     __tablename__ = "candidate_assignments"
 
     id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
 
-    hiring_manager_id = Column(String(256), ForeignKey("users.UserID"))
-    reporting_manager_id = Column(String(256), ForeignKey("users.UserID"))
+    hiring_manager_id = Column(String(512), ForeignKey("users.UserID"))
+    reporting_manager_id = Column(String(512), ForeignKey("users.UserID"))
 
     hiring_manager = relationship("Users", foreign_keys=[hiring_manager_id])
     reporting_manager = relationship("Users", foreign_keys=[reporting_manager_id])
@@ -176,8 +176,8 @@ class InterviewPanel(Base):
     __tablename__ = "interview_panels"
 
     id = Column(Integer, primary_key=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"))
-    job_id = Column(String(256), ForeignKey("jobs.jobID"), nullable=True)  # job the candidate is interviewed for
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"))
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True)  # job the candidate is interviewed for
     round_name = Column(String(50))  # HR, Tech, Manager
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -190,7 +190,7 @@ class PanelMember(Base):
 
     id = Column(Integer, primary_key=True)
     panel_id = Column(Integer, ForeignKey("interview_panels.id"))
-    interviewer_id = Column(String(256), ForeignKey("users.UserID"))
+    interviewer_id = Column(String(512), ForeignKey("users.UserID"))
 
     interviewer = relationship("Users")
 
@@ -199,7 +199,7 @@ class Interview(Base):
 
     id = Column(Integer, primary_key=True)
     panel_id = Column(Integer, ForeignKey("interview_panels.id"))
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"))
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"))
 
     start_time = Column(DateTime)
     end_time = Column(DateTime)
@@ -208,14 +208,14 @@ class Interview(Base):
  
     status = Column(String(50))  # Scheduled, Completed, Cancelled
 
-    feedback_status = Column(String(256), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
+    feedback_status = Column(String(512), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
 
 class InterviewFeedback(Base):
     __tablename__ = "interview_feedback"
 
     id = Column(Integer, primary_key=True)
     interview_id = Column(Integer, ForeignKey("interviews.id"))
-    interviewer_id = Column(String(256), ForeignKey("users.UserID"))
+    interviewer_id = Column(String(512), ForeignKey("users.UserID"))
 
     technical_score = Column(Integer)
     communication_score = Column(Integer)
@@ -243,7 +243,7 @@ class UserCustomPermission(Base):
     __tablename__ = "user_custom_permissions"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
+    user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
     resource_id = Column(Integer, ForeignKey("resources.id"), nullable=False, index=True)
 
     # Permission flags (TRUE = grant, FALSE = restrict)
@@ -253,8 +253,8 @@ class UserCustomPermission(Base):
     can_delete = Column(Boolean, nullable=False, default=False)
 
     # Audit trail
-    override_reason = Column(String(256), nullable=True)  # Why was this override set?
-    created_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)  # Admin who set it
+    override_reason = Column(String(512), nullable=True)  # Why was this override set?
+    created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)  # Admin who set it
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

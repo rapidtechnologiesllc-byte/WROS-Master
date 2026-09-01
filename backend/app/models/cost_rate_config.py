@@ -31,6 +31,6 @@ class CostRateConfig(Base):
     overhead_pct = Column(Numeric(5, 2), nullable=False)
 
     effective_date = Column(Date, nullable=False, server_default=func.current_date())
-    created_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     notes = Column(Text, nullable=True)

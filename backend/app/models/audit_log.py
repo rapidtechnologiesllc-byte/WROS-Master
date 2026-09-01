@@ -25,10 +25,10 @@ class AuditLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    entity_type = Column(String(256), nullable=False)
-    entity_id = Column(String(256), nullable=False, index=True)
-    action = Column(String(256), nullable=False)  # e.g. "hard_rule_override", "create", "update", "delete"
-    user_id = Column(String(256), nullable=True, index=True)
+    entity_type = Column(String(512), nullable=False)
+    entity_id = Column(String(512), nullable=False, index=True)
+    action = Column(String(512), nullable=False)  # e.g. "hard_rule_override", "create", "update", "delete"
+    user_id = Column(String(512), nullable=True, index=True)
     old_value = Column(Text, nullable=True)
     new_value = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=False), server_default=func.now())

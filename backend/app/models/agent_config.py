@@ -37,13 +37,13 @@ class AgentConfig(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Agent Identity
-    name = Column(String(256), nullable=False, unique=True)  # Unique key: "thunder", "recruitment_screener"
-    display_name = Column(String(256), nullable=False)  # "AI Recruiter", "Screening Bot"
+    name = Column(String(512), nullable=False, unique=True)  # Unique key: "thunder", "recruitment_screener"
+    display_name = Column(String(512), nullable=False)  # "AI Recruiter", "Screening Bot"
     description = Column(Text, nullable=True)  # What does this agent do?
 
     # Queue Configuration
-    queue_name = Column(String(256), nullable=False)  # Input queue for this agent
-    next_queue_name = Column(String(256), nullable=True)  # Output queue to next agent
+    queue_name = Column(String(512), nullable=False)  # Input queue for this agent
+    next_queue_name = Column(String(512), nullable=True)  # Output queue to next agent
 
     # Pipeline Status
     enabled = Column(Boolean, default=True)  # Is this agent active?

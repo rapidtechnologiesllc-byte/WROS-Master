@@ -18,8 +18,8 @@ class CandidateFieldSkip(Base):
     __tablename__ = "candidate_field_skips"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
-    field_name = Column(String(256), nullable=False)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    field_name = Column(String(512), nullable=False)
 
     skipped_at = Column(DateTime(timezone=False), server_default=func.now())

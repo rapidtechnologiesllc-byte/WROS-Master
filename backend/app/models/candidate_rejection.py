@@ -33,19 +33,19 @@ class CandidateRejection(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # FK to candidate
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     # FK to job (optional — rejection may not be job-specific)
-    job_id = Column(String(256), ForeignKey("jobs.jobID", ondelete="SET NULL"), nullable=True, index=True)
+    job_id = Column(String(512), ForeignKey("jobs.jobID", ondelete="SET NULL"), nullable=True, index=True)
 
     # Rejection reason (required)
-    rejection_reason = Column(String(256), nullable=False)
+    rejection_reason = Column(String(512), nullable=False)
 
     # Detailed note (optional)
     rejection_note = Column(Text, nullable=True)
 
     # Who rejected (FK to Users)
-    rejected_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    rejected_by_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
 
     # Rejection timestamp
     rejected_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False, index=True)
@@ -63,7 +63,7 @@ class CandidateRejection(Base):
         index=True
     )
     archived_at = Column(DateTime(timezone=False), nullable=True)
-    archived_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    archived_by_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
 
     # Audit trail
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
@@ -92,16 +92,16 @@ class CandidateRejectionReason(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # Reason code (e.g., "LACK_OF_EXPERIENCE", "FAILED_SCREENING")
-    reason_code = Column(String(256), nullable=False, unique=True, index=True)
+    reason_code = Column(String(512), nullable=False, unique=True, index=True)
 
     # Display label (e.g., "Lacks Required Experience")
-    reason_label = Column(String(256), nullable=False)
+    reason_label = Column(String(512), nullable=False)
 
     # Description
     reason_description = Column(Text, nullable=True)
 
     # Category (e.g., "Experience", "Skills", "Screening", "Offer", "Other")
-    category = Column(String(256), nullable=True)
+    category = Column(String(512), nullable=True)
 
     # Is this reason active/available for selection?
     is_active = Column(Boolean, nullable=False, server_default="1", default=True)
