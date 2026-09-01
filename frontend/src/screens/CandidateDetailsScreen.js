@@ -455,7 +455,7 @@ export default function CandidateDetailsScreen({
     const checkChecklist = async () => {
       try {
         const res = await getCandidateChecklists(candidate.id);
-        setIsChecklistAssigned(Boolean(res && res.length > 0));
+        setIsChecklistAssigned(Boolean(res?.length > 0));
       } catch (err) {
         console.error("Failed to check checklist", err);
       }
@@ -888,7 +888,7 @@ export default function CandidateDetailsScreen({
     }
     const isMoreThanFourMembers =
       Array.isArray(scheduleForm?.interviewerIds) &&
-      scheduleForm?.interviewerIds.length > 4;
+      scheduleForm?.interviewerIds?.length > 4;
 
     if (isMoreThanFourMembers) {
       errors.interviewerIds = "Maximum 4 panel members allowed";
@@ -1443,7 +1443,7 @@ ${formattedJD}
               <Button variant="ghost" onClick={onBack}>
                 Back
               </Button>
-              {previousOffer.length > 0 ? (
+              {previousOffer?.length > 0 ? (
                 <Button
                   variant="secondary"
                   onClick={() => setPreviousOfferModalState(true)}
@@ -1949,8 +1949,8 @@ ${formattedJD}
                           }`}
                           disabled={loadingUsers}
                         >
-                          {selectedPanelMembers.length > 0
-                            ? `${selectedPanelMembers.length} panel member(s) selected`
+                          {selectedPanelMembers?.length > 0
+                            ? `${selectedPanelMembers?.length} panel member(s) selected`
                             : loadingUsers
                               ? "Loading panel members..."
                               : "Select panel members"}
@@ -1966,7 +1966,7 @@ ${formattedJD}
                                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400"
                               />
                             </div>
-                            {filteredPanelMembers.length > 0 ? (
+                            {filteredPanelMembers?.length > 0 ? (
                               filteredPanelMembers.map((option) => {
                                 const isChecked =
                                   scheduleForm.interviewerIds.includes(
@@ -2000,7 +2000,7 @@ ${formattedJD}
                           </div>
                         )}
 
-                        {selectedPanelMembers.length > 0 && (
+                        {selectedPanelMembers?.length > 0 && (
                           <div className="mt-3">
                             <div className="text-sm font-medium text-gray-700 mb-2">
                               Selected Panel Members
