@@ -86,11 +86,9 @@ def create_candidate(
 
     password = generate_password()
     try:
-        # CRITICAL: Fetch user fresh from DB to get latest business_unit_id
-        # JWT token doesn't include business_unit_id, so we must query it
-        current_user = db.query(Users).filter(Users.UserID == user.UserID).first()
-        user_bu_id = current_user.business_unit_id if current_user else None
-        logger.info(f"[CreateCandidate] User {current_user.UserID} has BU ID: {user_bu_id}")
+        # Get user's BU from the authenticated user object
+        user_bu_id = getattr(user, 'business_unit_id', None)
+        logger.info(f"[CreateCandidate] User {user.UserID} has BU ID: {user_bu_id}")
 
         candidate = create_candidate_safe(
             db,

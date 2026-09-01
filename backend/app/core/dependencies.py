@@ -153,26 +153,33 @@ async def get_current_hr_or_admin(
     Get the current authenticated internal user from JWT token.
     Allows any user found in the Users table (any role). Candidates are excluded.
     """
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    _reject_if_mfa_pending(payload)
+    try:
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        _reject_if_mfa_pending(payload)
 
-    user_id: str = payload.get("sub")
-    user_type: str = payload.get("type", "").lower()
+        user_id: str = payload.get("sub")
+        user_type: str = payload.get("type", "").lower()
 
-    if not user_id or user_type == "candidate":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        if not user_id or user_type == "candidate":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    # 'sub' now contains UserID (not email)
-    user = db.query(Users).filter(Users.UserID == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        # 'sub' now contains UserID (not email)
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    # DISABLED - Single company deployment, no tenant scoping needed
-    # from app.core.tenant_context import activate_tenant_scope
-    # activate_tenant_scope(user.tenant_id)
+        # DISABLED - Single company deployment, no tenant scoping needed
+        # from app.core.tenant_context import activate_tenant_scope
+        # activate_tenant_scope(user.tenant_id)
 
-    return user
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[get_current_hr_or_admin] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Authentication failed: {str(e)}")
 
 
 async def get_current_internal_user(
