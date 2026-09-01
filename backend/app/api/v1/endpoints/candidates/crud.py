@@ -78,6 +78,10 @@ def create_candidate(
     CRITICAL: Candidate is assigned to user's business unit so Thunder can access it
     via proper tenant/BU scoping. Without this, Thunder has no visibility.
     """
+    import sys
+    sys.stderr.write("\n[ENDPOINT] create_candidate handler called\n")
+    sys.stderr.flush()
+
     if not request.candidate_current_location or not request.candidate_current_location.strip():
         raise HTTPException(
             status_code=400,
@@ -86,6 +90,10 @@ def create_candidate(
 
     password = generate_password()
     try:
+        sys.stderr.write(f"[ENDPOINT] user object type: {type(user)}\n")
+        sys.stderr.write(f"[ENDPOINT] user attributes: {dir(user)[:5]}\n")
+        sys.stderr.flush()
+
         # Get user's BU from the authenticated user object
         user_bu_id = getattr(user, 'business_unit_id', None)
         logger.info(f"[CreateCandidate] User {user.UserID} has BU ID: {user_bu_id}")
