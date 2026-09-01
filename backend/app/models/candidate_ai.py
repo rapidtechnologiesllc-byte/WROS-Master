@@ -171,7 +171,8 @@ class CandidateAIAssignment(Base):
     )
 
     # The candidate being assigned to an AI agent
-    candidate_id = Column(String(36),
+    # Candidate IDs are "CAN-" prefix + UUID (50 chars)
+    candidate_id = Column(String(50),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -182,7 +183,8 @@ class CandidateAIAssignment(Base):
 
     # The persona/prompt profile the agent uses for this candidate
     # (e.g. "friendly-hr", "formal-recruiter")
-    ai_agent_persona = Column(String(100), nullable=True)
+    # Can be quite long (e.g., full system prompt), so use Text
+    ai_agent_persona = Column(Text, nullable=True)
 
     # When the assignment was made
     assigned_at = Column(DateTime(timezone=False), server_default=func.now())
