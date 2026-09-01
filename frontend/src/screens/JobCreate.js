@@ -83,6 +83,13 @@ export default function JobCreate({
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
 
+  // Redirect if user tries to create job without permission
+  useEffect(() => {
+    if (mode !== "view" && !canCreateJobDirectly) {
+      navigate(ROUTES.JOBS);
+    }
+  }, [mode, canCreateJobDirectly, navigate]);
+
   // Sync skills string to structured format when needed
   useEffect(() => {
     if (initialJob?.skills && mode === "view" && initialJob.skills.length > 0) {

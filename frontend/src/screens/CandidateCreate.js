@@ -29,6 +29,7 @@ import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../compon
 import { useNavigate } from "react-router-dom";
 import { useRef } from "react";
 import { handleApiError } from "../utils/apiErrorHandler";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 // Added 2026-07-23 -- real bug: the Mobile input used to strip any
 // country code the candidate typed (removed a leading "91", hard-capped
@@ -107,6 +108,13 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [customSource, setCustomSource] = useState("");
   const [showEmployeeReferralList, setShowEmployeeReferralList] = useState(false);
   const navigate = useNavigate();
+
+  // Redirect if user tries to create candidate without permission
+  useEffect(() => {
+    if (!hasPermission("candidates", "create")) {
+      navigate("/candidates");
+    }
+  }, [navigate]);
 
   // Helper function to check if user is in recruitment department
   const isRecruitmentUser = () => {
