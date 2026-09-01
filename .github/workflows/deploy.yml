@@ -117,7 +117,7 @@ jobs:
       - name: Make old build deletable
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "chmod -R a+w ${{ env.PROD_PATH }}/build 2>/dev/null || true"
+            "chmod -R 777 ${{ env.PROD_PATH }}/build 2>/dev/null || true"
         continue-on-error: true
 
       - name: Copy new build to production
