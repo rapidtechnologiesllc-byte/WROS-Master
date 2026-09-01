@@ -112,10 +112,11 @@ jobs:
              git checkout main && \
              git reset --hard origin/main"
 
-      - name: Create build-new directory on server
+      - name: Clean up stale build-new directory
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "mkdir -p ${{ env.PROD_PATH }}/build-new"
+            "rm -rf ${{ env.PROD_PATH }}/build-new 2>/dev/null; mkdir -p ${{ env.PROD_PATH }}/build-new"
+        continue-on-error: true
 
       - name: Copy new build to production
         run: |
@@ -124,7 +125,8 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
-             rm -rf build-old 2>/dev/null; mv build build-old 2>/dev/null || true; \
+             rm -rf build-old 2>/dev/null; \
+             mv build build-old 2>/dev/null || true; \
              mv build-new build"
 
       - name: Fix file permissions for Nginx
