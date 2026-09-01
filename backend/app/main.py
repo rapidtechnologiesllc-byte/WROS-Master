@@ -90,6 +90,16 @@ async def lifespan(app: FastAPI):
             logger.error(f"[Routes] Failed to include routes: {route_err}", exc_info=True)
             raise
 
+        # Start the background scheduler for Thunder and other autonomous tasks
+        logger.info("[Lifespan] Starting background scheduler...")
+        try:
+            from app.core.scheduler import start_scheduler
+            start_scheduler()
+            logger.info("[OK] Background scheduler started")
+        except Exception as scheduler_err:
+            logger.error(f"[Scheduler] Failed to start scheduler: {scheduler_err}", exc_info=True)
+            raise
+
     except Exception as e:
         logger.error(f"[Lifespan] Initialization failed: {e}", exc_info=True)
         raise
@@ -98,6 +108,12 @@ async def lifespan(app: FastAPI):
 
     # Shutdown - cleanup resources
     logger.info("Shutting down...")
+    try:
+        from app.core.scheduler import shutdown_scheduler
+        shutdown_scheduler()
+        logger.info("[OK] Background scheduler shut down")
+    except Exception as e:
+        logger.error(f"[Scheduler] Error during shutdown: {e}", exc_info=True)
 
 
 # Create FastAPI app with lifespan
