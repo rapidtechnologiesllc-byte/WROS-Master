@@ -9,7 +9,7 @@ Wires app.services.core_pull_service (built earlier this program, no
 REST layer previously existed) to real HTTP routes. See the Definition
 of Done correction in CLAUDE.md.
 
-Auth: same posture as Thunder/Resource Management (get_current_hr_or_admin
+Auth: same posture as Thunder/Resource Management (get_current_internal_user
 -- any internal user). override is additionally gated on the acting
 user's UserRole == "BU Head" inside override_core_pull() itself (403 if
 not); no separate RBAC permission exists for this area yet.
@@ -38,7 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.core_pull import CorePullEvent
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -104,7 +104,7 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
 )
 def get_pool_status(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     status = get_specialty_pool_status(db, tenant_id=current_user.tenant_id)
     return SpecialtyPoolStatusResponse(**status)
@@ -117,7 +117,7 @@ def get_pool_status(
 )
 def get_pending_events(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     events = (
         db.query(CorePullEvent)
@@ -139,7 +139,7 @@ def get_pending_events(
 def execute_event(
     event_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     event = _get_event_or_404(db, event_id)
     employee = db.query(Employee).filter(Employee.id == event.employee_id).first()
@@ -173,7 +173,7 @@ def override_event(
     event_id: str,
     body: OverrideCorePullRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     event = _get_event_or_404(db, event_id)
     try:
@@ -204,7 +204,7 @@ def override_event(
 def submit_replacement_plan(
     body: ReplacementPlanRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = db.query(Employee).filter(Employee.id == body.employee_id).first()
     if employee is None:

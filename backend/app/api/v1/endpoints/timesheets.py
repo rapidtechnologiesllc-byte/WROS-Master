@@ -12,7 +12,7 @@ Avinash's stated MVP chain (candidate -> ... -> assign project -> time
 tracking -> resource management) -- without this, an allocated employee
 had no way to log hours through the app.
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program. Role-gating note, carried over honestly from timesheet_
 service.py's own module docstring rather than silently invented: HRMS-
 0902 BR-01 says "only RM/Admin may approve" a timesheet, but no "RM"
@@ -57,7 +57,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
@@ -157,7 +157,7 @@ def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
 def create_draft(
     body: CreateWeeklyDraftRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == body.allocation_id).first()
     if allocation is None:
@@ -181,7 +181,7 @@ def upsert_timesheet_entries(
     timesheet_id: str,
     body: UpsertEntriesRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     entries = [e.model_dump() for e in body.entries]
@@ -200,7 +200,7 @@ def upsert_timesheet_entries(
 def submit(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -237,7 +237,7 @@ def submit(
 def approve(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -254,7 +254,7 @@ def reject(
     timesheet_id: str,
     body: RejectTimesheetRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -272,7 +272,7 @@ def reject(
 def reopen(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -288,7 +288,7 @@ def reopen(
 def bulk_approve_endpoint(
     body: BulkApproveRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheets = db.query(Timesheet).filter(Timesheet.id.in_(body.timesheet_ids)).all()
     result = bulk_approve(db, timesheets, approved_by=current_user.UserID)
@@ -304,7 +304,7 @@ def list_timesheets(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Timesheet).filter(Timesheet.tenant_id == current_user.tenant_id)
     if employee_id:
@@ -319,7 +319,7 @@ def list_timesheets(
 def get_timesheet(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     return _to_item(db, timesheet)
@@ -343,7 +343,7 @@ def _flag_to_item(flag: TimesheetAnomalyFlag) -> AnomalyFlagItem:
 def scan_anomalies(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     flags = scan_timesheet_anomalies(db, timesheet)
@@ -358,7 +358,7 @@ def scan_anomalies(
 def get_anomalies(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     flags = get_anomaly_flags_for_timesheet(db, timesheet)
@@ -389,7 +389,7 @@ def create_dispute(
     timesheet_id: str,
     body: RaiseDisputeRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -412,7 +412,7 @@ def create_dispute(
 def list_disputes(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_timesheet_or_404(db, timesheet_id)
     disputes = (
@@ -432,7 +432,7 @@ def resolve_dispute_endpoint(
     dispute_id: str,
     body: ResolveDisputeRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     dispute = db.query(TimesheetDispute).filter(TimesheetDispute.id == dispute_id).first()
     if dispute is None:
@@ -457,7 +457,7 @@ def resolve_dispute_endpoint(
 def run_timesheet_nag_cascade(
     week_starting_date: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """Not wired to a scheduler -- same posture as every other
     scheduled-job function in this codebase (a cron would call this

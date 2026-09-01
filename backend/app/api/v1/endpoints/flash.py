@@ -19,7 +19,7 @@ internal_ask_thunder.py / /ask-thunder) -- functionally unchanged,
 this is a branding/naming correction only. Git history preserved via
 `git mv`.
 
-Gated the same way app.api.v1.endpoints.clients is (get_current_hr_or_admin)
+Gated the same way app.api.v1.endpoints.clients is (get_current_internal_user)
 -- this system has no dedicated BU Head / Resource Manager role yet
 (see src/layout/Shell.js's own note on this), so the broad internal-
 staff check is the closest real gate available today. Individual
@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.schemas.flash import FlashRequest, FlashResponse
 from app.services.flash_service import answer_internal_query
 
@@ -47,7 +47,7 @@ router = APIRouter(prefix="/flash", tags=["flash"])
 def ask_flash(
     body: FlashRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     history = [{"question": turn.question, "reply": turn.reply} for turn in body.history]
     result = answer_internal_query(

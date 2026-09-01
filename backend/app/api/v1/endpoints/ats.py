@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.ats import ATSScore
 from app.models.candidate import Candidate, CandidateEducationForm, CandidateExperienceForm
 from app.models.user import Jobs
@@ -78,7 +78,7 @@ def _build_response(score: ATSScore, db: Session) -> ATSScoreResponse:
 )
 def list_all_ats_scores(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     scores = db.query(ATSScore).order_by(ATSScore.overall_score.desc()).all()
 
@@ -129,7 +129,7 @@ def list_all_ats_scores(
 def list_scores_for_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     if not job:
@@ -189,7 +189,7 @@ def list_scores_for_job(
 def list_scores_for_candidate(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     candidate = db.query(Candidate).filter(
         Candidate.candidateID == candidate_id
@@ -245,7 +245,7 @@ def list_scores_for_candidate(
 def get_ats_score(
     score_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     score = db.query(ATSScore).filter(ATSScore.id == score_id).first()
     if not score:
@@ -266,7 +266,7 @@ def get_ats_score(
 async def rescore_candidate(
     request: ATSRescoringRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Re-runs the full Gemini-powered ATS pipeline for a candidate+job pair.

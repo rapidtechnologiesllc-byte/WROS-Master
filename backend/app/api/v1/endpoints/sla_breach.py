@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.schemas.sla_breach import SLABreachListResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/sla", tags=["sla-monitoring"])
 def list_sla_breaches(
     is_resolved: bool = False,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     # WHAT NOT TO BUILD (S-020, section 9): in-app only, no resolved-
     # breach history view -- is_resolved=true isn't a real query path

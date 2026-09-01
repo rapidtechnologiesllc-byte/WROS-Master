@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.models.work_order import WorkOrder
 from app.schemas.work_order import (
@@ -84,7 +84,7 @@ def _to_item(wo: WorkOrder) -> WorkOrderItem:
 def create_work_order_endpoint(
     req: CreateWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """
     Create a new Work Order.
@@ -134,7 +134,7 @@ def list_work_orders(
     client_id: Optional[str] = Query(None, description="Filter by client ID"),
     demand_id: Optional[str] = Query(None, description="Filter by demand ID"),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """
     List Work Orders for the current tenant.
@@ -163,7 +163,7 @@ def list_work_orders(
 def get_work_order(
     work_order_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """Get a specific Work Order by ID."""
     try:
@@ -182,7 +182,7 @@ def update_work_order_endpoint(
     work_order_id: str,
     req: UpdateWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """
     Update a Work Order.
@@ -229,7 +229,7 @@ def update_work_order_endpoint(
 def get_work_orders_by_demand_endpoint(
     demand_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders for a specific demand."""
     try:
@@ -243,7 +243,7 @@ def get_work_orders_by_demand_endpoint(
 def get_work_orders_by_project_endpoint(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders linked to a specific project."""
     try:
@@ -257,7 +257,7 @@ def get_work_orders_by_project_endpoint(
 def get_work_orders_by_employee_endpoint(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders for a specific employee."""
     try:
@@ -271,7 +271,7 @@ def get_work_orders_by_employee_endpoint(
 def get_work_orders_by_client_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders for a specific client."""
     try:
@@ -286,7 +286,7 @@ def end_work_order_endpoint(
     work_order_id: str,
     req: EndWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """End a Work Order and optionally set the end date."""
     try:
@@ -312,7 +312,7 @@ def pause_work_order_endpoint(
     work_order_id: str,
     req: PauseWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """Pause a Work Order."""
     try:
@@ -338,7 +338,7 @@ def resume_work_order_endpoint(
     work_order_id: str,
     req: ResumeWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """Resume a paused Work Order."""
     try:

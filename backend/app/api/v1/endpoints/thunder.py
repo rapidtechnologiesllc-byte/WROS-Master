@@ -1,4 +1,4 @@
-﻿"""
+"""
 "Test Thunder" â€” API Endpoints
 ================================
 Prefix: /thunder
@@ -7,7 +7,7 @@ Tag:    thunder
 Internal QA harness, gated behind the "thunder.test" RBAC permission
 (Super User only by default as of 2026-07-23 -- see rbac_service.py's
 PERMISSIONS_SEED/ROLE_PERMISSIONS_SEED) rather than the coarse
-get_current_hr_or_admin check every other internal role used to satisfy.
+get_current_internal_user check every other internal role used to satisfy.
 Tightened after this tool's frontend nav entry ("Test Thunder", first
 item for every role) caused real confusion about account identity --
 removed from Shell.js's nav entirely; this backend gate is defense in

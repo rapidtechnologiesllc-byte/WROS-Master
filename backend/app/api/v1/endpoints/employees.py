@@ -13,7 +13,7 @@ rounds). This closes that gap for the foundational pieces four stories
 in the EPIC-05/Resource & Bench Management cluster need.
 
 Auth: same posture as every Phase 4 endpoint this program
-(get_current_hr_or_admin -- any internal user). No employee-specific
+(get_current_internal_user -- any internal user). No employee-specific
 RBAC permission exists yet.
 
 Routes (static paths registered before the /{employee_id} catch-all,
@@ -36,7 +36,7 @@ from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.resource_management import BenchPoolEntry
@@ -138,7 +138,7 @@ def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
 def create_employee(
     body: EmployeeCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     fields = {}
     if body.current_title is not None:
@@ -178,7 +178,7 @@ def convert_candidate(
     candidate_id: str,
     body: ConvertCandidateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if candidate is None:
@@ -245,7 +245,7 @@ def _parse_bulk_import_date(raw) -> date:
 async def bulk_import_employees(
     file: UploadFile,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     raw = await file.read()
     try:
@@ -340,7 +340,7 @@ async def bulk_import_employees(
 @router.get("", response_model=EmployeeListResponse, summary="List employees")
 def list_employees(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employees = (
         db.query(Employee)
@@ -357,7 +357,7 @@ def list_employees(
 )
 def view_bench_pool(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
     employees = []
@@ -374,7 +374,7 @@ def view_bench_pool(
 )
 def bench_aging_alerts(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     alerts = check_bench_aging_alerts(db, tenant_id=current_user.tenant_id)
     items = []
@@ -391,7 +391,7 @@ def bench_aging_alerts(
 )
 def utilization_summary(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     latest_by_employee = get_latest_utilization_by_employee(db, tenant_id=current_user.tenant_id)
     items = []
@@ -426,7 +426,7 @@ def utilization_summary(
 )
 def bench_cost_summary(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
     items = []
@@ -455,7 +455,7 @@ def bench_cost_summary(
 def get_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     return _to_item(db, employee)
@@ -469,7 +469,7 @@ def staffing_eligibility(
     employee_id: str,
     delivery_engine: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     eligible, reason = is_staffing_eligible(employee, delivery_engine)
@@ -485,7 +485,7 @@ def staffing_eligibility(
 def engine_history(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """Read-only per the source doc's own 'Not In Scope: do NOT build any
     UI bypass for delivery engine assignment' -- CORE can only ever be
@@ -519,7 +519,7 @@ def record_utilization(
     employee_id: str,
     body: RecordUtilizationRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     metric = record_weekly_utilization_metric(db, employee, body.week_starting_date)
@@ -538,12 +538,12 @@ def record_utilization(
 def get_employee_performance(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """No dedicated 'employee self-service' login role exists in this
     codebase (only candidates get self-service; employees have no
     portal login yet), so the doc's 'never visible to the employee' BR
-    is naturally satisfied by get_current_hr_or_admin's existing
+    is naturally satisfied by get_current_internal_user's existing
     posture -- flagged, not a new gate invented for this story."""
     _get_employee_or_404(db, employee_id)
     events = get_performance_events(db, employee_id)
@@ -569,7 +569,7 @@ def get_employee_performance(
 def utilization_history(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_employee_or_404(db, employee_id)
     metrics = get_utilization_history(db, employee_id)
@@ -593,7 +593,7 @@ def mark_bench(
     employee_id: str,
     body: MarkBenchRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     mark_employee_on_bench(db, employee, reason=body.reason)
@@ -609,7 +609,7 @@ def mark_bench(
 def remove_from_bench(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     remove_employee_from_bench(db, employee)
@@ -625,7 +625,7 @@ def remove_from_bench(
 def bench_history(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_employee_or_404(db, employee_id)
     periods = get_bench_period_history(db, employee_id)

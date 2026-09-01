@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_history import CandidateHistory
@@ -78,7 +78,7 @@ def create_candidate_history(
     candidate_id: str,
     request: CandidateHistoryCreateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Record a new event in the candidate's history / timeline.
@@ -177,7 +177,7 @@ def create_candidate_history(
 def get_candidate_history(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     event_type: Optional[str] = Query(
         default=None,
         description="Filter by event type (e.g. 'Interview Scheduled')",
@@ -230,7 +230,7 @@ def get_candidate_history(
 def get_latest_candidate_history(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     n: int = Query(default=10, ge=1, le=100, description="How many recent events to return (1–100)"),
 ):
     """

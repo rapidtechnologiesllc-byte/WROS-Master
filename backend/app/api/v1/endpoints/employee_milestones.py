@@ -11,7 +11,7 @@ shipped /projects/{id}/milestones (HRMS-0801/0804) -- see app.models.
 employee_milestone's module docstring for the real table-name collision
 this story's own doc has with that one.
 
-Auth: get_current_hr_or_admin. The doc's own "Not In Scope" note (set
+Auth: get_current_internal_user. The doc's own "Not In Scope" note (set
 by RM/BU Head/PM only, no employee self-service creation) is naturally
 satisfied since this codebase has no employee self-service login role
 at all yet -- flagged, not a new gate invented for this story.
@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.employee_milestone import EmployeeMilestone
 from app.models.user import Users
 from app.schemas.employee_milestone import (
@@ -61,7 +61,7 @@ def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
 def create_milestone_endpoint(
     body: CreateEmployeeMilestoneRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     try:
         milestone = create_milestone(
@@ -83,7 +83,7 @@ def create_milestone_endpoint(
 def list_employee_milestones(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     milestones = get_employee_milestones(db, employee_id)
     return EmployeeMilestoneListResponse(milestones=[_to_item(m) for m in milestones])
@@ -97,7 +97,7 @@ def complete_milestone_endpoint(
     milestone_id: str,
     body: CompleteEmployeeMilestoneRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     milestone = db.query(EmployeeMilestone).filter(EmployeeMilestone.id == milestone_id).first()
     if milestone is None:
@@ -117,7 +117,7 @@ def complete_milestone_endpoint(
 )
 def scan_overdue_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     overdue = scan_overdue_milestones(db, tenant_id=current_user.tenant_id)
     db.commit()

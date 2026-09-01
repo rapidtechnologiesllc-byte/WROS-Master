@@ -9,7 +9,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_candidate, get_current_internal_user, require_resource_permission
 from app.core.graph_auth import get_graph_token
 from app.schemas.document import DocumentUploadResponse
 from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID, MULTI_UPLOAD_TYPES
@@ -130,7 +130,7 @@ async def _upload_document_helper(
 async def upload_resume(
     candidate_id: str,
     file: UploadFile = File(..., description="Resume file (PDF, DOC, DOCX)"),
-    user = Depends(get_current_hr_or_admin),
+    user = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -327,7 +327,7 @@ async def get_candidate_documents(
         default=None,
         description="Filter by verification status. Accepted values: Pending, Verified, Rejected",
     ),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -443,7 +443,7 @@ async def get_candidate_documents(
 )
 async def get_document_by_id(
     document_id: int,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -503,7 +503,7 @@ async def get_document_by_id(
 )
 async def view_document(
     document_id: int,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -593,7 +593,7 @@ async def update_document_verification(
     document_id: int,
     verification_status: str,
     notes: str = None,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -684,7 +684,7 @@ async def update_document_verification(
 )
 async def delete_all_candidate_documents(
     candidate_id: str,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """

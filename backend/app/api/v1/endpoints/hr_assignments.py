@@ -1,4 +1,4 @@
-﻿"""
+"""
 HR Assignments API
 ==================
 Routes (prefix: /hr-assignments, tag: hr-assignments):
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_user, require_resource_permission
+from app.core.dependencies import get_current_internal_user, get_current_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.hr_assignment import HRAssignment
 from app.models.user import Users
@@ -91,7 +91,7 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
 def create_hr_assignment(
     body: HRAssignmentCreate,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Assign one or two HR / Recruiter users to a candidate for the recruitment process.
@@ -191,7 +191,7 @@ def get_all_candidates(
 )
 def get_my_candidates(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ):
@@ -268,7 +268,7 @@ def update_hr_assignment(
     candidate_id: str,
     body: HRAssignmentUpdate,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Update the HR1 and/or HR2 assigned to a candidate.
@@ -326,7 +326,7 @@ def update_hr_assignment(
 def delete_hr_assignment(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Permanently removes the HR/Recruiter assignment for a candidate.

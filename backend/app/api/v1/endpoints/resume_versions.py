@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 from app.schemas.candidate import CandidateResponse
@@ -73,7 +73,7 @@ class ResumeVersionResponse:
 def list_resume_versions(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> List[dict]:
     """
     Get all resume versions for a candidate, sorted by date (newest first).
@@ -100,7 +100,7 @@ def get_resume_version(
     candidate_id: str,
     version_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get a specific resume version with full details.
@@ -135,7 +135,7 @@ def compare_resume_versions(
     version1_id: Optional[int] = Query(None, description="First version ID (older)"),
     version2_id: Optional[int] = Query(None, description="Second version ID (newer)"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Compare two resume versions and analyze changes.
@@ -211,7 +211,7 @@ def search_candidate_resume(
     candidate_id: str,
     query: str = Query(..., min_length=1, description="Search query (skills, companies, roles)"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Full-text search within a candidate's resume.

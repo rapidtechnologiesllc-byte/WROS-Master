@@ -12,7 +12,7 @@ Submission") -- check_market_profile_rule() already IS the employee-
 status submission guard that story calls for; it was just unreachable
 over HTTP. No new/duplicate eligibility function was written.
 
-Auth: get_current_hr_or_admin, same posture as every Phase 4 endpoint
+Auth: get_current_internal_user, same posture as every Phase 4 endpoint
 this program.
 
 Routes:
@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.submission import Submission, SubmissionViolation
@@ -91,7 +91,7 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
 def submit_candidate(
     body: CreateSubmissionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     # Try to find as Demand first, then fall back to Job (treat Job as demand)
     demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
@@ -147,7 +147,7 @@ def submit_candidate(
 def list_submissions(
     demand_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Submission).filter(Submission.tenant_id == current_user.tenant_id)
     if demand_id:
@@ -162,7 +162,7 @@ def list_submissions(
 )
 def list_violations(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     violations = (
         db.query(SubmissionViolation)
@@ -190,7 +190,7 @@ def client_response(
     submission_id: str,
     body: ClientResponseRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if submission is None:

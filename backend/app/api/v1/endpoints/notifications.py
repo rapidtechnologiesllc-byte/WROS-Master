@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.notification import Notification
 from app.models.user import Users
 from app.schemas.notification import NotificationItem, NotificationListResponse
@@ -47,7 +47,7 @@ def _to_item(n: Notification) -> NotificationItem:
 @router.get("", response_model=NotificationListResponse, summary="This user's in-app notification feed + unread count")
 def list_notifications(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     notifications = get_notifications_for_user(db, current_user.UserID, tenant_id=current_user.tenant_id)
     unread = get_unread_count(db, current_user.UserID, tenant_id=current_user.tenant_id)
@@ -58,7 +58,7 @@ def list_notifications(
 def mark_notification_read(
     notification_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     notification = db.query(Notification).filter(
         Notification.id == notification_id, Notification.recipient_id == current_user.UserID,

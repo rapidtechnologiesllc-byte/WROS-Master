@@ -9,7 +9,7 @@ program, no REST layer previously existed) to real HTTP routes. See the
 Definition of Done correction in CLAUDE.md.
 
 Auth: same posture as every other Phase 4 story this round
-(get_current_hr_or_admin -- any internal user). Scope note, flagged
+(get_current_internal_user -- any internal user). Scope note, flagged
 rather than silently narrowed: this codebase has no employee self-
 service login path at all (no get_current_employee dependency exists
 anywhere), so BOTH the EMPLOYEE and BU_HEAD fit confirmations are
@@ -42,7 +42,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.demand import Demand
 from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
@@ -119,7 +119,7 @@ def confirm_sow(
     demand_id: str,
     body: ConfirmSOWRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     demand = _get_demand_or_404(db, demand_id)
     try:
@@ -148,7 +148,7 @@ def schedule_call(
     employee_id: str,
     body: ScheduleCallRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     demand = _get_demand_or_404(db, demand_id)
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -172,7 +172,7 @@ def schedule_call(
 def get_calls_for_demand(
     demand_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_demand_or_404(db, demand_id)
     calls = (
@@ -193,7 +193,7 @@ def confirm_call_fit(
     call_id: str,
     body: ConfirmFitRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     call = _get_call_or_404(db, call_id)
     try:
@@ -217,7 +217,7 @@ def confirm_call_fit(
 def trigger_release(
     call_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     call = _get_call_or_404(db, call_id)
     demand = _get_demand_or_404(db, call.demand_id)

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 from app.models.business_unit import BusinessUnit
@@ -75,7 +75,7 @@ def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> Candid
 )
 def list_candidate_pool(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     pool_status: Optional[str] = Query(
         default=None,
         description=f"Filter by pool status: '{POOL_ORG}' or '{POOL_BU}'",
@@ -145,7 +145,7 @@ def list_candidate_pool(
 def get_candidate_pool_status(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns the current pool ownership state for a single candidate.
@@ -175,7 +175,7 @@ def override_candidate_pool(
     candidate_id: str,
     request: OwnershipOverrideRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Manually change the pool ownership state for a candidate.

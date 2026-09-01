@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding-orchestrator"])
 
@@ -39,7 +39,7 @@ def hire_complete_workflow(
     hiring_manager_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Orchestrates complete hiring flow:
@@ -107,7 +107,7 @@ def rehire_workflow(
     job_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Orchestrates rehire workflow:
@@ -154,7 +154,7 @@ def rehire_workflow(
 )
 def hiring_pipeline_status(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Aggregates status from all microservices:

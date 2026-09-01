@@ -67,7 +67,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.webhook_auth import require_webhook_secret_or_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
@@ -169,7 +169,7 @@ def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConv
 def assign_agent(
     body: AIAgentAssignRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     **Flow:**
@@ -215,7 +215,7 @@ def assign_agent(
 def preview_missing_fields(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     candidate = _get_candidate_or_404(candidate_id, db)
     missing = get_missing_fields(candidate, db)
@@ -244,7 +244,7 @@ def preview_missing_fields(
 def get_candidate_portal_link(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.candidate_portal_service import generate_portal_link_url
 
@@ -272,7 +272,7 @@ def get_candidate_portal_link(
 def get_candidate_memory(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.candidate_memory_service import get_memory
@@ -304,7 +304,7 @@ def correct_candidate_memory_fact(
     fact_id: int,
     body: MemoryFactCorrectionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.candidate_memory_service import FactNotFound, correct_fact
@@ -341,7 +341,7 @@ def correct_candidate_memory_fact(
 def get_skill_suggestions(
     since_days: int = 7,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.skill_extraction_service import get_unknown_skill_suggestions
@@ -368,7 +368,7 @@ def get_skill_suggestions(
 def get_resume_completeness(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     candidate = _get_candidate_or_404(candidate_id, db)
     return {"candidate_id": candidate_id, "resume_completeness_score": candidate.resume_completeness_score}
@@ -390,7 +390,7 @@ def get_resume_completeness(
     ),
 )
 def get_prompt_templates_endpoint(
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.prompt_framework_service import get_prompt_templates
 
@@ -453,7 +453,7 @@ def webhook_email_reply(
 def poll_and_process(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     result = process_candidate_reply(
         candidate_id=candidate_id,
@@ -489,7 +489,7 @@ def poll_and_process(
 def get_conversations(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
     thread = get_conversation_thread(candidate_id, db)
@@ -517,7 +517,7 @@ def get_conversations(
 def get_active_conversation(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -597,7 +597,7 @@ def send_manual_message(
     conversation_id: int,
     body: SendMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     candidate = _get_candidate_or_404(conversation.candidate_id, db)
@@ -657,7 +657,7 @@ def send_manual_message(
 def take_over(
     conversation_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     before_state = {"owner_type": conversation.owner_type, "owner_id": conversation.owner_id}
@@ -705,7 +705,7 @@ def take_over(
 def hand_back(
     conversation_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     before_state = {"owner_type": conversation.owner_type, "owner_id": conversation.owner_id}
@@ -769,7 +769,7 @@ def thunder_pause(
     conversation_id: int,
     body: PauseThunderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from datetime import datetime as _datetime
 
@@ -816,7 +816,7 @@ def thunder_pause(
 def thunder_resume(
     conversation_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     resume_thunder(db, conversation)
@@ -857,7 +857,7 @@ def thunder_resume(
 def get_assignments(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -887,7 +887,7 @@ def get_assignments(
 def deactivate_agent(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -955,7 +955,7 @@ def deactivate_agent(
 def list_inbox(
     top: int = 50,
     skip: int = 0,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Lists all inbox messages from the service mailbox.
@@ -988,7 +988,7 @@ def list_inbox(
 def list_inbox_by_email(
     email: str,
     top: int = 50,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns inbox messages filtered by sender email address.
@@ -1024,7 +1024,7 @@ def list_inbox_by_email(
 def get_audit_log(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
     entries = (

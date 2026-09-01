@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.services.autonomous_job_closure_service import (
     check_and_close_job_if_filled,
     get_job_closure_status
@@ -42,7 +42,7 @@ router = APIRouter(prefix="/autonomous-jobs", tags=["autonomous-jobs"])
 @router.get(
     "/status/{job_id}",
     response_model=JobClosureStatusResponse,
-    dependencies=[Depends(get_current_hr_or_admin)],
+    dependencies=[Depends(get_current_internal_user)],
 )
 def get_job_status(job_id: str, db: Session = Depends(get_db)):
     """
@@ -58,7 +58,7 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
 @router.post(
     "/close/{job_id}",
     response_model=JobClosureActionResponse,
-    dependencies=[Depends(get_current_hr_or_admin)],
+    dependencies=[Depends(get_current_internal_user)],
 )
 def close_job_manually(job_id: str, db: Session = Depends(get_db)):
     """

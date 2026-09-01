@@ -5,7 +5,7 @@ REST API Endpoints
 
 Prefix: /api/v1/invoices
 Tag: invoices
-Auth: All endpoints require get_current_hr_or_admin
+Auth: All endpoints require get_current_internal_user
 
 Routes:
   POST   /invoices/generate          Generate DRAFT invoice from approved timesheets
@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users
 from app.schemas.invoice_s316 import (
@@ -109,7 +109,7 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Generate a DRAFT invoice for a project and billing period.
@@ -199,7 +199,7 @@ def generate_invoice_endpoint(
 def calculate_bill_amount_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Calculate the total billed amount for an invoice.
@@ -239,7 +239,7 @@ def send_invoice_endpoint(
     invoice_id: str,
     body: SendInvoiceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Approve and send an invoice to the client.
@@ -316,7 +316,7 @@ def track_payment_endpoint(
     invoice_id: str,
     body: TrackPaymentRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Record a payment against an invoice.
@@ -375,7 +375,7 @@ def track_payment_endpoint(
 def get_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get full invoice details including all line items.
@@ -410,7 +410,7 @@ def list_invoices_endpoint(
     limit: int = Query(100, ge=1, le=1000, description="Number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     List invoices for the current tenant with optional filtering.

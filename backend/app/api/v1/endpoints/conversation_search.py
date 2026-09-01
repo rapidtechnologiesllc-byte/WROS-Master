@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.schemas.conversation_search import SearchResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -42,7 +42,7 @@ def search_conversations_endpoint(
     updated_after: Optional[datetime] = None,
     updated_before: Optional[datetime] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     tenant_id = resolve_default_tenant_id(db)
     if not tenant_id:

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Pre-Onboarding API
 
 Endpoints related to the Hiring Manager review and approval workflow,
@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_history import CandidateHistory
@@ -316,7 +316,7 @@ def _send_approval_notifications(
 )
 def get_hm_candidate_review(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns candidates who have **â‰¥ 2 completed interview rounds** across panels
@@ -529,7 +529,7 @@ def hiring_manager_approval(
     candidate_id: str,
     request: ManagerApprovalRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Process Hiring Manager Approval for a candidate.

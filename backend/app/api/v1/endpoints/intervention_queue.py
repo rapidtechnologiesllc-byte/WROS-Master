@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-062/HRMS-0462 -- Recruiter Intervention Queue
 ==================================================================
 Prefix: /intervention-queue
@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.intervention_queue import QueueResponse, QueueSummaryResponse, ResolveRequest, ResolveResponse, TakeOverResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -41,7 +41,7 @@ def queue_summary(db: Session = Depends(get_db)):
 
 
 @router.post("/{queue_item_id}/take-over", response_model=TakeOverResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
-def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     tenant_id = resolve_default_tenant_id(db)
     try:
         return take_over_queue_item(db, queue_item_id, tenant_id, current_user.UserID)
@@ -50,7 +50,7 @@ def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: U
 
 
 @router.post("/{queue_item_id}/resolve", response_model=ResolveResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
-def resolve(queue_item_id: int, payload: ResolveRequest, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+def resolve(queue_item_id: int, payload: ResolveRequest, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     tenant_id = resolve_default_tenant_id(db)
     try:
         return mark_resolved(db, queue_item_id, tenant_id, current_user.UserID, payload.resolution_note)

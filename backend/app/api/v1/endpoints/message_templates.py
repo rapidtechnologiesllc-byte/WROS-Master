@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-014/HRMS-0414 -- Message Template Engine
 =============================================
 Prefix: /templates
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.message_template import (
     CreateTemplateRequest,
@@ -50,7 +50,7 @@ def _to_response(t) -> TemplateResponse:
 def create_template(
     body: CreateTemplateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     # tenant_id is the org's canonical default (see resolve_default_
     # tenant_id's docstring), NOT current_user.UserID -- a recruiter's
@@ -76,7 +76,7 @@ def list_templates_endpoint(
     channel: str = None,
     template_key: str = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     tenant_id = resolve_default_tenant_id(db)
     templates = list_templates(db, tenant_id, channel=channel, template_key=template_key) if tenant_id else []
@@ -87,7 +87,7 @@ def list_templates_endpoint(
 def get_template_endpoint(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     template = get_template(db, template_id)
     if not template:
@@ -104,7 +104,7 @@ def get_template_endpoint(
 def activate_template_endpoint(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     try:
         template = activate_template(db, template_id, activated_by=current_user.UserID)
@@ -118,7 +118,7 @@ def preview_template_endpoint(
     template_id: int,
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     thunder_config = resolve_thunder_config(db, resolve_default_tenant_id(db))
     try:

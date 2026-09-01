@@ -19,7 +19,7 @@ client has no projects, matching client_revenue_dashboard_service.py's
 own "insufficient data, not a misleading number" convention -- this
 endpoint does not invent a different contract on top of it.
 
-Auth: get_current_hr_or_admin. Same RBAC "Finance" role gap noted in
+Auth: get_current_internal_user. Same RBAC "Finance" role gap noted in
 invoices.py applies here too.
 
 Routes:
@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.client import Client
 from app.models.project import Project
 from app.models.revenue_leakage import ReconciliationAlert, RevenueLeakageFlag
@@ -94,7 +94,7 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
 def scan_leakage(
     body: ScanLeakageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = db.query(Project).filter(Project.id == body.project_id).first()
     if project is None:
@@ -116,7 +116,7 @@ def log_leakage_reason(
     flag_id: str,
     body: LogPartialBillingReasonRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     flag = db.query(RevenueLeakageFlag).filter(RevenueLeakageFlag.id == flag_id).first()
     if flag is None:
@@ -130,7 +130,7 @@ def log_leakage_reason(
 @router.get("/leakage", response_model=LeakageFlagsResponse, summary="List active (unresolved) leakage flags (cached from daily scan)")
 def list_leakage_flags(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns cached revenue leakage results from the daily autonomous scan.
@@ -145,7 +145,7 @@ def list_leakage_flags(
 @router.get("/leakage/statistics", response_model=dict, summary="Get revenue leakage statistics and totals")
 def get_leakage_statistics(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns aggregate statistics about revenue leakage:
@@ -161,7 +161,7 @@ def get_leakage_statistics(
 @router.post("/leakage/rescan-all", response_model=dict, summary="Manually trigger full revenue scan (secondary action)")
 def rescan_all_projects(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Manually trigger a full scan of all projects for revenue leakage.
@@ -179,7 +179,7 @@ def rescan_all_projects(
 )
 def scan_reconciliation(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     gaps = find_reconciliation_gaps(db, tenant_id=current_user.tenant_id)
     alerts = [create_reconciliation_alert(db, ts, tenant_id=current_user.tenant_id) for ts in gaps]
@@ -196,7 +196,7 @@ def scan_reconciliation(
 def list_reconciliation_alerts(
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(ReconciliationAlert).filter(ReconciliationAlert.tenant_id == current_user.tenant_id)
     if status:
@@ -212,7 +212,7 @@ def list_reconciliation_alerts(
 def resolve_reconciliation_alert_endpoint(
     alert_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     alert = db.query(ReconciliationAlert).filter(ReconciliationAlert.id == alert_id).first()
     if alert is None:
@@ -230,7 +230,7 @@ def resolve_reconciliation_alert_endpoint(
 def get_client_dashboard(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if client is None:

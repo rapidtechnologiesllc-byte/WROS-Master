@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.ai_recruiter_assignment import (
     AIAssignmentResponse,
@@ -49,7 +49,7 @@ router = APIRouter(tags=["ai-recruiter-assignment"])
 def get_candidate_ai_assignment(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     # A candidate has exactly one org owner (their assignment's own
     # tenant_id) -- look up their active assignment directly rather
@@ -85,7 +85,7 @@ def get_candidate_ai_assignment(
     ),
 )
 def get_tenant_thunder_enabled(
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     return TenantThunderEnabledResponse(thunder_enabled=current_user.thunder_enabled)
 
@@ -100,7 +100,7 @@ def get_tenant_thunder_enabled(
 def update_tenant_thunder_enabled(
     body: TenantThunderEnabledUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     current_user.thunder_enabled = body.enabled
     db.add(current_user)

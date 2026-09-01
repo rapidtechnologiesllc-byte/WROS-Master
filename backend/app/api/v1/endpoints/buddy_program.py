@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_internal_user
+from app.core.dependencies import get_current_internal_user, get_current_internal_user
 from app.models.buddy_program import BuddyProgramRecord
 from app.models.employee import Employee
 from app.models.user import Users
@@ -119,15 +119,15 @@ def get_can_extend(record_id: str, current_user: Users = Depends(get_current_int
 
 
 @router.post("/records/{record_id}/graduate", response_model=BuddyProgramRecordResponse)
-def graduate(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+def graduate(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "GRADUATE", body.notes, current_user.UserID)
 
 
 @router.post("/records/{record_id}/extend", response_model=BuddyProgramRecordResponse)
-def extend(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+def extend(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "EXTEND", body.notes, current_user.UserID)
 
 
 @router.post("/records/{record_id}/exit", response_model=BuddyProgramRecordResponse)
-def exit_record(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+def exit_record(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "EXIT", body.notes, current_user.UserID)

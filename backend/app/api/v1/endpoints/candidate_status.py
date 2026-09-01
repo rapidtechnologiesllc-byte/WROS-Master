@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import CandidateAssignment, Jobs, Users
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
@@ -282,7 +282,7 @@ def update_candidate_status(
     candidate_id: str,
     request: CandidateStatusUpdateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Update the `status` (Active / Inactive) and/or `pipeline_status`
@@ -388,7 +388,7 @@ def update_candidate_status(
 )
 def get_all_candidate_statuses(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     status: Optional[str] = None,
     pipeline_status: Optional[str] = None,
 ):
@@ -450,7 +450,7 @@ def get_all_candidate_statuses(
 def get_candidate_status(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns the current account status and pipeline status for a single candidate.

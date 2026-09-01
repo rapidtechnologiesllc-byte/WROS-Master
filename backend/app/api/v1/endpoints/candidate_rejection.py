@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_rejection import CandidateRejection
 from app.schemas.candidate_rejection import (
@@ -56,7 +56,7 @@ router = APIRouter(prefix="/rejection", tags=["candidate-rejection"])
 @router.post("/reject", response_model=RejectCandidateResponse, status_code=201)
 def api_reject_candidate(
     request: RejectCandidateRequest,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -131,7 +131,7 @@ def api_reject_candidate(
 def api_send_rejection_email(
     rejection_id: int,
     request: SendRejectionEmailRequest,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -195,7 +195,7 @@ def api_send_rejection_email(
 def api_archive_candidate(
     rejection_id: int,
     request: ArchiveCandidateRequest,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -263,7 +263,7 @@ def api_archive_candidate(
 
 @router.get("/reasons", response_model=list[CandidateRejectionReasonResponse])
 def api_get_rejection_reasons(
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -306,7 +306,7 @@ def api_get_rejection_reasons(
 @router.get("/candidate/{candidate_id}", response_model=CandidateRejectionStatusResponse)
 def api_get_candidate_rejection_status(
     candidate_id: str,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -352,7 +352,7 @@ def api_get_candidate_rejection_status(
 @router.get("/{rejection_id}", response_model=CandidateRejectionResponse)
 def api_get_rejection(
     rejection_id: int,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -396,7 +396,7 @@ def api_list_rejections(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status: ACTIVE or ARCHIVED"),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """

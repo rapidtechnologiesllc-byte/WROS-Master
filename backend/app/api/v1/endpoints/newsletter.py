@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -14,7 +14,7 @@ from app.schemas.newsletter import (
 )
 from app.services.newsletter_service import NewsletterService
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.api.v1.endpoints.msgraph import _require_account, _graph_client_for
 
 router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
 def subscribe_newsletter(
     subscriber_in: SubscriberCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Subscribe an email address to the newsletter.
@@ -63,7 +63,7 @@ def subscribe_newsletter(
 def unsubscribe_newsletter(
     email: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Deactivate an email address so it no longer receives newsletters.
@@ -91,7 +91,7 @@ def get_subscribers(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Retrieve a paginated list of all newsletter subscribers."""
     return NewsletterService.get_all_subscribers(db, skip=skip, limit=limit)
@@ -111,7 +111,7 @@ def get_subscribers(
 def create_newsletter(
     newsletter_in: NewsletterCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Create a new newsletter in 'draft' status."""
     try:
@@ -137,7 +137,7 @@ def get_newsletters(
     limit: int = 100,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Retrieve a paginated list of all newsletters, newest first.
@@ -161,7 +161,7 @@ def get_dispatched_newsletters(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return only newsletters with status `scheduled` or `sent` â€” i.e. every
@@ -181,7 +181,7 @@ def update_newsletter(
     newsletter_id: str,
     newsletter_in: NewsletterUpdate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Partially update fields on an existing newsletter. Returns 404 if not found."""
     try:
@@ -206,7 +206,7 @@ def schedule_newsletter(
     newsletter_id: str,
     schedule_data: NewsletterSchedule,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Schedule an existing draft (or reschedule a previously scheduled) newsletter.
@@ -238,7 +238,7 @@ def send_newsletter_now(
     newsletter_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Immediately send a newsletter to all active subscribers via the
@@ -285,7 +285,7 @@ def send_newsletter_now(
 def delete_newsletter(
     newsletter_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Permanently delete a newsletter and cancel any associated scheduled job.

@@ -12,7 +12,7 @@ idempotent, directly-callable endpoints rather than one combined
 themselves are real" posture as every other scheduled-job story here
 (the doc's own Step 1/Step 2 are already two separate steps).
 
-Auth: get_current_hr_or_admin. The doc's "BU Head only" gate on
+Auth: get_current_internal_user. The doc's "BU Head only" gate on
 /resume-intake can't be enforced with a role this codebase's RBAC
 doesn't have -- flagged, not guessed at, same posture as every other
 role gap this session.
@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.htd_intake_pause import HtdMonthlyMetric, HtdPauseLogEntry
 from app.models.user import Users
 from app.schemas.htd_intake_pause import (
@@ -56,7 +56,7 @@ router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 def calculate_monthly_metric_endpoint(
     body: CalculateMonthlyMetricRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     metric = calculate_monthly_conversion_rate(db, tenant_id=current_user.tenant_id, month_start=body.month)
     db.commit()
@@ -73,7 +73,7 @@ def calculate_monthly_metric_endpoint(
 )
 def check_breach_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     status = check_and_apply_breach(db, tenant_id=current_user.tenant_id)
     db.commit()
@@ -84,7 +84,7 @@ def check_breach_endpoint(
 @router.get("/status", response_model=HtdIntakeStatusResponse, summary="Current HTD intake pause status")
 def get_status_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.models.htd_intake_pause import HtdIntakeStatus
     status = db.query(HtdIntakeStatus).filter(HtdIntakeStatus.tenant_id == current_user.tenant_id).first()
@@ -100,7 +100,7 @@ def get_status_endpoint(
 def resume_endpoint(
     body: ResumeIntakeRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     try:
         status = resume_htd_intake(
@@ -117,7 +117,7 @@ def resume_endpoint(
 @router.get("/pause-log", response_model=PauseLogResponse, summary="Permanent pause/resume audit trail")
 def get_pause_log_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     entries = (
         db.query(HtdPauseLogEntry)

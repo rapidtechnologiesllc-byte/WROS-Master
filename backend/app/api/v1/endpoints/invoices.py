@@ -16,7 +16,7 @@ service.py's own docstring (no automatic sending/reconciliation exists
 in this codebase) -- separate endpoints for each transition, not
 folded into approve.
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program. No dedicated "Finance" role exists in this codebase's RBAC
 (app/services/rbac_service.py) despite HRMS-0907 BR-0907-02 saying
 approval is "always a Finance-role action" -- flagged, not guessed at,
@@ -36,7 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.user import Users
@@ -89,7 +89,7 @@ def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = db.query(Project).filter(Project.id == body.project_id).first()
     if project is None:
@@ -113,7 +113,7 @@ def generate_invoice_endpoint(
 def approve_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
@@ -129,7 +129,7 @@ def approve_invoice_endpoint(
 def send_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
@@ -145,7 +145,7 @@ def send_invoice_endpoint(
 def mark_invoice_paid_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
@@ -163,7 +163,7 @@ def list_invoices(
     client_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Invoice).filter(Invoice.tenant_id == current_user.tenant_id)
     if project_id:
@@ -180,7 +180,7 @@ def list_invoices(
 def get_invoice(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     return _to_item(db, invoice)
@@ -190,7 +190,7 @@ def get_invoice(
 def ar_aging(
     grace_days: int = 30,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     return {"overdue": scan_overdue_invoices(db, grace_days=grace_days, tenant_id=current_user.tenant_id)}
 
@@ -199,7 +199,7 @@ def ar_aging(
 def ar_follow_up(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     task = trigger_ar_follow_up(db, invoice)
