@@ -114,6 +114,12 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "mkdir -p ${{ env.PROD_PATH }}/build-new"
 
+      - name: Make old build deletable
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "find ${{ env.PROD_PATH }}/build -type d -exec chmod u+rwx {} \; 2>/dev/null || true"
+        continue-on-error: true
+
       - name: Copy new build to production
         run: |
           scp -r -o StrictHostKeyChecking=no -P 22587 build/ \
