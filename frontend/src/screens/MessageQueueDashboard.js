@@ -69,16 +69,17 @@ function MessageQueueDashboard() {
 
       // Transform stats to queue list format
       const queueList = QUEUE_TYPES.map(queueType => {
-        const messageCount = statsData.by_queue_type?.[queueType] || 0;
+        const queueData = statsData.queues?.[queueType] || {};
+        const messageCount = queueData.total || 0;
 
         return {
           id: queueType,
           name: queueType,
           total_messages: messageCount,
           status: messageCount > 0 ? 'Running' : 'Idle',
-          pending: 0,
-          completed: 0,
-          failed: 0,
+          pending: queueData.pending || 0,
+          completed: queueData.completed || 0,
+          failed: queueData.failed || 0,
         };
       });
 
