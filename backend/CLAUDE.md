@@ -1,6 +1,21 @@
 # WROS Backend - Development Notes
 
-## 🟡 CURRENT STATUS (2026-08-22 Session - DEFECT FIXES & TESTING - 5 ISSUES IDENTIFIED)
+## 🟡 CURRENT STATUS (2026-09-01 Session - DUPLICATE CANDIDATE ARCHITECTURE & DB FIX)
+
+**CRITICAL DISCOVERY:** Duplicate candidate logic was BACKWARDS
+- ❌ OLD: Reject duplicates (400 error) - blocked users from applying to multiple jobs
+- ✅ NEW: Allow duplicates, track as multiple applications - enables Thunder to score genuine interest
+
+**Changes Made:**
+1. ✅ Commit 7002d3b4: Changed `create_candidate_safe()` to return (candidate, is_new: bool) instead of raising error
+2. ✅ Created DUPLICATE_TRACKING_ARCHITECTURE.md with complete feature spec
+3. ⏳ BLOCKING: Backend 504 timeout on candidates list - 31 candidates in DB but showing 0 on frontend
+
+**Next Priority:** Fix backend to display 31 candidates, then implement duplicate tracking feature
+
+---
+
+## 🟡 PREVIOUS STATUS (2026-08-22 Session - DEFECT FIXES & TESTING - 5 ISSUES IDENTIFIED)
 
 **Session Focus:** Debugging user creation endpoint, identified 5 critical defects blocking end-to-end SDLC testing
 
