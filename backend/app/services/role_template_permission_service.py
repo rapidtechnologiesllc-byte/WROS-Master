@@ -160,6 +160,26 @@ class RoleTemplatePermissionService:
             return False
 
     @staticmethod
+    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
+        """Check if user is a super user (has all permissions)."""
+        try:
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user:
+                return False
+
+            # Check if user has a super user role
+            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
+            if not role:
+                return False
+
+            # Super user roles typically have a name like "Super User" or "Admin"
+            # or have a super_user flag in the database
+            return getattr(role, 'is_super_user', False) or role.name in ['Super User', 'Admin']
+        except Exception as e:
+            logger.error(f"is_super_user({user_id}): {e}", exc_info=True)
+            return False
+
+    @staticmethod
     def can_view(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
         """Check if user can VIEW a resource."""
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'view', tenant_id)
