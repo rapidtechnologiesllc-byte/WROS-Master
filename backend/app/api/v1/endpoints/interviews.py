@@ -322,7 +322,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
         if already_done:
             logger.info(
                 f"[FeedbackReminder] Skipping reminder scheduling for member "
-                f"{member_id} on interview {interview_id} --" feedback already submitted."
+                f"{member_id} on interview {interview_id} -- feedback already submitted."
             )
             continue
 
@@ -332,7 +332,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
             if fire_at <= now:
                 logger.info(
                     f"[FeedbackReminder] Skipping {suffix} reminder for member "
-                    f"{member_id} on interview {interview_id} --" already past."
+                    f"{member_id} on interview {interview_id} -- already past."
                 )
                 continue
 
@@ -371,7 +371,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     if already_submitted:
                         logger.info(
                             f"[FeedbackReminder] Skipping {__label} reminder for member "
-                            f"{__member_id} on interview {__interview_id} --" feedback already submitted."
+                            f"{__member_id} on interview {__interview_id} -- feedback already submitted."
                         )
                         return
 
@@ -389,7 +389,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                         event_type="action_required",
                         heading=(
                             f"Reminder: Please Submit Your Interview Feedback "
-                            f"--" {__candidate_name} | {__round_name}"
+                            f"-- {__candidate_name} | {__round_name}"
                         ),
                         message=(
                             f"Dear <strong>{interviewer_name}</strong>,<br><br>"
@@ -542,7 +542,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
         if fire_at <= now_local:
             logger.info(
                 f"[InterviewReminder] Skipping '{label}' reminder for interview {interview_id} "
-                f"--" fire time {fire_at.isoformat()} is already past."
+                f"-- fire time {fire_at.isoformat()} is already past."
             )
             continue
 
@@ -612,7 +612,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                     to_email=interviewer.UserEmail,
                                     heading=(
                                         f"Reminder: Interview in {_reminder_label} "
-                                        f"--" {round_name}"
+                                        f"-- {round_name}"
                                     ),
                                     message=(
                                         f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
