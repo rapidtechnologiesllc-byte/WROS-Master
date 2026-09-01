@@ -123,8 +123,11 @@ export default function CandidateJourney({ candidateId, onNavigateTab }) {
         if (cancelled) return;
         setJourney(data);
         setError("");
-        const active = data.stages.find((s) => s.status === "active");
-        setSelectedStage(active || data.stages[0]);
+        const stages = data?.stages;
+        if (Array.isArray(stages) && stages.length > 0) {
+          const active = stages.find((s) => s.status === "active");
+          setSelectedStage(active || stages[0]);
+        }
       })
       .catch((err) => {
         // 2026-08-05 -- was swallowing the real error entirely, so every
