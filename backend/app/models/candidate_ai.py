@@ -67,7 +67,7 @@ class CandidateConversation(Base):
 
     # The candidate this conversation belongs to
     # Candidate IDs are "CAN-" prefix + UUID (40 chars total, not 36)
-    candidate_id = Column(String(50),
+    candidate_id = Column(String(256),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -75,13 +75,13 @@ class CandidateConversation(Base):
 
     # Conversation lifecycle status
     # e.g. 'open' | 'awaiting_candidate' | 'awaiting_hr' | 'closed' | 'escalated'
-    status = Column(String(50), nullable=False, server_default="open")
+    status = Column(String(256), nullable=False, server_default="open")
 
     # Name / identifier of the AI agent handling this conversation
-    ai_agent_name = Column(String(100), nullable=True)
+    ai_agent_name = Column(String(256), nullable=True)
 
     # Preferred communication channel for this conversation
-    channel_preference = Column(String(50), nullable=True, server_default="email")
+    channel_preference = Column(String(256), nullable=True, server_default="email")
 
     # AI-generated summary of the conversation so far
     summary = Column(Text, nullable=True)
@@ -92,16 +92,16 @@ class CandidateConversation(Base):
     summary_generated_at = Column(DateTime(timezone=False), nullable=True)
 
     # What the AI plans to do next (e.g. "Wait for candidate reply", "Send reminder")
-    next_action = Column(String(200), nullable=True)
+    next_action = Column(String(256), nullable=True)
 
     # Who currently owns the conversation: 'ai_agent' | 'hr_user'
-    owner_type = Column(String(50), nullable=True, server_default="ai_agent")
+    owner_type = Column(String(256), nullable=True, server_default="ai_agent")
 
     # ID of the current owner (ai_agent_name or users.UserID)
-    owner_id = Column(String(100), nullable=True)
+    owner_id = Column(String(256), nullable=True)
 
     # Escalation workflow state
-    escalation_state = Column(String(50), nullable=True, server_default="none")
+    escalation_state = Column(String(256), nullable=True, server_default="none")
 
     # S-075/HRMS-0475 -- per-candidate Thunder pause. Independent of
     # owner_type (BR-01): pausing does NOT transfer ownership, so when
@@ -172,14 +172,14 @@ class CandidateAIAssignment(Base):
 
     # The candidate being assigned to an AI agent
     # Candidate IDs are "CAN-" prefix + UUID (50 chars)
-    candidate_id = Column(String(50),
+    candidate_id = Column(String(256),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     # Logical name of the AI agent (e.g. "onboarding-bot", "screening-agent")
-    ai_agent_name = Column(String(100), nullable=False)
+    ai_agent_name = Column(String(256), nullable=False)
 
     # The persona/prompt profile the agent uses for this candidate
     # (e.g. "friendly-hr", "formal-recruiter")
@@ -253,13 +253,13 @@ class ConversationEvent(Base):
     )
 
     # Type of event (see docstring above)
-    event_type = Column(String(100), nullable=False, index=True)
+    event_type = Column(String(256), nullable=False, index=True)
 
     # Flexible JSON payload — structure depends on event_type
     event_data = Column(JSON, nullable=True)
 
     # Who or what triggered this event
-    triggered_by = Column(String(50), nullable=False, server_default="ai_agent")
+    triggered_by = Column(String(256), nullable=False, server_default="ai_agent")
 
     # Immutable creation timestamp (events are never updated)
     created_at = Column(DateTime(timezone=False), server_default=func.now())

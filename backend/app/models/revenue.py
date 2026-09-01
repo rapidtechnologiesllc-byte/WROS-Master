@@ -32,17 +32,17 @@ BUSINESS_TYPES = ("CORE", "SPECIALITY")
 class Revenue(Base):
     __tablename__ = "revenues"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=False, index=True)
-    opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=False, index=True)
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    invoice_id = Column(String(256), ForeignKey("invoices.id"), nullable=False, index=True)
+    opportunity_id = Column(String(256), ForeignKey("opportunities.id"), nullable=False, index=True)
+    project_id = Column(String(256), ForeignKey("projects.id"), nullable=True, index=True)
+    client_id = Column(String(256), ForeignKey("clients.id"), nullable=False, index=True)
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)
 
     # P&L Attribution: all revenue flows to Client Owner (opportunity owner at time of creation)
-    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
+    client_owner_id = Column(String(256), ForeignKey("users.UserID"), nullable=True, index=True)
 
     # Revenue amount in USD cents (from invoice)
     revenue_usd_cents = Column(Integer, nullable=False)
@@ -52,10 +52,10 @@ class Revenue(Base):
     )
 
     # Business classification
-    service = Column(String(100), nullable=True)  # From opportunity
-    module = Column(String(100), nullable=True)   # From opportunity
-    client_type = Column(String(100), nullable=True)  # From opportunity
-    pricing_model = Column(String(100), nullable=True)  # From opportunity
+    service = Column(String(256), nullable=True)  # From opportunity
+    module = Column(String(256), nullable=True)   # From opportunity
+    client_type = Column(String(256), nullable=True)  # From opportunity
+    pricing_model = Column(String(256), nullable=True)  # From opportunity
     business_type = Column(
         Enum(*BUSINESS_TYPES, name="revenue_business_type", native_enum=False, create_constraint=True),
         nullable=True,
@@ -63,7 +63,7 @@ class Revenue(Base):
 
     # Partner revenue share (calculated and stored for audit trail)
     # Only applies to CORE business type
-    partner_id = Column(String(36), nullable=True, index=True)  # Partner identifier (no FK - partners table TBD)
+    partner_id = Column(String(256), nullable=True, index=True)  # Partner identifier (no FK - partners table TBD)
     partner_revenue_share_pct = Column(Integer, nullable=True)  # 0-100, from partner.core_revenue_share_pct
     partner_revenue_share_usd_cents = Column(Integer, nullable=True)  # Calculated as revenue * (share_pct / 100)
 

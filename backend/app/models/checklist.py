@@ -22,9 +22,9 @@ class ChecklistTemplate(Base):
     __tablename__ = "checklist_templates"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    name = Column(String(255), nullable=False)
+    name = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)
-    created_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    created_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
@@ -52,7 +52,7 @@ class ChecklistTemplateItem(Base):
         nullable=False,
         index=True
     )
-    title = Column(String(255), nullable=False)
+    title = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)
     item_type = Column(String(10), nullable=False, default="todo")   # 'todo' | 'queue'
     order_index = Column(Integer, nullable=False, default = False)
@@ -74,7 +74,7 @@ class CandidateChecklist(Base):
     __tablename__ = "candidate_checklists"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    candidate_id = Column(String(50),
+    candidate_id = Column(String(256),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -84,8 +84,8 @@ class CandidateChecklist(Base):
         ForeignKey("checklist_templates.id", ondelete="SET NULL"),
         nullable=True
     )
-    template_name = Column(String(255), nullable=True)   # snapshot of name at assignment time
-    assigned_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    template_name = Column(String(256), nullable=True)   # snapshot of name at assignment time
+    assigned_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
     assigned_at = Column(DateTime(timezone=False), server_default=func.now())
     status = Column(String(20), nullable=False, default="active")  # 'active' | 'completed'
     completed_at = Column(DateTime(timezone=False), nullable=True)
@@ -123,7 +123,7 @@ class CandidateChecklistItem(Base):
         ForeignKey("checklist_template_items.id", ondelete="SET NULL"),
         nullable=True
     )
-    title = Column(String(255), nullable=False)
+    title = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)
     item_type = Column(String(10), nullable=False, default="todo")   # 'todo' | 'queue'
     order_index = Column(Integer, nullable=False, default = False)

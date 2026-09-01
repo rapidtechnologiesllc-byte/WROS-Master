@@ -25,8 +25,8 @@ class CandidateDropRisk(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True, unique=True)
 
     drop_risk_score = Column(Integer, nullable=False)
     risk_level = Column(Enum(*RISK_LEVELS, name="candidate_drop_risk_level", native_enum=False, create_constraint=True), nullable=False)

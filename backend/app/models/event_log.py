@@ -27,9 +27,9 @@ class EventLog(Base):
     __tablename__ = "event_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
-    event_type = Column(String(100), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
+    event_type = Column(String(256), nullable=False, index=True)
     event_version = Column(String(10), nullable=False, server_default="v1")
     payload = Column(JSON, nullable=True)
     emitted_at = Column(DateTime(timezone=False), server_default=func.now(), index=True)

@@ -54,9 +54,9 @@ class DemandGapScore(Base):
     service never updates or deletes an existing row, only inserts."""
     __tablename__ = "demand_gap_scores"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=False, index=True)
 
     bench_match_count = Column(Integer, nullable=False)
     bench_first_check_passed = Column(Boolean, nullable=False)
@@ -73,10 +73,10 @@ class SourcingAlert(Base):
     Loop) picks up OPEN rows from here."""
     __tablename__ = "sourcing_alerts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    gap_score_id = Column(String(36), ForeignKey("demand_gap_scores.id"), nullable=True)
+    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=False, index=True)
+    gap_score_id = Column(String(256), ForeignKey("demand_gap_scores.id"), nullable=True)
 
     severity = Column(String(20), nullable=False)  # ALERT | CRITICAL -- WATCH/NONE never create a row
     rationale = Column(Text, nullable=True)
@@ -85,7 +85,7 @@ class SourcingAlert(Base):
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     acknowledged_at = Column(DateTime(timezone=False), nullable=True)
-    acknowledged_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    acknowledged_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
 
     # HRMS-1103 fields -- this agent consumes OPEN rows from this same table.
     sourced_at = Column(DateTime(timezone=False), nullable=True)
@@ -102,9 +102,9 @@ class SourcingSearchRun(Base):
     update to the old one, so the history of attempts is preserved)."""
     __tablename__ = "sourcing_search_runs"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    sourcing_alert_id = Column(String(36), ForeignKey("sourcing_alerts.id"), nullable=False, index=True)
+    sourcing_alert_id = Column(String(256), ForeignKey("sourcing_alerts.id"), nullable=False, index=True)
 
     boolean_query = Column(Text, nullable=True)          # max 2000 chars per UI spec
     alt_queries = Column(Text, nullable=True)             # JSON-encoded array
@@ -128,12 +128,12 @@ class StagedCandidate(Base):
     """
     __tablename__ = "staged_candidates"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    search_run_id = Column(String(36), ForeignKey("sourcing_search_runs.id"), nullable=False, index=True)
+    search_run_id = Column(String(256), ForeignKey("sourcing_search_runs.id"), nullable=False, index=True)
 
-    linkedin_profile_url = Column(String(500), nullable=True)  # one of the dedup keys
-    email = Column(String(200), nullable=True)
+    linkedin_profile_url = Column(String(256), nullable=True)  # one of the dedup keys
+    email = Column(String(256), nullable=True)
     mobile = Column(String(20), nullable=True)
     full_name = Column(String(300), nullable=True)
     raw_profile_data = Column(Text, nullable=True)  # JSON-encoded, whatever the search API returned
@@ -142,8 +142,8 @@ class StagedCandidate(Base):
     status = Column(String(20), nullable=False, default="PENDING_REVIEW")
 
     # BR-1103-02: set only via the explicit recruiter promotion action.
-    promoted_to_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True)
-    promoted_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    promoted_to_candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=True)
+    promoted_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     promoted_at = Column(DateTime(timezone=False), nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())

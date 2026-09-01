@@ -29,9 +29,9 @@ class ThunderSession(Base):
     """
     __tablename__ = "thunder_sessions"
 
-    id = Column(String(36), primary_key=True, index=True)  # UUID
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True, index=True)
-    candidate_email = Column(String(200), nullable=False, index=True)  # Used if candidate not yet created
+    id = Column(String(256), primary_key=True, index=True)  # UUID
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+    candidate_email = Column(String(256), nullable=False, index=True)  # Used if candidate not yet created
 
     # Session lifecycle
     status = Column(
@@ -48,10 +48,10 @@ class ThunderSession(Base):
     last_activity_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
     # Session context
-    device_type = Column(String(50), nullable=True)  # "mobile", "desktop", "tablet"
-    browser = Column(String(100), nullable=True)  # "Chrome", "Safari", etc.
+    device_type = Column(String(256), nullable=True)  # "mobile", "desktop", "tablet"
+    browser = Column(String(256), nullable=True)  # "Chrome", "Safari", etc.
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6
-    session_id_client = Column(String(100), nullable=True)  # Browser-side session tracking
+    session_id_client = Column(String(256), nullable=True)  # Browser-side session tracking
 
     # Progress tracking
     last_question_reached = Column(String(10), nullable=True)  # "Q1", "Q2", ..., "Q12"
@@ -64,27 +64,27 @@ class ThunderSession(Base):
     form_responses = Column(JSON, nullable=True)  # All Q&A pairs
 
     # Resume management
-    resume_url = Column(String(500), nullable=True)  # S3 path
+    resume_url = Column(String(256), nullable=True)  # S3 path
     resume_uploaded_at = Column(DateTime(timezone=False), nullable=True)
     resume_parsed = Column(Boolean, nullable=False, server_default="0", default=False)
-    resume_parse_status = Column(String(50), nullable=True)  # "pending", "processing", "success", "failed"
+    resume_parse_status = Column(String(256), nullable=True)  # "pending", "processing", "success", "failed"
     resume_parsed_data = Column(JSON, nullable=True)  # Extracted skills, experience, etc.
 
     # Candidate data collected (from Thunder flow)
     candidate_data = Column(JSON, nullable=True)  # {name, email, phone, location, company, title}
 
     # Location/job context
-    candidate_location = Column(String(200), nullable=True)  # From Q2 or parsed from resume
+    candidate_location = Column(String(256), nullable=True)  # From Q2 or parsed from resume
     job_matches = Column(JSON, nullable=True)  # Top N job matches found by AI Recruiter
-    selected_job_id = Column(String(50), nullable=True)  # Demand ID if job is selected
+    selected_job_id = Column(String(256), nullable=True)  # Demand ID if job is selected
 
     # Screening responses (stored as submitted)
     screening_responses = Column(JSON, nullable=True)  # Full screening data (work auth, agreements, etc.)
 
     # Error handling
-    last_error = Column(String(500), nullable=True)
+    last_error = Column(String(256), nullable=True)
     error_count = Column(Integer, nullable=False, server_default="0", default = False)
-    retry_batch_id = Column(String(36), nullable=True)  # References error batch for retry
+    retry_batch_id = Column(String(256), nullable=True)  # References error batch for retry
 
     # Downstream pipeline
     submitted = Column(Boolean, nullable=False, server_default="0", default=False)
@@ -92,8 +92,8 @@ class ThunderSession(Base):
     handoff_to_ai_recruiter_at = Column(DateTime(timezone=False), nullable=True)
 
     # Metadata
-    utm_source = Column(String(100), nullable=True)  # Email campaign, LinkedIn, etc.
-    utm_campaign = Column(String(100), nullable=True)
+    utm_source = Column(String(256), nullable=True)  # Email campaign, LinkedIn, etc.
+    utm_campaign = Column(String(256), nullable=True)
     notes = Column(Text, nullable=True)
 
     __table_args__ = (

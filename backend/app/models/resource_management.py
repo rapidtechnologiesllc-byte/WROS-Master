@@ -50,9 +50,9 @@ class BenchPoolEntry(Base):
 
     __tablename__ = "bench_pool"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, unique=True, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, unique=True, index=True)
 
     available_from = Column(Date, nullable=False)
     # JSON-encoded array, mirrors Employee.current_skills's own convention.
@@ -88,9 +88,9 @@ class BenchPeriod(Base):
 
     __tablename__ = "bench_periods"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
 
     bench_start_date = Column(Date, nullable=False)
     bench_end_date = Column(Date, nullable=True)  # NULL while still on bench
@@ -110,9 +110,9 @@ class EmployeeUtilizationMetric(Base):
 
     __tablename__ = "employee_utilization_metrics"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
 
     period_start = Column(Date, nullable=False)  # always a Monday, matches Timesheet.week_starting_date
     utilization_pct = Column(Numeric(5, 2), nullable=False)
@@ -130,14 +130,14 @@ class AllocationConflictLogEntry(Base):
 
     __tablename__ = "allocation_conflict_log"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
 
     conflicting_allocation_ids_json = Column(Text, nullable=False)  # JSON-encoded array of EmployeeAllocation.id
     attempted_utilization_pct = Column(Numeric(5, 2), nullable=True)
     existing_utilization_pct = Column(Numeric(5, 2), nullable=True)
-    resolution = Column(String(50), nullable=True)  # NULL until someone actually resolves it
+    resolution = Column(String(256), nullable=True)  # NULL until someone actually resolves it
     resolved_at = Column(DateTime, nullable=True)
 
     detected_at = Column(DateTime, server_default=func.now())

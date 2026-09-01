@@ -28,9 +28,9 @@ class OnboardingWorkflow(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    employee_id = Column(String(50), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True)
 
     # Workflow state
     status = Column(
@@ -45,8 +45,8 @@ class OnboardingWorkflow(Base):
     expected_completion_date = Column(Date, nullable=True)  # D+30, D+90 based on role
 
     # Assignment information
-    assigned_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
-    reporting_manager_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    assigned_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    reporting_manager_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
 
     # Progress tracking
     total_tasks = Column(Integer, nullable=False, server_default="0")
@@ -81,15 +81,15 @@ class OnboardingBuddy(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
-    buddy_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
-    employee_id = Column(String(50), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False)
+    buddy_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False)
 
     # Buddy information
-    buddy_department = Column(String(200), nullable=True)
-    buddy_experience_level = Column(String(50), nullable=True)  # JUNIOR, MID, SENIOR, LEAD
+    buddy_department = Column(String(256), nullable=True)
+    buddy_experience_level = Column(String(256), nullable=True)  # JUNIOR, MID, SENIOR, LEAD
 
     # Status and timeline
     status = Column(
@@ -123,7 +123,7 @@ class WelcomeKit(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
 
     kit_type = Column(
@@ -132,23 +132,23 @@ class WelcomeKit(Base):
     )
 
     # Kit contents
-    kit_name = Column(String(200), nullable=False)  # e.g., "Day 1 Welcome Package"
+    kit_name = Column(String(256), nullable=False)  # e.g., "Day 1 Welcome Package"
     kit_description = Column(Text, nullable=True)
     kit_contents = Column(Text, nullable=True)  # JSON-formatted list of items
 
     # Delivery information
-    sent_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    sent_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
     sent_date = Column(DateTime(timezone=False), nullable=True)
-    sent_channel = Column(String(50), nullable=True)  # EMAIL, PHYSICAL_MAIL, SMS, IN_PERSON
+    sent_channel = Column(String(256), nullable=True)  # EMAIL, PHYSICAL_MAIL, SMS, IN_PERSON
 
     # Delivery status
-    delivery_status = Column(String(50), nullable=False, server_default="PENDING")  # PENDING, SENT, DELIVERED, FAILED, ACKNOWLEDGED
+    delivery_status = Column(String(256), nullable=False, server_default="PENDING")  # PENDING, SENT, DELIVERED, FAILED, ACKNOWLEDGED
     delivery_date = Column(DateTime(timezone=False), nullable=True)
     acknowledgement_date = Column(DateTime(timezone=False), nullable=True)
 
     # Tracking
-    tracking_number = Column(String(200), nullable=True)  # For physical mail
-    recipient_email = Column(String(200), nullable=True)
+    tracking_number = Column(String(256), nullable=True)  # For physical mail
+    recipient_email = Column(String(256), nullable=True)
     recipient_phone = Column(String(20), nullable=True)
 
     notes = Column(Text, nullable=True)
@@ -167,13 +167,13 @@ class TrainingSession(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Training details
-    training_name = Column(String(200), nullable=False)
+    training_name = Column(String(256), nullable=False)
     training_description = Column(Text, nullable=True)
-    training_type = Column(String(50), nullable=True)  # MANDATORY, OPTIONAL, ROLE_SPECIFIC
+    training_type = Column(String(256), nullable=True)  # MANDATORY, OPTIONAL, ROLE_SPECIFIC
 
     # Scheduling
     scheduled_date = Column(Date, nullable=False, index=True)
@@ -182,16 +182,16 @@ class TrainingSession(Base):
     timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata")
 
     # Trainer/facilitator
-    trainer_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
-    trainer_name = Column(String(200), nullable=True)
-    trainer_email = Column(String(200), nullable=True)
+    trainer_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    trainer_name = Column(String(256), nullable=True)
+    trainer_email = Column(String(256), nullable=True)
 
     # Delivery mode
-    delivery_mode = Column(String(50), nullable=False, server_default="IN_PERSON")  # IN_PERSON, VIRTUAL, HYBRID, SELF_PACED
+    delivery_mode = Column(String(256), nullable=False, server_default="IN_PERSON")  # IN_PERSON, VIRTUAL, HYBRID, SELF_PACED
 
     # Meeting details (for virtual sessions)
-    meeting_link = Column(String(500), nullable=True)
-    meeting_platform = Column(String(100), nullable=True)  # ZOOM, TEAMS, GOOGLE_MEET, etc.
+    meeting_link = Column(String(256), nullable=True)
+    meeting_platform = Column(String(256), nullable=True)  # ZOOM, TEAMS, GOOGLE_MEET, etc.
 
     # Status and completion
     status = Column(
@@ -200,7 +200,7 @@ class TrainingSession(Base):
     )
 
     # Attendance tracking
-    attendance_status = Column(String(50), nullable=True)  # ATTENDED, ABSENT, EXCUSED, RESCHEDULED
+    attendance_status = Column(String(256), nullable=True)  # ATTENDED, ABSENT, EXCUSED, RESCHEDULED
     actual_start_time = Column(DateTime(timezone=False), nullable=True)
     actual_end_time = Column(DateTime(timezone=False), nullable=True)
 
@@ -230,7 +230,7 @@ class OnboardingTask(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Task details
@@ -239,13 +239,13 @@ class OnboardingTask(Base):
         nullable=False,
     )
 
-    task_name = Column(String(200), nullable=False)
+    task_name = Column(String(256), nullable=False)
     task_description = Column(Text, nullable=True)
-    task_priority = Column(String(50), nullable=False, server_default="MEDIUM")  # HIGH, MEDIUM, LOW
+    task_priority = Column(String(256), nullable=False, server_default="MEDIUM")  # HIGH, MEDIUM, LOW
 
     # Assignment
-    assigned_to_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
-    assigned_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    assigned_to_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    assigned_by_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
     assigned_date = Column(DateTime(timezone=False), server_default=func.now())
 
     # Timeline

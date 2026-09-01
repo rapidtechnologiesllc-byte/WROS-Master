@@ -36,11 +36,11 @@ class SystemConfig(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     config_category = Column(String(20), nullable=False)
-    config_key = Column(String(100), nullable=False)
+    config_key = Column(String(256), nullable=False)
     config_value = Column(JSON, nullable=False)
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
-    updated_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    updated_by = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

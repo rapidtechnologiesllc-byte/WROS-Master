@@ -41,10 +41,10 @@ MAX_SUBMISSION_LOOKBACK_WEEKS = 4  # BR-02
 class Timesheet(Base):
     __tablename__ = "timesheets"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
     # Backlog item, 2026-08-05 (Task<->Timesheet tie): allocation_id is
     # now nullable -- a timesheet backed by internal Task work (an HR
     # ticket, an IT request) has no client allocation to bill against.
@@ -53,7 +53,7 @@ class Timesheet(Base):
     # structural invariant, not a soft conditional-field rule, so this
     # one IS a DB CHECK constraint (unlike si_partner/business_type on
     # Project, which are service-layer only).
-    allocation_id = Column(String(36), ForeignKey("employee_allocations.id"), nullable=True, index=True)
+    allocation_id = Column(String(256), ForeignKey("employee_allocations.id"), nullable=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, index=True)
 
     week_starting_date = Column(Date, nullable=False)  # always a Monday
@@ -66,7 +66,7 @@ class Timesheet(Base):
         nullable=False, default="DRAFT",
     )
     submitted_at = Column(DateTime, nullable=True)
-    approved_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    approved_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
     # EPIC-P7 client portal field -- schema-only, no client-side approval
@@ -95,8 +95,8 @@ class Timesheet(Base):
 class TimesheetEntry(Base):
     __tablename__ = "timesheet_entries"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    timesheet_id = Column(String(36), ForeignKey("timesheets.id"), nullable=False, index=True)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
+    timesheet_id = Column(String(256), ForeignKey("timesheets.id"), nullable=False, index=True)
 
     entry_date = Column(Date, nullable=False)
     hours = Column(Numeric(4, 2), nullable=False)

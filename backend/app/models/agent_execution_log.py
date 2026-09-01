@@ -29,10 +29,10 @@ class AgentExecutionLog(Base):
     __tablename__ = "agent_execution_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
-    agent_name = Column(String(100), nullable=False)
-    action_taken = Column(String(200), nullable=False)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
+    agent_name = Column(String(256), nullable=False)
+    action_taken = Column(String(256), nullable=False)
     action_data = Column(JSON, nullable=True)
     execution_at = Column(DateTime(timezone=False), server_default=func.now(), index=True)
     duration_ms = Column(Integer, nullable=True)

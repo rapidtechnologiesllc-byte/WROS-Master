@@ -43,19 +43,19 @@ class RecruiterInterventionQueue(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     queue_reason = Column(Enum(*QUEUE_REASONS, name="intervention_queue_reason", native_enum=False, create_constraint=True), nullable=False)
     reason_detail = Column(Text, nullable=True)
     priority = Column(Integer, nullable=False)  # 1=CRITICAL, 2=HIGH, 3=MEDIUM -- see module constants
     status = Column(Enum(*QUEUE_STATUSES, name="intervention_queue_status", native_enum=False, create_constraint=True), nullable=False, default="OPEN")
 
-    assigned_to_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    assigned_to_user_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
     added_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     resolved_at = Column(DateTime(timezone=False), nullable=True)
-    resolved_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    resolved_by = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
     resolution_note = Column(Text, nullable=True)
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")

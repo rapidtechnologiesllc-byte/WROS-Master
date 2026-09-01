@@ -35,15 +35,15 @@ OPEN_DISPUTE_STATUSES = ("OPEN", "UNDER_REVIEW")
 class TimesheetDispute(Base):
     __tablename__ = "timesheet_disputes"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    timesheet_id = Column(String(36), ForeignKey("timesheets.id"), nullable=False, index=True)
+    timesheet_id = Column(String(256), ForeignKey("timesheets.id"), nullable=False, index=True)
 
     raised_by = Column(
         Enum(*DISPUTE_RAISED_BY, name="timesheet_dispute_raised_by", native_enum=False, create_constraint=True),
         nullable=False,
     )
-    raised_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    raised_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
 
     disputed_date = Column(DateTime, nullable=True)  # specific day being disputed, or null for whole week
     disputed_hours = Column(Numeric(4, 2), nullable=True)  # hours claimed by disputing party
@@ -55,7 +55,7 @@ class TimesheetDispute(Base):
         Enum(*DISPUTE_STATUSES, name="timesheet_dispute_status", native_enum=False, create_constraint=True),
         nullable=False, default="OPEN",
     )
-    resolved_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    resolved_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
     resolution_notes = Column(Text, nullable=True)
     adjusted_hours = Column(Numeric(6, 2), nullable=True)  # final agreed hours if resolution=ADJUSTED

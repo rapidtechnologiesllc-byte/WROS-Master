@@ -42,18 +42,18 @@ BENCH_RECOMMENDATION_STATUSES = ("PENDING_RM_REVIEW", "IN_PROGRESS", "APPROVED",
 class BenchAllocationRecommendation(Base):
     __tablename__ = "bench_allocation_recommendations"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=False, index=True)
 
     confidence_pct = Column(Numeric(5, 2), nullable=False)
     rationale = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default="PENDING_RM_REVIEW")
 
     created_at = Column(DateTime, server_default=func.now())
-    pursued_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    pursued_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     pursued_at = Column(DateTime, nullable=True)
-    reviewed_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    reviewed_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)

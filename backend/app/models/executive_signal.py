@@ -37,7 +37,7 @@ def _new_uuid() -> str:
 class EmployeeFeedbackCycle(Base):
     __tablename__ = "employee_feedback_cycles"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     quarter_label = Column(String(20), nullable=False)  # e.g. "2026-Q3"
     status = Column(String(10), nullable=False, default="OPEN")
@@ -49,8 +49,8 @@ class EmployeeFeedbackResponse(Base):
     __tablename__ = "employee_feedback_responses"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    cycle_id = Column(String(36), ForeignKey("employee_feedback_cycles.id"), nullable=False, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    cycle_id = Column(String(256), ForeignKey("employee_feedback_cycles.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
     response_text = Column(Text, nullable=False)
     # Simple heuristic flag (not an LLM verdict) -- see
     # culture_agent_service._flag_response() for the real, honest logic.
@@ -66,12 +66,12 @@ class RecognitionMessageDraft(Base):
     the time it goes out)."""
     __tablename__ = "recognition_message_drafts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
     occasion = Column(String(30), nullable=False)
     draft_text = Column(Text, nullable=False)
     status = Column(String(10), nullable=False, default="DRAFT")
-    approved_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    approved_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     sent_at = Column(DateTime, nullable=True)
 
@@ -85,8 +85,8 @@ class EmployeeConcernIntake(Base):
     a real Task (S-434), never a fake resolution."""
     __tablename__ = "employee_concern_intakes"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
     message_text = Column(Text, nullable=False)
     category = Column(String(15), nullable=True)  # null until triaged
     resolution_text = Column(Text, nullable=True)

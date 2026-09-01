@@ -16,7 +16,7 @@ class TimesheetNagLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
     week_starting_date = Column(Date, nullable=False)
 
     # 1 = employee nagged directly, 2 = escalated to reporting manager.

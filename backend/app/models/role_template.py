@@ -11,7 +11,7 @@ class Module(Base):
     __tablename__ = "modules"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True, nullable=False)  # e.g., "Recruitment"
+    name = Column(String(256), unique=True, nullable=False)  # e.g., "Recruitment"
     display_name = Column(String(150), nullable=False)  # e.g., "Recruitment Management"
     description = Column(Text)
     enabled = Column(Boolean, default=True)
@@ -29,7 +29,7 @@ class Resource(Base):
 
     id = Column(Integer, primary_key=True)
     module_id = Column(Integer, ForeignKey("modules.id"), nullable=False)
-    name = Column(String(100), nullable=False)  # e.g., "candidates"
+    name = Column(String(256), nullable=False)  # e.g., "candidates"
     display_name = Column(String(150), nullable=False)  # e.g., "Candidates"
     route_path = Column(String(200))  # e.g., "/candidates", "/admin/users-access-control"
     description = Column(Text)
@@ -48,14 +48,14 @@ class RoleTemplate(Base):
     __tablename__ = "role_templates"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)  # e.g., "Recruiter", "HR Manager"
+    name = Column(String(256), nullable=False)  # e.g., "Recruiter", "HR Manager"
     display_name = Column(String(150), nullable=False)
     description = Column(Text)
 
     # Hierarchy: 17 levels (1=Intern → 17=CEO)
     hierarchy_level = Column(Integer, nullable=False, default=5)  # 1-17: defines authority level
     # Specialization: what they do day-to-day (Recruitment, Development, HR, Finance, PM, QA, etc.)
-    specialization = Column(String(100), nullable=False, default="General")  # Defines expertise domain
+    specialization = Column(String(256), nullable=False, default="General")  # Defines expertise domain
 
     is_system = Column(Boolean, default=False)  # True for built-in roles, False for custom
     # PRODUCTION SAFETY: enabled MUST default to True, never allow None

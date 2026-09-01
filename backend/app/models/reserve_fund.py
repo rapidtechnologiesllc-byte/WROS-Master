@@ -27,6 +27,6 @@ class ReserveFundEntry(Base):
     period_year = Column(Integer, nullable=False)
     period_month = Column(Integer, nullable=False)
 
-    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     notes = Column(Text, nullable=True)

@@ -26,9 +26,9 @@ def _new_uuid() -> str:
 class RevenueLeakageFlag(Base):
     __tablename__ = "revenue_leakage_time_layer"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    project_id = Column(String(256), ForeignKey("projects.id"), nullable=False, index=True)
 
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
@@ -50,10 +50,10 @@ class ReconciliationAlert(Base):
     line item past the grace period."""
     __tablename__ = "reconciliation_alerts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    timesheet_id = Column(String(36), ForeignKey("timesheets.id"), nullable=False, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False)
+    timesheet_id = Column(String(256), ForeignKey("timesheets.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False)
     billable_hours = Column(Numeric(6, 2), nullable=False)
 
     gap_detected_at = Column(DateTime, server_default=func.now())

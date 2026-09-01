@@ -39,12 +39,12 @@ class PreboardingDocument(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     offer_id = Column(Integer, ForeignKey("offer_letters.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    document_type = Column(String(100), nullable=False)
-    document_label = Column(String(200), nullable=False)
+    document_type = Column(String(256), nullable=False)
+    document_label = Column(String(256), nullable=False)
     status = Column(
         Enum(*DOCUMENT_STATUSES, name="preboarding_document_status", native_enum=False, create_constraint=True),
         nullable=False, server_default="PENDING",

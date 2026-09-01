@@ -35,8 +35,8 @@ class OfferFAQEntry(Base):
     __tablename__ = "offer_faq_entries"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    topic = Column(String(50), nullable=False)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    topic = Column(String(256), nullable=False)
     answer_text = Column(Text, nullable=False)
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())

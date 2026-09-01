@@ -25,10 +25,10 @@ def _new_uuid() -> str:
 class BuddyProgramRecord(Base):
     __tablename__ = "buddy_program_records"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    buddy_engineer_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    buddy_engineer_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False)
 
     program_start_date = Column(Date, nullable=False)
     expected_end_date = Column(Date, nullable=False)
@@ -50,13 +50,13 @@ class BuddyKPIScore(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    buddy_record_id = Column(String(36), ForeignKey("buddy_program_records.id"), nullable=False, index=True)
+    buddy_record_id = Column(String(256), ForeignKey("buddy_program_records.id"), nullable=False, index=True)
 
     kpi_number = Column(Integer, nullable=False)  # 1-35
     kpi_category = Column(String(10), nullable=False)  # one of KPI_CATEGORIES
-    kpi_name = Column(String(200), nullable=False)
+    kpi_name = Column(String(256), nullable=False)
     score = Column(Integer, nullable=False)  # 1-5 per the doc's own field spec
-    scored_by = Column(String(50), ForeignKey("users.UserID"), nullable=False)
+    scored_by = Column(String(256), ForeignKey("users.UserID"), nullable=False)
     scored_date = Column(Date, nullable=False)
     week_number = Column(Integer, nullable=False)  # 1-4
     notes = Column(Text, nullable=True)

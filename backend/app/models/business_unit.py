@@ -19,13 +19,13 @@ class BusinessUnit(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
 
     # Basic info
-    name = Column(String(100), nullable=False, index=True)
+    name = Column(String(256), nullable=False, index=True)
     display_name = Column(String(150), nullable=False)
     description = Column(Text, nullable=True)
     bu_code = Column(String(20), nullable=True, unique=True)  # e.g., "NA", "EU", "APAC"
 
     # Leadership
-    manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    manager_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
 
     # Status
     active = Column(Boolean, nullable=False, default=True)
