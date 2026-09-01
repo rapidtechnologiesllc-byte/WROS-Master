@@ -71,12 +71,10 @@ class MessageQueueService:
                 logger.error(f"Payload not JSON serializable: {e}")
                 raise ValueError(f"Message payload must be JSON serializable: {str(e)}")
 
-            # Determine queue_type from message_type if not provided
+            # Determine queue_type from role templates if not provided
             if not queue_type:
-                if message_type == "candidate_created":
-                    queue_type = "THUNDER_QUEUE"
-                else:
-                    queue_type = "THUNDER_QUEUE"  # Default to THUNDER_QUEUE
+                from app.core.queue_routing import QueueRouter
+                queue_type = QueueRouter.get_queue_for_message(message_type, db)
 
             message_id = str(uuid.uuid4())
             message = MessageQueue(

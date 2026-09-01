@@ -22,6 +22,17 @@ module.exports = function(app) {
   );
 
   app.use(
+    '/onboarding',
+    createProxyMiddleware({
+      target: 'http://localhost:8080',
+      pathRewrite: {
+        '^/onboarding': '/api/v1/onboarding',
+      },
+      changeOrigin: true,
+    })
+  );
+
+  app.use(
     '/rbac',
     createProxyMiddleware({
       target: 'http://localhost:8080',
@@ -60,14 +71,6 @@ module.exports = function(app) {
       pathRewrite: {
         '^/queues': '/api/v1/queues',
       },
-      changeOrigin: true,
-    })
-  );
-
-  app.use(
-    '/onboarding',
-    createProxyMiddleware({
-      target: 'http://localhost:8080',
       changeOrigin: true,
     })
   );
