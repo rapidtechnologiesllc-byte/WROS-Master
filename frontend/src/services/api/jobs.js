@@ -6,7 +6,7 @@ import {
 } from "./client";
 
 export const generateJobDescription = async (payload) => {
-  const { data } = await apiRequest("/jobs/generate_job_description", {
+  const { data } = await apiRequest("/api/v1/jobs/generate_job_description", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -14,7 +14,7 @@ export const generateJobDescription = async (payload) => {
 };
 
 export const generateJobWithAgent = async (jobDescriptionOneliner) => {
-  const { data } = await apiRequest("/jobs/generate-with-agent", {
+  const { data } = await apiRequest("/api/v1/jobs/generate-with-agent", {
     method: "POST",
     body: JSON.stringify({ job_description_oneliner: jobDescriptionOneliner }),
   });
@@ -22,7 +22,7 @@ export const generateJobWithAgent = async (jobDescriptionOneliner) => {
 };
 
 export const generateJobComplete = async (jobDescriptionOneliner, answers) => {
-  const { data } = await apiRequest("/jobs/generate-complete", {
+  const { data } = await apiRequest("/api/v1/jobs/generate-complete", {
     method: "POST",
     body: JSON.stringify({
       job_description_oneliner: jobDescriptionOneliner,
@@ -33,7 +33,7 @@ export const generateJobComplete = async (jobDescriptionOneliner, answers) => {
 };
 
 export const createJob = async (payload) => {
-  const { data } = await apiRequest("/jobs/create_job", {
+  const { data } = await apiRequest("/api/v1/jobs/create_job", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -41,14 +41,14 @@ export const createJob = async (payload) => {
 };
 
 export const getAllJobs = async () => {
-  const { data } = await apiRequest("/jobs/all", {
+  const { data } = await apiRequest("/api/v1/jobs/all", {
     method: "GET",
   });
   return data;
 };
 
 export const getActiveJobs = async () => {
-  const { data } = await apiRequest("/jobs/active-jobs", {
+  const { data } = await apiRequest("/api/v1/jobs/active-jobs", {
     method: "GET",
     // Public listing used by both Auth and Candidate portal; avoid candidate-token 401 loops.
     skipAuth: true,
@@ -57,7 +57,7 @@ export const getActiveJobs = async () => {
 };
 
 export const updateJob = async (jobId, payload) => {
-  const { data } = await apiRequest(`/jobs/update_job/${jobId}`, {
+  const { data } = await apiRequest(`/api/v1/jobs/update_job/${jobId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -65,21 +65,21 @@ export const updateJob = async (jobId, payload) => {
 };
 
 export const deleteJob = async (jobId) => {
-  const { data } = await apiRequest(`/jobs/delete_job/${jobId}`, {
+  const { data } = await apiRequest(`/api/v1/jobs/delete_job/${jobId}`, {
     method: "DELETE",
   });
   return data;
 };
 
 export const approveJob = async (jobId) => {
-  const { data } = await apiRequest(`/jobs/${jobId}/approve`, {
+  const { data } = await apiRequest(`/api/v1/jobs/${jobId}/approve`, {
     method: "POST",
   });
   return data;
 };
 
 export const postJobOnLinkedIn = async (jobId) => {
-  const { data } = await apiRequest("/jobs/post-on-linkedin", {
+  const { data } = await apiRequest("/api/v1/jobs/post-on-linkedin", {
     method: "POST",
     body: JSON.stringify({ job_id: jobId }),
   });
@@ -133,7 +133,7 @@ export const applyForJob = async ({
 
   const token = localStorage.getItem("hrms_token");
   const response = await fetch(
-    `${getApiBaseUrl()}/jobs/${encodeURIComponent(jobId)}/apply`,
+    `${getApiBaseUrl()}/api/v1/jobs/${encodeURIComponent(jobId)}/apply`,
     {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -160,7 +160,7 @@ export const applyForJob = async ({
 };
 
 export const candidateAppendedJob = async (id) => {
-  const { data } = await apiRequest(`/jobs/${id}/applications`, {
+  const { data } = await apiRequest(`/api/v1/jobs/${id}/applications`, {
     method: "GET",
   });
   return data;
@@ -168,7 +168,7 @@ export const candidateAppendedJob = async (id) => {
 
 export const assignJob = async (jobId, candidateId, payload) => {
   const { data, response } = await apiRequest(
-    `/jobs/${jobId}/applications/${candidateId}`,
+    `/api/v1/jobs/${jobId}/applications/${candidateId}`,
     {
       method: "POST",
       body: JSON.stringify(payload),
@@ -179,7 +179,7 @@ export const assignJob = async (jobId, candidateId, payload) => {
 
 export const removeCandidateApi = async (job_id, candidateId) => {
   const { data, response } = await apiRequest(
-    `/jobs/${job_id}/applications/${candidateId}`,
+    `/api/v1/jobs/${job_id}/applications/${candidateId}`,
     {
       method: "DELETE",
     },
@@ -189,7 +189,7 @@ export const removeCandidateApi = async (job_id, candidateId) => {
 
 export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
   const { data, response } = await apiRequest(
-    `/jobs/${job_id}/applications/${candidate_id}`,
+    `/api/v1/jobs/${job_id}/applications/${candidate_id}`,
     {
       method: "POST",
       body: JSON.stringify(payload),
@@ -200,7 +200,7 @@ export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
 
 export const submitCandidateToJob = async (candidate_id, job_id) => {
   const { data, response } = await apiRequest(
-    "/submissions",
+    "/api/v1/submissions",
     {
       method: "POST",
       body: JSON.stringify({
@@ -216,7 +216,7 @@ export const submitCandidateToJob = async (candidate_id, job_id) => {
 
 export const jobsFilter = async (parameters) => {
   const { data } = await apiRequest(
-    `/jobs/filter${parameters ? `?${parameters}` : ""}`,
+    `/api/v1/jobs/filter${parameters ? `?${parameters}` : ""}`,
     {
       method: "GET",
     },
@@ -225,7 +225,7 @@ export const jobsFilter = async (parameters) => {
 };
 export const getCandidateApplications = async (candidateId) => {
   const { data } = await apiRequest(
-    `/jobs/candidate-applications/${candidateId}`,
+    `/api/v1/jobs/candidate-applications/${candidateId}`,
     {
       method: "GET",
     },
@@ -234,7 +234,7 @@ export const getCandidateApplications = async (candidateId) => {
 };
 
 export const getJobById = async (jobId) => {
-  const { data } = await apiRequest(`/jobs/job-details/${jobId}`, {
+  const { data } = await apiRequest(`/api/v1/jobs/job-details/${jobId}`, {
     method: "GET",
   });
   return data;
