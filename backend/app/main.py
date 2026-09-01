@@ -99,50 +99,14 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     return response
 
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Application startup event.
-    Creates tables and seeds RBAC data.
-    """
-    import asyncio
-    import time
-    from concurrent.futures import ThreadPoolExecutor
-    from sqlalchemy.exc import OperationalError
-
-    # Validate configuration immediately
-    settings.validate_config()
-    logger.info("[OK] Configuration validated")
-
-    # Start APScheduler immediately (no I/O needed)
-    try:
-        from app.core.scheduler import start_scheduler
-        start_scheduler()
-        logger.info("[OK] Scheduler started")
-    except Exception as e:
-        logger.warning(f"[Startup] Scheduler failed to start (non-critical): {e}")
-
-    # Run DB operations synchronously (not in background thread)
-    # This ensures tables exist before app accepts requests
-    try:
-        logger.info("[Startup] Creating database tables...")
-        Base.metadata.create_all(bind=engine, checkfirst=True)
-        logger.info("[OK] Database tables initialized")
-    except Exception as exc:
-        logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
-        return  # Don't crash startup, but tables won't exist
-
-    # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
-    try:
-        logger.info("[Startup] Initializing default organizational positions...")
-        from app.core.database import SessionLocal
-        from app.services.org_structure_service import init_default_positions
-        db = SessionLocal()
-        result = init_default_positions(db)
-        db.close()
-        logger.info(f"[OK] Organizational positions initialized (created: {result['created']}, updated: {result['updated']})")
-    except Exception as exc:
-        logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
+# DISABLED: Startup event was blocking HTTP server
+# @app.on_event("startup")
+# async def startup_event():
+#     """
+#     Application startup event.
+#     Creates tables and seeds RBAC data.
+#     """
+#     pass
 
     # Seed RBAC with retries
     # DISABLED: Starting with clean database for RBAC testing
