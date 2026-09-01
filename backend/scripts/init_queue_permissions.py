@@ -26,14 +26,13 @@ def init_queue_permissions():
         # Add permissions if they don't exist
         for perm_key, perm_desc in queue_perms:
             existing = db.query(Permission).filter(
-                Permission.permission_key == perm_key
+                Permission.name == perm_key
             ).first()
-            
+
             if not existing:
                 perm = Permission(
-                    permission_key=perm_key,
-                    description=perm_desc,
-                    module="queues"
+                    name=perm_key,
+                    description=perm_desc
                 )
                 db.add(perm)
                 print(f"Added permission: {perm_key}")
@@ -47,15 +46,15 @@ def init_queue_permissions():
 
         for role_name, perms in roles_to_update.items():
             role = db.query(RoleTemplate).filter(
-                RoleTemplate.role_name == role_name
+                RoleTemplate.name == role_name
             ).first()
-            
+
             if role:
                 for perm_key in perms:
                     perm = db.query(Permission).filter(
-                        Permission.permission_key == perm_key
+                        Permission.name == perm_key
                     ).first()
-                    
+
                     if perm and perm not in role.permissions:
                         role.permissions.append(perm)
                         print(f"Added {perm_key} to {role_name}")
