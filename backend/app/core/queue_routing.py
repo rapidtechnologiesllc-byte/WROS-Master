@@ -48,13 +48,14 @@ class QueueRouter:
             # Query role templates to find which queue handles this permission
             if db:
                 from app.models.role_template import RoleTemplate
-                from app.models.rbac import Permission
+                from app.models.rbac import Permission, RolePermission
 
-                # Find roles with this permission
+                # Find roles with this permission (using correct field name)
                 roles_with_perm = (
                     db.query(RoleTemplate)
-                    .join(Permission)
-                    .filter(Permission.permission_key == config.required_permission)
+                    .join(RolePermission, RoleTemplate.id == RolePermission.role_id)
+                    .join(Permission, RolePermission.permission_id == Permission.id)
+                    .filter(Permission.name == config.required_permission)
                     .all()
                 )
 
