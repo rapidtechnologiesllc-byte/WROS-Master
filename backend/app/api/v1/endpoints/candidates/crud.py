@@ -61,7 +61,6 @@ router = APIRouter(prefix="/candidates", tags=["candidates-crud"])
 @router.post(
     "/create",
     response_model=CandidateCreateResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "create"))],
     summary="Create new candidate (CRUD operation)"
 )
 def create_candidate(
