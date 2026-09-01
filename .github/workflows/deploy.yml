@@ -19,18 +19,21 @@ jobs:
         with:
           node-version: 'latest'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Build
+        working-directory: frontend
         run: REACT_APP_API_BASE_URL=http://46.224.149.7:8080 npm run build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: build/
+          path: frontend/build/
           retention-days: 1
 
   test:
@@ -45,11 +48,14 @@ jobs:
         with:
           node-version: 'latest'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Run tests (with fallback)
+        working-directory: frontend
         run: npm test -- --ci --coverage --passWithNoTests 2>/dev/null || echo "No test suite configured"
         continue-on-error: true
 
@@ -62,7 +68,7 @@ jobs:
     env:
       PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
       PROD_USER: ${{ secrets.PROD_USER }}
-      PROD_PATH: /home/HRMS/HRMS-FE-V1/OnboardingModule-Frontend
+      PROD_PATH: /home/HRMS/WROS-Master/frontend
 
     steps:
       - uses: actions/checkout@v4
