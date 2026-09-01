@@ -120,8 +120,15 @@ async function fetchNavigationFromBackend() {
   console.debug("Navigation API response:", result?.data);
 
   // apiRequest returns { data, response } where data is already parsed JSON
-  // Backend returns { data: { groups: [...] } }
-  const navData = result?.data?.data;
+  // Backend returns { data: { groups: [...] } }, which becomes result.data = { data: { groups: [...] } }
+  // So we need result?.data?.data to get the nested structure
+  let navData = result?.data?.data;
+
+  // Fallback: if result.data is already the groups structure, use it directly
+  if (!navData && result?.data?.groups) {
+    navData = result.data;
+  }
+
   console.debug("Extracted navData:", navData);
 
   if (!navData) {
