@@ -255,7 +255,7 @@ def get_all_candidates(
     from app.core.logging import logger
 
     # Get user from request state (set by middleware)
-    user_id = request.state.get("user_id")
+    user_id = getattr(request.state, "user_id", None)
     if not user_id:
         raise HTTPException(status_code=401, detail="No user ID in request")
 
