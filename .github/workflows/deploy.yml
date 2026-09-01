@@ -124,6 +124,11 @@ jobs:
              rm -rf build && \
              mv build-new build"
 
+      - name: Fix file permissions for Nginx
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "sudo chown -R www-data:www-data ${{ env.PROD_PATH }}/build && sudo chmod -R 755 ${{ env.PROD_PATH }}/build"
+
       - name: Reload Nginx service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
