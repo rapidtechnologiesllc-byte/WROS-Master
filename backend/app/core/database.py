@@ -70,11 +70,28 @@ def receive_connect(dbapi_conn, connection_record):
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
-    db = SessionLocal()
+    """
+    Dependency for database session. Handles connection pooling and error cases.
+
+    Raises:
+        RuntimeError: If database connection or schema setup fails
+    """
+    from app.core.logging import logger
+
     try:
+        db = SessionLocal()
+        # Test connection immediately - fail fast if database is unreachable
+        db.execute("SELECT 1")
+        logger.debug("Database connection established")
         yield db
+    except Exception as e:
+        logger.error(f"Database session creation failed: {str(e)}", exc_info=True)
+        raise RuntimeError(f"Database connection error: {str(e)}")
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as e:
+            logger.warning(f"Error closing database session: {str(e)}")
 
 
 def check_candidate(db: Session, email: str):

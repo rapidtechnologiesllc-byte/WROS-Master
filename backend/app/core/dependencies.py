@@ -103,22 +103,31 @@ async def get_current_candidate(
     """
     Get the current authenticated candidate from JWT token.
     """
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    _reject_if_mfa_pending(payload)
-    _reject_if_candidate_otp_pending(payload)
+    try:
+        from app.core.logging import logger
 
-    user_id: str = payload.get("sub")
-    user_type: str = payload.get("type")
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        _reject_if_mfa_pending(payload)
+        _reject_if_candidate_otp_pending(payload)
 
-    if not user_id or user_type != "candidate":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized as candidate")
+        user_id: str = payload.get("sub")
+        user_type: str = payload.get("type")
 
-    candidate = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
-    if not candidate:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
+        if not user_id or user_type != "candidate":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized as candidate")
 
-    return candidate
+        candidate = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
+        if not candidate:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
+
+        return candidate
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[get_current_candidate] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
 
 
 async def get_current_candidate_otp_pending(
@@ -132,17 +141,29 @@ async def get_current_candidate_otp_pending(
     A normal full candidate token must not work here either -- a
     candidate can't skip straight to "verify" without having actually
     passed the password check first in the current session."""
-    token = credentials.credentials
-    payload = decode_access_token(token)
+    try:
+        from app.core.logging import logger
 
-    if not payload.get("candidate_otp_pending"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a candidate email-verification-pending session")
+        token = credentials.credentials
+        payload = decode_access_token(token)
 
-    candidate_id: str = payload.get("sub", "")
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
-    return candidate
+        if not payload.get("candidate_otp_pending"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a candidate email-verification-pending session")
+
+        candidate_id: str = payload.get("sub", "")
+        if not candidate_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No candidate ID in token")
+
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Candidate not found")
+        return candidate
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[get_current_candidate_otp_pending] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
 
 
 async def get_current_hr_or_admin(
@@ -190,25 +211,34 @@ async def get_current_internal_user(
     Resolve any internal (non-candidate) user from JWT. Used as a base for RBAC guards.
     Allows any user found in the Users table (any role). Candidates are excluded.
     """
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    _reject_if_mfa_pending(payload)
+    try:
+        from app.core.logging import logger
 
-    user_id: str = payload.get("sub")
-    user_type: str = payload.get("type", "").lower()
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        _reject_if_mfa_pending(payload)
 
-    if not user_id or user_type == "candidate":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        user_id: str = payload.get("sub")
+        user_type: str = payload.get("type", "").lower()
 
-    user = db.query(Users).filter(Users.UserID == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        if not user_id or user_type == "candidate":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    # DISABLED - Single company deployment, no tenant scoping needed
-    # from app.core.tenant_context import activate_tenant_scope
-    # activate_tenant_scope(user.tenant_id)
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    return user
+        # DISABLED - Single company deployment, no tenant scoping needed
+        # from app.core.tenant_context import activate_tenant_scope
+        # activate_tenant_scope(user.tenant_id)
+
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"[get_current_internal_user] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
 
 
 async def get_current_mfa_pending_user(
