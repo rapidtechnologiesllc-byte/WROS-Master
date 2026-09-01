@@ -7,6 +7,7 @@ import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -62,7 +63,7 @@ def get_system_health(
         # Database health
         db_status = "healthy"
         try:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             db_status = "healthy"
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

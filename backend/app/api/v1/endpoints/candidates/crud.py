@@ -269,125 +269,125 @@ def get_all_candidates(
             raise HTTPException(status_code=401, detail="User not found")
 
         candidates = apply_bu_scope_to_candidate_query(
-        db, db.query(Candidate), current_user=user,
-    ).all()
-
-    candidates_data = []
-    for candidate in candidates:
-        name_parts = [
-            candidate.candidateFirstName or "",
-            candidate.candidateMiddleName or "",
-            candidate.candidateLastName or ""
-        ]
-        candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
-
-        personal_info = db.query(CandidateInfoForm).filter(
-            CandidateInfoForm.candidateID == candidate.candidateID
-        ).first()
-
-        education_records = db.query(CandidateEducationForm).filter(
-            CandidateEducationForm.candidateID == candidate.candidateID
+            db, db.query(Candidate), current_user=user,
         ).all()
 
-        experience_records = db.query(CandidateExperienceForm).filter(
-            CandidateExperienceForm.candidateID == candidate.candidateID
-        ).all()
+        candidates_data = []
+        for candidate in candidates:
+            name_parts = [
+                candidate.candidateFirstName or "",
+                candidate.candidateMiddleName or "",
+                candidate.candidateLastName or ""
+            ]
+            candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
 
-        aadhar_form = db.query(CandidateAadharForm).filter(
-            CandidateAadharForm.candidateID == candidate.candidateID
-        ).first()
+            personal_info = db.query(CandidateInfoForm).filter(
+                CandidateInfoForm.candidateID == candidate.candidateID
+            ).first()
 
-        pan_form = db.query(CandidatePanForm).filter(
-            CandidatePanForm.candidateID == candidate.candidateID
-        ).first()
+            education_records = db.query(CandidateEducationForm).filter(
+                CandidateEducationForm.candidateID == candidate.candidateID
+            ).all()
 
-        candidate_status = db.query(CandidateStatus).filter(
-            CandidateStatus.candidateID == candidate.candidateID
-        ).first()
+            experience_records = db.query(CandidateExperienceForm).filter(
+                CandidateExperienceForm.candidateID == candidate.candidateID
+            ).all()
 
-        candidate_response = CandidateCompleteResponse(
-            candidate_id=candidate.candidateID,
-            candidate_name=candidate_name,
-            candidate_first_name=candidate.candidateFirstName,
-            candidate_middle_name=candidate.candidateMiddleName,
-            candidate_last_name=candidate.candidateLastName,
-            candidate_email=candidate.candidateEmail,
-            candidate_mobile=candidate.candidateMobile,
-            candidate_role=candidate.candidateRole,
-            candidate_job_title=candidate.candidateJobTitle,
-            candidate_is_verified=candidate.candidateIsVerified,
-            candidate_created_at=candidate.candidateCreatedAt,
-            candidate_gender=candidate.candidateGender,
-            candidate_date_of_birth=candidate.candidateDateOfBirth,
-            candidate_source=candidate.candidateSource,
-            candidate_experience=candidate.candidateExperience,
-            candidate_skills=candidate.candidateSkills,
-            candidate_joining_date=candidate.candidateJoiningDate,
-            candidate_current_location=candidate.candidateCurrentLocation,
-            candidate_current_salary=candidate.candidateCurrentSalary,
-            candidate_expected_salary=candidate.candidateExpectedSalary,
-            candidate_employee_type=candidate.candidateEmployeeType,
-            is_guidewire_candidate=is_guidewire_candidate(db, candidate),
-            job_id=candidate.job_id,
-            personal_info=CandidateInfoResponse(
-                position=personal_info.position if personal_info else None,
-                department=personal_info.department if personal_info else None,
-                dob=personal_info.dob if personal_info else None,
-                gender=personal_info.gender if personal_info else None,
-                marital_status=personal_info.marital_status if personal_info else None,
-                nationality=personal_info.nationality if personal_info else None,
-                current_address=personal_info.current_address if personal_info else None,
-                permanent_address=personal_info.permanent_address if personal_info else None,
-                submitted_at=personal_info.submittedAt if personal_info else None,
-            ) if personal_info else None,
-            education=[
-                CandidateEducationResponse(
-                    formID=edu.formID,
-                    education_institute=edu.education_institute,
-                    degree=edu.degree,
-                    field_of_study=edu.field_of_study,
-                    starting_year=edu.starting_year,
-                    year_of_passing=edu.year_of_passing,
-                    percentage=edu.percentage,
-                    document_is_submitted=edu.document_is_submitted,
-                    document_id=edu.document_id
-                ) for edu in education_records
-            ],
-            experience=[
-                CandidateExperienceResponse(
-                    formID=exp.formID,
-                    company_name=exp.company_name,
-                    job_title=exp.job_title,
-                    start_date=exp.start_date,
-                    end_date=exp.end_date,
-                    year_of_experience=exp.year_of_experience,
-                    document_is_submitted=exp.document_is_submitted,
-                    document_id=exp.document_id
-                ) for exp in experience_records
-            ],
-            aadhar=CandidateAadharResponse(
-                formID=aadhar_form.formID if aadhar_form else None,
-                aadhar=aadhar_form.aadhar if aadhar_form else None,
-                name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
-                enrollment_number=aadhar_form.enrollment_number if aadhar_form else None,
-                aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
-                is_verified=aadhar_form.is_verified if aadhar_form else None,
-                document_id=aadhar_form.document_id if aadhar_form else None
-            ) if aadhar_form else None,
-            pan=CandidatePanResponse(
-                formID=pan_form.formID if pan_form else None,
-                pan=pan_form.pan if pan_form else None,
-                name_in_pan=pan_form.name_in_pan if pan_form else None,
-                father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
-                pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
-                is_verified=pan_form.is_verified if pan_form else None,
-                document_id=pan_form.document_id if pan_form else None
-            ) if pan_form else None,
-            status=candidate_status.status if candidate_status else None,
-            pipline_status=candidate_status.piplineStatus if candidate_status else None
-        )
+            aadhar_form = db.query(CandidateAadharForm).filter(
+                CandidateAadharForm.candidateID == candidate.candidateID
+            ).first()
 
-        candidates_data.append(candidate_response)
+            pan_form = db.query(CandidatePanForm).filter(
+                CandidatePanForm.candidateID == candidate.candidateID
+            ).first()
+
+            candidate_status = db.query(CandidateStatus).filter(
+                CandidateStatus.candidateID == candidate.candidateID
+            ).first()
+
+            candidate_response = CandidateCompleteResponse(
+                candidate_id=candidate.candidateID,
+                candidate_name=candidate_name,
+                candidate_first_name=candidate.candidateFirstName,
+                candidate_middle_name=candidate.candidateMiddleName,
+                candidate_last_name=candidate.candidateLastName,
+                candidate_email=candidate.candidateEmail,
+                candidate_mobile=candidate.candidateMobile,
+                candidate_role=candidate.candidateRole,
+                candidate_job_title=candidate.candidateJobTitle,
+                candidate_is_verified=candidate.candidateIsVerified,
+                candidate_created_at=candidate.candidateCreatedAt,
+                candidate_gender=candidate.candidateGender,
+                candidate_date_of_birth=candidate.candidateDateOfBirth,
+                candidate_source=candidate.candidateSource,
+                candidate_experience=candidate.candidateExperience,
+                candidate_skills=candidate.candidateSkills,
+                candidate_joining_date=candidate.candidateJoiningDate,
+                candidate_current_location=candidate.candidateCurrentLocation,
+                candidate_current_salary=candidate.candidateCurrentSalary,
+                candidate_expected_salary=candidate.candidateExpectedSalary,
+                candidate_employee_type=candidate.candidateEmployeeType,
+                is_guidewire_candidate=is_guidewire_candidate(db, candidate),
+                job_id=candidate.job_id,
+                personal_info=CandidateInfoResponse(
+                    position=personal_info.position if personal_info else None,
+                    department=personal_info.department if personal_info else None,
+                    dob=personal_info.dob if personal_info else None,
+                    gender=personal_info.gender if personal_info else None,
+                    marital_status=personal_info.marital_status if personal_info else None,
+                    nationality=personal_info.nationality if personal_info else None,
+                    current_address=personal_info.current_address if personal_info else None,
+                    permanent_address=personal_info.permanent_address if personal_info else None,
+                    submitted_at=personal_info.submittedAt if personal_info else None,
+                ) if personal_info else None,
+                education=[
+                    CandidateEducationResponse(
+                        formID=edu.formID,
+                        education_institute=edu.education_institute,
+                        degree=edu.degree,
+                        field_of_study=edu.field_of_study,
+                        starting_year=edu.starting_year,
+                        year_of_passing=edu.year_of_passing,
+                        percentage=edu.percentage,
+                        document_is_submitted=edu.document_is_submitted,
+                        document_id=edu.document_id
+                    ) for edu in education_records
+                ],
+                experience=[
+                    CandidateExperienceResponse(
+                        formID=exp.formID,
+                        company_name=exp.company_name,
+                        job_title=exp.job_title,
+                        start_date=exp.start_date,
+                        end_date=exp.end_date,
+                        year_of_experience=exp.year_of_experience,
+                        document_is_submitted=exp.document_is_submitted,
+                        document_id=exp.document_id
+                    ) for exp in experience_records
+                ],
+                aadhar=CandidateAadharResponse(
+                    formID=aadhar_form.formID if aadhar_form else None,
+                    aadhar=aadhar_form.aadhar if aadhar_form else None,
+                    name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
+                    enrollment_number=aadhar_form.enrollment_number if aadhar_form else None,
+                    aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
+                    is_verified=aadhar_form.is_verified if aadhar_form else None,
+                    document_id=aadhar_form.document_id if aadhar_form else None
+                ) if aadhar_form else None,
+                pan=CandidatePanResponse(
+                    formID=pan_form.formID if pan_form else None,
+                    pan=pan_form.pan if pan_form else None,
+                    name_in_pan=pan_form.name_in_pan if pan_form else None,
+                    father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
+                    pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
+                    is_verified=pan_form.is_verified if pan_form else None,
+                    document_id=pan_form.document_id if pan_form else None
+                ) if pan_form else None,
+                status=candidate_status.status if candidate_status else None,
+                pipline_status=candidate_status.piplineStatus if candidate_status else None
+            )
+
+            candidates_data.append(candidate_response)
 
         return AllCandidatesResponse(
             total_candidates=len(candidates_data),
