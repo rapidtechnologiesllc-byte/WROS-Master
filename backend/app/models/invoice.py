@@ -34,11 +34,11 @@ INVOICE_STATUSES = ("DRAFT", "APPROVED", "SENT", "PAID")
 class Invoice(Base):
     __tablename__ = "invoices"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    project_id = Column(String(256), ForeignKey("projects.id"), nullable=False, index=True)
-    client_id = Column(String(256), ForeignKey("clients.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
 
     billing_period_start = Column(Date, nullable=False)
     billing_period_end = Column(Date, nullable=False)
@@ -55,7 +55,7 @@ class Invoice(Base):
     )
 
     # HRMS-0907 BR-0907-02: Draft->Approved always an explicit Finance-role action.
-    approved_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     # "Not In Scope": Sent is always explicit, even after approval -- no auto-send.
     sent_at = Column(DateTime, nullable=True)
@@ -67,13 +67,13 @@ class Invoice(Base):
 class InvoiceLineItem(Base):
     __tablename__ = "invoice_line_items"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    invoice_id = Column(String(256), ForeignKey("invoices.id"), nullable=False, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False)
     # One line item per employee per timesheet (one work-week) in the
     # billing period -- the timesheet is the audit trail back to the
     # exact approved hours this line item bills for.
-    timesheet_id = Column(String(256), ForeignKey("timesheets.id"), nullable=False)
+    timesheet_id = Column(String(512), ForeignKey("timesheets.id"), nullable=False)
 
     hours = Column(Numeric(6, 2), nullable=False)
     rate_usd_cents = Column(Integer, nullable=False)

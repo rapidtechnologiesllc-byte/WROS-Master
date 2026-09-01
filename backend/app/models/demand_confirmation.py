@@ -34,14 +34,14 @@ DEMAND_CONFIRMATION_STATUSES = ("POTENTIAL", "CONFIRMED", "CANCELLED")
 class DemandAlignmentCall(Base):
     __tablename__ = "demand_alignment_calls"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=False, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
 
-    curtis_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
-    bu_head_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    curtis_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    bu_head_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     scheduled_at = Column(DateTime, nullable=True)  # SchedulerService.book3WayAlignment() result
 
     # NULL = not yet responded. True/False = an actual response, never

@@ -13,10 +13,10 @@ class EmployeeKPITarget(Base):
     """Target certifications and goals for an employee."""
     __tablename__ = "employee_kpi_targets"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
-    certification_id = Column(String(256), ForeignKey("certifications.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
+    certification_id = Column(String(512), ForeignKey("certifications.id"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     # Target deadline for certification
@@ -52,9 +52,9 @@ class EmployeeKPIScore(Base):
     """Aggregated KPI scores for employees."""
     __tablename__ = "employee_kpi_scores"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True, unique=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True, unique=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     # Overall KPI score (0-100)

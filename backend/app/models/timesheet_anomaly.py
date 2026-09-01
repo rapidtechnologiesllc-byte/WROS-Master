@@ -35,13 +35,13 @@ ANOMALY_TYPES = ("WEEKEND", "OVER_12H", "COMPLETED_PROJECT", "DUPLICATE", "UNLIN
 class TimesheetAnomalyFlag(Base):
     __tablename__ = "timesheet_anomaly_flags"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    timesheet_entry_id = Column(String(256), ForeignKey("timesheet_entries.id"), nullable=False, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    timesheet_entry_id = Column(String(512), ForeignKey("timesheet_entries.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     # Nullable: an allocation predating HRMS-0801 (no tracked project) has none.
-    project_id = Column(String(256), ForeignKey("projects.id"), nullable=True, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
 
     anomaly_type = Column(
         Enum(*ANOMALY_TYPES, name="timesheet_anomaly_type", native_enum=False, create_constraint=True),

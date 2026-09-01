@@ -36,10 +36,10 @@ class ChannelQueueItem(Base):
     __tablename__ = "channel_queue_item"
 
     # Primary key
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
 
     # Link to original message
-    message_id = Column(String(256), nullable=False, index=True)  # FK to message_queue.id
+    message_id = Column(String(512), nullable=False, index=True)  # FK to message_queue.id
 
     # Channel configuration
     channel_type = Column(
@@ -59,7 +59,7 @@ class ChannelQueueItem(Base):
 
     # Channel-specific payload
     payload = Column(JSON(), nullable=False)  # Channel-specific data (recipient, template vars, etc.)
-    recipient = Column(String(256), nullable=True)  # Email, phone, user_id, channel_id, etc.
+    recipient = Column(String(512), nullable=True)  # Email, phone, user_id, channel_id, etc.
 
     # Retry logic
     retry_count = Column(Integer, nullable=False, default=0)
@@ -84,9 +84,9 @@ class ChannelQueueLog(Base):
 
     __tablename__ = "channel_queue_log"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    channel_item_id = Column(String(256), nullable=False, index=True)  # FK to channel_queue_item.id
-    status = Column(String(256), nullable=False)  # PENDING, PROCESSING, COMPLETED, FAILED
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    channel_item_id = Column(String(512), nullable=False, index=True)  # FK to channel_queue_item.id
+    status = Column(String(512), nullable=False)  # PENDING, PROCESSING, COMPLETED, FAILED
     message = Column(Text(), nullable=True)  # Status message or error
     processing_time_ms = Column(Integer, nullable=True)  # How long it took
     timestamp = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
@@ -97,9 +97,9 @@ class SLMChannelDecision(Base):
 
     __tablename__ = "slm_channel_decision"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    slm_decision_id = Column(String(256), nullable=False, index=True)  # FK to slm_decision.id
-    message_id = Column(String(256), nullable=False, index=True)  # FK to message_queue.id
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    slm_decision_id = Column(String(512), nullable=False, index=True)  # FK to slm_decision.id
+    message_id = Column(String(512), nullable=False, index=True)  # FK to message_queue.id
 
     # Channels to trigger: [{ "channel": "EMAIL", "action": "send_offer" }, ...]
     channels_to_trigger = Column(JSON(), nullable=False)

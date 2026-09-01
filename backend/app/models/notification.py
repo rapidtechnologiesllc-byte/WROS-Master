@@ -42,10 +42,10 @@ DELIVERY_STATUSES = ("PENDING", "SENT", "FALLBACK_SENT", "FAILED")
 class Notification(Base):
     __tablename__ = "notifications"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    recipient_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
+    recipient_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
     channel = Column(
         Enum(*NOTIFICATION_CHANNELS, name="notification_channel", native_enum=False, create_constraint=True),
         nullable=False,

@@ -16,11 +16,11 @@ class ResourceDemand(Base):
     """Track resource demand across the organization"""
     __tablename__ = "resource_demands"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Resource details
-    resource_type = Column(String(256), nullable=False, index=True)  # DEVELOPER, QA, DESIGNER, etc.
+    resource_type = Column(String(512), nullable=False, index=True)  # DEVELOPER, QA, DESIGNER, etc.
     quantity_needed = Column(Integer, nullable=False, default=0)
     quantity_fulfilled = Column(Integer, nullable=False, default=0)
 
@@ -29,8 +29,8 @@ class ResourceDemand(Base):
     end_date = Column(Date, nullable=False)
 
     # Organization context
-    business_unit_id = Column(String(256), ForeignKey("business_units.id"), nullable=False, index=True)
-    project_id = Column(String(256), ForeignKey("projects.id"), nullable=True, index=True)
+    business_unit_id = Column(String(512), ForeignKey("business_units.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
 
     # Status tracking
     status = Column(
@@ -38,16 +38,16 @@ class ResourceDemand(Base):
         default="OPEN",
         index=True
     )
-    closure_reason = Column(String(256), nullable=True)
+    closure_reason = Column(String(512), nullable=True)
 
     # Audit fields
-    created_by = Column(String(256), nullable=True)
+    created_by = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    adjusted_by = Column(String(256), nullable=True)
+    adjusted_by = Column(String(512), nullable=True)
     adjusted_at = Column(DateTime, nullable=True)
 
-    closed_by = Column(String(256), nullable=True)
+    closed_by = Column(String(512), nullable=True)
     closed_at = Column(DateTime, nullable=True)
 
     # Relationships

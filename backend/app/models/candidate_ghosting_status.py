@@ -29,12 +29,12 @@ class CandidateGhostingStatus(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     ghosted_at = Column(DateTime(timezone=False), nullable=False)
-    ghosting_reason = Column(String(256), nullable=False, server_default=DEFAULT_GHOSTING_REASON)
+    ghosting_reason = Column(String(512), nullable=False, server_default=DEFAULT_GHOSTING_REASON)
     reactivation_scheduled_at = Column(DateTime(timezone=False), nullable=True)
     is_reactivated = Column(Boolean, nullable=False, server_default="0")
     reactivated_at = Column(DateTime(timezone=False), nullable=True)

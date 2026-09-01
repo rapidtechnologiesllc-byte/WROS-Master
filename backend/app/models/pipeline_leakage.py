@@ -46,7 +46,7 @@ class PipelineLeakageFlag(Base):
 
     __tablename__ = "pipeline_leakage_flags"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     pattern_type = Column(
@@ -55,10 +55,10 @@ class PipelineLeakageFlag(Base):
     )
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
-    opportunity_id = Column(String(256), ForeignKey("opportunities.id"), nullable=True, index=True)
-    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=True, index=True)
-    revenue_leakage_flag_id = Column(String(256), ForeignKey("revenue_leakage_time_layer.id"), nullable=True, index=True)
-    sub_vendor_request_id = Column(String(256), ForeignKey("sub_vendor_requests.id"), nullable=True, index=True)
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=True, index=True)
+    revenue_leakage_flag_id = Column(String(512), ForeignKey("revenue_leakage_time_layer.id"), nullable=True, index=True)
+    sub_vendor_request_id = Column(String(512), ForeignKey("sub_vendor_requests.id"), nullable=True, index=True)
 
     estimated_impact_usd_cents = Column(Integer, nullable=True)
     detail = Column(Text, nullable=True)

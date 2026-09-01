@@ -23,9 +23,9 @@ class CandidateJobScore(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
-    job_id = Column(String(256), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(String(512), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
 
     technical_score = Column(Integer, nullable=True)
     compensation_score = Column(Integer, nullable=True)   # not computed by S-037 -- see module docstring

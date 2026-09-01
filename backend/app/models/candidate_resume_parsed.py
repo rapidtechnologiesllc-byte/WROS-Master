@@ -22,15 +22,15 @@ class CandidateResumeParsed(Base):
     __tablename__ = "candidate_resume_parsed"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     raw_text = Column(Text, nullable=True)
-    full_name = Column(String(256), nullable=True)
+    full_name = Column(String(512), nullable=True)
     email = Column(String(300), nullable=True)
-    phone = Column(String(256), nullable=True)
-    current_title = Column(String(256), nullable=True)
-    current_employer = Column(String(256), nullable=True)
+    phone = Column(String(512), nullable=True)
+    current_title = Column(String(512), nullable=True)
+    current_employer = Column(String(512), nullable=True)
 
     work_history = Column(JSON, nullable=True)
     education = Column(JSON, nullable=True)

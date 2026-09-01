@@ -26,9 +26,9 @@ class AgentMaturityLevel(Base):
     __tablename__ = "agent_maturity_levels"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
 
-    agent_name = Column(String(256), nullable=False, index=True)  # e.g., "Recruitment", "Resource Manager", etc.
+    agent_name = Column(String(512), nullable=False, index=True)  # e.g., "Recruitment", "Resource Manager", etc.
     maturity_level = Column(Float, nullable=False, default=0.0)  # 0-100 scale
     success_rate = Column(Float, nullable=False, default=0.0)  # % of successful executions
     avg_execution_time_ms = Column(Integer, nullable=True)  # Average execution time in milliseconds
@@ -62,9 +62,9 @@ class AgentPerformanceMetric(Base):
     __tablename__ = "agent_performance_metrics"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
 
-    agent_name = Column(String(256), nullable=False, index=True)
+    agent_name = Column(String(512), nullable=False, index=True)
     week_starting = Column(DateTime, nullable=False, index=True)  # Monday of the week
 
     # Performance metrics
@@ -80,7 +80,7 @@ class AgentPerformanceMetric(Base):
     quality_score = Column(Float, nullable=True)  # 0-100
 
     # Context
-    top_error_type = Column(String(256), nullable=True)  # Most common error
+    top_error_type = Column(String(512), nullable=True)  # Most common error
     error_count = Column(Integer, nullable=False, default = False)
     notes = Column(Text, nullable=True)  # Reporting agent's notes on performance
 

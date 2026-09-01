@@ -24,12 +24,12 @@ class StrategicGoal(Base):
     """CEO-level strategic goal that cascades to all departments"""
     __tablename__ = "strategic_goals"
 
-    id = Column(String(256), primary_key=True, index=True)
+    id = Column(String(512), primary_key=True, index=True)
     tenant_id = Column(Integer, nullable=False, index=True)
-    goal_name = Column(String(256), nullable=False)
-    goal_type = Column(String(256), nullable=False)  # "headcount", "revenue", "logos"
+    goal_name = Column(String(512), nullable=False)
+    goal_type = Column(String(512), nullable=False)  # "headcount", "revenue", "logos"
     target_value = Column(Float, nullable=False)
-    unit = Column(String(256), nullable=False)  # "people", "$", "logos"
+    unit = Column(String(512), nullable=False)  # "people", "$", "logos"
     year = Column(Integer, nullable=False)
 
     # Tracking progress
@@ -40,7 +40,7 @@ class StrategicGoal(Base):
     cascade_rules = Column(Text, nullable=True)  # JSON string with cascade configuration
 
     # Metadata
-    created_by_user_id = Column(String(256), nullable=True)
+    created_by_user_id = Column(String(512), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
 
@@ -57,14 +57,14 @@ class CascadedGoal(Base):
     """Department/role-level goal automatically cascaded from strategic goal"""
     __tablename__ = "cascaded_goals"
 
-    id = Column(String(256), primary_key=True, index=True)
+    id = Column(String(512), primary_key=True, index=True)
     tenant_id = Column(Integer, nullable=False, index=True)
-    strategic_goal_id = Column(String(256), ForeignKey("strategic_goals.id"), nullable=False)
+    strategic_goal_id = Column(String(512), ForeignKey("strategic_goals.id"), nullable=False)
 
     # What department/role gets this cascade?
-    cascaded_to_department = Column(String(256), nullable=False)  # "workforce_ops", "partner", "bu_head", etc.
-    cascaded_to_user_id = Column(String(256), nullable=True)  # Optional: specific user if role-specific
-    cascaded_to_business_unit_id = Column(String(256), nullable=True)  # Optional: scoped to specific BU
+    cascaded_to_department = Column(String(512), nullable=False)  # "workforce_ops", "partner", "bu_head", etc.
+    cascaded_to_user_id = Column(String(512), nullable=True)  # Optional: specific user if role-specific
+    cascaded_to_business_unit_id = Column(String(512), nullable=True)  # Optional: scoped to specific BU
 
     # Cascaded target values (calculated from CEO goal)
     annual = Column(Float, nullable=False)
@@ -78,7 +78,7 @@ class CascadedGoal(Base):
     progress_pct = Column(Float, default=0)
 
     # Cascade metadata
-    cascade_formula = Column(String(256), nullable=True)  # "direct_assignment", "divide_equal", "divide_weighted"
+    cascade_formula = Column(String(512), nullable=True)  # "direct_assignment", "divide_equal", "divide_weighted"
     cascade_detail = Column(Text, nullable=True)  # Additional cascade information as JSON
 
     # Timestamps
@@ -100,12 +100,12 @@ class PyramidReport(Base):
     """Weekly pyramid reporting records for audit and history"""
     __tablename__ = "pyramid_reports"
 
-    id = Column(String(256), primary_key=True, index=True)
+    id = Column(String(512), primary_key=True, index=True)
     tenant_id = Column(Integer, nullable=False, index=True)
-    user_id = Column(String(256), nullable=False)
+    user_id = Column(String(512), nullable=False)
 
     # Reporting context
-    reporting_level = Column(String(256), nullable=False)  # "tech_lead", "manager", "architect", "bu_head", "partner", "ceo"
+    reporting_level = Column(String(512), nullable=False)  # "tech_lead", "manager", "architect", "bu_head", "partner", "ceo"
     reporting_week = Column(Integer, nullable=False)  # 1-52
     reporting_year = Column(Integer, nullable=False)
 
@@ -113,23 +113,23 @@ class PyramidReport(Base):
     report_data = Column(Text, nullable=True)  # Full report as JSON
 
     # Flash validation results
-    cascaded_goal_id = Column(String(256), ForeignKey("cascaded_goals.id"), nullable=True)
+    cascaded_goal_id = Column(String(512), ForeignKey("cascaded_goals.id"), nullable=True)
     annual_goal_value = Column(Float, nullable=True)
     year_to_date_progress = Column(Float, nullable=True)
     this_week_reported = Column(Float, nullable=True)
 
     # Flash analysis
-    status = Column(String(256), nullable=True)  # "ON_TRACK", "SLIGHT_LAG", "CRITICAL_LAG", "AHEAD"
+    status = Column(String(512), nullable=True)  # "ON_TRACK", "SLIGHT_LAG", "CRITICAL_LAG", "AHEAD"
     flash_feedback = Column(Text, nullable=True)  # Flash's coaching/feedback
     variance = Column(Float, nullable=True)  # Variance from expected pace
     variance_pct = Column(Float, nullable=True)  # Percentage variance
 
     # Confirmation gate
-    confirmed_accurate = Column(String(256), default="pending")  # "pending", "confirmed", "rejected"
+    confirmed_accurate = Column(String(512), default="pending")  # "pending", "confirmed", "rejected"
     confirmation_comment = Column(Text, nullable=True)
 
     # Submission state
-    submitted = Column(String(256), default="draft")  # "draft", "submitted", "rejected"
+    submitted = Column(String(512), default="draft")  # "draft", "submitted", "rejected"
     submitted_at = Column(DateTime(timezone=False), nullable=True)
 
     # Timestamps

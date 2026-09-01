@@ -29,13 +29,13 @@ def _new_uuid() -> str:
 class HTDPhaseGate(Base):
     __tablename__ = "htd_phase_gates"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
 
     phase = Column(String(30), nullable=False)  # one of HTD_GATE_PHASES
     gate_owner_role = Column(String(30), nullable=False)  # one of HTD_GATE_OWNER_ROLES
-    gate_owner_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False)
+    gate_owner_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False)
     gate_decision = Column(String(10), nullable=False)  # one of HTD_GATE_DECISIONS
     gate_notes = Column(Text, nullable=False)  # min 50 chars, enforced in the service layer
 

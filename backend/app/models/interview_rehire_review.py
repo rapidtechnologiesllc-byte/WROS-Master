@@ -36,11 +36,11 @@ class InterviewRehireReview(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    round_name = Column(String(256), nullable=False)
-    job_id = Column(String(256), ForeignKey("jobs.jobID"), nullable=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    round_name = Column(String(512), nullable=False)
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True)
 
-    requested_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    requested_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     justification = Column(Text, nullable=False)
 
     # Panel IDs (app.models.user.InterviewPanel.id) whose feedback carried
@@ -61,7 +61,7 @@ class InterviewRehireReview(Base):
     ai_reasoning = Column(Text, nullable=True)
     ai_confidence = Column(Numeric(3, 2), nullable=True)
 
-    decided_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
+    decided_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     decided_at = Column(DateTime, nullable=True)
     decision_note = Column(Text, nullable=True)
 

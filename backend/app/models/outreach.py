@@ -24,8 +24,8 @@ class OutreachSequence(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=True, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=True, index=True)
 
     message_text = Column(Text, nullable=True)          # max 1000 chars per UI spec
     primary_channel = Column(String(20), nullable=False)  # one of OUTREACH_CHANNELS
@@ -42,7 +42,7 @@ class OutreachSequence(Base):
     # every actual send re-checks thunder_service.has_active_consent().
     consent_given_snapshot = Column(Boolean, nullable=True)
 
-    sent_via = Column(String(256), nullable=True)  # always 'sendThunderMessage' once any send occurs
+    sent_via = Column(String(512), nullable=True)  # always 'sendThunderMessage' once any send occurs
     last_touch_sent_at = Column(DateTime(timezone=False), nullable=True)
     blocked_reason = Column(Text, nullable=True)
 

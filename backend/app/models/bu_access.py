@@ -17,7 +17,7 @@ class BUAccess(Base):
     __tablename__ = "bu_access"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
+    user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
     is_default = Column(Boolean, nullable=False, default=False)
 

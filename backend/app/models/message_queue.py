@@ -34,17 +34,17 @@ class MessageQueue(Base):
     __tablename__ = "message_queue"
 
     # Primary key and identifiers
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    type = Column(String(256), nullable=False, index=True)  # e.g., 'candidate_added', 'interview_scheduled'
-    queue_type = Column(String(256), nullable=True, index=True)  # Channel-based: THUNDER_QUEUE, EMAIL_QUEUE, etc.
-    status = Column(String(256), nullable=False, index=True)  # PENDING, SLM_PROCESSING, CHANNEL_QUEUED, COMPLETED, FAILED
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    type = Column(String(512), nullable=False, index=True)  # e.g., 'candidate_added', 'interview_scheduled'
+    queue_type = Column(String(512), nullable=True, index=True)  # Channel-based: THUNDER_QUEUE, EMAIL_QUEUE, etc.
+    status = Column(String(512), nullable=False, index=True)  # PENDING, SLM_PROCESSING, CHANNEL_QUEUED, COMPLETED, FAILED
 
     # Message content
     payload = Column(JSON(), nullable=False)  # Serialized message data
-    resource_id = Column(String(256), nullable=True, index=True)  # FK to resource (candidate_id, etc.)
+    resource_id = Column(String(512), nullable=True, index=True)  # FK to resource (candidate_id, etc.)
 
     # Tracking and audit
-    created_by = Column(String(256), nullable=False)  # User or system that created message
+    created_by = Column(String(512), nullable=False)  # User or system that created message
     retry_count = Column(Integer, nullable=False, default=0)  # Number of retry attempts
     error = Column(Text(), nullable=True)  # Error message if failed
 
@@ -52,7 +52,7 @@ class MessageQueue(Base):
     next_retry_at = Column(DateTime(timezone=False), nullable=True, index=True)  # When to retry
 
     # Email-specific fields (for EMAIL_QUEUE messages)
-    email_status = Column(String(256), nullable=True)  # PENDING, SENDING, SENT, DELIVERED, OPENED, CLICKED, REPLIED, BOUNCED, SPAM, DELETED
+    email_status = Column(String(512), nullable=True)  # PENDING, SENDING, SENT, DELIVERED, OPENED, CLICKED, REPLIED, BOUNCED, SPAM, DELETED
     opened_at = Column(DateTime(timezone=False), nullable=True)  # When email was opened
     clicked_at = Column(DateTime(timezone=False), nullable=True)  # When email link was clicked
     replied_at = Column(DateTime(timezone=False), nullable=True)  # When email was replied to
@@ -61,7 +61,7 @@ class MessageQueue(Base):
     deleted_at = Column(DateTime(timezone=False), nullable=True)  # When deleted by recipient
 
     # Email provider and tracking
-    email_provider = Column(String(256), nullable=True)  # gmail, outlook, yahoo, apple, smtp
+    email_provider = Column(String(512), nullable=True)  # gmail, outlook, yahoo, apple, smtp
     last_tracked_at = Column(DateTime(timezone=False), nullable=True)  # Last time tracking was checked
     tracking_error = Column(Text(), nullable=True)  # Error from email tracking service
 
@@ -96,10 +96,10 @@ class MessageChannel(Base):
 
     __tablename__ = "message_channels"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    message_id = Column(String(256), nullable=False, index=True)
-    queue_type = Column(String(256), nullable=False, index=True)  # Which channel to route to
-    status = Column(String(256), nullable=False, default="PENDING")  # PENDING, PROCESSING, COMPLETED, FAILED
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    message_id = Column(String(512), nullable=False, index=True)
+    queue_type = Column(String(512), nullable=False, index=True)  # Which channel to route to
+    status = Column(String(512), nullable=False, default="PENDING")  # PENDING, PROCESSING, COMPLETED, FAILED
     error_details = Column(Text(), nullable=True)  # Error details if processing failed
     processed_at = Column(DateTime(timezone=False), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
@@ -121,13 +121,13 @@ class EmailTracking(Base):
 
     __tablename__ = "email_tracking"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    message_id = Column(String(256), nullable=False, index=True)
-    recipient_email = Column(String(256), nullable=False, index=True)
-    provider = Column(String(256), nullable=False)  # gmail, outlook, yahoo, apple, smtp
-    message_id_external = Column(String(256), nullable=True)  # External message ID from provider
-    thread_id = Column(String(256), nullable=True)  # Gmail thread ID
-    status = Column(String(256), nullable=False, default="PENDING")  # PENDING, SENT, DELIVERED, OPENED, CLICKED, REPLIED, BOUNCED, SPAM, DELETED
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    message_id = Column(String(512), nullable=False, index=True)
+    recipient_email = Column(String(512), nullable=False, index=True)
+    provider = Column(String(512), nullable=False)  # gmail, outlook, yahoo, apple, smtp
+    message_id_external = Column(String(512), nullable=True)  # External message ID from provider
+    thread_id = Column(String(512), nullable=True)  # Gmail thread ID
+    status = Column(String(512), nullable=False, default="PENDING")  # PENDING, SENT, DELIVERED, OPENED, CLICKED, REPLIED, BOUNCED, SPAM, DELETED
 
     # Engagement timestamps
     sent_at = Column(DateTime(timezone=False), nullable=True)
@@ -143,7 +143,7 @@ class EmailTracking(Base):
     # Engagement metrics
     open_count = Column(Integer(), default=0)
     click_count = Column(Integer(), default=0)
-    bounce_reason = Column(String(256), nullable=True)
+    bounce_reason = Column(String(512), nullable=True)
 
     # Polling state
     last_checked_at = Column(DateTime(timezone=False), nullable=True)
@@ -174,9 +174,9 @@ class EmailTrackingEvent(Base):
 
     __tablename__ = "email_tracking_events"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    tracking_id = Column(String(256), nullable=False, index=True)
-    event_type = Column(String(256), nullable=False)  # sent, delivered, opened, clicked, replied, bounced, spam, deleted
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    tracking_id = Column(String(512), nullable=False, index=True)
+    event_type = Column(String(512), nullable=False)  # sent, delivered, opened, clicked, replied, bounced, spam, deleted
     event_data = Column(JSON(), nullable=True)  # Additional event details (IP, user-agent, link clicked, etc.)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
@@ -195,9 +195,9 @@ class QueueProcessingState(Base):
 
     __tablename__ = "queue_processing_state"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    queue_type = Column(String(256), nullable=False, unique=True, index=True)
-    last_processed_message_id = Column(String(256), nullable=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    queue_type = Column(String(512), nullable=False, unique=True, index=True)
+    last_processed_message_id = Column(String(512), nullable=True)
     last_processed_at = Column(DateTime(timezone=False), nullable=True)
     is_processing = Column(Boolean(), default=False)
     process_count_total = Column(Integer(), default=0)
@@ -216,9 +216,9 @@ class MessageLog(Base):
 
     __tablename__ = "message_log"
 
-    id = Column(String(256), primary_key=True, default=_new_uuid)
-    message_id = Column(String(256), nullable=False, index=True)  # FK to message_queue.id
-    status = Column(String(256), nullable=False)  # Status at this point in time
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    message_id = Column(String(512), nullable=False, index=True)  # FK to message_queue.id
+    status = Column(String(512), nullable=False)  # Status at this point in time
     error = Column(Text(), nullable=True)  # Error (if any)
     processing_time_ms = Column(Integer, nullable=True)  # How long it took to process
     timestamp = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
