@@ -124,11 +124,7 @@ jobs:
              rm -rf build && \
              mv build-new build"
 
-      - name: Update Nginx configuration
-        run: |
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} sudo sed -i 's|root /home/HRMS/WROS-Master/frontend/build;|root /home/HRMS/WROS-Master/frontend/build/build;|g' /etc/nginx/sites-available/wros-hrms-frontend.conf
-
-      - name: Restart Nginx service
+      - name: Reload Nginx service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "sudo systemctl reload nginx || echo 'Nginx reload failed'"
