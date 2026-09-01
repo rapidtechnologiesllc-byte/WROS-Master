@@ -33,15 +33,14 @@ from app.utils.uniq_id_generator import candidate_id_generator, generate_passwor
 
 
 class DuplicateCandidateError(Exception):
-    """Raised instead of creating a second record for the same person.
-    Callers decide how to translate this into their own response shape
-    (e.g. a 200 "already applied" vs. a 400 error) -- this service layer
-    has one behavior (refuse), not an opinion on HTTP semantics."""
+    """Raised when attempting to create a duplicate candidate.
+    Used for logging/audit only - duplicates are now tracked as multiple applications.
+    Allows Thunder to analyze: is person genuinely interested or randomly applying?"""
 
     def __init__(self, existing: Candidate, matched_on: str):
         self.existing = existing
         self.matched_on = matched_on
-        super().__init__(f"Candidate already exists (matched on {matched_on}): {existing.candidateID}")
+        super().__init__(f"Candidate matched existing record (on {matched_on}): {existing.candidateID}")
 
 
 def find_duplicate_candidate(
@@ -81,20 +80,23 @@ def create_candidate_safe(
     candidate_id: Optional[str] = None,
     plain_password: Optional[str] = None,
     **fields,
-) -> Candidate:
+) -> Tuple[Candidate, bool]:
     """
-    R-07: the only sanctioned path to create a candidate. Runs dedup
-    first (fail closed -- raises rather than creating a second record);
-    only inserts once no field matches an existing candidate.
+    R-07: the only sanctioned path to create a candidate. Runs dedup check;
+    if duplicate found by email/phone/LinkedIn, returns existing candidate
+    so caller can track as a new job application instead of duplicate rejection.
 
-    `fields` accepts any other Candidate column by name (candidateRole,
-    candidateFirstName, etc.) so this can back every existing candidate-
-    creation call site without those call sites needing to change their
-    own field mapping, only the creation call itself.
+    Enables Thunder to analyze application patterns: is this person genuinely
+    interested (applying to related roles) or randomly applying (unrelated roles)?
+
+    Returns: (Candidate object, is_new: bool)
+      - is_new=True: newly created candidate
+      - is_new=False: existing candidate (duplicate match), caller should create job application
     """
     existing, matched_on = find_duplicate_candidate(db, email=email, mobile=mobile, linkedin_url=linkedin_url)
     if existing:
-        raise DuplicateCandidateError(existing, matched_on)
+        # Duplicate found - return existing candidate, let caller track as multiple application
+        return existing, False
 
     candidate_id = candidate_id or candidate_id_generator()
     plain_password = plain_password or generate_password()
@@ -128,7 +130,7 @@ def create_candidate_safe(
             captured_by="candidate_creation",
         ))
 
-    return candidate
+    return candidate, True  # Return (candidate, is_new=True) for new candidates
 
 
 # ---------------------------------------------------------------------------
