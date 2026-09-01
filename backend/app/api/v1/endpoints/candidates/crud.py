@@ -240,16 +240,35 @@ def create_candidate(
     summary="List all candidates (CRUD operation)"
 )
 def get_all_candidates(
-    db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    request: Request
 ):
     """
     Get all candidates with their complete information.
 
     CRUD operation: Read only (no modifications).
     BU scoped: Respects business unit access policies.
+
+    Fix for FastAPI dependency injection issue: Use request.state instead of Depends()
     """
-    candidates = apply_bu_scope_to_candidate_query(
+    from app.core.database import SessionLocal
+    from app.models.user import Users
+    from app.core.logging import logger
+
+    # Get user from request state (set by middleware)
+    user_id = request.state.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="No user ID in request")
+
+    # Create database session manually (bypass Depends() framework)
+    db = SessionLocal()
+    try:
+        # Verify user exists
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if not user:
+            logger.error(f"User {user_id} not found in database")
+            raise HTTPException(status_code=401, detail="User not found")
+
+        candidates = apply_bu_scope_to_candidate_query(
         db, db.query(Candidate), current_user=user,
     ).all()
 
@@ -370,10 +389,15 @@ def get_all_candidates(
 
         candidates_data.append(candidate_response)
 
-    return AllCandidatesResponse(
-        total_candidates=len(candidates_data),
-        candidates=candidates_data
-    )
+        return AllCandidatesResponse(
+            total_candidates=len(candidates_data),
+            candidates=candidates_data
+        )
+    except Exception as e:
+        logger.error(f"Failed to get all candidates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve candidates")
+    finally:
+        db.close()
 
 
 @router.get(
