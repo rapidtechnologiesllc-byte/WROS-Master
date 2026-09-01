@@ -10,7 +10,7 @@ from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
-from app.api.v1.endpoints.rbac import router as rbac_router
+# RBAC removed - using RoleTemplate system only
 from app.api.v1.endpoints.checklists import router as checklists_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 from app.api.v1.endpoints.ats import router as ats_router
@@ -126,7 +126,7 @@ router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
 router.include_router(router=navigation_router)
-router.include_router(router=rbac_router)
+# RBAC removed - using RoleTemplate system only
 router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=permission_composition_router)
