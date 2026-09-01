@@ -33,7 +33,7 @@ class QueueRouter:
 
         Args:
             message_type: Type of message (e.g., 'candidate_created')
-            db: Database session (for role template queries)
+            db: Database session (optional, for future role-template integration)
 
         Returns:
             Queue type string (THUNDER_QUEUE, EMAIL_QUEUE, etc.)
@@ -45,27 +45,9 @@ class QueueRouter:
             # Get routing config from contract (strict validation)
             config = validate_queue_routing_config(message_type)
 
-            # Query role templates to find which queue handles this permission
-            if db:
-                from app.models.role_template import RoleTemplate
-                from app.models.rbac import Permission, RolePermission
-
-                # Find roles with this permission (using correct field name)
-                roles_with_perm = (
-                    db.query(RoleTemplate)
-                    .join(RolePermission, RoleTemplate.id == RolePermission.role_id)
-                    .join(Permission, RolePermission.permission_id == Permission.id)
-                    .filter(Permission.name == config.required_permission)
-                    .all()
-                )
-
-                if roles_with_perm:
-                    # Return configured queue from contract
-                    logger.info(f"Queue routing for {message_type}: {config.default_queue}")
-                    return config.default_queue.value
-
-            # No role with permission - use default from contract
-            logger.info(f"No role found for {message_type}, using default: {config.default_queue}")
+            # Use default queue from contract
+            # Future: Can integrate with role templates to allow per-role queue routing
+            logger.info(f"Queue routing for {message_type}: {config.default_queue.value}")
             return config.default_queue.value
 
         except ValueError as e:
