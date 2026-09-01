@@ -75,11 +75,24 @@ async def _lazy_init():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan context - runs after server starts."""
-    # Server is now running, do async initialization
+    # Server is now running, do database initialization
     try:
+        logger.info("[Lifespan] Starting lazy initialization...")
         await _lazy_init()
+
+        # Include routes after models are registered
+        logger.info("[Lifespan] Including API routes...")
+        try:
+            from app.api.v1.routes import router
+            app.include_router(router, prefix="/api/v1")
+            logger.info("[OK] Routes included successfully")
+        except Exception as route_err:
+            logger.error(f"[Routes] Failed to include routes: {route_err}", exc_info=True)
+            raise
+
     except Exception as e:
-        logger.error(f"[Lifespan] Initialization failed: {e}")
+        logger.error(f"[Lifespan] Initialization failed: {e}", exc_info=True)
+        raise
 
     yield  # Server runs here
 
@@ -171,20 +184,7 @@ def health_check():
     }
 
 
-# Include API routes (lazy - imported on first request that needs them)
-@app.get("/api/v1")
-def api_root():
-    """Trigger lazy route loading."""
-    try:
-        from app.api.v1.routes import router
-        if not hasattr(app, "_routes_loaded"):
-            app.include_router(router, prefix="/api/v1")
-            app._routes_loaded = True
-    except Exception as e:
-        logger.warning(f"Route loading deferred: {e}")
-
-    return {"status": "ok", "version": settings.APP_VERSION}
-
+# Routes will be included after app starts (in lifespan)
 
 # Mount static files if available
 static_dir = Path("static")
