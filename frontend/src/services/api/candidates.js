@@ -2,7 +2,7 @@
 import { apiRequest } from "./client";
 
 export const createCandidate = async (payload) => {
-  const { data } = await apiRequest("/onboarding/hr/create_candidate", {
+  const { data } = await apiRequest("/api/v1/candidates/create", {
     method: "POST",
     body: JSON.stringify(payload),
   });

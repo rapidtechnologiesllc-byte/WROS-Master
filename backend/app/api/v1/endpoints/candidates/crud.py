@@ -36,7 +36,7 @@ from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU
 
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.services.message_queue_service import MessageQueueService
 
 from app.schemas.candidate import (
@@ -67,6 +67,7 @@ def create_candidate(
     req: Request,
     request: CandidateCreateRequest,
     background_tasks: BackgroundTasks,
+    current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -86,8 +87,8 @@ def create_candidate(
 
     password = generate_password()
     try:
-        # Get user from request state (set by middleware)
-        user = getattr(req.state, 'user_object', None)
+        # Get authenticated user from dependency
+        user = current_user
         if not user:
             raise HTTPException(status_code=401, detail="User not authenticated")
 
