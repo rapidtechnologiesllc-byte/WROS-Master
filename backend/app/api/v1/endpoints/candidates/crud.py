@@ -37,6 +37,7 @@ from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU
 
 from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.core.permission_enforcement import require_permission
 from app.services.message_queue_service import MessageQueueService
 
 from app.schemas.candidate import (
@@ -63,6 +64,7 @@ router = APIRouter(prefix="/candidates", tags=["candidates-crud"])
     response_model=CandidateCreateResponse,
     summary="Create new candidate (CRUD operation)"
 )
+@require_permission("candidates.create")
 def create_candidate(
     req: Request,
     request: CandidateCreateRequest,
@@ -79,23 +81,35 @@ def create_candidate(
     CRITICAL: Candidate is assigned to user's business unit so Thunder can access it
     via proper tenant/BU scoping. Without this, Thunder has no visibility.
     """
+    logger.info("[DEBUG] ========== CREATE CANDIDATE ENDPOINT CALLED ==========")
+    logger.info(f"[DEBUG] Request email: {request.candidate_email}")
+    logger.info(f"[DEBUG] Request data: first={request.candidate_first_name}, last={request.candidate_last_name}, location={request.candidate_current_location}")
+
     if not request.candidate_current_location or not request.candidate_current_location.strip():
+        logger.error("[DEBUG] Location validation failed - location is empty or None")
         raise HTTPException(
             status_code=400,
             detail="Location (City, State, Country) is mandatory for candidate creation"
         )
+    logger.info(f"[DEBUG] Location validated: {request.candidate_current_location}")
 
     password = generate_password()
+    logger.info(f"[DEBUG] Generated password for candidate")
+
     try:
         # Get authenticated user from dependency
+        logger.info("[DEBUG] Starting user authentication check")
         user = current_user
         if not user:
+            logger.error("[DEBUG] Current user is None - authentication failed")
             raise HTTPException(status_code=401, detail="User not authenticated")
+        logger.info(f"[DEBUG] User authenticated: {user.UserID}, Email: {getattr(user, 'email', 'N/A')}")
 
         # Get user's BU from the authenticated user object
         user_bu_id = getattr(user, 'business_unit_id', None)
-        logger.info(f"[CreateCandidate] User {user.UserID} has BU ID: {user_bu_id}")
+        logger.info(f"[DEBUG] User {user.UserID} has BU ID: {user_bu_id}")
 
+        logger.info("[DEBUG] Calling create_candidate_safe service")
         candidate = create_candidate_safe(
             db,
             email=request.candidate_email,
@@ -120,16 +134,25 @@ def create_candidate(
             candidateCreatedAt=datetime.now(),
             associated_bu_id=user_bu_id,  # CRITICAL: Assign to user's BU for Thunder access
         )
-        logger.info(f"[CreateCandidate] Candidate {candidate.candidateID} assigned to BU: {candidate.associated_bu_id}")
-    except DuplicateCandidateError:
+        logger.info(f"[DEBUG] Candidate created: {candidate.candidateID} assigned to BU: {candidate.associated_bu_id}")
+    except DuplicateCandidateError as e:
+        logger.error(f"[DEBUG] DuplicateCandidateError: {e}")
         raise HTTPException(
             status_code=400,
             detail=f"Account already exists with email {request.candidate_email}"
         )
+    except Exception as e:
+        logger.error(f"[DEBUG] Exception in create_candidate_safe: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create candidate: {str(e)}"
+        )
 
     candidate_id = candidate.candidateID
+    logger.info(f"[DEBUG] Candidate ID extracted: {candidate_id}")
 
     # ATOMIC TRANSACTION: Add all objects before commit
+    logger.info("[DEBUG] Adding CandidateStatus record")
     candidate_status = CandidateStatus(
         candidateID=candidate_id,
         piplineStatus="Applied",
@@ -138,7 +161,9 @@ def create_candidate(
         updatedAt=datetime.now(),
     )
     db.add(candidate_status)
+    logger.info("[DEBUG] CandidateStatus added to session")
 
+    logger.info("[DEBUG] Adding CandidateInfoForm record")
     candidate_info = CandidateInfoForm(
         candidateID=candidate_id,
         dob=request.candidate_date_of_birth,
@@ -146,9 +171,12 @@ def create_candidate(
         submittedAt=datetime.now().date(),
     )
     db.add(candidate_info)
+    logger.info("[DEBUG] CandidateInfoForm added to session")
 
     if request.education_records:
-        for edu in request.education_records:
+        logger.info(f"[DEBUG] Processing {len(request.education_records)} education records")
+        for i, edu in enumerate(request.education_records):
+            logger.info(f"[DEBUG] Adding education record {i+1}")
             edu_row = CandidateEducationForm(
                 candidateID=candidate_id,
                 education_institute=edu.education_institute,
@@ -162,9 +190,13 @@ def create_candidate(
                 document_id=edu.document_id,
             )
             db.add(edu_row)
+    else:
+        logger.info("[DEBUG] No education records to add")
 
     if request.experience_records:
-        for exp in request.experience_records:
+        logger.info(f"[DEBUG] Processing {len(request.experience_records)} experience records")
+        for i, exp in enumerate(request.experience_records):
+            logger.info(f"[DEBUG] Adding experience record {i+1}")
             exp_row = CandidateExperienceForm(
                 candidateID=candidate_id,
                 company_name=exp.company_name,
@@ -177,9 +209,12 @@ def create_candidate(
                 document_id=exp.document_id,
             )
             db.add(exp_row)
+    else:
+        logger.info("[DEBUG] No experience records to add")
 
     # CRITICAL: Create CandidateOwnership record so candidate is visible via BU scoping
     if user_bu_id:
+        logger.info(f"[DEBUG] Creating CandidateOwnership for BU: {user_bu_id}")
         ownership = CandidateOwnership(
             candidateID=candidate_id,
             owned_by_bu_id=user_bu_id,
@@ -187,9 +222,12 @@ def create_candidate(
             bu_owned_since=datetime.now(),
         )
         db.add(ownership)
-        logger.info(f"[CreateCandidate] Created CandidateOwnership for BU: {user_bu_id}")
+        logger.info("[DEBUG] CandidateOwnership added to session")
+    else:
+        logger.warning("[DEBUG] No business_unit_id found for user - skipping CandidateOwnership")
 
     # Enqueue message (will commit the entire transaction atomically)
+    logger.info("[DEBUG] Preparing message payload")
     candidate_name = f"{request.candidate_first_name or ''} {request.candidate_last_name or ''}".strip()
     payload = {
         "candidate_id": candidate_id,
@@ -200,13 +238,16 @@ def create_candidate(
         "candidate_job_title": request.candidate_job_title,
         "created_at": datetime.utcnow().isoformat(),
     }
+    logger.info(f"[DEBUG] Payload prepared: {payload}")
+
     # Extract UUID from candidate_id (e.g., "CAN-abc123..." -> "abc123...")
     resource_uuid = candidate_id.split("-", 1)[1] if "-" in candidate_id else candidate_id
     # Extract UUID from user.UserID (e.g., "USER-abc123..." -> "abc123...")
     created_by_uuid = user.UserID.split("-", 1)[1] if "-" in user.UserID else user.UserID
+    logger.info(f"[DEBUG] Resource UUID: {resource_uuid}, Created By UUID: {created_by_uuid}")
 
     try:
-        logger.info(f"[CreateCandidate] Enqueuing message for candidate {candidate_id}")
+        logger.info(f"[DEBUG] Enqueuing message for candidate {candidate_id}")
         message_id = MessageQueueService.enqueue(
             message_type="candidate_created",
             payload=payload,
@@ -214,20 +255,24 @@ def create_candidate(
             created_by=created_by_uuid,
             db=db,
         )
-        logger.info(f"[CreateCandidate] Message enqueued successfully: {message_id}")
+        logger.info(f"[DEBUG] Message enqueued successfully: {message_id}")
     except Exception as e:
-        logger.error(f"[CreateCandidate] Failed to enqueue message: {e}", exc_info=True)
+        logger.error(f"[DEBUG] Failed to enqueue message: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create candidate message queue: {str(e)}"
         )
 
     # enqueue() commits the transaction, refresh candidate from session
+    logger.info("[DEBUG] Refreshing candidate from session after commit")
     db.refresh(candidate)
+    logger.info("[DEBUG] Candidate refreshed successfully")
 
     # Background tasks AFTER commit
+    logger.info("[DEBUG] Adding background task for AI agent")
     background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
 
+    logger.info("[DEBUG] ========== CREATE CANDIDATE ENDPOINT COMPLETE ==========")
     return CandidateCreateResponse(
         candidate_id=candidate_id,
         candidate_is_first_time=True,
@@ -240,6 +285,7 @@ def create_candidate(
     response_model=AllCandidatesResponse,
     summary="List all candidates (CRUD operation)"
 )
+@require_permission("candidates.view")
 def get_all_candidates(
     request: Request
 ):
@@ -404,9 +450,9 @@ def get_all_candidates(
 @router.get(
     "/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get candidate by ID (CRUD operation)"
 )
+@require_permission("candidates.view")
 def get_candidate_by_id(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -545,9 +591,9 @@ def get_candidate_by_id(
 @router.get(
     "/by-bu",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get candidates by Business Unit (CRUD operation)"
 )
+@require_permission("candidates.view")
 def get_candidates_by_my_bu(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -728,9 +774,9 @@ def get_candidates_by_my_bu(
 @router.put(
     "/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
     summary="Update candidate (CRUD operation)"
 )
+@require_permission("candidates.edit")
 def update_candidate(
     candidate_id: str,
     request: CandidateUpdateRequest,
@@ -833,9 +879,9 @@ def update_candidate(
 @router.delete(
     "/{candidate_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "delete"))],
     summary="Delete candidate (CRUD operation)"
 )
+@require_permission("candidates.delete")
 def delete_candidate(
     candidate_id: str,
     db: Session = Depends(get_db),
