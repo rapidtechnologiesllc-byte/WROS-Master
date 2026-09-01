@@ -24,6 +24,31 @@ class RBACService:
         return False
 
     @staticmethod
+    def has_any_permission(db: Session, user_id: str, permissions: list) -> bool:
+        """Stub: Always return False (no permissions in deprecated system)."""
+        return False
+
+    @staticmethod
     def get_user_roles(db: Session, user_id: str):
         """Stub: Always return empty list."""
         return []
+
+    @staticmethod
+    def is_super_user(db: Session, user_id: str, tenant_id: str = None) -> bool:
+        """Stub: Always return False (no RBAC attributes)."""
+        return False
+
+    @staticmethod
+    def is_super_admin(user_id: str, db: Session, tenant_id: str = None) -> bool:
+        """Stub: Always return False (no RBAC attributes)."""
+        return False
+
+    @staticmethod
+    def get_user_role(db: Session, user_id: str):
+        """Stub: Always return None (no role in deprecated system)."""
+        return None
+
+    @staticmethod
+    def seed_roles_and_permissions(db: Session):
+        """Stub: Do nothing (RBAC deprecated)."""
+        pass
