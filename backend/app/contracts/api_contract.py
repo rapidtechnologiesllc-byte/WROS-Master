@@ -250,6 +250,118 @@ def get_all_modules() -> List[str]:
 
 
 # ============================================================================
+# QUEUE ROUTING CONTRACTS (NEW - Role-Template Driven)
+# ============================================================================
+
+class QueueType(str, Enum):
+    """STRICT: Valid queue types for message routing"""
+    THUNDER_QUEUE = "THUNDER_QUEUE"
+    EMAIL_QUEUE = "EMAIL_QUEUE"
+    INTERVIEW_QUEUE = "INTERVIEW_QUEUE"
+    OFFER_QUEUE = "OFFER_QUEUE"
+    ONBOARDING_QUEUE = "ONBOARDING_QUEUE"
+    MULTI = "MULTI"
+    CHANNEL_QUEUE = "CHANNEL_QUEUE"
+
+
+class MessageType(str, Enum):
+    """STRICT: Valid message types - must map to permissions"""
+    CANDIDATE_CREATED = "candidate_created"
+    CANDIDATE_UPDATED = "candidate_updated"
+    INTERVIEW_SCHEDULED = "interview_scheduled"
+    OFFER_GENERATED = "offer_generated"
+    EMPLOYEE_ONBOARDED = "employee_onboarded"
+    EMAIL_SENT = "email_sent"
+    THUNDER_ACTION = "thunder_action"
+
+
+class QueueMessage(BaseModel):
+    """STRICT: Message in queue - exact fields only"""
+    id: str = Field(..., description="Message ID (UUID)")
+    type: MessageType = Field(..., description="Message type")
+    queue_type: QueueType = Field(..., description="Destination queue")
+    status: str = Field(..., description="Message status (PENDING, PROCESSING, etc)")
+    payload: Dict[str, Any] = Field(..., description="Message payload")
+    resource_id: Optional[str] = Field(default=None, description="Associated resource ID")
+    retry_count: int = Field(default=0, description="Number of retries")
+    created_at: str = Field(..., description="Creation timestamp")
+
+    class Config:
+        extra = "forbid"  # STRICT: No extra fields allowed
+
+
+class QueueStats(BaseModel):
+    """STRICT: Queue statistics - exact fields only"""
+    total: int = Field(..., description="Total messages in queue")
+    pending: int = Field(default=0, description="PENDING messages")
+    completed: int = Field(default=0, description="COMPLETED messages")
+    failed: int = Field(default=0, description="FAILED messages")
+
+    class Config:
+        extra = "forbid"  # STRICT: No extra fields allowed
+
+
+class QueueRoutingConfig(BaseModel):
+    """STRICT: Queue routing configuration - role-template based"""
+    message_type: MessageType = Field(..., description="Message type")
+    required_permission: str = Field(..., description="Required RBAC permission")
+    default_queue: QueueType = Field(..., description="Default queue if permission not found")
+
+    class Config:
+        extra = "forbid"  # STRICT: No extra fields allowed
+
+
+# Queue routing mapping - role-template driven
+QUEUE_ROUTING_CONFIG = {
+    MessageType.CANDIDATE_CREATED: QueueRoutingConfig(
+        message_type=MessageType.CANDIDATE_CREATED,
+        required_permission="candidate.created_event",
+        default_queue=QueueType.THUNDER_QUEUE
+    ),
+    MessageType.INTERVIEW_SCHEDULED: QueueRoutingConfig(
+        message_type=MessageType.INTERVIEW_SCHEDULED,
+        required_permission="interview.scheduled_event",
+        default_queue=QueueType.INTERVIEW_QUEUE
+    ),
+    MessageType.OFFER_GENERATED: QueueRoutingConfig(
+        message_type=MessageType.OFFER_GENERATED,
+        required_permission="offer.generated_event",
+        default_queue=QueueType.OFFER_QUEUE
+    ),
+    MessageType.EMPLOYEE_ONBOARDED: QueueRoutingConfig(
+        message_type=MessageType.EMPLOYEE_ONBOARDED,
+        required_permission="employee.onboarded_event",
+        default_queue=QueueType.ONBOARDING_QUEUE
+    ),
+}
+
+
+def validate_queue_message(data: Dict[str, Any]) -> QueueMessage:
+    """STRICT: Validate queue message matches contract exactly"""
+    try:
+        return QueueMessage(**data)
+    except Exception as e:
+        raise ValueError(f"Queue message validation failed: {str(e)}")
+
+
+def validate_queue_routing_config(message_type: str) -> QueueRoutingConfig:
+    """STRICT: Validate queue routing config exists for message type"""
+    try:
+        msg_type = MessageType(message_type)
+        if msg_type not in QUEUE_ROUTING_CONFIG:
+            raise ValueError(f"No queue routing configured for {message_type}")
+        return QUEUE_ROUTING_CONFIG[msg_type]
+    except ValueError as e:
+        raise ValueError(f"Invalid message type '{message_type}': {str(e)}")
+
+
+def get_default_queue(message_type: str) -> QueueType:
+    """Get default queue for message type per contract"""
+    config = validate_queue_routing_config(message_type)
+    return config.default_queue
+
+
+# ============================================================================
 # ENFORCEMENT: Backend must use these schemas
 # ============================================================================
 
