@@ -177,20 +177,9 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             # Decode and validate token
             payload = decode_access_token(token)
 
-            # Get user object from database
-            from app.core.database import SessionLocal
-            from app.models.user import Users
-            db = SessionLocal()
-            try:
-                user_id = payload.get("sub")
-                user = db.query(Users).filter(Users.UserID == user_id).first()
-                if user:
-                    request.state.user_object = user
-            finally:
-                db.close()
-
-            # Attach user info to request state
-            request.state.user_email = payload.get("sub")
+            # Attach auth info to request state (no DB queries in middleware)
+            request.state.user_id = payload.get("sub")
+            request.state.user_email = payload.get("email")
             request.state.user_type = payload.get("type")
             request.state.user_name = payload.get("name")
 
