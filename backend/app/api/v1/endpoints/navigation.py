@@ -107,6 +107,10 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
         }
 
+        # Check if user is Super User (can view all)
+        is_super_user = RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id)
+        logger.warning(f"[NAV] user_id={user_id} is_super_user={is_super_user}")
+
         # Build navigation from init_resources
         import sys
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
@@ -117,12 +121,14 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 # CRITICAL FIX: Resources stored in DB with hyphens, NOT underscores
                 # "ceo-dashboard" (in DB) not "ceo_dashboard"
                 # Permission checks must use original resource_name from contract
-                can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
-
-                # DEBUG: Test for missing modules
-                if module_name == "Executive" and resource_name == "ceo-dashboard":
-                    print(f"[TEST] Executive:ceo-dashboard can_view={can_view}", file=sys.stderr)
-                    sys.stderr.flush()
+                # Super Users see everything, others have permissions checked
+                can_view = is_super_user
+                if not is_super_user:
+                    try:
+                        can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
+                    except Exception as e:
+                        logger.warning(f"[NAV] Permission check failed for {resource_name}: {e}")
+                        can_view = False
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
