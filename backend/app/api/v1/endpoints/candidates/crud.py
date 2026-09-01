@@ -181,7 +181,7 @@ def create_candidate(
             candidateID=candidate_id,
             owned_by_bu_id=user_bu_id,
             pool_status=POOL_BU,
-            assigned_on=datetime.now(),
+            bu_owned_since=datetime.now(),
         )
         db.add(ownership)
         logger.info(f"[CreateCandidate] Created CandidateOwnership for BU: {user_bu_id}")
@@ -201,13 +201,23 @@ def create_candidate(
     resource_uuid = candidate_id.split("-", 1)[1] if "-" in candidate_id else candidate_id
     # Extract UUID from user.UserID (e.g., "USER-abc123..." -> "abc123...")
     created_by_uuid = user.UserID.split("-", 1)[1] if "-" in user.UserID else user.UserID
-    MessageQueueService.enqueue(
-        message_type="candidate_created",
-        payload=payload,
-        resource_id=resource_uuid,
-        created_by=created_by_uuid,
-        db=db,
-    )
+
+    try:
+        logger.info(f"[CreateCandidate] Enqueuing message for candidate {candidate_id}")
+        message_id = MessageQueueService.enqueue(
+            message_type="candidate_created",
+            payload=payload,
+            resource_id=resource_uuid,
+            created_by=created_by_uuid,
+            db=db,
+        )
+        logger.info(f"[CreateCandidate] Message enqueued successfully: {message_id}")
+    except Exception as e:
+        logger.error(f"[CreateCandidate] Failed to enqueue message: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create candidate message queue: {str(e)}"
+        )
 
     # enqueue() commits the transaction, refresh candidate from session
     db.refresh(candidate)
