@@ -583,9 +583,9 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                 f"Dear <strong>{cand_name}</strong>,<br><br>"
                                 f"This is a reminder that your <strong>{round_name}</strong> interview "
                                 f"is scheduled to begin in <strong>{_reminder_label}</strong>.<br><br>"
-                                f"âš¡ <strong>Start:</strong> {start_str}<br>"
+                                f"<strong>Start:</strong> {start_str}<br>"
                                 f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                + (f"ðŸ"- <strong>Meeting Link:</strong> "
+                                + (f"<strong>Meeting Link:</strong> "
                                    f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
                                    if iv.meeting_link else "")
                                 + "<br>Please ensure you are ready and join on time. Best of luck!"
@@ -619,9 +619,9 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                         f"This is a reminder that the <strong>{round_name}</strong> interview "
                                         f"for candidate <strong>{cand_name}</strong> begins in "
                                         f"<strong>{_reminder_label}</strong>.<br><br>"
-                                        f"âš¡ <strong>Start:</strong> {start_str}<br>"
+                                        f"<strong>Start:</strong> {start_str}<br>"
                                         f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                        + (f"ðŸ"- <strong>Meeting Link:</strong> "
+                                        + (f"<strong>Meeting Link:</strong> "
                                            f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
                                            if iv.meeting_link else "")
                                     ),
