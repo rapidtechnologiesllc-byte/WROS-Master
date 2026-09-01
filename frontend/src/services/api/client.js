@@ -108,8 +108,10 @@ export const apiRequest = async (path, options = {}) => {
   };
 
   const method = rest.method || "GET";
-  const url = `${API_BASE_URL}${path}`;
-  console.log(`[API] ${method} ${path}`);
+  // Automatically add /api/v1 prefix if not already present (backend routes registered with this prefix)
+  const normalizedPath = path.startsWith("/api") ? path : `/api/v1${path}`;
+  const url = `${API_BASE_URL}${normalizedPath}`;
+  console.log(`[API] ${method} ${normalizedPath}`);
 
   let response;
   try {
@@ -120,7 +122,7 @@ export const apiRequest = async (path, options = {}) => {
       ...rest,
     });
   } catch (error) {
-    console.error(`[API] Network error on ${method} ${path}:`, error.message);
+    console.error(`[API] Network error on ${method} ${normalizedPath}:`, error.message);
     console.error('[API] Debugging info:');
     console.error('  URL:', url);
     console.error('  Method:', method);
@@ -135,19 +137,19 @@ export const apiRequest = async (path, options = {}) => {
     data = null;
   }
 
-  console.log(`[API] ${method} ${path} - Status: ${response.status}`, data);
+  console.log(`[API] ${method} ${normalizedPath} - Status: ${response.status}`, data);
 
   if (!response.ok) {
     // Backend often returns 404 when optional candidate form rows do not exist yet.
     if (allow404 && response.status === 404) {
-      console.warn(`[API] 404 allowed for ${path}`);
+      console.warn(`[API] 404 allowed for ${normalizedPath}`);
       return { data: null, response };
     }
     if (
       Array.isArray(allowStatuses) &&
       allowStatuses.includes(response.status)
     ) {
-      console.warn(`[API] Status ${response.status} allowed for ${path}`);
+      console.warn(`[API] Status ${response.status} allowed for ${normalizedPath}`);
       return { data: null, response };
     }
     // Expired or invalid JWT: redirect to login instead of surfacing "Invalid token" in the UI.
@@ -157,7 +159,7 @@ export const apiRequest = async (path, options = {}) => {
       throw new Error("Your session has expired. Please sign in again.");
     }
     const message = formatApiErrorMessage(data);
-    console.error(`[API] Error ${response.status} for ${path}: ${message}`, data);
+    console.error(`[API] Error ${response.status} for ${normalizedPath}: ${message}`, data);
     const error = new Error(message);
     error.status = response.status;
     // Structured 4xx bodies (e.g. { error, review_id, ... }) -- callers that
@@ -167,6 +169,6 @@ export const apiRequest = async (path, options = {}) => {
     throw error;
   }
 
-  console.log(`[API] ✓ ${method} ${path}`);
+  console.log(`[API] ✓ ${method} ${normalizedPath}`);
   return { data, response };
 };
