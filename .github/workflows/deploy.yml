@@ -121,7 +121,7 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
-             rm -rf build && \
+             sudo rm -rf build && \
              mv build-new build"
 
       - name: Fix file permissions for Nginx
