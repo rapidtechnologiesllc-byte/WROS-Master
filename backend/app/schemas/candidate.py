@@ -69,6 +69,7 @@ class CandidateCreateResponse(BaseModel):
     candidate_id: str
     candidate_is_first_time: bool
     candidate_password: str
+    is_new: bool = False
 
 # GET candidate schemas
 class CandidateEducationResponse(BaseModel):

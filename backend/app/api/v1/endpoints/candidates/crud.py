@@ -109,7 +109,7 @@ def create_candidate(
         logger.info(f"[DEBUG] User {user.UserID} has BU ID: {user_bu_id}")
 
         logger.info("[DEBUG] Calling create_candidate_safe service")
-        candidate = create_candidate_safe(
+        candidate, is_new = create_candidate_safe(
             db,
             email=request.candidate_email,
             mobile=request.candidate_mobile,
@@ -133,7 +133,7 @@ def create_candidate(
             candidateCreatedAt=datetime.now(),
             associated_bu_id=user_bu_id,  # CRITICAL: Assign to user's BU for Thunder access
         )
-        logger.info(f"[DEBUG] Candidate created: {candidate.candidateID} assigned to BU: {candidate.associated_bu_id}")
+        logger.info(f"[DEBUG] Candidate result: is_new={is_new}, ID={candidate.candidateID}, BU={candidate.associated_bu_id}")
     except DuplicateCandidateError as e:
         logger.error(f"[DEBUG] DuplicateCandidateError: {e}")
         raise HTTPException(
@@ -274,8 +274,9 @@ def create_candidate(
     logger.info("[DEBUG] ========== CREATE CANDIDATE ENDPOINT COMPLETE ==========")
     return CandidateCreateResponse(
         candidate_id=candidate_id,
-        candidate_is_first_time=True,
-        candidate_password=password
+        candidate_is_first_time=is_new,
+        candidate_password=password,
+        is_new=is_new
     )
 
 
