@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 
 import app.schemas as schema
@@ -64,10 +64,10 @@ router = APIRouter(prefix="/candidates", tags=["candidates-crud"])
     summary="Create new candidate (CRUD operation)"
 )
 def create_candidate(
+    req: Request,
     request: CandidateCreateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
 ):
     """
     Create a new candidate with comprehensive information.
@@ -78,10 +78,6 @@ def create_candidate(
     CRITICAL: Candidate is assigned to user's business unit so Thunder can access it
     via proper tenant/BU scoping. Without this, Thunder has no visibility.
     """
-    import sys
-    sys.stderr.write("\n[ENDPOINT] create_candidate handler called\n")
-    sys.stderr.flush()
-
     if not request.candidate_current_location or not request.candidate_current_location.strip():
         raise HTTPException(
             status_code=400,
@@ -90,9 +86,10 @@ def create_candidate(
 
     password = generate_password()
     try:
-        sys.stderr.write(f"[ENDPOINT] user object type: {type(user)}\n")
-        sys.stderr.write(f"[ENDPOINT] user attributes: {dir(user)[:5]}\n")
-        sys.stderr.flush()
+        # Get user from request state (set by middleware)
+        user = getattr(req.state, 'user_object', None)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not authenticated")
 
         # Get user's BU from the authenticated user object
         user_bu_id = getattr(user, 'business_unit_id', None)

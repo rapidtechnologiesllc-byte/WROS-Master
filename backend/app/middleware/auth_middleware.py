@@ -176,12 +176,24 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         try:
             # Decode and validate token
             payload = decode_access_token(token)
-            
+
+            # Get user object from database
+            from app.core.database import SessionLocal
+            from app.models.user import Users
+            db = SessionLocal()
+            try:
+                user_id = payload.get("sub")
+                user = db.query(Users).filter(Users.UserID == user_id).first()
+                if user:
+                    request.state.user_object = user
+            finally:
+                db.close()
+
             # Attach user info to request state
             request.state.user_email = payload.get("sub")
             request.state.user_type = payload.get("type")
             request.state.user_name = payload.get("name")
-            
+
             # Log successful authentication
             logger.debug(
                 f"Authenticated request | User: {request.state.user_email} | "
@@ -210,14 +222,20 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             
         except Exception as e:
             # Unexpected error
+            import traceback
+            import sys
+            error_detail = f"{type(e).__name__}: {str(e)}"
+            sys.stderr.write(f"\n[MW_ERROR] {error_detail}\n{traceback.format_exc()}\n")
+            sys.stderr.flush()
+
             logger.error(f"Authentication error: {str(e)}", exc_info=True)
             log_security_event(
                 "AUTH_ERROR",
-                details=f"Path: {path} | Error: {str(e)}"
+                details=f"Path: {path} | Error: {error_detail}"
             )
             return JSONResponse(
                 status_code=500,
-                content={"detail": "Internal authentication error"}
+                content={"detail": f"Internal authentication error: {type(e).__name__}: {str(e)[:100]}"}
             )
     
     # Routes eligible for prefix matching (e.g. "/static/logo.png" under
