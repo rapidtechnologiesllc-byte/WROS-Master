@@ -121,13 +121,13 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
-             sudo rm -rf build && \
+             rm -rf build && \
              mv build-new build"
 
       - name: Fix file permissions for Nginx
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "sudo chown -R www-data:www-data ${{ env.PROD_PATH }}/build && sudo chmod -R 755 ${{ env.PROD_PATH }}/build"
+            "find ${{ env.PROD_PATH }}/build -type d -exec chmod 755 {} \; && find ${{ env.PROD_PATH }}/build -type f -exec chmod 644 {} \;"
 
       - name: Reload Nginx service
         run: |
