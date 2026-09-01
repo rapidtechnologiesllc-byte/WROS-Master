@@ -49,6 +49,18 @@ const COUNTRY_CODES = [
   { value: "+63", label: "+63 (Philippines)" },
 ];
 
+const SOURCE_OPTIONS = [
+  { value: "Campus Hiring", label: "Campus Hiring" },
+  { value: "Conference", label: "Conference" },
+  { value: "LinkedIn", label: "LinkedIn" },
+  { value: "Career Site", label: "Career Site" },
+  { value: "Employee Referral", label: "Employee Referral" },
+  { value: "Indeed", label: "Indeed" },
+  { value: "Naukri", label: "Naukri" },
+  { value: "Monster", label: "Monster" },
+  { value: "Other", label: "Other" },
+];
+
 export default function CandidateCreate({ onBack, onSave }) {
   const { banner, showSuccess, showError, dismiss } = useScreenBanner();
   const [candidateRole, setCandidateRole] = useState("");
@@ -92,7 +104,50 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [expectedSalaryRateType, setExpectedSalaryRateType] = useState("$/Year");
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
+  const [customSource, setCustomSource] = useState("");
+  const [showEmployeeReferralList, setShowEmployeeReferralList] = useState(false);
   const navigate = useNavigate();
+
+  // Helper function to check if user is in recruitment department
+  const isRecruitmentUser = () => {
+    try {
+      const userInfo = localStorage.getItem("user_info");
+      if (!userInfo) return false;
+
+      const user = JSON.parse(userInfo);
+      // Check job title or department for recruitment keywords
+      const jobTitle = (user.UserJobTitle || "").toLowerCase();
+      const department = (user.department || "").toLowerCase();
+
+      const recruitmentKeywords = ["recruit", "talent", "staffing", "hr", "hiring", "acquisition"];
+      return recruitmentKeywords.some(
+        keyword => jobTitle.includes(keyword) || department.includes(keyword)
+      );
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // Initialize source and assignment based on recruiter status
+  useEffect(() => {
+    const initializeSource = () => {
+      try {
+        const userInfo = localStorage.getItem("user_info");
+        if (userInfo) {
+          const user = JSON.parse(userInfo);
+
+          // Auto-assign to current user if they are recruitment staff
+          if (isRecruitmentUser()) {
+            setAssignedHrManagerId(user.UserID || "");
+          }
+        }
+      } catch (error) {
+        console.log("Could not auto-initialize recruiter source:", error);
+      }
+    };
+
+    initializeSource();
+  }, []);
 
   // Field refs for scrolling to errors
   const fieldRefs = useRef({
@@ -397,6 +452,27 @@ export default function CandidateCreate({ onBack, onSave }) {
     setResumeParsing(true);
     setActionNotice("");
     try {
+      // Auto-set source when recruiter/HR staff uploads resume
+      if (isRecruitmentUser() && !source) {
+        try {
+          const userInfo = localStorage.getItem("user_info");
+          if (userInfo) {
+            const user = JSON.parse(userInfo);
+            const jobTitle = (user.UserJobTitle || "").toLowerCase();
+            // Set source based on specific job title
+            if (jobTitle.includes("recruiter")) {
+              setSource("Recruiter");
+            } else if (jobTitle.includes("hr") || jobTitle.includes("talent")) {
+              setSource("HR");
+            } else {
+              setSource("Internal");
+            }
+          }
+        } catch (e) {
+          // If parsing fails, just continue without auto-setting source
+        }
+      }
+
       const text = await extractResumeText(file);
       const fields = inferFieldsFromResumeText(text);
       if (fields.email) {
@@ -527,7 +603,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_mobile: mobile ? `${countryCode}${mobile}` : null,
         candidate_gender: gender || null,
         candidate_date_of_birth: dob || null,
-        candidate_source: source || null,
+        candidate_source: source === "Other" ? customSource : (source || null),
         candidate_experience: experience || null,
         candidate_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : null,
         candidate_joining_date: joiningDate || null,
@@ -858,7 +934,37 @@ export default function CandidateCreate({ onBack, onSave }) {
               type="date"
             />
           </div>
-          <Input label="Source" value={source} onChange={setSource} />
+          <div>
+            <Select
+              label="Source"
+              value={source}
+              onChange={(value) => {
+                setSource(value);
+                setCustomSource("");
+                setShowEmployeeReferralList(value === "Employee Referral");
+              }}
+              options={[
+                { value: "", label: "Select source" },
+                ...SOURCE_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))
+              ]}
+            />
+          </div>
+
+          {source === "Other" && (
+            <Input
+              label="Other Source"
+              value={customSource}
+              onChange={setCustomSource}
+              placeholder="Please specify the source"
+            />
+          )}
+
+          {showEmployeeReferralList && (
+            <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-gray-700 mb-2">Select referring employee (feature coming soon)</p>
+              <p className="text-xs text-gray-500">Employee list will be populated here</p>
+            </div>
+          )}
 
           <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-2">
