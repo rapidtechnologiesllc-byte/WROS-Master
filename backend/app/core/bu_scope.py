@@ -34,11 +34,13 @@ from sqlalchemy.orm import Query, Session
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_ORG
 from app.models.user import Users
-from app.services.rbac_service import RBACService
 
 
 def is_bu_restricted(db: Session, user: Users) -> bool:
-    return RBACService.has_attribute(db, user.UserID, "bu_restricted", expected=True)
+    # RoleTemplate-based BU restriction check
+    # Users with business_unit_id set are BU-restricted (can only see their BU's data)
+    # Super users and global roles have no business_unit_id
+    return user.business_unit_id is not None
 
 
 def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: Users) -> Query:
