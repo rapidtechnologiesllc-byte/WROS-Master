@@ -32,14 +32,14 @@ class CandidateAvailabilitySlot(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     slot_date = Column(Date, nullable=False)
     slot_start_time = Column(Time, nullable=False)
     slot_end_time = Column(Time, nullable=False)
-    timezone = Column(String(50), nullable=False)
+    timezone = Column(String(256), nullable=False)
 
     is_confirmed = Column(Boolean, nullable=False, server_default="0")
     slot_source = Column(String(20), nullable=False, server_default="CANDIDATE_MESSAGE")

@@ -24,7 +24,7 @@ class ActivityFeedReadState(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     conversation_event_id = Column(Integer, ForeignKey("conversation_events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     read_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)

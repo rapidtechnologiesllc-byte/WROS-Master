@@ -42,17 +42,17 @@ SUBVENDOR_VIOLATION_TYPES = ("C2C_NOT_ACCEPTED",)
 class SubVendorSubmission(Base):
     __tablename__ = "sub_vendor_submissions"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    request_id = Column(String(36), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
+    request_id = Column(String(256), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
+    sub_vendor_id = Column(String(256), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
 
     candidate_name = Column(String(300), nullable=False)
     candidate_email = Column(String(300), nullable=False)
-    candidate_phone = Column(String(50), nullable=True)
+    candidate_phone = Column(String(256), nullable=True)
     current_employer = Column(String(300), nullable=True)
     total_experience_years = Column(Numeric(4, 1), nullable=True)
-    expected_salary = Column(String(50), nullable=True)
-    notice_period = Column(String(100), nullable=True)
+    expected_salary = Column(String(256), nullable=True)
+    notice_period = Column(String(256), nullable=True)
     resume_url = Column(Text, nullable=True)
 
     # HRMS-P806: server-validated regardless of what the vendor UI's
@@ -72,7 +72,7 @@ class SubVendorSubmission(Base):
 
     # Set only once Accepted via create_candidate_safe() -- never a
     # direct FK to a pre-existing candidate.
-    created_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True)
+    created_candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
 
@@ -82,9 +82,9 @@ class SubVendorViolation(Base):
     silently dropped. Separate from dedup rejections (BR-0807-03)."""
     __tablename__ = "sub_vendor_violations"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
-    submission_id = Column(String(36), ForeignKey("sub_vendor_submissions.id"), nullable=True)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
+    sub_vendor_id = Column(String(256), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    submission_id = Column(String(256), ForeignKey("sub_vendor_submissions.id"), nullable=True)
     violation_type = Column(
         Enum(*SUBVENDOR_VIOLATION_TYPES, name="subvendor_violation_type", native_enum=False, create_constraint=True),
         nullable=False,
@@ -102,7 +102,7 @@ class SubVendorDedupRejection(Base):
     field is never surfaced in any vendor-facing response."""
     __tablename__ = "sub_vendor_dedup_rejections"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    submission_id = Column(String(36), ForeignKey("sub_vendor_submissions.id"), nullable=False, index=True)
-    matched_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
+    submission_id = Column(String(256), ForeignKey("sub_vendor_submissions.id"), nullable=False, index=True)
+    matched_candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=True)
     occurred_at = Column(DateTime, server_default=func.now())

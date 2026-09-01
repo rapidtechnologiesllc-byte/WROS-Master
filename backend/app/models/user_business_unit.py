@@ -10,7 +10,7 @@ class UserBusinessUnit(Base):
     __tablename__ = "user_business_units"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    user_id = Column(String(50), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(256), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now())
 

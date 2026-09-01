@@ -20,12 +20,12 @@ class InterviewFeedback(Base):
     """Feedback from a single interviewer on the interview panel."""
     __tablename__ = "interview_feedbacks"
 
-    id = Column(String(36), primary_key=True, index=True)
+    id = Column(String(256), primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Reference to interview and interviewer
     interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=False, index=True)
-    interviewer_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    interviewer_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
 
     # Interview Feedback Scores (1-5 scale, nullable if not rated)
     technical_score = Column(Integer, nullable=True)  # 1-5
@@ -58,12 +58,12 @@ class InterviewDecisionLog(Base):
     """Log of the panel decision made after all feedback is collected."""
     __tablename__ = "interview_decision_logs"
 
-    id = Column(String(36), primary_key=True, index=True)
+    id = Column(String(256), primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Reference to interview
     interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     # Decision Outcome
     outcome = Column(
@@ -91,7 +91,7 @@ class InterviewDecisionLog(Base):
     decision_rationale = Column(Text, nullable=True)
 
     # Made by (usually hiring manager or recruiter)
-    decided_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    decided_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     decided_at = Column(DateTime(timezone=False), nullable=True)
 
     # Timestamps
@@ -106,12 +106,12 @@ class InterviewPanelDecision(Base):
     """Represents the collective decision from the interview panel."""
     __tablename__ = "interview_panel_decisions"
 
-    id = Column(String(36), primary_key=True, index=True)
+    id = Column(String(256), primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Reference
     interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=False, unique=True, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     # Final Decision
     decision = Column(
@@ -119,14 +119,14 @@ class InterviewPanelDecision(Base):
         nullable=False
     )
     decision_made_at = Column(DateTime(timezone=False), nullable=True)
-    made_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    made_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
 
     # Conditions (if approved with conditions)
     conditions = Column(Text, nullable=True)
     conditions_met_at = Column(DateTime(timezone=False), nullable=True)
 
     # Next Steps
-    next_step = Column(String(100), nullable=True)  # OFFER, REJECT, POOL
+    next_step = Column(String(256), nullable=True)  # OFFER, REJECT, POOL
     next_step_initiated_at = Column(DateTime(timezone=False), nullable=True)
 
     # Timestamps

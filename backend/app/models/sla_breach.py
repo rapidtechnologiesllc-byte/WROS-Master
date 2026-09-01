@@ -26,11 +26,11 @@ class CandidateSLABreach(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    sla_type = Column(String(50), nullable=False)
+    sla_type = Column(String(256), nullable=False)
     breached_at = Column(DateTime(timezone=False), nullable=False)
     resolved_at = Column(DateTime(timezone=False), nullable=True)
     is_resolved = Column(Boolean, nullable=False, server_default="0")

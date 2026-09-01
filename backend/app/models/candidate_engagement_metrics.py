@@ -17,8 +17,8 @@ class CandidateEngagementMetrics(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     response_rate = Column(Numeric(5, 2), nullable=False, default = False)
     avg_response_time_minutes = Column(Integer, nullable=True)

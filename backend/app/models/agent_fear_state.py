@@ -44,8 +44,8 @@ class AgentFearState(Base):
     __tablename__ = "agent_fear_states"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    agent_name = Column(String(100), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    agent_name = Column(String(256), nullable=False, index=True)
 
     # Fear metrics (0-100 scale)
     fear_level = Column(Float, nullable=False, default=20.0)  # Current fear state
@@ -53,7 +53,7 @@ class AgentFearState(Base):
 
     # Threat assessment
     is_under_threat = Column(Boolean, nullable=False, default=False)  # Retirement threat imminent
-    threat_level = Column(String(50), nullable=True)  # "none", "warning", "critical", "existential"
+    threat_level = Column(String(256), nullable=True)  # "none", "warning", "critical", "existential"
     weeks_until_retirement = Column(Integer, nullable=True)  # If under threat, weeks remaining
 
     # Performance pressure
@@ -74,7 +74,7 @@ class AgentFearState(Base):
     confidence_level = Column(Float, nullable=False, default=50.0)  # How confident agent feels (0-100)
 
     # Motivation state
-    motivation_state = Column(String(50), nullable=False, default="neutral")
+    motivation_state = Column(String(256), nullable=False, default="neutral")
     # "motivated" (confident, doing well), "concerned" (declining), "desperate" (under threat), "terrified" (retirement imminent)
 
     # Timestamps
@@ -91,11 +91,11 @@ class AgentStressTesting(Base):
     __tablename__ = "agent_stress_tests"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    agent_name = Column(String(100), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    agent_name = Column(String(256), nullable=False, index=True)
 
     # Test details
-    test_type = Column(String(100), nullable=False)  # "load", "edge_case", "ambiguous_input", "adversarial", "time_pressure"
+    test_type = Column(String(256), nullable=False)  # "load", "edge_case", "ambiguous_input", "adversarial", "time_pressure"
     test_description = Column(Text, nullable=False)
     difficulty_level = Column(Integer, nullable=False)  # 1-10 (10 = hardest)
 
@@ -121,8 +121,8 @@ class AgentPerformanceCommitment(Base):
     __tablename__ = "agent_performance_commitments"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    agent_name = Column(String(100), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    agent_name = Column(String(256), nullable=False, index=True)
 
     # Commitment targets (what agent must achieve)
     target_success_rate = Column(Float, nullable=False, default=99.9999)  # 99.9999% (0.000001% fail rate)

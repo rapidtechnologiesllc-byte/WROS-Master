@@ -40,16 +40,16 @@ class FileUpload(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    entity_type = Column(String(50), nullable=False, index=True)
-    entity_id = Column(String(50), nullable=False, index=True)
+    entity_type = Column(String(256), nullable=False, index=True)
+    entity_id = Column(String(256), nullable=False, index=True)
 
     # Drives future size/type limits via system_config (S-213) -- not
     # wired yet, same honest "real column, not yet a live consumer"
     # posture as several fields on TenantAIConfig.
-    file_category = Column(String(50), nullable=False, default="GENERIC", server_default="GENERIC")
+    file_category = Column(String(256), nullable=False, default="GENERIC", server_default="GENERIC")
 
-    original_filename = Column(String(255), nullable=False)
-    unique_filename = Column(String(255), nullable=False)
+    original_filename = Column(String(256), nullable=False)
+    unique_filename = Column(String(256), nullable=False)
     file_size = Column(Integer, nullable=False)
     file_extension = Column(String(20), nullable=True)
     sharepoint_url = Column(String(1000), nullable=True)
@@ -59,5 +59,5 @@ class FileUpload(Base):
     # lands here, never auto-approved.
     scan_status = Column(String(20), nullable=False, default="PENDING", server_default="PENDING")
 
-    uploaded_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    uploaded_by = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now())

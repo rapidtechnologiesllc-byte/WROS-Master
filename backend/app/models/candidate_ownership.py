@@ -52,10 +52,10 @@ class CandidateOwnership(Base):
     )
 
     # Human-readable BU name snapshot (stored so it survives BU renames)
-    owned_by_bu_name = Column(String(100), nullable=True)
+    owned_by_bu_name = Column(String(256), nullable=True)
 
     # Why the status was set — e.g. "Assigned to job JOB-42", "BU Rejected"
-    ownership_reason = Column(String(200), nullable=True)
+    ownership_reason = Column(String(256), nullable=True)
 
     # When BU ownership was acquired (null for Org Pool rows)
     bu_owned_since = Column(DateTime(timezone=False), nullable=True)

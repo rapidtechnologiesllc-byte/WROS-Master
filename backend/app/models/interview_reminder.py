@@ -32,10 +32,10 @@ REMINDER_STATUSES = ("PENDING", "SENT", "CANCELLED")
 class InterviewReminder(Base):
     __tablename__ = "interview_reminders"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    interview_id = Column(String(36), ForeignKey("submission_interviews.id"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    interview_id = Column(String(256), ForeignKey("submission_interviews.id"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     reminder_type = Column(
         Enum(*REMINDER_TYPES, name="interview_reminder_type", native_enum=False, create_constraint=True),

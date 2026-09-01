@@ -33,12 +33,12 @@ class CorePullEvent(Base):
 
     __tablename__ = "core_pull_events"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    core_demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    speciality_allocation_id = Column(String(36), ForeignKey("employee_allocations.id"), nullable=False, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
+    core_demand_id = Column(String(256), ForeignKey("demands.id"), nullable=False, index=True)
+    speciality_allocation_id = Column(String(256), ForeignKey("employee_allocations.id"), nullable=False, index=True)
 
     status = Column(
         String(20), nullable=False, default="PENDING",
@@ -51,7 +51,7 @@ class CorePullEvent(Base):
 
     # BU Head override path -- BR: min 100 chars, Director-visible.
     override_justification = Column(Text, nullable=True)
-    overridden_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    overridden_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     overridden_at = Column(DateTime, nullable=True)
 
 
@@ -63,12 +63,12 @@ class SpecialtyPoolReplacementPlan(Base):
 
     __tablename__ = "specialty_pool_replacement_plans"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id_moving = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id_moving = Column(String(256), ForeignKey("employees.id"), nullable=False, index=True)
     replacement_strategy = Column(Text, nullable=False)  # min 100 chars, enforced in the service layer
     expected_replacement_date = Column(Date, nullable=False)
 
-    logged_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    logged_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     logged_at = Column(DateTime, server_default=func.now())

@@ -29,12 +29,12 @@ class MotivationContentLibrary(Base):
     __tablename__ = "motivation_content_library"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     desire_category = Column(String(30), nullable=False)
     content_items = Column(JSON, nullable=False)  # list[str], BA-approved facts only
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
-    updated_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    updated_by = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
@@ -47,8 +47,8 @@ class MotivationOutcome(Base):
     __tablename__ = "motivation_outcomes"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(256), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     trigger_type = Column(String(30), nullable=False)  # see TRIGGER_TYPES
     message_sent = Column(Text, nullable=False)

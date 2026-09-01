@@ -41,7 +41,7 @@ class BURevenueTarget(Base):
     target_period = Column(Enum(*TARGET_PERIODS, name="bu_target_period", native_enum=False, create_constraint=True), nullable=False)
     fiscal_year = Column(Integer, nullable=False)
     target_amount_usd_cents = Column(Integer, nullable=False)
-    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     notes = Column(Text, nullable=True)
 
@@ -51,13 +51,13 @@ class PartnerGoal(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    partner_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
     target_period = Column(Enum(*TARGET_PERIODS, name="partner_target_period", native_enum=False, create_constraint=True), nullable=False)
     fiscal_year = Column(Integer, nullable=False)
     target_amount_usd_cents = Column(Integer, nullable=False)
     # CEO-only, enforced in revenue_target_service.set_partner_goal() --
     # not a DB constraint, since "is this user the CEO" is an RBAC
     # question, not a schema one.
-    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     notes = Column(Text, nullable=True)

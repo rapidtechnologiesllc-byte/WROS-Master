@@ -36,14 +36,14 @@ def _new_uuid() -> str:
 class EmployeeMilestone(Base):
     __tablename__ = "employee_milestones"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Nullable per the doc's own note: null for PERSONAL/ORG (no project
     # tie), null for PROJECT-level on employee_id (a project checkpoint
     # isn't owned by one person).
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    project_id = Column(String(256), ForeignKey("projects.id"), nullable=True, index=True)
+    employee_id = Column(String(256), ForeignKey("employees.id"), nullable=True, index=True)
 
     milestone_type = Column(
         Enum(*MILESTONE_TYPES, name="employee_milestone_type", native_enum=False, create_constraint=True),
@@ -60,6 +60,6 @@ class EmployeeMilestone(Base):
         nullable=False, default="PENDING",
     )
     completion_notes = Column(Text, nullable=True)
-    set_by = Column(String(50), nullable=True)
+    set_by = Column(String(256), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())

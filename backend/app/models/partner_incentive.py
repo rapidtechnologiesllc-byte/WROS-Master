@@ -41,9 +41,9 @@ class PartnerIncentiveRule(Base):
     no special-case exclusion needed, there's simply no rule for him)."""
     __tablename__ = "partner_incentive_rules"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    partner_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
     incentive_type = Column(Enum(*INCENTIVE_TYPES, name="incentive_type", native_enum=False, create_constraint=True), nullable=False)
 
     # Flat one-time bonus (NEW_LOGO_BONUS, DEPLOYMENT_BONUS).
@@ -66,11 +66,11 @@ class PartnerIncentiveEvent(Base):
     NEW_LOGO_BONUS so re-running the eligibility check never double-pays."""
     __tablename__ = "partner_incentive_events"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    rule_id = Column(String(36), ForeignKey("partner_incentive_rules.id"), nullable=False, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=True, index=True)
+    rule_id = Column(String(256), ForeignKey("partner_incentive_rules.id"), nullable=False, index=True)
+    partner_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, index=True)
+    client_id = Column(String(256), ForeignKey("clients.id"), nullable=True, index=True)
 
     amount_usd_cents = Column(Integer, nullable=False)
     status = Column(Enum(*INCENTIVE_EVENT_STATUSES, name="incentive_event_status", native_enum=False, create_constraint=True), nullable=False, default="PENDING")

@@ -31,7 +31,7 @@ class HtdIntakeStatus(Base):
     is the real, callable gate a future build of it wires into)."""
     __tablename__ = "htd_intake_status"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, unique=True, index=True)
 
     is_paused = Column(Boolean, nullable=False, default=False)
@@ -42,7 +42,7 @@ class HtdIntakeStatus(Base):
 class HtdMonthlyMetric(Base):
     __tablename__ = "htd_monthly_metrics"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     month_start = Column(Date, nullable=False, index=True)
@@ -61,7 +61,7 @@ class HtdPauseLogEntry(Base):
     """AC-6: permanent, never-deleted pause/resume history."""
     __tablename__ = "htd_pause_log"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     action = Column(
@@ -71,5 +71,5 @@ class HtdPauseLogEntry(Base):
     reason = Column(Text, nullable=True)
     audit_findings = Column(Text, nullable=True)
     corrective_actions = Column(Text, nullable=True)
-    resumed_by = Column(String(50), nullable=True)
+    resumed_by = Column(String(256), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

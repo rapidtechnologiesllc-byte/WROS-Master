@@ -43,12 +43,12 @@ CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # Contract won/active or lost
 class Opportunity(Base):
     __tablename__ = "opportunities"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
-    client_owner_id = Column(String(36), ForeignKey("users.UserID"), nullable=True, index=True)
-    owner_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    client_id = Column(String(256), ForeignKey("clients.id"), nullable=False, index=True)
+    client_owner_id = Column(String(256), ForeignKey("users.UserID"), nullable=True, index=True)
+    owner_employee_id = Column(String(256), ForeignKey("employees.id"), nullable=True, index=True)
 
     stage = Column(
         Enum(*OPPORTUNITY_STAGES, name="opportunity_stage", native_enum=False, create_constraint=True),

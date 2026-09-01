@@ -39,9 +39,9 @@ def _new_uuid() -> str:
 class PartnerIntentProfile(Base):
     __tablename__ = "partner_intent_profiles"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, unique=True, index=True)
+    partner_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=False, unique=True, index=True)
 
     demand_count = Column(Integer, nullable=False, default = False)
     core_demand_pct = Column(Numeric(5, 2), nullable=True)

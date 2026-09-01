@@ -56,14 +56,14 @@ VIOLATION_TYPES = ("NO_MARKET_PROFILE", "EXPERIENCE_INELIGIBLE", "C2C_NOT_ACCEPT
 class Submission(Base):
     __tablename__ = "submissions"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    demand_id = Column(String(256), ForeignKey("demands.id"), nullable=False, index=True)
+    client_id = Column(String(256), ForeignKey("clients.id"), nullable=False, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
-    submitted_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    submitted_by_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True)
     submitted_at = Column(DateTime, server_default=func.now())
 
     status = Column(
@@ -91,7 +91,7 @@ class Submission(Base):
     )
     # EPIC-P8 Sub-Vendor Portal is now built (see app.models.sub_vendor) --
     # FK completed, still nullable since most submissions aren't sub-vendor-sourced.
-    subvendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=True)
+    subvendor_id = Column(String(256), ForeignKey("sub_vendor_accounts.id"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -111,15 +111,15 @@ class SubmissionViolation(Base):
     """
     __tablename__ = "submission_violations"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(256), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    recruiter_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
-    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    recruiter_user_id = Column(String(256), ForeignKey("users.UserID"), nullable=True, index=True)
+    candidate_id = Column(String(256), ForeignKey("candidates.candidateID"), nullable=False)
     violation_type = Column(
         Enum(*VIOLATION_TYPES, name="submission_violation_type", native_enum=False, create_constraint=True),
         nullable=False,
     )
     attempted_at = Column(DateTime, server_default=func.now())
-    candidate_status_at_time = Column(String(100), nullable=True)
+    candidate_status_at_time = Column(String(256), nullable=True)
     blocked_message = Column(Text, nullable=True)
     is_cleared = Column(Boolean, nullable=False, default=False)
