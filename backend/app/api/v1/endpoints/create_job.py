@@ -424,7 +424,6 @@ def get_my_jobs(
     the user matches more than one column.
     """
     from sqlalchemy import or_
-    from app.models.rbac import Role
 
     my_id = user.UserID
     
@@ -583,7 +582,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 
     # AUTO-DERIVE: If BU is selected but hiring_manager not provided, auto-assign from BU
     if request.business_unit and not request.hiring_manager_id:
-        from app.models.rbac import Role
 
         # Get Hiring Manager role from this BU
         hiring_manager_role = db.query(Role).filter(Role.name == "Hiring Manager").first()
@@ -613,7 +611,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 
     # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
     if request.hiring_manager_id and request.business_unit:
-        from app.models.rbac import Role
         from app.models.bu_access import BUAccess
 
         # Get BU Head for this business unit
@@ -640,7 +637,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         
         # Check if we can assign approval to the Business Unit Head
         if request.business_unit:
-            from app.models.rbac import Role
             bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
             if bu_head_role:
                 bu_head = db.query(Users).filter(

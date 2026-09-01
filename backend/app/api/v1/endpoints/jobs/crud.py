@@ -74,7 +74,6 @@ def create_job(
 
     # AUTO-DERIVE: If BU selected but hiring_manager not provided, auto-assign from BU
     if request.business_unit and not request.hiring_manager_id:
-        from app.models.rbac import Role
         hiring_manager_role = db.query(Role).filter(Role.name == "Hiring Manager").first()
         if hiring_manager_role:
             potential_hm = db.query(Users).filter(
@@ -97,7 +96,6 @@ def create_job(
 
     # VALIDATION: Prevent BU Head from being own Hiring Manager
     if request.hiring_manager_id and request.business_unit:
-        from app.models.rbac import Role
         bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
         if bu_head_role:
             bu_head = db.query(Users).filter(
@@ -117,7 +115,6 @@ def create_job(
     else:
         job_status = "pending_approval"
         if request.business_unit:
-            from app.models.rbac import Role
             bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
             if bu_head_role:
                 bu_head = db.query(Users).filter(

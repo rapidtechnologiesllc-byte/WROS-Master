@@ -1098,7 +1098,6 @@ def get_user_by_id(
     Raises:
         HTTPException 404: If the user is not found.
     """
-    from app.models.rbac import Role  # avoid circular if needed
 
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:

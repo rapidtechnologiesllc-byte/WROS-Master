@@ -5,7 +5,6 @@ import sys
 sys.path.insert(0, '.')
 
 from app.core.database import SessionLocal
-from app.models.rbac import Role
 from datetime import datetime
 
 def init_roles():
