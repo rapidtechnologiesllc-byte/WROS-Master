@@ -14,6 +14,7 @@ import {
   formatLocation,
   parseLocation,
 } from "../components/ui";
+import RateField from "../components/ui/RateField";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -87,6 +88,10 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
   const [availableJobs, setAvailableJobs] = useState([]);
+  const [currentSalaryRateType, setCurrentSalaryRateType] = useState("$/Year");
+  const [expectedSalaryRateType, setExpectedSalaryRateType] = useState("$/Year");
+  const [showSkillsModal, setShowSkillsModal] = useState(false);
+  const [selectedSkills, setSelectedSkills] = useState([]);
   const navigate = useNavigate();
 
   // Field refs for scrolling to errors
@@ -524,10 +529,12 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_date_of_birth: dob || null,
         candidate_source: source || null,
         candidate_experience: experience || null,
-        candidate_skills: skills || null,
+        candidate_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : null,
         candidate_joining_date: joiningDate || null,
         candidate_expected_salary: expectedSalary || null,
+        candidate_expected_salary_type: expectedSalaryRateType || null,
         candidate_current_salary: currentSalary || null,
+        candidate_current_salary_type: currentSalaryRateType || null,
         candidate_current_location: formattedLocation,
         assigned_hr_manager_id: assignedHrManagerId || null,
         assigned_report_manager_id: assignedReportManagerId || null,
@@ -852,20 +859,43 @@ export default function CandidateCreate({ onBack, onSave }) {
             />
           </div>
           <Input label="Source" value={source} onChange={setSource} />
-          <Input
-            label="Skills (comma separated)"
-            value={skills}
-            onChange={setSkills}
-          />
-          <Input
+
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-gray-700">Skills</div>
+              <button
+                type="button"
+                onClick={() => setShowSkillsModal(true)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
+              >
+                {selectedSkills.length > 0 ? `Edit (${selectedSkills.length})` : "Add Skills"}
+              </button>
+            </div>
+            {selectedSkills.length > 0 ? (
+              <div className="text-sm text-gray-600">
+                {selectedSkills.map(s => s.name).join(", ")}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No skills added. Click "Add Skills" to add your top skills.</p>
+            )}
+          </div>
+
+          <RateField
             label="Current Salary"
             value={currentSalary}
-            onChange={setCurrentSalary}
+            onValueChange={setCurrentSalary}
+            rateType={currentSalaryRateType}
+            onRateTypeChange={setCurrentSalaryRateType}
+            rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]}
           />
-          <Input
+
+          <RateField
             label="Expected Salary"
             value={expectedSalary}
-            onChange={setExpectedSalary}
+            onValueChange={setExpectedSalary}
+            rateType={expectedSalaryRateType}
+            onRateTypeChange={setExpectedSalaryRateType}
+            rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]}
           />
 
           <div className="md:col-span-2">
@@ -1154,6 +1184,120 @@ export default function CandidateCreate({ onBack, onSave }) {
           </Button>
         </div>
       </Card>
+
+      {showSkillsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Manage Skills</h2>
+              <button
+                onClick={() => setShowSkillsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {selectedSkills.length > 0 ? (
+                selectedSkills.map((skill, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">{skill.name}</div>
+                        {skill.yearsOfExperience && (
+                          <div className="text-sm text-gray-600">Experience: {skill.yearsOfExperience} years</div>
+                        )}
+                        {skill.lastUsedDate && (
+                          <div className="text-sm text-gray-600">Last used: {skill.lastUsedDate}</div>
+                        )}
+                        {skill.isPrimary && (
+                          <div className="text-xs font-semibold text-blue-600 mt-1">Primary Skill</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setSelectedSkills(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-600 hover:text-red-700 text-sm font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No skills added yet</p>
+              )}
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <Input
+                label="Skill Name"
+                placeholder="e.g., Java, React, Project Management"
+                id="skill-name-modal"
+              />
+              <Input
+                label="Years of Experience"
+                type="number"
+                placeholder="e.g., 5"
+                id="years-exp-modal"
+              />
+              <Input
+                label="Last Used Date"
+                type="date"
+                id="last-used-modal"
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is-primary-skill"
+                  className="w-4 h-4"
+                />
+                <label htmlFor="is-primary-skill" className="text-sm font-medium">
+                  Mark as Primary Skill
+                </label>
+              </div>
+              <Button
+                onClick={() => {
+                  const nameInput = document.getElementById('skill-name-modal');
+                  const yearsInput = document.getElementById('years-exp-modal');
+                  const dateInput = document.getElementById('last-used-modal');
+                  const primaryInput = document.getElementById('is-primary-skill');
+
+                  if (nameInput.value.trim()) {
+                    const newSkill = {
+                      name: nameInput.value.trim(),
+                      yearsOfExperience: yearsInput.value ? parseInt(yearsInput.value) : null,
+                      lastUsedDate: dateInput.value || null,
+                      isPrimary: primaryInput.checked,
+                    };
+
+                    setSelectedSkills(prev => {
+                      if (primaryInput.checked) {
+                        return [...prev.map(s => ({ ...s, isPrimary: false })), newSkill];
+                      }
+                      return [...prev, newSkill];
+                    });
+
+                    nameInput.value = '';
+                    yearsInput.value = '';
+                    dateInput.value = '';
+                    primaryInput.checked = false;
+                  }
+                }}
+                className="w-full"
+              >
+                Add Skill
+              </Button>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
+              <Button variant="secondary" onClick={() => setShowSkillsModal(false)}>
+                Done
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
