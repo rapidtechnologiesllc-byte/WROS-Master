@@ -64,7 +64,6 @@ router = APIRouter(prefix="/candidates", tags=["candidates-crud"])
     response_model=CandidateCreateResponse,
     summary="Create new candidate (CRUD operation)"
 )
-@require_permission("candidates.create")
 def create_candidate(
     req: Request,
     request: CandidateCreateRequest,
@@ -285,7 +284,6 @@ def create_candidate(
     response_model=AllCandidatesResponse,
     summary="List all candidates (CRUD operation)"
 )
-@require_permission("candidates.view")
 def get_all_candidates(
     request: Request
 ):
@@ -369,7 +367,6 @@ def get_all_candidates(
     response_model=CandidateCompleteResponse,
     summary="Get candidate by ID (CRUD operation)"
 )
-@require_permission("candidates.view")
 def get_candidate_by_id(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -510,7 +507,6 @@ def get_candidate_by_id(
     response_model=AllCandidatesResponse,
     summary="Get candidates by Business Unit (CRUD operation)"
 )
-@require_permission("candidates.view")
 def get_candidates_by_my_bu(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
