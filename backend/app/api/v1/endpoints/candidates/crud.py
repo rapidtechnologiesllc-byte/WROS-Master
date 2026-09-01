@@ -410,7 +410,7 @@ def get_all_candidates(
 def get_candidate_by_id(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Get full details of a single candidate by ID.
@@ -418,7 +418,7 @@ def get_candidate_by_id(
     CRUD operation: Read only (no modifications).
     BU scoped: Respects business unit access policies.
     """
-    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user)
     if not candidate:
         raise HTTPException(
             status_code=404,
@@ -550,7 +550,7 @@ def get_candidate_by_id(
 )
 def get_candidates_by_my_bu(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     include_org_pool: bool = Query(
         default=False,
         description="Include Org Pool candidates in result"
@@ -568,7 +568,7 @@ def get_candidates_by_my_bu(
     """
     from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 
-    calling_user = db.query(Users).filter(Users.UserID == user.UserID).first()
+    calling_user = db.query(Users).filter(Users.UserID == current_user.UserID).first()
     bu_id = calling_user.business_unit_id if calling_user else None
 
     if not bu_id:
@@ -735,7 +735,7 @@ def update_candidate(
     candidate_id: str,
     request: CandidateUpdateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Update an existing candidate.
@@ -743,7 +743,7 @@ def update_candidate(
     CRUD operation: Update only (no workflows).
     Single atomic commit with no queue messages.
     """
-    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user)
     if not candidate:
         raise HTTPException(
             status_code=404,
@@ -839,7 +839,7 @@ def update_candidate(
 def delete_candidate(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Delete a candidate and all associated records.

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/candidates", tags=["candidates-workflows"])
 def convert_candidate_to_employee(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Convert a candidate to an employee record.
@@ -125,7 +125,7 @@ def _user_info(user: Users | None) -> dict | None:
 def get_candidate_contacts(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns full contact details for everyone connected to a candidate.
