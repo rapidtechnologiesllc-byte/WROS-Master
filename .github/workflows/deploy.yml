@@ -28,7 +28,7 @@ jobs:
       - name: Build
         working-directory: frontend
         run: |
-          rm -rf node_modules build
+          rm -rf node_modules build .env
           npm ci
           npm run build
 
