@@ -15,7 +15,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -90,7 +90,7 @@ class TaskStatus:
 
 @router.get("/tasks")
 async def list_tasks(
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -121,7 +121,7 @@ async def list_tasks(
 @router.get("/tasks/{task_id}")
 async def get_task(
     task_id: str,
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -144,7 +144,7 @@ async def get_task(
 @router.post("/tasks/{task_id}/retry")
 async def retry_task(
     task_id: str,
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -174,7 +174,7 @@ async def retry_task(
 @router.post("/tasks/{task_id}/clear")
 async def clear_task(
     task_id: str,
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Jobs, Users
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
@@ -62,7 +62,7 @@ def create_job(
     request: JobCreateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    user=Depends(get_current_internal_user)
 ):
     """Create new job with queue integration (THUNDER_QUEUE)."""
     if request.contact_person in ("string", ""):
@@ -185,7 +185,7 @@ def create_job(
     response_model=AllJobsResponse,
     summary="List all jobs (CRUD operation)"
 )
-def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_hr_or_admin)):
+def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
     """Get all jobs."""
     jobs = db.query(Jobs).all()
     jobs_data = [_build_job_response(j) for j in jobs]
@@ -200,7 +200,7 @@ def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_hr_or_a
 def get_job_by_id(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    user=Depends(get_current_internal_user)
 ):
     """Get job details by ID."""
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
@@ -218,7 +218,7 @@ def update_job(
     job_id: str,
     request: JobUpdateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    user=Depends(get_current_internal_user)
 ):
     """Update job details."""
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
@@ -273,7 +273,7 @@ def update_job(
 def delete_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin)
+    user=Depends(get_current_internal_user)
 ):
     """Delete job."""
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()

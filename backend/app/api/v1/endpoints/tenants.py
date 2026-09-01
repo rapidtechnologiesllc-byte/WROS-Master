@@ -24,7 +24,7 @@ own docstring for why (no FX-rate source exists anywhere in this
 codebase; a hardcoded rate would be a guessed, immediately-stale number,
 worse than not converting at all).
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program. No dedicated "Admin/Settings" role gate exists in this
 codebase's RBAC beyond that -- flagged, not guessed at, same posture as
 every other role gap this session.
@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.tenant import Tenant
 from app.models.user import Users
 from app.schemas.tenant import TenantLocaleResponse, UpdateTenantLocaleRequest
@@ -63,7 +63,7 @@ def _get_current_tenant_or_404(db: Session, current_user: Users) -> Tenant:
 @router.get("/me/locale", response_model=TenantLocaleResponse, summary="Get this tenant's locale/currency config")
 def get_tenant_locale(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     tenant = _get_current_tenant_or_404(db, current_user)
     return _to_response(tenant)
@@ -73,7 +73,7 @@ def get_tenant_locale(
 def update_tenant_locale_endpoint(
     body: UpdateTenantLocaleRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     tenant = _get_current_tenant_or_404(db, current_user)
     try:

@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_internal_user
+from app.core.dependencies import get_current_internal_user, get_current_internal_user
 from app.models.employee import Employee
 from app.models.executive_signal import EmployeeFeedbackCycle, RecognitionMessageDraft
 from app.models.user import Users
@@ -47,18 +47,18 @@ def _current_employee(db: Session, current_user: Users) -> Employee:
     return employee
 
 
-@router.get("/org-health", dependencies=[Depends(get_current_hr_or_admin)])
+@router.get("/org-health", dependencies=[Depends(get_current_internal_user)])
 def org_health(db: Session = Depends(get_db)):
     return get_org_health_snapshot(db)
 
 
-@router.post("/feedback-cycles", response_model=FeedbackCycleResponse, dependencies=[Depends(get_current_hr_or_admin)])
+@router.post("/feedback-cycles", response_model=FeedbackCycleResponse, dependencies=[Depends(get_current_internal_user)])
 def create_cycle(body: FeedbackCycleCreateRequest, db: Session = Depends(get_db)):
     return start_quarterly_cycle(db, body.quarter_label)
 
 
-@router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_hr_or_admin)])
-def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+@router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_internal_user)])
+def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     cycle = db.query(EmployeeFeedbackCycle).filter(EmployeeFeedbackCycle.id == cycle_id).first()
     if not cycle:
         raise HTTPException(status_code=404, detail=f"Feedback cycle {cycle_id!r} not found.")
@@ -78,18 +78,18 @@ def submit_response(
     return {"submitted": True}
 
 
-@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_hr_or_admin)])
+@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_internal_user)])
 def pending_recognition(db: Session = Depends(get_db)):
     return db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.status == "DRAFT").all()
 
 
-@router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_hr_or_admin)])
+@router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_internal_user)])
 def birthday_drafts(db: Session = Depends(get_db)):
     return generate_birthday_drafts(db)
 
 
 @router.post("/recognition/{draft_id}/approve", response_model=RecognitionDraftResponse)
-def approve_recognition(draft_id: str, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+def approve_recognition(draft_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:
         raise HTTPException(status_code=404, detail=f"Recognition draft {draft_id!r} not found.")
@@ -99,7 +99,7 @@ def approve_recognition(draft_id: str, current_user: Users = Depends(get_current
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.post("/recognition/{draft_id}/reject", response_model=RecognitionDraftResponse, dependencies=[Depends(get_current_hr_or_admin)])
+@router.post("/recognition/{draft_id}/reject", response_model=RecognitionDraftResponse, dependencies=[Depends(get_current_internal_user)])
 def reject_recognition_endpoint(draft_id: str, db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:

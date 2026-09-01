@@ -12,7 +12,7 @@ enforces (Avinash's 2026-08-05 "client attribution locking" law: a
 client's BU is derived from the creating user's own BU, never a
 caller-supplied field).
 
-Gated the same way as GET /users/all (get_current_hr_or_admin): any
+Gated the same way as GET /users/all (get_current_internal_user): any
 internal user needs to see real client names to filter by them, this
 isn't sensitive data on its own the way markup_rate_pct etc. are.
 """
@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.client import Client, ClientContact
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
@@ -61,7 +61,7 @@ def _employee_name_map(db: Session, employee_ids) -> dict:
 def list_clients(
     active_only: bool = True,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     query = db.query(Client)
     if active_only:
@@ -92,7 +92,7 @@ def list_clients(
 def get_business_unit_assignments(
     business_unit_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """Resolves a BU's designated BU Head + HR Manager for Job-creation
     auto-assignment (agentic-first mandate -- the agent resolves what it
@@ -132,7 +132,7 @@ def get_business_unit_assignments(
 def create_client_endpoint(
     body: ClientCreateRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     try:
         client = create_client(
@@ -172,7 +172,7 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
 def get_client_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -184,7 +184,7 @@ def get_client_endpoint(
 def list_client_contacts_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -198,7 +198,7 @@ def add_client_contact_endpoint(
     client_id: str,
     body: ClientContactAddRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -219,7 +219,7 @@ def update_client_endpoint(
     client_id: str,
     body: ClientUpdateRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:

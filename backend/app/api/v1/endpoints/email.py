@@ -1,4 +1,4 @@
-﻿"""
+"""
 HRMS Email Service Endpoints
 Provides production-ready mail & interview scheduling APIs backed by
 Microsoft Graph via helpdesk_hrms@blitzenx.com.
@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_user, require_permission
+from app.core.dependencies import get_current_internal_user, get_current_user, require_permission
 from app.core.logging import logger
 from app.models import Candidate, Interview, InterviewPanel, PanelMember, Users
 from app.services.email_service import EmailService
@@ -116,7 +116,7 @@ class SendLoginCredentialsRequest(BaseModel):
 )
 def send_mail(
     request: SendMailRequest,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Send an email from **helpdesk_hrms@blitzenx.com** to any recipient.
@@ -152,7 +152,7 @@ async def send_mail_with_attachments(
         default=[],
         description="One or more files to attach (PDF, DOCX, images, etc.)",
     ),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Send an email **with file attachments** from helpdesk_hrms@blitzenx.com.
@@ -207,7 +207,7 @@ async def send_mail_with_attachments(
 )
 def send_notification(
     request: SendNotificationRequest,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Send a branded notification email with a heading and body message.
@@ -308,7 +308,7 @@ def send_interview_invite_by_id(
     timezone: str = "Asia/Kolkata",
     create_teams_event: bool = True,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Fetches interview details from the DB (candidate, panel members, times)
@@ -402,7 +402,7 @@ def cancel_interview_by_id(
     interview_id: int,
     reason: str = "",
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Cancels an existing interview by its ID.
@@ -495,7 +495,7 @@ def cancel_interview_by_id(
 )
 def send_custom_interview_invite(
     request: SendCustomInterviewInviteRequest,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Ad-hoc interview invite when the interview hasn't been formally
@@ -527,7 +527,7 @@ def send_login_credentials(
     candidate_id: str,
     request: SendLoginCredentialsRequest = SendLoginCredentialsRequest(),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Looks up the candidate by **candidate_id** and sends a branded HTML email

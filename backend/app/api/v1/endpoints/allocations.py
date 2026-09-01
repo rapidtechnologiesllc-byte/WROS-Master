@@ -13,7 +13,7 @@ by allocate_employee_to_project() itself when allow_concurrent=True and
 the sum of utilization would exceed 100%; this endpoint surfaces that
 as a 409, not a second implementation.
 
-Auth: get_current_hr_or_admin.
+Auth: get_current_internal_user.
 
 Routes:
   POST   /allocations               Allocate an employee to a demand.
@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.demand import Demand
@@ -103,7 +103,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
 def create_allocation(
     body: CreateAllocationRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = db.query(Employee).filter(Employee.id == body.employee_id).first()
     if employee is None:
@@ -138,7 +138,7 @@ def create_allocation(
 @router.get("/dropdowns/for-create", response_model=AllocationDropdownsResponse, summary="Get employees and demands for allocation form")
 def get_allocation_dropdowns(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employees = db.query(Employee).filter(Employee.tenant_id == current_user.tenant_id).order_by(Employee.created_at.desc()).all()
     demands = db.query(Demand).filter(Demand.tenant_id == current_user.tenant_id).order_by(Demand.created_at.desc()).all()
@@ -166,7 +166,7 @@ def list_allocations(
     employee_id: Optional[str] = None,
     demand_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(EmployeeAllocation).filter(EmployeeAllocation.tenant_id == current_user.tenant_id)
     if employee_id:
@@ -182,7 +182,7 @@ def end_allocation_endpoint(
     allocation_id: str,
     body: EndAllocationRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == allocation_id).first()
     if allocation is None:

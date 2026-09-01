@@ -21,7 +21,7 @@ from app.core.security_local import (
     create_access_token,
     get_password_hash,
 )
-from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
+from app.core.dependencies import get_current_candidate, get_current_internal_user
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,

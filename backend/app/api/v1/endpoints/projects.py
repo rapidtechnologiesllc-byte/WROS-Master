@@ -22,7 +22,7 @@ HRMS-0807 (Project Risk Flagging) is deliberately not exposed here --
 project_service.py's own docstring explains why (it's specified to
 only ever display a Phase-3 agent's health score, which doesn't exist).
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program.
 
 Routes:
@@ -42,7 +42,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.client import Client
 from app.models.project import (
     CORE_CURRENCIES,
@@ -110,7 +110,7 @@ def _get_project_or_404(db: Session, project_id: str) -> Project:
 def create_project_endpoint(
     body: CreateProjectRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     # 2026-08-06 redesign, confirmed directly with Avinash while testing
     # live: delivery_engine and si_partner are no longer caller-supplied
@@ -171,7 +171,7 @@ def list_projects(
     client_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Project).filter(Project.tenant_id == current_user.tenant_id)
     if client_id:
@@ -186,7 +186,7 @@ def list_projects(
 def get_project(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     return _to_item(_get_project_or_404(db, project_id))
 
@@ -196,7 +196,7 @@ def transition_status(
     project_id: str,
     body: TransitionProjectStatusRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = _get_project_or_404(db, project_id)
     try:
@@ -213,7 +213,7 @@ def create_milestone_endpoint(
     project_id: str,
     body: CreateMilestoneRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = _get_project_or_404(db, project_id)
     milestone = create_milestone(
@@ -230,7 +230,7 @@ def create_milestone_endpoint(
 def list_milestones(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_project_or_404(db, project_id)
     milestones = (
@@ -251,7 +251,7 @@ def complete_milestone_endpoint(
     milestone_id: str,
     body: CompleteMilestoneRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     milestone = db.query(ProjectMilestone).filter(
         ProjectMilestone.id == milestone_id, ProjectMilestone.project_id == project_id,
@@ -274,7 +274,7 @@ def complete_milestone_endpoint(
 def unfilled_roles(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = _get_project_or_404(db, project_id)
     gaps = get_unfilled_project_roles(db, project)
@@ -288,7 +288,7 @@ def unfilled_roles(
 def expected_revenue(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = _get_project_or_404(db, project_id)
     result = calculate_project_expected_revenue(db, project)

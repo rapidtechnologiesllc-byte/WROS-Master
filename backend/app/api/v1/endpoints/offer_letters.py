@@ -1,4 +1,4 @@
-﻿from datetime import datetime, date
+from datetime import datetime, date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
@@ -9,7 +9,7 @@ import os as _os
 from app.core.database import get_db
 from app.core.dependencies import (
     get_current_candidate,
-    get_current_hr_or_admin,
+    get_current_internal_user,
     require_permission,
     require_resource_permission,
 )
@@ -138,7 +138,7 @@ def list_offer_templates(
         description="Sub-folder inside the templates directory to list. "
                     "Leave blank to list the root templates folder.",
     ),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns all `.docx` (and other) template files stored in the SharePoint
@@ -303,7 +303,7 @@ def get_my_offers(
 def create_offer_letter(
     request: OfferLetterCreateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Create a new offer letter for a candidate (HR/Recruiter only)."""
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
@@ -400,7 +400,7 @@ def cancel_offer_letter(
     offer_id: int,
     request: OfferCancelRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Cancel an offer letter (HR/Recruiter only)."""
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
@@ -432,7 +432,7 @@ def update_offer_letter(
     offer_id: int,
     request: OfferLetterUpdateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Update an offer letter (HR/Recruiter only)."""
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
@@ -503,7 +503,7 @@ def get_all_offers(
     status: Optional[str] = Query(None, description="Filter by offer status"),
     candidate_id: Optional[str] = Query(None, description="Filter by candidate ID"),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Get all offer letters with optional filters (HR/Recruiter only)."""
     query = db.query(OfferLetter)
@@ -529,7 +529,7 @@ def get_all_offers(
 )
 def get_pending_approval_offers(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns all offer letters where `approval_status = AwaitingApproval` and
@@ -557,7 +557,7 @@ def get_pending_approval_offers(
 def get_pending_approval_offers_by_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns all offer letters where:
@@ -591,7 +591,7 @@ def get_pending_approval_offers_by_job(
 def get_offer_by_id(
     offer_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Get a specific offer letter by ID (HR/Recruiter only)."""
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
@@ -632,7 +632,7 @@ def generate_offer_letter_document(
         description="Template to use: 'intern' for Internship Offer Letter, 'fulltime' for Full-Time Offer Letter.",
     ),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Auto-generate a filled `.docx` offer letter for the given offer.
@@ -1186,7 +1186,7 @@ class SalaryStructureWithDetailsResponse(_BM):
 )
 def generate_salary_structure(
     request: SalaryStructureRequest,
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Generate and **download** a professional salary-structure Word document.
@@ -1229,7 +1229,7 @@ def generate_salary_structure(
 )
 def generate_salary_structure_with_details(
     request: SalaryStructureRequest,
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Generate the salary-structure Word document **and** return the full
@@ -1333,7 +1333,7 @@ def generate_salary_structure_with_details(
 def preview_salary_structure(
     offer_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return the calculated salary breakdown (JSON) for an existing offer

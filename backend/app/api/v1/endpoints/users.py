@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission, get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission, get_current_internal_user
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
@@ -44,7 +44,7 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 )
 def get_me(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Return the profile of the currently authenticated HR / Admin user
@@ -131,7 +131,7 @@ def get_me(
 def update_digest_preference(
     payload: DigestPreferenceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     current_user.digest_enabled = payload.digest_enabled
     db.add(current_user)
@@ -188,7 +188,7 @@ def get_current_user_permissions(
 )
 def get_all_users(
     db: Session = Depends(get_db), 
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all users (HR, Admin, etc.) from the system.
@@ -236,7 +236,7 @@ def get_all_users(
 )
 def search_users(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     name: Optional[str] = Query(
         default=None,
         description="Partial, case-insensitive search on user name or email",
@@ -351,7 +351,7 @@ def search_users(
 def get_user_details_by_id(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Retrieve user details by their User ID, including department and business unit.
@@ -390,7 +390,7 @@ def get_user_details_by_id(
 def create_candidate_assignment(
     request: CandidateAssignmentCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Create a candidate assignment with hiring and reporting managers.
@@ -459,7 +459,7 @@ def create_candidate_assignment(
 )
 def get_assigned_candidates(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all candidates assigned to the logged-in user (as hiring or reporting manager).
@@ -520,7 +520,7 @@ def get_assigned_candidates(
 )
 def get_assigned_interviews(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interviews where the logged-in user is a panel member.
@@ -597,7 +597,7 @@ def get_assigned_interviews(
 def create_user(
     request: SignupRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_internal_user)
 ):
     """
     Create a new internal user (HR, Admin, etc.).
@@ -641,7 +641,7 @@ def create_user(
 def create_user_with_roles(
     request: CreateUserWithRolesRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Create a new user with roles and org hierarchy (MANDATORY: hierarchy_level + specialization).
@@ -785,7 +785,7 @@ def update_user_with_roles(
     user_id: str,
     request: UpdateUserWithRolesRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Update a user with role template (single), job title, partner, and business unit.
@@ -834,7 +834,7 @@ def update_user(
     user_id: str,
     request: UpdateUserWithRolesRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_internal_user)
 ):
     """
     Update a user's name, role, job title, role template, and business unit.
@@ -889,7 +889,7 @@ def update_user(
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_internal_user)
 ):
     """
     Delete an internal user account.
@@ -979,7 +979,7 @@ def delete_user(
 def change_password(
     request: ChangePasswordRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Change the password of the currently logged-in user.
@@ -1024,7 +1024,7 @@ def admin_reset_password(
     user_id: str,
     request: AdminResetPasswordRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Admin-only password reset endpoint. No current password required.
@@ -1081,7 +1081,7 @@ def admin_reset_password(
 def get_user_by_id(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Retrieve the full profile of a single internal user (HR, Admin, etc.)
@@ -1132,7 +1132,7 @@ def get_user_by_id(
 )
 def get_hiring_manager_assigned_candidates(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Retrieve all candidates that are directly assigned to the currently
@@ -1212,7 +1212,7 @@ def get_hiring_manager_assigned_candidates(
 )
 def get_job_titles(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Fetch all active job titles for the current tenant.

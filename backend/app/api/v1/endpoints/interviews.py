@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models import (
     Users, Candidate, Interview, InterviewPanel,
     InterviewFeedback, PanelMember,
@@ -749,7 +749,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 def create_interview_panel(
     request: InterviewPanelCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Create a new interview panel for a candidate.
@@ -864,7 +864,7 @@ def create_interview_panel(
 def get_interview_panel(
     panel_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get details of a specific interview panel.
@@ -931,7 +931,7 @@ def get_all_interview_panels(
     round_name: Optional[str] = Query(None, description="Filter by round name"),
     job_id: Optional[str] = Query(None, description="Filter by job ID"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interview panels with optional filtering.
@@ -1003,7 +1003,7 @@ def get_all_interview_panels(
 def delete_interview_panel(
     panel_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Delete an interview panel and all associated data.
@@ -1086,7 +1086,7 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
 )
 def list_rehire_reviews(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin),
+    user = Depends(get_current_internal_user),
 ):
     """
     Pending rehire-guard reviews awaiting a hiring manager's decision --
@@ -1110,7 +1110,7 @@ def decide_rehire_review_endpoint(
     review_id: int,
     request: RehireReviewDecideRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin),
+    user = Depends(get_current_internal_user),
 ):
     """
     Hiring manager approves or rejects a pending rehire review. Approve
@@ -1181,7 +1181,7 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 def assign_panel_member(
     request: PanelMemberCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Assign an interviewer to an interview panel.
@@ -1277,7 +1277,7 @@ def assign_panel_member(
 def get_panel_members(
     panel_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all members of a specific panel.
@@ -1330,7 +1330,7 @@ def get_panel_members(
 def remove_panel_member(
     member_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Remove an interviewer from a panel.
@@ -1375,7 +1375,7 @@ def remove_panel_member(
 def create_interview(
     request: InterviewCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Create a new interview.
@@ -1492,7 +1492,7 @@ def create_interview(
 def get_my_interviews(
     status: Optional[str] = Query(None, description="Filter by interview status (Scheduled, Completed, Cancelled)"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interviews where the current user is a panel member.
@@ -1628,7 +1628,7 @@ def get_my_interviews(
 def get_interview(
     interview_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get details of a specific interview.
@@ -1700,7 +1700,7 @@ def get_all_interviews(
     panel_id: Optional[int] = Query(None, description="Filter by panel ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interviews with optional filtering.
@@ -1778,7 +1778,7 @@ def update_interview(
     interview_id: int,
     request: InterviewUpdate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Update an existing interview.
@@ -1873,7 +1873,7 @@ def update_interview(
 def delete_interview(
     interview_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Delete an interview and all associated feedback.
@@ -1933,7 +1933,7 @@ def delete_interview(
 def submit_interview_feedback(
     request: InterviewFeedbackCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Submit interview feedback.
@@ -2078,7 +2078,7 @@ def submit_interview_feedback(
 def get_feedback_by_interview(
     interview_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all feedback for a specific interview.
@@ -2140,7 +2140,7 @@ def get_feedback_by_interview(
 def get_feedback_by_id(
     feedback_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get specific feedback details.
@@ -2195,7 +2195,7 @@ def update_interview_feedback(
     feedback_id: int,
     request: InterviewFeedbackUpdate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Update existing interview feedback.
@@ -2261,7 +2261,7 @@ def update_interview_feedback(
 def delete_interview_feedback(
     feedback_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Delete interview feedback.
@@ -2300,7 +2300,7 @@ def delete_interview_feedback(
 @router.get("/statistics", response_model=InterviewStatistics)
 def get_interview_statistics(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get overall interview statistics.
@@ -2348,7 +2348,7 @@ def get_interview_statistics(
 def get_candidate_interview_history(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get complete interview history for a candidate.
@@ -2438,7 +2438,7 @@ def get_candidate_interview_history(
 def get_interviewer_workload(
     interviewer_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get workload statistics for an interviewer.
@@ -2540,7 +2540,7 @@ def get_interviewer_workload(
 )
 def get_my_hiring_manager_candidate_review(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Real fix, 2026-08-05 -- this route used to take hiring_manager_id as

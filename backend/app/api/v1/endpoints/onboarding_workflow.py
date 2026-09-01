@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-324/HRMS-ONBOARDING-WORKFLOW -- REST API Endpoints.
 
 Provides REST endpoints for onboarding workflow operations:
@@ -18,7 +18,7 @@ import json
 
 import app.schemas as schema
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.core.tenant_context import get_current_tenant_id
 
@@ -140,7 +140,7 @@ class TrainingSessionResponse(schema.BaseModel):
 def start_onboarding_endpoint(
     request: StartOnboardingRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Initiates onboarding workflow for a new employee.
@@ -182,7 +182,7 @@ def start_onboarding_endpoint(
 def assign_buddy_endpoint(
     request: AssignBuddyRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Assigns a buddy to guide new employee through onboarding.
@@ -221,7 +221,7 @@ def assign_buddy_endpoint(
 def send_welcome_kit_endpoint(
     request: SendWelcomeKitRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Dispatches welcome kit/materials to new employee.
@@ -267,7 +267,7 @@ def send_welcome_kit_endpoint(
 def schedule_training_endpoint(
     request: ScheduleTrainingRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Schedules a training session for new employee onboarding.
@@ -318,7 +318,7 @@ def schedule_training_endpoint(
 def get_workflow(
     workflow_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> OnboardingWorkflow:
     """
     Returns full onboarding workflow including:
@@ -353,7 +353,7 @@ def get_workflow(
 def get_workflow_by_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Returns onboarding workflow for specific employee including all related data:
@@ -448,7 +448,7 @@ def get_workflow_tasks(
     workflow_id: int,
     status: Optional[str] = Query(None, description="Filter by status (PENDING, IN_PROGRESS, COMPLETED, etc.)"),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Returns all onboarding tasks for a workflow with optional status filter.
@@ -492,7 +492,7 @@ def get_workflow_training_sessions(
     workflow_id: int,
     status: Optional[str] = Query(None, description="Filter by status (SCHEDULED, IN_PROGRESS, COMPLETED, etc.)"),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Returns all training sessions scheduled for an onboarding workflow.

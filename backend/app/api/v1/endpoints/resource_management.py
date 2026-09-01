@@ -9,7 +9,7 @@ Wires the service layer built earlier this program
 No REST layer previously existed for this story -- see the Definition of
 Done correction in CLAUDE.md.
 
-Auth: same posture as Thunder (get_current_hr_or_admin -- any internal
+Auth: same posture as Thunder (get_current_internal_user -- any internal
 user, any role). No resource-management-specific RBAC permission exists
 yet in this codebase's permission set (see app/core/dependencies.py's
 require_permission() options); adding one is a separate, not-yet-scoped
@@ -46,7 +46,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -126,7 +126,7 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
 )
 def trigger_scan(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     result = run_bench_scan(db, tenant_id=current_user.tenant_id, bu_head=current_user)
     db.commit()
@@ -140,7 +140,7 @@ def trigger_scan(
 )
 def get_queue(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     recs = get_recommendation_queue(db, tenant_id=current_user.tenant_id)
     return RecommendationQueueResponse(recommendations=[_to_item(db, r) for r in recs])
@@ -160,7 +160,7 @@ def get_queue(
 def pursue_recommendation(
     recommendation_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rec = _get_recommendation_or_404(db, recommendation_id)
     try:
@@ -184,7 +184,7 @@ def pursue_recommendation(
 def approve_recommendation(
     recommendation_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rec = _get_recommendation_or_404(db, recommendation_id)
     try:
@@ -210,7 +210,7 @@ def approve_recommendation(
 def reject_recommendation(
     recommendation_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rec = _get_recommendation_or_404(db, recommendation_id)
     try:
@@ -231,7 +231,7 @@ def reject_recommendation(
 def check_actively_engaged(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
 
@@ -244,7 +244,7 @@ def check_actively_engaged(
 def matching_bench_resources(
     demand_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     demand = db.query(Demand).filter(Demand.id == demand_id).first()
     if demand is None:

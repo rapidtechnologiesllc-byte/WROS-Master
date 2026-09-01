@@ -1,4 +1,4 @@
-﻿
+
 import os
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -11,7 +11,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.security import create_access_token, decode_access_token
 from app.models import Users,Role
 from app.core.logging import logger
@@ -89,7 +89,7 @@ LINK_STATE_TTL_MINUTES = 10
 
 
 @router.get("/link/start")
-def start_link(current_user: Users = Depends(get_current_hr_or_admin)):
+def start_link(current_user: Users = Depends(get_current_internal_user)):
     """Returns the Microsoft sign-in URL for the CURRENTLY authenticated
     WROS user to link their M365 account. The frontend must call this
     via an authenticated fetch (not a plain <a href>, since a real
@@ -103,14 +103,14 @@ def start_link(current_user: Users = Depends(get_current_hr_or_admin)):
 
 
 @router.get("/link-status")
-def link_status(current_user: Users = Depends(get_current_hr_or_admin)):
+def link_status(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.get(current_user.UserID)
     linked = bool(account_id and account_id in user_tokens)
     return {"linked": linked}
 
 
 @router.post("/unlink")
-def unlink(current_user: Users = Depends(get_current_hr_or_admin)):
+def unlink(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.pop(current_user.UserID, None)
     if account_id:
         user_tokens.pop(account_id, None)
@@ -261,7 +261,7 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
     return response
 
 @router.get("/me")
-def me(db: Session = Depends(get_db), user: Users = Depends(get_current_hr_or_admin)):
+def me(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
     """
     Return the current authenticated user's profile from the database.
     Requires a valid JWT Bearer token (obtained from /auth/callback redirect).
@@ -281,7 +281,7 @@ def me(db: Session = Depends(get_db), user: Users = Depends(get_current_hr_or_ad
         }
     })
 
-def _require_account(current_user: Users = Depends(get_current_hr_or_admin)) -> str:
+def _require_account(current_user: Users = Depends(get_current_internal_user)) -> str:
     """
     Identify the calling user's linked Microsoft account from their real
     authenticated session (the same JWT every other endpoint in this
@@ -300,7 +300,7 @@ def _require_account(current_user: Users = Depends(get_current_hr_or_admin)) -> 
     anyone who learned/guessed another user's MS `oid` could set it
     client-side and use that user's Graph token. Fixed the same way
     every other "resolve MY OWN data" endpoint in this codebase
-    already does: derive identity from Depends(get_current_hr_or_admin)
+    already does: derive identity from Depends(get_current_internal_user)
     (the real JWT), never a request-supplied identifier.
     """
     account_id = _account_id_by_user_id.get(current_user.UserID)
@@ -465,7 +465,7 @@ def get_user_calendar_events(
     user_email: str,
     start_time: str = None,
     end_time: str = None,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     '''
@@ -593,7 +593,7 @@ def schedule_meeting_for_user(
     timezone: str = "UTC",
     teams_online: bool = True,
     location: str = None,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     '''
@@ -716,7 +716,7 @@ def schedule_meeting_for_user(
     dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def test_sharepoint_connection(
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Test SharePoint connection and list available folders.
@@ -868,7 +868,7 @@ def test_sharepoint_connection(
     dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def list_sharepoint_drives(
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     '''
     List all drives available in the SharePoint site.

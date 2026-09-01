@@ -11,7 +11,7 @@ EPIC-05) to real HTTP routes. Read-only reporting: BR-01 (source doc)
 says allocation end dates are planning estimates, not contractual
 commitments -- nothing here writes anything or treats them as actuals.
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program.
 
 Routes:
@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.schemas.resource_forecast import (
     ExpiringAllocationItem,
@@ -48,7 +48,7 @@ router = APIRouter(prefix="/resource-forecast", tags=["resource-forecast"])
 )
 def expiring_allocations(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     buckets = get_expiring_allocations(db, tenant_id=current_user.tenant_id)
     return ExpiringAllocationsResponse(
@@ -65,7 +65,7 @@ def expiring_allocations(
 def gap_analysis(
     business_unit_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rows = get_skill_gap_analysis(db, tenant_id=current_user.tenant_id, business_unit_id=business_unit_id)
     return SkillGapAnalysisResponse(rows=[SkillGapRow(**r) for r in rows])

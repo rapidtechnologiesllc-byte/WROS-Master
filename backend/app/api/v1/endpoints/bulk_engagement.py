@@ -16,7 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.bulk_engagement import BulkEngageRequest, BulkEngageResponse, BulkImportResponse, BulkJobStatusResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -42,7 +42,7 @@ def _run_worker_in_background(job_id: str) -> None:
 
 
 @router.post("/candidates/bulk-import", response_model=BulkImportResponse, dependencies=[Depends(require_resource_permission("candidates", "create"))])
-async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv file.")
     raw = (await file.read()).decode("utf-8-sig", errors="replace")
@@ -56,7 +56,7 @@ async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_u
 
 
 @router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
-def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: Users = Depends(get_current_hr_or_admin)):
+def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     tenant_id = resolve_default_tenant_id(db)
     try:
         result = launch_bulk_engagement(db, payload.candidate_ids, current_user.UserID, tenant_id)

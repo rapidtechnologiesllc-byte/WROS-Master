@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.core.logging import logger
 from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMFeedback
 from app.services.slm_daily_improvement import SLMDailyImprovement
@@ -59,7 +59,7 @@ class FeedbackStats(BaseModel):
 def record_correction(
     request: CorrectionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Record when recruiter corrects a parsing error.
@@ -113,7 +113,7 @@ def record_correction(
 def record_validation(
     request: ValidationRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Record when recruiter validates a parsed value (leaves it unchanged).
@@ -157,7 +157,7 @@ def record_validation(
 def get_feedback_stats(
     days: int = 7,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get statistics on parsing feedback (corrections and validations).
@@ -203,7 +203,7 @@ def get_feedback_stats(
 @router.get("/feedback/report")
 def get_improvement_report(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get today's improvement report from the daily cycle.
@@ -231,7 +231,7 @@ def get_improvement_report(
 @router.get("/feedback/trajectory")
 def get_improvement_trajectory(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get projected accuracy improvement trajectory.
@@ -258,7 +258,7 @@ def get_error_patterns(
     field_name: str,
     limit: int = 20,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Analyze error patterns for a specific field.
@@ -304,7 +304,7 @@ def get_error_patterns(
 def get_training_batch(
     min_examples: int = 20,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get a training batch ready to send to Claude for model improvement.
@@ -357,7 +357,7 @@ def get_training_batch(
 def bulk_import_corrections(
     corrections: List[CorrectionRequest],
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Bulk import multiple corrections at once.

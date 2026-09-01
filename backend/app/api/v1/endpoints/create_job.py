@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
@@ -72,7 +72,7 @@ def _can_auto_approve_job(user) -> bool:
 def generate_job_description(
     request: GenerateJobDescriptionRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Generate job description using AI.
@@ -111,7 +111,7 @@ def generate_job_description(
 def generate_job_with_agent(
     request: GenerateJobWithAgentRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Step 1: Recruitment agent analyzes one-liner and generates clarifying questions.
@@ -169,7 +169,7 @@ def generate_job_with_agent(
 def generate_job_complete(
     request: GenerateJobCompleteRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Step 2: Recruitment agent generates complete job with all fields populated.
@@ -229,7 +229,7 @@ def generate_job_complete(
 )
 def get_all_jobs(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all jobs from the system.
@@ -342,7 +342,7 @@ def filter_jobs(
     company_name: Optional[str] = None,
     job_location: Optional[str] = None,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Filter jobs by one or more columns. All parameters are optional and combined
@@ -412,7 +412,7 @@ def filter_jobs(
 )
 def get_my_jobs(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all jobs where the current authenticated user is assigned as:
@@ -487,7 +487,7 @@ def get_my_jobs(
 def get_job_by_id(
     job_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get whole information of a job by job ID.
@@ -556,7 +556,7 @@ def get_job_by_id(
     response_model=JobCreateResponse,
     dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
-def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Create a new job posting.
 
@@ -727,7 +727,7 @@ def approve_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Approve a pending job posting and make it live.
@@ -786,7 +786,7 @@ def approve_job(
     response_model=JobResponse,
     dependencies=[Depends(require_resource_permission("jobs", "edit"))],
 )
-def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Update an existing job posting.
     
@@ -877,7 +877,7 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     response_model=DeleteResponse,
     dependencies=[Depends(require_resource_permission("jobs", "delete"))],
 )
-def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Delete a job posting.
     
@@ -917,7 +917,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
 def post_job_on_linkedin(
     request: LinkedInPostRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     SIMULATES posting a job to LinkedIn -- no real LinkedIn API integration
@@ -1181,7 +1181,7 @@ def assign_candidate_to_job(
     job_id: str,
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Link a candidate to the given job (or switch them to a different job).
@@ -1237,7 +1237,7 @@ def assign_candidate_to_job(
 def unassign_candidate_from_job(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Unlink a candidate from whichever job they are currently assigned to (sets job_id = NULL).
@@ -1281,7 +1281,7 @@ def unassign_candidate_from_job(
 def get_candidates_by_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return every candidate whose job_id matches the given job.
@@ -1334,7 +1334,7 @@ def create_job_application(
     candidate_id: str,
     request: JobApplicationCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Assign a candidate to a job using the many-to-many junction table.
@@ -1390,7 +1390,7 @@ def remove_job_application(
     job_id: str,
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Remove the assignment between a candidate and a job (many-to-many).
@@ -1422,7 +1422,7 @@ def update_job_application_status(
     candidate_id: str,
     request: JobApplicationStatusUpdate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Update the ``application_status`` of a specific candidate ↔ job assignment.
@@ -1463,7 +1463,7 @@ def get_job_applications(
     job_id: str,
     application_status: Optional[str] = None,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return all candidates linked to this job via the many-to-many table.
@@ -1510,7 +1510,7 @@ def get_job_applications(
 def get_candidate_applications(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return every job a candidate is linked to via the many-to-many table.
@@ -1571,7 +1571,7 @@ from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
 def get_job_statistics(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return aggregated application statistics for a specific job.
