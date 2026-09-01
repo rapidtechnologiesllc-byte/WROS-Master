@@ -282,13 +282,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        <Button
-          onClick={() => navigate('/admin/users-access-control/users/create')}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add User
-        </Button>
+        {hasPermission("user", "create") && (
+          <Button
+            onClick={() => navigate('/admin/users-access-control/users/create')}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add User
+          </Button>
+        )}
       </div>
 
       <Table
@@ -900,12 +902,14 @@ function BusinessUnitsSection() {
 
   return (
     <div className="space-y-4">
-      <button
-        onClick={() => navigate('/admin/users-access-control/business-units/create')}
-        className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
-      >
-        <Plus className="h-4 w-4" /> Add Business Unit
-      </button>
+      {hasPermission("business_unit", "create") && (
+        <button
+          onClick={() => navigate('/admin/users-access-control/business-units/create')}
+          className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
+        >
+          <Plus className="h-4 w-4" /> Add Business Unit
+        </button>
+      )}
       <div className="space-y-3">
         {businessUnits.map((bu) => (
           <div key={bu.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
@@ -1420,12 +1424,14 @@ function LocationsSection() {
 
   return (
     <div className="space-y-4">
-      <button
-        onClick={() => navigate('/admin/users-access-control/delivery-centers/create')}
-        className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
-      >
-        <Plus className="h-4 w-4" /> Add Delivery Center
-      </button>
+      {hasPermission("delivery_center", "create") && (
+        <button
+          onClick={() => navigate('/admin/users-access-control/delivery-centers/create')}
+          className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
+        >
+          <Plus className="h-4 w-4" /> Add Delivery Center
+        </button>
+      )}
       <div className="space-y-3">
         {deliveryCenters.map((dc) => (
           <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
