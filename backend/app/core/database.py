@@ -77,11 +77,12 @@ def get_db():
         RuntimeError: If database connection or schema setup fails
     """
     from app.core.logging import logger
+    from sqlalchemy import text
 
     try:
         db = SessionLocal()
         # Test connection immediately - fail fast if database is unreachable
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         logger.debug("Database connection established")
         yield db
     except Exception as e:

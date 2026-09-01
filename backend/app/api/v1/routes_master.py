@@ -152,7 +152,6 @@ from app.api.v1.endpoints.candidates import router as candidates_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.create_job import router as create_job_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
-from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.employees import router as employees_router
 from app.api.v1.endpoints.notifications import router as notifications_router
 from app.api.v1.endpoints.rbac import router as rbac_router
@@ -437,28 +436,6 @@ def create_master_router() -> APIRouter:
     # =======================
     # Story: HRMS-0205 - Start Pre-Onboarding
     # Endpoints: /onboarding/start, /onboarding/{id}, /onboarding/{id}/status
-    # Protected: requires valid JWT + onboarding.manage permission
-    # Tenant-isolated: offer must belong to current_user's tenant
-    router.include_router(
-        onboarding_router,
-        tags=["onboarding"],
-        dependencies=[Depends(get_current_user)],
-        responses={
-            400: {
-                "description": "Offer not approved or checklist validation failed",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "status_code": 400,
-                            "error_type": "invalid_status",
-                            "message": "Cannot start onboarding: offer status is PENDING, not APPROVED"
-                        }
-                    }
-                }
-            }
-        }
-    )
-
     # =======================
     # TIER 8: EMPLOYEE CONVERSION
     # =======================
