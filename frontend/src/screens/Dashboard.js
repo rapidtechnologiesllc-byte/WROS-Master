@@ -153,15 +153,19 @@ export default function Dashboard({
           icon={<LayoutDashboard className="h-4 w-4" />}
         >
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate("/candidates/create")}>
-              <Plus className="h-4 w-4" /> Add New Candidate
-            </Button>
+            {hasPermission("candidates", "create") && (
+              <Button onClick={() => navigate("/candidates/create")}>
+                <Plus className="h-4 w-4" /> Add New Candidate
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => navigate("/candidates")}>
               <Search className="h-4 w-4" /> Search Candidate
             </Button>
-            <Button variant="secondary" onClick={() => navigate("/jobs/create")}>
-              <Plus className="h-4 w-4" /> Create Job
-            </Button>
+            {hasPermission("jobs", "create") && (
+              <Button variant="secondary" onClick={() => navigate("/jobs/create")}>
+                <Plus className="h-4 w-4" /> Create Job
+              </Button>
+            )}
           </div>
         </Card>
 
