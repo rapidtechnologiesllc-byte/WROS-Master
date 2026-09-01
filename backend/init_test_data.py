@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.core.database import engine, get_db
 from app.models.base import Base
 from app.models.user import Users, Jobs
-from app.models.rbac import Role, Permission, RolePermission, 
 from app.models.business_unit import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.candidate import Candidate
