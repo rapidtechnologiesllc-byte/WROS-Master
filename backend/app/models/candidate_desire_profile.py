@@ -25,7 +25,7 @@ class CandidateDesireProfile(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
 
     top_desire_category = Column(String(30), nullable=True)
     top_desire_score = Column(Float, nullable=True)

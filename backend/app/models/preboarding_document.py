@@ -40,7 +40,7 @@ class PreboardingDocument(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     offer_id = Column(Integer, ForeignKey("offer_letters.id", ondelete="CASCADE"), nullable=False, index=True)
 
     document_type = Column(String(100), nullable=False)

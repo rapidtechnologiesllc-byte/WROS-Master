@@ -28,7 +28,7 @@ class EventLog(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
     event_type = Column(String(100), nullable=False, index=True)
     event_version = Column(String(10), nullable=False, server_default="v1")
     payload = Column(JSON, nullable=True)

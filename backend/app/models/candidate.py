@@ -210,7 +210,7 @@ class CandidateJobApplication(Base):
     __tablename__ = "candidate_job_applications"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(String(36),
+    candidate_id = Column(String(50),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

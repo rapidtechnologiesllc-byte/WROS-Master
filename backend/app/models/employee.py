@@ -91,7 +91,7 @@ class Employee(Base):
     # originated from; null for a direct hire never in the candidate
     # pipeline. UNIQUE enforces BR-04 -- one candidate can only ever
     # become one employee record.
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True, unique=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True, unique=True)
 
     employee_number = Column(String(50), nullable=True)  # BR-02: auto-generated, see generate_employee_number()
     tenant_employee_id = Column(String(100), nullable=True)

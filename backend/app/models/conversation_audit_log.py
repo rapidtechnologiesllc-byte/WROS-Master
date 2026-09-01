@@ -38,7 +38,7 @@ class ConversationAuditLog(Base):
     tenant_id = Column(
         String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True,
     )
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
     )
     # NO ACTION, not SET NULL -- SQL Server rejects SET NULL here because
     # candidates->candidate_conversations->conversation_id and

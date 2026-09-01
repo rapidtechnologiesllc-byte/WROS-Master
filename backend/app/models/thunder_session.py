@@ -30,7 +30,7 @@ class ThunderSession(Base):
     __tablename__ = "thunder_sessions"
 
     id = Column(String(36), primary_key=True, index=True)  # UUID
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True, index=True)
     candidate_email = Column(String(200), nullable=False, index=True)  # Used if candidate not yet created
 
     # Session lifecycle

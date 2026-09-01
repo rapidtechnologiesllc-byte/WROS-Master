@@ -36,7 +36,7 @@ class InterviewRehireReview(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     round_name = Column(String(50), nullable=False)
     job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
 

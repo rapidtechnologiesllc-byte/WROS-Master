@@ -142,7 +142,7 @@ class StagedCandidate(Base):
     status = Column(String(20), nullable=False, default="PENDING_REVIEW")
 
     # BR-1103-02: set only via the explicit recruiter promotion action.
-    promoted_to_candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True)
+    promoted_to_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True)
     promoted_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     promoted_at = Column(DateTime(timezone=False), nullable=True)
 

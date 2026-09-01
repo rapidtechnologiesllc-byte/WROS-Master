@@ -56,6 +56,6 @@ class BulkEngagementError(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     job_id = Column(String(36), ForeignKey("bulk_engagement_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
     reason = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
