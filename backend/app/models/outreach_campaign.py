@@ -45,7 +45,7 @@ class OutreachCampaign(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     campaign_type = Column(String(50), nullable=False, server_default="STANDARD_OUTREACH")
@@ -72,7 +72,7 @@ class CampaignTouchpoint(Base):
 
     campaign_id = Column(Integer, ForeignKey("outreach_campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     touchpoint_number = Column(Integer, nullable=False)
     channel = Column(String(20), nullable=False)

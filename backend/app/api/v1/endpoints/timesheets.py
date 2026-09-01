@@ -58,6 +58,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
+from app.core.permission_enforcement import require_permission
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
@@ -154,6 +155,7 @@ def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
 
 
 @router.post("/weekly-draft", response_model=TimesheetItem, summary="Create (or return existing) a weekly timesheet draft")
+@require_permission("employee.create")
 def create_draft(
     body: CreateWeeklyDraftRequest,
     db: Session = Depends(get_db),
@@ -177,6 +179,7 @@ def create_draft(
 
 
 @router.put("/{timesheet_id}/entries", response_model=TimesheetItem, summary="Upsert daily entries for a timesheet")
+@require_permission("employee.edit")
 def upsert_timesheet_entries(
     timesheet_id: str,
     body: UpsertEntriesRequest,
@@ -197,6 +200,7 @@ def upsert_timesheet_entries(
 
 
 @router.post("/{timesheet_id}/submit", response_model=TimesheetItem, summary="Submit a draft timesheet")
+@require_permission("employee.view")
 def submit(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -234,6 +238,7 @@ def submit(
 
 
 @router.post("/{timesheet_id}/approve", response_model=TimesheetItem, summary="Approve a submitted timesheet")
+@require_permission("employee.edit")
 def approve(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -250,6 +255,7 @@ def approve(
 
 
 @router.post("/{timesheet_id}/reject", response_model=TimesheetItem, summary="Reject a submitted timesheet")
+@require_permission("employee.edit")
 def reject(
     timesheet_id: str,
     body: RejectTimesheetRequest,
@@ -269,6 +275,7 @@ def reject(
 
 
 @router.post("/{timesheet_id}/reopen", response_model=TimesheetItem, summary="Reopen a rejected timesheet for editing")
+@require_permission("employee.edit")
 def reopen(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -285,6 +292,7 @@ def reopen(
 
 
 @router.post("/bulk-approve", response_model=BulkApproveResponse, summary="Approve multiple submitted timesheets at once")
+@require_permission("employee.edit")
 def bulk_approve_endpoint(
     body: BulkApproveRequest,
     db: Session = Depends(get_db),
@@ -300,6 +308,7 @@ def bulk_approve_endpoint(
 
 
 @router.get("", response_model=TimesheetListResponse, summary="List timesheets")
+@require_permission("employee.view")
 def list_timesheets(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -316,6 +325,7 @@ def list_timesheets(
 
 
 @router.get("/{timesheet_id}", response_model=TimesheetItem, summary="Get one timesheet with entries")
+@require_permission("employee.view")
 def get_timesheet(
     timesheet_id: str,
     db: Session = Depends(get_db),

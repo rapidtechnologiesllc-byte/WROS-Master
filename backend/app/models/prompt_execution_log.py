@@ -23,7 +23,7 @@ class PromptExecutionLog(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="SET NULL"), nullable=True, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="SET NULL"), nullable=True, index=True)
 
     prompt_type = Column(String(50), nullable=False)
     template_version = Column(String(20), nullable=False)

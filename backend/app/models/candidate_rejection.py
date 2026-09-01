@@ -33,7 +33,7 @@ class CandidateRejection(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # FK to candidate
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     # FK to job (optional — rejection may not be job-specific)
     job_id = Column(String(50), ForeignKey("jobs.jobID", ondelete="SET NULL"), nullable=True, index=True)

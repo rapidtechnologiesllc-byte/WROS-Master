@@ -61,7 +61,7 @@ class Submission(Base):
 
     demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     submitted_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
     submitted_at = Column(DateTime, server_default=func.now())
@@ -114,7 +114,7 @@ class SubmissionViolation(Base):
     id = Column(String(36), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     recruiter_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
     violation_type = Column(
         Enum(*VIOLATION_TYPES, name="submission_violation_type", native_enum=False, create_constraint=True),
         nullable=False,

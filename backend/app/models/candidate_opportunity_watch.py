@@ -31,7 +31,7 @@ class CandidateOpportunityWatch(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)  # matches Candidate.tenant_id's own convention
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     reason = Column(String(30), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True, index=True)

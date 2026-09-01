@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
+from app.core.permission_enforcement import require_permission
 from app.models.client import Client
 from app.models.project import (
     CORE_CURRENCIES,
@@ -107,6 +108,7 @@ def _get_project_or_404(db: Session, project_id: str) -> Project:
 
 
 @router.post("", response_model=ProjectItem, summary="Create a project")
+@require_permission("project.create")
 def create_project_endpoint(
     body: CreateProjectRequest,
     db: Session = Depends(get_db),
@@ -167,6 +169,7 @@ def create_project_endpoint(
 
 
 @router.get("", response_model=ProjectListResponse, summary="List projects")
+@require_permission("project.view")
 def list_projects(
     client_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -183,6 +186,7 @@ def list_projects(
 
 
 @router.get("/{project_id}", response_model=ProjectItem, summary="Get one project")
+@require_permission("project.view")
 def get_project(
     project_id: str,
     db: Session = Depends(get_db),
@@ -192,6 +196,7 @@ def get_project(
 
 
 @router.post("/{project_id}/status", response_model=ProjectItem, summary="Transition project status")
+@require_permission("project.edit")
 def transition_status(
     project_id: str,
     body: TransitionProjectStatusRequest,
@@ -209,6 +214,7 @@ def transition_status(
 
 
 @router.post("/{project_id}/milestones", response_model=MilestoneItem, summary="Create a project milestone")
+@require_permission("project.create")
 def create_milestone_endpoint(
     project_id: str,
     body: CreateMilestoneRequest,
@@ -227,6 +233,7 @@ def create_milestone_endpoint(
 
 
 @router.get("/{project_id}/milestones", response_model=MilestoneListResponse, summary="List project milestones")
+@require_permission("project.view")
 def list_milestones(
     project_id: str,
     db: Session = Depends(get_db),
@@ -246,6 +253,7 @@ def list_milestones(
     "/{project_id}/milestones/{milestone_id}/complete", response_model=MilestoneItem,
     summary="Mark a milestone complete (delay_days always computed, never caller-supplied)",
 )
+@require_permission("project.edit")
 def complete_milestone_endpoint(
     project_id: str,
     milestone_id: str,
@@ -271,6 +279,7 @@ def complete_milestone_endpoint(
     "/{project_id}/unfilled-roles", response_model=UnfilledRolesResponse,
     summary="Open headcount gaps for this project's linked demands",
 )
+@require_permission("project.view")
 def unfilled_roles(
     project_id: str,
     db: Session = Depends(get_db),

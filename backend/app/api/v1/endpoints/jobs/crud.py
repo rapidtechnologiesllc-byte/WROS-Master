@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.logging import logger
 from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.core.permission_enforcement import require_permission
 from app.models.user import Jobs, Users
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
@@ -55,9 +56,9 @@ def _build_job_response(job):
 @router.post(
     "/create",
     response_model=JobCreateResponse,
-    dependencies=[Depends(require_resource_permission("jobs", "create"))],
     summary="Create job (CRUD operation)"
 )
+@require_permission("recruitment.create")
 def create_job(
     request: JobCreateRequest,
     background_tasks: BackgroundTasks,
@@ -185,6 +186,7 @@ def create_job(
     response_model=AllJobsResponse,
     summary="List all jobs (CRUD operation)"
 )
+@require_permission("recruitment.view")
 def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
     """Get all jobs."""
     jobs = db.query(Jobs).all()
@@ -194,9 +196,9 @@ def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_interna
 @router.get(
     "/{job_id}",
     response_model=JobResponse,
-    dependencies=[Depends(require_resource_permission("jobs", "view"))],
     summary="Get job by ID (CRUD operation)"
 )
+@require_permission("recruitment.view")
 def get_job_by_id(
     job_id: str,
     db: Session = Depends(get_db),
@@ -211,9 +213,9 @@ def get_job_by_id(
 @router.put(
     "/{job_id}",
     response_model=JobResponse,
-    dependencies=[Depends(require_resource_permission("jobs", "edit"))],
     summary="Update job (CRUD operation)"
 )
+@require_permission("recruitment.edit")
 def update_job(
     job_id: str,
     request: JobUpdateRequest,
@@ -267,9 +269,9 @@ def update_job(
 @router.delete(
     "/{job_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_resource_permission("jobs", "delete"))],
     summary="Delete job (CRUD operation)"
 )
+@require_permission("recruitment.delete")
 def delete_job(
     job_id: str,
     db: Session = Depends(get_db),

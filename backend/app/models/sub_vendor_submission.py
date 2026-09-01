@@ -72,7 +72,7 @@ class SubVendorSubmission(Base):
 
     # Set only once Accepted via create_candidate_safe() -- never a
     # direct FK to a pre-existing candidate.
-    created_candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True)
+    created_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
 
@@ -104,5 +104,5 @@ class SubVendorDedupRejection(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     submission_id = Column(String(36), ForeignKey("sub_vendor_submissions.id"), nullable=False, index=True)
-    matched_candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True)
+    matched_candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True)
     occurred_at = Column(DateTime, server_default=func.now())

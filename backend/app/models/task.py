@@ -109,7 +109,7 @@ class Task(Base):
     # nullable -- every non-document-review Task leaves these null,
     # same "polymorphic-lite, not a forced generic link table" posture
     # as parent_task_id above.
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=True, index=True)
     document_id = Column(Integer, ForeignKey("candidate_documents.id"), nullable=True, index=True)
     # 2026-08-05 -- interview feedback/HM-decision linkage (backlog item:
     # distinguish "interviewer hasn't submitted feedback yet" from

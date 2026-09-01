@@ -101,7 +101,7 @@ class SubmissionInterview(Base):
     id = Column(String(36), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     submission_id = Column(String(36), ForeignKey("submissions.id"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     level = Column(
         Enum(*INTERVIEW_LEVELS, name="submission_interview_level", native_enum=False, create_constraint=True),
         nullable=False,

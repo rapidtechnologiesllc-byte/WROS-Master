@@ -24,7 +24,7 @@ class OutreachSequence(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     demand_id = Column(String(36), ForeignKey("demands.id"), nullable=True, index=True)
 
     message_text = Column(Text, nullable=True)          # max 1000 chars per UI spec

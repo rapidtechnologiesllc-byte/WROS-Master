@@ -44,7 +44,7 @@ class RecruiterInterventionQueue(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(50), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     queue_reason = Column(Enum(*QUEUE_REASONS, name="intervention_queue_reason", native_enum=False, create_constraint=True), nullable=False)
     reason_detail = Column(Text, nullable=True)
