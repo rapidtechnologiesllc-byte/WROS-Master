@@ -966,6 +966,15 @@ export default function CandidateCreate({ onBack, onSave }) {
             </div>
           )}
 
+          <Input
+            label="Availability Date"
+            value={joiningDate}
+            onChange={(value) => {
+              setJoiningDate(value);
+            }}
+            type="date"
+          />
+
           <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-semibold text-gray-700">Skills</div>
@@ -1010,15 +1019,6 @@ export default function CandidateCreate({ onBack, onSave }) {
             </div>
             <LocationCascadeSelect value={locationValue} onChange={setLocationValue} />
           </div>
-
-          <Input
-            label="Availability Date"
-            value={joiningDate}
-            onChange={(value) => {
-              setJoiningDate(value);
-            }}
-            type="date"
-          />
         </div>
 
         <div className="mt-4 space-y-3">
