@@ -147,9 +147,12 @@ jobs:
             "cd /home/HRMS/WROS-Master/backend && \
              find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
              find . -name '*.pyc' -delete 2>/dev/null; \
-             pkill -f 'uvicorn app.main' 2>/dev/null || true; \
+             pkill -9 -f 'uvicorn app.main' 2>/dev/null || true; \
+             sleep 3; \
+             cd /home/HRMS/WROS-Master/backend && \
+             nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload > /tmp/backend.log 2>&1 & \
              sleep 2; \
-             nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/backend.log 2>&1 &"
+             curl -s http://127.0.0.1:8080/health || echo 'Health check attempt'"
         continue-on-error: true
 
       - name: Wait for backend to be ready
