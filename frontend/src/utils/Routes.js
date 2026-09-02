@@ -14,6 +14,7 @@ export const ROUTES = {
   DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
   EMPLOYEE_CONVERSION: "/employee-conversion",
+  LINKEDIN_PIPELINE: "/linkedin-pipeline",
   SUBMISSIONS: "/submissions",
   ALLOCATIONS: "/allocations",
   PROJECTS: "/projects",
