@@ -1,8 +1,8 @@
 """
 Models package initialization.
 Exports all models for easy importing.
-import logging
 """
+import logging
 
 from app.models.base import Base
 from app.models.tenant import Tenant

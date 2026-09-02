@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0102 — Client Entity Model, Phase 2 Domain 4.
 
 Same SQL-Server/SQLite-portable translation conventions as
@@ -28,6 +27,7 @@ PRIMARY) rather than adopting HRMS-0201's coarser vocabulary
 picking one is a product call, not an engineering one -- flagged here,
 not silently resolved.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

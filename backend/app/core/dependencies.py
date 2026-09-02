@@ -95,7 +95,6 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[AUTH-DEBUG] Exception in get_current_user: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Auth failed: {str(e)}")
 

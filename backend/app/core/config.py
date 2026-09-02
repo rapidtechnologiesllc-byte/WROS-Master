@@ -1,6 +1,6 @@
 """
 Configuration management for the Onboarding Application.
-import logging
+
 Loads environment variables and provides centralized configuration.
 
 SECRETS MANAGEMENT (2026-08-18):
@@ -8,6 +8,7 @@ SECRETS MANAGEMENT (2026-08-18):
 - Development: Falls back to environment variables and .env files
 - See app.core.secrets_manager for implementation details
 """
+import logging
 import os
 from typing import Optional
 from dotenv import load_dotenv
