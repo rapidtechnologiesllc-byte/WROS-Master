@@ -144,7 +144,6 @@ async def startup_event():
         db.close()
         logger.info(f"[OK] Organizational positions initialized (created: {result['created']}, updated: {result['updated']})")
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
 
     # Seed RBAC with retries
