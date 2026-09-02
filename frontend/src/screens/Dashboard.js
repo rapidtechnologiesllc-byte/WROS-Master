@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
+import LinkedInActivityTable from "../components/LinkedInActivityTable";
 import { getRoles } from "../utils/permissions";
 import { getHrMe } from "../services/api/users";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
@@ -208,6 +209,8 @@ export default function Dashboard({
           </Button>
         </Card>
       </div>
+
+      <LinkedInActivityTable />
     </div>
   );
 }

@@ -234,6 +234,56 @@ async def complete_linkedin_import(
     }
 
 
+@router.get("/dashboard/activity")
+async def get_linkedin_activity_for_dashboard(
+    db: Session = Depends(get_db),
+    current_user_id: str = "system"
+):
+    """
+    Get LinkedIn activity for dashboard display.
+
+    Returns detailed view with all pipeline candidates and their status.
+    Includes: candidate name, URL, assigned recruiter, days in pipeline,
+    status, and pending actions.
+    """
+    from datetime import datetime
+
+    query = db.query(LinkedInCandidatePipeline).order_by(
+        LinkedInCandidatePipeline.created_at.desc()
+    ).all()
+
+    items = []
+    for item in query:
+        days_in_pipeline = (datetime.utcnow() - item.created_at).days if item.created_at else 0
+
+        # Determine pending action based on status
+        pending_action = {
+            "PENDING_CONNECTION": "Send LinkedIn Connection Request",
+            "CONNECTED": "Collect Phone Number",
+            "PHONE_COLLECTED": "Import to Thunder",
+            "IMPORTED_TO_THUNDER": "Monitor Engagement"
+        }.get(item.status, "Unknown")
+
+        items.append({
+            "id": str(item.id),
+            "candidate_name": item.linkedin_profile_slug.replace("-", " ").title(),
+            "linkedin_url": item.linkedin_url,
+            "assigned_to": "Unassigned" if not item.assigned_to_user_id else str(item.assigned_to_user_id),
+            "days_in_pipeline": days_in_pipeline,
+            "status": item.status.value if item.status else "Unknown",
+            "phone_number": item.phone_number,
+            "pending_action": pending_action,
+            "notes": item.notes,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+            "updated_at": item.updated_at.isoformat() if item.updated_at else None
+        })
+
+    return {
+        "count": len(items),
+        "items": items
+    }
+
+
 @router.put("/{pipeline_id}/status")
 async def update_pipeline_status(
     pipeline_id: str,
