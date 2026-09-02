@@ -90,21 +90,25 @@ def check_candidate(db: Session, email: str):
 def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
-    from sqlalchemy import func, text
+    from sqlalchemy import text
 
-    # Use raw SQL to explicitly query public schema and bypass ORM issues
+    # Use raw SQL to explicitly query public schema, bypass ORM issues
     try:
         result = db.execute(
-            text('SELECT * FROM public.users WHERE lower("UserEmail") = :email'),
+            text('SELECT "UserID", "UserEmail", "UserPassword" FROM public.users WHERE lower("UserEmail") = :email LIMIT 1'),
             {"email": email.lower()}
         ).first()
+
         if result:
-            # Convert row to Users object if found
-            return db.query(Users).filter(Users.UserID == result[0]).first()
+            # Found user - return Users object by fetching from ORM with the UserID
+            user_id = result[0]
+            return db.query(Users).filter(Users.UserID == user_id).first()
         return None
     except Exception as e:
-        # Fallback to ORM query if raw SQL fails
-        return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
+        # If raw SQL fails, return None (don't try fallback to avoid infinite loop)
+        import sys
+        print(f"[ERROR] check_user raw SQL failed: {e}", file=sys.stderr)
+        return None
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
