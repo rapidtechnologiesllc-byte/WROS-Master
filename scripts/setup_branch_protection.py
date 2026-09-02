@@ -10,6 +10,10 @@ import requests
 import json
 from typing import Dict, List, Tuple
 
+# Fix Unicode encoding on Windows
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # Colors for terminal output
 GREEN = '\033[0;32m'
 RED = '\033[0;31m'
@@ -36,7 +40,7 @@ class BranchProtectionSetup:
         print(f"{'='*60}{NC}\n")
 
     def print_step(self, text: str):
-        print(f"{BLUE}→ {text}{NC}")
+        print(f"{BLUE}> {text}{NC}")
 
     def print_success(self, text: str):
         print(f"{GREEN}✓ {text}{NC}")
