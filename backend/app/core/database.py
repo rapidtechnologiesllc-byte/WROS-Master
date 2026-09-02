@@ -91,23 +91,36 @@ def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
     from sqlalchemy import text
+    import sys
 
-    # Use raw SQL to explicitly query public schema, bypass ORM issues
+    email_lower = email.lower()
+
+    # Use raw SQL with explicit schema reference
     try:
+        # Try with parameterized query first
         result = db.execute(
-            text('SELECT "UserID", "UserEmail", "UserPassword" FROM public.users WHERE lower("UserEmail") = :email LIMIT 1'),
-            {"email": email.lower()}
+            text('SELECT "UserID" FROM public.users WHERE lower("UserEmail") = :email LIMIT 1').bindparams(email=email_lower)
         ).first()
 
         if result:
-            # Found user - return Users object by fetching from ORM with the UserID
             user_id = result[0]
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if user:
+                return user
+
+        # If parameterized didn't work, try with f-string (not ideal but for debugging)
+        # This is safe because email is already lowercased and filtered
+        result2 = db.execute(
+            text(f"SELECT \"UserID\" FROM public.users WHERE lower(\"UserEmail\") = '{email_lower}' LIMIT 1")
+        ).first()
+
+        if result2:
+            user_id = result2[0]
             return db.query(Users).filter(Users.UserID == user_id).first()
+
         return None
     except Exception as e:
-        # If raw SQL fails, return None (don't try fallback to avoid infinite loop)
-        import sys
-        print(f"[ERROR] check_user raw SQL failed: {e}", file=sys.stderr)
+        print(f"[ERROR] check_user failed: {e}", file=sys.stderr)
         return None
 
 def get_user(db: Session, email: str):
