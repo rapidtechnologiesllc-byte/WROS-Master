@@ -222,13 +222,13 @@ class RoleTemplatePermissionService:
             # Validate input
             if not user_id:
                 # CRITICAL FIX: Raise error instead of returning empty dict
-                raise Exception(f"Cannot get user permissions: user_id is required")
+                raise ValueError("Cannot get user permissions: user_id is required")
 
             # Get user's role template
             role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
             if not role:
                 # CRITICAL FIX: Raise error instead of returning empty dict
-                raise Exception(f"Cannot get user permissions: no role template found for user_id={user_id}")
+                raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
             # Get all resources for this tenant
             resources = db.query(Resource).filter(
@@ -238,7 +238,7 @@ class RoleTemplatePermissionService:
 
             if not resources:
                 # CRITICAL FIX: Raise error instead of returning empty dict
-                raise Exception(f"Cannot get user permissions: no resources found for tenant_id={tenant_id}")
+                raise ValueError(f"Cannot get user permissions: no resources found for tenant_id={tenant_id}")
 
             # Get all role template permissions for this role
             role_perms = db.query(RoleTemplatePermission).filter(
@@ -299,7 +299,7 @@ class RoleTemplatePermissionService:
             logger.info(f"get_user_permissions({user_id}): {len(permissions)} resources, {sum(1 for p in permissions.values() if p['overridden'])} overridden")
             return permissions
 
-        except (AttributeError, ValueError, TypeError) as e:
+        except Exception as e:
             logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            # CRITICAL FIX: Raise error instead of returning empty dict
-            raise Exception(f"Failed to get user permissions for user_id={user_id}: {str(e)}")
+            # Reraise with proper context for auth.py to catch
+            raise RuntimeError(f"Failed to get user permissions for user_id={user_id}: {str(e)}")
