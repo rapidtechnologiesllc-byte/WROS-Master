@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
 import app.schemas as schema
@@ -42,8 +43,120 @@ from app.schemas.candidate import (
     ExperienceRecord
 )
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
+from app.services.linkedin_import_service import (
+    import_linkedin_candidate,
+    InvalidLinkedInURL,
+    ApolloCandidateNotFound,
+    CandidateNotOpenToWork,
+    DuplicateCandidateExists
+)
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
+
+
+# ============================================================================
+# LinkedIn Import Request/Response Models
+# ============================================================================
+
+class LinkedInImportRequest(BaseModel):
+    """Import candidate from LinkedIn profile URL"""
+    linkedin_url: str
+
+
+class LinkedInImportResponse(BaseModel):
+    """Response after LinkedIn candidate import"""
+    status: str
+    candidate_id: str
+    email: str
+    phone: str
+    full_name: str
+    open_to_work: bool
+    linkedin_url: str
+    message: str
+
+
+# ============================================================================
+# LinkedIn Import Endpoint
+# ============================================================================
+
+@router.post("/import/linkedin", response_model=LinkedInImportResponse)
+async def import_linkedin_candidate_endpoint(
+    request: LinkedInImportRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Import candidate from LinkedIn profile URL with Apollo enrichment.
+
+    Workflow:
+    1. Parse LinkedIn URL to extract profile slug
+    2. Call Apollo.io to enrich: email, phone, company, title, open_to_work status
+    3. GATE: Only proceed if candidate is marked "Open to Work" (high-priority targets only)
+    4. Check for duplicates (email OR phone)
+    5. Create real Candidate record
+    6. Record WhatsApp consent
+    7. Return candidate ready for Thunder autonomous loop
+
+    Args:
+        request: LinkedInImportRequest with linkedin_url
+
+    Returns:
+        LinkedInImportResponse with:
+        - status: 'SUCCESS'
+        - candidate_id: UUID ready for Thunder
+        - email: Enriched from Apollo
+        - phone: Enriched from Apollo
+        - full_name: From LinkedIn profile
+        - open_to_work: True (gated at import)
+        - linkedin_url: Original URL
+        - message: Ready for Thunder autonomous outreach
+
+    Raises:
+        HTTPException 400: Invalid LinkedIn URL format
+        HTTPException 404: Apollo enrichment found no profile
+        HTTPException 403: Candidate not open to work (expected, not an error)
+        HTTPException 409: Duplicate candidate already exists
+    """
+    try:
+        # NOTE: Apollo MCP requires authentication via claude.ai connectors
+        # This is a stub showing the expected signature
+        # Real implementation requires wiring Apollo MCP client
+
+        async def apollo_search_stub(search_params):
+            """
+            STUB: In production, this calls Apollo.io MCP server
+
+            Real call would be:
+            from mcp.servers import apollo
+            result = await apollo.contacts_search(search_params)
+            """
+            raise NotImplementedError(
+                "Apollo MCP integration required. "
+                "Authenticate via claude.ai Settings → Connectors → Apollo.io"
+            )
+
+        candidate, import_info = await import_linkedin_candidate(
+            db,
+            request.linkedin_url,
+            apollo_search_func=apollo_search_stub
+        )
+
+        return LinkedInImportResponse(**import_info)
+
+    except InvalidLinkedInURL as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ApolloCandidateNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except CandidateNotOpenToWork as e:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Candidate not open to work: {str(e)}"
+        )
+    except DuplicateCandidateExists as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error(f"LinkedIn import error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
 
 @router.post("/change_password", response_model=ChangePasswordResponse)
     dependencies=[Depends(require_resource_permission("change_password", "create"))]
