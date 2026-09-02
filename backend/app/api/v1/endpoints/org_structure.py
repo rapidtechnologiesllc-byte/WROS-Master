@@ -114,7 +114,7 @@ def list_org_positions(
     response_model=List[OrgNodeResponse],
     summary="List org nodes for a tenant",
     description="Returns all organizational nodes (instances of positions)",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+    dependencies=[Depends(get_current_internal_user)],
 )
 def list_org_nodes(
     current_user = Depends(get_current_internal_user),

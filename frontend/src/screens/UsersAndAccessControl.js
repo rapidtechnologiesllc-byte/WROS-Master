@@ -988,21 +988,29 @@ function OrganizationalHierarchySection() {
 
   const loadOrgNodes = async () => {
     try {
-      // Fetch users instead of org nodes (org nodes endpoint doesn't exist yet)
-      const { data } = await apiRequest("/hr/users/all");
-      const usersList = data?.users || [];
-      // Convert users to org nodes format
-      const nodes = usersList.map(u => ({
-        id: u.user_id,
-        employee_name: u.user_name,
-        position: u.permission_role || u.user_role,
-        business_unit: u.business_unit_name,
-        reports_to: null,
-        location: null
-      }));
-      setOrgNodes(Array.isArray(nodes) ? nodes : []);
+      // Fetch org nodes from the new API endpoint (includes tenant_id, tenant_name)
+      const { data } = await apiRequest("/org/nodes");
+      const nodesList = Array.isArray(data) ? data : [];
+      setOrgNodes(nodesList);
     } catch (err) {
-      console.error("Failed to load org nodes:", err);
+      // Fallback to users if org/nodes endpoint is not available
+      try {
+        const { data } = await apiRequest("/hr/users/all");
+        const usersList = data?.users || [];
+        const nodes = usersList.map(u => ({
+          id: u.user_id,
+          name: u.user_name,
+          employee_name: u.user_name,
+          position_id: u.permission_role_id,
+          position: u.permission_role || u.user_role,
+          business_unit: u.business_unit_name,
+          reports_to: null,
+          location: null
+        }));
+        setOrgNodes(Array.isArray(nodes) ? nodes : []);
+      } catch (fallbackErr) {
+        console.error("Failed to load org nodes:", err, fallbackErr);
+      }
     }
   };
 
@@ -1207,10 +1215,20 @@ function OrganizationalHierarchySection() {
                 <div className="flex items-center justify-between bg-white p-3 rounded border border-gray-200 hover:bg-gray-50">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-gray-900">{node.employee_name}</h4>
+                      <h4 className="font-bold text-gray-900">{node.name || node.employee_name}</h4>
                       <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
                         {getPositionName(node.position_id)}
                       </span>
+                      {node.tenant_name && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                          {node.tenant_name}
+                        </span>
+                      )}
+                      {node.tenant_id && !node.tenant_name && (
+                        <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded">
+                          Tenant {node.tenant_id}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
