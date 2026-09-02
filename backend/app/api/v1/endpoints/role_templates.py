@@ -610,10 +610,9 @@ def get_users_for_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Get all users assigned to a specific role template."""
-    # Verify template exists and belongs to current tenant
+    # Verify template exists
     template = db.query(RoleTemplate).filter(
-        RoleTemplate.id == template_id,
-        RoleTemplate.tenant_id == current_user.tenant_id
+        RoleTemplate.id == template_id
     ).first()
 
     if not template:
@@ -622,10 +621,10 @@ def get_users_for_role_template(
             detail="Role template not found"
         )
 
-    # Get users assigned to this role template
+    # Get users assigned to this role template (from same tenant as role)
     users = db.query(Users).filter(
         Users.role_template_id == template_id,
-        Users.tenant_id == current_user.tenant_id
+        Users.tenant_id == template.tenant_id
     ).all()
 
     return {
