@@ -638,7 +638,7 @@ def get_users_for_role_template(
                 "name": u.UserName,
                 "role": template.name,
                 "business_unit": u.business_unit_name if hasattr(u, 'business_unit_name') else None,
-                "active": u.UserActive
+                "active": u.is_active
             }
             for u in users
         ]
