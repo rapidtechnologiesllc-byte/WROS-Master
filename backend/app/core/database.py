@@ -86,7 +86,16 @@ def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
     from sqlalchemy import func
-    return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
+    from app.core.logging import logger
+
+    logger.warning(f"[CHECK_USER] Searching for email='{email}' (lowered: '{email.lower()}')")
+    result = db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
+    logger.warning(f"[CHECK_USER] Result: {result}")
+    if result:
+        logger.warning(f"[CHECK_USER] Found user: UserID={result.UserID}, UserEmail={result.UserEmail}")
+    else:
+        logger.warning(f"[CHECK_USER] User NOT found in database")
+    return result
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
