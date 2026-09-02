@@ -90,17 +90,21 @@ def check_candidate(db: Session, email: str):
 def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
-    from sqlalchemy import func
-    from app.core.logging import logger
+    from sqlalchemy import func, text
 
-    logger.warning(f"[CHECK_USER] Searching for email='{email}' (lowered: '{email.lower()}')")
-    result = db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
-    logger.warning(f"[CHECK_USER] Result: {result}")
-    if result:
-        logger.warning(f"[CHECK_USER] Found user: UserID={result.UserID}, UserEmail={result.UserEmail}")
-    else:
-        logger.warning(f"[CHECK_USER] User NOT found in database")
-    return result
+    # Use raw SQL to explicitly query public schema and bypass ORM issues
+    try:
+        result = db.execute(
+            text('SELECT * FROM public.users WHERE lower("UserEmail") = :email'),
+            {"email": email.lower()}
+        ).first()
+        if result:
+            # Convert row to Users object if found
+            return db.query(Users).filter(Users.UserID == result[0]).first()
+        return None
+    except Exception as e:
+        # Fallback to ORM query if raw SQL fails
+        return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
