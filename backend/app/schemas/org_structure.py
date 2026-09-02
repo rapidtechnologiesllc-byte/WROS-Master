@@ -2,8 +2,8 @@
 Schemas for Organizational Structure API requests and responses.
 """
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional, List, Union
+from pydantic import BaseModel, Field, field_validator
 
 
 class OrgPositionResponse(BaseModel):
@@ -30,8 +30,15 @@ class OrgNodeResponse(BaseModel):
     parent_id: Optional[str] = None
     department_id: Optional[str] = None
     active: bool = True
-    created_at: str
-    updated_at: str
+    created_at: Union[str, datetime]
+    updated_at: Union[str, datetime]
+
+    @field_validator('created_at', 'updated_at', mode='before')
+    @classmethod
+    def convert_datetime_to_string(cls, v):
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
 
     class Config:
         from_attributes = True
