@@ -66,6 +66,7 @@ class UnifiedLoginResponse(BaseModel):
     """STRICT: Unified login response for both users and candidates"""
     entity_type: str = Field(..., description="'user' or 'candidate'")
     access_token: str = Field(..., description="JWT token")
+    refresh_token: Optional[str] = Field(default=None, description="Refresh token for token renewal (7-day TTL)")
     is_first_time: bool = Field(default=False)
     mfa_required: bool = Field(default=False)
     mfa_setup_required: bool = Field(default=False)
