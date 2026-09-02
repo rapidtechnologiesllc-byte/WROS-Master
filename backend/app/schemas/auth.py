@@ -14,32 +14,9 @@ class SignupResponse(BaseModel):
     response: str = "User created successfully"
 
 
-class LoginRequest(BaseModel):
-    UserEmail: EmailStr
-    UserPassword: str
-
-class LoginResponse(BaseModel):
-    user_role: str
-    user_name: str
-    user_email: EmailStr
-    is_first_time: bool
-    access_token: str
-
-class CandidateLoginRequest(BaseModel):
-    candidate_email: EmailStr
-    candidate_password: str
-
-class CandidateLoginResponse(BaseModel):
-    candidate_id: str
-    candidate_role: str
-    candidate_name: str
-    candidate_email: EmailStr
-    candidate_mobile: str
-    is_first_time: bool
-    access_token: str
-
-
-# ── Unified login ──────────────────────────────────────────────
+# ── CONSOLIDATED LOGIN FLOW - Step 1: Validate Email, Step 2: Login with Password ────
+# All legacy login models (LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse)
+# have been deleted. Use UnifiedLoginRequest + UnifiedLoginResponse for both users and candidates.
 class UnifiedLoginRequest(BaseModel):
     """Single login payload for both users and candidates."""
     email: EmailStr
