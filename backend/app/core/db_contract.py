@@ -182,7 +182,7 @@ def _initialize_rbac():
 
 
 def _initialize_admin_user():
-    """Ensure admin@blitzenx.com user exists with proper configuration."""
+    """Ensure admin@blitzenx.com user exists with proper configuration and permissions."""
     db = SessionLocal()
     try:
         # Check if admin user exists
@@ -221,8 +221,55 @@ def _initialize_admin_user():
             else:
                 logger.warning("[Contract] Admin user exists but has no role template")
 
+        # Verify admin user has all admin screen permissions
+        _verify_admin_screen_permissions(db, admin_role if admin_role else db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first())
+
     finally:
         db.close()
+
+
+def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
+    """Ensure admin role has all required admin screen permissions."""
+    if not admin_role:
+        return
+
+    # Admin screen requires these resource permissions
+    required_admin_resources = ["users", "settings"]
+
+    for resource_name in required_admin_resources:
+        resource = db.query(Resource).filter(Resource.name == resource_name).first()
+        if not resource:
+            logger.warning(f"[Contract] Admin resource '{resource_name}' not found")
+            continue
+
+        # Verify permission exists and is fully enabled
+        perm = db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == admin_role.id,
+            RoleTemplatePermission.resource_id == resource.id
+        ).first()
+
+        if perm:
+            # Ensure all permissions are enabled
+            if not (perm.can_view and perm.can_create and perm.can_edit and perm.can_delete):
+                perm.can_view = True
+                perm.can_create = True
+                perm.can_edit = True
+                perm.can_delete = True
+                db.commit()
+                logger.info(f"[Contract] Fixed admin screen permissions for: {resource_name}")
+        else:
+            # Create missing permission
+            perm = RoleTemplatePermission(
+                role_template_id=admin_role.id,
+                resource_id=resource.id,
+                can_view=True,
+                can_create=True,
+                can_edit=True,
+                can_delete=True
+            )
+            db.add(perm)
+            db.commit()
+            logger.info(f"[Contract] Created admin screen permission for: {resource_name}")
 
 
 if __name__ == "__main__":
