@@ -131,7 +131,6 @@ async def startup_event():
         from app.core.db_contract import initialize_database
         initialize_database()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
         return  # Don't crash startup, but contract won't be initialized
 

@@ -96,7 +96,6 @@ def get_db():
         # Don't catch HTTPExceptions - let them propagate (e.g., 401 Unauthorized from login)
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Database session creation failed: {str(e)}", exc_info=True)
         raise RuntimeError(f"Database connection error: {str(e)}")
     finally:
@@ -104,7 +103,6 @@ def get_db():
             if db:
                 db.close()
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Error closing database session: {str(e)}")
 
 
@@ -154,7 +152,6 @@ def authenticate_user(db: Session, email: str, password: str):
         bcrypt_result = bcrypt.checkpw(pwd_bytes, hash_bytes)
         logger.warning(f"[AUTH] BCRYPT DIRECT TEST: {bcrypt_result}")
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[AUTH] BCRYPT DIRECT TEST FAILED: {e}")
 
     # Test via verify_password function

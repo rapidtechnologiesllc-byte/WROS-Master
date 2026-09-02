@@ -1,11 +1,11 @@
 """
-import logging
 Production Database Safety Guard
 
 Prevents accidental connections to production databases from local development.
 Raises errors if production credentials are detected outside of CI/CD environment.
 """
 
+import logging
 import os
 import sys
 from typing import Optional
