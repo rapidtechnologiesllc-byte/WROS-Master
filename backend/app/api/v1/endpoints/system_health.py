@@ -17,6 +17,7 @@ router = APIRouter(prefix="/admin", tags=["health"])
 
 
 @router.get("/health")
+    dependencies=[Depends(require_resource_permission("health", "view"))]
 def get_system_health(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -223,6 +224,7 @@ def get_system_health(
 
 
 @router.get("/phalanx/{phalanx_name}/integrity")
+    dependencies=[Depends(require_resource_permission("phalanx", "view"))]
 def get_phalanx_integrity(
     phalanx_name: str,
     db: Session = Depends(get_db),

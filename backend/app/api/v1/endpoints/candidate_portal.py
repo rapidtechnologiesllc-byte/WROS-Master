@@ -56,6 +56,7 @@ router = APIRouter(prefix="/portal", tags=["candidate-portal"])
 
 
 @router.get("/home", response_model=PortalHomeResponse)
+    dependencies=[Depends(require_resource_permission("home", "view"))]
 def portal_home(
     db: Session = Depends(get_db),
     candidate: Candidate = Depends(get_current_candidate),
@@ -64,6 +65,7 @@ def portal_home(
 
 
 @router.get("/messages", response_model=PortalThreadResponse)
+    dependencies=[Depends(require_resource_permission("message", "view"))]
 def portal_messages(
     db: Session = Depends(get_db),
     candidate: Candidate = Depends(get_current_candidate),
@@ -72,6 +74,7 @@ def portal_messages(
 
 
 @router.get("/profile-fields", response_model=PortalProfileFieldsResponse)
+    dependencies=[Depends(require_resource_permission("profile-field", "view"))]
 def portal_profile_fields(
     db: Session = Depends(get_db),
     candidate: Candidate = Depends(get_current_candidate),
@@ -80,6 +83,7 @@ def portal_profile_fields(
 
 
 @router.patch("/profile", response_model=PortalProfileUpdateResponse)
+    dependencies=[Depends(require_resource_permission("profile", "update"))]
 def portal_profile_update(
     body: PortalProfileUpdateRequest,
     db: Session = Depends(get_db),
@@ -98,6 +102,7 @@ def portal_profile_update(
 
 
 @router.get("/interviews", response_model=PortalInterviewsResponse)
+    dependencies=[Depends(require_resource_permission("interview", "view"))]
 def portal_interviews(
     db: Session = Depends(get_db),
     candidate: Candidate = Depends(get_current_candidate),
@@ -106,6 +111,7 @@ def portal_interviews(
 
 
 @router.get("/interviews/{interview_id}/ics")
+    dependencies=[Depends(require_resource_permission("interview", "view"))]
 def portal_interview_ics(
     interview_id: int,
     db: Session = Depends(get_db),
@@ -123,6 +129,7 @@ def portal_interview_ics(
 
 
 @router.post("/interviews/{interview_id}/reschedule-request", response_model=PortalRescheduleResponse)
+    dependencies=[Depends(require_resource_permission("interview", "create"))]
 def portal_reschedule_request(
     interview_id: int,
     body: PortalRescheduleRequest,
@@ -137,6 +144,7 @@ def portal_reschedule_request(
 
 
 @router.post("/track", response_model=PortalTrackResponse)
+    dependencies=[Depends(require_resource_permission("track", "create"))]
 def portal_track_page_view(
     body: PortalTrackRequest,
     db: Session = Depends(get_db),

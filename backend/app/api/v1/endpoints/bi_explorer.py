@@ -17,6 +17,7 @@ router = APIRouter(prefix="/bi", tags=["Business Intelligence"])
 
 
 @router.get("/tables")
+    dependencies=[Depends(require_resource_permission("table", "view"))]
 def list_available_tables(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -37,6 +38,7 @@ def list_available_tables(
 
 
 @router.get("/tables/{table_name}/schema")
+    dependencies=[Depends(require_resource_permission("table", "view"))]
 def get_table_schema_endpoint(
     table_name: str,
     db: Session = Depends(get_db),
@@ -57,6 +59,7 @@ def get_table_schema_endpoint(
 
 
 @router.get("/tables/{table_name}/summary")
+    dependencies=[Depends(require_resource_permission("table", "view"))]
 def get_table_summary_endpoint(
     table_name: str,
     db: Session = Depends(get_db),
@@ -77,6 +80,7 @@ def get_table_summary_endpoint(
 
 
 @router.post("/query")
+    dependencies=[Depends(require_resource_permission("query", "create"))]
 def execute_bi_query(
     table_name: str = Query(...),
     columns: Optional[List[str]] = Query(None),
@@ -119,6 +123,7 @@ def execute_bi_query(
 
 
 @router.get("/query/{table_name}")
+    dependencies=[Depends(require_resource_permission("query", "view"))]
 def query_table_endpoint(
     table_name: str,
     columns: Optional[List[str]] = Query(None),

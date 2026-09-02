@@ -59,6 +59,7 @@ def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
 
 
 @router.post("", response_model=EmployeeMilestoneItem, summary="Create a milestone (PERSONAL/PROJECT/ORG)")
+    dependencies=[Depends(require_resource_permission(", response_model=EmployeeMilestoneItem, summary=", "create"))]
 def create_milestone_endpoint(
     body: CreateEmployeeMilestoneRequest,
     db: Session = Depends(get_db),

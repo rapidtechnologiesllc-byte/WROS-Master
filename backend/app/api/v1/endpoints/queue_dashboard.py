@@ -25,6 +25,7 @@ router = APIRouter(prefix="/admin/queue-dashboard", tags=["queue-dashboard"])
 
 
 @router.get("/stats")
+    dependencies=[Depends(require_resource_permission("stat", "view"))]
 def get_queue_stats(db: Session = Depends(get_db)):
     """
     Get overall queue statistics.
@@ -87,6 +88,7 @@ def get_queue_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/messages")
+    dependencies=[Depends(require_resource_permission("message", "view"))]
 def list_messages(
     status: Optional[str] = Query(None, description="Filter by status: PENDING, SLM_PROCESSING, CHANNEL_QUEUED, etc."),
     queue_type: Optional[str] = Query(None, description="Filter by queue type: CANDIDATE, INTERVIEW, OFFER, etc."),
@@ -149,6 +151,7 @@ def list_messages(
 
 
 @router.get("/messages/{message_id}")
+    dependencies=[Depends(require_resource_permission("message", "view"))]
 def get_message_details(message_id: str, db: Session = Depends(get_db)):
     """
     Get details for a specific message including its channel queue items.
@@ -215,6 +218,7 @@ def get_message_details(message_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/channels")
+    dependencies=[Depends(require_resource_permission("channel", "view"))]
 def list_channel_items(
     channel_type: Optional[str] = Query(None, description="Filter by channel type"),
     status: Optional[str] = Query(None, description="Filter by status"),
@@ -273,6 +277,7 @@ def list_channel_items(
 
 
 @router.get("/channels/{channel_type}")
+    dependencies=[Depends(require_resource_permission("channel", "view"))]
 def get_channel_details(
     channel_type: str,
     status: Optional[str] = Query(None, description="Filter by status"),
@@ -356,6 +361,7 @@ def get_channel_details(
 
 
 @router.get("/health")
+    dependencies=[Depends(require_resource_permission("health", "view"))]
 def check_health(db: Session = Depends(get_db)):
     """
     Health check - verify workers are running and queues are healthy.

@@ -154,6 +154,7 @@ async def upload_resume(
 
 
 @router.post("/upload/pan", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_pan(
     file: UploadFile = File(..., description="PAN card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -164,6 +165,7 @@ async def upload_pan(
 
 
 @router.post("/upload/aadhar", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_aadhar(
     file: UploadFile = File(..., description="Aadhar card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -174,6 +176,7 @@ async def upload_aadhar(
 
 
 @router.post("/upload/education", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_education_certificate(
     file: UploadFile = File(..., description="Education certificate file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -184,6 +187,7 @@ async def upload_education_certificate(
 
 
 @router.post("/upload/experience", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_experience_letter(
     file: UploadFile = File(..., description="Experience letter file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -194,6 +198,7 @@ async def upload_experience_letter(
 
 
 @router.post("/upload/salary-slip", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_salary_slip(
     file: UploadFile = File(..., description="Salary slip file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -204,6 +209,7 @@ async def upload_salary_slip(
 
 
 @router.post("/upload/bank-statement", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_bank_statement(
     file: UploadFile = File(..., description="Bank statement file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -213,6 +219,7 @@ async def upload_bank_statement(
     return await _upload_document_helper(file, "bank_statement", user, db)
 
 @router.post("/upload/uan-pf", response_model=DocumentUploadResponse)
+    dependencies=[Depends(require_resource_permission("upload", "create"))]
 async def upload_uan_pf(
     file: UploadFile = File(..., description="UAN-PF file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),

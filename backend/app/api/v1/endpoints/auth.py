@@ -59,6 +59,7 @@ SELF_SIGNUP_DEFAULT_ROLE = "Employee"
 
 
 @router.post("/v1/signup", response_model=SignupResponse)
+    dependencies=[Depends(require_resource_permission("v1", "create"))]
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """
     Create a new user account
@@ -103,6 +104,7 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     return SignupResponse(response="User created successfully")
     
 @router.post("/validate-email")
+    dependencies=[Depends(require_resource_permission("validate-email", "create"))]
 def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db)):
     """
     Validate if an email exists as an employee user.
@@ -115,6 +117,7 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
 
 
 @router.post("/login", response_model=UnifiedLoginResponse)
+    dependencies=[Depends(require_resource_permission("login", "create"))]
 def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     """
     Unified login endpoint.
@@ -363,6 +366,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/v1/refresh", response_model=UnifiedLoginResponse)
+    dependencies=[Depends(require_resource_permission("v1", "create"))]
 def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """
     Refresh an access token using a refresh token.

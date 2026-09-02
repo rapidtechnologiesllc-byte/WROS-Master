@@ -129,6 +129,7 @@ def log_leakage_reason(
 
 
 @router.get("/leakage", response_model=LeakageFlagsResponse, summary="List active (unresolved) leakage flags (cached from daily scan)")
+    dependencies=[Depends(require_resource_permission("leakage", "view"))]
 def list_leakage_flags(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -144,6 +145,7 @@ def list_leakage_flags(
 
 
 @router.get("/leakage/statistics", response_model=dict, summary="Get revenue leakage statistics and totals")
+    dependencies=[Depends(require_resource_permission("leakage", "view"))]
 def get_leakage_statistics(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -160,6 +162,7 @@ def get_leakage_statistics(
 
 
 @router.post("/leakage/rescan-all", response_model=dict, summary="Manually trigger full revenue scan (secondary action)")
+    dependencies=[Depends(require_resource_permission("leakage", "create"))]
 def rescan_all_projects(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),

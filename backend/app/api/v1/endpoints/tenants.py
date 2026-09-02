@@ -62,6 +62,7 @@ def _get_current_tenant_or_404(db: Session, current_user: Users) -> Tenant:
 
 
 @router.get("/me/locale", response_model=TenantLocaleResponse, summary="Get this tenant's locale/currency config")
+    dependencies=[Depends(require_resource_permission("me", "view"))]
 def get_tenant_locale(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -71,6 +72,7 @@ def get_tenant_locale(
 
 
 @router.patch("/me/locale", response_model=TenantLocaleResponse, summary="Update this tenant's locale/currency config")
+    dependencies=[Depends(require_resource_permission("me", "update"))]
 def update_tenant_locale_endpoint(
     body: UpdateTenantLocaleRequest,
     db: Session = Depends(get_db),

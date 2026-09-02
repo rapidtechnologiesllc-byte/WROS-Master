@@ -16,6 +16,7 @@ from app.services.autonomous_forecasting_service import AutonomousForecastingSer
 router = APIRouter(prefix="/spartan/forecasting", tags=["forecasting"])
 
 @router.post("/recruitment/forecast")
+    dependencies=[Depends(require_resource_permission("recruitment", "create"))]
 def forecast_recruitment_needs(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -38,6 +39,7 @@ def forecast_recruitment_needs(
 
 
 @router.post("/resources/forecast")
+    dependencies=[Depends(require_resource_permission("resource", "create"))]
 def forecast_resource_needs(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -60,6 +62,7 @@ def forecast_resource_needs(
 
 
 @router.post("/revenue/forecast")
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 def forecast_revenue_needs(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -85,6 +88,7 @@ def forecast_revenue_needs(
 
 
 @router.post("/decision/validate")
+    dependencies=[Depends(require_resource_permission("decision", "create"))]
 def validate_decision(
     decision_type: str,  # "APPROVE_PROPOSAL", "ADJUST_TIMELINE", "HIRE", "SET_PRICING"
     parameters: Dict[str, Any],  # Decision-specific params (margin_percent, delay_days, etc.)
@@ -128,6 +132,7 @@ def validate_decision(
 
 
 @router.post("/alert/generate")
+    dependencies=[Depends(require_resource_permission("alert", "create"))]
 def generate_autonomous_alert(
     alert_type: str,  # "KPI_FALLEN", "DECISION_VIOLATES_POLICY", "FORECAST_NEED"
     content: Dict[str, Any],  # Alert-specific content
@@ -164,6 +169,7 @@ def generate_autonomous_alert(
 
 
 @router.get("/health/summary")
+    dependencies=[Depends(require_resource_permission("health", "view"))]
 def forecasting_system_health(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:

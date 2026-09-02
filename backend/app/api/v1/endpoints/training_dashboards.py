@@ -22,6 +22,7 @@ router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 # ============================================================================
 
 @router.get("/training-certification")
+    dependencies=[Depends(require_resource_permission("training-certification", "view"))]
 def get_training_certification_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -52,6 +53,7 @@ def get_training_certification_dashboard(
 
 
 @router.get("/training-certification/employee/{employee_id}")
+    dependencies=[Depends(require_resource_permission("training-certification", "view"))]
 def get_employee_training_details(
     employee_id: str,
     db: Session = Depends(get_db),
@@ -84,6 +86,7 @@ def get_employee_training_details(
 # ============================================================================
 
 @router.get("/troy-partner")
+    dependencies=[Depends(require_resource_permission("troy-partner", "view"))]
 def get_troy_partner_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)

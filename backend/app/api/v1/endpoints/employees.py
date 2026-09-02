@@ -136,6 +136,7 @@ def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
 
 
 @router.post("", response_model=EmployeeItem, summary="Create an employee profile")
+    dependencies=[Depends(require_resource_permission(", response_model=EmployeeItem, summary=", "create"))]
 def create_employee(
     body: EmployeeCreateRequest,
     db: Session = Depends(get_db),
@@ -341,6 +342,7 @@ async def bulk_import_employees(
 
 
 @router.get("", response_model=EmployeeListResponse, summary="List employees")
+    dependencies=[Depends(require_resource_permission(", response_model=EmployeeListResponse, summary=", "view"))]
 def list_employees(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -455,6 +457,7 @@ def bench_cost_summary(
 
 
 @router.get("/{employee_id}", response_model=EmployeeItem, summary="Get one employee")
+    dependencies=[Depends(require_resource_permission("{employee_id}", "view"))]
 def get_employee(
     employee_id: str,
     db: Session = Depends(get_db),

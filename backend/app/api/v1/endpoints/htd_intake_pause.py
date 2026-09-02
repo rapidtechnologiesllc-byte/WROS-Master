@@ -83,6 +83,7 @@ def check_breach_endpoint(
 
 
 @router.get("/status", response_model=HtdIntakeStatusResponse, summary="Current HTD intake pause status")
+    dependencies=[Depends(require_resource_permission("statu", "view"))]
 def get_status_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -116,6 +117,7 @@ def resume_endpoint(
 
 
 @router.get("/pause-log", response_model=PauseLogResponse, summary="Permanent pause/resume audit trail")
+    dependencies=[Depends(require_resource_permission("pause-log", "view"))]
 def get_pause_log_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),

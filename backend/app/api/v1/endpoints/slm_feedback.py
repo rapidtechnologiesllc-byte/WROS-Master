@@ -62,6 +62,7 @@ class FeedbackStats(BaseModel):
 
 
 @router.post("/feedback/correction")
+    dependencies=[Depends(require_resource_permission("feedback", "create"))]
 def record_correction(
     request: CorrectionRequest,
     db: Session = Depends(get_db),
@@ -132,6 +133,7 @@ def record_correction(
 
 
 @router.post("/feedback/validation")
+    dependencies=[Depends(require_resource_permission("feedback", "create"))]
 def record_validation(
     request: ValidationRequest,
     db: Session = Depends(get_db),
@@ -192,6 +194,7 @@ def record_validation(
 
 
 @router.get("/feedback/stats", response_model=dict)
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
 def get_feedback_stats(
     days: int = 7,
     db: Session = Depends(get_db),
@@ -254,6 +257,7 @@ def get_feedback_stats(
 
 
 @router.get("/feedback/report")
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
 def get_improvement_report(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_internal_user),
@@ -282,6 +286,7 @@ def get_improvement_report(
 
 
 @router.get("/feedback/trajectory")
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
 def get_improvement_trajectory(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_internal_user),
@@ -307,6 +312,7 @@ def get_improvement_trajectory(
 
 
 @router.get("/feedback/patterns/{field_name}")
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
 def get_error_patterns(
     field_name: str,
     limit: int = 20,
@@ -354,6 +360,7 @@ def get_error_patterns(
 
 
 @router.get("/feedback/training-batch")
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
 def get_training_batch(
     min_examples: int = 20,
     db: Session = Depends(get_db),
@@ -407,6 +414,7 @@ def get_training_batch(
 
 
 @router.post("/feedback/bulk-import")
+    dependencies=[Depends(require_resource_permission("feedback", "create"))]
 def bulk_import_corrections(
     corrections: List[CorrectionRequest],
     db: Session = Depends(get_db),

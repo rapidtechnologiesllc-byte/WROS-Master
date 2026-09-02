@@ -108,6 +108,7 @@ def cascade_to_departments(goal: StrategicGoal, cascade_rules: Dict[str, Any]) -
 
 
 @router.post("/strategic")
+    dependencies=[Depends(require_resource_permission("strategic", "create"))]
 async def create_strategic_goal(
     goal_create: StrategicGoalCreate,
     cascade_rules: Dict[str, Any],
@@ -237,6 +238,7 @@ async def create_strategic_goal(
 
 
 @router.get("/strategic")
+    dependencies=[Depends(require_resource_permission("strategic", "view"))]
 async def list_strategic_goals(
     year: int = 2026,
     current_user: Users = Depends(get_current_user),
@@ -279,6 +281,7 @@ async def list_strategic_goals(
 
 
 @router.get("/cascaded")
+    dependencies=[Depends(require_resource_permission("cascaded", "view"))]
 async def get_cascaded_goals(
     department: str = None,
     year: int = 2026,
@@ -356,6 +359,7 @@ async def get_cascaded_goals(
 
 
 @router.put("/strategic/{goal_id}")
+    dependencies=[Depends(require_resource_permission("strategic", "update"))]
 async def update_strategic_goal(
     goal_id: str,
     new_target: float,
@@ -384,6 +388,7 @@ async def update_strategic_goal(
 
 
 @router.post("/strategic/validate-cascade")
+    dependencies=[Depends(require_resource_permission("strategic", "create"))]
 async def ceo_agent_validates_goal_cascade(
     goal_id: str,
     proposed_cascades: Dict[str, Any],
@@ -457,6 +462,7 @@ async def ceo_agent_validates_goal_cascade(
 
 
 @router.get("/flash-validation/{department}")
+    dependencies=[Depends(require_resource_permission("flash-validation", "view"))]
 async def get_flash_validation_goals(
     department: str,
     current_user: Users = Depends(get_current_user),

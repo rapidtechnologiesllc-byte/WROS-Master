@@ -21,6 +21,7 @@ def get_db():
 
 
 @router.get("/summary")
+    dependencies=[Depends(require_resource_permission("summary", "view"))]
 async def get_bu_dashboard_summary(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -49,6 +50,7 @@ async def get_bu_dashboard_summary(
 
 
 @router.get("/team")
+    dependencies=[Depends(require_resource_permission("team", "view"))]
 async def get_team_details(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)

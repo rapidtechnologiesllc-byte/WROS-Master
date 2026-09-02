@@ -36,6 +36,7 @@ router = APIRouter(tags=["expenses"])
 
 
 @router.post("/expenses", response_model=ExpenseItem, status_code=201)
+    dependencies=[Depends(require_resource_permission("expense", "create"))]
 def create_expense(
     body: ExpenseCreateRequest,
     db: Session = Depends(get_db),
@@ -56,6 +57,7 @@ def create_expense(
 
 
 @router.get("/expenses/mine", response_model=ExpenseListResponse)
+    dependencies=[Depends(require_resource_permission("expense", "view"))]
 def list_my_expenses(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -70,6 +72,7 @@ def list_my_expenses(
 
 
 @router.get("/expenses", response_model=ExpenseListResponse)
+    dependencies=[Depends(require_resource_permission("expense", "view"))]
 def list_all_expenses(
     client_id: Optional[str] = None,
     purpose: Optional[str] = None,
@@ -86,6 +89,7 @@ def list_all_expenses(
 
 
 @router.post("/expenses/{expense_id}/approve", response_model=ExpenseItem)
+    dependencies=[Depends(require_resource_permission("expense", "create"))]
 def approve_expense_endpoint(
     expense_id: str,
     db: Session = Depends(get_db),
@@ -98,6 +102,7 @@ def approve_expense_endpoint(
 
 
 @router.post("/expenses/{expense_id}/mark-paid", response_model=ExpenseItem)
+    dependencies=[Depends(require_resource_permission("expense", "create"))]
 def mark_expense_paid_endpoint(
     expense_id: str,
     db: Session = Depends(get_db),
@@ -113,6 +118,7 @@ def mark_expense_paid_endpoint(
 
 
 @router.get("/clients/{client_id}/investment-position", response_model=ClientInvestmentPositionResponse)
+    dependencies=[Depends(require_resource_permission("client", "view"))]
 def get_investment_position(
     client_id: str,
     db: Session = Depends(get_db),

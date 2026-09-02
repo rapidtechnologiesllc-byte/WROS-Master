@@ -101,6 +101,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
 
 
 @router.post("", response_model=AllocationItem, summary="Allocate an employee to a project (demand)")
+    dependencies=[Depends(require_resource_permission(", response_model=AllocationItem, summary=", "create"))]
 def create_allocation(
     body: CreateAllocationRequest,
     db: Session = Depends(get_db),
@@ -137,6 +138,7 @@ def create_allocation(
 
 
 @router.get("/dropdowns/for-create", response_model=AllocationDropdownsResponse, summary="Get employees and demands for allocation form")
+    dependencies=[Depends(require_resource_permission("dropdown", "view"))]
 def get_allocation_dropdowns(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -163,6 +165,7 @@ def get_allocation_dropdowns(
 
 
 @router.get("", response_model=AllocationListResponse, summary="List allocations")
+    dependencies=[Depends(require_resource_permission(", response_model=AllocationListResponse, summary=", "view"))]
 def list_allocations(
     employee_id: Optional[str] = None,
     demand_id: Optional[str] = None,
@@ -179,6 +182,7 @@ def list_allocations(
 
 
 @router.post("/{allocation_id}/end", response_model=AllocationItem, summary="End an allocation")
+    dependencies=[Depends(require_resource_permission("{allocation_id}", "create"))]
 def end_allocation_endpoint(
     allocation_id: str,
     body: EndAllocationRequest,

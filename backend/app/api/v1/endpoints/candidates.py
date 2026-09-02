@@ -46,6 +46,7 @@ from app.utils.uniq_id_generator import candidate_id_generator, generate_passwor
 router = APIRouter(prefix="/candidate", tags=["candidate"])
 
 @router.post("/change_password", response_model=ChangePasswordResponse)
+    dependencies=[Depends(require_resource_permission("change_password", "create"))]
 def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Change candidate password after first login.
@@ -86,6 +87,7 @@ def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db
     )
 
 @router.get("/my-info", response_model=CandidateCompleteResponse)
+    dependencies=[Depends(require_resource_permission("my-info", "view"))]
 def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Get complete information for the authenticated candidate.
@@ -253,6 +255,7 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
 
 
 @router.post("/candidate-form/", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("candidate-form", "create"))]
 def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Create or update candidate information form.
@@ -325,6 +328,7 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db),
 
 
 @router.post("/education-form/", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("education-form", "create"))]
 def candidate_education(request: CandidateEducationForm, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Create or update candidate education forms (supports multiple records).
@@ -386,6 +390,7 @@ def candidate_education(request: CandidateEducationForm, db: Session = Depends(g
 
 
 @router.post("/experience-form/", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("experience-form", "create"))]
 def candidate_experience(request: CandidateExperienceForm, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Create or update candidate experience forms (supports multiple records).
@@ -446,6 +451,7 @@ def candidate_experience(request: CandidateExperienceForm, db: Session = Depends
 
 
 @router.post("/aadhar-form/", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("aadhar-form", "create"))]
 def candidate_aadhar(request: CandidateAadharForm, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Create or update candidate Aadhar form.
@@ -515,6 +521,7 @@ def candidate_aadhar(request: CandidateAadharForm, db: Session = Depends(get_db)
 
 
 @router.post("/pan-form/", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("pan-form", "create"))]
 def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Create or update candidate PAN form.
@@ -589,6 +596,7 @@ def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user
 
 # Individual Education Record Management
 @router.post("/education/add", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("education", "create"))]
 def add_education_record(
     request: EducationRecord,
     db: Session = Depends(get_db),
@@ -629,6 +637,7 @@ def add_education_record(
 
 
 @router.put("/education/{education_id}", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("education", "update"))]
 def update_education_record(
     education_id: int,
     request: EducationRecord,
@@ -682,6 +691,7 @@ def update_education_record(
 
 
 @router.delete("/education/{education_id}", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("education", "delete"))]
 def delete_education_record(
     education_id: int,
     db: Session = Depends(get_db),
@@ -722,6 +732,7 @@ def delete_education_record(
 
 
 @router.get("/education/list")
+    dependencies=[Depends(require_resource_permission("education", "view"))]
 def list_education_records(
     db: Session = Depends(get_db),
     user = Depends(get_current_candidate)
@@ -759,6 +770,7 @@ def list_education_records(
 
 # Individual Experience Record Management
 @router.post("/experience/add", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("experience", "create"))]
 def add_experience_record(
     request: ExperienceRecord,
     db: Session = Depends(get_db),
@@ -798,6 +810,7 @@ def add_experience_record(
 
 
 @router.put("/experience/{experience_id}", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("experience", "update"))]
 def update_experience_record(
     experience_id: int,
     request: ExperienceRecord,
@@ -850,6 +863,7 @@ def update_experience_record(
 
 
 @router.delete("/experience/{experience_id}", response_model=candidateFormResponse)
+    dependencies=[Depends(require_resource_permission("experience", "delete"))]
 def delete_experience_record(
     experience_id: int,
     db: Session = Depends(get_db),
@@ -890,6 +904,7 @@ def delete_experience_record(
 
 
 @router.get("/experience/list")
+    dependencies=[Depends(require_resource_permission("experience", "view"))]
 def list_experience_records(
     db: Session = Depends(get_db),
     user = Depends(get_current_candidate)
@@ -926,6 +941,7 @@ def list_experience_records(
 
 # Individual Form Retrieval
 @router.get("/personal-info", response_model=CandidateInfoResponse)
+    dependencies=[Depends(require_resource_permission("personal-info", "view"))]
 def get_personal_info(
     db: Session = Depends(get_db),
     user = Depends(get_current_candidate)
@@ -962,6 +978,7 @@ def get_personal_info(
 
 
 @router.get("/aadhar", response_model=CandidateAadharResponse)
+    dependencies=[Depends(require_resource_permission("aadhar", "view"))]
 def get_aadhar_info(
     db: Session = Depends(get_db),
     user = Depends(get_current_candidate)
@@ -995,6 +1012,7 @@ def get_aadhar_info(
 
 
 @router.get("/pan", response_model=CandidatePanResponse)
+    dependencies=[Depends(require_resource_permission("pan", "view"))]
 def get_pan_info(
     db: Session = Depends(get_db),
     user = Depends(get_current_candidate)
@@ -1029,6 +1047,7 @@ def get_pan_info(
 
 # Onboarding Status Tracking
 @router.get("/onboarding-status")
+    dependencies=[Depends(require_resource_permission("onboarding-statu", "view"))]
 def get_onboarding_status(
     db: Session = Depends(get_db),
     user = Depends(get_current_candidate)

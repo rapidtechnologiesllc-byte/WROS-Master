@@ -87,6 +87,7 @@ def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
 
 
 @router.post("/generate", response_model=InvoiceItem, summary="Generate a DRAFT invoice for a project+billing period")
+    dependencies=[Depends(require_resource_permission("generate", "create"))]
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
     db: Session = Depends(get_db),
@@ -111,6 +112,7 @@ def generate_invoice_endpoint(
 
 
 @router.post("/{invoice_id}/approve", response_model=InvoiceItem, summary="Approve a DRAFT invoice")
+    dependencies=[Depends(require_resource_permission("{invoice_id}", "create"))]
 def approve_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
@@ -127,6 +129,7 @@ def approve_invoice_endpoint(
 
 
 @router.post("/{invoice_id}/send", response_model=InvoiceItem, summary="Mark an APPROVED invoice as SENT")
+    dependencies=[Depends(require_resource_permission("{invoice_id}", "create"))]
 def send_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
@@ -143,6 +146,7 @@ def send_invoice_endpoint(
 
 
 @router.post("/{invoice_id}/mark-paid", response_model=InvoiceItem, summary="Mark a SENT invoice as PAID")
+    dependencies=[Depends(require_resource_permission("{invoice_id}", "create"))]
 def mark_invoice_paid_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
@@ -159,6 +163,7 @@ def mark_invoice_paid_endpoint(
 
 
 @router.get("", response_model=InvoiceListResponse, summary="List invoices")
+    dependencies=[Depends(require_resource_permission(", response_model=InvoiceListResponse, summary=", "view"))]
 def list_invoices(
     project_id: Optional[str] = None,
     client_id: Optional[str] = None,
@@ -178,6 +183,7 @@ def list_invoices(
 
 
 @router.get("/{invoice_id}", response_model=InvoiceItem, summary="Get one invoice with line items")
+    dependencies=[Depends(require_resource_permission("{invoice_id}", "view"))]
 def get_invoice(
     invoice_id: str,
     db: Session = Depends(get_db),
@@ -188,6 +194,7 @@ def get_invoice(
 
 
 @router.get("/ar/aging", summary="EPIC-16 AR Follow-Up: overdue SENT invoices")
+    dependencies=[Depends(require_resource_permission("ar", "view"))]
 def ar_aging(
     grace_days: int = 30,
     db: Session = Depends(get_db),
@@ -197,6 +204,7 @@ def ar_aging(
 
 
 @router.post("/{invoice_id}/ar/follow-up", summary="EPIC-16 AR Follow-Up: create/return the follow-up Task for this invoice")
+    dependencies=[Depends(require_resource_permission("{invoice_id}", "create"))]
 def ar_follow_up(
     invoice_id: str,
     db: Session = Depends(get_db),

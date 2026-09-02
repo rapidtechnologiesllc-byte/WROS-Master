@@ -2175,6 +2175,7 @@ def get_feedback_by_interview(
 
 
 @router.get("/feedback/{feedback_id}", response_model=InterviewFeedbackWithDetails)
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
 def get_feedback_by_id(
     feedback_id: int,
     db: Session = Depends(get_db),
@@ -2229,6 +2230,7 @@ def get_feedback_by_id(
 
 
 @router.put("/feedback/{feedback_id}", response_model=InterviewFeedbackResponse)
+    dependencies=[Depends(require_resource_permission("feedback", "update"))]
 def update_interview_feedback(
     feedback_id: int,
     request: InterviewFeedbackUpdate,
@@ -2296,6 +2298,7 @@ def update_interview_feedback(
 
 
 @router.delete("/feedback/{feedback_id}", response_model=DeleteResponse)
+    dependencies=[Depends(require_resource_permission("feedback", "delete"))]
 def delete_interview_feedback(
     feedback_id: int,
     db: Session = Depends(get_db),
@@ -2336,6 +2339,7 @@ def delete_interview_feedback(
 # ============================================
 
 @router.get("/statistics", response_model=InterviewStatistics)
+    dependencies=[Depends(require_resource_permission("statistic", "view"))]
 def get_interview_statistics(
     db: Session = Depends(get_db),
     user = Depends(get_current_internal_user)
@@ -2473,6 +2477,7 @@ def get_candidate_interview_history(
 
 
 @router.get("/interviewer-workload/{interviewer_id}", response_model=InterviewerWorkload)
+    dependencies=[Depends(require_resource_permission("interviewer-workload", "view"))]
 def get_interviewer_workload(
     interviewer_id: str,
     db: Session = Depends(get_db),

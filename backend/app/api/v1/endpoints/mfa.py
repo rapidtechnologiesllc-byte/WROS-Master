@@ -64,6 +64,7 @@ class MfaVerifiedResponse(BaseModel):
 
 
 @router.post("/setup", response_model=MfaSetupResponse)
+    dependencies=[Depends(require_resource_permission("setup", "create"))]
 def setup_mfa(
     user: Users = Depends(get_current_mfa_pending_user),
     db: Session = Depends(get_db),
@@ -95,6 +96,7 @@ def setup_mfa(
 
 
 @router.post("/setup/confirm", response_model=MfaVerifiedResponse)
+    dependencies=[Depends(require_resource_permission("setup", "create"))]
 def confirm_mfa_setup(
     body: MfaCodeRequest,
     user: Users = Depends(get_current_mfa_pending_user),
@@ -115,6 +117,7 @@ def confirm_mfa_setup(
 
 
 @router.post("/verify", response_model=MfaVerifiedResponse)
+    dependencies=[Depends(require_resource_permission("verify", "create"))]
 def verify_mfa(
     body: MfaCodeRequest,
     user: Users = Depends(get_current_mfa_pending_user),
@@ -145,6 +148,7 @@ class EmailOtpVerifyRequest(BaseModel):
 
 
 @router.post("/email/resend", response_model=dict)
+    dependencies=[Depends(require_resource_permission("email", "create"))]
 def resend_email_otp(
     user: Users = Depends(get_current_mfa_pending_user),
     db: Session = Depends(get_db),
@@ -176,6 +180,7 @@ def resend_email_otp(
 
 
 @router.post("/email/verify", response_model=MfaVerifiedResponse)
+    dependencies=[Depends(require_resource_permission("email", "create"))]
 def verify_email_otp(
     body: EmailOtpVerifyRequest,
     user: Users = Depends(get_current_mfa_pending_user),
@@ -261,6 +266,7 @@ def _issue_full_candidate_token(candidate: Candidate) -> CandidateOtpVerifiedRes
 
 
 @router.post("/candidate/opt-in", response_model=CandidateOtpOptInResponse)
+    dependencies=[Depends(require_resource_permission("candidate", "create"))]
 def set_candidate_email_2fa_opt_in(
     body: CandidateOtpOptInRequest,
     candidate: Candidate = Depends(get_current_candidate),
@@ -276,6 +282,7 @@ def set_candidate_email_2fa_opt_in(
 
 
 @router.post("/candidate/email/resend")
+    dependencies=[Depends(require_resource_permission("candidate", "create"))]
 def resend_candidate_email_otp(
     candidate: Candidate = Depends(get_current_candidate_otp_pending),
     db: Session = Depends(get_db),
@@ -304,6 +311,7 @@ def resend_candidate_email_otp(
 
 
 @router.post("/candidate/email/verify", response_model=CandidateOtpVerifiedResponse)
+    dependencies=[Depends(require_resource_permission("candidate", "create"))]
 def verify_candidate_email_otp(
     body: EmailOtpVerifyRequest,
     candidate: Candidate = Depends(get_current_candidate_otp_pending),

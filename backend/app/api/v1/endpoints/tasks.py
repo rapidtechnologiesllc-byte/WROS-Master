@@ -44,16 +44,19 @@ def _get_task_or_404(db: Session, task_id: int) -> Task:
 
 
 @router.get("/my-day", response_model=list[TaskResponse])
+    dependencies=[Depends(require_resource_permission("my-day", "view"))]
 def my_day(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return get_daily_task_list(db, assigned_to_user_id=current_user.UserID)
 
 
 @router.get("/my-day/upcoming", response_model=list[TaskResponse])
+    dependencies=[Depends(require_resource_permission("my-day", "view"))]
 def my_day_upcoming(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return get_upcoming_urgent_tasks(db, assigned_to_user_id=current_user.UserID)
 
 
 @router.post("", response_model=TaskResponse)
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
 def create_task_endpoint(
     body: TaskCreateRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -70,18 +73,21 @@ def create_task_endpoint(
 
 
 @router.post("/{task_id}/confirm-urgent", response_model=TaskResponse)
+    dependencies=[Depends(require_resource_permission("{task_id}", "create"))]
 def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)
     return confirm_urgent_task(db, task)
 
 
 @router.post("/{task_id}/complete", response_model=TaskResponse)
+    dependencies=[Depends(require_resource_permission("{task_id}", "create"))]
 def complete(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)
     return complete_task(db, task)
 
 
 @router.post("/reassign-suggest")
+    dependencies=[Depends(require_resource_permission("reassign-suggest", "create"))]
 def reassign_suggest(
     body: MarkUnavailableRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -93,6 +99,7 @@ def reassign_suggest(
 
 
 @router.post("/reassignments/{request_id}/approve")
+    dependencies=[Depends(require_resource_permission("reassignment", "create"))]
 def approve(
     request_id: str, body: ReassignmentApproveRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -104,6 +111,7 @@ def approve(
 
 
 @router.post("/reassignments/{request_id}/reject")
+    dependencies=[Depends(require_resource_permission("reassignment", "create"))]
 def reject(request_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     req = db.query(TaskReassignmentRequest).filter(TaskReassignmentRequest.id == request_id).first()
     if not req:

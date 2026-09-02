@@ -19,6 +19,7 @@ router = APIRouter(prefix="/spartan", tags=["spartan-integration"])
 
 # Finance Endpoints
 @router.post("/finance/invoices")
+    dependencies=[Depends(require_resource_permission("finance", "create"))]
 def create_invoice(
     opportunity_id: str,
     amount: float,
@@ -40,6 +41,7 @@ def create_invoice(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/finance/invoices/{invoice_id}/approve")
+    dependencies=[Depends(require_resource_permission("finance", "create"))]
 def approve_invoice(
     invoice_id: str,
     approved_by: str = "finance@example.com",
@@ -58,6 +60,7 @@ def approve_invoice(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/finance/invoices/bulk-approve")
+    dependencies=[Depends(require_resource_permission("finance", "create"))]
 def bulk_approve_invoices(
     invoice_ids: List[str],
     approved_by: str = "finance@example.com",
@@ -76,6 +79,7 @@ def bulk_approve_invoices(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/finance/revenue/recognize")
+    dependencies=[Depends(require_resource_permission("finance", "create"))]
 def recognize_revenue(
     invoice_id: str,
     amount: float = None,
@@ -95,6 +99,7 @@ def recognize_revenue(
 
 # Timesheet Endpoints
 @router.get("/timesheets/pending")
+    dependencies=[Depends(require_resource_permission("timesheet", "view"))]
 def get_pending_timesheets(
     manager_id: str = None,
     limit: int = 100,
@@ -112,6 +117,7 @@ def get_pending_timesheets(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/timesheets/bulk-approve")
+    dependencies=[Depends(require_resource_permission("timesheet", "create"))]
 def bulk_approve_timesheets(
     timesheet_ids: List[str],
     approved_by: str = "manager@example.com",
@@ -130,6 +136,7 @@ def bulk_approve_timesheets(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/timesheets/kpis")
+    dependencies=[Depends(require_resource_permission("timesheet", "view"))]
 def get_timesheet_kpis(
     manager_id: str = None,
     db: Session = Depends(get_db)
@@ -146,6 +153,7 @@ def get_timesheet_kpis(
 
 # Job Management Endpoints
 @router.put("/jobs/{job_id}")
+    dependencies=[Depends(require_resource_permission("job", "update"))]
 def update_job(
     job_id: str,
     title: str = None,
@@ -173,6 +181,7 @@ def update_job(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/jobs/{job_id}/close")
+    dependencies=[Depends(require_resource_permission("job", "create"))]
 def close_job(
     job_id: str,
     reason: str = "FILLED",
@@ -194,6 +203,7 @@ def close_job(
 
 # Demand Management Endpoints
 @router.post("/demand")
+    dependencies=[Depends(require_resource_permission("demand", "create"))]
 def create_demand(
     resource_type: str,
     quantity: int,
@@ -218,6 +228,7 @@ def create_demand(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/demand/{demand_id}")
+    dependencies=[Depends(require_resource_permission("demand", "update"))]
 def adjust_demand(
     demand_id: str,
     new_quantity: int,
@@ -239,6 +250,7 @@ def adjust_demand(
 
 # KPI Endpoints
 @router.get("/kpis/{phalanx}")
+    dependencies=[Depends(require_resource_permission("kpi", "view"))]
 def get_kpi(
     phalanx: str,
     period: str = "weekly",
@@ -253,6 +265,7 @@ def get_kpi(
 
 # Orchestration Endpoints
 @router.post("/operations/queue")
+    dependencies=[Depends(require_resource_permission("operation", "create"))]
 def queue_operation(
     phalanx: str,  # "recruitment", "resource_management", "finance"
     operation: str,
@@ -291,6 +304,7 @@ def queue_operation(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/formation/status")
+    dependencies=[Depends(require_resource_permission("formation", "view"))]
 def get_formation_status(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -302,6 +316,7 @@ def get_formation_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/phalanx/{phalanx}/integrity")
+    dependencies=[Depends(require_resource_permission("phalanx", "view"))]
 def check_integrity(
     phalanx: str,
     db: Session = Depends(get_db)

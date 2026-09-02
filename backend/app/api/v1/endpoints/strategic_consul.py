@@ -13,6 +13,7 @@ from app.core.logging import logger
 router = APIRouter(prefix="/spartan/governance", tags=["strategic-consul"])
 
 @router.post("/delivery-escalation")
+    dependencies=[Depends(require_resource_permission("delivery-escalation", "create"))]
 def resolve_delivery_escalation(
     escalation_id: str,
     bu_head_decision: str,  # "ALLOCATE_RESOURCES", "ADJUST_TIMELINE", "ESCALATE_TO_PARTNER"
@@ -98,6 +99,7 @@ def resolve_delivery_escalation(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/partner-escalation")
+    dependencies=[Depends(require_resource_permission("partner-escalation", "create"))]
 def resolve_partner_escalation(
     escalation_id: str,
     bu_head_decision: str,  # What the BU Head tried
@@ -161,6 +163,7 @@ def resolve_partner_escalation(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/consul-resolve")
+    dependencies=[Depends(require_resource_permission("consul-resolve", "create"))]
 def resolve_escalation(
     escalation_id: str,
     strategic_decision: str,  # "RETRY_WITH_RESOURCES", "REDIRECT_TO_BACKUP", "ACCEPT_LOSS", "ADJUST_POLICY"
@@ -225,6 +228,7 @@ def resolve_escalation(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/escalations/pending")
+    dependencies=[Depends(require_resource_permission("escalation", "view"))]
 def list_pending_escalations(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -268,6 +272,7 @@ def list_pending_escalations(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/formation/constraints")
+    dependencies=[Depends(require_resource_permission("formation", "view"))]
 def get_active_constraints(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:

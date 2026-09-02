@@ -186,6 +186,7 @@ def list_offer_templates(
 # ============================================
 
 @router.post("/respond", response_model=OfferAcceptanceResponse)
+    dependencies=[Depends(require_resource_permission("respond", "create"))]
 def respond_to_offer(
     request: OfferAcceptanceRequest,
     db: Session = Depends(get_db),
@@ -264,6 +265,7 @@ def respond_to_offer(
 
 
 @router.get("/my-offers", response_model=AllOffersResponse)
+    dependencies=[Depends(require_resource_permission("my-offer", "view"))]
 def get_my_offers(
     db: Session = Depends(get_db),
     candidate=Depends(get_current_candidate),

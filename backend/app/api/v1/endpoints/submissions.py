@@ -145,6 +145,7 @@ def submit_candidate(
 
 
 @router.get("", response_model=SubmissionListResponse, summary="List submissions")
+    dependencies=[Depends(require_resource_permission(", response_model=SubmissionListResponse, summary=", "view"))]
 def list_submissions(
     demand_id: Optional[str] = None,
     db: Session = Depends(get_db),

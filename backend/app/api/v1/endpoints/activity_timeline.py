@@ -35,6 +35,7 @@ router = APIRouter(tags=["activity-timeline"])
 
 
 @router.get("/activity-timeline/{entity_type}/{entity_id}", response_model=TimelineResponse)
+    dependencies=[Depends(require_resource_permission("activity-timeline", "view"))]
 def get_timeline(
     entity_type: str, entity_id: str, page: int = 1, per_page: int = 25,
     current_user: Users = Depends(get_current_internal_user),
@@ -46,6 +47,7 @@ def get_timeline(
 
 
 @router.post("/activity-timeline/{entity_type}/{entity_id}", response_model=TimelineResponse)
+    dependencies=[Depends(require_resource_permission("activity-timeline", "create"))]
 def post_timeline_entry(
     entity_type: str, entity_id: str, body: WriteTimelineEntryRequest,
     current_user: Users = Depends(get_current_internal_user),
@@ -60,6 +62,7 @@ def post_timeline_entry(
 
 
 @router.post("/file-uploads/{entity_type}/{entity_id}", response_model=FileUploadOut)
+    dependencies=[Depends(require_resource_permission("file-upload", "create"))]
 def post_file_upload(
     entity_type: str, entity_id: str,
     file_category: str = "GENERIC",
@@ -84,6 +87,7 @@ def post_file_upload(
 
 
 @router.get("/file-uploads/{file_id}/access-url", response_model=FileAccessUrlResponse)
+    dependencies=[Depends(require_resource_permission("file-upload", "view"))]
 def get_access_url(
     file_id: int,
     current_user: Users = Depends(get_current_internal_user),
@@ -98,6 +102,7 @@ def get_access_url(
 
 
 @router.get("/file-uploads/{entity_type}/{entity_id}", response_model=list[FileUploadOut])
+    dependencies=[Depends(require_resource_permission("file-upload", "view"))]
 def get_files_for_entity(
     entity_type: str, entity_id: str,
     current_user: Users = Depends(get_current_internal_user),

@@ -60,6 +60,8 @@ def create_cycle(body: FeedbackCycleCreateRequest, db: Session = Depends(get_db)
 
 @router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_internal_user)])
 def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
     cycle = db.query(EmployeeFeedbackCycle).filter(EmployeeFeedbackCycle.id == cycle_id).first()
     if not cycle:
         raise HTTPException(status_code=404, detail=f"Feedback cycle {cycle_id!r} not found.")
@@ -67,6 +69,7 @@ def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_interna
 
 
 @router.post("/feedback-cycles/{cycle_id}/responses")
+    dependencies=[Depends(require_resource_permission("feedback-cycle", "create"))]
 def submit_response(
     cycle_id: str, body: FeedbackSubmitRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -90,6 +93,7 @@ def birthday_drafts(db: Session = Depends(get_db)):
 
 
 @router.post("/recognition/{draft_id}/approve", response_model=RecognitionDraftResponse)
+    dependencies=[Depends(require_resource_permission("recognition", "create"))]
 def approve_recognition(draft_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:
@@ -109,6 +113,7 @@ def reject_recognition_endpoint(draft_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/concerns", response_model=ConcernResponse)
+    dependencies=[Depends(require_resource_permission("concern", "create"))]
 def raise_concern(body: ConcernSubmitRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     employee = _current_employee(db, current_user)
     return submit_concern(db, employee, body.message_text)

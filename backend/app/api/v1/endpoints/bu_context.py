@@ -73,6 +73,7 @@ async def get_active_business_unit_id(
 
 
 @router.get("/my-access", response_model=MyBUAccessResponse)
+    dependencies=[Depends(require_resource_permission("my-acce", "view"))]
 def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     """
     Get the business units this user has access to.
@@ -116,6 +117,7 @@ def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: S
 
 
 @router.post("/switch")
+    dependencies=[Depends(require_resource_permission("switch", "create"))]
 def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     try:
         switch_active_bu(db, current_user, body.business_unit_id)
@@ -125,6 +127,7 @@ def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_i
 
 
 @router.post("/all-bus")
+    dependencies=[Depends(require_resource_permission("all-bu", "create"))]
 def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     try:
         entry = activate_all_bus_view(db, current_user)

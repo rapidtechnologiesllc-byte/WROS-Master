@@ -265,6 +265,7 @@ class BusinessUnitCreateRequest(BaseModel):
     description: Optional[str] = None
 
 @router.get("/business-units")
+    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
 def list_business_units(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -305,6 +306,7 @@ def list_business_units(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.post("/business-units")
+    dependencies=[Depends(require_resource_permission("business-unit", "create"))]
 def create_business_unit(
     req: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
@@ -346,6 +348,7 @@ def create_business_unit(
     }
 
 @router.put("/business-units/{bu_id}")
+    dependencies=[Depends(require_resource_permission("business-unit", "update"))]
 def update_business_unit(
     bu_id: int,
     req: BusinessUnitCreateRequest,
@@ -386,6 +389,7 @@ def update_business_unit(
     }
 
 @router.delete("/business-units/{bu_id}")
+    dependencies=[Depends(require_resource_permission("business-unit", "delete"))]
 def delete_business_unit(
     bu_id: int,
     db: Session = Depends(get_db),
@@ -420,6 +424,7 @@ class DeliveryCenterCreateRequest(BaseModel):
     headcount: Optional[int] = 0
 
 @router.get("/delivery-centers")
+    dependencies=[Depends(require_resource_permission("delivery-center", "view"))]
 def list_delivery_centers(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -454,6 +459,7 @@ def list_delivery_centers(
     }
 
 @router.post("/delivery-centers")
+    dependencies=[Depends(require_resource_permission("delivery-center", "create"))]
 def create_delivery_center(
     req: DeliveryCenterCreateRequest,
     db: Session = Depends(get_db),
@@ -488,6 +494,7 @@ def create_delivery_center(
     }
 
 @router.put("/delivery-centers/{dc_id}")
+    dependencies=[Depends(require_resource_permission("delivery-center", "update"))]
 def update_delivery_center(
     dc_id: int,
     req: DeliveryCenterCreateRequest,
@@ -525,6 +532,7 @@ def update_delivery_center(
     }
 
 @router.delete("/delivery-centers/{dc_id}")
+    dependencies=[Depends(require_resource_permission("delivery-center", "delete"))]
 def delete_delivery_center(
     dc_id: int,
     db: Session = Depends(get_db),
@@ -563,6 +571,7 @@ class OrgNodeUpdateRequest(BaseModel):
     location: Optional[str] = None
 
 @router.get("/organizational-hierarchy")
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "view"))]
 def get_organizational_hierarchy(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -597,6 +606,7 @@ def get_organizational_hierarchy(
     }
 
 @router.post("/organizational-hierarchy")
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "create"))]
 def create_org_node(
     req: OrgNodeCreateRequest,
     db: Session = Depends(get_db),
@@ -631,6 +641,7 @@ def create_org_node(
     }
 
 @router.put("/organizational-hierarchy/{node_id}")
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "update"))]
 def update_org_node(
     node_id: int,
     req: OrgNodeUpdateRequest,
@@ -668,6 +679,7 @@ def update_org_node(
     }
 
 @router.delete("/organizational-hierarchy/{node_id}")
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "delete"))]
 def delete_org_node(
     node_id: int,
     db: Session = Depends(get_db),
@@ -698,6 +710,7 @@ class RoleTemplateCreateRequest(BaseModel):
     permissions: Optional[list] = []
 
 @router.get("/role-templates")
+    dependencies=[Depends(require_resource_permission("role-template", "view"))]
 def list_role_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -731,6 +744,7 @@ def list_role_templates(
     }
 
 @router.get("/role-templates/{template_id}")
+    dependencies=[Depends(require_resource_permission("role-template", "view"))]
 def get_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -778,6 +792,7 @@ def get_role_template(
 
 
 @router.post("/role-templates")
+    dependencies=[Depends(require_resource_permission("role-template", "create"))]
 def create_role_template(
     req: RoleTemplateCreateRequest,
     db: Session = Depends(get_db),
@@ -812,6 +827,7 @@ def create_role_template(
     }
 
 @router.put("/role-templates/{template_id}")
+    dependencies=[Depends(require_resource_permission("role-template", "update"))]
 def update_role_template(
     template_id: int,
     req: RoleTemplateCreateRequest,
@@ -845,6 +861,7 @@ def update_role_template(
     }
 
 @router.delete("/role-templates/{template_id}")
+    dependencies=[Depends(require_resource_permission("role-template", "delete"))]
 def delete_role_template(
     template_id: int,
     db: Session = Depends(get_db),

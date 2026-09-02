@@ -46,6 +46,7 @@ def _to_item(n: Notification) -> NotificationItem:
 
 
 @router.get("", response_model=NotificationListResponse, summary="This user's in-app notification feed + unread count")
+    dependencies=[Depends(require_resource_permission(", response_model=NotificationListResponse, summary=", "view"))]
 def list_notifications(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -56,6 +57,7 @@ def list_notifications(
 
 
 @router.post("/{notification_id}/mark-read", response_model=NotificationItem, summary="Mark one notification read")
+    dependencies=[Depends(require_resource_permission("{notification_id}", "create"))]
 def mark_notification_read(
     notification_id: str,
     db: Session = Depends(get_db),

@@ -217,6 +217,7 @@ async def reject_candidate(
 # ────────────────────────────────────────────────────────────────────────────
 
 @router.get("/health", status_code=status.HTTP_200_OK)
+    dependencies=[Depends(require_resource_permission("health", "view"))]
 async def health_check():
     """Health check for interview decision service."""
     return {

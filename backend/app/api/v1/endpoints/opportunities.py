@@ -80,6 +80,7 @@ def _scoped_query(db: Session, current_user: Users):
 
 
 @router.post("", response_model=OpportunityItem, status_code=201)
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
 def create_opportunity_endpoint(
     body: OpportunityCreateRequest,
     db: Session = Depends(get_db),
@@ -103,6 +104,7 @@ def create_opportunity_endpoint(
 
 
 @router.get("", response_model=OpportunityListResponse)
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
 def list_opportunities(
     stage: Optional[str] = None,
     client_id: Optional[str] = None,
@@ -119,6 +121,7 @@ def list_opportunities(
 
 
 @router.get("/eligible-owners")
+    dependencies=[Depends(require_resource_permission("eligible-owner", "view"))]
 def list_eligible_owners(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -142,6 +145,7 @@ def list_eligible_owners(
 
 
 @router.get("/pipeline", response_model=PipelineResponse)
+    dependencies=[Depends(require_resource_permission("pipeline", "view"))]
 def get_pipeline(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -163,6 +167,7 @@ def get_pipeline(
 
 
 @router.get("/{opportunity_id}", response_model=OpportunityItem)
+    dependencies=[Depends(require_resource_permission("{opportunity_id}", "view"))]
 def get_opportunity(
     opportunity_id: str,
     db: Session = Depends(get_db),
@@ -175,6 +180,7 @@ def get_opportunity(
 
 
 @router.post("/{opportunity_id}/transition", response_model=OpportunityStageTransitionResponse)
+    dependencies=[Depends(require_resource_permission("{opportunity_id}", "create"))]
 def transition_opportunity_stage(
     opportunity_id: str,
     body: OpportunityStageTransitionRequest,
@@ -204,6 +210,7 @@ def transition_opportunity_stage(
 
 
 @router.get("/{opportunity_id}/revenue-rollup")
+    dependencies=[Depends(require_resource_permission("{opportunity_id}", "view"))]
 def get_revenue_rollup(
     opportunity_id: str,
     db: Session = Depends(get_db),
@@ -216,6 +223,7 @@ def get_revenue_rollup(
 
 
 @router.post("/{opportunity_id}/role-demand", response_model=RoleDemandFromOpportunityResponse, status_code=201)
+    dependencies=[Depends(require_resource_permission("{opportunity_id}", "create"))]
 def create_role_demand(
     opportunity_id: str,
     body: RoleDemandFromOpportunityRequest,

@@ -51,6 +51,7 @@ def get_icon_for_resource(resource_name: str) -> str:
 
 
 @router.get("/navigation")
+    dependencies=[Depends(require_resource_permission("navigation", "view"))]
 def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Get personalized navigation structure for the logged-in user.

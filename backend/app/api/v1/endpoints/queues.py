@@ -19,6 +19,7 @@ router = APIRouter(prefix="/queues", tags=["queues"])
 
 
 @router.get("")
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
 def get_queue_messages(
     queue_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -100,6 +101,7 @@ def get_queue_messages(
 
 
 @router.get("/stats")
+    dependencies=[Depends(require_resource_permission("stat", "view"))]
 def get_queue_stats():
     """
     Get queue statistics.

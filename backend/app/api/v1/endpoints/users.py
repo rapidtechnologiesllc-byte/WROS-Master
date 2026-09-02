@@ -145,6 +145,8 @@ def update_digest_preference(
     summary="Get current user's permissions for frontend access control",
 )
 def get_current_user_permissions(
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):

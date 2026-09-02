@@ -46,6 +46,7 @@ def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List
 
 
 @router.get("/forecast-vs-actual", response_model=ForecastVsActualResponse)
+    dependencies=[Depends(require_resource_permission("forecast-vs-actual", "view"))]
 def forecast_vs_actual(
     year: int, month: int,
     db: Session = Depends(get_db),
@@ -58,6 +59,7 @@ def forecast_vs_actual(
 
 
 @router.get("/forecast-vs-actual/bu/{business_unit_id}", response_model=ForecastVsActualResponse)
+    dependencies=[Depends(require_resource_permission("forecast-vs-actual", "view"))]
 def forecast_vs_actual_by_bu(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
@@ -70,6 +72,7 @@ def forecast_vs_actual_by_bu(
 
 
 @router.get("/forecast-vs-actual/trend", response_model=ForecastVsActualTrendResponse)
+    dependencies=[Depends(require_resource_permission("forecast-vs-actual", "view"))]
 def forecast_vs_actual_trend(
     year: int,
     db: Session = Depends(get_db),
@@ -83,6 +86,7 @@ def forecast_vs_actual_trend(
 
 
 @router.post("/revenue-leakage/scan", response_model=PipelineLeakageScanResponse)
+    dependencies=[Depends(require_resource_permission("revenue-leakage", "create"))]
 def scan_leakage(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -99,6 +103,7 @@ def scan_leakage(
 
 
 @router.get("/revenue-leakage/active", response_model=PipelineLeakageScanResponse)
+    dependencies=[Depends(require_resource_permission("revenue-leakage", "view"))]
 def active_leakage(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -110,6 +115,7 @@ def active_leakage(
 
 
 @router.post("/revenue-leakage/{flag_id}/resolve", response_model=PipelineLeakageFlagItem)
+    dependencies=[Depends(require_resource_permission("revenue-leakage", "create"))]
 def resolve_flag(
     flag_id: str, body: ResolveLeakageFlagRequest,
     db: Session = Depends(get_db),
