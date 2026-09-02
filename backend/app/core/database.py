@@ -34,12 +34,11 @@ import sys
 print(f"[STARTUP] DATABASE_URL={DATABASE_URL[:70]}...", file=sys.stderr)
 print(f"[STARTUP] Connecting to database...", file=sys.stderr)
 
-# Allow SQLite for local development, PostgreSQL for production
-if not (DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("sqlite://")):
+if not DATABASE_URL.startswith("postgresql://"):
     raise ValueError(
         f"Invalid DATABASE_URL: '{DATABASE_URL[:30]}...'. "
-        "Only PostgreSQL (production) and SQLite (local dev) are supported. "
-        "Format: postgresql://user:pass@host:port/db or sqlite:///path/to/db.sqlite3"
+        "Only PostgreSQL is supported (no SQLite in production). "
+        "Format: postgresql://username:password@host:port/database_name"
     )
 
 # 🚨 SAFETY CHECK: Prevent production database access from local development
