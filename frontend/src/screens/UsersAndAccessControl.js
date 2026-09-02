@@ -364,6 +364,10 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [createTemplatePermissions, setCreateTemplatePermissions] = useState({});
   const [createTemplateModuleStates, setCreateTemplateModuleStates] = useState({});
   const [createTemplateExpandedModules, setCreateTemplateExpandedModules] = useState({});
+  const [showUsersModal, setShowUsersModal] = useState(false);
+  const [selectedRoleForUsers, setSelectedRoleForUsers] = useState(null);
+  const [roleUsers, setRoleUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   // Fetch template details when editingTemplateId changes
   useEffect(() => {
@@ -401,6 +405,25 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       if (u.user_role === templateName) return true;
       return false;
     }).length;
+  };
+
+  // Fetch users for a specific role template
+  const handleShowUsers = async (roleId, roleName) => {
+    setSelectedRoleForUsers({ id: roleId, name: roleName });
+    setShowUsersModal(true);
+    setLoadingUsers(true);
+
+    try {
+      const { data } = await apiRequest(`/admin/role-templates/${roleId}/users`, {
+        method: "GET"
+      });
+      setRoleUsers(data.users || []);
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+      setRoleUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
   };
 
   // Convert flat permission list to hierarchical structure { module: { verb: true } }
@@ -722,7 +745,18 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                 </p>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">{userCount} user{userCount !== 1 ? 's' : ''}</span>
+                  <button
+                    onClick={() => userCount > 0 && handleShowUsers(role.id, role.name)}
+                    disabled={userCount === 0}
+                    className={`text-xs font-medium transition ${
+                      userCount > 0
+                        ? 'text-blue-600 hover:text-blue-700 cursor-pointer'
+                        : 'text-gray-400 cursor-not-allowed'
+                    }`}
+                    title={userCount > 0 ? 'Click to view users' : 'No users assigned'}
+                  >
+                    {userCount} user{userCount !== 1 ? 's' : ''}
+                  </button>
                   <button
                     onClick={() => setEditingTemplateId(role.id)}
                     disabled={!isActive}
@@ -755,6 +789,58 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           }}
           modules={modules}
         />
+      )}
+
+      {/* Users Modal */}
+      {showUsersModal && selectedRoleForUsers && (
+        <SimpleModal
+          isOpen={true}
+          onClose={() => {
+            setShowUsersModal(false);
+            setSelectedRoleForUsers(null);
+            setRoleUsers([]);
+          }}
+          title={`Users in "${selectedRoleForUsers.name}" Role`}
+        >
+          <div className="space-y-4">
+            {loadingUsers ? (
+              <div className="text-center py-8 text-gray-500">Loading users...</div>
+            ) : roleUsers.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No users assigned to this role</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 border-b">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold">Name</th>
+                      <th className="px-4 py-2 text-left font-semibold">Email</th>
+                      <th className="px-4 py-2 text-left font-semibold">Business Unit</th>
+                      <th className="px-4 py-2 text-left font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roleUsers.map(user => (
+                      <tr key={user.user_id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2">{user.name}</td>
+                        <td className="px-4 py-2">{user.email}</td>
+                        <td className="px-4 py-2 text-gray-600">{user.business_unit || '-'}</td>
+                        <td className="px-4 py-2">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            user.active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {user.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </SimpleModal>
       )}
     </div>
   );
