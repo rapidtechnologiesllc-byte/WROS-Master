@@ -150,7 +150,7 @@ jobs:
              pkill -9 -f 'uvicorn app.main' 2>/dev/null || true; \
              sleep 3; \
              cd /home/HRMS/WROS-Master/backend && \
-             nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload > /tmp/backend.log 2>&1 & \
+             nohup /home/HRMS/WROS-Master/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 & \
              sleep 2; \
              curl -s http://127.0.0.1:8080/health || echo 'Health check attempt'"
         continue-on-error: true
