@@ -141,6 +141,14 @@ jobs:
             "sudo systemctl reload nginx || echo 'Nginx reload failed'"
         continue-on-error: true
 
+      - name: Initialize PostgreSQL database and create admin user
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd /home/HRMS/WROS-Master/backend && \
+             /home/HRMS/WROS-Master/venv/bin/python -c 'from app.models.base import Base; from app.core.database import engine; from app import models; Base.metadata.create_all(bind=engine); print(\"Database tables created\")' && \
+             /home/HRMS/WROS-Master/venv/bin/python scripts/create_admin_user.py"
+        continue-on-error: true
+
       - name: Restart backend service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
