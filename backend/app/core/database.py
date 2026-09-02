@@ -60,10 +60,9 @@ engine = create_engine(DATABASE_URL, **_engine_kwargs)
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_conn, connection_record):
     if "sqlite" not in DATABASE_URL.lower():
-        # PostgreSQL only — use app_schema where app_user has CREATE privileges
+        # PostgreSQL only — tables are in public schema, use public first
         cursor = dbapi_conn.cursor()
-        cursor.execute("CREATE SCHEMA IF NOT EXISTS app_schema")
-        cursor.execute("SET search_path TO app_schema, public")
+        cursor.execute("SET search_path TO public, app_schema")
         cursor.close()
 
 # SessionLocal class
