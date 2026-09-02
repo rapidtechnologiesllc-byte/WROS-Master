@@ -22,7 +22,7 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Configuration
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # Set via environment variable
 REPO_OWNER = "rapidtechnologiesllc-byte"
 REPO_NAME = "WROS-Master"
 PROJECT_ID = "PVT_kwHOD2fGNs4BgS1H"

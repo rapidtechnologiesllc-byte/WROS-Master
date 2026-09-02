@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 # -*- coding: utf-8 -*-
 """
 Add all created GitHub issues to project board in batch
@@ -11,7 +12,7 @@ import sys
 import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 PROJECT_ID = "PVT_kwHOD2fGNs4BgS1H"
 REPO_OWNER = "rapidtechnologiesllc-byte"
 REPO_NAME = "WROS-Master"

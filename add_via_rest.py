@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import os
 # -*- coding: utf-8 -*-
 import requests
 import sys
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 PROJECT_ID = "PVT_kwHOD2fGNs4BgS1H"
 REPO = "rapidtechnologiesllc-byte/WROS-Master"
 
